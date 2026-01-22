@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="/favicon.svg"
+  />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+  />
+
+  <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  >
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  >
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cascadia+Code:ital,wght@0,200..700;1,200..700&display=swap"
+    rel="stylesheet"
+  >
+
+
+  <title>rivvon</title>
+</head>
+
+<body>
+  <!-- Blurred texture background -->
+  <div
+    id="blurredBackground"
+    class="blurred-background"
+  ></div>
+
+
+  <!-- Renderer indicator -->
+  <div
+    id="rendererIndicator"
+    class="renderer-indicator"
+  ></div>
+
+  <!-- Logo in top left -->
+  <a
+    id="appLogo"
+    href="/"
+    class="app-logo"
+  >
+    <img
+      src="/rivvon.svg"
+      alt="Rivvon"
+    />
+  </a>
+
+  <button
+    id="fullscreenBtn"
+    title="Toggle fullscreen"
+  >
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+    </svg>
+  </button>
+
+  <!-- Finish Drawing button with countdown (shown in drawing mode) -->
+  <button
+    id="finishDrawingBtn"
+    title="Finish drawing and create ribbons"
+  >
+    <img
+      src="/check.svg"
+      class="finish-icon"
+      alt="Finish"
+    />
+    <span id="countdownSeconds"></span>
+  </button>
+
+  <!-- Bottom right menu container -->
+  <div id="bottomRightMenu">
+    <div id="modeToggleButtons">
+      <button id="drawToggleBtn">
+        <img
+          src="/draw.svg"
+          class="toggle-icon draw-icon"
+          alt="Draw mode"
+        />
+      </button>
+      <button id="viewToggleBtn">
+        <img
+          src="/view.svg"
+          class="toggle-icon view-icon"
+          alt="View mode"
+        />
+      </button>
+    </div>
+
+    <!-- Text to SVG button -->
+    <button
+      id="textToSvgBtn"
+      title="Create ribbon from text"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <polyline points="4 7 4 4 20 4 20 7"></polyline>
+        <line
+          x1="9"
+          y1="20"
+          x2="15"
+          y2="20"
+        ></line>
+        <line
+          x1="12"
+          y1="4"
+          x2="12"
+          y2="20"
+        ></line>
+      </svg>
+    </button>
+
+    <!-- Browse remote textures button -->
+    <button
+      id="browseTexturesBtn"
+      title="Browse texture library"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <rect
+          x="3"
+          y="3"
+          width="7"
+          height="7"
+        ></rect>
+        <rect
+          x="14"
+          y="3"
+          width="7"
+          height="7"
+        ></rect>
+        <rect
+          x="14"
+          y="14"
+          width="7"
+          height="7"
+        ></rect>
+        <rect
+          x="3"
+          y="14"
+          width="7"
+          height="7"
+        ></rect>
+      </svg>
+    </button>
+
+    <button
+      id="importSvgBtn"
+      title="Import SVG or ZIP texture pack"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line
+          x1="12"
+          y1="3"
+          x2="12"
+          y2="15"
+        ></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Text Input Panel (hidden by default) -->
+  <div
+    id="textInputPanel"
+    class="text-input-panel"
+  >
+    <div class="text-panel-header">
+      <h3>rivvon from text</h3>
+      <button
+        id="closeTextPanelBtn"
+        class="close-btn"
+      >&times;</button>
+    </div>
+    <div class="text-panel-content">
+      <label for="textInputField">Enter text:</label>
+      <input
+        type="text"
+        id="textInputField"
+        placeholder="Type your text here..."
+      />
+      <label for="fontSelector">Font:</label>
+      <select id="fontSelector">
+        <option value="">Loading fonts...</option>
+      </select>
+      <button
+        id="generateTextBtn"
+        class="generate-btn"
+      >Go</button>
+    </div>
+  </div>
+
+  <!-- Hidden file input for SVG/ZIP import -->
+  <input
+    type="file"
+    id="svgFileInput"
+    accept=".svg,.zip"
+    style="display: none;"
+  />
+
+  <div id="checkerboard"></div>
+
+  <canvas id="drawCanvas"></canvas>
+
+  <script
+    type="module"
+    src="/src/main.js"
+  ></script>
+  <script>
+    // Load Eruda dev tools if ?eruda parameter is present
+    if (new URLSearchParams(window.location.search).has('eruda')) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+      script.onload = () => eruda.init();
+      document.body.appendChild(script);
+    }
+  </script>
+</body>
+
+</html>

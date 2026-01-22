@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* Highlight the upload area when dragging files over the page */
+body.hover .upload-area {
+    border-color: #22c55e;
+    background-color: #dcfce7;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
+}
+
+canvas {
+    max-width: 100%;
+}
+
+.cascadia {
+    font-family: "Cascadia Code", sans-serif;
+    font-optical-sizing: auto;
+}
+
+.slyce {
+    font-weight: 900;
+    font-style: italic;
+    font-size: 4rem;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.25rem;
+}
+
+.tagline {
+    font-weight: 300;
+    font-style: regular;
+    font-size: 1.2rem;
+}

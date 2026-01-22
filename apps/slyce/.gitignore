@@ -1,0 +1,7 @@
+node_modules
+dist
+.vscode
+
+# Environment variables
+.env
+.env.local

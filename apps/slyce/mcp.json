@@ -1,0 +1,19 @@
+{
+    "servers": {
+        "chrome-devtools": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "chrome-devtools-mcp@latest",
+                "-e=C:\\Users\\harol\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe"
+            ]
+        },
+        "context7": {
+            "type": "http",
+            "url": "https://mcp.context7.com/mcp",
+            "headers": {
+                "CONTEXT7_API_KEY": "ctx7sk-343fde23-c148-4304-9c1c-ee993db62f5c"
+            }
+        }
+    }
+}

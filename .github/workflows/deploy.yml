@@ -1,0 +1,182 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PNPM_VERSION: 9.15.0
+  NODE_VERSION: 20
+
+jobs:
+  # Detect which apps have changes
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      slyce: ${{ steps.filter.outputs.slyce }}
+      rivvon: ${{ steps.filter.outputs.rivvon }}
+      api: ${{ steps.filter.outputs.api }}
+      packages: ${{ steps.filter.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            slyce:
+              - 'apps/slyce/**'
+            rivvon:
+              - 'apps/rivvon/**'
+            api:
+              - 'apps/api/**'
+            packages:
+              - 'packages/**'
+
+  # Deploy Slyce frontend
+  deploy-slyce:
+    needs: detect-changes
+    if: |
+      github.event_name == 'push' && 
+      (needs.detect-changes.outputs.slyce == 'true' || 
+       needs.detect-changes.outputs.packages == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build Slyce
+        run: pnpm --filter slyce build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/slyce
+          command: pages deploy dist --project-name=slyce --branch=main
+
+  # Deploy Rivvon frontend
+  deploy-rivvon:
+    needs: detect-changes
+    if: |
+      github.event_name == 'push' && 
+      (needs.detect-changes.outputs.rivvon == 'true' || 
+       needs.detect-changes.outputs.packages == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build Rivvon
+        run: pnpm --filter rivvon build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/rivvon
+          command: pages deploy dist --project-name=rivvon --branch=main
+
+  # Deploy API Worker
+  deploy-api:
+    needs: detect-changes
+    if: |
+      github.event_name == 'push' && 
+      (needs.detect-changes.outputs.api == 'true' || 
+       needs.detect-changes.outputs.packages == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          command: deploy
+
+  # Preview deployments for PRs
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build all
+        run: pnpm build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL_PREVIEW }}
+      
+      - name: Deploy Slyce Preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/slyce
+          command: pages deploy dist --project-name=slyce --branch=${{ github.head_ref }}
+
+      - name: Deploy Rivvon Preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/rivvon
+          command: pages deploy dist --project-name=rivvon --branch=${{ github.head_ref }}

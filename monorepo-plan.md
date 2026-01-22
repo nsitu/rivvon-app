@@ -63,12 +63,7 @@ rivvon-app/
 
 #### 1.1 Create New Repository
 
-```bash
-# Create new directory
-mkdir rivvon-app
-cd rivvon-app
-git init
-
+```bash  
 # Create directory structure
 mkdir -p apps/slyce apps/rivvon apps/api packages .github/workflows
 ```

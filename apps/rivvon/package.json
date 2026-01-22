@@ -1,0 +1,20 @@
+{
+  "name": "rivvon",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "echo 'No linter configured'"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "svgpath": "^2.6.0",
+    "three": "^0.182.0"
+  }
+}
