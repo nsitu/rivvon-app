@@ -1,9 +1,18 @@
 {
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "editor.formatOnSave": true,
-  "eslint.workingDirectories": [
-    { "directory": "apps/slyce", "changeProcessCWD": true },
-    { "directory": "apps/rivvon", "changeProcessCWD": true },
-    { "directory": "apps/api", "changeProcessCWD": true }
-  ]
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "editor.formatOnSave": true,
+    "eslint.workingDirectories": [
+        {
+            "directory": "apps/slyce",
+            "changeProcessCWD": true
+        },
+        {
+            "directory": "apps/rivvon",
+            "changeProcessCWD": true
+        },
+        {
+            "directory": "apps/api",
+            "changeProcessCWD": true
+        }
+    ]
 }
