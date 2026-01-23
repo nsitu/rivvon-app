@@ -169,7 +169,7 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
  */
 export async function loadSvgPath(url, numPoints = 100, scale = 1, z = 0) {
     try {
-        console.log('[SVG] Loading from URL:', url);
+        console.log('[SVG] Loading SVG from URL:', url);
         const response = await fetch(url);
         console.log('[SVG] Response status:', response.status, 'Content-Type:', response.headers.get('content-type'));
         const svgText = await response.text();
