@@ -96,6 +96,10 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
  */
 export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1, z = 0) {
     try {
+        // Log the first 200 chars to see what we're actually receiving
+        console.log('[SVG] Content preview:', svgContent.substring(0, 200));
+        console.log('[SVG] Content type check:', typeof svgContent, 'Length:', svgContent.length);
+
         // Parse SVG content
         const parser = new DOMParser();
         const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
@@ -104,6 +108,8 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
         const parserError = svgDoc.querySelector("parsererror");
         if (parserError) {
             console.error("SVG parsing error:", parserError);
+            console.error("SVG content first 500 chars:", svgContent.substring(0, 500));
+            console.error("SVG content starts with:", svgContent.substring(0, 50));
             return [];
         }
 
