@@ -68,12 +68,24 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
       
       - name: Deploy to Cloudflare Pages
+        id: deploy-slyce
         uses: cloudflare/wrangler-action@v3
+        continue-on-error: true
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/slyce
-          command: pages deploy dist --project-name=slyce --branch=main
+          command: pages deploy dist --project-name=slyce --branch=main --commit-dirty=true
+
+      - name: Show Wrangler logs on failure
+        if: steps.deploy-slyce.outcome == 'failure'
+        run: |
+          echo "Deployment failed. Showing logs:"
+          find ~/.config/.wrangler/logs -name "*.log" -type f -exec echo "=== {} ===" \; -exec cat {} \;
+
+      - name: Fail if deployment failed
+        if: steps.deploy-slyce.outcome == 'failure'
+        run: exit 1
 
   # Deploy Rivvon frontend
   deploy-rivvon:
@@ -108,12 +120,24 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
       
       - name: Deploy to Cloudflare Pages
+        id: deploy-rivvon
         uses: cloudflare/wrangler-action@v3
+        continue-on-error: true
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/rivvon
-          command: pages deploy dist --project-name=rivvon --branch=main
+          command: pages deploy dist --project-name=rivvon --branch=main --commit-dirty=true
+
+      - name: Show Wrangler logs on failure
+        if: steps.deploy-rivvon.outcome == 'failure'
+        run: |
+          echo "Deployment failed. Showing logs:"
+          find ~/.config/.wrangler/logs -name "*.log" -type f -exec echo "=== {} ===" \; -exec cat {} \;
+
+      - name: Fail if deployment failed
+        if: steps.deploy-rivvon.outcome == 'failure'
+        run: exit 1
 
   # Deploy API Worker
   deploy-api:
@@ -177,7 +201,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/slyce
-          command: pages deploy dist --project-name=slyce --branch=${{ github.head_ref }}
+          command: pages deploy dist --project-name=slyce --branch=${{ github.head_ref }} --commit-dirty=true
 
       - name: Deploy Rivvon Preview
         uses: cloudflare/wrangler-action@v3
@@ -185,4 +209,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/rivvon
-          command: pages deploy dist --project-name=rivvon --branch=${{ github.head_ref }}
+          command: pages deploy dist --project-name=rivvon --branch=${{ github.head_ref }} --commit-dirty=true
