@@ -46,7 +46,8 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
         const parserError = svgDoc.querySelector("parsererror");
         if (parserError) {
             console.error("SVG parsing error:", parserError);
-            return null;
+            console.error("SVG content preview:", svgContent.substring(0, 500)); // Add this
+            return [];
         }
 
         // Get the first path element

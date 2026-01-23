@@ -5,57 +5,182 @@
 Enable users to store their KTX2 textures in their own Google Drive instead of Cloudflare R2, reducing storage costs at scale. Textures would default to "anyone with the link" sharing for public access.
 
 **Key Decisions Made:**
-- ✅ Direct browser-to-Drive uploads (no backend proxy)
+- ✅ Direct browser-to-Drive uploads (no backend proxy for file data)
 - ✅ Thumbnails remain on R2 (small, affordable)
 - ✅ Metadata stored in DB (avoid excess Drive API calls)
-- ✅ Hybrid storage during transition (user chooses R2 or Drive)
-- ✅ Dedicated app folder in user's Drive root
-- ✅ May replace Auth0 with direct Google OAuth or Better Auth
+- ✅ **Google Drive as default** for all new textures
+- ✅ **Hybrid storage**: Support both R2 (legacy) and Google Drive
+- ✅ Dedicated "Slyce Textures" folder in user's Drive root
+- ✅ **Complete migration from Auth0 to Google OAuth** (clean cutover)
+- ✅ Existing R2 textures to be migrated to Google Drive (see Migration section)
 
 ---
 
-## Current Architecture
+## Monorepo Context
 
-- **Auth0** handles authentication (standard Google social connection)
-- **Cloudflare R2** stores KTX2 textures + thumbnails via `api.rivvon.ca`
-- **Texture metadata** stored in database, files served from R2
+### Current Architecture
+
+The Rivvon ecosystem consists of three main applications:
+
+```
+rivvon-app/
+├── apps/
+│   ├── api/          ← Cloudflare Worker backend (Hono + D1 + R2)
+│   ├── slyce/        ← Vue 3 texture creator (uploads to API)
+│   └── rivvon/       ← Vanilla JS texture renderer (consumes from API)
+└── packages/
+    └── shared-types/ ← Shared TypeScript types (future use)
+```
+
+**Current Flow:**
+1. **Slyce** (texture creator) → Authenticates via Auth0 → Uploads KTX2 tiles to R2 via API
+2. **API** (backend) → Validates Auth0 JWT → Stores metadata in D1 → Manages R2 storage
+3. **Rivvon** (renderer) → Fetches public texture list from API → Loads KTX2 tiles from `cdn.rivvon.ca` (R2)
+
+**Current Auth:**
+- **Slyce**: Auth0 Vue SDK (`@auth0/auth0-vue`)
+- **API**: Auth0 JWT verification via `jose` library
+- **Rivvon**: No auth (consumes public textures only)
 
 ---
 
 ## Target Architecture
 
+### Three-App Ecosystem
+
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              User's Browser                              │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   ┌──────────────┐     ┌──────────────┐     ┌──────────────────────┐    │
-│   │  Auth        │     │  Thumbnails  │     │  KTX2 Textures       │    │
-│   │  (Google)    │     │  (R2)        │     │  (User's Drive)      │    │
-│   └──────┬───────┘     └──────┬───────┘     └──────────┬───────────┘    │
-│          │                    │                        │                 │
-│          ▼                    ▼                        ▼                 │
-│   ┌──────────────────────────────────────────────────────────────────┐  │
-│   │                        api.rivvon.ca                              │  │
-│   │  • User accounts & sessions                                       │  │
-│   │  • Texture metadata (name, dimensions, tile count, Drive IDs)    │  │
-│   │  • Thumbnail storage (R2)                                         │  │
-│   │  • Google token management (encrypted refresh tokens)            │  │
-│   └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                          SLYCE (Texture Creator)                                  │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │  1. Google OAuth Login (identity + drive.file scope)                       │  │
+│  │  2. Create texture set → api.rivvon.ca/texture-set                        │  │
+│  │  3. Upload thumbnail → api.rivvon.ca → R2                                 │  │
+│  │  4. Upload KTX2 tiles → Google Drive (user's folder)                      │  │
+│  │  5. Store tile metadata → api.rivvon.ca (Drive file IDs & URLs)          │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                    API (Cloudflare Worker - api.rivvon.ca)                        │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │  • Google ID Token validation (replaces Auth0 JWT)                        │  │
+│  │  • Session management (HTTP-only cookies)                                 │  │
+│  │  • D1 Database: users, texture_sets, texture_tiles                       │  │
+│  │  • R2 Storage: thumbnails only                                            │  │
+│  │  • Google refresh token storage (encrypted in D1)                         │  │
+│  │  • Token refresh endpoint (for Drive uploads)                             │  │
+│  │  • Texture metadata API (returns R2 or Drive URLs based on provider)     │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                      RIVVON (Texture Renderer)                                    │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │  1. Fetch texture list → api.rivvon.ca/textures (public)                 │  │
+│  │  2. Get texture details → api.rivvon.ca/textures/:id                     │  │
+│  │  3. Load thumbnails → cdn.rivvon.ca (R2)                                 │  │
+│  │  4. Load KTX2 tiles from:                                                 │  │
+│  │     • R2: https://cdn.rivvon.ca/textures/{setId}/{index}.ktx2           │  │
+│  │     • Drive: https://drive.google.com/uc?id={fileId}&export=download    │  │
+│  │  5. Render textures with Three.js (WebGL/WebGPU)                        │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Data Flow:**
-- **Thumbnails**: Browser → Backend → R2 (existing flow, unchanged)
-- **KTX2 Textures**: Browser → Google Drive directly (new)
-- **Metadata**: Browser → Backend → Database (existing flow, extended)
+**Key Changes:**
+- **Auth**: Google OAuth replaces Auth0 entirely
+- **Storage**: Hybrid model (Google Drive default, R2 for legacy textures)
+- **Tile URLs**: Database stores either R2 keys or Google Drive file IDs
+- **Public Access**: Both R2 and Google Drive support direct public URLs
+
+---
+
+## Google Drive Public Access Investigation
+
+### How Public Sharing Works
+
+Google Drive files can be made publicly accessible via "Anyone with the link" sharing. This creates a direct download URL that works **without authentication**:
+
+```
+https://drive.google.com/uc?id={FILE_ID}&export=download
+```
+
+### CORS Considerations
+
+**Good News:** Google Drive supports CORS for publicly shared files!
+
+When a file is set to "Anyone with the link can view":
+- ✅ Direct download URLs work from any origin
+- ✅ CORS headers are automatically included
+- ✅ No authentication required
+- ✅ Works with Three.js texture loading
+- ✅ No proxy needed (saves bandwidth costs!)
+
+**Headers returned by Drive:**
+```http
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET
+Content-Type: image/ktx2
+```
+
+### Setting Public Permissions
+
+After uploading a file, we need to add a permission:
+
+```javascript
+// POST https://www.googleapis.com/drive/v3/files/{fileId}/permissions
+{
+  "role": "reader",
+  "type": "anyone"
+}
+```
+
+This makes the file publicly accessible without authentication.
+
+### URL Format
+
+Two options for accessing publicly shared files:
+
+1. **Direct download** (recommended for textures):
+   ```
+   https://drive.google.com/uc?id={FILE_ID}&export=download
+   ```
+   - Direct file content
+   - Works with Three.js loaders
+   - No redirect
+
+2. **Web viewer** (not suitable for programmatic access):
+   ```
+   https://drive.google.com/file/d/{FILE_ID}/view
+   ```
+   - Shows Drive UI
+   - Requires user interaction
+
+**We'll use option 1** for all KTX2 tiles in Rivvon.
+
+### Rate Limits & Quotas
+
+Google Drive API has generous quotas:
+- 20,000 queries per 100 seconds per user
+- File downloads don't count against API quota
+- Public file access is effectively unlimited
+
+However, **very high traffic** (viral content) may trigger throttling. For production apps with thousands of concurrent users, Google recommends:
+- Caching files on CDN (CloudFront, Cloudflare)
+- Using Cloud Storage instead of Drive for high-traffic apps
+
+**For our use case:**
+- Rivvon apps are individual/small-scale
+- Direct Drive URLs are perfect
+- If we hit limits later, we can proxy through Cloudflare R2 as cache
 
 ---
 
 ## Authentication Strategy
 
-### Decision: Direct Google OAuth (Option C)
+### Decision: Direct Google OAuth (Clean Cutover from Auth0)
 
 Replace Auth0 entirely with direct Google OAuth. This provides:
 - **Single consent screen** for identity + Drive access
@@ -77,24 +202,195 @@ Replace Auth0 entirely with direct Google OAuth. This provides:
 ```
 Current:  User → Auth0 → Google (identity only)
                 ↓
-          Auth0 token → Backend API
+          Auth0 JWT → Backend API → Verifies with Auth0 JWKS
 
 Target:   User → Google directly (identity + Drive)
                 ↓
-          Google tokens → Backend API
+          Google ID Token → Backend API → Verifies with Google JWKS
+          + Refresh Token (stored encrypted in D1)
 ```
 
-### Implementation Approach
+**Since you're the only user, we can do a clean cutover:**
+1. Deploy new Google OAuth system
+2. Test with your account
+3. Remove Auth0 configuration
+4. Delete Auth0 integration
 
-**Google Identity Services (GIS)** for the frontend:
-- Modern replacement for deprecated Google Sign-In
-- Handles OAuth flow, token management
-- Works well with `drive.file` scope
+No need for dual auth systems or graceful migration.
 
-**Backend token validation:**
-- Validate Google ID tokens directly
-- No Auth0 SDK needed
-- Store refresh tokens for Drive access
+---
+
+## Cloudflare Workers & Encrypted Token Storage
+
+### Storing Refresh Tokens in D1
+
+**Question:** Is it safe to store encrypted Google refresh tokens in Cloudflare D1?
+
+**Answer:** Yes, with proper encryption and key management. Here's the recommended approach:
+
+### Encryption Strategy
+
+```javascript
+// Use Web Crypto API (available in Cloudflare Workers)
+async function encryptRefreshToken(refreshToken, encryptionKey) {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(refreshToken)
+  
+  // Import encryption key (AES-GCM)
+  const key = await crypto.subtle.importKey(
+    'raw',
+    Buffer.from(encryptionKey, 'base64'),
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt']
+  )
+  
+  // Generate random IV
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  
+  // Encrypt
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    data
+  )
+  
+  // Combine IV + encrypted data, return as base64
+  const combined = new Uint8Array(iv.length + encrypted.byteLength)
+  combined.set(iv, 0)
+  combined.set(new Uint8Array(encrypted), iv.length)
+  
+  return Buffer.from(combined).toString('base64')
+}
+
+async function decryptRefreshToken(encryptedToken, encryptionKey) {
+  const combined = Buffer.from(encryptedToken, 'base64')
+  const iv = combined.slice(0, 12)
+  const encrypted = combined.slice(12)
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    Buffer.from(encryptionKey, 'base64'),
+    { name: 'AES-GCM' },
+    false,
+    ['decrypt']
+  )
+  
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encrypted
+  )
+  
+  const decoder = new TextDecoder()
+  return decoder.decode(decrypted)
+}
+```
+
+### Key Management
+
+**Store encryption key as Cloudflare Worker secret:**
+
+```bash
+# Generate 256-bit key (32 bytes)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# Store as secret
+wrangler secret put REFRESH_TOKEN_ENCRYPTION_KEY
+# Paste the generated key when prompted
+```
+
+**Access in worker:**
+```typescript
+// In wrangler.toml, no need to list secrets (they're automatically available)
+// Access via c.env.REFRESH_TOKEN_ENCRYPTION_KEY
+
+const encryptedToken = await encryptRefreshToken(
+  refreshToken,
+  c.env.REFRESH_TOKEN_ENCRYPTION_KEY
+)
+```
+
+### Security Best Practices
+
+1. **Encryption at rest**: ✅ Tokens encrypted before storing in D1
+2. **Key rotation**: Generate new key periodically, re-encrypt tokens
+3. **Secrets management**: ✅ Cloudflare encrypts secrets at rest
+4. **Access control**: ✅ Workers can't access each other's secrets
+5. **Audit logging**: Log token refresh events (without sensitive data)
+
+### Why This Is Secure
+
+- **Encryption key** never stored in code or database
+- **D1 data** is encrypted at rest by Cloudflare
+- **Workers runtime** is isolated (single-tenant execution)
+- **Even if D1 is compromised**, encrypted tokens are useless without key
+- **Cloudflare Secrets** use hardware security modules (HSMs)
+
+**This approach is equivalent to or better than:**
+- Storing in AWS Secrets Manager (similar encryption)
+- Storing in HashiCorp Vault (similar isolation)
+- Storing in Azure Key Vault (similar HSM backing)
+
+### Alternative: Skip Refresh Token Storage
+
+**Option:** Use short-lived access tokens only, require re-auth for Drive uploads.
+
+**Pros:**
+- No persistent credentials stored
+- User explicitly authorizes each upload session
+
+**Cons:**
+- Poor UX (re-login every hour)
+- Doesn't support background operations
+
+**Recommendation:** Store encrypted refresh tokens. The security posture is strong, and UX is much better.
+
+---
+
+## Database Schema Extensions
+
+### Updates to Existing Tables
+
+```sql
+-- Users table (replace auth0_sub with google_id)
+ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
+ALTER TABLE users ADD COLUMN refresh_token_encrypted TEXT;
+ALTER TABLE users ADD COLUMN drive_folder_id TEXT; -- Cached "Slyce Textures" folder ID
+
+-- For migration: existing auth0 users can be matched by email
+-- UPDATE users SET google_id = ? WHERE email = ?
+
+-- Texture sets table (add storage provider tracking)
+ALTER TABLE texture_sets ADD COLUMN storage_provider TEXT DEFAULT 'google-drive'; 
+-- 'r2' for legacy, 'google-drive' for new (default)
+
+ALTER TABLE texture_sets ADD COLUMN drive_folder_id TEXT; 
+-- Google Drive folder ID for this texture set
+
+-- Texture tiles table (add Drive-specific fields)
+ALTER TABLE texture_tiles ADD COLUMN drive_file_id TEXT;
+-- Google Drive file ID (alternative to r2_key)
+
+ALTER TABLE texture_tiles ADD COLUMN public_url TEXT;
+-- Pre-computed public URL for fast retrieval
+-- R2: https://cdn.rivvon.ca/{r2_key}
+-- Drive: https://drive.google.com/uc?id={drive_file_id}&export=download
+```
+
+### Migration Script
+
+```sql
+-- Set existing textures to use R2
+UPDATE texture_sets 
+SET storage_provider = 'r2' 
+WHERE storage_provider IS NULL;
+
+-- Populate public_url for existing R2 textures
+UPDATE texture_tiles
+SET public_url = 'https://cdn.rivvon.ca/' || r2_key
+WHERE r2_key IS NOT NULL AND public_url IS NULL;
+```
 
 ### Scopes Requested
 
@@ -718,43 +1014,480 @@ export function useGoogleDrive() {
 
 ---
 
-## Database Schema Extensions
+---
 
-### New Fields for Texture Sets
+## Migrating Existing R2 Textures to Google Drive
 
-```sql
--- Add to existing texture_sets table
-ALTER TABLE texture_sets ADD COLUMN storage_provider TEXT DEFAULT 'r2'; -- 'r2' | 'google-drive'
-ALTER TABLE texture_sets ADD COLUMN drive_folder_id TEXT;               -- Google Drive folder ID
+### Why Migrate?
+
+- **Cost savings**: Google Drive free tier (15GB) vs R2 paid storage
+- **Consistency**: All textures in one place
+- **User ownership**: Users control their texture files
+
+### Migration Strategy
+
+Since you're the only user, we can perform a manual migration with API assistance.
+
+### Step 1: Export Texture Metadata
+
+Create a backend endpoint to list all your R2 textures with download URLs:
+
+```typescript
+// GET /admin/export-textures (authenticated, owner-only)
+app.get('/admin/export-textures', verifyAuth, async (c) => {
+  const auth = c.get('auth')
+  
+  // Get all texture sets owned by current user
+  const textureSets = await c.env.DB.prepare(`
+    SELECT * FROM texture_sets WHERE owner_id = ?
+  `).bind(auth.userId).all()
+  
+  const exports = []
+  
+  for (const textureSet of textureSets.results) {
+    const tiles = await c.env.DB.prepare(`
+      SELECT * FROM texture_tiles WHERE texture_set_id = ?
+    `).bind(textureSet.id).all()
+    
+    exports.push({
+      textureSet,
+      tiles: tiles.results,
+    })
+  }
+  
+  return c.json({ exports })
+})
 ```
 
-### New Fields for Tiles
+### Step 2: Migration Script (Browser-Based)
 
-```sql
--- Add to existing tiles table (or create if doesn't exist)
-ALTER TABLE tiles ADD COLUMN drive_file_id TEXT;        -- Google Drive file ID
-ALTER TABLE tiles ADD COLUMN drive_public_url TEXT;     -- Public download URL
+Create a new page in Slyce: `MigrationView.vue`
+
+```vue
+<template>
+  <div class="migration-view">
+    <h1>Migrate Textures to Google Drive</h1>
+    
+    <div v-if="!migrationStarted">
+      <p>Found {{ texturesToMigrate.length }} texture sets to migrate</p>
+      <ul>
+        <li v-for="texture in texturesToMigrate" :key="texture.id">
+          {{ texture.name }} ({{ texture.tile_count }} tiles)
+        </li>
+      </ul>
+      <button @click="startMigration">Start Migration</button>
+    </div>
+    
+    <div v-else>
+      <h2>Migration Progress</h2>
+      <div v-for="texture in texturesToMigrate" :key="texture.id">
+        <h3>{{ texture.name }}</h3>
+        <progress 
+          :value="progress[texture.id] || 0" 
+          :max="texture.tile_count"
+        />
+        <span>{{ progress[texture.id] || 0 }} / {{ texture.tile_count }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRivvonAPI } from '@/services/api'
+import { useGoogleDrive } from '@/composables/useGoogleDrive'
+
+const texturesToMigrate = ref([])
+const progress = ref({})
+const migrationStarted = ref(false)
+
+const api = useRivvonAPI()
+const drive = useGoogleDrive()
+
+onMounted(async () => {
+  // Fetch textures to migrate
+  const response = await api.exportTextures()
+  texturesToMigrate.value = response.exports
+})
+
+async function startMigration() {
+  migrationStarted.value = true
+  
+  for (const { textureSet, tiles } of texturesToMigrate.value) {
+    progress.value[textureSet.id] = 0
+    
+    // 1. Create folder in Drive
+    const folderName = `${textureSet.name}-${textureSet.id.slice(0, 6)}`
+    const folder = await drive.createFolder(folderName, drive.slyceFolderId.value)
+    
+    // 2. Download each tile from R2 and re-upload to Drive
+    for (const tile of tiles) {
+      // Download from R2
+      const response = await fetch(`https://cdn.rivvon.ca/${tile.r2_key}`)
+      const blob = await response.blob()
+      
+      // Upload to Drive
+      const fileName = `${tile.tile_index}.ktx2`
+      const driveFile = await drive.uploadFile(blob, fileName, folder.id)
+      
+      // Update database with Drive info
+      await api.updateTileStorage({
+        tileId: tile.id,
+        driveFileId: driveFile.fileId,
+        publicUrl: driveFile.webContentLink,
+      })
+      
+      progress.value[textureSet.id]++
+    }
+    
+    // 3. Update texture set to use Drive
+    await api.updateTextureSetStorage({
+      textureSetId: textureSet.id,
+      storageProvider: 'google-drive',
+      driveFolderId: folder.id,
+    })
+  }
+  
+  alert('Migration complete!')
+}
+</script>
 ```
 
-### Google Drive Connections Table
+### Step 3: Backend Migration Endpoints
 
-```sql
-CREATE TABLE google_drive_connections (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id),
-  refresh_token_encrypted TEXT NOT NULL,
-  slyce_folder_id TEXT,                    -- Cached root folder ID
-  connected_at TIMESTAMP DEFAULT NOW(),
-  last_used_at TIMESTAMP,
-  UNIQUE(user_id)
-);
+```typescript
+// PUT /admin/texture-tile/:id/storage (update storage info)
+app.put('/admin/texture-tile/:id/storage', verifyAuth, async (c) => {
+  const tileId = c.req.param('id')
+  const { driveFileId, publicUrl } = await c.req.json()
+  
+  await c.env.DB.prepare(`
+    UPDATE texture_tiles 
+    SET drive_file_id = ?, public_url = ?
+    WHERE id = ?
+  `).bind(driveFileId, publicUrl, tileId).run()
+  
+  return c.json({ success: true })
+})
+
+// PUT /admin/texture-set/:id/storage (update storage provider)
+app.put('/admin/texture-set/:id/storage', verifyAuth, async (c) => {
+  const textureSetId = c.req.param('id')
+  const { storageProvider, driveFolderId } = await c.req.json()
+  
+  await c.env.DB.prepare(`
+    UPDATE texture_sets 
+    SET storage_provider = ?, drive_folder_id = ?
+    WHERE id = ?
+  `).bind(storageProvider, driveFolderId, textureSetId).run()
+  
+  return c.json({ success: true })
+})
+```
+
+### Step 4: Cleanup R2 Files (Optional)
+
+After confirming Drive migration works:
+
+```typescript
+// DELETE /admin/cleanup-r2 (delete migrated R2 files)
+app.delete('/admin/cleanup-r2', verifyAuth, async (c) => {
+  // Get all texture tiles that have been migrated (have drive_file_id)
+  const tiles = await c.env.DB.prepare(`
+    SELECT r2_key FROM texture_tiles WHERE drive_file_id IS NOT NULL
+  `).all()
+  
+  for (const tile of tiles.results) {
+    await c.env.BUCKET.delete(tile.r2_key)
+  }
+  
+  return c.json({ deleted: tiles.results.length })
+})
+```
+
+### Migration Checklist
+
+- [ ] Create `/admin/export-textures` endpoint
+- [ ] Create `MigrationView.vue` in Slyce
+- [ ] Create migration update endpoints in API
+- [ ] Run migration for all texture sets
+- [ ] Verify all textures load in Rivvon from Drive URLs
+- [ ] Verify textures display in "My Textures" view
+- [ ] Test texture download from Drive
+- [ ] **(Optional)** Delete R2 files after confirmation
+
+**Estimated Time:** 1-2 hours for implementation + testing
+
+---
+
+## Rivvon Integration: Consuming Hybrid Storage
+
+### Current Rivvon Texture Loading
+
+```javascript
+// src/modules/textureService.js
+export async function fetchTextureSet(textureSetId) {
+  const url = `${API_BASE}/textures/${textureSetId}`
+  const response = await fetch(url)
+  return await response.json()
+}
+
+// Returns:
+// {
+//   id, name, description, ...
+//   tiles: [
+//     { tileIndex: 0, url: 'https://cdn.rivvon.ca/textures/abc123/0.ktx2', fileSize: 123456 },
+//     { tileIndex: 1, url: 'https://cdn.rivvon.ca/textures/abc123/1.ktx2', fileSize: 123456 },
+//     ...
+//   ]
+// }
+```
+
+### Updated API Response (Hybrid URLs)
+
+No changes needed! The API already returns URLs in the `tiles` array. We just need to ensure the API generates the correct URLs based on `storage_provider`:
+
+```typescript
+// src/routes/textures.ts - GET /:id endpoint
+textureRoutes.get('/:id', async (c) => {
+  const textureSetId = c.req.param('id')
+  
+  const textureSet = await c.env.DB.prepare(`
+    SELECT * FROM texture_sets WHERE id = ? AND status = 'complete'
+  `).bind(textureSetId).first()
+  
+  if (!textureSet) {
+    return c.json({ error: 'Texture set not found' }, 404)
+  }
+  
+  const tiles = await c.env.DB.prepare(`
+    SELECT tile_index, r2_key, drive_file_id, public_url, file_size
+    FROM texture_tiles 
+    WHERE texture_set_id = ?
+    ORDER BY tile_index
+  `).bind(textureSetId).all()
+  
+  // Generate URLs based on storage provider
+  const tileUrls = tiles.results.map((tile: any) => {
+    let url
+    
+    if (tile.public_url) {
+      // Pre-computed URL (preferred)
+      url = tile.public_url
+    } else if (tile.drive_file_id) {
+      // Google Drive
+      url = `https://drive.google.com/uc?id=${tile.drive_file_id}&export=download`
+    } else if (tile.r2_key) {
+      // R2 fallback
+      url = `https://cdn.rivvon.ca/${tile.r2_key}`
+    }
+    
+    return {
+      tileIndex: tile.tile_index,
+      url,
+      fileSize: tile.file_size,
+    }
+  })
+  
+  return c.json({
+    ...textureSet,
+    tiles: tileUrls,
+  })
+})
+```
+
+### Rivvon Three.js Loader (No Changes Needed!)
+
+```javascript
+// src/modules/tileManager.js
+async loadTile(url) {
+  // Works with both R2 and Google Drive URLs!
+  // Three.js KTX2Loader handles fetch() internally
+  const texture = await this.ktx2Loader.loadAsync(url)
+  return texture
+}
+```
+
+**Key Insight:** Since Google Drive supports CORS and provides direct download URLs, Rivvon's existing texture loading code works without modifications! The API just returns different URLs based on storage provider.
+
+---
+
+## Complete Upload Flow (Google Drive - Updated)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Texture Set Upload Flow (Google Drive)                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. User processes video in Slyce → generates KTX2 tiles                    │
+│                                                                              │
+│  2. User clicks "Upload to Cloud"                                           │
+│     └─ storageProvider = 'google-drive' (default)                           │
+│                                                                              │
+│  3. Create texture set in DB (Slyce → API)                                  │
+│     POST /texture-set                                                        │
+│     Body: { name, description, tileCount, storageProvider: 'google-drive' } │
+│     └─ Returns: { textureSetId }                                            │
+│                                                                              │
+│  4. Get fresh Drive token (Slyce → API)                                     │
+│     GET /api/auth/drive-token                                                │
+│     └─ Returns: { accessToken, slyceFolderId }                              │
+│                                                                              │
+│  5. Create texture set folder in Drive (Slyce → Google Drive API)           │
+│     POST https://www.googleapis.com/drive/v3/files                          │
+│     Body: { name: '{textureName}-{shortId}', parents: [slyceFolderId] }     │
+│     └─ Returns: { id: driveFolderId }                                       │
+│                                                                              │
+│  6. Upload thumbnail to R2 (Slyce → API → R2)                               │
+│     PUT /texture-set/{id}/thumbnail                                          │
+│     └─ Existing flow, unchanged                                             │
+│                                                                              │
+│  7. Upload each tile to Drive (Slyce → Google Drive API)                    │
+│     For each tile:                                                           │
+│       a. POST resumable upload init                                          │
+│          https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable│
+│                                                                              │
+│       b. PUT file content to resumable upload URL                            │
+│                                                                              │
+│       c. POST sharing permission (Slyce → Google Drive API)                  │
+│          POST /files/{fileId}/permissions                                    │
+│          Body: { role: 'reader', type: 'anyone' }                           │
+│                                                                              │
+│       d. Store tile metadata (Slyce → API)                                   │
+│          POST /texture-set/{id}/tile/{index}/metadata                        │
+│          Body: { driveFileId, fileSize }                                     │
+│                                                                              │
+│  8. Mark upload complete (Slyce → API)                                       │
+│     POST /texture-set/{id}/complete                                          │
+│     └─ Set status='complete', is_public=1                                   │
+│                                                                              │
+│  9. Texture now accessible via Rivvon                                        │
+│     GET /textures → Lists texture set                                        │
+│     GET /textures/{id} → Returns Drive URLs for tiles                        │
+│     Rivvon loads tiles directly from Drive (no proxy!)                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Frontend Components
+## Backend API Endpoints (Complete Reference)
 
-### Updated: `AuthButton.vue`
+### New Auth Endpoints (Replacing Auth0)
+
+Located in `apps/api/routes/auth.ts` (new file)
+
+```
+POST /api/auth/callback      - Exchange Google auth code for tokens, create session
+POST /api/auth/logout        - Clear session & revoke tokens  
+GET  /api/auth/me            - Get current user info (from session cookie)
+GET  /api/auth/drive-token   - Get fresh Google access token for Drive operations
+```
+
+#### `POST /api/auth/callback`
+
+Exchange Google authorization code for tokens, create or update user, create session.
+
+```typescript
+interface CallbackRequest {
+  code: string  // Authorization code from Google OAuth redirect
+}
+
+interface CallbackResponse {
+  user: {
+    id: string
+    email: string
+    name: string
+    picture: string
+  }
+}
+
+// Sets HTTP-only session cookie in response
+```
+
+#### `GET /api/auth/drive-token`
+
+Requires session cookie. Returns fresh Google Drive access token.
+
+```typescript
+interface DriveTokenResponse {
+  accessToken: string   // Fresh Google access token (valid ~1 hour)
+  expiresIn: number    // Seconds until expiry (typically 3600)
+  slyceFolderId: string | null  // Cached "Slyce Textures" folder ID
+}
+```
+
+### Modified Texture Endpoints
+
+#### `POST /texture-set`
+
+**Changes:** Add `storageProvider` field (defaults to `'google-drive'`)
+
+```typescript
+interface CreateTextureSetRequest {
+  name: string
+  description?: string
+  tileCount: number
+  layerCount: number
+  tileResolution: number
+  crossSectionType?: string
+  storageProvider?: 'r2' | 'google-drive'  // ← NEW (default: 'google-drive')
+  sourceMetadata?: {
+    filename: string
+    width: number
+    height: number
+    duration: number
+    sourceFrameCount: number
+    sampledFrameCount: number
+  }
+  userProfile?: {
+    name: string
+    email: string
+    picture: string
+  }
+}
+```
+
+#### `POST /texture-set/:id/tile/:index/metadata` (New)
+
+#### `POST /texture-set/:id/tile/:index/metadata` (New)
+
+Store Google Drive file metadata after browser uploads tile.
+
+```typescript
+interface StoreTileMetadataRequest {
+  driveFileId: string  // Google Drive file ID
+  fileSize: number     // File size in bytes
+}
+
+// Updates texture_tiles table with:
+// - drive_file_id
+// - file_size  
+// - public_url (pre-computed Drive download URL)
+```
+
+#### `GET /textures/:id` (Modified)
+
+**Changes:** Return URLs based on storage provider (R2 or Google Drive)
+
+```typescript
+interface TextureSetResponse {
+  id: string
+  name: string
+  description: string
+  storage_provider: 'r2' | 'google-drive'  // ← NEW
+  // ... other metadata fields
+  tiles: Array<{
+    tileIndex: number
+    url: string  // Either R2 or Drive URL
+    fileSize: number
+  }>
+}
+```
+
+---
+
+## Frontend Components (Updated)
 
 Replace Auth0 with Google auth:
 
@@ -1021,162 +1754,634 @@ No changes needed to core functionality:
 
 ---
 
-## Implementation Phases
+---
 
-### Phase 1: Auth Migration (Auth0 → Google OAuth)
+## Implementation Phases (Monorepo Context)
 
-**Goal:** Replace Auth0 with direct Google OAuth
+### Phase 0: Database Schema Updates
 
-- [ ] Create Google Cloud project
-- [ ] Configure OAuth consent screen (include Drive scope)
-- [ ] Create OAuth 2.0 credentials (web application)
-- [ ] Add authorized redirect URI: `https://slyce.rivvon.ca/callback`
-- [ ] Backend: Implement `/api/auth/session` endpoint
-- [ ] Backend: Implement `/api/auth/logout` endpoint
-- [ ] Backend: Implement `/api/auth/me` endpoint
-- [ ] Backend: Add `google_id`, `refresh_token_encrypted` to users table
-- [ ] Frontend: Create `useGoogleAuth.js` composable
-- [ ] Frontend: Update `AuthButton.vue` to use new auth
-- [ ] Frontend: Update `CallbackView.vue` for Google callback
-- [ ] Frontend: Remove Auth0 from `main.js`
-- [ ] Frontend: Update `api.js` to use session auth (not Auth0 tokens)
-- [ ] Test: Login, logout, session persistence
-- [ ] Remove Auth0 dependencies from `package.json`
+**Goal:** Prepare database for Google auth and hybrid storage
 
-### Phase 2: Drive Upload Integration
+**Location:** `apps/api/db/schema.sql` and migration script
 
-**Goal:** Textures upload directly to user's Drive
+- [ ] Add Google auth fields to users table:
+  ```sql
+  ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
+  ALTER TABLE users ADD COLUMN refresh_token_encrypted TEXT;
+  ALTER TABLE users ADD COLUMN drive_folder_id TEXT;
+  ```
+- [ ] Add storage provider fields to texture_sets:
+  ```sql
+  ALTER TABLE texture_sets ADD COLUMN storage_provider TEXT DEFAULT 'google-drive';
+  ALTER TABLE texture_sets ADD COLUMN drive_folder_id TEXT;
+  ```
+- [ ] Add Drive fields to texture_tiles:
+  ```sql
+  ALTER TABLE texture_tiles ADD COLUMN drive_file_id TEXT;
+  ALTER TABLE texture_tiles ADD COLUMN public_url TEXT;
+  ```
+- [ ] Run migration on D1 database via `wrangler d1 execute`
+- [ ] Set existing textures to R2:
+  ```sql
+  UPDATE texture_sets SET storage_provider = 'r2' WHERE storage_provider IS NULL;
+  ```
 
-- [ ] Backend: Implement `/api/auth/token` endpoint (for Drive access)
-- [ ] Backend: Extend texture_sets table with `storage_provider`, `drive_folder_id`
-- [ ] Frontend: Create `useGoogleDrive.js` composable (upload operations)
-- [ ] Frontend: Add storage provider selection to settings/upload UI
-- [ ] Frontend: Implement Drive folder creation ("Slyce Textures")
-- [ ] Frontend: Implement resumable upload to Drive
-- [ ] Frontend: Implement permission setting (anyone with link)
-- [ ] Backend: Endpoint to store tile metadata (Drive file IDs)
-- [ ] Test: Full upload flow to Google Drive
+**Estimated Time:** 30 minutes
 
-### Phase 3: My Textures Integration
+---
 
-**Goal:** View works seamlessly with Drive-stored textures
+### Phase 1: Backend - Google OAuth & Session Management
 
-- [ ] Backend: Ensure GET /my-textures returns correct URLs for Drive textures
-- [ ] Frontend: Verify texture playback works with Drive URLs
-- [ ] Frontend: Verify download works with Drive URLs
-- [ ] Test: Create texture with Drive, view in My Textures, download
+**Goal:** Replace Auth0 authentication with Google OAuth in API
 
-### Phase 4: Polish & Edge Cases
+**Location:** `apps/api/`
 
-**Goal:** Production-ready experience
+- [ ] **Add secrets to Cloudflare:**
+  ```bash
+  wrangler secret put GOOGLE_CLIENT_ID
+  wrangler secret put GOOGLE_CLIENT_SECRET
+  wrangler secret put REFRESH_TOKEN_ENCRYPTION_KEY
+  ```
+- [ ] **Create auth routes** (`routes/auth.ts`):
+  - [ ] `POST /api/auth/callback` - Exchange code for tokens, create session
+  - [ ] `GET /api/auth/me` - Get current user from session
+  - [ ] `POST /api/auth/logout` - Clear session, revoke tokens
+  - [ ] `GET /api/auth/drive-token` - Get fresh Google access token
+- [ ] **Create session middleware** (`middleware/session.ts`):
+  - [ ] Validate session cookie
+  - [ ] Attach user info to context
+- [ ] **Create crypto utils** (`utils/crypto.ts`):
+  - [ ] `encryptRefreshToken()` - AES-256-GCM encryption
+  - [ ] `decryptRefreshToken()` - Decryption
+- [ ] **Update auth middleware** (`middleware/auth.ts`):
+  - [ ] Replace Auth0 JWT verification with session validation
+  - [ ] Remove `jose` Auth0 JWKS logic
+- [ ] **Update index.ts**:
+  - [ ] Mount `/api/auth` routes
+  - [ ] Update CORS configuration if needed
+- [ ] **Test endpoints** with curl/Postman
 
-- [ ] Handle token expiry during upload (auto-refresh)
-- [ ] Handle Drive quota exceeded error
-- [ ] Handle Drive unavailable/slow gracefully
-- [ ] Add upload progress indicators
-- [ ] Error messaging for common failure modes
-- [ ] Delete texture → delete from Drive
+**Estimated Time:** 4-6 hours
+
+---
+
+### Phase 2: Frontend - Google OAuth Integration
+
+**Goal:** Replace Auth0 in Slyce with Google OAuth
+
+**Location:** `apps/slyce/src/`
+
+- [ ] **Create Google Auth composable** (`composables/useGoogleAuth.js`):
+  - [ ] OAuth authorization code flow
+  - [ ] Redirect to Google consent screen
+  - [ ] Handle callback with code exchange
+  - [ ] Session management (cookie-based)
+  - [ ] `login()`, `logout()`, `checkSession()`
+- [ ] **Create callback view** (`views/CallbackView.vue`):
+  - [ ] Handle OAuth redirect
+  - [ ] Extract `code` from URL
+  - [ ] Call `/api/auth/callback`
+  - [ ] Redirect to home on success
+- [ ] **Update main.js**:
+  - [ ] Remove Auth0 initialization
+  - [ ] Add Google auth check on app load
+- [ ] **Update AuthButton.vue**:
+  - [ ] Replace Auth0 composable with `useGoogleAuth`
+  - [ ] Update login button UI (Google branding)
+- [ ] **Update api.js service**:
+  - [ ] Remove `getAccessTokenSilently()`
+  - [ ] Use session cookies instead of Authorization header (or keep Bearer token if using session-to-JWT)
+- [ ] **Update router** (`router/index.js`):
+  - [ ] Add `/callback` route
+- [ ] **Environment variables** (`.env`):
+  ```
+  VITE_GOOGLE_CLIENT_ID=your_client_id
+  VITE_API_URL=https://api.rivvon.ca
+  ```
+- [ ] **Remove Auth0**:
+  - [ ] Uninstall `@auth0/auth0-vue`
+  - [ ] Remove Auth0 env variables
+- [ ] **Test**:
+  - [ ] Login flow end-to-end
+  - [ ] Session persistence (refresh page)
+  - [ ] Logout
+
+**Estimated Time:** 4-5 hours
+
+---
+
+### Phase 3: Backend - Google Drive Support
+
+**Goal:** Add endpoints for Drive file metadata storage
+
+**Location:** `apps/api/routes/upload.ts`
+
+- [ ] **Modify `POST /texture-set`**:
+  - [ ] Accept `storageProvider` in request body
+  - [ ] Store in database (defaults to 'google-drive')
+- [ ] **Create `POST /texture-set/:id/tile/:index/metadata`**:
+  - [ ] Accept `driveFileId`, `fileSize`
+  - [ ] Generate public URL: `https://drive.google.com/uc?id={fileId}&export=download`
+  - [ ] Store in `texture_tiles` table
+- [ ] **Modify `POST /texture-set/:id/complete`**:
+  - [ ] Verify tiles based on storage provider
+  - [ ] For Drive: check `drive_file_id` exists
+  - [ ] For R2: check R2 object exists (existing logic)
+- [ ] **Modify `GET /textures/:id`** (`routes/textures.ts`):
+  - [ ] Return URLs from `public_url` column
+  - [ ] Fallback to generating URL from `drive_file_id` or `r2_key`
+- [ ] **Test** with mock Drive file IDs
+
+**Estimated Time:** 2-3 hours
+
+---
+
+### Phase 4: Frontend - Google Drive Upload
+
+**Goal:** Upload KTX2 tiles directly to Google Drive from browser
+
+**Location:** `apps/slyce/src/`
+
+- [ ] **Create Google Drive composable** (`composables/useGoogleDrive.js`):
+  - [ ] `getAccessToken()` - Fetch from `/api/auth/drive-token`
+  - [ ] `createFolder(name, parentId)` - Create folder in Drive
+  - [ ] `uploadFile(file, fileName, folderId)` - Resumable upload
+  - [ ] `setPublicPermission(fileId)` - Make file public
+- [ ] **Update upload flow** (in appStore or upload component):
+  - [ ] Check storage provider (default: 'google-drive')
+  - [ ] If Drive:
+    - [ ] Get Drive access token
+    - [ ] Create/get "Slyce Textures" folder
+    - [ ] Create texture set subfolder
+    - [ ] Upload each tile to Drive
+    - [ ] Set public permissions
+    - [ ] POST metadata to API
+  - [ ] If R2: Use existing upload flow
+- [ ] **Update SettingsArea.vue** (if needed):
+  - [ ] Option to choose storage provider (default Google Drive)
+  - [ ] Show "Textures will be stored in your Google Drive"
+- [ ] **Test**:
+  - [ ] Full texture creation → Drive upload flow
+  - [ ] Verify files appear in Google Drive
+  - [ ] Verify files are publicly accessible
+
+**Estimated Time:** 5-6 hours
+
+---
+
+### Phase 5: Rivvon - Hybrid URL Support
+
+**Goal:** Ensure Rivvon can load textures from both R2 and Google Drive
+
+**Location:** `apps/rivvon/src/modules/`
+
+- [ ] **Verify textureService.js**:
+  - [ ] Confirm it uses URLs from API response (should work as-is)
+- [ ] **Test texture loading**:
+  - [ ] Create R2 texture in Slyce → Load in Rivvon ✓
+  - [ ] Create Drive texture in Slyce → Load in Rivvon ✓
+  - [ ] Check CORS works for Drive URLs
+  - [ ] Verify performance is acceptable
+- [ ] **Handle error cases**:
+  - [ ] Drive file unavailable (show error message)
+  - [ ] Slow Drive response (loading indicator)
+
+**Estimated Time:** 1-2 hours
+
+---
+
+### Phase 6: Data Migration
+
+**Goal:** Migrate existing R2 textures to Google Drive
+
+**Location:** `apps/slyce/src/views/` (admin page)
+
+- [ ] **Backend**: Create admin endpoints (`routes/admin.ts`):
+  - [ ] `GET /admin/export-textures` - List all user textures
+  - [ ] `PUT /admin/texture-tile/:id/storage` - Update tile storage info
+  - [ ] `PUT /admin/texture-set/:id/storage` - Update texture set provider
+  - [ ] `DELETE /admin/cleanup-r2` - Delete migrated R2 files
+- [ ] **Frontend**: Create `MigrationView.vue`:
+  - [ ] List textures to migrate
+  - [ ] Progress UI for each texture
+  - [ ] Fetch tiles from R2 → Upload to Drive
+  - [ ] Update database via admin endpoints
+- [ ] **Router**: Add `/admin/migrate` route
+- [ ] **Execute migration**:
+  - [ ] Run migration for all your textures
+  - [ ] Verify in Rivvon
+  - [ ] Verify in "My Textures"
+- [ ] **Cleanup**: Delete R2 files after confirmation
+
+**Estimated Time:** 2-3 hours implementation + 1 hour execution
+
+---
+
+### Phase 7: Polish & Production
+
+**Goal:** Handle edge cases, improve UX, prepare for production
+
+- [ ] **Error handling**:
+  - [ ] Token expiry during upload (auto-refresh)
+  - [ ] Drive quota exceeded (clear error message)
+  - [ ] Network failures (retry logic)
+- [ ] **UX improvements**:
+  - [ ] Upload progress indicators
+  - [ ] Success/error notifications
+  - [ ] Loading states during auth
+- [ ] **Google Cloud Console**:
+  - [ ] Submit OAuth app for verification
+  - [ ] Add privacy policy URL
+  - [ ] Move from testing to production
+- [ ] **Documentation**:
+  - [ ] Update README files
+  - [ ] Document environment variables
+  - [ ] Add deployment notes
+- [ ] **Testing**:
+  - [ ] End-to-end test all flows
+  - [ ] Test on different browsers
+  - [ ] Test slow network conditions
+- [ ] **Cleanup**:
+  - [ ] Remove Auth0 references
+  - [ ] Remove unused dependencies
+  - [ ] Update .env.example files
+
+**Estimated Time:** 4-6 hours
+
+---
+
+## Total Estimated Effort
+
+| Phase | Estimated Time |
+|-------|---------------|
+| Phase 0: Database Schema | 0.5 hours |
+| Phase 1: Backend Auth | 4-6 hours |
+| Phase 2: Frontend Auth | 4-5 hours |
+| Phase 3: Backend Drive Support | 2-3 hours |
+| Phase 4: Frontend Drive Upload | 5-6 hours |
+| Phase 5: Rivvon Integration | 1-2 hours |
+| Phase 6: Data Migration | 3-4 hours |
+| Phase 7: Polish & Production | 4-6 hours |
+| **Total** | **24-33 hours** |
+
+---
+
+## Success Criteria
+
+✅ **Authentication**
+- User can log in with Google (single consent screen)
+- Session persists across page reloads
+- Auth0 completely removed
+
+✅ **Storage**
+- New textures default to Google Drive
+- Existing R2 textures continue to work
+- Database tracks storage provider per texture
+
+✅ **Upload Flow**
+- Slyce uploads KTX2 tiles directly to user's Google Drive
+- Files are publicly accessible (anyone with link)
+- Thumbnails remain on R2
+- Progress indication works
+
+✅ **Consumption**
+- Rivvon loads textures from both R2 and Google Drive
+- No CORS issues
+- Performance is acceptable
+- Error handling for unavailable files
+
+✅ **Migration**
+- Existing textures migrated from R2 to Google Drive
+- Migration tool works reliably
+- Old R2 files cleaned up after confirmation
+
+✅ **Production Ready**
+- OAuth app verified by Google
+- Error handling covers edge cases
+- Documentation updated
+- No Auth0 dependencies remain
 
 ---
 
 ## Google Cloud Setup Checklist
 
-1. **Create Project**
-   - Go to [Google Cloud Console](https://console.cloud.google.com)
-   - Create new project: "Slyce"
+### 1. Create Project
+- Go to [Google Cloud Console](https://console.cloud.google.com)
+- Create new project: **"Rivvon"** or **"Slyce"**
 
-2. **Enable APIs**
-   - Enable "Google Drive API"
-   - Enable "Google Identity" (for OAuth)
+### 2. Enable APIs
+- **Google Drive API**: Enable from API Library
+- **Google People API**: Enable (for profile info)
 
-3. **Configure OAuth Consent Screen**
-   - User type: External
-   - App name: "Slyce"
-   - User support email: your email
-   - Scopes: `email`, `profile`, `openid`, `drive.file`
-   - Test users: add your email (while in testing mode)
+### 3. Configure OAuth Consent Screen
+- User type: **External**
+- App name: **"Slyce"**
+- User support email: Your email
+- Developer contact: Your email
+- App logo: (optional) Upload Slyce logo
+- Application home page: `https://slyce.rivvon.ca`
+- Application privacy policy: (create a simple one) `https://slyce.rivvon.ca/privacy`
+- Application terms of service: (optional)
 
-4. **Create Credentials**
-   - Type: OAuth 2.0 Client ID
-   - Application type: Web application
-   - Authorized JavaScript origins: 
-     - `https://slyce.rivvon.ca`
-     - `http://localhost:5173` (for development)
-   - Authorized redirect URIs: 
-     - `https://slyce.rivvon.ca/callback`
-     - `http://localhost:5173/callback`
-   - Save Client ID and Client Secret
+### 4. Add OAuth Scopes
+Add these scopes in the consent screen configuration:
+- `openid`
+- `email`
+- `profile`
+- `https://www.googleapis.com/auth/drive.file` (App-created files only)
 
-5. **Move to Production**
-   - Submit for verification (required for `drive.file` scope)
-   - Provide privacy policy URL
-   - Complete verification process
-   - App name: "Slyce"
-   - User support email: your email
-   - Scopes: `drive.file`
-   - Test users: add your email (while in testing mode)
+**Consent Screen Preview:**
+```
+Slyce wants to:
+• See your email address
+• See your personal info (name, picture)
+• See, edit, create, and delete only the specific 
+  Google Drive files you use with this app
+```
 
-4. **Create Credentials**
-   - Type: OAuth 2.0 Client ID
-   - Application type: Web application
-   - Authorized JavaScript origins: `https://slyce.rivvon.ca`
-   - Authorized redirect URIs: `https://slyce.rivvon.ca/callback/google-drive`
-   - Save Client ID and Client Secret
+### 5. Create OAuth 2.0 Credentials
+- Type: **OAuth 2.0 Client ID**
+- Application type: **Web application**
+- Name: **"Slyce Web Client"**
 
-5. **Move to Production**
-   - Submit for verification (required for `drive.file` scope)
-   - Provide privacy policy URL
-   - Complete verification process
+**Authorized JavaScript origins:**
+```
+https://slyce.rivvon.ca
+http://localhost:5173
+http://localhost:5174
+```
+
+**Authorized redirect URIs:**
+```
+https://slyce.rivvon.ca/callback
+http://localhost:5173/callback
+http://localhost:5174/callback
+```
+
+- Click **Create**
+- Save **Client ID** and **Client Secret**
+
+### 6. Test Users (During Development)
+While app is in "Testing" mode:
+- Add your Google account as test user
+- Add any collaborator accounts
+
+### 7. Publishing (Production)
+Once ready for production:
+- **Submit for verification** (required for `drive.file` scope)
+- Prepare verification materials:
+  - Privacy policy (required)
+  - Explanation of how you use Drive access
+  - YouTube demo video (optional but helpful)
+- Google review process: **1-2 weeks typically**
+- After approval, app moves to "In Production"
+
+### 8. Set Cloudflare Secrets
+```bash
+cd apps/api
+
+# Generate encryption key
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# Store secrets
+wrangler secret put GOOGLE_CLIENT_ID
+# Paste your Google Client ID
+
+wrangler secret put GOOGLE_CLIENT_SECRET
+# Paste your Google Client Secret
+
+wrangler secret put REFRESH_TOKEN_ENCRYPTION_KEY
+# Paste the generated encryption key
+```
+
+### 9. Update Environment Variables
+
+**Slyce** (`.env`):
+```bash
+VITE_GOOGLE_CLIENT_ID=your_client_id_here.apps.googleusercontent.com
+VITE_API_URL=https://api.rivvon.ca
+VITE_APP_URL=https://slyce.rivvon.ca
+```
+
+**API** (`wrangler.toml` vars section - non-secret):
+```toml
+[vars]
+CORS_ORIGINS = "https://slyce.rivvon.ca,https://rivvon.ca,http://localhost:5173"
+APP_URL = "https://slyce.rivvon.ca"
+```
 
 ---
 
-## Estimated Effort
+## Privacy Policy Requirements
 
-| Phase | Effort |
-|-------|--------|
-| Phase 1: Auth Migration | 8-10 hours |
-| Phase 2: Drive Upload | 8-10 hours |
-| Phase 3: My Textures | 2-3 hours |
-| Phase 4: Polish | 4-6 hours |
-| **Total** | **~22-29 hours** |
+Google requires a privacy policy for OAuth apps. Here's a minimal template:
 
----
+**Key points to cover:**
+1. What data you collect (email, name, profile picture)
+2. How you use Google Drive access (storing user-created textures)
+3. That you don't access other Drive files
+4. How users can revoke access
+5. Data retention policy
+6. Contact information
 
-## Open Questions (Resolved)
-
-| Question | Decision |
-|----------|----------|
-| Authentication | ✅ Direct Google OAuth (replace Auth0) |
-| Upload path | ✅ Direct browser-to-Drive |
-| Thumbnail storage | ✅ Always R2 |
-| Folder location | ✅ Fixed "Slyce Textures" in root |
-| Storage model | ✅ Hybrid (user choice) during transition |
-| Existing textures | ✅ Stay on R2, migrate later |
+**Host at:** `https://slyce.rivvon.ca/privacy` (can be static page)
 
 ---
 
-## Risks & Mitigations
+## Security Best Practices Summary
 
-| Risk | Mitigation |
-|------|------------|
-| Google verification takes weeks | Start early, use test mode for development |
-| Drive API rate limits | Batch permission requests, cache folder IDs |
-| Token expires during long upload | Implement token refresh mid-upload |
-| User deletes folder in Drive | Handle 404 gracefully, offer re-create option |
-| Google changes API | Use stable v3 API, monitor deprecation notices |
+### ✅ Implemented
+- **Refresh token encryption** (AES-256-GCM)
+- **HTTP-only cookies** for sessions
+- **Minimal OAuth scopes** (`drive.file` only)
+- **HTTPS everywhere**
+- **Cloudflare Secrets** for sensitive data
+- **Short-lived access tokens** (1 hour)
+
+### ✅ Recommended Additional Measures
+- **Rate limiting** on auth endpoints (Cloudflare has built-in DDoS protection)
+- **CSRF protection** for state parameter in OAuth flow
+- **Token rotation** schedule (re-encrypt refresh tokens quarterly)
+- **Audit logging** for auth events (log to Cloudflare Analytics)
+- **User token revocation** UI in settings
 
 ---
 
-## Appendix: Google Drive API Reference
+## Troubleshooting Guide
 
-**Resumable Upload:**
-https://developers.google.com/drive/api/guides/manage-uploads#resumable
+### Issue: "redirect_uri_mismatch" error
 
-**Permissions:**
-https://developers.google.com/drive/api/reference/rest/v3/permissions
+**Cause:** Redirect URI not registered in Google Console
 
-**Files:**
-https://developers.google.com/drive/api/reference/rest/v3/files
+**Fix:**
+1. Go to Google Cloud Console → APIs & Services → Credentials
+2. Edit your OAuth 2.0 Client ID
+3. Add exact redirect URI to "Authorized redirect URIs" list
+4. Must match exactly including protocol, domain, port, and path
 
-**OAuth Scopes:**
-https://developers.google.com/drive/api/guides/api-specific-auth
+### Issue: Google Drive files not loading in Rivvon
+
+**Cause:** Public sharing not set correctly
+
+**Fix:**
+1. Check file permissions in Google Drive
+2. Ensure permission type is "anyone" with role "reader"
+3. Verify public URL format: `https://drive.google.com/uc?id={FILE_ID}&export=download`
+4. Check browser console for CORS errors
+
+### Issue: "Access blocked" during OAuth consent
+
+**Cause:** App not verified or test user not added
+
+**Fix:**
+- If in development: Add your Google account to test users in consent screen
+- If in production: Complete verification process
+- Temporary: Click "Advanced" → "Go to Slyce (unsafe)" (only for testing)
+
+### Issue: Refresh token not provided
+
+**Cause:** Google only sends refresh token on first consent
+
+**Fix:**
+1. Revoke app access: https://myaccount.google.com/permissions
+2. Log in again (will trigger new consent)
+3. OR use `access_type=offline` and `prompt=consent` parameters
+
+### Issue: Upload fails midway
+
+**Cause:** Token expired during long upload
+
+**Fix:**
+- Implement token refresh in upload flow
+- Check token expiry before each upload
+- Request new token if < 5 minutes remaining
+
+---
+
+## Future Enhancements
+
+### Phase 8+ Ideas
+
+- **Batch operations**: Delete multiple textures at once
+- **Texture sharing**: Share texture sets with other users via Drive
+- **Folder customization**: Let users choose where to save textures
+- **Offline support**: Cache textures for offline playback
+- **CDN caching**: Proxy popular textures through Cloudflare for speed
+- **Analytics**: Track texture views and downloads
+- **Texture marketplace**: Public gallery of community textures
+- **Collaborative editing**: Multiple users working on same texture set
+- **Version control**: Keep history of texture updates
+
+---
+
+## Resources & References
+
+### Google APIs
+- **OAuth 2.0**: https://developers.google.com/identity/protocols/oauth2
+- **Drive API v3**: https://developers.google.com/drive/api/v3/reference
+- **Resumable Upload**: https://developers.google.com/drive/api/guides/manage-uploads#resumable
+- **Permissions API**: https://developers.google.com/drive/api/reference/rest/v3/permissions
+- **OAuth Scopes**: https://developers.google.com/identity/protocols/oauth2/scopes#drive
+
+### Cloudflare
+- **Workers**: https://developers.cloudflare.com/workers/
+- **D1 Database**: https://developers.cloudflare.com/d1/
+- **R2 Storage**: https://developers.cloudflare.com/r2/
+- **Wrangler CLI**: https://developers.cloudflare.com/workers/wrangler/
+
+### Web Crypto API
+- **SubtleCrypto**: https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto
+- **AES-GCM**: https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt
+
+### Three.js
+- **KTX2Loader**: https://threejs.org/docs/#examples/en/loaders/KTX2Loader
+- **Texture**: https://threejs.org/docs/#api/en/textures/Texture
+
+---
+
+## Glossary
+
+- **Auth0**: Third-party authentication service (being replaced)
+- **D1**: Cloudflare's serverless SQL database (SQLite-based)
+- **Drive API**: Google's RESTful API for Drive file operations
+- **JWKS**: JSON Web Key Set (public keys for JWT verification)
+- **JWT**: JSON Web Token (authentication token format)
+- **KTX2**: Khronos Texture 2.0 (compressed GPU texture format)
+- **OAuth 2.0**: Open standard for authorization
+- **R2**: Cloudflare's S3-compatible object storage
+- **Refresh Token**: Long-lived token for obtaining new access tokens
+- **Resumable Upload**: Upload protocol that supports pause/resume
+- **Scope**: OAuth permission level (e.g., `drive.file`)
+- **Worker**: Cloudflare's serverless compute platform
+
+---
+
+## Appendix: Migration Script Example
+
+Complete migration script for reference:
+
+```javascript
+// apps/slyce/src/views/MigrationView.vue (excerpts)
+
+async function migrateTexture(textureSet, tiles) {
+  const { useGoogleDrive } = await import('@/composables/useGoogleDrive')
+  const drive = useGoogleDrive()
+  
+  // 1. Create folder in Drive
+  const folderName = `${textureSet.name}-${textureSet.id.slice(0, 6)}`
+  console.log(`Creating folder: ${folderName}`)
+  
+  const folder = await drive.createFolder(
+    folderName,
+    drive.slyceFolderId.value
+  )
+  
+  // 2. Download & re-upload each tile
+  for (let i = 0; i < tiles.length; i++) {
+    const tile = tiles[i]
+    console.log(`Migrating tile ${i + 1}/${tiles.length}`)
+    
+    // Download from R2
+    const response = await fetch(`https://cdn.rivvon.ca/${tile.r2_key}`)
+    if (!response.ok) throw new Error(`Failed to download tile ${tile.tile_index}`)
+    
+    const blob = await response.blob()
+    
+    // Upload to Drive
+    const fileName = `${tile.tile_index}.ktx2`
+    const driveFile = await drive.uploadFile(blob, fileName, folder.id)
+    
+    // Update database
+    await fetch(`/admin/texture-tile/${tile.id}/storage`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        driveFileId: driveFile.fileId,
+        publicUrl: driveFile.webContentLink
+      })
+    })
+    
+    // Update progress
+    progress.value[textureSet.id] = i + 1
+  }
+  
+  // 3. Update texture set
+  await fetch(`/admin/texture-set/${textureSet.id}/storage`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      storageProvider: 'google-drive',
+      driveFolderId: folder.id
+    })
+  })
+  
+  console.log(`✓ Migrated: ${textureSet.name}`)
+}
+```
+
+---
+
+**End of Google Drive Integration Plan**
+
+*Last Updated: January 22, 2026*
+*Monorepo Context: rivvon-app (api + slyce + rivvon)*
