@@ -42,7 +42,7 @@ export function buildCookieString(
         path = '/',
         httpOnly = true,
         secure = true,
-        sameSite = 'Lax',
+        sameSite = 'None', // Required for cross-site cookies (slyce.rivvon.ca -> api.rivvon.ca)
     } = options;
 
     let cookie = `${name}=${value}`;

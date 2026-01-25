@@ -1,6 +1,5 @@
 // src/index.ts
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { uploadRoutes } from './routes/upload';
 import { textureRoutes } from './routes/textures';
 import { authRoutes } from './routes/auth';
@@ -23,15 +22,38 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// CORS middleware
+// CORS middleware - must handle credentials for cross-site cookies
 app.use('*', async (c, next) => {
-    const origins = c.env.CORS_ORIGINS.split(',');
-    return cors({
-        origin: origins,
-        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowHeaders: ['Content-Type', 'Authorization'],
-        credentials: true,
-    })(c, next);
+    const allowedOrigins = c.env.CORS_ORIGINS?.split(',') || [
+        'https://slyce.rivvon.ca',
+        'https://rivvon.ca',
+        'http://localhost:5173',
+        'http://localhost:5174',
+    ];
+
+    const origin = c.req.header('Origin');
+
+    // Handle preflight requests
+    if (c.req.method === 'OPTIONS') {
+        return new Response(null, {
+            status: 204,
+            headers: {
+                'Access-Control-Allow-Origin': origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Allow-Credentials': 'true',
+                'Access-Control-Max-Age': '86400',
+            },
+        });
+    }
+
+    await next();
+
+    // Add CORS headers to all responses
+    if (origin && allowedOrigins.includes(origin)) {
+        c.res.headers.set('Access-Control-Allow-Origin', origin);
+        c.res.headers.set('Access-Control-Allow-Credentials', 'true');
+    }
 });
 
 // Health check
