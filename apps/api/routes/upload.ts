@@ -195,67 +195,81 @@ uploadRoutes.post('/:id/complete', async (c) => {
 // Register a tile's metadata (for Google Drive uploads)
 // Called after frontend uploads file directly to Google Drive
 uploadRoutes.post('/:id/tile/:index/metadata', async (c) => {
-  const auth = c.get('auth');
-  const textureSetId = c.req.param('id');
-  const tileIndex = parseInt(c.req.param('index'));
+  try {
+    const auth = c.get('auth');
+    const textureSetId = c.req.param('id');
+    const tileIndex = parseInt(c.req.param('index'));
 
-  // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
-    SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(textureSetId, auth.userId).first() as any;
+    console.log('Tile metadata request:', { textureSetId, tileIndex, userId: auth?.userId });
 
-  if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    // Verify ownership
+    const textureSet = await c.env.DB.prepare(`
+      SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
+    `).bind(textureSetId, auth.userId).first() as any;
+
+    if (!textureSet) {
+      console.log('Texture set not found:', { textureSetId, userId: auth.userId });
+      return c.json({ error: 'Texture set not found' }, 404);
+    }
+
+    // Validate this is a Google Drive texture set
+    if (textureSet.storage_provider !== 'google-drive') {
+      console.log('Wrong storage provider:', textureSet.storage_provider);
+      return c.json({ error: 'This endpoint is only for Google Drive storage' }, 400);
+    }
+
+    // Validate tile index
+    if (tileIndex < 0 || tileIndex >= textureSet.tile_count) {
+      console.log('Invalid tile index:', { tileIndex, tileCount: textureSet.tile_count });
+      return c.json({ error: 'Invalid tile index' }, 400);
+    }
+
+    const body = await c.req.json();
+    const { driveFileId, fileSize, mimeType } = body;
+
+    console.log('Tile metadata body:', { driveFileId, fileSize, mimeType });
+
+    if (!driveFileId) {
+      return c.json({ error: 'driveFileId is required' }, 400);
+    }
+
+    // Build public URL for Google Drive
+    // Files need to be shared publicly for this URL to work
+    const publicUrl = `https://drive.google.com/uc?export=download&id=${driveFileId}`;
+
+    // Check if tile already exists (update) or needs to be created (insert)
+    const existingTile = await c.env.DB.prepare(`
+      SELECT id FROM texture_tiles WHERE texture_set_id = ? AND tile_index = ?
+    `).bind(textureSetId, tileIndex).first();
+
+    if (existingTile) {
+      // Update existing tile
+      await c.env.DB.prepare(`
+        UPDATE texture_tiles 
+        SET drive_file_id = ?, public_url = ?, file_size = ?
+        WHERE texture_set_id = ? AND tile_index = ?
+      `).bind(driveFileId, publicUrl, fileSize || null, textureSetId, tileIndex).run();
+      console.log('Updated existing tile:', { tileIndex });
+    } else {
+      // Insert new tile
+      const tileId = nanoid();
+      await c.env.DB.prepare(`
+        INSERT INTO texture_tiles (id, texture_set_id, tile_index, drive_file_id, public_url, file_size)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(tileId, textureSetId, tileIndex, driveFileId, publicUrl, fileSize || null).run();
+      console.log('Inserted new tile:', { tileId, tileIndex });
+    }
+
+    return c.json({
+      success: true,
+      tileIndex,
+      driveFileId,
+      publicUrl,
+    });
+  } catch (error) {
+    console.error('Tile metadata error:', error);
+    return c.json({ error: 'Failed to register tile metadata', details: String(error) }, 500);
   }
-
-  // Validate this is a Google Drive texture set
-  if (textureSet.storage_provider !== 'google-drive') {
-    return c.json({ error: 'This endpoint is only for Google Drive storage' }, 400);
-  }
-
-  // Validate tile index
-  if (tileIndex < 0 || tileIndex >= textureSet.tile_count) {
-    return c.json({ error: 'Invalid tile index' }, 400);
-  }
-
-  const body = await c.req.json();
-  const { driveFileId, fileSize, mimeType } = body;
-
-  if (!driveFileId) {
-    return c.json({ error: 'driveFileId is required' }, 400);
-  }
-
-  // Build public URL for Google Drive
-  // Files need to be shared publicly for this URL to work
-  const publicUrl = `https://drive.google.com/uc?export=download&id=${driveFileId}`;
-
-  // Check if tile already exists (update) or needs to be created (insert)
-  const existingTile = await c.env.DB.prepare(`
-    SELECT id FROM texture_tiles WHERE texture_set_id = ? AND tile_index = ?
-  `).bind(textureSetId, tileIndex).first();
-
-  if (existingTile) {
-    // Update existing tile
-    await c.env.DB.prepare(`
-      UPDATE texture_tiles 
-      SET drive_file_id = ?, public_url = ?, file_size = ?
-      WHERE texture_set_id = ? AND tile_index = ?
-    `).bind(driveFileId, publicUrl, fileSize || null, textureSetId, tileIndex).run();
-  } else {
-    // Insert new tile
-    const tileId = nanoid();
-    await c.env.DB.prepare(`
-      INSERT INTO texture_tiles (id, texture_set_id, tile_index, drive_file_id, public_url, file_size)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(tileId, textureSetId, tileIndex, driveFileId, publicUrl, fileSize || null).run();
-  }
-
-  return c.json({
-    success: true,
-    tileIndex,
-    driveFileId,
-    publicUrl,
-  });
 });
 
 // Upload a single tile (alternative to presigned URLs)

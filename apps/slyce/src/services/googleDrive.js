@@ -21,7 +21,7 @@ export function useGoogleDrive() {
      */
     async function ensureSlyceFolder() {
         // Check if we already have the folder ID cached
-        const cachedFolderId = getDriveFolderId()
+        const cachedFolderId = await getDriveFolderId()
         if (cachedFolderId) {
             // Verify folder still exists
             const verified = await verifyFolderExists(cachedFolderId)
@@ -113,7 +113,7 @@ export function useGoogleDrive() {
      */
     async function saveFolderIdToBackend(folderId) {
         try {
-            await fetch(`${API_BASE_URL}/auth/drive-folder`, {
+            await fetch(`${API_BASE_URL}/api/auth/drive-folder`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
