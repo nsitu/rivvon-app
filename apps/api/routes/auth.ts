@@ -3,6 +3,7 @@
 import { Hono } from 'hono';
 import {
     getCookie,
+    buildCookieString,
     setAuthCookies,
     clearAuthCookies,
     setOAuthStateCookie,
@@ -83,9 +84,6 @@ authRoutes.get('/callback', async (c) => {
         return c.redirect(`${c.env.APP_URL}/login?error=invalid_state`);
     }
 
-    // Clear the state cookie (one-time use)
-    clearOAuthStateCookie(c);
-
     try {
         // Exchange authorization code for tokens
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -139,11 +137,35 @@ authRoutes.get('/callback', async (c) => {
         // Create session token
         const sessionToken = await createSessionToken(user, c.env.SESSION_SECRET);
 
-        // Set cookies
-        setAuthCookies(c, sessionToken, tokens.refresh_token);
+        // Build redirect response with cookies
+        // Note: c.redirect() doesn't include headers set via c.header(), so we build manually
+        const headers = new Headers();
+        headers.set('Location', c.env.APP_URL);
 
-        // Redirect back to app
-        return c.redirect(c.env.APP_URL);
+        // Session cookie
+        headers.append('Set-Cookie', buildCookieString('session', sessionToken, {
+            maxAge: 7 * 24 * 60 * 60,
+            path: '/',
+        }));
+
+        // Refresh token cookie (if provided)
+        if (tokens.refresh_token) {
+            headers.append('Set-Cookie', buildCookieString('google_refresh_token', tokens.refresh_token, {
+                maxAge: 30 * 24 * 60 * 60,
+                path: '/api/auth',
+            }));
+        }
+
+        // Clear the oauth_state cookie
+        headers.append('Set-Cookie', buildCookieString('oauth_state', '', {
+            maxAge: 0,
+            path: '/api/auth',
+        }));
+
+        return new Response(null, {
+            status: 302,
+            headers,
+        });
     } catch (err) {
         console.error('OAuth callback error:', err);
         return c.redirect(`${c.env.APP_URL}/login?error=callback_failed`);
