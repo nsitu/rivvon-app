@@ -370,7 +370,7 @@
             });
 
             uploadedTextureSetId.value = result.textureSetId;
-            uploadedUrls.value = result.cdnUrls.map((t) => t.url);
+            uploadedUrls.value = result.tiles.map((t) => t.url);
             uploadedThumbnailUrl.value = result.thumbnailUrl;
 
             uploadSuccess.value = true;
