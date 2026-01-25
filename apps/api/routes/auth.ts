@@ -33,13 +33,37 @@ const SCOPES = [
 /**
  * GET /api/auth/login
  * Initiate OAuth flow - generates CSRF state and redirects to Google
+ * Accepts optional redirect_to param to return to originating app
  */
 authRoutes.get('/login', async (c) => {
     // Generate CSRF state token
     const state = crypto.randomUUID();
 
+    // Get the redirect_to param (which app to return to after login)
+    const redirectTo = c.req.query('redirect_to') || c.env.APP_URL || 'https://slyce.rivvon.ca';
+
+    // Validate redirect_to is an allowed origin
+    const allowedOrigins = [
+        'https://slyce.rivvon.ca',
+        'https://rivvon.ca',
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
+        'http://localhost:5176',
+        'http://localhost:5177',
+    ];
+
+    const finalRedirect = allowedOrigins.includes(redirectTo) ? redirectTo : c.env.APP_URL;
+
     // Store state in HTTP-only cookie for validation on callback
     setOAuthStateCookie(c, state);
+
+    // Store redirect destination in HTTP-only cookie
+    c.header('Set-Cookie', buildCookieString('oauth_redirect', finalRedirect, {
+        maxAge: 600, // 10 minutes
+        path: '/api/auth',
+        sameSite: 'Lax', // Lax is fine for this cookie
+    }));
 
     // Build Google OAuth URL
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -61,27 +85,31 @@ authRoutes.get('/login', async (c) => {
  * - Exchanges code for tokens
  * - Creates/updates user in database
  * - Sets session and refresh token cookies
+ * - Redirects back to originating app (stored in oauth_redirect cookie)
  */
 authRoutes.get('/callback', async (c) => {
     const code = c.req.query('code');
     const state = c.req.query('state');
     const error = c.req.query('error');
 
+    // Get the redirect destination from cookie (set during /login)
+    const redirectTo = getCookie(c, 'oauth_redirect') || c.env.APP_URL || 'https://slyce.rivvon.ca';
+
     // Handle OAuth errors from Google
     if (error) {
         console.error('OAuth error from Google:', error);
-        return c.redirect(`${c.env.APP_URL}/login?error=${error}`);
+        return c.redirect(`${redirectTo}/login?error=${error}`);
     }
 
     if (!code) {
-        return c.redirect(`${c.env.APP_URL}/login?error=missing_code`);
+        return c.redirect(`${redirectTo}/login?error=missing_code`);
     }
 
     // Validate CSRF state
     const storedState = getCookie(c, 'oauth_state');
     if (!state || state !== storedState) {
         console.error('CSRF state mismatch:', { received: state, expected: storedState });
-        return c.redirect(`${c.env.APP_URL}/login?error=invalid_state`);
+        return c.redirect(`${redirectTo}/login?error=invalid_state`);
     }
 
     try {
@@ -113,7 +141,7 @@ authRoutes.get('/callback', async (c) => {
 
         if (!tokens.id_token) {
             console.error('No ID token in response');
-            return c.redirect(`${c.env.APP_URL}/login?error=missing_id_token`);
+            return c.redirect(`${redirectTo}/login?error=missing_id_token`);
         }
 
         // Decode ID token to get user info
@@ -140,7 +168,7 @@ authRoutes.get('/callback', async (c) => {
         // Build redirect response with cookies
         // Note: c.redirect() doesn't include headers set via c.header(), so we build manually
         const headers = new Headers();
-        headers.set('Location', c.env.APP_URL);
+        headers.set('Location', redirectTo); // Redirect back to originating app
 
         // Session cookie
         headers.append('Set-Cookie', buildCookieString('session', sessionToken, {
@@ -162,13 +190,20 @@ authRoutes.get('/callback', async (c) => {
             path: '/api/auth',
         }));
 
+        // Clear the oauth_redirect cookie
+        headers.append('Set-Cookie', buildCookieString('oauth_redirect', '', {
+            maxAge: 0,
+            path: '/api/auth',
+        }));
+
         return new Response(null, {
             status: 302,
             headers,
         });
     } catch (err) {
         console.error('OAuth callback error:', err);
-        return c.redirect(`${c.env.APP_URL}/login?error=callback_failed`);
+        const fallbackRedirect = getCookie(c, 'oauth_redirect') || c.env.APP_URL || 'https://slyce.rivvon.ca';
+        return c.redirect(`${fallbackRedirect}/login?error=callback_failed`);
     }
 });
 

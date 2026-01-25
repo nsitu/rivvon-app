@@ -21,7 +21,12 @@ import {
   textInputField,
   fontSelector,
   generateTextBtn,
-  closeTextPanelBtn
+  closeTextPanelBtn,
+  loginBtn,
+  userInfo,
+  userAvatar,
+  userName,
+  logoutBtn
 } from './modules/domElements.js';
 import { loadSvgPath, parseSvgContent, normalizePoints, parseSvgContentMultiPath, normalizePointsMultiPath } from './modules/svgPathToPoints.js';
 import { Ribbon } from './modules/ribbon.js';
@@ -31,12 +36,14 @@ import { TileManager } from './modules/tileManager.js';
 import { TextureBrowser } from './modules/textureBrowser.js';
 import { fetchTextureSet } from './modules/textureService.js';
 import { TextToSvg } from './modules/textToSvg.js';
+import { initAuth, onAuthStateChange, login, logout, isAuthenticated } from './modules/auth.js';
 import * as THREE from 'three';
 
 // Configuration
 const RIBBON_RESOLUTION = 500; // Number of points per path - higher = smoother ribbon
 
 let scene, camera, renderer, controls, resetCamera, rendererType;
+
 
 let tileManager;
 let textureBrowser; // Texture browser UI component
@@ -47,9 +54,42 @@ let ribbonSeries = null; // For multi-path SVG support
 let drawingManager;
 let currentRenderLoop = null; // for restartable WebGL loop
 
+// Initialize auth UI
+function setupAuthUI() {
+  // Listen for auth state changes
+  onAuthStateChange((user, authenticated) => {
+    if (authenticated && user) {
+      // Show user info, hide login button
+      loginBtn.style.display = 'none';
+      userInfo.style.display = 'flex';
+      userAvatar.src = user.picture || '';
+      userAvatar.style.display = user.picture ? 'block' : 'none';
+      userName.textContent = user.name || user.email || 'User';
+    } else {
+      // Show login button, hide user info
+      loginBtn.style.display = 'flex';
+      userInfo.style.display = 'none';
+    }
+  });
+
+  // Wire up login button
+  loginBtn.addEventListener('click', () => {
+    login();
+  });
+
+  // Wire up logout button
+  logoutBtn.addEventListener('click', async () => {
+    await logout();
+  });
+}
+
 // Initialize app automatically on page load
 async function initApp() {
   try {
+    // Initialize auth first (non-blocking)
+    initAuth().catch(err => console.warn('[App] Auth init failed:', err));
+    setupAuthUI();
+
     // Choose renderer type (WebGPU preferred, WebGL fallback)
     rendererType = await chooseRenderer();
     console.log(`[App] Using renderer: ${rendererType}`);
@@ -769,6 +809,20 @@ async function handleRemoteTextureSelect(texture) {
       throw new Error('No tiles found in texture set');
     }
 
+    // Check if this is a Google Drive texture that requires authentication
+    const hasDriveTiles = textureSet.tiles.some(tile => tile.driveFileId);
+    if (hasDriveTiles && !isAuthenticated()) {
+      // Prompt user to sign in
+      const shouldLogin = confirm(
+        'This texture is stored on Google Drive and requires you to sign in.\n\n' +
+        'Click OK to sign in with Google, or Cancel to go back.'
+      );
+      if (shouldLogin) {
+        login();
+      }
+      return; // Exit early - login will redirect
+    }
+
     console.log(`[App] Fetched texture set: ${textureSet.tiles.length} tiles`);
 
     // Load textures from remote URLs
@@ -796,7 +850,19 @@ async function handleRemoteTextureSelect(texture) {
     }
   } catch (error) {
     console.error('[App] Failed to load remote texture:', error);
-    alert('Failed to load texture: ' + error.message);
+    
+    // Check if it's an auth error
+    if (error.message.includes('Not authenticated') || error.message.includes('Access denied')) {
+      const shouldLogin = confirm(
+        'Unable to access this texture. You may need to sign in.\n\n' +
+        'Click OK to sign in with Google, or Cancel to go back.'
+      );
+      if (shouldLogin) {
+        login();
+      }
+    } else {
+      alert('Failed to load texture: ' + error.message);
+    }
   } finally {
     // Restore button
     browseTexturesBtn.disabled = false;

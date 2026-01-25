@@ -88,6 +88,82 @@ body.app-active .app-logo {
   display: block;
 }
 
+/* Auth container in top right */
+.auth-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: none;
+}
+
+body.app-active .auth-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5em 1em;
+  font-size: 0.9em;
+  min-height: 40px;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.auth-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.auth-btn svg {
+  flex-shrink: 0;
+}
+
+.login-btn span {
+  white-space: nowrap;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 8px 4px 4px;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-name {
+  color: #fff;
+  font-size: 0.9em;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout-btn {
+  padding: 0.4em;
+  min-width: 32px;
+  min-height: 32px;
+  background: transparent;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 /* Bottom center menu container */
 #bottomRightMenu {
   position: absolute;

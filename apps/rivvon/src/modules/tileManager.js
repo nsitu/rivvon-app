@@ -921,11 +921,30 @@ export class TileManager {
                 tiles.map(async (tile) => {
                     try {
                         const tileIndex = tile.index ?? tile.tileIndex ?? 0;
-                        const response = await fetch(tile.url);
-                        if (!response.ok) {
-                            throw new Error(`Failed to fetch tile ${tileIndex}: ${response.statusText}`);
+                        let data;
+
+                        // Check if this is a Google Drive URL (needs API fetch) or direct URL (CDN)
+                        if (tile.driveFileId) {
+                            // Use Drive API via auth module
+                            const { fetchDriveFile } = await import('./auth.js');
+                            data = await fetchDriveFile(tile.driveFileId);
+                        } else if (tile.url && tile.url.includes('drive.google.com')) {
+                            // Extract file ID from Drive URL and use API
+                            const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
+                            if (fileIdMatch) {
+                                const { fetchDriveFile } = await import('./auth.js');
+                                data = await fetchDriveFile(fileIdMatch[1]);
+                            } else {
+                                throw new Error('Invalid Drive URL format');
+                            }
+                        } else {
+                            // Direct URL (R2/CDN) - standard fetch
+                            const response = await fetch(tile.url);
+                            if (!response.ok) {
+                                throw new Error(`Failed to fetch tile ${tileIndex}: ${response.statusText}`);
+                            }
+                            data = await response.arrayBuffer();
                         }
-                        const data = await response.arrayBuffer();
 
                         // Increment completed count and report progress
                         completedDownloads++;

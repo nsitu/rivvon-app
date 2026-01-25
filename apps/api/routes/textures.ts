@@ -63,15 +63,20 @@ textureRoutes.get('/:id', async (c) => {
 
     const storageProvider = textureSet.storage_provider || 'r2';
 
-    // Generate public URLs for each tile based on storage provider
+    // Generate tile data for each tile based on storage provider
+    // For Google Drive: include driveFileId so frontend can use Drive API
+    // For R2: include direct CDN URL
     const tileUrls = (tiles.results as any[]).map((tile) => {
         let url: string;
+        let driveFileId: string | null = null;
 
         if (storageProvider === 'google-drive' && tile.drive_file_id) {
-            // Use the stored public_url or construct from drive_file_id
+            // Include driveFileId for frontend to use Drive API (bypasses CORS)
+            driveFileId = tile.drive_file_id;
+            // Also include URL as fallback (though it won't work due to CORS)
             url = tile.public_url || `https://drive.google.com/uc?export=download&id=${tile.drive_file_id}`;
         } else if (tile.r2_key) {
-            // R2 storage - use CDN URL
+            // R2 storage - use CDN URL (no auth needed)
             url = `https://cdn.rivvon.ca/${tile.r2_key}`;
         } else {
             // Fallback to stored public_url
@@ -81,6 +86,7 @@ textureRoutes.get('/:id', async (c) => {
         return {
             tileIndex: tile.tile_index,
             url,
+            driveFileId,
             fileSize: tile.file_size,
         };
     });

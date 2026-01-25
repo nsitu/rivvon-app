@@ -23,3 +23,11 @@ export const textInputField = document.getElementById('textInputField');
 export const fontSelector = document.getElementById('fontSelector');
 export const generateTextBtn = document.getElementById('generateTextBtn');
 export const closeTextPanelBtn = document.getElementById('closeTextPanelBtn');
+
+// Auth elements
+export const authContainer = document.getElementById('authContainer');
+export const loginBtn = document.getElementById('loginBtn');
+export const userInfo = document.getElementById('userInfo');
+export const userAvatar = document.getElementById('userAvatar');
+export const userName = document.getElementById('userName');
+export const logoutBtn = document.getElementById('logoutBtn');
