@@ -16,7 +16,14 @@ bucket_name = "rivvon-textures"
 # Environment variables (non-secret)
 [vars]
 CORS_ORIGINS = "https://slyce.rivvon.ca,https://rivvon.ca,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
+API_URL = "https://api.rivvon.ca"
+APP_URL = "https://slyce.rivvon.ca"
 
 # Secrets (set via wrangler secret put)
+# GOOGLE_CLIENT_ID     - Google OAuth client ID
+# GOOGLE_CLIENT_SECRET - Google OAuth client secret
+# SESSION_SECRET       - Secret for signing session tokens (min 32 chars)
+#
+# Legacy (can be removed after Auth0 migration):
 # AUTH0_DOMAIN
 # AUTH0_AUDIENCE

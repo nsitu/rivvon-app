@@ -1,7 +1,6 @@
 
 import { createPinia } from 'pinia';
 import { createApp } from 'vue';
-import { createAuth0 } from '@auth0/auth0-vue';
 import PrimeVue from 'primevue/config';
 import Aura from '@primevue/themes/aura';
 import App from './App.vue';
@@ -31,20 +30,7 @@ app.use(pinia);
 // Configure Vue Router
 app.use(router);
 
-// Configure Auth0
-app.use(
-    createAuth0({
-        domain: import.meta.env.VITE_AUTH0_DOMAIN,
-        clientId: import.meta.env.VITE_AUTH0_CLIENT_ID,
-        authorizationParams: {
-            redirect_uri: import.meta.env.VITE_AUTH0_REDIRECT_URI || window.location.origin + '/callback',
-            audience: import.meta.env.VITE_AUTH0_AUDIENCE,
-            scope: 'openid profile email upload:textures delete:textures',
-        },
-        cacheLocation: 'localstorage', // Persist auth across page reloads
-    })
-);
-
+// PrimeVue configuration
 app.use(PrimeVue, {
     theme: {
         preset: Aura
@@ -60,6 +46,7 @@ app.directive('tooltip', Tooltip);
 import { loadBasisModule } from './modules/load_basis.js';
 import { useAppStore } from './stores/appStore.js';
 import { chooseRenderer } from './utils/renderer-utils.js';
+import { useGoogleAuth } from './composables/useGoogleAuth.js';
 
 
 // Initialize app
@@ -79,6 +66,11 @@ import { chooseRenderer } from './utils/renderer-utils.js';
         const store = useAppStore();
         store.rendererType = rendererType;
         console.log('[Main] Renderer type set in store:', rendererType);
+
+        // Check for existing Google Auth session
+        const { checkSession } = useGoogleAuth();
+        await checkSession();
+        console.log('[Main] Auth session checked');
 
     } catch (error) {
         console.error('[Main] Initialization error:', error);

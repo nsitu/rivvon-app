@@ -1,45 +1,21 @@
-import { ref, watch } from 'vue'
-import { useAuth0 } from '@auth0/auth0-vue'
+import { computed } from 'vue'
+import { useGoogleAuth } from '@/composables/useGoogleAuth'
 
 /**
- * Composable for handling Auth0 errors with user-friendly messages
+ * Composable for handling Google Auth errors with user-friendly messages
  */
 export function useAuthErrorHandler() {
-    const { error: authError } = useAuth0()
-    const errorMessage = ref(null)
+    const { error } = useGoogleAuth()
 
-    watch(authError, (error) => {
-        if (!error) {
-            errorMessage.value = null
-            return
-        }
-
-        // Map Auth0 errors to user-friendly messages
-        switch (error.error) {
-            case 'login_required':
-                errorMessage.value = 'Your session has expired. Please log in again.'
-                break
-            case 'consent_required':
-                errorMessage.value = 'Additional permissions required. Please log in again.'
-                break
-            case 'access_denied':
-                errorMessage.value = 'Access denied. Please check your permissions.'
-                break
-            case 'invalid_grant':
-                errorMessage.value = 'Session invalid. Please log in again.'
-                break
-            case 'unauthorized':
-                errorMessage.value = 'You are not authorized. Please log in.'
-                break
-            default:
-                errorMessage.value = error.message || 'Authentication error. Please try again.'
-        }
-
-        console.error('Auth0 Error:', error)
+    // Transform raw error into user-friendly message
+    const errorMessage = computed(() => {
+        if (!error.value) return null
+        return error.value
     })
 
     function clearError() {
-        errorMessage.value = null
+        const { clearError: clearAuthError } = useGoogleAuth()
+        clearAuthError()
     }
 
     return {

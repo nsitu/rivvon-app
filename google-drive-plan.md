@@ -1,4 +1,4 @@
-# Google Drive Integration Plan
+# Google Auth and Google Drive Integration Plan
 
 ## Overview
 
@@ -68,7 +68,7 @@ rivvon-app/
 │  │  • Session management (HTTP-only cookies)                                 │  │
 │  │  • D1 Database: users, texture_sets, texture_tiles                       │  │
 │  │  • R2 Storage: thumbnails only                                            │  │
-│  │  • Google refresh token storage (encrypted in D1)                         │  │
+│  │  • Google refresh token (HTTP-only cookie, not in DB)                     │  │
 │  │  • Token refresh endpoint (for Drive uploads)                             │  │
 │  │  • Texture metadata API (returns R2 or Drive URLs based on provider)     │  │
 │  └────────────────────────────────────────────────────────────────────────────┘  │
@@ -141,24 +141,15 @@ This makes the file publicly accessible without authentication.
 
 ### URL Format
 
-Two options for accessing publicly shared files:
+Public files use the direct download URL:
 
-1. **Direct download** (recommended for textures):
-   ```
-   https://drive.google.com/uc?id={FILE_ID}&export=download
-   ```
-   - Direct file content
-   - Works with Three.js loaders
-   - No redirect
+```
+https://drive.google.com/uc?id={FILE_ID}&export=download
+```
 
-2. **Web viewer** (not suitable for programmatic access):
-   ```
-   https://drive.google.com/file/d/{FILE_ID}/view
-   ```
-   - Shows Drive UI
-   - Requires user interaction
-
-**We'll use option 1** for all KTX2 tiles in Rivvon.
+- Direct file content (no redirect)
+- Works with Three.js loaders
+- No authentication required
 
 ### Rate Limits & Quotas
 
@@ -207,7 +198,7 @@ Current:  User → Auth0 → Google (identity only)
 Target:   User → Google directly (identity + Drive)
                 ↓
           Google ID Token → Backend API → Verifies with Google JWKS
-          + Refresh Token (stored encrypted in D1)
+          + Refresh Token (HTTP-only cookie, never stored in DB)
 ```
 
 **Since you're the only user, we can do a clean cutover:**
@@ -220,131 +211,232 @@ No need for dual auth systems or graceful migration.
 
 ---
 
-## Cloudflare Workers & Encrypted Token Storage
+## HTTP-Only Cookie Token Strategy
 
-### Storing Refresh Tokens in D1
+### Why HTTP-Only Cookies?
 
-**Question:** Is it safe to store encrypted Google refresh tokens in Cloudflare D1?
+Instead of storing encrypted refresh tokens in the database, we use HTTP-only cookies. This significantly simplifies the backend:
 
-**Answer:** Yes, with proper encryption and key management. Here's the recommended approach:
+| Aspect | ~~Database Storage~~ (rejected) | ✅ HTTP-Only Cookie (chosen) |
+|--------|--------------------------------|------------------------------|
+| **Security** | Would need encryption in D1 | Never exposed to JS, browser-managed |
+| **Backend complexity** | Encryption/decryption logic | Cookie automatically sent with requests |
+| **Key management** | Need encryption key secret | None required |
+| **Token rotation** | Manual re-encryption | Cookie expiry handles this |
+| **Code required** | ~50 lines crypto utils | ~5 lines cookie config |
 
-### Encryption Strategy
+### How It Works
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Browser   │     │   Backend   │     │   Google    │
+└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+       │                   │                   │
+       │ OAuth callback    │                   │
+       │ (with auth code)  │                   │
+       │──────────────────>│                   │
+       │                   │ Exchange code     │
+       │                   │──────────────────>│
+       │                   │<──────────────────│
+       │                   │ access_token +    │
+       │                   │ refresh_token     │
+       │<──────────────────│                   │
+       │ Set-Cookie:       │                   │
+       │   session (user)  │                   │
+       │   refresh_token   │                   │
+       │   (HTTP-only)     │                   │
+       │                   │                   │
+       │ Later: API call   │                   │
+       │ (cookies auto-    │                   │
+       │  sent by browser) │                   │
+       │──────────────────>│                   │
+       │                   │ Read refresh_token│
+       │                   │ from cookie       │
+       │                   │──────────────────>│
+       │                   │<──────────────────│
+       │                   │ Fresh access_token│
+       │<──────────────────│                   │
+       │ Access token      │                   │
+       │ (for Drive API)   │                   │
+```
+
+### Cookie Configuration
 
 ```javascript
-// Use Web Crypto API (available in Cloudflare Workers)
-async function encryptRefreshToken(refreshToken, encryptionKey) {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(refreshToken)
-  
-  // Import encryption key (AES-GCM)
-  const key = await crypto.subtle.importKey(
-    'raw',
-    Buffer.from(encryptionKey, 'base64'),
-    { name: 'AES-GCM' },
-    false,
-    ['encrypt']
+// Backend: Set cookies after OAuth callback
+function setAuthCookies(c, tokens, user) {
+  // Session cookie (contains user info, can be JWT or simple session ID)
+  c.header('Set-Cookie', 
+    `session=${createSessionToken(user)}; ` +
+    `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${7 * 24 * 60 * 60}`
   )
   
-  // Generate random IV
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  
-  // Encrypt
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    data
+  // Refresh token cookie (HTTP-only, never accessible to JS)
+  c.header('Set-Cookie',
+    `google_refresh_token=${tokens.refresh_token}; ` +
+    `HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=${30 * 24 * 60 * 60}`
   )
-  
-  // Combine IV + encrypted data, return as base64
-  const combined = new Uint8Array(iv.length + encrypted.byteLength)
-  combined.set(iv, 0)
-  combined.set(new Uint8Array(encrypted), iv.length)
-  
-  return Buffer.from(combined).toString('base64')
 }
 
-async function decryptRefreshToken(encryptedToken, encryptionKey) {
-  const combined = Buffer.from(encryptedToken, 'base64')
-  const iv = combined.slice(0, 12)
-  const encrypted = combined.slice(12)
+// Backend: Get fresh access token for Drive
+app.get('/api/auth/drive-token', async (c) => {
+  // Cookie automatically sent by browser
+  const refreshToken = getCookie(c, 'google_refresh_token')
   
-  const key = await crypto.subtle.importKey(
-    'raw',
-    Buffer.from(encryptionKey, 'base64'),
-    { name: 'AES-GCM' },
-    false,
-    ['decrypt']
-  )
+  if (!refreshToken) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
   
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    encrypted
-  )
+  // Exchange refresh token for fresh access token
+  const tokens = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: c.env.GOOGLE_CLIENT_ID,
+      client_secret: c.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  }).then(r => r.json())
   
-  const decoder = new TextDecoder()
-  return decoder.decode(decrypted)
-}
+  if (tokens.error) {
+    // Refresh token revoked or expired - user needs to re-auth
+    return c.json({ error: 'Token expired', needsReauth: true }, 401)
+  }
+  
+  // Return access token to frontend (for direct Drive uploads)
+  return c.json({
+    accessToken: tokens.access_token,
+    expiresIn: tokens.expires_in
+  })
+})
 ```
 
-### Key Management
+### Cookie Configuration Summary
 
-**Store encryption key as Cloudflare Worker secret:**
+All auth cookies use consistent security attributes:
 
-```bash
-# Generate 256-bit key (32 bytes)
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+| Cookie | Path | Max-Age | Purpose |
+|--------|------|---------|---------|
+| `session` | `/` | 7 days | User session for all API calls |
+| `google_refresh_token` | `/api/auth` | 30 days | Refresh token (restricted path) |
+| `oauth_state` | `/api/auth` | 10 min | CSRF protection during OAuth flow |
 
-# Store as secret
-wrangler secret put REFRESH_TOKEN_ENCRYPTION_KEY
-# Paste the generated key when prompted
-```
+**All cookies use:** `HttpOnly; Secure; SameSite=Lax`
 
-**Access in worker:**
-```typescript
-// In wrangler.toml, no need to list secrets (they're automatically available)
-// Access via c.env.REFRESH_TOKEN_ENCRYPTION_KEY
+### Security Considerations
 
-const encryptedToken = await encryptRefreshToken(
-  refreshToken,
-  c.env.REFRESH_TOKEN_ENCRYPTION_KEY
-)
-```
+1. **HttpOnly**: JavaScript cannot access cookies (XSS protection)
+2. **Secure**: Cookies only sent over HTTPS
+3. **SameSite=Lax**: Allows top-level navigation (OAuth redirect) while blocking cross-site requests
+4. **Path=/api/auth**: Refresh token cookie only sent to auth endpoints (principle of least privilege)
+5. **CSRF State Validation**: OAuth flow uses backend-generated state stored in HTTP-only cookie
 
-### Security Best Practices
+### Why SameSite=Lax (not Strict)?
 
-1. **Encryption at rest**: ✅ Tokens encrypted before storing in D1
-2. **Key rotation**: Generate new key periodically, re-encrypt tokens
-3. **Secrets management**: ✅ Cloudflare encrypts secrets at rest
-4. **Access control**: ✅ Workers can't access each other's secrets
-5. **Audit logging**: Log token refresh events (without sensitive data)
+- `Strict` would block cookies on the OAuth callback redirect (breaks the flow)
+- `Lax` allows cookies on top-level navigations (like OAuth redirect from Google)
+- `None` would allow cross-site requests (not needed, less secure)
 
 ### Why This Is Secure
 
-- **Encryption key** never stored in code or database
-- **D1 data** is encrypted at rest by Cloudflare
-- **Workers runtime** is isolated (single-tenant execution)
-- **Even if D1 is compromised**, encrypted tokens are useless without key
-- **Cloudflare Secrets** use hardware security modules (HSMs)
+- **Refresh token never in JavaScript**: XSS cannot steal it
+- **CSRF state validation**: Prevents malicious OAuth redirects
+- **Backend-managed state**: State token stored in HTTP-only cookie, not sessionStorage
+- **No database storage**: No encryption keys to manage, no breach risk
+- **Browser-managed expiry**: Cookies expire automatically
+- **Revocation still works**: User can revoke at Google account settings
 
-**This approach is equivalent to or better than:**
-- Storing in AWS Secrets Manager (similar encryption)
-- Storing in HashiCorp Vault (similar isolation)
-- Storing in Azure Key Vault (similar HSM backing)
+### Frontend Token Handling
 
-### Alternative: Skip Refresh Token Storage
+The frontend only handles short-lived access tokens (in memory, never localStorage):
 
-**Option:** Use short-lived access tokens only, require re-auth for Drive uploads.
+```javascript
+// composables/useGoogleAuth.js
+let accessToken = null  // In-memory only
+let tokenExpiresAt = null
 
-**Pros:**
-- No persistent credentials stored
-- User explicitly authorizes each upload session
+async function getAccessToken() {
+  // If token still valid (with 5 min buffer), return it
+  if (accessToken && tokenExpiresAt > Date.now() + 5 * 60 * 1000) {
+    return accessToken
+  }
+  
+  // Request fresh token from backend
+  // Cookie is automatically sent
+  const response = await fetch('/api/auth/drive-token', {
+    credentials: 'include'  // Include cookies
+  })
+  
+  if (!response.ok) {
+    const data = await response.json()
+    if (data.needsReauth) {
+      // Redirect to login
+      login()
+      return null
+    }
+    throw new Error('Failed to get access token')
+  }
+  
+  const data = await response.json()
+  accessToken = data.accessToken
+  tokenExpiresAt = Date.now() + (data.expiresIn * 1000)
+  
+  return accessToken
+}
+```
 
-**Cons:**
-- Poor UX (re-login every hour)
-- Doesn't support background operations
+### CORS Configuration
 
-**Recommendation:** Store encrypted refresh tokens. The security posture is strong, and UX is much better.
+For cookies to work cross-origin (slyce.rivvon.ca → api.rivvon.ca):
+
+```javascript
+// Backend CORS middleware
+app.use('*', cors({
+  origin: ['https://slyce.rivvon.ca', 'http://localhost:5173'],
+  credentials: true,  // Allow cookies
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization']
+}))
+```
+
+### Logout
+
+```javascript
+// Backend: Clear cookies on logout
+app.post('/api/auth/logout', (c) => {
+  // Clear session cookie
+  c.header('Set-Cookie', 
+    'session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'
+  )
+  // Clear refresh token cookie
+  c.header('Set-Cookie',
+    'google_refresh_token=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0'
+  )
+  return c.json({ success: true })
+})
+
+// Frontend: Also revoke token at Google (optional but recommended)
+async function logout() {
+  const token = await getAccessToken()
+  if (token) {
+    // Revoke at Google
+    await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
+      method: 'POST'
+    })
+  }
+  
+  // Clear backend session
+  await fetch('/api/auth/logout', { 
+    method: 'POST',
+    credentials: 'include'
+  })
+  
+  // Clear in-memory token
+  accessToken = null
+  tokenExpiresAt = null
+}
+```
 
 ---
 
@@ -355,7 +447,7 @@ const encryptedToken = await encryptRefreshToken(
 ```sql
 -- Users table (replace auth0_sub with google_id)
 ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
-ALTER TABLE users ADD COLUMN refresh_token_encrypted TEXT;
+-- Note: refresh_token stored in HTTP-only cookie, NOT in database
 ALTER TABLE users ADD COLUMN drive_folder_id TEXT; -- Cached "Slyce Textures" folder ID
 
 -- For migration: existing auth0 users can be matched by email
@@ -416,131 +508,101 @@ All scopes requested in single consent screen:
 
 ## Google OAuth Implementation
 
-### Frontend: Google Identity Services
+### OAuth Flow: Authorization Code (Backend-Managed)
+
+**Why Authorization Code Flow (not GIS Token Client)?**
+
+| GIS Token Client | Authorization Code Flow |
+|------------------|-------------------------|
+| Returns access token directly to browser | Returns auth code, backend exchanges for tokens |
+| No refresh token available to frontend | Refresh token goes directly to backend |
+| Requires implicit grant or popup flow | Standard redirect flow |
+| Can't securely store refresh token in HTTP-only cookie | ✅ Perfect for HTTP-only cookie storage |
+
+**Flow Diagram:**
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Browser   │     │   Backend   │     │   Google    │
+└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+       │                   │                   │
+       │ 1. Click Login    │                   │
+       │──────────────────>│                   │
+       │                   │                   │
+       │                   │ 2. Generate CSRF  │
+       │                   │    state, store   │
+       │                   │    in cookie      │
+       │                   │                   │
+       │<──────────────────│                   │
+       │ 3. Redirect to    │                   │
+       │    Google (302)   │                   │
+       │                   │                   │
+       │ 4. User consents ─────────────────────>
+       │                   │                   │
+       │<─────────────────────────────────────│
+       │ 5. Redirect to /api/auth/callback    │
+       │    with code + state                 │
+       │                   │                   │
+       │──────────────────>│                   │
+       │                   │ 6. Validate state │
+       │                   │    from cookie    │
+       │                   │                   │
+       │                   │ 7. Exchange code  │
+       │                   │──────────────────>│
+       │                   │<──────────────────│
+       │                   │ tokens (access,   │
+       │                   │ refresh, id)      │
+       │                   │                   │
+       │<──────────────────│                   │
+       │ 8. Set cookies:   │                   │
+       │    - session      │                   │
+       │    - refresh_token│                   │
+       │    (HTTP-only)    │                   │
+       │                   │                   │
+       │ 9. Redirect to app│                   │
+└──────┴──────┘     └──────┴──────┘     └──────┴──────┘
+```
+
+### Frontend: useGoogleAuth Composable
+
+**Note:** No GIS library needed! The frontend simply redirects to the backend `/api/auth/login` endpoint.
 
 ```javascript
 // composables/useGoogleAuth.js
 
 import { ref, computed } from 'vue'
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
-const SCOPES = [
-  'openid',
-  'email', 
-  'profile',
-  'https://www.googleapis.com/auth/drive.file'
-].join(' ')
+const API_URL = import.meta.env.VITE_API_URL
 
 export function useGoogleAuth() {
   const user = ref(null)
   const isAuthenticated = computed(() => !!user.value)
-  const accessToken = ref(null)
-  const tokenExpiresAt = ref(null)
   
-  let tokenClient = null
+  // In-memory token cache (never localStorage!)
+  let accessToken = null
+  let tokenExpiresAt = null
   
-  // Initialize Google Identity Services
-  function initGoogleAuth() {
-    return new Promise((resolve) => {
-      const script = document.createElement('script')
-      script.src = 'https://accounts.google.com/gsi/client'
-      script.onload = () => {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: SCOPES,
-          callback: handleTokenResponse,
-        })
-        resolve()
-      }
-      document.head.appendChild(script)
-    })
-  }
-  
-  // Handle token response from Google
-  async function handleTokenResponse(response) {
-    if (response.error) {
-      console.error('Google auth error:', response.error)
-      return
-    }
-    
-    accessToken.value = response.access_token
-    tokenExpiresAt.value = Date.now() + (response.expires_in * 1000)
-    
-    // Get user info
-    const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${response.access_token}` }
-    }).then(r => r.json())
-    
-    user.value = {
-      sub: userInfo.sub,
-      email: userInfo.email,
-      name: userInfo.name,
-      picture: userInfo.picture
-    }
-    
-    // Send tokens to backend for session creation
-    await createSession(response.access_token)
-  }
-  
-  // Initiate login flow
+  // Initiate login - redirect through backend
+  // Backend handles CSRF state generation and stores it in HTTP-only cookie
   function login() {
-    tokenClient.requestAccessToken({ prompt: 'consent' })
+    window.location.href = `${API_URL}/api/auth/login`
   }
   
-  // Request fresh token (for Drive uploads)
-  async function getAccessToken() {
-    // If token still valid (with 5 min buffer), return it
-    if (accessToken.value && tokenExpiresAt.value > Date.now() + 300000) {
-      return accessToken.value
-    }
-    
-    // Request new token silently if possible
-    return new Promise((resolve, reject) => {
-      tokenClient.requestAccessToken({ prompt: '' })
-      // Token will be available after handleTokenResponse
-      const checkToken = setInterval(() => {
-        if (accessToken.value && tokenExpiresAt.value > Date.now()) {
-          clearInterval(checkToken)
-          resolve(accessToken.value)
-        }
-      }, 100)
-      
-      // Timeout after 30 seconds
-      setTimeout(() => {
-        clearInterval(checkToken)
-        reject(new Error('Token refresh timeout'))
-      }, 30000)
-    })
-  }
-  
-  // Send tokens to backend
-  async function createSession(token) {
-    await fetch('/api/auth/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accessToken: token }),
-      credentials: 'include' // For session cookie
-    })
-  }
-  
-  // Logout
-  function logout() {
-    google.accounts.oauth2.revoke(accessToken.value)
-    user.value = null
-    accessToken.value = null
-    tokenExpiresAt.value = null
-    
-    // Clear backend session
-    fetch('/api/auth/logout', { 
+  // Logout - clear cookies and optionally revoke at Google
+  async function logout() {
+    await fetch(`${API_URL}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include'
     })
+    user.value = null
+    accessToken = null
+    tokenExpiresAt = null
   }
   
-  // Check for existing session on page load
+  // Check existing session on page load
   async function checkSession() {
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
         credentials: 'include'
       })
       if (response.ok) {
@@ -552,121 +614,259 @@ export function useGoogleAuth() {
     }
   }
   
+  // Get fresh access token for Drive operations
+  // Tokens are exchanged via backend using HTTP-only refresh token cookie
+  async function getAccessToken() {
+    // Return cached token if still valid (with 5 min buffer)
+    if (accessToken && tokenExpiresAt > Date.now() + 5 * 60 * 1000) {
+      return accessToken
+    }
+    
+    // Request fresh token from backend
+    // Backend reads refresh_token from HTTP-only cookie
+    const response = await fetch(`${API_URL}/api/auth/drive-token`, {
+      credentials: 'include'
+    })
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Refresh token expired or revoked, need to re-login
+        user.value = null
+        accessToken = null
+        tokenExpiresAt = null
+        return null
+      }
+      throw new Error('Failed to get access token')
+    }
+    
+    const data = await response.json()
+    accessToken = data.accessToken  // Cache in memory only
+    tokenExpiresAt = Date.now() + (data.expiresIn * 1000)
+    
+    return accessToken
+  }
+  
   return {
     user,
     isAuthenticated,
-    accessToken,
-    initGoogleAuth,
     login,
     logout,
-    getAccessToken,
-    checkSession
+    checkSession,
+    getAccessToken
   }
 }
 ```
 
-### Backend: Session Management
+### Backend: Auth Routes
 
 **New Endpoints (replacing Auth0):**
 
 ```
-POST /api/auth/session     - Create session from Google token
-POST /api/auth/logout      - Clear session
-GET  /api/auth/me          - Get current user
-POST /api/auth/refresh     - Get fresh Google access token
+GET  /api/auth/login       - Initiate OAuth flow, generate CSRF state, redirect to Google
+GET  /api/auth/callback    - Validate state, exchange code for tokens, set cookies, redirect to app
+GET  /api/auth/me          - Get current user (from session cookie)
+GET  /api/auth/drive-token - Get fresh Google access token (reads refresh token from cookie)
+POST /api/auth/logout      - Clear cookies & optionally revoke at Google
 ```
 
-**Session Creation Flow:**
+**Login Endpoint (Initiates OAuth with CSRF protection):**
 
 ```javascript
-// POST /api/auth/session
-async function createSession(req, res) {
-  const { accessToken } = req.body
+// GET /api/auth/login - Initiate OAuth flow
+auth.get('/login', async (c) => {
+  // Generate CSRF state token
+  const state = crypto.randomUUID()
   
-  // 1. Validate token with Google
-  const tokenInfo = await fetch(
-    `https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`
-  ).then(r => r.json())
+  // Store state in HTTP-only cookie for validation on callback
+  // This prevents CSRF attacks on the OAuth callback
+  c.header('Set-Cookie', 
+    `oauth_state=${state}; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=600`
+  )
   
-  if (tokenInfo.error) {
-    return res.status(401).json({ error: 'Invalid token' })
-  }
+  const SCOPES = [
+    'openid',
+    'email',
+    'profile',
+    'https://www.googleapis.com/auth/drive.file'
+  ].join(' ')
   
-  // 2. Verify token is for our app
-  if (tokenInfo.aud !== GOOGLE_CLIENT_ID) {
-    return res.status(401).json({ error: 'Token not for this app' })
-  }
-  
-  // 3. Get or create user in database
-  const user = await upsertUser({
-    googleId: tokenInfo.sub,
-    email: tokenInfo.email,
-    // Get profile info from userinfo endpoint
-  })
-  
-  // 4. Store refresh token (if provided) for Drive access
-  // Note: refresh tokens only provided on first consent
-  
-  // 5. Create session (JWT or session cookie)
-  const sessionToken = createSessionToken(user.id)
-  
-  res.cookie('session', sessionToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  })
-  
-  res.json({ user })
-}
-```
-
-### Refresh Token Strategy
-
-Since we need Drive access for uploads, we need refresh tokens:
-
-```javascript
-// Frontend: Request offline access on first login
-function loginWithOfflineAccess() {
-  // Use authorization code flow for refresh token
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
-  authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID)
-  authUrl.searchParams.set('redirect_uri', `${window.location.origin}/callback`)
+  authUrl.searchParams.set('client_id', c.env.GOOGLE_CLIENT_ID)
+  authUrl.searchParams.set('redirect_uri', `${c.env.API_URL}/api/auth/callback`)
   authUrl.searchParams.set('response_type', 'code')
   authUrl.searchParams.set('scope', SCOPES)
-  authUrl.searchParams.set('access_type', 'offline')  // Get refresh token
-  authUrl.searchParams.set('prompt', 'consent')
+  authUrl.searchParams.set('access_type', 'offline')  // Request refresh token
+  authUrl.searchParams.set('prompt', 'consent')        // Always show consent to get refresh token
+  authUrl.searchParams.set('state', state)             // CSRF protection
   
-  window.location.href = authUrl.toString()
-}
+  return c.redirect(authUrl.toString())
+})
+```
 
-// Backend: Exchange code for tokens
-async function handleCallback(req, res) {
-  const { code } = req.query
+**OAuth Callback Flow (with CSRF validation):**
+
+```javascript
+// GET /api/auth/callback?code=xxx&state=xxx
+auth.get('/callback', async (c) => {
+  const code = c.req.query('code')
+  const state = c.req.query('state')
+  const error = c.req.query('error')
   
-  const tokens = await fetch('https://oauth2.googleapis.com/token', {
+  // Handle OAuth errors from Google
+  if (error) {
+    return c.redirect(`${c.env.APP_URL}/login?error=${error}`)
+  }
+  
+  // 1. Validate CSRF state (CRITICAL for security)
+  const storedState = getCookie(c, 'oauth_state')
+  if (!state || state !== storedState) {
+    return c.redirect(`${c.env.APP_URL}/login?error=invalid_state`)
+  }
+  
+  // Clear the state cookie (one-time use)
+  c.header('Set-Cookie', 'oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0')
+  
+  // 2. Exchange authorization code for tokens
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${ORIGIN}/callback`,
+      client_id: c.env.GOOGLE_CLIENT_ID,
+      client_secret: c.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: `${c.env.API_URL}/api/auth/callback`,
       grant_type: 'authorization_code'
     })
-  }).then(r => r.json())
+  })
   
-  // tokens.refresh_token - Store this encrypted in DB
-  // tokens.access_token - Use for immediate requests
-  // tokens.id_token - Contains user info
+  const tokens = await tokenResponse.json()
   
-  // Store refresh token for future Drive access
-  await storeRefreshToken(userId, encrypt(tokens.refresh_token))
+  if (tokens.error) {
+    return c.redirect(`${c.env.APP_URL}/login?error=token_exchange_failed`)
+  }
   
-  // Create session and redirect
-  res.redirect('/')
-}
+  // 3. Decode ID token to get user info (no verification needed, came directly from Google)
+  const payload = JSON.parse(atob(tokens.id_token.split('.')[1]))
+  
+  // 4. Upsert user in database
+  const user = await upsertUser(c.env.DB, {
+    googleId: payload.sub,
+    email: payload.email,
+    name: payload.name,
+    picture: payload.picture
+  })
+  
+  // 5. Create session token
+  const sessionToken = await createSessionToken(user, c.env.SESSION_SECRET)
+  
+  // 6. Set HTTP-only cookies with consistent security attributes
+  const headers = new Headers()
+  
+  // Session cookie - broader path for all API calls
+  headers.append('Set-Cookie', 
+    `session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${7 * 24 * 60 * 60}`
+  )
+  
+  // Refresh token cookie - restricted to /api/auth only (principle of least privilege)
+  if (tokens.refresh_token) {
+    headers.append('Set-Cookie',
+      `google_refresh_token=${tokens.refresh_token}; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=${30 * 24 * 60 * 60}`
+    )
+  }
+  
+  // 7. Redirect back to app
+  headers.set('Location', c.env.APP_URL)
+  
+  return new Response(null, { status: 302, headers })
+})
 ```
+
+### Refresh Token Strategy (HTTP-Only Cookies)
+
+The refresh token is stored in an HTTP-only cookie, eliminating the need for database storage or encryption.
+
+**Drive Token Endpoint (Backend):**
+
+```javascript
+// GET /api/auth/drive-token - Exchange refresh token for fresh access token
+auth.get('/drive-token', async (c) => {
+  // Verify session first
+  const sessionToken = getCookie(c, 'session')
+  if (!sessionToken) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+  
+  const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET)
+  if (!user) {
+    return c.json({ error: 'Invalid session' }, 401)
+  }
+  
+  // Read refresh token from HTTP-only cookie (automatically sent by browser)
+  const refreshToken = getCookie(c, 'google_refresh_token')
+  if (!refreshToken) {
+    return c.json({ error: 'No refresh token', needsReauth: true }, 401)
+  }
+  
+  // Exchange refresh token for fresh access token
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: c.env.GOOGLE_CLIENT_ID,
+      client_secret: c.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  })
+  
+  const tokens = await tokenResponse.json()
+  
+  if (tokens.error) {
+    // Refresh token was revoked or expired
+    return c.json({ error: 'Token expired', needsReauth: true }, 401)
+  }
+  
+  // Get user's cached Drive folder ID
+  const userRecord = await c.env.DB.prepare(
+    'SELECT drive_folder_id FROM users WHERE google_id = ?'
+  ).bind(user.googleId).first()
+  
+  return c.json({
+    accessToken: tokens.access_token,
+    expiresIn: tokens.expires_in,
+    slyceFolderId: userRecord?.drive_folder_id || null
+  })
+})
+```
+
+**Logout Endpoint (Backend):**
+
+```javascript
+// POST /api/auth/logout - Clear all auth cookies
+auth.post('/logout', (c) => {
+  const headers = new Headers()
+  
+  // Clear session cookie
+  headers.append('Set-Cookie', 
+    'session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'
+  )
+  
+  // Clear refresh token cookie
+  headers.append('Set-Cookie', 
+    'google_refresh_token=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0'
+  )
+  
+  return c.json({ success: true }, { headers })
+})
+```
+
+**Key Benefits of This Approach:**
+- ❌ No database storage of refresh tokens
+- ❌ No encryption/decryption code
+- ❌ No encryption key management
+- ✅ Refresh token never exposed to JavaScript
+- ✅ Automatic cookie handling by browser
+- ✅ Simpler backend code
 
 ---
 
@@ -688,7 +888,7 @@ Since there's currently only one user (you), migration is straightforward:
 -- Need to add Google-specific fields
 
 ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
-ALTER TABLE users ADD COLUMN refresh_token_encrypted TEXT;
+-- Note: refresh_token stored in HTTP-only cookie, NOT in database!
 
 -- For existing user, set google_id = email or migrate manually
 ```
@@ -1378,31 +1578,33 @@ async loadTile(url) {
 Located in `apps/api/routes/auth.ts` (new file)
 
 ```
-POST /api/auth/callback      - Exchange Google auth code for tokens, create session
-POST /api/auth/logout        - Clear session & revoke tokens  
+GET  /api/auth/login         - Initiate OAuth, generate CSRF state, redirect to Google
+GET  /api/auth/callback      - Validate state, exchange code for tokens, set cookies, redirect
 GET  /api/auth/me            - Get current user info (from session cookie)
 GET  /api/auth/drive-token   - Get fresh Google access token for Drive operations
+POST /api/auth/logout        - Clear session cookies & optionally revoke at Google
 ```
 
-#### `POST /api/auth/callback`
+#### `GET /api/auth/login`
 
-Exchange Google authorization code for tokens, create or update user, create session.
+Initiates OAuth flow. Generates CSRF state, stores in HTTP-only cookie, redirects to Google.
 
 ```typescript
-interface CallbackRequest {
-  code: string  // Authorization code from Google OAuth redirect
-}
+// No request body - just redirects
+// Sets oauth_state cookie for CSRF protection
+// Redirects to Google OAuth consent screen
+```
 
-interface CallbackResponse {
-  user: {
-    id: string
-    email: string
-    name: string
-    picture: string
-  }
-}
+#### `GET /api/auth/callback`
 
-// Sets HTTP-only session cookie in response
+Handles OAuth redirect from Google. Validates CSRF state, exchanges code for tokens, creates session.
+
+```typescript
+// Query params from Google: ?code=xxx&state=xxx
+// Validates state against oauth_state cookie
+// Exchanges code for tokens
+// Sets session + refresh_token cookies
+// Redirects to app home
 ```
 
 #### `GET /api/auth/drive-token`
@@ -1547,15 +1749,16 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 
-// Initialize Google Auth (replaces Auth0)
-const { initGoogleAuth, checkSession } = useGoogleAuth()
+// Check for existing session on app load (replaces Auth0)
+const { checkSession } = useGoogleAuth()
 
 ;(async () => {
-  await initGoogleAuth()
-  await checkSession()  // Restore session if exists
+  await checkSession()  // Restore session from cookie if exists
   app.mount('#app')
 })()
 ```
+
+**Note:** No GIS library initialization needed! The frontend simply redirects to `/api/auth/login` which handles everything.
 
 ### Storage Settings (Simplified)
 
@@ -1600,58 +1803,67 @@ No "Connect" button needed—Drive access is granted during initial login!
 ### Auth Endpoints (New - Replacing Auth0)
 
 ```
-POST /api/auth/session     - Create session from Google auth code
-POST /api/auth/logout      - Clear session  
-GET  /api/auth/me          - Get current user info
-GET  /api/auth/token       - Get fresh Google access token for Drive
+GET  /api/auth/login       - Initiate OAuth, generate CSRF state, redirect to Google
+GET  /api/auth/callback    - Validate state, exchange code, set cookies, redirect to app
+GET  /api/auth/me          - Get current user info (from session cookie)
+GET  /api/auth/drive-token - Get fresh access token (reads refresh token from cookie)
+POST /api/auth/logout      - Clear cookies & optionally revoke at Google
 ```
 
-### `POST /api/auth/session`
+### `GET /api/auth/login`
 
-Exchange Google auth code for tokens, create user session.
+Initiates OAuth flow with CSRF protection.
 
 ```javascript
-// Request (from OAuth callback)
-{ "code": "4/0AX4XfWj..." }
-
-// Backend logic
-1. Exchange code for access_token + refresh_token + id_token
-2. Decode id_token to get user info (sub, email, name, picture)
-3. Upsert user in database (create if new, update if exists)
-4. Encrypt and store refresh_token
-5. Create session cookie
-6. Return user info
-
-// Response
-{
-  "user": {
-    "id": "user_123",
-    "email": "user@example.com",
-    "name": "User Name",
-    "picture": "https://..."
-  }
-}
+// Backend logic:
+1. Generate random CSRF state token (crypto.randomUUID())
+2. Store state in HTTP-only cookie (oauth_state, expires in 10 min)
+3. Build Google OAuth URL with:
+   - client_id, redirect_uri, response_type=code
+   - scope (openid, email, profile, drive.file)
+   - access_type=offline, prompt=consent
+   - state parameter (CSRF protection)
+4. Redirect user to Google consent screen
 ```
 
-### `GET /api/auth/token`
+### `GET /api/auth/callback`
 
-Get fresh access token for Drive uploads.
+Handles OAuth redirect from Google, validates state, exchanges code for tokens, sets cookies.
 
 ```javascript
-// Backend logic
-1. Validate session cookie
-2. Fetch user's encrypted refresh_token from DB
-3. Exchange refresh_token for fresh access_token via Google
-4. Return access_token (do NOT return refresh_token)
+// Called by Google OAuth redirect: /api/auth/callback?code=xxx&state=xxx
+
+// Backend logic:
+1. Validate CSRF state parameter against oauth_state cookie
+2. Clear oauth_state cookie (one-time use)
+3. Exchange code for access_token + refresh_token + id_token
+4. Decode id_token to get user info (sub, email, name, picture)
+5. Upsert user in database (create if new, update if exists)
+6. Set HTTP-only cookies:
+   - session (Path=/, 7 day expiry)
+   - google_refresh_token (Path=/api/auth, 30 day expiry)
+7. Redirect to frontend app
+```
+
+### `GET /api/auth/drive-token`
+
+Get fresh access token for Drive uploads (reads refresh token from HTTP-only cookie).
+
+```javascript
+// Cookies automatically sent by browser
+
+// Backend logic:
+1. Verify session cookie
+2. Read google_refresh_token from HTTP-only cookie
+3. If missing, return 401 (user needs to re-login)
+4. Exchange refresh_token for fresh access_token via Google
+5. Return access_token (short-lived, safe for frontend)
 
 // Response
 {
   "accessToken": "ya29.a0AfH6...",
-  "expiresAt": 1706054400,
-  "slyceFolder": {
-    "id": "1abc123...",      // Cached folder ID
-    "name": "Slyce Textures"
-  }
+  "expiresIn": 3600,
+  "slyceFolderId": "1abc123..."  // Cached folder ID from user record
 }
 ```
 
@@ -1731,9 +1943,10 @@ No changes needed to core functionality:
 
 ## Security Considerations
 
-1. **Refresh Token Encryption**
-   - Encrypt with AES-256 before storing in DB
-   - Key stored in environment variable, not in code
+1. **Refresh Token Storage (HTTP-Only Cookie)**
+   - Stored in HTTP-only cookie, never accessible to JavaScript
+   - Not stored in database (no encryption needed)
+   - Automatic CSRF protection via SameSite=Lax
 
 2. **Access Token Handling**
    - Short-lived (1 hour)
@@ -1741,16 +1954,22 @@ No changes needed to core functionality:
    - Scoped to `drive.file` (minimal permissions)
 
 3. **Token Refresh**
-   - Backend handles refresh automatically
-   - Frontend requests new token if expired
+   - Backend reads refresh token from HTTP-only cookie
+   - Frontend requests new access token when needed
+   - Cookie automatically sent with credentials: 'include'
 
 4. **HTTPS Everywhere**
    - All API calls over HTTPS
+   - Cookies have Secure flag (only sent over HTTPS)
    - Drive API requires HTTPS
 
-5. **Token Revocation on Disconnect**
-   - Properly revoke with Google
-   - Delete from database
+5. **Token Revocation on Logout**
+   - Clear both cookies (session + refresh_token)
+   - Optionally revoke at Google
+
+6. **CORS with Credentials**
+   - API configured with `credentials: true`
+   - Specific origins listed (not wildcard)
 
 ---
 
@@ -1767,7 +1986,7 @@ No changes needed to core functionality:
 - [ ] Add Google auth fields to users table:
   ```sql
   ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE;
-  ALTER TABLE users ADD COLUMN refresh_token_encrypted TEXT;
+  -- Note: refresh_token stored in HTTP-only cookie, NOT in database
   ALTER TABLE users ADD COLUMN drive_folder_id TEXT;
   ```
 - [ ] Add storage provider fields to texture_sets:
@@ -1800,19 +2019,24 @@ No changes needed to core functionality:
   ```bash
   wrangler secret put GOOGLE_CLIENT_ID
   wrangler secret put GOOGLE_CLIENT_SECRET
-  wrangler secret put REFRESH_TOKEN_ENCRYPTION_KEY
+  wrangler secret put SESSION_SECRET  # For signing session tokens
+  # Note: No encryption key needed - refresh tokens stored in HTTP-only cookies
   ```
 - [ ] **Create auth routes** (`routes/auth.ts`):
-  - [ ] `POST /api/auth/callback` - Exchange code for tokens, create session
-  - [ ] `GET /api/auth/me` - Get current user from session
-  - [ ] `POST /api/auth/logout` - Clear session, revoke tokens
-  - [ ] `GET /api/auth/drive-token` - Get fresh Google access token
+  - [ ] `GET /api/auth/login` - Generate CSRF state, store in cookie, redirect to Google
+  - [ ] `GET /api/auth/callback` - Validate state, exchange code for tokens, set cookies
+  - [ ] `GET /api/auth/me` - Get current user from session cookie
+  - [ ] `POST /api/auth/logout` - Clear cookies, optionally revoke at Google
+  - [ ] `GET /api/auth/drive-token` - Get fresh access token (reads refresh token from cookie)
 - [ ] **Create session middleware** (`middleware/session.ts`):
-  - [ ] Validate session cookie
+  - [ ] Parse session cookie
+  - [ ] Validate session token
   - [ ] Attach user info to context
-- [ ] **Create crypto utils** (`utils/crypto.ts`):
-  - [ ] `encryptRefreshToken()` - AES-256-GCM encryption
-  - [ ] `decryptRefreshToken()` - Decryption
+- [ ] **Create cookie utils** (`utils/cookies.ts`):
+  - [ ] `setAuthCookies()` - Set session + refresh token cookies (consistent attributes)
+  - [ ] `clearAuthCookies()` - Clear cookies on logout
+  - [ ] `getCookie()` - Parse cookie from request
+  - [ ] Cookie attributes: `HttpOnly; Secure; SameSite=Lax`
 - [ ] **Update auth middleware** (`middleware/auth.ts`):
   - [ ] Replace Auth0 JWT verification with session validation
   - [ ] Remove `jose` Auth0 JWKS logic
@@ -1827,46 +2051,41 @@ No changes needed to core functionality:
 
 ### Phase 2: Frontend - Google OAuth Integration
 
-**Goal:** Replace Auth0 in Slyce with Google OAuth
+**Goal:** Replace Auth0 in Slyce with Google OAuth (Authorization Code Flow)
 
 **Location:** `apps/slyce/src/`
 
 - [ ] **Create Google Auth composable** (`composables/useGoogleAuth.js`):
-  - [ ] OAuth authorization code flow
-  - [ ] Redirect to Google consent screen
-  - [ ] Handle callback with code exchange
-  - [ ] Session management (cookie-based)
-  - [ ] `login()`, `logout()`, `checkSession()`
-- [ ] **Create callback view** (`views/CallbackView.vue`):
-  - [ ] Handle OAuth redirect
-  - [ ] Extract `code` from URL
-  - [ ] Call `/api/auth/callback`
-  - [ ] Redirect to home on success
+  - [ ] `login()` - Redirect to `/api/auth/login` (backend handles OAuth)
+  - [ ] `logout()` - POST to `/api/auth/logout`
+  - [ ] `checkSession()` - GET `/api/auth/me` on app load
+  - [ ] `getAccessToken()` - GET `/api/auth/drive-token` for Drive operations
+  - [ ] No GIS library needed - pure redirect flow
 - [ ] **Update main.js**:
   - [ ] Remove Auth0 initialization
-  - [ ] Add Google auth check on app load
+  - [ ] Call `checkSession()` on app load (no GIS init required)
 - [ ] **Update AuthButton.vue**:
   - [ ] Replace Auth0 composable with `useGoogleAuth`
   - [ ] Update login button UI (Google branding)
 - [ ] **Update api.js service**:
   - [ ] Remove `getAccessTokenSilently()`
-  - [ ] Use session cookies instead of Authorization header (or keep Bearer token if using session-to-JWT)
-- [ ] **Update router** (`router/index.js`):
-  - [ ] Add `/callback` route
+  - [ ] Use session cookies with `credentials: 'include'`
 - [ ] **Environment variables** (`.env`):
   ```
-  VITE_GOOGLE_CLIENT_ID=your_client_id
   VITE_API_URL=https://api.rivvon.ca
   ```
+  Note: No `VITE_GOOGLE_CLIENT_ID` needed - backend handles OAuth redirect
 - [ ] **Remove Auth0**:
   - [ ] Uninstall `@auth0/auth0-vue`
   - [ ] Remove Auth0 env variables
+  - [ ] Remove GIS script loading (not needed)
 - [ ] **Test**:
   - [ ] Login flow end-to-end
   - [ ] Session persistence (refresh page)
   - [ ] Logout
+  - [ ] Token refresh for Drive operations
 
-**Estimated Time:** 4-5 hours
+**Estimated Time:** 3-4 hours (simpler than GIS approach)
 
 ---
 
@@ -2121,6 +2340,7 @@ http://localhost:5174/callback
 - Click **Create**
 - Save **Client ID** and **Client Secret**
 
+
 ### 6. Test Users (During Development)
 While app is in "Testing" mode:
 - Add your Google account as test user
@@ -2140,18 +2360,15 @@ Once ready for production:
 ```bash
 cd apps/api
 
-# Generate encryption key
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# Store secrets
+# Store secrets (only 2 needed - no encryption key!)
 wrangler secret put GOOGLE_CLIENT_ID
 # Paste your Google Client ID
 
 wrangler secret put GOOGLE_CLIENT_SECRET
 # Paste your Google Client Secret
 
-wrangler secret put REFRESH_TOKEN_ENCRYPTION_KEY
-# Paste the generated encryption key
+# Note: No REFRESH_TOKEN_ENCRYPTION_KEY needed
+# Refresh tokens are stored in HTTP-only cookies, not the database
 ```
 
 ### 9. Update Environment Variables
@@ -2191,17 +2408,19 @@ Google requires a privacy policy for OAuth apps. Here's a minimal template:
 ## Security Best Practices Summary
 
 ### ✅ Implemented
-- **Refresh token encryption** (AES-256-GCM)
+- **HTTP-only cookies** for refresh tokens (not stored in database)
 - **HTTP-only cookies** for sessions
+- **CSRF state validation** via backend-managed HTTP-only cookie (not sessionStorage)
+- **Restricted cookie paths** (`Path=/api/auth` for refresh token)
+- **Consistent cookie attributes** (`HttpOnly; Secure; SameSite=Lax` on all auth cookies)
 - **Minimal OAuth scopes** (`drive.file` only)
+- **Authorization Code Flow** (not GIS Token Client) - tokens never exposed to frontend
 - **HTTPS everywhere**
-- **Cloudflare Secrets** for sensitive data
-- **Short-lived access tokens** (1 hour)
+- **Cloudflare Secrets** for Google client credentials
+- **Short-lived access tokens** (1 hour, in-memory only, never localStorage)
 
 ### ✅ Recommended Additional Measures
 - **Rate limiting** on auth endpoints (Cloudflare has built-in DDoS protection)
-- **CSRF protection** for state parameter in OAuth flow
-- **Token rotation** schedule (re-encrypt refresh tokens quarterly)
 - **Audit logging** for auth events (log to Cloudflare Analytics)
 - **User token revocation** UI in settings
 

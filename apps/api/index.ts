@@ -3,14 +3,22 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { uploadRoutes } from './routes/upload';
 import { textureRoutes } from './routes/textures';
-import { verifyAuth } from './middleware/auth';
+import { authRoutes } from './routes/auth';
+import { verifySession } from './middleware/session';
 
 type Bindings = {
     DB: D1Database;
     BUCKET: R2Bucket;
-    AUTH0_DOMAIN: string;
-    AUTH0_AUDIENCE: string;
+    // Google OAuth
+    GOOGLE_CLIENT_ID: string;
+    GOOGLE_CLIENT_SECRET: string;
+    SESSION_SECRET: string;
+    API_URL: string;
+    APP_URL: string;
     CORS_ORIGINS: string;
+    // Legacy Auth0 (can be removed after migration)
+    AUTH0_DOMAIN?: string;
+    AUTH0_AUDIENCE?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -29,8 +37,11 @@ app.use('*', async (c, next) => {
 // Health check
 app.get('/', (c) => c.json({ status: 'ok', service: 'rivvon-api' }));
 
-// Get textures owned by current user (authenticated)
-app.get('/my-textures', verifyAuth, async (c) => {
+// Mount auth routes (Google OAuth)
+app.route('/api/auth', authRoutes);
+
+// Get textures owned by current user (authenticated via session cookie)
+app.get('/my-textures', verifySession, async (c) => {
     const auth = c.get('auth');
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
@@ -39,7 +50,7 @@ app.get('/my-textures', verifyAuth, async (c) => {
         SELECT 
             id, name, description, thumbnail_url,
             tile_resolution, tile_count, layer_count,
-            cross_section_type, status, is_public,
+            cross_section_type, storage_provider, status, is_public,
             created_at, updated_at
         FROM texture_sets
         WHERE owner_id = ?

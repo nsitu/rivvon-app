@@ -219,7 +219,7 @@
 
 <script setup>
     import { computed, reactive, ref } from 'vue';
-    import { useAuth0 } from '@auth0/auth0-vue';
+    import { useGoogleAuth } from '@/composables/useGoogleAuth';
     import { downloadBlob } from '../modules/blobDownloader.js';
     import { downloadAllAsZip } from '../modules/zipDownloader.js';
     import { useAppStore } from '../stores/appStore';
@@ -228,8 +228,8 @@
     // Access the Pinia store
     const app = useAppStore();
 
-    // Auth0 and API integration
-    const { isAuthenticated } = useAuth0();
+    // Google Auth and API integration
+    const { isAuthenticated } = useGoogleAuth();
     const { uploadTextureSet } = useRivvonAPI();
 
     // Upload state

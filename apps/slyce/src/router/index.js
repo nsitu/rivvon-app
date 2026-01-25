@@ -15,6 +15,18 @@ const routes = [
         path: '/callback',
         name: 'callback',
         component: () => import('../views/CallbackView.vue')
+    },
+    {
+        // Login route - redirects to home, handles error display
+        path: '/login',
+        name: 'login',
+        redirect: (to) => {
+            // If there's an error, pass it to home
+            if (to.query.error) {
+                return { path: '/', query: { auth_error: to.query.error } }
+            }
+            return '/'
+        }
     }
 ]
 

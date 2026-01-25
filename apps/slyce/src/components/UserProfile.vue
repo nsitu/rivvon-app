@@ -28,9 +28,9 @@
 </template>
 
 <script setup>
-  import { useAuth0 } from '@auth0/auth0-vue'
+  import { useGoogleAuth } from '@/composables/useGoogleAuth'
 
-  const { user, isAuthenticated } = useAuth0()
+  const { user, isAuthenticated } = useGoogleAuth()
 </script>
 
 <style scoped>

@@ -187,12 +187,12 @@
 
 <script setup>
     import { ref, onMounted, watch } from 'vue'
-    import { useAuth0 } from '@auth0/auth0-vue'
+    import { useGoogleAuth } from '@/composables/useGoogleAuth'
     import { useRivvonAPI } from '../services/api.js'
     import Header from '../components/Header.vue'
     import Footer from '../components/Footer.vue'
 
-    const { isAuthenticated, isLoading: authLoading } = useAuth0()
+    const { isAuthenticated, isLoading: authLoading } = useGoogleAuth()
     const { getMyTextures, deleteTextureSet } = useRivvonAPI()
 
     const textures = ref([])

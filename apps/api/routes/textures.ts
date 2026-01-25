@@ -48,25 +48,42 @@ textureRoutes.get('/:id', async (c) => {
     FROM texture_sets ts
     LEFT JOIN users u ON ts.owner_id = u.id
     WHERE ts.id = ? AND ts.status = 'complete'
-  `).bind(textureSetId).first();
+  `).bind(textureSetId).first() as any;
 
     if (!textureSet) {
         return c.json({ error: 'Texture set not found' }, 404);
     }
 
     const tiles = await c.env.DB.prepare(`
-    SELECT tile_index, r2_key, file_size 
+    SELECT tile_index, r2_key, drive_file_id, public_url, file_size 
     FROM texture_tiles 
     WHERE texture_set_id = ?
     ORDER BY tile_index
   `).bind(textureSetId).all();
 
-    // Generate public URLs for each tile (using custom CDN domain)
-    const tileUrls = tiles.results.map((tile: any) => ({
-        tileIndex: tile.tile_index,
-        url: `https://cdn.rivvon.ca/${tile.r2_key}`,
-        fileSize: tile.file_size,
-    }));
+    const storageProvider = textureSet.storage_provider || 'r2';
+
+    // Generate public URLs for each tile based on storage provider
+    const tileUrls = (tiles.results as any[]).map((tile) => {
+        let url: string;
+        
+        if (storageProvider === 'google-drive' && tile.drive_file_id) {
+            // Use the stored public_url or construct from drive_file_id
+            url = tile.public_url || `https://drive.google.com/uc?export=download&id=${tile.drive_file_id}`;
+        } else if (tile.r2_key) {
+            // R2 storage - use CDN URL
+            url = `https://cdn.rivvon.ca/${tile.r2_key}`;
+        } else {
+            // Fallback to stored public_url
+            url = tile.public_url || '';
+        }
+
+        return {
+            tileIndex: tile.tile_index,
+            url,
+            fileSize: tile.file_size,
+        };
+    });
 
     return c.json({
         ...textureSet,

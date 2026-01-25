@@ -53,25 +53,11 @@
 </template>
 
 <script setup>
-  import { useAuth0 } from '@auth0/auth0-vue'
+  import { useGoogleAuth } from '@/composables/useGoogleAuth'
   import { useRoute } from 'vue-router'
 
-  const { loginWithRedirect, logout: auth0Logout, user, isAuthenticated } = useAuth0()
+  const { user, isAuthenticated, login, logout } = useGoogleAuth()
   const $route = useRoute()
-
-  const login = () => {
-    // Save current route to redirect back after login
-    sessionStorage.setItem('auth_redirect', window.location.pathname)
-    loginWithRedirect()
-  }
-
-  const logout = () => {
-    auth0Logout({
-      logoutParams: {
-        returnTo: window.location.origin
-      }
-    })
-  }
 </script>
 
 <style scoped>

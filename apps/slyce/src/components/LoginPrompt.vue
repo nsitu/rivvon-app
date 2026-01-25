@@ -7,21 +7,16 @@
     </p>
     <button @click="login" class="btn-login-large">
       <span class="icon">🚀</span>
-      Login with Auth0
+      Sign in with Google
     </button>
-    <p class="hint">Supports email, Google, and more authentication providers</p>
+    <p class="hint">Your textures will be stored in your Google Drive</p>
   </div>
 </template>
 
 <script setup>
-import { useAuth0 } from '@auth0/auth0-vue'
+import { useGoogleAuth } from '@/composables/useGoogleAuth'
 
-const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0()
-
-const login = () => {
-  sessionStorage.setItem('auth_redirect', window.location.pathname)
-  loginWithRedirect()
-}
+const { isAuthenticated, isLoading, login } = useGoogleAuth()
 </script>
 
 <style scoped>

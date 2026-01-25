@@ -1,25 +1,26 @@
-import { useAuth0 } from '@auth0/auth0-vue'
+import { useGoogleAuth } from '@/composables/useGoogleAuth'
+import { useGoogleDrive } from '@/services/googleDrive'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 
 /**
- * Rivvon API client with Auth0 authentication
+ * Rivvon API client with Google Auth (cookie-based session)
  * Must be used within Vue component context (setup or lifecycle hooks)
  */
 export function useRivvonAPI() {
-    const { getAccessTokenSilently, isAuthenticated, user } = useAuth0()
+    const { isAuthenticated, user } = useGoogleAuth()
+    const { ensureSlyceFolder, createTextureSetFolder, uploadTile: uploadTileToDrive, uploadThumbnail: uploadThumbnailToDrive } = useGoogleDrive()
 
     /**
-     * Get access token for API requests
+     * Make an authenticated API request
+     * Uses session cookie (credentials: 'include') instead of Bearer token
      */
-    async function getAccessToken() {
-        try {
-            const token = await getAccessTokenSilently()
-            return token
-        } catch (error) {
-            console.error('Failed to get access token:', error)
-            throw new Error('Authentication required')
-        }
+    async function authFetch(url, options = {}) {
+        const response = await fetch(url, {
+            ...options,
+            credentials: 'include', // Send session cookie
+        })
+        return response
     }
 
     /**
@@ -29,8 +30,6 @@ export function useRivvonAPI() {
      * @param {boolean} includeUserProfile - Whether to include user profile for DB sync
      */
     async function createTextureSet(metadata, includeUserProfile = true) {
-        const token = await getAccessToken()
-
         // Include user profile for database sync if requested
         const payload = { ...metadata }
         if (includeUserProfile && user.value) {
@@ -41,11 +40,10 @@ export function useRivvonAPI() {
             }
         }
 
-        const response = await fetch(`${API_BASE_URL}/texture-set`, {
+        const response = await authFetch(`${API_BASE_URL}/texture-set`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify(payload),
         })
@@ -63,15 +61,12 @@ export function useRivvonAPI() {
      * PUT /texture-set/:setId/tile/:index
      */
     async function uploadTile(textureSetId, tileIndex, fileData) {
-        const token = await getAccessToken()
-
-        const response = await fetch(
+        const response = await authFetch(
             `${API_BASE_URL}/texture-set/${textureSetId}/tile/${tileIndex}`,
             {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'image/ktx2',
-                    'Authorization': `Bearer ${token}`,
                 },
                 body: fileData,
             }
@@ -90,15 +85,10 @@ export function useRivvonAPI() {
      * POST /texture-set/:id/complete
      */
     async function completeTextureSet(textureSetId) {
-        const token = await getAccessToken()
-
-        const response = await fetch(
+        const response = await authFetch(
             `${API_BASE_URL}/texture-set/${textureSetId}/complete`,
             {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
             }
         )
 
@@ -115,18 +105,15 @@ export function useRivvonAPI() {
      * PUT /texture-set/:setId/thumbnail
      */
     async function uploadThumbnail(textureSetId, imageBlob) {
-        const token = await getAccessToken()
-
         // Determine content type from blob
         const contentType = imageBlob.type || 'image/jpeg'
 
-        const response = await fetch(
+        const response = await authFetch(
             `${API_BASE_URL}/texture-set/${textureSetId}/thumbnail`,
             {
                 method: 'PUT',
                 headers: {
                     'Content-Type': contentType,
-                    'Authorization': `Bearer ${token}`,
                 },
                 body: imageBlob,
             }
@@ -141,8 +128,8 @@ export function useRivvonAPI() {
     }
 
     /**
-     * Complete texture set upload workflow
-     * Creates set, uploads all tiles, marks complete
+     * Complete texture set upload workflow using Google Drive
+     * Creates set, uploads all tiles to Drive, marks complete
      * 
      * @param {Object} options - Upload options
      * @param {string} options.name - Texture set name
@@ -175,9 +162,18 @@ export function useRivvonAPI() {
             onProgress,
         } = options
 
-        // 1. Create texture set
+        // 1. Ensure Slyce folder exists in Google Drive
+        if (onProgress) onProgress('preparing', 'Setting up Google Drive folder...')
+        const slyceFolderId = await ensureSlyceFolder()
+
+        // 2. Create a subfolder for this texture set
+        const timestamp = new Date().toISOString().slice(0, 10)
+        const folderName = `${name} (${timestamp})`
+        const textureSetFolderId = await createTextureSetFolder(slyceFolderId, folderName)
+
+        // 3. Create texture set in API (with google-drive storage provider)
         if (onProgress) onProgress('creating', 'Creating texture set...')
-        const { textureSetId, uploadUrls } = await createTextureSet({
+        const { textureSetId, storageProvider } = await createTextureSet({
             name,
             description,
             isPublic,
@@ -186,44 +182,78 @@ export function useRivvonAPI() {
             layerCount,
             crossSectionType,
             sourceMetadata,
+            storageProvider: 'google-drive',
         })
 
-        // 2. Upload each tile
+        // 4. Upload each tile to Google Drive and register with API
+        const uploadedTiles = []
         for (let i = 0; i < tiles.length; i++) {
             const tile = tiles[i]
-            // Convert blob to ArrayBuffer for upload
-            const arrayBuffer = await tile.blob.arrayBuffer()
-            await uploadTile(textureSetId, tile.index, arrayBuffer)
+            // Upload to Google Drive and register metadata
+            const result = await uploadTileToDrive(
+                textureSetId,
+                tile.index,
+                textureSetFolderId,
+                tile.blob,
+                (progress) => {
+                    if (onProgress) {
+                        onProgress('tile', `Uploading tile ${i + 1}/${tiles.length} (${progress}%)...`)
+                    }
+                }
+            )
+            uploadedTiles.push(result)
 
             if (onProgress) {
-                onProgress('tile', `Uploading tile ${i + 1}/${tiles.length}...`)
+                onProgress('tile', `Uploaded tile ${i + 1}/${tiles.length}`)
             }
         }
 
-        // 3. Upload thumbnail if provided
+        // 5. Upload thumbnail to Google Drive if provided
         let thumbnailUrl = null
         if (thumbnailBlob) {
             if (onProgress) onProgress('thumbnail', 'Uploading thumbnail...')
             try {
-                const thumbResult = await uploadThumbnail(textureSetId, thumbnailBlob)
-                thumbnailUrl = thumbResult.thumbnailUrl
+                thumbnailUrl = await uploadThumbnailToDrive(textureSetFolderId, thumbnailBlob)
+                // Also update the texture set with the thumbnail URL
+                await updateThumbnailUrl(textureSetId, thumbnailUrl)
             } catch (err) {
                 console.warn('Thumbnail upload failed (non-fatal):', err)
             }
         }
 
-        // 4. Mark as complete
+        // 6. Mark as complete
         if (onProgress) onProgress('completing', 'Finalizing...')
         await completeTextureSet(textureSetId)
 
-        // 5. Return texture set info with CDN URLs
+        // 7. Return texture set info with Google Drive URLs
         return {
             textureSetId,
+            storageProvider: 'google-drive',
+            driveFolderId: textureSetFolderId,
             thumbnailUrl,
-            cdnUrls: uploadUrls.map((info) => ({
-                tileIndex: info.tileIndex,
-                url: `https://cdn.rivvon.ca/${info.r2Key}`,
+            tiles: uploadedTiles.map((t) => ({
+                tileIndex: t.tileIndex,
+                url: `https://drive.google.com/uc?export=download&id=${t.driveFileId}`,
             })),
+        }
+    }
+
+    /**
+     * Update thumbnail URL for a texture set
+     * PATCH /texture-set/:id/thumbnail-url
+     */
+    async function updateThumbnailUrl(textureSetId, thumbnailUrl) {
+        const response = await authFetch(
+            `${API_BASE_URL}/texture-set/${textureSetId}/thumbnail-url`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ thumbnailUrl }),
+            }
+        )
+        // Non-fatal if this fails
+        if (!response.ok) {
+            console.warn('Failed to update thumbnail URL')
         }
     }
 
@@ -258,13 +288,7 @@ export function useRivvonAPI() {
      * GET /my-textures
      */
     async function getMyTextures() {
-        const token = await getAccessToken()
-
-        const response = await fetch(`${API_BASE_URL}/my-textures`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-        })
+        const response = await authFetch(`${API_BASE_URL}/my-textures`)
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Failed to fetch your textures' }))
@@ -279,13 +303,8 @@ export function useRivvonAPI() {
      * DELETE /texture-set/:id
      */
     async function deleteTextureSet(textureSetId) {
-        const token = await getAccessToken()
-
-        const response = await fetch(`${API_BASE_URL}/texture-set/${textureSetId}`, {
+        const response = await authFetch(`${API_BASE_URL}/texture-set/${textureSetId}`, {
             method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
         })
 
         if (!response.ok) {
@@ -298,7 +317,7 @@ export function useRivvonAPI() {
 
     return {
         isAuthenticated,
-        getAccessToken,
+        user,
         createTextureSet,
         uploadTile,
         completeTextureSet,
