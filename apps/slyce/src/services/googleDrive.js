@@ -77,10 +77,10 @@ export function useGoogleDrive() {
         }
 
         const folder = await createResponse.json()
-        
+
         // Save folder ID to backend
         await saveFolderIdToBackend(folder.id)
-        
+
         return folder.id
     }
 
@@ -96,11 +96,11 @@ export function useGoogleDrive() {
                     headers: { Authorization: `Bearer ${accessToken}` },
                 }
             )
-            
+
             if (!response.ok) {
                 return false
             }
-            
+
             const file = await response.json()
             return file.id && !file.trashed
         } catch {
@@ -245,7 +245,7 @@ export function useGoogleDrive() {
      */
     async function makeFilePublic(fileId) {
         const accessToken = await getAccessToken()
-        
+
         try {
             await fetch(
                 `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,

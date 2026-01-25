@@ -66,7 +66,7 @@ textureRoutes.get('/:id', async (c) => {
     // Generate public URLs for each tile based on storage provider
     const tileUrls = (tiles.results as any[]).map((tile) => {
         let url: string;
-        
+
         if (storageProvider === 'google-drive' && tile.drive_file_id) {
             // Use the stored public_url or construct from drive_file_id
             url = tile.public_url || `https://drive.google.com/uc?export=download&id=${tile.drive_file_id}`;

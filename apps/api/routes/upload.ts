@@ -78,7 +78,7 @@ uploadRoutes.post('/', async (c) => {
   // For R2 storage, pre-create tile records with R2 keys
   // For Google Drive, tiles will be registered via /tile/:index/metadata after upload
   const uploadUrls = [];
-  
+
   if (storageProvider === 'r2') {
     for (let i = 0; i < tileCount; i++) {
       const tileId = nanoid();
@@ -110,7 +110,7 @@ uploadRoutes.post('/', async (c) => {
     textureSetId,
     storageProvider,
     uploadUrls, // Empty for Google Drive
-    message: storageProvider === 'r2' 
+    message: storageProvider === 'r2'
       ? 'Upload URLs generated. Upload files then call /complete'
       : 'Texture set created. Upload tiles to Google Drive, register with /tile/:index/metadata, then call /complete',
   });
