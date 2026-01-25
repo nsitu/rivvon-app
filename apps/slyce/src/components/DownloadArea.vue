@@ -219,7 +219,7 @@
 
 <script setup>
     import { computed, reactive, ref } from 'vue';
-    import { useGoogleAuth } from '@/composables/useGoogleAuth';
+    import { useGoogleAuth } from '../composables/useGoogleAuth';
     import { downloadBlob } from '../modules/blobDownloader.js';
     import { downloadAllAsZip } from '../modules/zipDownloader.js';
     import { useAppStore } from '../stores/appStore';

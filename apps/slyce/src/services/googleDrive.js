@@ -3,7 +3,7 @@
  * Handles texture uploads to user's Google Drive as bring-your-own storage
  */
 
-import { useGoogleAuth } from '@/composables/useGoogleAuth'
+import { useGoogleAuth } from '../composables/useGoogleAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 const SLYCE_FOLDER_NAME = 'Slyce Textures'

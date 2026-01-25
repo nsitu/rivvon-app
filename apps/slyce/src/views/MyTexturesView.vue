@@ -187,7 +187,7 @@
 
 <script setup>
     import { ref, onMounted, watch } from 'vue'
-    import { useGoogleAuth } from '@/composables/useGoogleAuth'
+    import { useGoogleAuth } from '../composables/useGoogleAuth'
     import { useRivvonAPI } from '../services/api.js'
     import Header from '../components/Header.vue'
     import Footer from '../components/Footer.vue'

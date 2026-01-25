@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { useGoogleAuth } from '@/composables/useGoogleAuth'
+import { useGoogleAuth } from '../composables/useGoogleAuth'
 
 const { isLoading } = useGoogleAuth()
 </script>

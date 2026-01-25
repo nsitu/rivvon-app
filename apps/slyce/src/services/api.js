@@ -1,5 +1,5 @@
-import { useGoogleAuth } from '@/composables/useGoogleAuth'
-import { useGoogleDrive } from '@/services/googleDrive'
+import { useGoogleAuth } from '../composables/useGoogleAuth'
+import { useGoogleDrive } from './googleDrive'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 

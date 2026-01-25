@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-  import { useGoogleAuth } from '@/composables/useGoogleAuth'
+  import { useGoogleAuth } from '../composables/useGoogleAuth'
   import { useRoute } from 'vue-router'
 
   const { user, isAuthenticated, login, logout } = useGoogleAuth()

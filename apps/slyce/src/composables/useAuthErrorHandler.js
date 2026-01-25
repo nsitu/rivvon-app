@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useGoogleAuth } from '@/composables/useGoogleAuth'
+import { useGoogleAuth } from './useGoogleAuth'
 
 /**
  * Composable for handling Google Auth errors with user-friendly messages

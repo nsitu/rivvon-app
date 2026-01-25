@@ -14,7 +14,7 @@
 </template>
 
 <script setup>
-import { useGoogleAuth } from '@/composables/useGoogleAuth'
+import { useGoogleAuth } from '../composables/useGoogleAuth'
 
 const { isAuthenticated, isLoading, login } = useGoogleAuth()
 </script>
