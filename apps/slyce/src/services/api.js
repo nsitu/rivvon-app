@@ -9,7 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
  */
 export function useRivvonAPI() {
     const { isAuthenticated, user } = useGoogleAuth()
-    const { ensureSlyceFolder, createTextureSetFolder, uploadTile: uploadTileToDrive, uploadThumbnail: uploadThumbnailToDrive } = useGoogleDrive()
+    const { ensureSlyceFolder, createTextureSetFolder, uploadTile: uploadTileToDrive } = useGoogleDrive()
 
     /**
      * Make an authenticated API request
@@ -208,14 +208,13 @@ export function useRivvonAPI() {
             }
         }
 
-        // 5. Upload thumbnail to Google Drive if provided
+        // 5. Upload thumbnail to R2 (not Google Drive - R2 is faster for CDN)
         let thumbnailUrl = null
         if (thumbnailBlob) {
             if (onProgress) onProgress('thumbnail', 'Uploading thumbnail...')
             try {
-                thumbnailUrl = await uploadThumbnailToDrive(textureSetFolderId, thumbnailBlob)
-                // Also update the texture set with the thumbnail URL
-                await updateThumbnailUrl(textureSetId, thumbnailUrl)
+                const result = await uploadThumbnail(textureSetId, thumbnailBlob)
+                thumbnailUrl = result.thumbnailUrl
             } catch (err) {
                 console.warn('Thumbnail upload failed (non-fatal):', err)
             }
