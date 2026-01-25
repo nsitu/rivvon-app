@@ -850,7 +850,7 @@ async function handleRemoteTextureSelect(texture) {
     }
   } catch (error) {
     console.error('[App] Failed to load remote texture:', error);
-    
+
     // Check if it's an auth error
     if (error.message.includes('Not authenticated') || error.message.includes('Access denied')) {
       const shouldLogin = confirm(
