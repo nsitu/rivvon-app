@@ -54,13 +54,19 @@ export async function verifySessionToken(
 ): Promise<SessionUser | null> {
     try {
         const parts = token.split('.');
-        if (parts.length !== 2) return null;
+        if (parts.length !== 2) {
+            console.log('Session verify: invalid parts count', parts.length);
+            return null;
+        }
 
         const [payloadB64, signature] = parts;
 
         // Verify signature
         const expectedSignature = await sign(payloadB64, secret);
         if (signature !== expectedSignature) {
+            console.log('Session verify: signature mismatch');
+            console.log('  received:', signature.substring(0, 20) + '...');
+            console.log('  expected:', expectedSignature.substring(0, 20) + '...');
             return null;
         }
 
@@ -71,11 +77,13 @@ export async function verifySessionToken(
         // Check expiration
         const now = Math.floor(Date.now() / 1000);
         if (payload.exp < now) {
+            console.log('Session verify: token expired', { exp: payload.exp, now });
             return null;
         }
 
         return payload.user;
-    } catch {
+    } catch (e) {
+        console.log('Session verify: exception', e);
         return null;
     }
 }

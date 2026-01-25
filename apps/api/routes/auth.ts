@@ -177,13 +177,19 @@ authRoutes.get('/callback', async (c) => {
  * Get current user info from session cookie
  */
 authRoutes.get('/me', async (c) => {
+    // Debug: log incoming headers
+    const cookieHeader = c.req.header('Cookie');
+    console.log('Cookie header received:', cookieHeader ? 'present' : 'missing', cookieHeader?.substring(0, 50));
+
     const sessionToken = getCookie(c, 'session');
+    console.log('Session token parsed:', sessionToken ? 'present' : 'missing');
 
     if (!sessionToken) {
         return c.json({ error: 'Not authenticated' }, 401);
     }
 
     const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
+    console.log('User verified:', user ? 'success' : 'failed');
 
     if (!user) {
         return c.json({ error: 'Invalid session' }, 401);

@@ -10,8 +10,13 @@ export function getCookie(c: Context, name: string): string | undefined {
     if (!cookieHeader) return undefined;
 
     const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
-        const [key, value] = cookie.trim().split('=');
-        if (key) acc[key] = value || '';
+        const trimmed = cookie.trim();
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex > 0) {
+            const key = trimmed.substring(0, eqIndex);
+            const value = trimmed.substring(eqIndex + 1);
+            acc[key] = value;
+        }
         return acc;
     }, {} as Record<string, string>);
 
