@@ -43,14 +43,14 @@ export class RibbonSeries {
 
         console.log('[RibbonSeries] Building from', pathsPoints.length, 'paths');
 
-        // Store for animation updates
+        // Clean up existing ribbons first
+        this.cleanup();
+
+        // Store for animation updates (after cleanup so we don't lose the new data)
         this.lastPathsPoints = pathsPoints.map(points =>
             points.map(p => p.clone())
         );
         this.lastWidth = width;
-
-        // Clean up existing ribbons
-        this.cleanup();
 
         let segmentOffset = 0;  // Track cumulative segment count for texture continuity
 
@@ -135,12 +135,14 @@ export class RibbonSeries {
     }
 
     /**
-     * Clean up all ribbons
+     * Clean up all ribbons and clear cached path data
      */
     cleanup() {
         this.ribbons.forEach(ribbon => ribbon.dispose());
         this.ribbons = [];
         this.totalSegmentCount = 0;
+        this.lastPathsPoints = [];
+        this.lastWidth = 1;
     }
 
     /**
@@ -148,6 +150,5 @@ export class RibbonSeries {
      */
     dispose() {
         this.cleanup();
-        this.lastPathsPoints = [];
     }
 }
