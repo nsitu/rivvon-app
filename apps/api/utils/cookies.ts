@@ -93,25 +93,23 @@ export function setAuthCookies(
 
 /**
  * Clear all auth cookies on logout
+ * Note: Must use { append: true } for multiple Set-Cookie headers in Hono
  */
 export function clearAuthCookies(c: Context): void {
-    // Clear session cookie
-    c.header(
-        'Set-Cookie',
-        buildCookieString('session', '', {
-            maxAge: 0,
-            path: '/',
-        })
-    );
+    // Build all Set-Cookie headers
+    const clearSession = buildCookieString('session', '', {
+        maxAge: 0,
+        path: '/',
+    });
+    
+    const clearRefreshToken = buildCookieString('google_refresh_token', '', {
+        maxAge: 0,
+        path: '/api/auth',
+    });
 
-    // Clear refresh token cookie
-    c.header(
-        'Set-Cookie',
-        buildCookieString('google_refresh_token', '', {
-            maxAge: 0,
-            path: '/api/auth',
-        })
-    );
+    // Set multiple Set-Cookie headers using Hono's append option
+    c.header('Set-Cookie', clearSession);
+    c.header('Set-Cookie', clearRefreshToken, { append: true });
 }
 
 /**

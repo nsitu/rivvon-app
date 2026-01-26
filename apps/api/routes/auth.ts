@@ -59,11 +59,12 @@ authRoutes.get('/login', async (c) => {
     setOAuthStateCookie(c, state);
 
     // Store redirect destination in HTTP-only cookie
+    // NOTE: Must use { append: true } to not overwrite the oauth_state cookie
     c.header('Set-Cookie', buildCookieString('oauth_redirect', finalRedirect, {
         maxAge: 600, // 10 minutes
         path: '/api/auth',
         sameSite: 'Lax', // Lax is fine for this cookie
-    }));
+    }), { append: true });
 
     // Build Google OAuth URL
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -239,19 +240,29 @@ authRoutes.get('/me', async (c) => {
  * Reads refresh token from HTTP-only cookie
  */
 authRoutes.get('/drive-token', async (c) => {
+    // Debug: log incoming cookies
+    const cookieHeader = c.req.header('Cookie');
+    console.log('[drive-token] Cookie header:', cookieHeader ? cookieHeader.substring(0, 100) : 'missing');
+    
     // Verify session first
     const sessionToken = getCookie(c, 'session');
+    console.log('[drive-token] Session token:', sessionToken ? 'present' : 'missing');
+    
     if (!sessionToken) {
         return c.json({ error: 'Not authenticated' }, 401);
     }
 
     const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
+    console.log('[drive-token] User verified:', user ? user.email : 'failed');
+    
     if (!user) {
         return c.json({ error: 'Invalid session' }, 401);
     }
 
     // Read refresh token from HTTP-only cookie
     const refreshToken = getCookie(c, 'google_refresh_token');
+    console.log('[drive-token] Refresh token:', refreshToken ? 'present' : 'missing');
+    
     if (!refreshToken) {
         return c.json({ error: 'No refresh token', needsReauth: true }, 401);
     }
@@ -332,7 +343,9 @@ authRoutes.post('/drive-folder', async (c) => {
  * Clear all auth cookies
  */
 authRoutes.post('/logout', (c) => {
+    console.log('[Auth] Logout called, clearing cookies');
     clearAuthCookies(c);
+    console.log('[Auth] Set-Cookie headers:', c.res.headers.getSetCookie?.() || 'N/A');
     return c.json({ success: true });
 });
 
