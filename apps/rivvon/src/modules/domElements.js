@@ -2,11 +2,11 @@
 export const importSvgBtn = document.getElementById('importSvgBtn');
 export const browseTexturesBtn = document.getElementById('browseTexturesBtn');
 export const drawToggleBtn = document.getElementById('drawToggleBtn');
-export const viewToggleBtn = document.getElementById('viewToggleBtn');
 export const backendToggleBtn = document.getElementById('backendToggleBtn');
 export const materialModeToggleBtn = document.getElementById('materialModeToggleBtn');
 export const finishDrawingBtn = document.getElementById('finishDrawingBtn');
 export const fullscreenBtn = document.getElementById('fullscreenBtn');
+export const flowToggleBtn = document.getElementById('flowToggleBtn');
 export const countdownSecondsSpan = document.getElementById('countdownSeconds');
 // Canvas element
 export const drawCanvas = document.getElementById('drawCanvas');
@@ -28,6 +28,5 @@ export const closeTextPanelBtn = document.getElementById('closeTextPanelBtn');
 export const authContainer = document.getElementById('authContainer');
 export const loginBtn = document.getElementById('loginBtn');
 export const userInfo = document.getElementById('userInfo');
-export const userAvatar = document.getElementById('userAvatar');
 export const userName = document.getElementById('userName');
 export const logoutBtn = document.getElementById('logoutBtn');

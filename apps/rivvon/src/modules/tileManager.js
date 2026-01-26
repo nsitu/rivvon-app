@@ -35,6 +35,7 @@ export class TileManager {
 
         // KTX2 path
         this.materials = [];
+        this.arrayTextures = []; // Raw array textures for dual-texture flow materials
 
         // Check if source is a zip file
         this.isZip = typeof source === 'string' && source.endsWith('.zip');
@@ -66,6 +67,16 @@ export class TileManager {
         this.fps = 30; // fixed cadence
         this.lastFrameTime = 0;
         this.rotate90 = !!rotate90;
+
+        // Flow animation state (continuous dual-texture approach)
+        // flowOffset: 0.0 to 1.0 representing progress sliding to next tile
+        // When flowOffset reaches 1.0, we swap tile pairs and reset to 0.0
+        this.sharedFlowOffsetUniform = { value: 0.0 };
+        this.flowOffset = 0.0;         // Current fractional offset (0.0 to 1.0)
+        this.tileFlowOffset = 0;       // Current base tile offset (integer)
+        this.flowSpeed = 0.25;          // Tiles per second
+        this.flowEnabled = false;       // Can be toggled
+        this.flowMaterials = [];       // Track all dual-texture materials for uniform updates
 
         // WebGPU material mode: 'node' (NodeMaterial) or 'basic' (MeshBasicMaterial)
         // Can be set externally (e.g., via URL param) before loading tiles.
@@ -327,6 +338,202 @@ export class TileManager {
         }
     }
 
+    /**
+     * Create a dual-texture material for smooth flow animation (WebGL).
+     * Samples from two adjacent tiles and uses flowOffset to slide between them.
+     * @param {THREE.DataArrayTexture} textureCurrent - Current tile's array texture
+     * @param {THREE.DataArrayTexture} textureNext - Next tile's array texture
+     * @returns {THREE.ShaderMaterial} Dual-texture material
+     */
+    #createDualTextureMaterialWebGL(textureCurrent, textureNext) {
+        const layerCount = textureCurrent.image?.depth || 1;
+
+        const material = new THREE.ShaderMaterial({
+            glslVersion: THREE.GLSL3,
+            uniforms: {
+                uTexArrayCurrent: { value: textureCurrent },
+                uTexArrayNext: { value: textureNext },
+                uLayer: this.sharedLayerUniform,
+                uLayerCount: { value: layerCount },
+                uRotate90: this.sharedRotateUniform,
+                uFlowOffset: this.sharedFlowOffsetUniform
+            },
+            vertexShader: /* glsl */`
+                out vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: /* glsl */`
+                precision highp float;
+                precision highp sampler2DArray;
+                in vec2 vUv;
+                uniform sampler2DArray uTexArrayCurrent;
+                uniform sampler2DArray uTexArrayNext;
+                uniform int uLayer;
+                uniform int uRotate90;
+                uniform float uFlowOffset;
+                out vec4 outColor;
+                void main() {
+                    // Apply flow offset to U coordinate (slides along ribbon)
+                    float shiftedU = vUv.x + uFlowOffset;
+                    
+                    vec2 sampleUV;
+                    vec4 texColor;
+                    
+                    if (shiftedU >= 1.0) {
+                        // This region shows the NEXT tile
+                        sampleUV = vec2(shiftedU - 1.0, vUv.y);
+                        // Optionally rotate by 90 degrees (clockwise)
+                        vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
+                        // Flip V to match texture orientation
+                        vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
+                        texColor = texture(uTexArrayNext, vec3(flippedUv, float(uLayer)));
+                    } else {
+                        // This region shows the CURRENT tile
+                        sampleUV = vec2(shiftedU, vUv.y);
+                        // Optionally rotate by 90 degrees (clockwise)
+                        vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
+                        // Flip V to match texture orientation
+                        vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
+                        texColor = texture(uTexArrayCurrent, vec3(flippedUv, float(uLayer)));
+                    }
+                    
+                    outColor = texColor;
+                }
+            `,
+            transparent: false,
+            depthWrite: true,
+            side: THREE.DoubleSide
+        });
+
+        // Store texture references for swapping
+        material._textureCurrent = textureCurrent;
+        material._textureNext = textureNext;
+
+        return material;
+    }
+
+    /**
+     * Create a dual-texture material for smooth flow animation (WebGPU).
+     * @param {THREE.DataArrayTexture} textureCurrent - Current tile's array texture
+     * @param {THREE.DataArrayTexture} textureNext - Next tile's array texture
+     * @returns {THREE_WEBGPU.NodeMaterial} Dual-texture material
+     */
+    #createDualTextureMaterialWebGPU(textureCurrent, textureNext) {
+        const layerCount = textureCurrent.image?.depth || 1;
+
+        // For now, fall back to simple material in WebGPU
+        // TSL conditional texture sampling is complex; we'll use a simpler approach
+        // TODO: Implement proper TSL dual-texture sampling
+        
+        // Create uniforms
+        const layerUniform = uniform(this.sharedLayerUniform.value);
+        const rotateUniform = uniform(this.sharedRotateUniform.value);
+        const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
+
+        // For WebGPU, we'll create a material that updates its texture based on flowOffset
+        // Since TSL doesn't easily support conditional texture selection, we'll use a blend approach
+        const baseUV = uv();
+        
+        // Apply flow offset
+        const shiftedU = baseUV.x.add(flowOffsetUniform);
+        
+        // Create two UV sets
+        const uvCurrent = vec2(shiftedU, baseUV.y);
+        const uvNext = vec2(shiftedU.sub(1.0), baseUV.y);
+        
+        // Apply rotation and flip for current
+        const rotatedCurrent = rotateUniform.equal(1).select(
+            vec2(uvCurrent.y, float(1).sub(uvCurrent.x)),
+            uvCurrent
+        );
+        const finalUVCurrent = vec2(rotatedCurrent.x, float(1).sub(rotatedCurrent.y));
+        
+        // Apply rotation and flip for next
+        const rotatedNext = rotateUniform.equal(1).select(
+            vec2(uvNext.y, float(1).sub(uvNext.x)),
+            uvNext
+        );
+        const finalUVNext = vec2(rotatedNext.x, float(1).sub(rotatedNext.y));
+        
+        // Sample both textures
+        const colorCurrent = texture(textureCurrent, finalUVCurrent).depth(layerUniform);
+        const colorNext = texture(textureNext, finalUVNext).depth(layerUniform);
+        
+        // Select based on whether shiftedU >= 1.0
+        const useNext = shiftedU.greaterThanEqual(1.0);
+        const finalColor = useNext.select(colorNext, colorCurrent);
+
+        const material = new THREE_WEBGPU.NodeMaterial();
+        material.colorNode = finalColor;
+        material.transparent = false;
+        material.depthWrite = true;
+        material.side = THREE.DoubleSide;
+
+        // Store references for updates
+        material._layerUniform = layerUniform;
+        material._rotateUniform = rotateUniform;
+        material._flowOffsetUniform = flowOffsetUniform;
+        material._textureCurrent = textureCurrent;
+        material._textureNext = textureNext;
+
+        return material;
+    }
+
+    /**
+     * Create a dual-texture material for a specific segment.
+     * @param {number} segmentIndex - The segment's base tile index
+     * @returns {THREE.Material} Dual-texture material for smooth flow
+     */
+    createFlowMaterial(segmentIndex) {
+        if (!this.isKTX2 || this.arrayTextures.length === 0) {
+            return this.getMaterial(segmentIndex);
+        }
+
+        const currentIdx = (segmentIndex + this.tileFlowOffset) % this.tileCount;
+        const nextIdx = (currentIdx + 1) % this.tileCount;
+
+        const textureCurrent = this.arrayTextures[currentIdx];
+        const textureNext = this.arrayTextures[nextIdx];
+
+        if (!textureCurrent || !textureNext) {
+            console.warn(`[TileManager] Missing textures for flow material: ${currentIdx}, ${nextIdx}`);
+            return this.getMaterial(segmentIndex);
+        }
+
+        let material;
+        if (this.rendererType === 'webgpu') {
+            material = this.#createDualTextureMaterialWebGPU(textureCurrent, textureNext);
+        } else {
+            material = this.#createDualTextureMaterialWebGL(textureCurrent, textureNext);
+        }
+
+        // Track this material for uniform updates
+        if (material) {
+            this.flowMaterials.push(material);
+        }
+
+        return material;
+    }
+
+    /**
+     * Get a raw array texture by index.
+     * @param {number} index - Tile index
+     * @returns {THREE.DataArrayTexture|null} The array texture or null
+     */
+    getArrayTexture(index) {
+        return this.arrayTextures[index % this.tileCount] || null;
+    }
+
+    /**
+     * Clear tracked flow materials (call before rebuilding ribbons).
+     */
+    clearFlowMaterials() {
+        this.flowMaterials = [];
+    }
+
     #createArrayMaterialWebGL(arrayTexture) {
         const layerCount = arrayTexture.image?.depth || 1;
 
@@ -354,10 +561,12 @@ export class TileManager {
                 uniform int uRotate90;
                 out vec4 outColor;
                 void main() {
-                    // Optionally rotate by 90 degrees (clockwise), then flip V
-                    vec2 uv0 = vUv;
-                    vec2 uvR = (uRotate90 == 1) ? vec2(uv0.y, 1.0 - uv0.x) : uv0;
+                    // Optionally rotate by 90 degrees (clockwise)
+                    vec2 uvR = (uRotate90 == 1) ? vec2(vUv.y, 1.0 - vUv.x) : vUv;
+                    
+                    // Flip V to match texture orientation
                     vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
+                    
                     outColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
                 }
             `,
@@ -419,12 +628,14 @@ export class TileManager {
         );
 
         // Step 2: Flip V coordinate to match texture orientation
-        // Flip: (x, y) → (x, 1 - y)
-        const flippedUV = rotatedUV.toVar().setY(float(1).sub(rotatedUV.y));
+        const finalUV = vec2(
+            rotatedUV.x,
+            float(1).sub(rotatedUV.y)
+        );
 
         // Create NodeMaterial with texture array sampling using .depth()
         const material = new THREE_WEBGPU.NodeMaterial();
-        material.colorNode = texture(arrayTexture, flippedUV).depth(layerUniform);
+        material.colorNode = texture(arrayTexture, finalUV).depth(layerUniform);
         material.transparent = false;
         material.depthWrite = true;
         material.side = THREE.DoubleSide;
@@ -507,6 +718,9 @@ export class TileManager {
                             }
                         }
 
+                        // Store raw texture for dual-texture flow materials
+                        this.arrayTextures[index] = arrayTexture;
+
                         const material = this.#createArrayMaterial(arrayTexture);
                         resolve(material);
                     },
@@ -555,6 +769,9 @@ export class TileManager {
                                 console.warn(`[TileManager] Tile ${index} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
                             }
                         }
+
+                        // Store raw texture for dual-texture flow materials
+                        this.arrayTextures[index] = arrayTexture;
 
                         const material = this.#createArrayMaterial(arrayTexture);
                         resolve(material);
@@ -644,10 +861,38 @@ export class TileManager {
     }
 
     tick(nowMs) {
-        if (!this.isKTX2 || this.layerCount <= 1) return;
+        if (!this.isKTX2) return;
 
         if (this.lastFrameTime === 0) this.lastFrameTime = nowMs;
         const elapsed = nowMs - this.lastFrameTime;
+        const elapsedSec = elapsed / 1000;
+
+        // --- Flow animation (continuous dual-texture approach) ---
+        if (this.flowEnabled && this.flowSpeed !== 0) {
+            // Accumulate fractional offset based on elapsed time
+            // Let flowOffset exceed 1.0 - wrapping is handled by updateFlowMaterials()
+            // to avoid 1-frame glitches when texture pairs are swapped
+            this.flowOffset += this.flowSpeed * elapsedSec;
+            
+            // Update shared uniform for continuous animation
+            this.sharedFlowOffsetUniform.value = this.flowOffset;
+
+            // For WebGPU, also update TSL uniform nodes on all flow materials
+            if (this.rendererType === 'webgpu') {
+                for (const material of this.flowMaterials) {
+                    if (material._flowOffsetUniform) {
+                        material._flowOffsetUniform.value = this.flowOffset;
+                    }
+                }
+            }
+        }
+
+        // --- Layer cycling animation (frame-rate limited) ---
+        if (this.layerCount <= 1) {
+            this.lastFrameTime = nowMs;
+            return;
+        }
+
         const frameInterval = 1000 / this.fps;
 
         if (elapsed >= frameInterval) {
@@ -671,13 +916,20 @@ export class TileManager {
             const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1)));
             this.sharedLayerUniform.value = clamped | 0; // ensure int
 
-            // For WebGPU, also update TSL uniform nodes
+            // For WebGPU, also update TSL uniform nodes on BOTH regular and flow materials
             if (this.rendererType === 'webgpu') {
+                // Update regular materials
                 this.materials.forEach(material => {
                     if (material._layerUniform) {
                         material._layerUniform.value = clamped;
                     }
                 });
+                // Update flow materials
+                for (const material of this.flowMaterials) {
+                    if (material._layerUniform) {
+                        material._layerUniform.value = clamped;
+                    }
+                }
             }
         }
     }
@@ -698,6 +950,110 @@ export class TileManager {
                 }
             });
         }
+    }
+
+    /**
+     * Set the flow animation speed (tile streaming along ribbon).
+     * @param {number} tilesPerSecond - Speed in tiles per second. Positive = forward, negative = backward, 0 = disabled.
+     */
+    setFlowSpeed(tilesPerSecond) {
+        this.flowSpeed = tilesPerSecond;
+        console.log(`[TileManager] Flow speed set to ${tilesPerSecond} tiles/second`);
+    }
+
+    /**
+     * Get the current flow speed.
+     * @returns {number} Flow speed in tiles per second
+     */
+    getFlowSpeed() {
+        return this.flowSpeed;
+    }
+
+    /**
+     * Get the current tile flow offset (integer).
+     * Used by RibbonSeries to offset material assignments for conveyor effect.
+     * @returns {number} Current tile offset
+     */
+    getTileFlowOffset() {
+        return this.tileFlowOffset;
+    }
+
+    /**
+     * Get the current fractional flow offset (0.0 to 1.0).
+     * Used for continuous UV-based animation within dual-texture materials.
+     * @returns {number} Current fractional offset
+     */
+    getFlowOffset() {
+        return this.flowOffset;
+    }
+
+    /**
+     * Wrap the flow offset after texture pairs have been swapped.
+     * Called by RibbonSeries.updateFlowMaterials() after creating new materials.
+     * @param {number} wholeTiles - Number of whole tiles to shift (can be negative)
+     */
+    wrapFlowOffset(wholeTiles) {
+        // Update tile base offset
+        this.tileFlowOffset = (this.tileFlowOffset + wholeTiles + this.tileCount) % this.tileCount;
+        
+        // Wrap flowOffset to [0, 1) range
+        this.flowOffset -= wholeTiles;
+        
+        // Update uniforms with wrapped value
+        this.sharedFlowOffsetUniform.value = this.flowOffset;
+        
+        // For WebGPU, update TSL uniform nodes
+        if (this.rendererType === 'webgpu') {
+            for (const material of this.flowMaterials) {
+                if (material._flowOffsetUniform) {
+                    material._flowOffsetUniform.value = this.flowOffset;
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if tile base offset has changed since last check.
+     * Used by RibbonSeries to know when to swap texture pairs.
+     * @returns {boolean} True if tile offset changed
+     */
+    didTileOffsetChange() {
+        if (this._lastCheckedTileOffset !== this.tileFlowOffset) {
+            this._lastCheckedTileOffset = this.tileFlowOffset;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Enable or disable flow animation.
+     * When disabled, uses optimized single-texture materials.
+     * @param {boolean} enabled - Whether flow animation is enabled
+     * @returns {boolean} Whether the state actually changed
+     */
+    setFlowEnabled(enabled) {
+        const wasEnabled = this.flowEnabled;
+        this.flowEnabled = !!enabled;
+        
+        if (!this.flowEnabled) {
+            // Reset flow offset when disabled
+            this.tileFlowOffset = 0;
+            this.flowOffset = 0;
+            this.sharedFlowOffsetUniform.value = 0;
+        }
+        
+        const stateChanged = wasEnabled !== this.flowEnabled;
+        console.log(`[TileManager] Flow animation ${enabled ? 'enabled' : 'disabled'}${stateChanged ? ' (state changed)' : ''}`);
+        
+        return stateChanged;
+    }
+
+    /**
+     * Check if flow animation is enabled.
+     * @returns {boolean} Whether flow is enabled
+     */
+    isFlowEnabled() {
+        return this.flowEnabled;
     }
 
     /**
@@ -786,6 +1142,10 @@ export class TileManager {
             this.currentLayer = 0;
             this.direction = 1;
             this.sharedLayerUniform.value = 0;
+
+            // Reset flow state
+            this.tileFlowOffset = 0;
+            this.flowAccumulator = 0;
 
             // Initialize KTX2 loader if not already done
             if (!this._ktx2Loader) {
@@ -898,6 +1258,10 @@ export class TileManager {
             this.currentLayer = 0;
             this.direction = 1;
             this.sharedLayerUniform.value = 0;
+
+            // Reset flow state
+            this.tileFlowOffset = 0;
+            this.flowAccumulator = 0;
 
             // Initialize KTX2 loader if not already done
             if (!this._ktx2Loader) {

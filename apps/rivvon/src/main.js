@@ -1,15 +1,23 @@
 import './style.css'
+
+// Material Icons 
+import { loadMaterialSymbols } from './modules/iconLoader';
+// Pass an array icon names to be loaded via Google Fonts CDN
+loadMaterialSymbols([
+    'sprint','upload','grid_view','text_fields','fullscreen','logout','login'
+])
+
 import { initThree } from './modules/threeSetup.js';
 import { chooseRenderer } from './utils/renderer-utils.js';
 import {
   importSvgBtn,
   browseTexturesBtn,
   drawToggleBtn,
-  viewToggleBtn,
   backendToggleBtn,
   materialModeToggleBtn,
   finishDrawingBtn,
   fullscreenBtn,
+  flowToggleBtn,
   countdownSecondsSpan,
   fileInput,
   checkerboardDiv,
@@ -24,7 +32,6 @@ import {
   closeTextPanelBtn,
   loginBtn,
   userInfo,
-  userAvatar,
   userName,
   logoutBtn
 } from './modules/domElements.js';
@@ -62,8 +69,6 @@ function setupAuthUI() {
       // Show user info, hide login button
       loginBtn.style.display = 'none';
       userInfo.style.display = 'flex';
-      userAvatar.src = user.picture || '';
-      userAvatar.style.display = user.picture ? 'block' : 'none';
       userName.textContent = user.name || user.email || 'User';
     } else {
       // Show login button, hide user info
@@ -182,9 +187,8 @@ function setDrawingMode(enableDrawing) {
   // Show/hide UI elements
   checkerboardDiv.style.display = enableDrawing ? 'block' : 'none';
   renderer.domElement.style.opacity = enableDrawing ? '0' : '1';
-  // Update button styles
+  // Update button style to show active state when in drawing mode
   drawToggleBtn.classList.toggle('active-mode', enableDrawing);
-  viewToggleBtn.classList.toggle('active-mode', !enableDrawing);
 
   // Show/hide finish drawing button
   if (finishDrawingBtn) {
@@ -204,8 +208,8 @@ function setDrawingMode(enableDrawing) {
   // });
 }
 
-drawToggleBtn.addEventListener('click', () => setDrawingMode(true));
-viewToggleBtn.addEventListener('click', () => setDrawingMode(false));
+// Toggle drawing mode on/off with single button
+drawToggleBtn.addEventListener('click', () => setDrawingMode(!isDrawingMode));
 
 // --- Multi-stroke drawing UI ---
 // Handle stroke count changes from DrawingManager
@@ -321,6 +325,8 @@ async function initializeRibbon() {
       // Reset camera before building the initial ribbon series
       resetCamera();
       ribbonSeries.buildFromMultiplePaths(normalizedPaths, 1.2);
+      // Initialize dual-texture flow materials for smooth conveyor animation
+      ribbonSeries.initFlowMaterials();
       console.log(`[App] Loaded SVG with ${pathsPoints.length} path(s), ${ribbonSeries.getTotalSegmentCount()} total segments`);
     } else {
       console.error("Could not extract paths from the SVG file.");
@@ -459,6 +465,8 @@ function handleDrawingComplete(strokesData) {
       if (processedPaths.length > 0) {
         // Step 4: Build ribbon series
         ribbonSeries.buildFromMultiplePaths(processedPaths, 1.2);
+        // Initialize dual-texture flow materials for smooth conveyor animation
+        ribbonSeries.initFlowMaterials();
         totalSegments = ribbonSeries.getTotalSegmentCount();
         creationSuccess = totalSegments > 0;
 
@@ -510,8 +518,10 @@ function startRenderLoop() {
     // WebGPU uses setAnimationLoop
     const loopFn = () => {
       const time = performance.now() / 1000;
-      // Advance KTX2 layer cycling (no-op for JPG mode)
+      // Advance KTX2 layer cycling and tile flow (no-op for JPG mode)
       tileManager?.tick?.(performance.now());
+      // Update ribbon materials for tile flow effect (conveyor belt)
+      ribbonSeries?.updateFlowMaterials?.();
       updateAnimatedRibbon(time);
       controls.update();
       renderer.render(scene, camera);
@@ -537,8 +547,10 @@ function startRenderLoop() {
     function renderLoop() {
       requestAnimationFrame(renderLoop);
       const time = performance.now() / 1000;
-      // Advance KTX2 layer cycling (no-op for JPG mode)
+      // Advance KTX2 layer cycling and tile flow (no-op for JPG mode)
       tileManager?.tick?.(performance.now());
+      // Update ribbon materials for tile flow effect (conveyor belt)
+      ribbonSeries?.updateFlowMaterials?.();
       updateAnimatedRibbon(time);
       controls.update();
       renderer.render(scene, camera);
@@ -617,6 +629,32 @@ if (fullscreenBtn) {
       `;
     }
   });
+}
+
+// --- Flow animation toggle ---
+if (flowToggleBtn) {
+  // Update button appearance based on flow state
+  function updateFlowButtonState(enabled) {
+    flowToggleBtn.classList.toggle('active', enabled);
+    flowToggleBtn.title = enabled ? 'Disable texture flow' : 'Enable texture flow';
+  }
+
+  flowToggleBtn.addEventListener('click', () => {
+    if (!tileManager) return;
+    
+    const newState = !tileManager.isFlowEnabled();
+    const stateChanged = tileManager.setFlowEnabled(newState);
+    
+    if (stateChanged && ribbonSeries) {
+      // Reinitialize flow materials when state changes
+      ribbonSeries.initFlowMaterials();
+    }
+    
+    updateFlowButtonState(newState);
+  });
+
+  // Initialize button state (flow is disabled by default)
+  updateFlowButtonState(false);
 }
 
 if (importSvgBtn && fileInput) {
@@ -756,6 +794,8 @@ if (generateTextBtn) {
 
         // Build ribbon series from text paths
         ribbonSeries.buildFromMultiplePaths(normalizedPaths, 1.2);
+        // Initialize dual-texture flow materials for smooth conveyor animation
+        ribbonSeries.initFlowMaterials();
 
         console.log(`[App] Created ribbon from text "${text}" with ${pathsPoints.length} paths, ${ribbonSeries.getTotalSegmentCount()} segments`);
 
@@ -963,6 +1003,8 @@ async function handleSvgImport(file) {
 
     // Build ribbon series from all paths
     ribbonSeries.buildFromMultiplePaths(normalizedPaths, 1.2);
+    // Initialize dual-texture flow materials for smooth conveyor animation
+    ribbonSeries.initFlowMaterials();
     console.log(`[App] Imported SVG with ${pathsPoints.length} path(s), ${ribbonSeries.getTotalSegmentCount()} total segments`);
   } else {
     alert('Could not extract paths from the SVG file.');
@@ -1019,6 +1061,8 @@ function rebuildRibbonsWithNewTextures() {
 
     // Rebuild the ribbon series
     ribbonSeries.buildFromMultiplePaths(pathsPoints, width);
+    // Re-initialize dual-texture flow materials with new textures
+    ribbonSeries.initFlowMaterials();
     console.log(`[App] Rebuilt ribbon series: ${ribbonSeries.getTotalSegmentCount()} segments`);
     return;
   }

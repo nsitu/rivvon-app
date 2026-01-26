@@ -3,6 +3,9 @@
 
 <head>
   <meta charset="UTF-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   <link
     rel="icon"
     type="image/svg+xml"
@@ -67,35 +70,16 @@
       class="auth-btn login-btn"
       title="Sign in with Google"
     >
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-        <polyline points="10 17 15 12 10 7"></polyline>
-        <line
-          x1="15"
-          y1="12"
-          x2="3"
-          y2="12"
-        ></line>
-      </svg>
+      <span class="material-symbols-outlined">
+login
+</span>
       <span>Sign in</span>
     </button>
     <div
       id="userInfo"
-      class="user-info"
+      class="user-info cursive"
       style="display: none;"
     >
-      <img
-        id="userAvatar"
-        class="user-avatar"
-        alt=""
-      />
       <span
         id="userName"
         class="user-name"
@@ -105,23 +89,9 @@
         class="auth-btn logout-btn"
         title="Sign out"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-          <polyline points="16 17 21 12 16 7"></polyline>
-          <line
-            x1="21"
-            y1="12"
-            x2="9"
-            y2="12"
-          ></line>
-        </svg>
+       <span class="material-symbols-outlined">
+logout
+</span>
       </button>
     </div>
   </div>
@@ -141,50 +111,26 @@
 
   <!-- Bottom right menu container -->
   <div id="bottomRightMenu">
-    <div id="modeToggleButtons">
-      <button id="drawToggleBtn">
-        <img
-          src="/draw.svg"
-          class="toggle-icon draw-icon"
-          alt="Draw mode"
-        />
-      </button>
-      <button id="viewToggleBtn">
-        <img
-          src="/view.svg"
-          class="toggle-icon view-icon"
-          alt="View mode"
-        />
-      </button>
-    </div>
+    <!-- Draw mode toggle button -->
+    <button
+      id="drawToggleBtn"
+      title="Toggle drawing mode"
+    >
+      <img
+        src="/draw.svg"
+        class="toggle-icon draw-icon"
+        alt="Draw mode"
+      />
+    </button>
 
     <!-- Text to SVG button -->
     <button
       id="textToSvgBtn"
       title="Create ribbon from text"
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <polyline points="4 7 4 4 20 4 20 7"></polyline>
-        <line
-          x1="9"
-          y1="20"
-          x2="15"
-          y2="20"
-        ></line>
-        <line
-          x1="12"
-          y1="4"
-          x2="12"
-          y2="20"
-        ></line>
-      </svg>
+      <span class="material-symbols-outlined">
+text_fields
+</span>
     </button>
 
     <!-- Browse remote textures button -->
@@ -192,78 +138,37 @@
       id="browseTexturesBtn"
       title="Browse texture library"
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <rect
-          x="3"
-          y="3"
-          width="7"
-          height="7"
-        ></rect>
-        <rect
-          x="14"
-          y="3"
-          width="7"
-          height="7"
-        ></rect>
-        <rect
-          x="14"
-          y="14"
-          width="7"
-          height="7"
-        ></rect>
-        <rect
-          x="3"
-          y="14"
-          width="7"
-          height="7"
-        ></rect>
-      </svg>
+     <span class="material-symbols-outlined">
+grid_view
+</span>
     </button>
 
     <button
       id="importSvgBtn"
       title="Import SVG or ZIP texture pack"
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-        <polyline points="17 8 12 3 7 8"></polyline>
-        <line
-          x1="12"
-          y1="3"
-          x2="12"
-          y2="15"
-        ></line>
-      </svg>
+      <span class="material-symbols-outlined">
+upload
+</span>
+    </button>
+
+    <!-- Flow animation toggle button -->
+    <button
+      id="flowToggleBtn"
+      title="Toggle texture flow animation"
+    >
+      <span class="material-symbols-outlined">
+sprint
+</span>
     </button>
 
     <button
       id="fullscreenBtn"
       title="Toggle fullscreen"
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-      </svg>
+      <span class="material-symbols-outlined">
+fullscreen
+</span>
     </button>
   </div>
 

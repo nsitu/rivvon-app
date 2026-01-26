@@ -9,6 +9,11 @@ body {
   position: fixed;
   width: 100%;
   height: 100%;
+
+   font-family: "Roboto", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal; 
 }
 
 body {
@@ -17,6 +22,10 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+
+ 
+
+ 
 /* Blurred texture background */
 .blurred-background {
   position: fixed;
@@ -138,37 +147,29 @@ body.app-active .auth-container {
 
 .user-info {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: center; 
   background: rgba(0, 0, 0, 0.6);
-  padding: 4px 8px 4px 4px;
+  padding: 0 0 0 1.5rem;
 }
-
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-}
+ 
 
 .user-name {
   color: #fff;
   font-size: 0.9em;
-  max-width: 120px;
+  max-width: 120px;  
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.logout-btn {
-  padding: 0.4em;
-  min-width: 32px;
-  min-height: 32px;
+.logout-btn { 
+  height: 44px;
+  padding: 0.5em 0.9em;
   background: transparent;
 }
 
 .logout-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: #000;
 }
 
 /* Bottom center menu container */
@@ -194,23 +195,6 @@ body.app-active #bottomRightMenu {
   padding: 0.5em 0.9em;
 }
 
-#modeToggleButtons {
-  display: flex;
-  align-items: stretch;
-}
-
-#modeToggleButtons button {
-  height: 44px;
-}
-
-#drawToggleBtn {
-  border-radius: 0;
-}
-
-#viewToggleBtn {
-  border-radius: 0;
-}
-
 /* Add styles for active mode button */
 .active-mode {
   background-color: rgba(76, 175, 80, 0.8);
@@ -223,8 +207,15 @@ body.app-active #bottomRightMenu {
   filter: brightness(1.2);
 }
 
-#modeToggleButtons button {
-  transition: all 0.3s ease;
+/* Flow toggle button active state */
+#flowToggleBtn.active {
+  background-color: rgba(76, 175, 80, 0.8);
+  color: white;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+#flowToggleBtn.active svg {
+  filter: brightness(1.2);
 }
 
 /* Renderer indicator - shown only in debug mode */

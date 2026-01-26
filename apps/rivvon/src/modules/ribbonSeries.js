@@ -110,6 +110,118 @@ export class RibbonSeries {
     }
 
     /**
+     * Initialize materials for all segments.
+     * Uses dual-texture flow materials when flow is enabled,
+     * or shared single-texture materials when flow is disabled (optimized).
+     * Should be called once after building ribbons.
+     */
+    initFlowMaterials() {
+        if (!this.tileManager) return;
+
+        // Clear any existing flow materials tracked by TileManager
+        this.tileManager.clearFlowMaterials?.();
+
+        // Track segment info for later updates
+        this._flowMaterials = [];
+
+        // Check if flow animation is active
+        const flowActive = this.tileManager.isFlowEnabled?.() && this.tileManager.getFlowSpeed?.() !== 0;
+
+        let globalSegmentIndex = 0;
+
+        for (const ribbon of this.ribbons) {
+            for (const mesh of ribbon.meshSegments) {
+                let material;
+                
+                if (flowActive) {
+                    // Flow enabled: create dual-texture material for smooth animation
+                    material = this.tileManager.createFlowMaterial(globalSegmentIndex);
+                } else {
+                    // Flow disabled: use shared single-texture material (optimized)
+                    const textureIndex = globalSegmentIndex + this.tileManager.getTileFlowOffset();
+                    material = this.tileManager.getMaterial(textureIndex);
+                }
+                
+                if (material) {
+                    mesh.material = material;
+                    this._flowMaterials.push({
+                        mesh,
+                        material,
+                        baseIndex: globalSegmentIndex
+                    });
+                }
+
+                globalSegmentIndex++;
+            }
+        }
+
+        // Store state for detecting changes
+        this._lastTileOffset = this.tileManager.getTileFlowOffset?.() || 0;
+        this._flowWasActive = flowActive;
+
+        console.log(`[RibbonSeries] Initialized ${this._flowMaterials.length} materials (flow ${flowActive ? 'enabled - dual texture' : 'disabled - single texture'})`);
+    }
+
+    /**
+     * Update flow materials when tile offset changes (texture pair swap).
+     * This creates the continuous conveyor belt effect.
+     * Call this from the animation loop after tileManager.tick().
+     */
+    updateFlowMaterials() {
+        if (!this.tileManager || !this._flowMaterials) return;
+
+        // Check if flow state has changed (enabled/disabled)
+        const flowActive = this.tileManager.isFlowEnabled?.() && this.tileManager.getFlowSpeed?.() !== 0;
+        
+        if (flowActive !== this._flowWasActive) {
+            // Flow state changed - reinitialize with appropriate material type
+            console.log(`[RibbonSeries] Flow state changed, reinitializing materials`);
+            this.initFlowMaterials();
+            return;
+        }
+
+        // If flow is not active, nothing to update each frame
+        if (!flowActive) return;
+
+        // Check if flowOffset has crossed 1.0 (or gone below 0.0 for reverse)
+        const flowOffset = this.tileManager.getFlowOffset?.() || 0;
+        
+        if (flowOffset >= 1.0 || flowOffset < 0.0) {
+            // Need to swap texture pairs and wrap the offset
+            
+            // Calculate how many whole tiles to shift
+            let wholeTiles;
+            if (flowOffset >= 1.0) {
+                wholeTiles = Math.floor(flowOffset);
+            } else {
+                wholeTiles = Math.ceil(flowOffset) - 1; // negative
+            }
+
+            // Update tile offset in TileManager
+            this.tileManager.wrapFlowOffset(wholeTiles);
+
+            // Clear tracked materials from TileManager
+            this.tileManager.clearFlowMaterials?.();
+
+            // Create new materials for each segment with updated tile pairs
+            for (const entry of this._flowMaterials) {
+                const { mesh, baseIndex } = entry;
+                
+                // Create new dual-texture material with updated tile pair
+                const newMaterial = this.tileManager.createFlowMaterial(baseIndex);
+                
+                if (newMaterial) {
+                    mesh.material = newMaterial;
+                    entry.material = newMaterial;
+                }
+            }
+        }
+
+        // The continuous flow offset is handled by the shared uniform in shaders
+        // WebGPU uniforms are updated in TileManager.tick()
+    }
+
+    /**
      * Get the total number of segments across all ribbons
      * @returns {number} Total segment count
      */
@@ -140,6 +252,9 @@ export class RibbonSeries {
     cleanup() {
         this.ribbons.forEach(ribbon => ribbon.dispose());
         this.ribbons = [];
+        this._flowMaterials = [];
+        this._lastTileOffset = 0;
+        this._flowWasActive = false;
         this.totalSegmentCount = 0;
         this.lastPathsPoints = [];
         this.lastWidth = 1;
