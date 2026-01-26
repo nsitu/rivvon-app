@@ -88,6 +88,13 @@ body.app-active .app-logo {
   display: block;
 }
 
+/* Mobile: reduce logo padding */
+@media (max-width: 600px) {
+  .app-logo {
+    padding: .7em 1.2em;
+  }
+}
+
 /* Auth container in top right */
 .auth-container {
   position: absolute;
@@ -397,7 +404,8 @@ body.app-active #bottomRightMenu {
 :fullscreen #finishDrawingBtn,
 :fullscreen #rendererIndicator,
 :fullscreen #checkerboard,
-:fullscreen .app-logo {
+:fullscreen .app-logo,
+:fullscreen .auth-container {
   display: none !important;
 }
 
@@ -406,7 +414,8 @@ body.app-active #bottomRightMenu {
 :-webkit-full-screen #finishDrawingBtn,
 :-webkit-full-screen #rendererIndicator,
 :-webkit-full-screen #checkerboard,
-:-webkit-full-screen .app-logo {
+:-webkit-full-screen .app-logo,
+:-webkit-full-screen .auth-container {
   display: none !important;
 }
 
