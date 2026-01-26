@@ -315,7 +315,7 @@ async function initializeRibbon() {
     ribbonSeries.setTileManager(tileManager);
 
     // Try to load the SVG path (use multi-path for SVG files)
-    const response = await fetch('./jj.svg');
+    const response = await fetch('./spiral.svg');
     const svgText = await response.text();
     const pathsPoints = parseSvgContentMultiPath(svgText, RIBBON_RESOLUTION, 5, 0);
 
