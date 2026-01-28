@@ -18,6 +18,7 @@ textureRoutes.get('/', async (c) => {
       ts.id, ts.name, ts.description, ts.thumbnail_url,
       ts.tile_resolution, ts.tile_count, ts.layer_count,
       ts.cross_section_type, ts.source_frame_count, ts.sampled_frame_count, ts.created_at,
+      ts.storage_provider,
       u.id as owner_id,
       u.name as owner_name,
       u.picture as owner_picture,
