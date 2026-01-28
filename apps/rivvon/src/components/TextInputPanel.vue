@@ -54,7 +54,7 @@
         <div
             v-if="visible"
             class="panel-overlay"
-            @click.self="close"
+            @mousedown.self="close"
         >
             <div class="text-input-panel">
                 <div class="text-panel-header">

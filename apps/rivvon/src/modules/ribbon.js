@@ -10,10 +10,17 @@ export class Ribbon {
         this.lastWidth = 1;
         this.segmentOffset = 0; // Offset for texture indexing (used in RibbonSeries)
 
+        // Path geometry
+        this.pathLength = 0; // Total arc length of the path
+
         // Animation parameters
-        this.waveAmplitude = 0.2;
-        this.waveFrequency = 2;
+        this.waveAmplitude = 0.1;
+        this.waveFrequency = 0.5;  // Waves per unit length (not per path)
         this.waveSpeed = 2;
+
+        // Cached geometry data for efficient wave animation updates
+        // Each entry contains: { basePositions, normals, tangents, arcLengths, width }
+        this._segmentCache = [];
     }
 
     setTileManager(tileManager) {
@@ -86,6 +93,7 @@ export class Ribbon {
     buildSegmentedRibbon(points, width, time) {
         // Calculate total path length to determine segment count
         const totalLength = this.calculatePathLength(points);
+        this.pathLength = totalLength; // Store for use in wave calculations
         const segmentLength = width; // Each segment roughly square (width ≈ height)
         const segmentCount = Math.max(1, Math.ceil(totalLength / segmentLength));
 
@@ -219,6 +227,12 @@ export class Ribbon {
         const uvs = [];
         const indices = [];
 
+        // Cache arrays for efficient animation updates
+        const basePositions = [];  // Center points along the curve
+        const normals = [];        // Pre-rotated base normals
+        const tangents = [];       // Tangent vectors for axis rotation
+        const arcLengths = [];     // Arc length at each point
+
         for (let i = 0; i <= pointsPerSegment; i++) {
             const localT = i / pointsPerSegment; // Note: still using pointsPerSegment for proper UV mapping
             const globalT = startT + (endT - startT) * localT;
@@ -229,15 +243,26 @@ export class Ribbon {
             const cacheIdx = startPointIdx + i;
             const normal = normalCache[cacheIdx].clone();
 
-            // Animate phase
+            // Calculate arc length at this point for wave animation
+            // Using arc length instead of percentage ensures consistent wave density
+            const arcLength = globalT * this.pathLength;
+
+            // Store base geometry for animation cache
+            basePositions.push(point.clone());
+            normals.push(normal.clone());
+            tangents.push(tangent.clone());
+            arcLengths.push(arcLength);
+
+            // Animate phase based on arc length (not percentage)
             const phase = Math.sin(
-                globalT * Math.PI * 2 * this.waveFrequency + time * this.waveSpeed
+                arcLength * this.waveFrequency + time * this.waveSpeed
             ) * this.waveAmplitude;
 
-            normal.applyAxisAngle(tangent, phase);
+            const animatedNormal = normal.clone();
+            animatedNormal.applyAxisAngle(tangent, phase);
 
-            const left = point.clone().addScaledVector(normal, -width / 2);
-            const right = point.clone().addScaledVector(normal, width / 2);
+            const left = point.clone().addScaledVector(animatedNormal, -width / 2);
+            const right = point.clone().addScaledVector(animatedNormal, width / 2);
 
             positions.push(left.x, left.y, left.z);
             positions.push(right.x, right.y, right.z);
@@ -252,6 +277,15 @@ export class Ribbon {
                 indices.push(base + 1, base + 3, base + 2);
             }
         }
+
+        // Store cache for this segment (indexed by segment position in this ribbon)
+        this._segmentCache[segmentIndex] = {
+            basePositions,
+            normals,
+            tangents,
+            arcLengths,
+            width
+        };
 
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
@@ -284,9 +318,75 @@ export class Ribbon {
         return mesh;
     }
 
+    /**
+     * Full rebuild update (expensive - recreates all geometry)
+     * @deprecated Use updateWaveAnimation for efficient animation updates
+     */
     update(time) {
         if (this.lastPoints.length >= 2) {
             this.buildFromPoints(this.lastPoints, this.lastWidth, time);
+        }
+    }
+
+    /**
+     * Efficient in-place wave animation update
+     * Only modifies vertex positions without recreating geometry or materials
+     * @param {number} time - Current animation time
+     */
+    updateWaveAnimation(time) {
+        if (this.meshSegments.length === 0 || this._segmentCache.length === 0) {
+            return;
+        }
+
+        // Reusable vectors to avoid GC pressure
+        const animatedNormal = new THREE.Vector3();
+        const left = new THREE.Vector3();
+        const right = new THREE.Vector3();
+
+        for (let segIdx = 0; segIdx < this.meshSegments.length; segIdx++) {
+            const mesh = this.meshSegments[segIdx];
+            const cache = this._segmentCache[segIdx];
+
+            if (!mesh || !cache) continue;
+
+            const positionAttr = mesh.geometry.attributes.position;
+            const positions = positionAttr.array;
+            const { basePositions, normals, tangents, arcLengths, width } = cache;
+
+            for (let i = 0; i < basePositions.length; i++) {
+                const point = basePositions[i];
+                const normal = normals[i];
+                const tangent = tangents[i];
+                const arcLength = arcLengths[i];
+
+                // Calculate wave phase
+                const phase = Math.sin(
+                    arcLength * this.waveFrequency + time * this.waveSpeed
+                ) * this.waveAmplitude;
+
+                // Apply rotation to normal
+                animatedNormal.copy(normal);
+                animatedNormal.applyAxisAngle(tangent, phase);
+
+                // Calculate left and right edge positions
+                left.copy(point).addScaledVector(animatedNormal, -width / 2);
+                right.copy(point).addScaledVector(animatedNormal, width / 2);
+
+                // Update position buffer (2 vertices per point: left, right)
+                const idx = i * 6; // 2 vertices * 3 components
+                positions[idx] = left.x;
+                positions[idx + 1] = left.y;
+                positions[idx + 2] = left.z;
+                positions[idx + 3] = right.x;
+                positions[idx + 4] = right.y;
+                positions[idx + 5] = right.z;
+            }
+
+            // Flag buffer as needing GPU upload
+            positionAttr.needsUpdate = true;
+
+            // Recompute vertex normals for correct lighting
+            mesh.geometry.computeVertexNormals();
         }
     }
 
@@ -301,6 +401,8 @@ export class Ribbon {
             this.scene.remove(mesh);
         });
         this.meshSegments = [];
+        // Clear segment cache
+        this._segmentCache = [];
         // console.log('[Ribbon] Cleanup complete');
     }
 

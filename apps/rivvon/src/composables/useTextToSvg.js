@@ -3,7 +3,7 @@
 
 import { ref, shallowRef } from 'vue';
 import { TextToSvg } from '../modules/textToSvg';
-import { parseSvgContentMultiPath, normalizePointsMultiPath } from '../modules/svgPathToPoints';
+import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/svgPathToPoints';
 
 export function useTextToSvg() {
     const textToSvg = shallowRef(null);
@@ -40,13 +40,11 @@ export function useTextToSvg() {
         }
     }
 
-    // Match vanilla resolution for smooth ribbons
-    const RIBBON_RESOLUTION = 500;
-
     /**
      * Convert text to SVG path points
+     * Uses dynamic resolution based on path length for optimal smoothness
      * @param {string} text - Text to convert
-     * @param {Object} options - Options (font, resolution, etc.)
+     * @param {Object} options - Options (font, resolution settings, etc.)
      * @returns {Array} Normalized points for ribbon creation
      */
     async function textToPoints(text, options = {}) {
@@ -55,7 +53,6 @@ export function useTextToSvg() {
         }
 
         const font = options.font || selectedFont.value;
-        const numPoints = options.numPoints || RIBBON_RESOLUTION;
 
         try {
             // Ensure the requested font is loaded
@@ -70,8 +67,13 @@ export function useTextToSvg() {
                 throw new Error('Failed to generate SVG from text');
             }
 
-            // Parse SVG to get points
-            const paths = parseSvgContentMultiPath(svgContent, numPoints);
+            // Parse SVG with dynamic resolution based on path lengths
+            // Uses defaults from svgPathToPoints unless overridden in options
+            const paths = parseSvgContentDynamicResolution(svgContent, {
+                pointsPerUnit: options.pointsPerUnit,
+                minPoints: options.minPoints,
+                maxPoints: options.maxPoints
+            });
             
             if (paths.length === 0) {
                 throw new Error('No paths found in generated SVG');

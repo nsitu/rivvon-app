@@ -1,7 +1,172 @@
 import * as THREE from 'three';
+import SvgPath from 'svgpath';
+
+// Dynamic resolution configuration (exported for use in other modules)
+export const POINTS_PER_UNIT = 1.5;      // Points per unit of path length (after normalization)
+export const MIN_POINTS_PER_PATH = 50;   // Minimum points per subpath
+export const MAX_POINTS_PER_PATH = 2000; // Maximum points per subpath
+
+/**
+ * Calculate the length of an SVG path element
+ * @param {string} pathData - The SVG path data string
+ * @returns {number} Path length in SVG units
+ */
+export function getPathLength(pathData) {
+    if (!pathData) return 0;
+    
+    const svgNS = "http://www.w3.org/2000/svg";
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", pathData);
+    return path.getTotalLength();
+}
+
+/**
+ * Calculate total path lengths from SVG content, accounting for subpaths
+ * @param {string} svgContent - SVG content as string
+ * @returns {{totalLength: number, subpathLengths: number[], scale: number}} Length info
+ */
+export function calculateSvgPathLengths(svgContent) {
+    const result = { totalLength: 0, subpathLengths: [], scale: 1 };
+    
+    try {
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+        
+        const parserError = svgDoc.querySelector("parsererror");
+        if (parserError) return result;
+        
+        const paths = svgDoc.querySelectorAll("path");
+        if (!paths || paths.length === 0) return result;
+        
+        // Get scale from viewBox
+        const svgElement = svgDoc.querySelector("svg");
+        const viewBox = svgElement?.getAttribute("viewBox");
+        if (viewBox) {
+            const [, , width, height] = viewBox.split(" ").map(Number);
+            const maxDimension = Math.max(width, height);
+            if (maxDimension > 0) {
+                result.scale = 1 / maxDimension;
+            }
+        }
+        
+        // Calculate lengths for each subpath
+        paths.forEach((path) => {
+            const pathData = path.getAttribute("d");
+            if (!pathData) return;
+            
+            // Convert to absolute and split into subpaths
+            let absolutePathData;
+            try {
+                absolutePathData = new SvgPath(pathData).abs().toString();
+            } catch (e) {
+                absolutePathData = pathData;
+            }
+            
+            const regex = /(M\s*[\d\s.,eE+-]+(?:[^M]*)?)/g;
+            let match;
+            
+            while ((match = regex.exec(absolutePathData)) !== null) {
+                const subpath = match[1].trim();
+                if (subpath) {
+                    const length = getPathLength(subpath) * result.scale;
+                    if (length > 0) {
+                        result.subpathLengths.push(length);
+                        result.totalLength += length;
+                    }
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error("[SVG] Error calculating path lengths:", error);
+    }
+    
+    return result;
+}
+
+/**
+ * Calculate appropriate number of points for a given path length
+ * @param {number} length - Path length (in normalized units)
+ * @param {number} pointsPerUnit - Points per unit of length
+ * @returns {number} Number of points to sample
+ */
+export function calculateDynamicResolution(length, pointsPerUnit = POINTS_PER_UNIT) {
+    // Scale up since normalized paths are typically 0-8 units
+    // We need to account for the fact that after normalization to targetSize=8,
+    // the path lengths will be proportionally scaled
+    const scaledPointsPerUnit = pointsPerUnit * 100; // Adjusted for normalized scale
+    
+    const points = Math.round(length * scaledPointsPerUnit);
+    return Math.max(MIN_POINTS_PER_PATH, Math.min(MAX_POINTS_PER_PATH, points));
+}
+
+/**
+ * Split SVG path data into subpaths at each M command
+ * Converts to absolute coordinates first so each subpath is self-contained
+ * @param {string} pathData - The SVG path data string
+ * @returns {Array<string>} Array of path data strings (one per subpath, all absolute)
+ */
+export function splitPathIntoSubpaths(pathData) {
+    if (!pathData) return [];
+    
+    // Convert to absolute coordinates first - this is critical!
+    // When path has relative moveto (m) for subsequent subpaths,
+    // splitting without converting would lose the absolute position
+    let absolutePathData;
+    try {
+        absolutePathData = new SvgPath(pathData).abs().toString();
+    } catch (e) {
+        console.warn('[SVG] Failed to convert path to absolute, using original:', e);
+        absolutePathData = pathData;
+    }
+    
+    // Now split on M commands (all should be uppercase M after abs())
+    // Match M followed by coordinates, then everything until next M or end
+    const subpaths = [];
+    const regex = /(M\s*[\d\s.,eE+-]+(?:[^M]*)?)/g;
+    let match;
+    
+    while ((match = regex.exec(absolutePathData)) !== null) {
+        const subpath = match[1].trim();
+        if (subpath) {
+            subpaths.push(subpath);
+        }
+    }
+    
+    return subpaths;
+}
+
+/**
+ * Converts a single SVG subpath to an array of THREE.Vector3 points
+ * @param {string} pathData - The SVG path data string (single subpath)
+ * @param {number} numPoints - Number of points to sample along the path
+ * @param {number} scale - Scale factor for the resulting points
+ * @param {number} z - Z position for all points
+ * @returns {Array<THREE.Vector3>} Array of 3D points
+ */
+function subpathToPoints(pathData, numPoints, scale, z) {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const path = document.createElementNS(svgNS, "path");
+    path.setAttribute("d", pathData);
+
+    const pathLength = path.getTotalLength();
+    if (pathLength < 1) return []; // Skip very short paths
+    
+    const points = [];
+
+    for (let i = 0; i < numPoints; i++) {
+        const distance = (i / (numPoints - 1)) * pathLength;
+        const point = path.getPointAtLength(distance);
+        points.push(new THREE.Vector3(point.x * scale, -point.y * scale, z));
+    }
+
+    return points;
+}
 
 /**
  * Converts SVG path data to an array of THREE.Vector3 points
+ * Note: This treats the entire path as continuous. For multi-subpath handling,
+ * use svgPathToPointsMulti instead.
  * @param {string} pathData - The SVG path data string
  * @param {number} numPoints - Number of points to sample along the path
  * @param {number} scale - Scale factor for the resulting points
@@ -26,6 +191,29 @@ export function svgPathToPoints(pathData, numPoints = 100, scale = 1, z = 0) {
     }
 
     return points;
+}
+
+/**
+ * Converts SVG path data to multiple point arrays, splitting on M commands
+ * Each subpath (starting with M) becomes a separate point array
+ * @param {string} pathData - The SVG path data string
+ * @param {number} numPoints - Number of points to sample per subpath
+ * @param {number} scale - Scale factor for the resulting points
+ * @param {number} z - Z position for all points
+ * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per subpath)
+ */
+export function svgPathToPointsMulti(pathData, numPoints = 100, scale = 1, z = 0) {
+    const subpaths = splitPathIntoSubpaths(pathData);
+    const result = [];
+    
+    for (const subpath of subpaths) {
+        const points = subpathToPoints(subpath, numPoints, scale, z);
+        if (points.length >= 2) {
+            result.push(points);
+        }
+    }
+    
+    return result;
 }
 
 /**
@@ -96,10 +284,6 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
  */
 export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1, z = 0) {
     try {
-        // Log the first 200 chars to see what we're actually receiving
-        console.log('[SVG] Content preview:', svgContent.substring(0, 200));
-        console.log('[SVG] Content type check:', typeof svgContent, 'Length:', svgContent.length);
-
         // Parse SVG content
         const parser = new DOMParser();
         const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
@@ -108,8 +292,6 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
         const parserError = svgDoc.querySelector("parsererror");
         if (parserError) {
             console.error("SVG parsing error:", parserError);
-            console.error("SVG content first 500 chars:", svgContent.substring(0, 500));
-            console.error("SVG content starts with:", svgContent.substring(0, 50));
             return [];
         }
 
@@ -134,7 +316,7 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
             }
         }
 
-        // Convert each path to points
+        // Convert each path to points, splitting on M commands for subpaths
         const pathsPoints = [];
         paths.forEach((path, index) => {
             const pathData = path.getAttribute("d");
@@ -143,18 +325,133 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
                 return;
             }
 
-            const points = svgPathToPoints(pathData, numPoints, adjustedScale, z);
-            if (points && points.length >= 2) {
-                pathsPoints.push(points);
-            } else {
-                console.warn(`Path ${index} produced insufficient points, skipping`);
-            }
+            // Use svgPathToPointsMulti to split subpaths properly
+            const subpathArrays = svgPathToPointsMulti(pathData, numPoints, adjustedScale, z);
+            subpathArrays.forEach((points) => {
+                if (points && points.length >= 2) {
+                    pathsPoints.push(points);
+                }
+            });
         });
 
         console.log(`[SVG] Extracted ${pathsPoints.length} paths from SVG`);
         return pathsPoints;
     } catch (error) {
         console.error("Error parsing SVG content:", error);
+        return [];
+    }
+}
+
+/**
+ * Parses SVG content with dynamic resolution based on path lengths
+ * Each subpath gets a resolution proportional to its length
+ * @param {string} svgContent - SVG content as string
+ * @param {Object} options - Options for dynamic resolution
+ * @param {number} options.pointsPerUnit - Points per unit of path length (default: 0.5)
+ * @param {number} options.minPoints - Minimum points per subpath (default: 50)
+ * @param {number} options.maxPoints - Maximum points per subpath (default: 2000)
+ * @param {number} scale - Scale factor for the points
+ * @param {number} z - Z position for all points
+ * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per path)
+ */
+export function parseSvgContentDynamicResolution(svgContent, options = {}, scale = 1, z = 0) {
+    const {
+        pointsPerUnit = POINTS_PER_UNIT,
+        minPoints = MIN_POINTS_PER_PATH,
+        maxPoints = MAX_POINTS_PER_PATH
+    } = options;
+    
+    try {
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+        
+        const parserError = svgDoc.querySelector("parsererror");
+        if (parserError) {
+            console.error("SVG parsing error:", parserError);
+            return [];
+        }
+        
+        const paths = svgDoc.querySelectorAll("path");
+        if (!paths || paths.length === 0) {
+            console.error("No paths found in SVG");
+            return [];
+        }
+        
+        // Calculate scale from viewBox
+        let adjustedScale = scale;
+        const svgElement = svgDoc.querySelector("svg");
+        const viewBox = svgElement?.getAttribute("viewBox");
+        
+        if (viewBox) {
+            const [, , width, height] = viewBox.split(" ").map(Number);
+            const maxDimension = Math.max(width, height);
+            if (maxDimension > 0) {
+                adjustedScale = scale / maxDimension;
+            }
+        }
+        
+        const pathsPoints = [];
+        let totalPoints = 0;
+        
+        paths.forEach((pathEl, index) => {
+            const pathData = pathEl.getAttribute("d");
+            if (!pathData) return;
+            
+            // Convert to absolute for proper subpath splitting
+            let absolutePathData;
+            try {
+                absolutePathData = new SvgPath(pathData).abs().toString();
+            } catch (e) {
+                absolutePathData = pathData;
+            }
+            
+            // Split into subpaths
+            const regex = /(M\s*[\d\s.,eE+-]+(?:[^M]*)?)/g;
+            let match;
+            
+            while ((match = regex.exec(absolutePathData)) !== null) {
+                const subpath = match[1].trim();
+                if (!subpath) continue;
+                
+                // Calculate length for this subpath
+                const svgNS = "http://www.w3.org/2000/svg";
+                const tempPath = document.createElementNS(svgNS, "path");
+                tempPath.setAttribute("d", subpath);
+                const rawLength = tempPath.getTotalLength();
+                
+                if (rawLength < 1) continue; // Skip very short paths
+                
+                // Calculate dynamic resolution for this subpath
+                // Scale the length by adjustedScale to match normalized output
+                const scaledLength = rawLength * adjustedScale;
+                // Use a base multiplier to get reasonable point counts
+                const basePoints = scaledLength * pointsPerUnit * 100;
+                const numPoints = Math.max(minPoints, Math.min(maxPoints, Math.round(basePoints)));
+                
+                // Sample points along the subpath
+                const points = [];
+                for (let i = 0; i < numPoints; i++) {
+                    const distance = (i / (numPoints - 1)) * rawLength;
+                    const point = tempPath.getPointAtLength(distance);
+                    points.push(new THREE.Vector3(
+                        point.x * adjustedScale,
+                        -point.y * adjustedScale,
+                        z
+                    ));
+                }
+                
+                if (points.length >= 2) {
+                    pathsPoints.push(points);
+                    totalPoints += points.length;
+                }
+            }
+        });
+        
+        console.log(`[SVG] Dynamic resolution: ${pathsPoints.length} paths, ${totalPoints} total points`);
+        return pathsPoints;
+        
+    } catch (error) {
+        console.error("Error parsing SVG with dynamic resolution:", error);
         return [];
     }
 }

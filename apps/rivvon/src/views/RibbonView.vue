@@ -3,7 +3,7 @@
     import { useRoute } from 'vue-router';
     import { useAppStore } from '../stores/appStore';
     import { useThreeSetup } from '../composables/useThreeSetup';
-    import { parseSvgContentMultiPath, normalizePointsMultiPath } from '../modules/svgPathToPoints';
+    import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/svgPathToPoints';
     import { fetchTextureSet } from '../services/textureService';
     import * as THREE from 'three';
 
@@ -17,8 +17,6 @@
     import ThreeCanvas from '../components/ThreeCanvas.vue';
     import DrawCanvas from '../components/DrawCanvas.vue';
     import RendererIndicator from '../components/RendererIndicator.vue';
-
-    const RIBBON_RESOLUTION = 500;
 
     const app = useAppStore();
     const route = useRoute();
@@ -95,7 +93,7 @@
             const svgContent = await response.text();
             console.log('[RibbonView] SVG loaded, length:', svgContent.length);
 
-            const paths = parseSvgContentMultiPath(svgContent, RIBBON_RESOLUTION, 5, 0);
+            const paths = parseSvgContentDynamicResolution(svgContent, {}, 5, 0);
             console.log('[RibbonView] Parsed paths:', paths.length, paths);
 
             if (paths.length > 0) {
@@ -205,7 +203,7 @@
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const svgContent = e.target.result;
-                const paths = parseSvgContentMultiPath(svgContent, RIBBON_RESOLUTION, 5, 0);
+                const paths = parseSvgContentDynamicResolution(svgContent, {}, 5, 0);
                 if (paths.length > 0) {
                     const normalizedPaths = normalizePointsMultiPath(paths);
                     if (normalizedPaths.length === 1) {

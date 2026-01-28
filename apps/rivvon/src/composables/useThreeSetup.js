@@ -3,6 +3,7 @@
 
 import { ref, shallowRef, onUnmounted } from 'vue';
 import { useAppStore } from '../stores/appStore';
+import * as THREE from 'three';
 
 // Import existing modules (these work as-is)
 import { initThree as initThreeModule } from '../modules/threeSetup';
@@ -91,6 +92,8 @@ export function useThreeSetup() {
         renderCallback = callback;
         
         function animate() {
+            const elapsedTime = performance.now() / 1000; // or use a clock
+            
             animationId = requestAnimationFrame(animate);
             
             // Advance KTX2 layer cycling and tile flow (for texture animation)
@@ -101,6 +104,11 @@ export function useThreeSetup() {
             // Update ribbon materials for tile flow effect (conveyor belt animation)
             if (ribbonSeries.value?.updateFlowMaterials) {
                 ribbonSeries.value.updateFlowMaterials();
+            }
+            
+            // Update ribbon with current time for wave animation
+            if (ribbonSeries.value) {
+                ribbonSeries.value.update(elapsedTime);
             }
             
             // Call custom render callback if provided
@@ -135,6 +143,7 @@ export function useThreeSetup() {
 
     /**
      * Create a ribbon from points
+     * Note: Uses RibbonSeries internally for consistent animation behavior
      */
     async function createRibbon(points, options = {}) {
         if (!scene.value || !tileManager.value) {
@@ -145,6 +154,7 @@ export function useThreeSetup() {
         // Remove existing ribbon if any
         if (ribbon.value) {
             ribbon.value.dispose();
+            ribbon.value = null;
         }
         
         // Remove existing series if any
@@ -152,15 +162,18 @@ export function useThreeSetup() {
             ribbonSeries.value.cleanup();
         }
 
-        // Create new ribbon - constructor only takes scene
-        ribbon.value = new Ribbon(scene.value);
-        ribbon.value.setTileManager(tileManager.value);
+        // Use RibbonSeries even for single path to ensure consistent animation
+        // (wave undulation and texture flow work the same way)
+        ribbonSeries.value = new RibbonSeries(scene.value);
+        ribbonSeries.value.setTileManager(tileManager.value);
         
-        // Build from points
-        ribbon.value.buildFromPoints(points, options.width || 1.2);
-        // Note: initFlowMaterials is only for RibbonSeries, not single Ribbon
+        // Build from single path (wrapped in array)
+        ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
+        ribbonSeries.value.initFlowMaterials();
 
-        return ribbon.value;
+        console.log('[ThreeSetup] Created ribbon (via series) with 1 path');
+
+        return ribbonSeries.value;
     }
 
     /**
@@ -199,6 +212,7 @@ export function useThreeSetup() {
     /**
      * Create ribbon from raw drawing points (2D screen coordinates)
      * This handles the conversion from {x,y} to THREE.Vector3 internally
+     * Note: Uses RibbonSeries internally for consistent animation behavior
      */
     async function createRibbonFromDrawing(drawPoints, options = {}) {
         if (!scene.value || !tileManager.value) {
@@ -214,25 +228,35 @@ export function useThreeSetup() {
         // Remove existing ribbon if any
         if (ribbon.value) {
             ribbon.value.dispose();
+            ribbon.value = null;
         }
         
         // Remove existing series if any
         if (ribbonSeries.value) {
             ribbonSeries.value.cleanup();
-            ribbonSeries.value = null;
         }
 
-        // Create new ribbon
-        ribbon.value = new Ribbon(scene.value);
-        ribbon.value.setTileManager(tileManager.value);
+        // Create a temporary Ribbon to process the drawing points
+        // (normalization, smoothing, etc.)
+        const tempRibbon = new Ribbon(scene.value);
         
-        // Use Ribbon's createRibbonFromDrawing which handles conversion internally
-        ribbon.value.createRibbonFromDrawing(drawPoints);
-        // Note: initFlowMaterials is only for RibbonSeries, not single Ribbon
+        // Get the processed points without actually building the ribbon
+        const normalizedPoints = tempRibbon.normalizeDrawingPoints(drawPoints);
+        const points3D = normalizedPoints.map(p => new THREE.Vector3(p.x, p.y, 0));
+        const sanitizedPoints = tempRibbon.sanitizePoints(points3D);
+        const smoothedPoints = tempRibbon.smoothPoints(sanitizedPoints, 150);
 
-        console.log('[ThreeSetup] Created ribbon from drawing with', drawPoints.length, 'points');
+        // Use RibbonSeries for consistent animation behavior
+        ribbonSeries.value = new RibbonSeries(scene.value);
+        ribbonSeries.value.setTileManager(tileManager.value);
+        
+        // Build from processed points
+        ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
+        ribbonSeries.value.initFlowMaterials();
 
-        return ribbon.value;
+        console.log('[ThreeSetup] Created ribbon from drawing (via series) with', drawPoints.length, 'input points');
+
+        return ribbonSeries.value;
     }
 
     /**

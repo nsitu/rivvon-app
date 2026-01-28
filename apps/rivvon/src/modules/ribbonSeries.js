@@ -16,6 +16,8 @@ export class RibbonSeries {
         this.totalSegmentCount = 0;  // For tracking total segments across all ribbons
         this.lastPathsPoints = [];   // Store for animation updates
         this.lastWidth = 1;
+        this._flowMaterials = [];    // Track materials for flow updates
+        this._flowWasActive = null;  // Track last flow state (null = not yet initialized)
     }
 
     /**
@@ -41,7 +43,7 @@ export class RibbonSeries {
             return [];
         }
 
-        console.log('[RibbonSeries] Building from', pathsPoints.length, 'paths');
+       // console.log('[RibbonSeries] Building from', pathsPoints.length, 'paths');
 
         // Clean up existing ribbons first
         this.cleanup();
@@ -79,11 +81,11 @@ export class RibbonSeries {
 
             this.ribbons.push(ribbon);
 
-            console.log(`[RibbonSeries] Ribbon ${i}: ${ribbon.meshSegments.length} segments, offset was ${segmentOffset - ribbon.meshSegments.length}`);
+            // console.log(`[RibbonSeries] Ribbon ${i}: ${ribbon.meshSegments.length} segments, offset was ${segmentOffset - ribbon.meshSegments.length}`);
         }
 
         this.totalSegmentCount = segmentOffset;
-        console.log(`[RibbonSeries] Total segments across all ribbons: ${this.totalSegmentCount}`);
+        //console.log(`[RibbonSeries] Total segments across all ribbons: ${this.totalSegmentCount}`);
 
         return this.ribbons;
     }
@@ -101,12 +103,76 @@ export class RibbonSeries {
 
     /**
      * Update all ribbons (for animation)
+     * Uses efficient in-place position updates instead of full geometry rebuild
      * @param {number} time - Animation time
      */
     update(time) {
-        if (this.lastPathsPoints.length > 0) {
-            this.buildFromMultiplePaths(this.lastPathsPoints, this.lastWidth, time);
+        if (this.ribbons.length === 0) return;
+
+        // Use efficient in-place wave animation update
+        for (const ribbon of this.ribbons) {
+            ribbon.updateWaveAnimation(time);
         }
+    }
+
+    /**
+     * Full rebuild update (expensive - recreates all geometry and materials)
+     * Use this when ribbon paths change, not for regular animation
+     * @param {number} time - Animation time
+     */
+    rebuildUpdate(time) {
+        if (this.lastPathsPoints.length > 0) {
+            // Preserve flow state before rebuild
+            const wasActive = this._flowWasActive;
+            
+            this.buildFromMultiplePaths(this.lastPathsPoints, this.lastWidth, time);
+            
+            // Restore flow state and reinitialize materials silently
+            this._flowWasActive = wasActive;
+            this.initFlowMaterialsSilent();
+        }
+    }
+
+    /**
+     * Initialize flow materials without logging (used during animation updates)
+     */
+    initFlowMaterialsSilent() {
+        if (!this.tileManager) return;
+
+        // Track segment info for later updates
+        this._flowMaterials = [];
+
+        // Check if flow animation is active
+        const flowActive = this.tileManager.isFlowEnabled?.() && this.tileManager.getFlowSpeed?.() !== 0;
+
+        let globalSegmentIndex = 0;
+
+        for (const ribbon of this.ribbons) {
+            for (const mesh of ribbon.meshSegments) {
+                let material;
+                
+                if (flowActive) {
+                    material = this.tileManager.createFlowMaterial(globalSegmentIndex);
+                } else {
+                    const textureIndex = globalSegmentIndex + this.tileManager.getTileFlowOffset();
+                    material = this.tileManager.getMaterial(textureIndex);
+                }
+                
+                if (material) {
+                    mesh.material = material;
+                    this._flowMaterials.push({
+                        mesh,
+                        material,
+                        baseIndex: globalSegmentIndex
+                    });
+                }
+
+                globalSegmentIndex++;
+            }
+        }
+
+        this._lastTileOffset = this.tileManager.getTileFlowOffset?.() || 0;
+        this._flowWasActive = flowActive;
     }
 
     /**
@@ -173,7 +239,8 @@ export class RibbonSeries {
         // Check if flow state has changed (enabled/disabled)
         const flowActive = this.tileManager.isFlowEnabled?.() && this.tileManager.getFlowSpeed?.() !== 0;
         
-        if (flowActive !== this._flowWasActive) {
+        // Only reinitialize if flow state actually changed (and we've initialized before)
+        if (this._flowWasActive !== null && flowActive !== this._flowWasActive) {
             // Flow state changed - reinitialize with appropriate material type
             console.log(`[RibbonSeries] Flow state changed, reinitializing materials`);
             this.initFlowMaterials();
@@ -254,7 +321,7 @@ export class RibbonSeries {
         this.ribbons = [];
         this._flowMaterials = [];
         this._lastTileOffset = 0;
-        this._flowWasActive = false;
+        // Note: Don't reset _flowWasActive here - it tracks across rebuilds
         this.totalSegmentCount = 0;
         this.lastPathsPoints = [];
         this.lastWidth = 1;
