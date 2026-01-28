@@ -10,7 +10,7 @@ export default defineConfig({
     base: '/',
     build: {
         target: 'esnext',
-        outDir: 'dist-vue',
+        outDir: 'dist',
         rollupOptions: {
             input: {
                 main: resolve(__dirname, 'index.html'),
