@@ -1,4 +1,4 @@
-// src-vue/services/textureService.js
+// src/services/textureService.js
 // Service for fetching textures from the Rivvon API
 
 const API_BASE = 'https://api.rivvon.ca';

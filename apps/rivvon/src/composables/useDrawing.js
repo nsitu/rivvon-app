@@ -1,9 +1,9 @@
-// src-vue/composables/useDrawing.js
+// src/composables/useDrawing.js
 // Drawing mode composable for rivvon
 
 import { ref, shallowRef, onUnmounted } from 'vue';
 import { useAppStore } from '../stores/appStore';
-import { DrawingManager } from '../../src/modules/drawing';
+import { DrawingManager } from '../modules/drawing';
 
 export function useDrawing() {
     const app = useAppStore();

@@ -1,14 +1,14 @@
-// src-vue/composables/useThreeSetup.js
+// src/composables/useThreeSetup.js
 // Three.js initialization composable for rivvon
 
 import { ref, shallowRef, onUnmounted } from 'vue';
 import { useAppStore } from '../stores/appStore';
 
 // Import existing modules (these work as-is)
-import { initThree as initThreeModule } from '../../src/modules/threeSetup';
-import { TileManager } from '../../src/modules/tileManager';
-import { Ribbon } from '../../src/modules/ribbon';
-import { RibbonSeries } from '../../src/modules/ribbonSeries';
+import { initThree as initThreeModule } from '../modules/threeSetup';
+import { TileManager } from '../modules/tileManager';
+import { Ribbon } from '../modules/ribbon';
+import { RibbonSeries } from '../modules/ribbonSeries';
 
 export function useThreeSetup() {
     const app = useAppStore();

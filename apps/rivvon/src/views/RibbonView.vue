@@ -3,7 +3,7 @@
     import { useRoute } from 'vue-router';
     import { useAppStore } from '../stores/appStore';
     import { useThreeSetup } from '../composables/useThreeSetup';
-    import { parseSvgContentMultiPath, normalizePointsMultiPath } from '../../src/modules/svgPathToPoints';
+    import { parseSvgContentMultiPath, normalizePointsMultiPath } from '../modules/svgPathToPoints';
     import { fetchTextureSet } from '../services/textureService';
     import * as THREE from 'three';
 

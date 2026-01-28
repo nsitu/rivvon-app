@@ -1,9 +1,9 @@
-// src-vue/composables/useTextToSvg.js
+// src/composables/useTextToSvg.js
 // Text to SVG composable for rivvon
 
 import { ref, shallowRef } from 'vue';
-import { TextToSvg } from '../../src/modules/textToSvg';
-import { parseSvgContentMultiPath, normalizePointsMultiPath } from '../../src/modules/svgPathToPoints';
+import { TextToSvg } from '../modules/textToSvg';
+import { parseSvgContentMultiPath, normalizePointsMultiPath } from '../modules/svgPathToPoints';
 
 export function useTextToSvg() {
     const textToSvg = shallowRef(null);

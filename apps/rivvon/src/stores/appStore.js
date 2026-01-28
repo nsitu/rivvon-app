@@ -1,4 +1,4 @@
-// src-vue/stores/appStore.js
+// src/stores/appStore.js
 // Pinia store for rivvon global state
 
 import { defineStore } from 'pinia';

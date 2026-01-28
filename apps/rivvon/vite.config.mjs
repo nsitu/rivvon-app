@@ -1,5 +1,5 @@
-// vite.config.vue.mjs
-// Vue 3 version of rivvon - uses src-vue directory
+// vite.config.mjs
+// Vue 3 version of rivvon
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
@@ -29,7 +29,7 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            '@': resolve(__dirname, 'src-vue'),
+            '@': resolve(__dirname, 'src'),
         }
     },
     // Dev server configuration

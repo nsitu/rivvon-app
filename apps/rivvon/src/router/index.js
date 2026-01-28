@@ -1,4 +1,4 @@
-// src-vue/router/index.js
+// src/router/index.js
 // Vue Router configuration for rivvon
 
 import { createRouter, createWebHistory } from 'vue-router';

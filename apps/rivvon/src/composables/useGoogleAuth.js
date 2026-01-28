@@ -1,4 +1,4 @@
-// src-vue/composables/useGoogleAuth.js
+// src/composables/useGoogleAuth.js
 // Google Auth composable for rivvon - Vue 3 reactive wrapper around auth module
 
 import { ref, computed } from 'vue';

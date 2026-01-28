@@ -2,7 +2,7 @@
 module.exports = {
   content: [
     "./index-vue.html",
-    "./src-vue/**/*.{vue,js,mjs,ts,jsx,tsx}",
+    "./src/**/*.{vue,js,mjs,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
