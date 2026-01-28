@@ -860,6 +860,54 @@ export class TileManager {
         return this.layerCount || 0;
     }
 
+    /**
+     * Get the layer cycling FPS
+     * @returns {number} Frames per second for layer cycling
+     */
+    getFps() {
+        return this.fps || 30;
+    }
+
+    /**
+     * Get the layer cycle period (time to complete one full animation cycle)
+     * Accounts for different cycling modes:
+     * - 'waves': wraps around (0 → layerCount-1 → 0), cycle = layerCount frames
+     * - 'planes': ping-pong (0 → layerCount-1 → 0), cycle = 2*(layerCount-1) frames
+     * @returns {number} Cycle period in seconds
+     */
+    getLayerCyclePeriod() {
+        const layerCount = this.getLayerCount();
+        const fps = this.getFps();
+        if (layerCount <= 1 || fps <= 0) return 1; // Default 1 second if no cycling
+        
+        if (this.variant === 'waves') {
+            // Waves: simple wrap-around cycle
+            return layerCount / fps;
+        } else {
+            // Planes: ping-pong cycle (0 → max → 0)
+            // Full cycle is 2 * (layerCount - 1) frames
+            return (2 * (layerCount - 1)) / fps;
+        }
+    }
+
+    /**
+     * Get the optimal undulation period for smooth wave animation.
+     * Finds the nearest multiple of the layer cycle period to a target duration,
+     * ensuring the undulation and texture cycling eventually sync up.
+     * @param {number} targetPeriod - Target period in seconds (default 3.0)
+     * @returns {number} Optimal period in seconds (multiple of layer cycle)
+     */
+    getOptimalUndulationPeriod(targetPeriod = 3.0) {
+        const layerCycle = this.getLayerCyclePeriod();
+        
+        if (layerCycle <= 0) return targetPeriod;
+        
+        // Find the number of layer cycles that gets closest to target
+        const numCycles = Math.max(1, Math.round(targetPeriod / layerCycle));
+        
+        return numCycles * layerCycle;
+    }
+
     tick(nowMs) {
         if (!this.isKTX2) return;
 

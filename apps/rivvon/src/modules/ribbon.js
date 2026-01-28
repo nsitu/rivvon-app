@@ -25,7 +25,26 @@ export class Ribbon {
 
     setTileManager(tileManager) {
         this.tileManager = tileManager;
+        // Sync wave speed to layer cycling period
+        this.syncWaveSpeedToLayerCycle();
         return this;
+    }
+
+    /**
+     * Sync wave animation speed to align with texture layer cycling.
+     * Uses an aesthetically pleasing target period (~3s) and finds the
+     * nearest multiple of the layer cycle period to ensure sync.
+     */
+    syncWaveSpeedToLayerCycle() {
+        if (!this.tileManager) return;
+        
+        // Get optimal period (nearest multiple of layer cycle to ~3 seconds)
+        const undulationPeriod = this.tileManager.getOptimalUndulationPeriod?.(3.0) || 3.0;
+        
+        // Wave should complete one full cycle (2π) in undulationPeriod seconds
+        // sin(waveSpeed * time) completes one cycle when waveSpeed * time = 2π
+        // So waveSpeed = 2π / undulationPeriod
+        this.waveSpeed = (2 * Math.PI) / undulationPeriod;
     }
 
     /**
@@ -254,8 +273,10 @@ export class Ribbon {
             arcLengths.push(arcLength);
 
             // Animate phase based on arc length (not percentage)
+            // waveSpeed is synced to layer cycle period so wave completes one full 2π cycle
+            // Phase: sin(arcLength * waveFrequency * 2π + time * waveSpeed)
             const phase = Math.sin(
-                arcLength * this.waveFrequency + time * this.waveSpeed
+                arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
             ) * this.waveAmplitude;
 
             const animatedNormal = normal.clone();
@@ -359,9 +380,9 @@ export class Ribbon {
                 const tangent = tangents[i];
                 const arcLength = arcLengths[i];
 
-                // Calculate wave phase
+                // Calculate wave phase (synced to layer cycle)
                 const phase = Math.sin(
-                    arcLength * this.waveFrequency + time * this.waveSpeed
+                    arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
                 ) * this.waveAmplitude;
 
                 // Apply rotation to normal
