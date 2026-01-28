@@ -214,6 +214,34 @@ fullscreen
 
   <canvas id="drawCanvas"></canvas>
 
+  <!-- Beta Access Modal -->
+  <div id="betaModal" class="beta-modal">
+    <div class="beta-modal-content">
+      <div class="beta-modal-header">
+        <h2>Beta Access</h2>
+      </div>
+      <div class="beta-modal-body">
+        <p>Rivvon is currently in beta. To use Google Drive features, you'll need to be added as a beta tester.</p>
+        <p>Already a beta tester? You can proceed to sign in below.</p>
+        <div class="beta-modal-actions">
+          <a 
+            href="https://docs.google.com/forms/d/e/1FAIpQLSeRF-9eEIPWz4Es1IVMcS5TSSDcSnsFvPj1wS9QKkHVKFeAqA/viewform?usp=publish-editor" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="beta-btn beta-btn-primary"
+          >
+            Request Beta Access
+          </a>
+          <button id="betaProceedBtn" class="beta-btn beta-btn-secondary">
+            I'm already a tester — Sign in
+          </button>
+        </div>
+        <p class="beta-note">After requesting access, you'll receive an email once approved.</p>
+      </div>
+      <button id="betaCloseBtn" class="beta-modal-close">&times;</button>
+    </div>
+  </div>
+
   <script
     type="module"
     src="/src/main.js"

@@ -30,3 +30,8 @@ export const loginBtn = document.getElementById('loginBtn');
 export const userInfo = document.getElementById('userInfo');
 export const userName = document.getElementById('userName');
 export const logoutBtn = document.getElementById('logoutBtn');
+
+// Beta modal elements
+export const betaModal = document.getElementById('betaModal');
+export const betaProceedBtn = document.getElementById('betaProceedBtn');
+export const betaCloseBtn = document.getElementById('betaCloseBtn');

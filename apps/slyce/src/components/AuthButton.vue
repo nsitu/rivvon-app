@@ -2,7 +2,7 @@
   <div class="auth-button">
     <button
       v-if="!isAuthenticated"
-      @click="login"
+      @click="openBetaModal"
       class="btn-login"
     >
       <span class="material-symbols-outlined">login</span>
@@ -49,15 +49,26 @@
         Logout
       </button>
     </div>
+
+    <!-- Beta Access Modal -->
+    <BetaModal ref="betaModalRef" />
   </div>
 </template>
 
 <script setup>
+  import { ref } from 'vue'
   import { useGoogleAuth } from '../composables/useGoogleAuth'
   import { useRoute } from 'vue-router'
+  import BetaModal from './BetaModal.vue'
 
-  const { user, isAuthenticated, login, logout } = useGoogleAuth()
+  const { user, isAuthenticated, logout } = useGoogleAuth()
   const $route = useRoute()
+
+  const betaModalRef = ref(null)
+
+  function openBetaModal() {
+    betaModalRef.value?.open()
+  }
 </script>
 
 <style scoped>

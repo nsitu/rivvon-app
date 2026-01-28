@@ -9,20 +9,31 @@
       Log in to upload and manage your textures on Rivvon CDN
     </p>
     <button
-      @click="login"
+      @click="openBetaModal"
       class="btn-login-large"
     >
       <span class="icon">🚀</span>
       Sign in with Google
     </button>
     <p class="hint">Your textures will be stored in your Google Drive</p>
+
+    <!-- Beta Access Modal -->
+    <BetaModal ref="betaModalRef" />
   </div>
 </template>
 
 <script setup>
+  import { ref } from 'vue'
   import { useGoogleAuth } from '../composables/useGoogleAuth'
+  import BetaModal from './BetaModal.vue'
 
-  const { isAuthenticated, isLoading, login } = useGoogleAuth()
+  const { isAuthenticated, isLoading } = useGoogleAuth()
+
+  const betaModalRef = ref(null)
+
+  function openBetaModal() {
+    betaModalRef.value?.open()
+  }
 </script>
 
 <style scoped>

@@ -33,7 +33,10 @@ import {
   loginBtn,
   userInfo,
   userName,
-  logoutBtn
+  logoutBtn,
+  betaModal,
+  betaProceedBtn,
+  betaCloseBtn
 } from './modules/domElements.js';
 import { loadSvgPath, parseSvgContent, normalizePoints, parseSvgContentMultiPath, normalizePointsMultiPath } from './modules/svgPathToPoints.js';
 import { Ribbon } from './modules/ribbon.js';
@@ -77,15 +80,42 @@ function setupAuthUI() {
     }
   });
 
-  // Wire up login button
+  // Wire up login button to show beta modal
   loginBtn.addEventListener('click', () => {
-    login();
+    showBetaModal();
   });
 
   // Wire up logout button
   logoutBtn.addEventListener('click', async () => {
     await logout();
   });
+
+  // Wire up beta modal buttons
+  betaProceedBtn.addEventListener('click', () => {
+    hideBetaModal();
+    login();
+  });
+
+  betaCloseBtn.addEventListener('click', () => {
+    hideBetaModal();
+  });
+
+  // Close modal when clicking outside
+  betaModal.addEventListener('click', (e) => {
+    if (e.target === betaModal) {
+      hideBetaModal();
+    }
+  });
+}
+
+// Show beta access modal
+function showBetaModal() {
+  betaModal.classList.add('visible');
+}
+
+// Hide beta access modal
+function hideBetaModal() {
+  betaModal.classList.remove('visible');
 }
 
 // Initialize app automatically on page load
