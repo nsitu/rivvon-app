@@ -54,8 +54,14 @@ export async function initAuth() {
 
         if (response.ok) {
             const data = await response.json();
-            currentUser = data.user;
-            console.log('[Auth] Session found:', currentUser.name);
+            // API returns { authenticated: boolean, user?: {...} }
+            if (data.authenticated && data.user) {
+                currentUser = data.user;
+                console.log('[Auth] Session found:', currentUser.name);
+            } else {
+                currentUser = null;
+                console.log('[Auth] No active session');
+            }
         } else {
             currentUser = null;
             console.log('[Auth] No active session');

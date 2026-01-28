@@ -20,6 +20,7 @@ loadMaterialSymbols([
 import { chooseRenderer } from './utils/renderer-utils';
 import { useAppStore } from './stores/appStore';
 import { useGoogleAuth } from './composables/useGoogleAuth';
+import { initAuth } from './modules/auth';
 
 const app = createApp(App);
 
@@ -60,9 +61,13 @@ app.directive('tooltip', Tooltip);
             store.debugMode = true;
         }
 
-        // Check for existing Google Auth session
+        // Check for existing Google Auth session (Vue composable)
         const { checkSession } = useGoogleAuth();
         await checkSession();
+        
+        // Also initialize vanilla auth module (used by TileManager for Drive API)
+        await initAuth();
+        
         console.log('[Main] Auth session checked');
 
     } catch (error) {
