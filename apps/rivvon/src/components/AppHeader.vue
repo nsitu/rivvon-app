@@ -130,7 +130,7 @@
     }
 
     .logout-btn {
-        padding: 0.75em;
+        padding: 2rem 1rem;
         min-width: auto;
         min-height: auto;
     }
