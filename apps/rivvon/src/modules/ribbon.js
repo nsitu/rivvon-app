@@ -14,7 +14,7 @@ export class Ribbon {
         this.pathLength = 0; // Total arc length of the path
 
         // Animation parameters
-        this.waveAmplitude = 0.1;
+        this.waveAmplitude = 0.075;
         this.waveFrequency = 0.5;  // Waves per unit length (not per path)
         this.waveSpeed = 2;
 
