@@ -36,19 +36,52 @@ importers:
 
   apps/rivvon:
     dependencies:
+      '@primevue/themes':
+        specifier: ^4.4.1
+        version: 4.5.4
+      '@tailwindcss/vite':
+        specifier: ^4.1.14
+        version: 4.1.18(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2))
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.1
+        version: 6.0.3(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2))(vue@3.5.27(typescript@5.9.3))
+      '@vueuse/core':
+        specifier: ^13.9.0
+        version: 13.9.0(vue@3.5.27(typescript@5.9.3))
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      pinia:
+        specifier: ^3.0.3
+        version: 3.0.4(typescript@5.9.3)(vue@3.5.27(typescript@5.9.3))
+      primevue:
+        specifier: ^4.4.1
+        version: 4.5.4(vue@3.5.27(typescript@5.9.3))
       svgpath:
         specifier: ^2.6.0
         version: 2.6.0
       three:
         specifier: ^0.182.0
         version: 0.182.0
+      vue:
+        specifier: ^3.5.22
+        version: 3.5.27(typescript@5.9.3)
+      vue-router:
+        specifier: ^4.6.4
+        version: 4.6.4(vue@3.5.27(typescript@5.9.3))
     devDependencies:
+      autoprefixer:
+        specifier: ^10.4.21
+        version: 10.4.23(postcss@8.5.6)
+      tailwindcss:
+        specifier: ^4.1.14
+        version: 4.1.18
       vite:
         specifier: ^7.3.0
         version: 7.3.1(jiti@2.6.1)(lightningcss@1.30.2)
+      vite-plugin-vue-devtools:
+        specifier: ^8.0.3
+        version: 8.0.5(vite@7.3.1(jiti@2.6.1)(lightningcss@1.30.2))(vue@3.5.27(typescript@5.9.3))
 
   apps/slyce:
     dependencies:

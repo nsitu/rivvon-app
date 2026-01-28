@@ -210,28 +210,24 @@ authRoutes.get('/callback', async (c) => {
 
 /**
  * GET /api/auth/me
- * Get current user info from session cookie
+ * Check authentication state - always returns 200
+ * Returns { authenticated: true, user: {...} } if logged in
+ * Returns { authenticated: false } if not logged in
  */
 authRoutes.get('/me', async (c) => {
-    // Debug: log incoming headers
-    const cookieHeader = c.req.header('Cookie');
-    console.log('Cookie header received:', cookieHeader ? 'present' : 'missing', cookieHeader?.substring(0, 50));
-
     const sessionToken = getCookie(c, 'session');
-    console.log('Session token parsed:', sessionToken ? 'present' : 'missing');
 
     if (!sessionToken) {
-        return c.json({ error: 'Not authenticated' }, 401);
+        return c.json({ authenticated: false });
     }
 
     const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
-    console.log('User verified:', user ? 'success' : 'failed');
 
     if (!user) {
-        return c.json({ error: 'Invalid session' }, 401);
+        return c.json({ authenticated: false });
     }
 
-    return c.json({ user });
+    return c.json({ authenticated: true, user });
 });
 
 /**

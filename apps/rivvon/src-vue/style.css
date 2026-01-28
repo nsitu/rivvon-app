@@ -1,0 +1,307 @@
+/* src-vue/style.css */
+/* Global styles for Vue 3 rivvon app */
+
+@import "tailwindcss";
+
+/* Base styles */
+html,
+body {
+    @apply m-0 overflow-hidden fixed w-full h-full;
+    touch-action: none;
+    font-family: "Roboto", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
+    background: #1a1a2e;
+}
+
+body {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* App container - overlay for UI, let pointer events pass through to Three.js canvas */
+#app {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Re-enable pointer events on interactive elements */
+#app button,
+#app a,
+#app input,
+#app select,
+#app textarea,
+#app [role="button"],
+#app .clickable {
+    pointer-events: auto;
+}
+
+/* Blurred texture background */
+.blurred-background {
+    @apply fixed z-[-1];
+    top: -10%;
+    left: -10%;
+    width: 120%;
+    height: 120%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: blur(60px) saturate(1.2);
+    opacity: 0;
+    transition: opacity 0.8s ease-in-out;
+}
+
+.blurred-background.visible {
+    opacity: 0.7;
+}
+
+/* Three.js canvas container */
+.three-container {
+    @apply fixed inset-0 w-full h-full;
+}
+
+.three-container canvas {
+    @apply w-full h-full;
+}
+
+/* Drawing canvas overlay */
+.draw-canvas {
+    @apply absolute top-0 left-0 z-[2];
+    pointer-events: none;
+}
+
+.draw-canvas.active {
+    pointer-events: auto;
+}
+
+/* Checkerboard background for drawing mode */
+.checkerboard {
+    @apply fixed inset-0 z-[1] pointer-events-none opacity-0;
+    background-image: 
+        linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,0.03) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.03) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    transition: opacity 0.3s ease;
+}
+
+.checkerboard.visible {
+    opacity: 1;
+}
+
+/* Base button styles */
+button {
+    @apply px-4 py-3 text-lg text-white border-none cursor-pointer select-none;
+    @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0.92;
+}
+
+button:hover {
+    @apply bg-black/70;
+}
+
+button:active {
+    @apply bg-black/80;
+}
+
+/* Renderer indicator (debug mode) */
+.renderer-indicator {
+    @apply fixed top-2 left-1/2 -translate-x-1/2 z-[100];
+    @apply px-3 py-1 text-xs font-mono rounded;
+    @apply hidden;
+    background: rgba(0, 0, 0, 0.7);
+    color: #888;
+}
+
+.renderer-indicator.webgpu {
+    color: #4ade80;
+}
+
+.renderer-indicator.webgl {
+    color: #facc15;
+}
+
+body.debug-mode .renderer-indicator {
+    @apply block;
+}
+
+/* Material Symbols icon sizing */
+.material-symbols-outlined {
+    font-size: 24px;
+    line-height: 1;
+}
+
+/* App logo */
+.app-logo {
+    @apply absolute top-2.5 left-2.5 z-[2] hidden no-underline;
+    @apply py-3 px-12;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.app-logo img {
+    @apply h-5 w-auto;
+}
+
+.app-logo:hover img {
+    opacity: 1;
+}
+
+body.app-active .app-logo {
+    @apply block;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .app-logo {
+        @apply py-2 px-6;
+    }
+    
+    .app-logo img {
+        @apply h-4;
+    }
+}
+
+/* Auth container */
+.auth-container {
+    @apply absolute top-2.5 right-2.5 z-[2];
+}
+
+.user-info {
+    @apply flex items-center gap-2;
+    @apply py-2 px-4;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.user-name {
+    @apply text-white text-sm;
+}
+
+/* Bottom toolbar */
+.bottom-toolbar {
+    @apply fixed bottom-0 right-0 z-[10];
+    @apply flex flex-row;
+}
+
+.bottom-toolbar button {
+    @apply rounded-none;
+}
+
+/* Finish drawing button */
+.finish-drawing-btn {
+    @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100];
+    @apply w-24 h-24 rounded-full;
+    @apply flex flex-col items-center justify-center gap-1;
+    @apply bg-green-600 hover:bg-green-500;
+    @apply opacity-0 pointer-events-none;
+    @apply transition-opacity duration-300;
+}
+
+.finish-drawing-btn.visible {
+    @apply opacity-100 pointer-events-auto;
+}
+
+.finish-drawing-btn .finish-icon {
+    @apply w-10 h-10;
+}
+
+.finish-drawing-btn .countdown {
+    @apply text-white text-lg font-bold;
+}
+
+/* Text input panel */
+.text-input-panel {
+    @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[50];
+    @apply bg-gray-900/95 rounded-lg p-6;
+    @apply min-w-[300px] max-w-[90vw];
+    @apply shadow-2xl;
+}
+
+.text-panel-header {
+    @apply flex justify-between items-center mb-4;
+}
+
+.text-panel-header h3 {
+    @apply text-white text-lg font-semibold m-0;
+}
+
+.close-btn {
+    @apply bg-transparent text-white text-2xl p-0 min-w-0 min-h-0;
+    @apply hover:text-red-400;
+}
+
+.text-panel-content {
+    @apply flex flex-col gap-3;
+}
+
+.text-panel-content label {
+    @apply text-gray-300 text-sm;
+}
+
+.text-panel-content input,
+.text-panel-content select {
+    @apply w-full px-3 py-2 rounded;
+    @apply bg-gray-800 text-white border border-gray-700;
+    @apply focus:outline-none focus:border-blue-500;
+}
+
+.generate-btn {
+    @apply bg-blue-600 hover:bg-blue-500 mt-2;
+}
+
+/* Beta modal */
+.beta-modal {
+    @apply fixed inset-0 z-[200] bg-black/80;
+    @apply flex items-center justify-center;
+    @apply opacity-0 pointer-events-none;
+    @apply transition-opacity duration-300;
+}
+
+.beta-modal.visible {
+    @apply opacity-100 pointer-events-auto;
+}
+
+.beta-modal-content {
+    @apply relative bg-gray-900 rounded-lg p-8 max-w-md mx-4;
+    @apply text-center;
+}
+
+.beta-modal-header h2 {
+    @apply text-white text-2xl font-bold mb-4;
+}
+
+.beta-modal-body p {
+    @apply text-gray-300 mb-4;
+}
+
+.beta-modal-actions {
+    @apply flex flex-col gap-3 my-6;
+}
+
+.beta-btn {
+    @apply w-full py-3 px-6 rounded text-center no-underline;
+    @apply transition-colors duration-200;
+}
+
+.beta-btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-500;
+}
+
+.beta-btn-secondary {
+    @apply bg-gray-700 text-white hover:bg-gray-600;
+}
+
+.beta-note {
+    @apply text-gray-500 text-sm italic;
+}
+
+.beta-modal-close {
+    @apply absolute top-4 right-4;
+    @apply bg-transparent text-gray-500 text-2xl p-0 min-w-0 min-h-0;
+    @apply hover:text-white;
+}
