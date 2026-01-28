@@ -21,6 +21,21 @@ export function initThreeWebGL() {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
+    // Handle window resize and fullscreen changes
+    function handleResize() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+    }
+    
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('fullscreenchange', () => {
+        // Small delay to ensure dimensions are updated
+        setTimeout(handleResize, 50);
+    });
+
     // Function to reset camera view to initial position
     function resetCamera() {
         // Reset to initial position and orientation
@@ -72,6 +87,7 @@ export function initThreeWebGL() {
         controls,
         resetCamera,
         createSkySphere,
+        handleResize,
         rendererType: 'webgl'
     };
 }

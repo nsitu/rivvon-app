@@ -13,7 +13,10 @@
 </script>
 
 <template>
-    <header class="app-header">
+    <header
+        class="app-header"
+        :class="{ hidden: app.isFullscreen }"
+    >
         <!-- Logo -->
         <a
             href="/"
@@ -67,6 +70,13 @@
         justify-content: space-between;
         align-items: flex-start;
         pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .app-header.hidden {
+        opacity: 0;
+        transform: translateY(-100%);
+        pointer-events: none;
     }
 
     .app-header>* {
@@ -76,7 +86,7 @@
     .app-logo {
         display: block;
         text-decoration: none;
-        padding: 0.75em 3em;
+        padding: 2rem 3rem;
     }
 
     .app-logo img {
@@ -97,7 +107,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.7em 1.3em;
+        padding: 2rem 1rem;
         color: white;
         border: none;
         cursor: pointer;
@@ -128,15 +138,9 @@
     /* Mobile adjustments */
     @media (max-width: 768px) {
         .app-logo {
-            padding: 0.5em 1.5em;
+            padding-left: 2rem;
+            padding-right: 2rem;
         }
 
-        .app-logo img {
-            height: 1rem;
-        }
-
-        .btn-text {
-            display: none;
-        }
     }
 </style>

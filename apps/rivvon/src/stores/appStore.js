@@ -35,6 +35,7 @@ export const useAppStore = defineStore('appStore', {
         betaModalVisible: false,
         betaModalReason: null, // 'default' | 'texture-auth' | 'access-denied'
         debugMode: false,
+        isFullscreen: false,
         
         // Three.js references (set by composable)
         threeContext: null,
@@ -99,6 +100,10 @@ export const useAppStore = defineStore('appStore', {
         
         setThreeContext(context) {
             this.threeContext = context;
+        },
+        
+        setFullscreen(enabled) {
+            this.isFullscreen = enabled;
         },
     },
     

@@ -15,15 +15,27 @@
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen();
+            app.setFullscreen(true);
         } else {
             document.exitFullscreen();
+            app.setFullscreen(false);
         }
         emit('toggle-fullscreen');
+    }
+
+    // Listen for fullscreen changes (e.g., Escape key)
+    if (typeof document !== 'undefined') {
+        document.addEventListener('fullscreenchange', () => {
+            app.setFullscreen(!!document.fullscreenElement);
+        });
     }
 </script>
 
 <template>
-    <div class="bottom-toolbar">
+    <div
+        class="bottom-toolbar"
+        :class="{ hidden: app.isFullscreen }"
+    >
         <!-- Draw mode toggle -->
         <button
             :class="{ active: app.isDrawingMode }"
@@ -79,7 +91,7 @@
 </template>
 
 <style scoped>
-    .bottom-toolbar {
+    /* .bottom-toolbar {
         position: fixed;
         bottom: 0;
         left: 50%;
@@ -87,12 +99,33 @@
         z-index: 10;
         display: flex;
         flex-direction: row;
+    } */
+
+    .bottom-toolbar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 10;
+        display: flex;
+        background: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: flex-start;
+        pointer-events: none;
+        padding: 0 1rem;
+        transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
+    .bottom-toolbar.hidden {
+        opacity: 0;
+        transform: translateY(100%);
+        pointer-events: none;
+    }
+
+
     .bottom-toolbar button {
-        padding: 0.7em 1.3em;
+        padding: 2rem 1rem;
         font-size: 1.1em;
-        background: rgba(0, 0, 0, 0.5);
         color: #fff;
         border: none;
         cursor: pointer;
@@ -102,14 +135,15 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        background-color: transparent;
     }
 
     .bottom-toolbar button:hover {
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.25);
     }
 
     .bottom-toolbar button.active {
-        background: rgba(50, 50, 50, 0.8);
+        background: rgba(0, 255, 55, 0.5);
     }
 
     .toggle-icon {
