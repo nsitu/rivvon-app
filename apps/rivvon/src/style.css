@@ -137,61 +137,6 @@ body.debug-mode .renderer-indicator {
     line-height: 1;
 }
 
-/* App logo */
-.app-logo {
-    @apply absolute top-2.5 left-2.5 z-[2] hidden no-underline;
-    @apply py-3 px-12;
-    background: rgba(0, 0, 0, 0.5);
-}
-
-.app-logo img {
-    @apply h-5 w-auto;
-}
-
-.app-logo:hover img {
-    opacity: 1;
-}
-
-body.app-active .app-logo {
-    @apply block;
-}
-
-/* Mobile adjustments */
-@media (max-width: 768px) {
-    .app-logo {
-        @apply py-2 px-6;
-    }
-    
-    .app-logo img {
-        @apply h-4;
-    }
-}
-
-/* Auth container */
-.auth-container {
-    @apply absolute top-2.5 right-2.5 z-[2];
-}
-
-.user-info {
-    @apply flex items-center gap-2;
-    @apply py-2 px-4;
-    background: rgba(0, 0, 0, 0.5);
-}
-
-.user-name {
-    @apply text-white text-sm;
-}
-
-/* Bottom toolbar */
-.bottom-toolbar {
-    @apply fixed bottom-0 right-0 z-[10];
-    @apply flex flex-row;
-}
-
-.bottom-toolbar button {
-    @apply rounded-none;
-}
-
 /* Finish drawing button */
 .finish-drawing-btn {
     @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100];

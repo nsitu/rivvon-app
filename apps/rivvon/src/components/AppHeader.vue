@@ -34,8 +34,7 @@
                 title="Sign in with Google"
                 @click="handleLoginClick"
             >
-                <span class="material-symbols-outlined">login</span>
-                <span class="btn-text">Sign in</span>
+                <span class="material-symbols-outlined">person</span>
             </button>
 
             <!-- User info (when authenticated) -->
@@ -64,9 +63,9 @@
         right: 0;
         z-index: 10;
         display: flex;
+        background: rgba(0, 0, 0, 0.5);
         justify-content: space-between;
         align-items: flex-start;
-        padding: 10px;
         pointer-events: none;
     }
 
@@ -77,17 +76,16 @@
     .app-logo {
         display: block;
         text-decoration: none;
-        background: rgba(0, 0, 0, 0.5);
-        padding: 0.7em 3em;
+        padding: 0.75em 3em;
     }
 
     .app-logo img {
-        height: 1.25rem;
+        height: 1.5rem;
         width: auto;
     }
 
-    .app-logo:hover img {
-        opacity: 0.8;
+    .app-logo:hover {
+        background: rgba(0, 0, 0, 0.25);
     }
 
     .auth-container {
@@ -100,31 +98,29 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.7em 1.3em;
-        background: rgba(0, 0, 0, 0.5);
         color: white;
         border: none;
         cursor: pointer;
     }
 
     .auth-btn:hover {
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.25);
     }
 
     .user-info {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        background: rgba(0, 0, 0, 0.5);
-        padding: 0.5em 1em;
+        gap: 1rem;
     }
 
     .user-name {
         color: white;
         font-size: 0.9rem;
+
     }
 
     .logout-btn {
-        padding: 0.3em 0.5em;
+        padding: 0.75em;
         min-width: auto;
         min-height: auto;
     }

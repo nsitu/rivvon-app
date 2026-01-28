@@ -82,7 +82,8 @@
     .bottom-toolbar {
         position: fixed;
         bottom: 0;
-        right: 0;
+        left: 50%;
+        transform: translateX(-50%);
         z-index: 10;
         display: flex;
         flex-direction: row;
@@ -123,12 +124,5 @@
 
     button.active .draw-icon {
         opacity: 1;
-    }
-
-    /* Mobile: stack vertically */
-    @media (max-width: 480px) {
-        .bottom-toolbar {
-            flex-direction: column-reverse;
-        }
     }
 </style>

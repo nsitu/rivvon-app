@@ -13,7 +13,7 @@ import './style.css';
 import { loadMaterialSymbols } from './modules/iconLoader';
 loadMaterialSymbols([
     'sprint', 'upload', 'grid_view', 'text_fields', 
-    'fullscreen', 'logout', 'login', 'draw', 'info','drive_file_move','cloud'
+    'fullscreen', 'logout', 'login', 'draw', 'info','drive_file_move','cloud','person'
 ]);
 
 // Import utilities
