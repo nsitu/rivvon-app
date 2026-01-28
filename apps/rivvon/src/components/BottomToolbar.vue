@@ -159,4 +159,12 @@
     button.active .draw-icon {
         opacity: 1;
     }
+
+    /* Mobile: buttons expand to fill available space */
+    @media (max-width: 768px) {
+
+        .bottom-toolbar button {
+            flex-grow: 1;
+        }
+    }
 </style>
