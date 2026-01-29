@@ -1,24 +1,26 @@
 <template>
     <!-- Header -->
     <div class="header-container">
-        <div class="header-brand">
-            <span class="cascadia slyce">
-                slyce
-            </span>
+        <div class="header-row">
+            <div class="header-brand">
+                <span class="cascadia slyce">
+                    slyce
+                </span>
 
-            <div class="separator"></div>
-            <span class="cascadia tagline">Texture Creator for</span>
+                <div class="separator"></div>
+                <span class="cascadia tagline">Texture Creator for</span>
 
-            <a
-                href="https://rivvon.ca"
-                class="rivvon-link"
-            ><img
-                    class="rivvon-logo"
-                    src="/rivvon-black.svg"
-                /></a>
+                <a
+                    href="https://rivvon.ca"
+                    class="rivvon-link"
+                ><img
+                        class="rivvon-logo"
+                        src="/rivvon-black.svg"
+                    /></a>
 
+            </div>
+            <AuthButton />
         </div>
-        <AuthButton />
     </div>
 </template>
 
@@ -29,18 +31,34 @@
 <style scoped>
     .header-container {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        align-items: center;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 0.5rem;
         padding: 0.75rem;
         width: 100%;
     }
 
     @media (min-width: 640px) {
         .header-container {
+            flex-direction: row;
             flex-wrap: nowrap;
+            gap: 0.75rem;
             padding: 1rem;
+        }
+    }
+
+    .header-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    @media (min-width: 640px) {
+        .header-row {
+            flex-wrap: nowrap;
+            gap: 1rem;
         }
     }
 
