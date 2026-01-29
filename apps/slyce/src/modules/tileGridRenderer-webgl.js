@@ -1,6 +1,5 @@
 /**
- * Tile Grid Renderer (WebGL) - Manages multiple KTX2 textured planes in a Three.js scene
- * Provides consistent API for WebGL and WebGPU renderers
+ * Tile Grid Renderer (WebGL) - Manages multiple KTX2 textured planes in a Three.js scene 
  */
 
 import * as THREE from 'three';

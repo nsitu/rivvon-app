@@ -12,6 +12,8 @@ export const useAppStore = defineStore('appStore', {
         isDrawingMode: false,
         strokeCount: 0,
         countdownSeconds: null,
+        countdownProgress: 0,
+        inFinalCountdown: false,
         
         // Ribbon/3D state
         flowEnabled: false,
@@ -96,6 +98,11 @@ export const useAppStore = defineStore('appStore', {
         
         setCountdownSeconds(seconds) {
             this.countdownSeconds = seconds;
+        },
+        
+        setCountdownProgress(progress, inFinal = false) {
+            this.countdownProgress = progress;
+            this.inFinalCountdown = inFinal;
         },
         
         setThreeContext(context) {

@@ -38,9 +38,14 @@ export function useDrawing() {
         );
 
         // Set up auto-finalize countdown callback
-        drawingManager.value.onAutoFinalizeCountdown = (seconds) => {
+        drawingManager.value.onAutoFinalizeCountdown = (seconds, inFinal) => {
             autoFinalizeCountdown.value = seconds;
             app.setCountdownSeconds(seconds);
+        };
+
+        // Set up auto-finalize progress callback
+        drawingManager.value.onAutoFinalizeProgress = (progress, inFinal) => {
+            app.setCountdownProgress(progress, inFinal);
         };
 
         return drawingManager.value;

@@ -12,10 +12,13 @@ export class Ribbon {
 
         // Path geometry
         this.pathLength = 0; // Total arc length of the path
-
+        
+        //=====
+        // Undulation Customisation
         // Animation parameters
+        //=====
         this.waveAmplitude = 0.075;
-        this.waveFrequency = 0.5;  // Waves per unit length (not per path)
+        this.waveFrequency = 0.25;  // Waves per unit length (not per path)
         this.waveSpeed = 2;
 
         // Cached geometry data for efficient wave animation updates

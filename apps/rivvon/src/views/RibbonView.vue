@@ -11,6 +11,7 @@
     import AppHeader from '../components/AppHeader.vue';
     import BottomToolbar from '../components/BottomToolbar.vue';
     import FinishDrawingButton from '../components/FinishDrawingButton.vue';
+    import CountdownProgressBar from '../components/CountdownProgressBar.vue';
     import TextInputPanel from '../components/TextInputPanel.vue';
     import TextureBrowser from '../components/TextureBrowser.vue';
     import BetaModal from '../components/BetaModal.vue';
@@ -328,6 +329,9 @@
 
         <!-- Finish drawing button -->
         <FinishDrawingButton @click="finishDrawing" />
+
+        <!-- Countdown progress bar -->
+        <CountdownProgressBar />
 
         <!-- Bottom toolbar -->
         <BottomToolbar

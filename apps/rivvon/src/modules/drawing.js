@@ -25,12 +25,13 @@ export class DrawingManager {
 
         // Auto-finalize timeout
         this.autoFinalizeTimeout = null;
-        this.autoFinalizeDelay = 3000; // 3 seconds of countdown
-        this.autoFinalizeInitialDelay = 1000; // 1 second pause before countdown starts
-        this.autoFinalizeDelayTimer = null; // Timer for initial delay
+        this.autoFinalizeDelay = 3000; // 3 seconds of final countdown
+        this.autoFinalizePreDelay = 4000; // 4 seconds of progress bar before countdown
+        this.autoFinalizeDelayTimer = null; // Timer for pre-delay progress
         this.autoFinalizeEnabled = true;
         this.autoFinalizeCountdown = null;
         this.onAutoFinalizeCountdown = null; // Callback for countdown UI
+        this.onAutoFinalizeProgress = null; // Callback for progress bar (0-1)
 
         this.isActive = false;
         this.minPointDistance = 2; // Minimum pixels between points to avoid duplicates
@@ -181,40 +182,44 @@ export class DrawingManager {
     startAutoFinalize() {
         this.cancelAutoFinalize();
 
-        // Wait for initial delay before starting the visible countdown
-        this.autoFinalizeDelayTimer = setTimeout(() => {
-            const startTime = Date.now();
-            const endTime = startTime + this.autoFinalizeDelay;
+        const totalDuration = this.autoFinalizePreDelay + this.autoFinalizeDelay;
+        const preDelayEnd = this.autoFinalizePreDelay;
+        const startTime = Date.now();
 
-            // Update countdown every 100ms
-            this.autoFinalizeCountdown = setInterval(() => {
-                const remaining = Math.max(0, endTime - Date.now());
-                const seconds = Math.ceil(remaining / 1000);
+        // Update progress every 50ms for smooth animation
+        this.autoFinalizeCountdown = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(1, elapsed / totalDuration);
+            const remaining = Math.max(0, totalDuration - elapsed);
+            const seconds = Math.ceil(remaining / 1000);
 
-                if (this.onAutoFinalizeCountdown) {
-                    this.onAutoFinalizeCountdown(seconds, remaining > 0);
-                }
-            }, 100);
+            // Progress bar callback (0 to 1)
+            if (this.onAutoFinalizeProgress) {
+                this.onAutoFinalizeProgress(progress, elapsed >= preDelayEnd);
+            }
 
-            // Set the actual finalize timeout
-            this.autoFinalizeTimeout = setTimeout(() => {
-                console.log('[Drawing] Auto-finalizing after timeout');
-                this.cancelAutoFinalize();
+            // Countdown seconds callback (only during final 3 seconds)
+            if (this.onAutoFinalizeCountdown) {
+                const inFinalCountdown = elapsed >= preDelayEnd;
+                this.onAutoFinalizeCountdown(inFinalCountdown ? seconds : null, inFinalCountdown);
+            }
+        }, 50);
 
-                const result = this.finalizeDrawing();
-                if (result && this.onDrawingComplete) {
-                    this.onDrawingComplete(result);
-                }
-            }, this.autoFinalizeDelay);
+        // Set the actual finalize timeout
+        this.autoFinalizeTimeout = setTimeout(() => {
+            console.log('[Drawing] Auto-finalizing after timeout');
+            this.cancelAutoFinalize();
 
-            console.log('[Drawing] Auto-finalize countdown started', {
-                delay: this.autoFinalizeDelay
-            });
-        }, this.autoFinalizeInitialDelay);
+            const result = this.finalizeDrawing();
+            if (result && this.onDrawingComplete) {
+                this.onDrawingComplete(result);
+            }
+        }, totalDuration);
 
-        console.log('[Drawing] Auto-finalize timer started with initial delay', {
-            initialDelay: this.autoFinalizeInitialDelay,
-            countdownDelay: this.autoFinalizeDelay
+        console.log('[Drawing] Auto-finalize timer started', {
+            preDelay: this.autoFinalizePreDelay,
+            countdownDelay: this.autoFinalizeDelay,
+            totalDuration
         });
     }
 
@@ -235,7 +240,10 @@ export class DrawingManager {
             this.autoFinalizeCountdown = null;
         }
         if (this.onAutoFinalizeCountdown) {
-            this.onAutoFinalizeCountdown(0, false);
+            this.onAutoFinalizeCountdown(null, false);
+        }
+        if (this.onAutoFinalizeProgress) {
+            this.onAutoFinalizeProgress(0, false);
         }
     }
 
@@ -318,7 +326,7 @@ export class DrawingManager {
     }
 
     /**
-     * Draw all strokes on canvas with visual distinction
+     * Draw all strokes on canvas
      */
     drawAllStrokes() {
         this.clearCanvas();
@@ -327,19 +335,17 @@ export class DrawingManager {
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
 
-        // Draw completed strokes with color variation
-        this.strokes.forEach((stroke, index) => {
+        // Draw completed strokes in light gray
+        this.strokes.forEach((stroke) => {
             if (stroke.length < 2) return;
 
-            // Vary hue per stroke for visual distinction
-            const hue = (index * 45 + 180) % 360;
-            this.ctx.strokeStyle = `hsla(${hue}, 70%, 60%, 0.6)`;
+            this.ctx.strokeStyle = 'rgba(200, 200, 200, 0.8)';
             this.drawStrokePoints(stroke);
         });
 
         // Draw current stroke in white
         if (this.currentStroke.length >= 2) {
-            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
             this.drawStrokePoints(this.currentStroke);
         }
     }

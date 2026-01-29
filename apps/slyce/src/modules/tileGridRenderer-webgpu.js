@@ -361,6 +361,8 @@ export class TileGridRendererWebGPU {
 
     /**
      * Update layer cycling based on playback state
+     * When sampling uses 'waves' mode, cycles linearly through layers
+     * When sampling uses 'planes' mode, cycles back and forth (ping-pong)
      */
     updateLayerCycling() {
         if (!this.isPlaying || this.layerCount <= 1) return;

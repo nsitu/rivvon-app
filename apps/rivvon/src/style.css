@@ -139,12 +139,13 @@ body.debug-mode .renderer-indicator {
 
 /* Finish drawing button */
 .finish-drawing-btn {
-    @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100];
-    @apply w-24 h-24 rounded-full;
-    @apply flex flex-col items-center justify-center gap-1;
-    @apply bg-green-600 hover:bg-green-500;
+    @apply fixed bottom-24 right-4 z-[100];
+    @apply w-16 h-16 rounded-full;
+    @apply flex items-center justify-center;
+    @apply bg-green-500/90 hover:bg-green-500;
     @apply opacity-0 pointer-events-none;
     @apply transition-opacity duration-300;
+    @apply shadow-lg;
 }
 
 .finish-drawing-btn.visible {
@@ -152,11 +153,7 @@ body.debug-mode .renderer-indicator {
 }
 
 .finish-drawing-btn .finish-icon {
-    @apply w-10 h-10;
-}
-
-.finish-drawing-btn .countdown {
-    @apply text-white text-lg font-bold;
+    @apply w-8 h-8;
 }
 
 /* Text input panel */
