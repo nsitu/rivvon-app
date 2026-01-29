@@ -5,8 +5,14 @@ body {
     text-align: center;
     height: 100vh;
     margin: 0;
-    padding: 20px;
+    padding: 12px;
     box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+    body {
+        padding: 20px;
+    }
 }
 
 /* Highlight the upload area when dragging files over the page */
@@ -28,9 +34,15 @@ canvas {
 .slyce {
     font-weight: 900;
     font-style: italic;
-    font-size: 4rem;
+    font-size: clamp(2rem, 8vw, 4rem);
     margin-bottom: 0.75rem;
-    letter-spacing: -0.25rem;
+    letter-spacing: -0.15rem;
+}
+
+@media (min-width: 640px) {
+    .slyce {
+        letter-spacing: -0.25rem;
+    }
 }
 
 .tagline {
@@ -38,3 +50,35 @@ canvas {
     font-style: regular;
     font-size: 1.2rem;
 }
+
+/* Responsive utility for hiding on mobile */
+.hide-mobile {
+    display: none;
+}
+
+@media (min-width: 640px) {
+    .hide-mobile {
+        display: block;
+    }
+}
+
+/* Responsive input rows that wrap on mobile */
+.input-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+/* Reduce TabPanel padding on mobile */
+/* todo: find an alternative that actually works.  */
+/* .p-tabpanel {
+    padding: 0.5rem;
+}
+
+@media (min-width: 640px) {
+    .p-tabpanel {
+        padding: 0.875rem 1.125rem 1.125rem 1.125rem;
+    }
+} */

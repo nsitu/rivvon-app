@@ -191,7 +191,9 @@
     }
 
     .seek-bar {
-        flex: 1;
+        flex: 1 1 0;
+        min-width: 0;
+        width: 100%;
         height: 4px;
         accent-color: #10b981;
         cursor: pointer;
@@ -199,9 +201,10 @@
 
     .time-display {
         color: #aaa;
-        font-size: 12px;
+        font-size: 11px;
         font-family: monospace;
-        min-width: 80px;
-        text-align: center;
+        white-space: nowrap;
+        text-align: right;
+        flex-shrink: 0;
     }
 </style>

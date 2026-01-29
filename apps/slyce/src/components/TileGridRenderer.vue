@@ -343,12 +343,23 @@
     .tile-grid-renderer {
         position: relative;
         width: 100%;
-        min-width: 800px;
-        /* Ensure minimum width even if parent isn't sized */
-        height: 600px;
+        min-width: 0;
+        height: 300px;
         background: #1a1a1a;
         border-radius: 0.375rem;
         overflow: hidden;
+    }
+
+    @media (min-width: 640px) {
+        .tile-grid-renderer {
+            height: 400px;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .tile-grid-renderer {
+            height: 600px;
+        }
     }
 
     .tile-grid-renderer.is-fullscreen {

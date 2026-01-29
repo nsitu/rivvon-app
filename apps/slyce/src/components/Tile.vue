@@ -72,8 +72,7 @@
 
             <span style="font-variant: small-caps;">f</span>
             <span> {{ start }} </span>
-            <span class="small-icon material-symbols-outlined">double_arrow</span>
-            <span style="font-variant: small-caps;">f</span>
+            <span style="font-variant: small-caps;">-</span>
             <span> {{ end }} </span>
         </div>
     </div>
@@ -81,7 +80,13 @@
 </template>
 <style scoped>
     .small-icon {
-        font-size: 1.125rem;
+        font-size: 0.875rem;
+    }
+
+    @media (min-width: 640px) {
+        .small-icon {
+            font-size: 1.125rem;
+        }
     }
 
     .flipped-icon {
@@ -90,10 +95,10 @@
 
 
     .tile {
-        border: 2px solid white;
         padding: 0.5rem;
         min-height: 120px;
         min-width: 120px;
+        font-size: 0.875rem;
     }
 
     .tile-column {

@@ -8,7 +8,6 @@
     })
 
 
-    import Panel from 'primevue/panel';
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
     import AccordionHeader from 'primevue/accordionheader';
@@ -18,21 +17,40 @@
 </script>
 <template>
 
-    <Panel
-        v-if="plan.rotate !== 0 || plan.skipping || plan.isScaled || plan.notices || (app.framesToSample > 0 && app.framesToSample < app.frameCount)"
-        style="background: #eee;"
-        class="w-full"
+    <div
+        v-if="app.cropMode || plan.rotate !== 0 || plan.skipping || plan.isScaled || plan.notices || plan.length > 0 || (app.framesToSample > 0 && app.framesToSample < app.frameCount)"
+        class="explanatory-messages w-full"
     >
-        <template #header>
-            <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined">info</span>
-                <span class="font-bold">Tile Plan</span>
-            </div>
-        </template>
+
+
+
         <Accordion
             class="w-full"
             multiple
         >
+            <AccordionPanel
+                value="-1"
+                v-if="app.cropMode"
+            >
+                <AccordionHeader>
+                    <div class="flex items-center gap-1 cursor-default">
+                        <span class="material-symbols-outlined">crop</span>
+                        <span>Cropping to {{ app.cropWidth }}×{{ app.cropHeight }}px</span>
+                    </div>
+                </AccordionHeader>
+                <AccordionContent>
+                    <p class="m-0 text-left">
+                        Sampling a {{ app.cropWidth }}×{{ app.cropHeight }}px region
+                        <span v-if="app.cropX > 0 || app.cropY > 0">
+                            offset by {{ app.cropX }}px horizontally and {{ app.cropY }}px vertically
+                        </span>
+                        <span v-else>
+                            from the top-left corner
+                        </span>
+                        of each frame.
+                    </p>
+                </AccordionContent>
+            </AccordionPanel>
             <AccordionPanel
                 value="0"
                 v-if="plan.rotate !== 0"
@@ -111,59 +129,49 @@
                             v-if="(plan.scaleTo < plan.scaleFrom)"
                             class="material-symbols-outlined"
                         >close_fullscreen</span>
-                        <span v-if="(plan.scaleTo < plan.scaleFrom)">Scaling down from</span>
+                        <span v-if="(plan.scaleTo < plan.scaleFrom)">Scaling down</span>
                         <span
                             v-if="(plan.scaleTo > plan.scaleFrom)"
                             class="material-symbols-outlined"
                         >open_in_full</span>
-                        <span v-if="(plan.scaleTo > plan.scaleFrom)">Scaling up from</span>
-                        <span> {{ plan.scaleFrom }}<span style="font-variant: small-caps;">px</span></span>
+                        <span v-if="(plan.scaleTo > plan.scaleFrom)">Scaling up</span>
 
                         <span>to</span>
                         <span> {{ plan.scaleTo }}<span style="font-variant: small-caps;">px</span></span>
 
-                        <!-- Strategy indicator -->
-                        <span
-                            v-if="app.downsampleStrategy === 'upfront'"
-                            class="text-sm text-gray-600"
-                        >(smooth)</span>
-                        <span
-                            v-if="app.downsampleStrategy === 'perSample'"
-                            class="text-sm text-gray-600"
-                        >(fast)</span>
+
 
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
-                    <p
-                        v-if="app.prioritize === 'powersOfTwo'"
-                        class="m-0 text-left"
-                    >
-                        Scaling down from {{ plan.scaleFrom }}px to {{ plan.scaleTo }}px
+                    <p class="m-0 text-left">
+                        Scaling from {{ plan.scaleFrom }}px to {{ plan.scaleTo }}px
                         <span v-if="app.downsampleStrategy === 'upfront'">
                             via upfront frame downsampling for smoother results
                         </span>
                         <span v-if="app.downsampleStrategy === 'perSample'">
                             via fast per-sample downsampling
                         </span>.
-                        {{ app.outputMode === 'rows' ? plan.height : plan.width }} sampled {{ app.samplingMode }} are
-                        sufficient for {{ plan.length }} {{ plan.length == 1 ? 'tile' : 'tiles' }} of {{ plan.scaleTo
-                        }}px.
                     </p>
-                    <p
-                        v-else
-                        class="m-0 text-left"
-                    >
-                        {{ app.frameCount }} sampled {{ app.samplingMode }} are sufficient for {{ plan.length }} {{
-                            plan.length ==
-                                1 ? 'tile' : 'tiles' }} of {{ plan.scaleTo }}px. Downsampling from {{ plan.scaleFrom }}px
-                        <span v-if="app.downsampleStrategy === 'upfront'">
-                            via upfront frame downsampling for smoother results
-                        </span>
-                        <span v-if="app.downsampleStrategy === 'perSample'">
-                            via fast per-sample downsampling
-                        </span>
-                        to retain proportions.
+                </AccordionContent>
+            </AccordionPanel>
+
+            <AccordionPanel
+                value="2.5"
+                v-if="plan.length > 0"
+            >
+                <AccordionHeader>
+                    <div class="flex items-center gap-1 cursor-default">
+                        <span class="material-symbols-outlined">grid_view</span>
+                        <span>{{ plan.length }} {{ plan.length == 1 ? 'tile' : 'tiles' }}</span>
+                        <span>of {{ plan.width }}×{{ plan.height }}px</span>
+                    </div>
+                </AccordionHeader>
+                <AccordionContent>
+                    <p class="m-0 text-left">
+                        This video has sufficient data for {{ plan.length }} {{ plan.length == 1 ? 'tile' : 'tiles' }}.
+                        <br /> {{ app.framesToSample.toLocaleString() }} frames ÷ {{ app.outputMode === 'rows' ?
+                            plan.height : plan.width }}px per tile = {{ plan.length }}
                     </p>
                 </AccordionContent>
             </AccordionPanel>
@@ -213,11 +221,12 @@
 
 
         </Accordion>
-    </Panel>
+    </div>
 </template>
 
 <style scoped>
     .small-icon {
         font-size: 1.125rem;
     }
+
 </style>

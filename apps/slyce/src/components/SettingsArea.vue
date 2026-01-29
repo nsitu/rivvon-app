@@ -112,15 +112,18 @@
     <!-- Settings content -->
     <div
         v-else-if="app.file"
-        class="three-column-layout flex  items-start gap-5"
+        class="three-column-layout"
     >
-        <FileInfo :class="isPortraitVideo ? 'file-info-narrow' : 'file-info-wide'"></FileInfo>
+        <FileInfo
+            class="file-info-column"
+            :class="isPortraitVideo ? 'file-info-narrow' : 'file-info-wide'"
+        ></FileInfo>
 
         <div
             id="settings"
-            class="settings-column flex flex-col gap-3 items-start"
+            class="settings-column"
         >
-            <h3 class="text-xl">Sampling</h3>
+            <h3 class="text-xl">Area of Interest</h3>
 
 
             <div class="flex w-full segmented-control">
@@ -163,9 +166,9 @@
 
             <div
                 v-if="app.cropMode"
-                class="flex gap-2 justify-start items-center"
+                class="input-row"
             >
-                <span class="whitespace-pre">Crop to</span>
+                <span>Crop to</span>
                 <InputNumber
                     v-model="app.cropWidth"
                     :min="1"
@@ -181,10 +184,10 @@
                     :disabled="!app.fileInfo?.height"
                     class="crop-input"
                 />
-                <span class="whitespace-pre">at offset</span>
+                <span>at offset</span>
                 <InputGroup
                     :class="{ 'disabled-group': app.cropWidth >= app.fileInfo?.width }"
-                    class="display: inline-flex;
+                    style="display: inline-flex;
     position: relative;
     width: auto;"
                 >
@@ -206,7 +209,7 @@
 
                 <InputGroup
                     :class="{ 'disabled-group': app.cropHeight >= app.fileInfo?.height }"
-                    class="display: inline-flex;
+                    style="display: inline-flex;
     position: relative;
     width: auto;"
                 >
@@ -220,6 +223,8 @@
                     />
                 </InputGroup>
             </div>
+
+            <h3 class="text-xl">Cross Section Type</h3>
 
             <div class="flex w-full segmented-control">
                 <label
@@ -318,7 +323,9 @@
                 </label>
             </div>
 
-            <div class="flex gap-2 justify-start items-center">
+            <h3 class="text-xl">Sampling</h3>
+
+            <div class="input-row">
                 <span>Sample</span>
                 <InputNumber
                     v-model="app.crossSectionCount"
@@ -344,47 +351,7 @@
                 ></InputNumber>
                 <span>frames</span>
             </div>
-
-
-
-
-
-            <h3 class="text-xl">Output</h3>
-
-            <div class="flex w-full segmented-control">
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-left"
-                    for="webm"
-                    :class="(app.outputFormat === 'webm') ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.outputFormat"
-                            inputId="webm"
-                            name="outputFormat"
-                            value="webm"
-                        />
-                        <span>Video Loop</span>
-                    </div>
-                </label>
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-right"
-                    for="ktx2"
-                    :class="(app.outputFormat === 'ktx2') ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.outputFormat"
-                            inputId="ktx2"
-                            name="outputFormat"
-                            value="ktx2"
-                        />
-                        <span>KTX2 Texture Array</span>
-                    </div>
-                </label>
-            </div>
-
-            <div class="flex gap-2 justify-start items-center">
+            <div class="input-row">
                 <span>Join samples as</span>
 
                 <Select
@@ -408,7 +375,7 @@
             </div>
             <div
                 v-if="app.tileMode === 'tile'"
-                class="flex gap-2 justify-start items-center"
+                class="input-row"
             >
                 <span>Make </span>
 
@@ -446,13 +413,13 @@
             </div>
             <div
                 v-if="app.tileMode === 'tile'"
-                class="flex gap-2 justify-start items-center"
+                class="input-row"
             >
 
 
                 <div
                     v-if="app.prioritize === 'powersOfTwo'"
-                    class="flex gap-2 justify-start items-center"
+                    class="input-row"
                 >
                     <span>with</span>
                     <Select
@@ -483,7 +450,7 @@
                 </div>
                 <div
                     v-if="(app.prioritize === 'quantity' || app.prioritize === 'powersOfTwo')"
-                    class="flex gap-2 justify-start items-center"
+                    class="input-row"
                 >
                     <span>using</span>
                     <Select
@@ -501,20 +468,67 @@
                     <span>down-scaling</span>
                 </div>
             </div>
+
+            <h3 class="text-xl">Output Format</h3>
+
+            <div class="flex w-full segmented-control">
+                <label
+                    class="flex flex-col grow items-start gap-2 segment-left"
+                    for="webm"
+                    :class="(app.outputFormat === 'webm') ? 'activeLabel' : ''"
+                >
+                    <div class="flex items-center gap-2 w-full">
+                        <RadioButton
+                            v-model="app.outputFormat"
+                            inputId="webm"
+                            name="outputFormat"
+                            value="webm"
+                        />
+                        <span>Video Loop</span>
+                    </div>
+                </label>
+                <label
+                    class="flex flex-col grow items-start gap-2 segment-right"
+                    for="ktx2"
+                    :class="(app.outputFormat === 'ktx2') ? 'activeLabel' : ''"
+                >
+                    <div class="flex items-center gap-2 w-full">
+                        <RadioButton
+                            v-model="app.outputFormat"
+                            inputId="ktx2"
+                            name="outputFormat"
+                            value="ktx2"
+                        />
+                        <span>KTX2 Texture Array</span>
+                    </div>
+                </label>
+            </div>
+
+
+
+        </div>
+
+        <div class="tiles-column">
+
+
+            <h3 class="text-xl">Processing Plan</h3>
+
             <ExplanatoryMessages
                 style="max-width: 31.5rem;"
                 :plan="tilePlan"
             ></ExplanatoryMessages>
 
-        </div>
 
-        <div class="tiles-column flex flex-col items-start gap-2">
+            <h3 class="text-xl">Tile Preview</h3>
+
+            <!-- Columns mode: simple horizontal scroll -->
             <div
-                v-if="tilePlan?.tiles?.length"
-                :class="(app.outputMode == 'columns') ? 'tile-container-columns' : 'tile-container-rows'"
+                v-if="tilePlan?.tiles?.length && app.outputMode === 'columns'"
+                class="tile-container-columns"
             >
                 <Tile
                     v-for="tile in tilePlan.tiles"
+                    :key="`col-${tile.start}`"
                     :start="tile.start"
                     :end="tile.end"
                     :width="tilePlan.width"
@@ -522,12 +536,38 @@
                 ></Tile>
             </div>
 
+            <!-- Rows mode: horizontal scroll with flow arrows between tiles -->
+            <div
+                v-if="tilePlan?.tiles?.length && app.outputMode === 'rows'"
+                class="tile-container-rows"
+            >
+                <template
+                    v-for="(tile, index) in tilePlan.tiles"
+                    :key="`row-${tile.start}`"
+                >
+                    <Tile
+                        :start="tile.start"
+                        :end="tile.end"
+                        :width="tilePlan.width"
+                        :height="tilePlan.height"
+                    ></Tile>
+                    <!-- Arrow between tiles (not after the last one) -->
+                    <img
+                        v-if="index < tilePlan.tiles.length - 1"
+                        src="/row-flow.svg"
+                        alt=""
+                        class="row-flow-arrow"
+                        aria-hidden="true"
+                    />
+                </template>
+            </div>
+
 
 
             <h3 class="text-xl">Are you ready?</h3>
             <button
                 id="process-button"
-                class="bg-blue-500 text-white px-4 py-2 rounded-md"
+                class="process-button bg-blue-500 text-white px-4 py-2 rounded-md"
                 @click="processVideo({
                     file: app.file,
                     tilePlan: tilePlan,
@@ -550,36 +590,123 @@
         <p>Please <a
                 href="#"
                 @click.prevent="app.currentTab = '0'"
-            >upload a video</a> to define processing settings here.</p>
+            >upload a video</a> to define processing settings here.
+        </p>
     </div>
 </template>
 <style scoped>
 
-    /* Three-column layout container */
+    /* Three-column layout container - mobile first */
     .three-column-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
         max-width: 100%;
         overflow: hidden;
     }
 
-    /* Three-column layout flex basis settings */
-    .file-info-narrow {
-        flex: 0 1 20%;
-        min-width: 0;
+    @media (min-width: 1024px) {
+        .three-column-layout {
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 1.5rem;
+            padding: 1rem;
+        }
     }
 
-    .file-info-wide {
-        flex: 0 1 30%;
+    /* File info column - fixed width on desktop to prevent spill */
+    .file-info-column {
+        width: 100%;
         min-width: 0;
+        overflow: hidden;
     }
 
+    @media (min-width: 1024px) {
+        .file-info-column {
+            flex: 0 0 240px;
+            width: 240px;
+        }
+
+        .file-info-narrow {
+            flex: 0 0 200px;
+            width: 200px;
+        }
+
+        .file-info-wide {
+            flex: 0 0 280px;
+            width: 280px;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        .file-info-column {
+            flex: 0 0 280px;
+            width: 280px;
+        }
+
+        .file-info-narrow {
+            flex: 0 0 240px;
+            width: 240px;
+        }
+
+        .file-info-wide {
+            flex: 0 0 320px;
+            width: 320px;
+        }
+    }
+
+    /* Settings column - takes available space, with min-width for inputs */
     .settings-column {
-        flex: 0 1 700px;
-        min-width: 400px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: flex-start;
+        width: 100%;
+        min-width: 0;
     }
 
+    @media (min-width: 1024px) {
+        .settings-column {
+            flex: 0 1 650px;
+        }
+    }
+
+    /* Tiles column - fixed width based on tile container */
     .tiles-column {
-        flex: 1 1 auto;
-        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    @media (min-width: 1024px) {
+        .tiles-column {
+            flex: 0 0 auto;
+            width: auto;
+        }
+    }
+
+    /* Input row - wraps on mobile */
+    .input-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    /* Process button */
+    .process-button {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    @media (min-width: 640px) {
+        .process-button {
+            width: auto;
+        }
     }
 
     span.sample-pixel-count {
@@ -591,33 +718,66 @@
     }
 
     .tile-container-columns {
-        display: grid;
-        gap: 0.5rem;
-        grid-template-columns: 1fr 1fr 1fr 1fr;
-        max-height: 60vh;
-        overflow-y: auto;
-        padding-right: 0.5rem;
+        display: flex;
+        flex-direction: row;
+        gap: 0.25rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 0.5rem;
+        width: 100%;
+        max-width: calc(120px * 2.5 + 0.5rem);
+        scroll-snap-type: x mandatory;
     }
 
-    /* Multi-column newspaper-style layout that flows top-to-bottom, then left-to-right */
+    @media (min-width: 640px) {
+        .tile-container-columns {
+            max-width: calc(120px * 3.5 + 0.75rem);
+        }
+    }
+
+    .tile-container-columns>* {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+    }
+
+    /* Rows mode: horizontal scroll with flow arrows */
     .tile-container-rows {
-        column-count: 4;
-        column-gap: 0.5rem;
-        max-height: 60vh;
-        overflow-y: auto;
-        padding-right: 0.5rem;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.15rem;
+        /** row-flow.svg takes the place of a gap.  */
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 0.5rem;
+        width: 100%;
+        max-width: calc(120px * 2.5 + 32px);
+        scroll-snap-type: x mandatory;
     }
 
-    /* Prevent tiles from breaking across columns */
-    .tile-container-rows>* {
-        break-inside: avoid;
-        margin-bottom: 0.5rem;
+    @media (min-width: 640px) {
+        .tile-container-rows {
+            max-width: calc(120px * 3.5 + 32px);
+        }
     }
 
-    /* Custom scrollbar styling for better visibility */
+    .tile-container-rows>.tile {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+    }
+
+    /* Arrow graphic between tiles in rows mode */
+    .row-flow-arrow {
+        flex-shrink: 0;
+        height: 120px;
+        width: auto;
+        opacity: 0.5;
+    }
+
+    /* Custom scrollbar styling for horizontal scroll */
     .tile-container-columns::-webkit-scrollbar,
     .tile-container-rows::-webkit-scrollbar {
-        width: 8px;
+        height: 8px;
     }
 
     .tile-container-columns::-webkit-scrollbar-track,
@@ -693,23 +853,49 @@
         pointer-events: none;
     }
 
-    /* Segmented control styling */
+    /* Segmented control styling - mobile first (stacked) */
     .segmented-control {
-        gap: 0;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    @media (min-width: 640px) {
+        .segmented-control {
+            flex-direction: row;
+            gap: 0;
+        }
     }
 
     .segmented-control label {
         box-shadow: none;
         outline: 2px solid #eee;
-        max-width: 50%;
+        max-width: 100%;
+        margin: 0 0.25rem;
+    }
+
+    @media (min-width: 640px) {
+        .segmented-control label {
+            max-width: 50%;
+            margin: 0;
+        }
     }
 
     .segmented-control label.segment-left {
-        border-radius: 1rem 0 0 1rem;
+        border-radius: 1rem;
     }
 
     .segmented-control label.segment-right {
-        border-radius: 0 1rem 1rem 0;
+        border-radius: 1rem;
+    }
+
+    @media (min-width: 640px) {
+        .segmented-control label.segment-left {
+            border-radius: 1rem 0 0 1rem;
+        }
+
+        .segmented-control label.segment-right {
+            border-radius: 0 1rem 1rem 0;
+        }
     }
 
     .segmented-control label.activeLabel {
@@ -722,8 +908,21 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 450px;
+        min-height: 200px;
+        padding: 1rem;
         color: #64748b;
+    }
+
+    @media (min-width: 640px) {
+        .settings-placeholder {
+            min-height: 350px;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .settings-placeholder {
+            min-height: 450px;
+        }
     }
 
     .settings-placeholder a {

@@ -16,7 +16,7 @@ loadMaterialSymbols([
     'video_file', 'frame_source', 'barcode', 'timer', 'speed',
     'calculate', 'view_compact', 'rotate_right', 'equalizer',
     'arrow_range', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
-    'login', 'logout', 'account_circle'
+    'login', 'logout', 'account_circle','grid_view','crop'
 ])
 // Note: we could also import the entire set, but the bundle is too big.
 // import 'material-symbols/outlined.css';

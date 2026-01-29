@@ -389,15 +389,37 @@
 
 <style scoped>
     .download-section {
-        padding: 0.75rem 1rem;
+        padding: 0.75rem;
         border: 1px solid #e2e8f0;
         border-radius: 0.5rem;
         background: #f8fafc;
         text-align: left;
     }
 
+    @media (min-width: 640px) {
+        .download-section {
+            padding: 0.75rem 1rem;
+        }
+    }
+
+    .download-all-button,
+    .upload-cdn-button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    @media (min-width: 640px) {
+
+        .download-all-button,
+        .upload-cdn-button {
+            width: auto;
+        }
+    }
+
     .download-button {
         min-width: 100px;
+        min-height: 44px;
         transition: background-color 0.3s;
     }
 
@@ -408,5 +430,9 @@
     .download-button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+    }
+
+    .upload-options input[type="text"] {
+        min-height: 44px;
     }
 </style>

@@ -17,6 +17,11 @@
     import VideoControls from './VideoControls.vue';
     import CropOverlay from './CropOverlay.vue';
 
+    import Accordion from 'primevue/accordion';
+    import AccordionPanel from 'primevue/accordionpanel';
+    import AccordionHeader from 'primevue/accordionheader';
+    import AccordionContent from 'primevue/accordioncontent';
+
     const videoPlayerRef = ref(null);
     const videoWithCropRef = ref(null);
     const videoDimensions = ref({ displayWidth: 0, displayHeight: 0 });
@@ -64,7 +69,7 @@
 
 <template>
     <div
-        class="flex flex-col items-start"
+        class="file-info-container"
         v-if="app?.fileInfo?.name"
     >
         <div
@@ -93,75 +98,133 @@
             :videoRef="videoPlayerRef"
         />
 
-        <table>
-            <tbody>
-                <tr>
-                    <td class="file-info-label whitespace-pre">File Name <span class="material-symbols-outlined">
-                            video_file
-                        </span></td>
-                    <td class="file-info-value file-name-value">{{ app.fileInfo?.name }}</td>
-                </tr>
+        <Accordion class="file-info-accordion">
+            <AccordionPanel value="0">
+                <AccordionHeader>
+                    <span class="accordion-header-text">
+                        <span class="material-symbols-outlined">info</span>
+                        Video Details
+                    </span>
+                </AccordionHeader>
+                <AccordionContent>
+                    <table class="file-info-table">
+                        <tbody>
+                            <tr>
+                                <td class="file-info-label">File Name <span class="material-symbols-outlined">
+                                        video_file
+                                    </span></td>
+                                <td class="file-info-value file-name-value">{{ app.fileInfo?.name }}</td>
+                            </tr>
 
-                <tr>
-                    <td class="file-info-label whitespace-pre">Codec <span class="material-symbols-outlined">
-                            frame_source
-                        </span></td>
-                    <td class="file-info-value whitespace-pre">{{ niceCodec(app.fileInfo?.codec_string) }}</td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre">Codec String <span class="material-symbols-outlined">
-                            barcode
-                        </span></td>
-                    <td class="file-info-value whitespace-pre">{{ app.fileInfo?.codec_string }}</td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre">Duration <span class="material-symbols-outlined">
-                            timer
-                        </span></td>
-                    <td class="file-info-value whitespace-pre">{{ niceDuration(app.fileInfo?.duration) }}</td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre">Frame Rate <span class="material-symbols-outlined">
-                            speed
-                        </span></td>
-                    <td class="file-info-value whitespace-pre">{{ niceFrameRate(app.fileInfo?.r_frame_rate) }}</td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre">Frame Count <span class="material-symbols-outlined">
-                            calculate
-                        </span></td>
-                    <td class="file-info-value whitespace-pre">{{ app.fileInfo?.nb_frames }}</td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre">Resolution <span class="material-symbols-outlined">
-                            view_compact
-                        </span></td>
-                    <td class="file-info-value whitespace-pre"><span class="whitespace-pre">{{ app.fileInfo?.width }} x
-                            {{
-                                app.fileInfo?.height }} pixels(w x h)</span>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre"> Rotation <span class="material-symbols-outlined">
-                            rotate_right
-                        </span></td>
-                    <td class="file-info-value whitespace-pre"> {{ app.fileInfo?.rotation }} degrees </td>
-                </tr>
-                <tr>
-                    <td class="file-info-label whitespace-pre"> Bit Rate <span class="material-symbols-outlined">
-                            equalizer
-                        </span></td>
-                    <td class="file-info-value whitespace-pre">{{ niceBitRate(app.fileInfo?.bit_rate) }}</td>
-                </tr>
-            </tbody>
-        </table>
+                            <tr>
+                                <td class="file-info-label">Codec <span class="material-symbols-outlined">
+                                        frame_source
+                                    </span></td>
+                                <td class="file-info-value">{{ niceCodec(app.fileInfo?.codec_string) }}</td>
+                            </tr>
+                            <tr class="hide-mobile">
+                                <td class="file-info-label">Codec String <span class="material-symbols-outlined">
+                                        barcode
+                                    </span></td>
+                                <td class="file-info-value">{{ app.fileInfo?.codec_string }}</td>
+                            </tr>
+                            <tr>
+                                <td class="file-info-label">Duration <span class="material-symbols-outlined">
+                                        timer
+                                    </span></td>
+                                <td class="file-info-value">{{ niceDuration(app.fileInfo?.duration) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="file-info-label">Frame Rate <span class="material-symbols-outlined">
+                                        speed
+                                    </span></td>
+                                <td class="file-info-value">{{ niceFrameRate(app.fileInfo?.r_frame_rate) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="file-info-label">Frame Count <span class="material-symbols-outlined">
+                                        calculate
+                                    </span></td>
+                                <td class="file-info-value">{{ app.fileInfo?.nb_frames }}</td>
+                            </tr>
+                            <tr>
+                                <td class="file-info-label">Resolution <span class="material-symbols-outlined">
+                                        view_compact
+                                    </span></td>
+                                <td class="file-info-value"><span>{{ app.fileInfo?.width }} x
+                                        {{
+                                            app.fileInfo?.height }} px</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="file-info-label">Rotation <span class="material-symbols-outlined">
+                                        rotate_right
+                                    </span></td>
+                                <td class="file-info-value"> {{ app.fileInfo?.rotation }}° </td>
+                            </tr>
+                            <tr class="hide-mobile">
+                                <td class="file-info-label">Bit Rate <span class="material-symbols-outlined">
+                                        equalizer
+                                    </span></td>
+                                <td class="file-info-value">{{ niceBitRate(app.fileInfo?.bit_rate) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </AccordionContent>
+            </AccordionPanel>
+        </Accordion>
     </div>
 </template>
 <style scoped>
+    .file-info-container {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+        min-width: 0;
+        overflow: hidden;
+    }
 
     .video-with-crop {
         position: relative;
-        display: inline-block;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .file-info-accordion {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+
+    .accordion-header-text {
+        display: flex;
+        align-items: center;
+        white-space: pre;
+        gap: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .accordion-header-text .material-symbols-outlined {
+        font-size: 1.25rem;
+    }
+
+    .file-info-table {
+        width: 100%;
+        font-size: 0.75rem;
+        table-layout: fixed;
+    }
+
+    @media (min-width: 640px) {
+        .file-info-table {
+            font-size: 0.8rem;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        .file-info-table {
+            font-size: 0.875rem;
+        }
     }
 
     #file-info table {
@@ -172,22 +235,62 @@
         border-bottom: 1px solid #fff;
     }
 
+    /* Responsive table - stacked on mobile */
+    @media (max-width: 639px) {
+
+        /* .file-info-table tbody,
+        .file-info-table tr,
+        .file-info-table td {
+            display: block;
+            width: 100%;
+        } */
+
+        .file-info-table tr {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .file-info-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            padding: 0 !important;
+        }
+
+        .file-info-value {
+            padding-left: 1.5rem !important;
+        }
+
+        .hide-mobile {
+            display: none !important;
+        }
+    }
+
+    @media (min-width: 640px) {
+        .hide-mobile {
+            display: table-row;
+        }
+    }
 
     .file-info-label {
         display: flex;
         align-items: center;
         justify-content: end;
         gap: 0.5rem;
-        padding: 0 0 0 0.5rem;
+        padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+        white-space: nowrap;
     }
 
     .file-info-value {
         text-align: left;
-        padding-left: 0rem;
-        padding: 0 0.5rem;
+        padding: 0.25rem 0.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
 
     .file-name-value {
         word-break: break-all;
+        white-space: normal;
     }
 </style>

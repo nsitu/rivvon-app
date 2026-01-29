@@ -1,21 +1,19 @@
 <template>
     <!-- Header -->
-    <div class="flex gap-3 items-center justify-between p-4 w-full">
-        <div class="flex gap-3 items-center">
-
-            <span class="cascadia slyce ml-5">
+    <div class="header-container">
+        <div class="header-brand">
+            <span class="cascadia slyce">
                 slyce
-                <!-- <span>f</span>
-                <span style="margin-left: -0.1rem;">l</span>
-                <span style="margin-left: -0.1rem;">o</span> -->
             </span>
 
             <div class="separator"></div>
             <span class="cascadia tagline">Texture Creator for</span>
 
-
-            <a href="https://rivvon.ca"><img
-                    style="width: 9rem;"
+            <a
+                href="https://rivvon.ca"
+                class="rivvon-link"
+            ><img
+                    class="rivvon-logo"
                     src="/rivvon-black.svg"
                 /></a>
 
@@ -29,14 +27,75 @@
 </script>
 
 <style scoped>
+    .header-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        width: 100%;
+    }
 
+    @media (min-width: 640px) {
+        .header-container {
+            flex-wrap: nowrap;
+            padding: 1rem;
+        }
+    }
+
+    .header-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    @media (min-width: 640px) {
+        .header-brand {
+            gap: 0.75rem;
+            margin-left: 1.25rem;
+        }
+    }
 
     .separator {
+        display: none;
         width: 3px;
-        height: 4rem;
+        height: 3rem;
         background: #ddd;
         padding: 0px;
-        margin: 0 2rem;
+        margin: 0 1rem;
+    }
+
+    @media (min-width: 768px) {
+        .separator {
+            display: block;
+            height: 4rem;
+            margin: 0 2rem;
+        }
+    }
+
+    .tagline {
+        display: none;
+    }
+
+    @media (min-width: 768px) {
+        .tagline {
+            display: inline;
+        }
+    }
+
+    .rivvon-link {
+        display: none;
+    }
+
+    @media (min-width: 768px) {
+        .rivvon-link {
+            display: inline;
+        }
+    }
+
+    .rivvon-logo {
+        width: 9rem;
     }
 
     svg {
