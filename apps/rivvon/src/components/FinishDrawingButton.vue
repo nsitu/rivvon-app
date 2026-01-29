@@ -69,7 +69,8 @@
 
     .finish-drawing-btn {
         position: fixed;
-        bottom: 6rem; /* Above the bottom toolbar */
+        bottom: 6rem;
+        /* Above the bottom toolbar */
         right: 1rem;
         z-index: 100;
         width: 4rem;
