@@ -103,18 +103,18 @@
 
     .tile-column {
         background: repeating-linear-gradient(90deg,
-                #efefef,
-                #efefef 0.25rem,
-                #ddd 0.25rem,
-                #ddd 0.5rem);
+                var(--bg-secondary),
+                var(--bg-secondary) 0.25rem,
+                var(--bg-muted-alt) 0.25rem,
+                var(--bg-muted-alt) 0.5rem);
     }
 
     .tile-row {
         background: repeating-linear-gradient(0deg,
-                #efefef,
-                #efefef 0.25rem,
-                #ddd 0.25rem,
-                #ddd 0.5rem);
+                var(--bg-secondary),
+                var(--bg-secondary) 0.25rem,
+                var(--bg-muted-alt) 0.25rem,
+                var(--bg-muted-alt) 0.5rem);
         /* background-size: 100% 50%;
         animation: move-stripes 4s linear infinite; */
     }

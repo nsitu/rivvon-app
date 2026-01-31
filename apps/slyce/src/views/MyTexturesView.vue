@@ -30,15 +30,15 @@
                         d="M4 12a8 8 0 018-8v8H4z"
                     ></path>
                 </svg>
-                <span class="ml-3 text-gray-600">Loading your textures...</span>
+                <span class="ml-3 loading-text">Loading your textures...</span>
             </div>
 
             <!-- Not Authenticated -->
             <div
                 v-else-if="!isAuthenticated"
-                class="text-center py-12 bg-gray-50"
+                class="text-center py-12 empty-state-container"
             >
-                <p class="text-gray-600 mb-4">Please log in to view your textures.</p>
+                <p class="empty-state-text mb-4">Please log in to view your textures.</p>
             </div>
 
             <!-- Error State -->
@@ -58,9 +58,9 @@
             <!-- Empty State -->
             <div
                 v-else-if="textures.length === 0"
-                class="text-center py-12 bg-gray-50"
+                class="text-center py-12 empty-state-container"
             >
-                <p class="text-gray-600 mb-4">You haven't uploaded any textures yet.</p>
+                <p class="empty-state-text mb-4">You haven't uploaded any textures yet.</p>
                 <router-link
                     to="/"
                     class="inline-block action-button px-6 py-2"
@@ -77,10 +77,10 @@
                 <div
                     v-for="texture in textures"
                     :key="texture.id"
-                    class="texture-card bg-white border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                    class="texture-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                 >
                     <!-- Thumbnail -->
-                    <div class="aspect-square bg-gray-100 relative">
+                    <div class="aspect-square thumbnail-placeholder relative">
                         <img
                             v-if="texture.thumbnail_url"
                             :src="texture.thumbnail_url"
@@ -89,7 +89,7 @@
                         />
                         <div
                             v-else
-                            class="w-full h-full flex items-center justify-center text-gray-400"
+                            class="w-full h-full flex items-center justify-center placeholder-icon"
                         >
                             <svg
                                 class="w-12 h-12"
@@ -108,7 +108,7 @@
 
                         <!-- Public/Private Badge -->
                         <span
-                            :class="texture.is_public ? 'bg-green-500' : 'bg-gray-500'"
+                            :class="texture.is_public ? 'bg-green-500' : 'badge-private'"
                             class="absolute top-2 right-2 px-2 py-0.5 text-xs text-white"
                         >
                             {{ texture.is_public ? 'Public' : 'Private' }}
@@ -117,13 +117,13 @@
 
                     <!-- Info -->
                     <div class="p-4">
-                        <h3 class="font-medium text-gray-900 truncate mb-1">{{ texture.name }}</h3>
-                        <p class="text-xs text-gray-500 mb-2">
+                        <h3 class="font-medium card-title truncate mb-1">{{ texture.name }}</h3>
+                        <p class="text-xs card-details mb-2">
                             {{ texture.tile_count }} tile{{ texture.tile_count !== 1 ? 's' : '' }} •
                             {{ texture.tile_resolution }}px •
                             {{ texture.layer_count }} layers
                         </p>
-                        <p class="text-xs text-gray-400 mb-3">
+                        <p class="text-xs card-date mb-3">
                             {{ formatDate(texture.created_at) }}
                         </p>
 
@@ -156,16 +156,16 @@
             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
             @click.self="textureToDelete = null"
         >
-            <div class="bg-white p-6 max-w-md w-full mx-4 shadow-xl">
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete Texture</h3>
-                <p class="text-gray-600 mb-4">
+            <div class="modal-content p-6 max-w-md w-full mx-4 shadow-xl">
+                <h3 class="text-lg font-semibold modal-title mb-2">Delete Texture</h3>
+                <p class="modal-text mb-4">
                     Are you sure you want to delete "<strong>{{ textureToDelete.name }}</strong>"?
                     This will permanently remove all tiles and cannot be undone.
                 </p>
                 <div class="flex gap-3 justify-end">
                     <button
                         @click="textureToDelete = null"
-                        class="px-4 py-2 text-gray-600 hover:text-gray-800"
+                        class="px-4 py-2 cancel-button"
                     >
                         Cancel
                     </button>
@@ -289,9 +289,77 @@
         flex-direction: column;
     }
 
+    /* Loading state */
+    .loading-text {
+        color: var(--text-secondary);
+    }
+
+    /* Empty state containers */
+    .empty-state-container {
+        background-color: var(--bg-secondary);
+        border-radius: 0.5rem;
+    }
+
+    .empty-state-text {
+        color: var(--text-secondary);
+    }
+
+    /* Texture cards */
+    .texture-card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-primary);
+        border-radius: 0.5rem;
+    }
+
+    .thumbnail-placeholder {
+        background-color: var(--bg-tertiary);
+    }
+
+    .placeholder-icon {
+        color: var(--text-muted);
+    }
+
+    .badge-private {
+        background-color: var(--bg-muted-alt);
+    }
+
+    .card-title {
+        color: var(--text-primary);
+    }
+
+    .card-details {
+        color: var(--text-tertiary);
+    }
+
+    .card-date {
+        color: var(--text-muted);
+    }
+
+    /* Modal */
+    .modal-content {
+        background-color: var(--bg-card);
+        border-radius: 0.5rem;
+    }
+
+    .modal-title {
+        color: var(--text-primary);
+    }
+
+    .modal-text {
+        color: var(--text-secondary);
+    }
+
+    .cancel-button {
+        color: var(--text-tertiary);
+    }
+
+    .cancel-button:hover {
+        color: var(--text-primary);
+    }
+
     .action-button {
-        background-color: #f0f0f0;
-        color: #333;
+        background-color: var(--bg-muted);
+        color: var(--text-primary);
         border: none;
         border-radius: 0;
         font-weight: 500;

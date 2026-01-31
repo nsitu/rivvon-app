@@ -50,8 +50,8 @@
         align-items: center;
         justify-content: center;
         min-height: 200px;
-        border: 3px dashed #999;
-        background: #f6f6f6;
+        border: 3px dashed var(--border-secondary);
+        background: var(--bg-secondary);
         margin: 1rem;
         padding: 1.5rem;
         border-radius: 0.375rem;

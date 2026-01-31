@@ -56,9 +56,9 @@
 
     .status-box {
         padding: 0.75rem 1rem;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--border-primary);
         border-radius: 0.5rem;
-        background: #f8fafc;
+        background: var(--bg-secondary);
         text-align: left;
     }
 
@@ -67,23 +67,41 @@
         background: #fef2f2;
     }
 
+    @media (prefers-color-scheme: dark) {
+        .status-box.status-error {
+            background: #450a0a;
+        }
+    }
+
     .status-title {
         margin: 0 0 0.25rem 0;
         font-size: 0.875rem;
         font-weight: 600;
-        color: #475569;
+        color: var(--text-secondary);
     }
 
     .status-error .status-title {
         color: #dc2626;
     }
 
+    @media (prefers-color-scheme: dark) {
+        .status-error .status-title {
+            color: #fca5a5;
+        }
+    }
+
     .status-value {
         font-size: 0.875rem;
-        color: #64748b;
+        color: var(--text-tertiary);
     }
 
     .status-error .status-value {
         color: #991b1b;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .status-error .status-value {
+            color: #fca5a5;
+        }
     }
 </style>

@@ -804,11 +804,18 @@
         padding: 1.5rem;
         border-radius: 1rem;
         cursor: pointer;
-        outline: 2px solid #eee;
+        outline: 2px solid var(--border-muted);
+        background-color: var(--bg-card);
+        color: var(--text-primary);
     }
 
     .segmented-control label span {
         font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .segmented-control label small {
+        color: var(--text-tertiary);
     }
 
     .segmented-control label:hover {
@@ -820,7 +827,7 @@
     }
 
     .segmented-control label svg {
-        background: #ddd;
+        background: var(--bg-muted-alt);
         width: 6rem;
         margin-left: auto;
     }
@@ -868,9 +875,10 @@
 
     .segmented-control label {
         box-shadow: none;
-        outline: 2px solid #eee;
+        outline: 2px solid var(--border-muted);
         max-width: 100%;
         margin: 0 0.25rem;
+        background-color: var(--bg-card);
     }
 
     @media (min-width: 640px) {
@@ -900,7 +908,7 @@
 
     .segmented-control label.activeLabel {
         outline: 2px solid #10b981;
-        background-color: #ecfdf5;
+        background-color: var(--accent-green-light);
         z-index: 1;
     }
 
@@ -910,7 +918,7 @@
         justify-content: center;
         min-height: 200px;
         padding: 1rem;
-        color: #64748b;
+        color: var(--text-tertiary);
     }
 
     @media (min-width: 640px) {

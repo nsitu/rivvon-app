@@ -228,11 +228,11 @@
     }
 
     #file-info table {
-        background-color: #eee;
+        background-color: var(--bg-muted);
     }
 
     #file-info tr {
-        border-bottom: 1px solid #fff;
+        border-bottom: 1px solid var(--bg-card);
     }
 
     /* Responsive table - stacked on mobile */
@@ -248,7 +248,7 @@
         .file-info-table tr {
             margin-bottom: 0.5rem;
             padding-bottom: 0.5rem;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-muted);
         }
 
         .file-info-label {

@@ -38,22 +38,22 @@
         <!-- Upload Options (only show when authenticated) -->
         <div
             v-if="isAuthenticated"
-            class="upload-options mb-4 p-3 bg-purple-50 border border-purple-200 rounded-md"
+            class="upload-options mb-4 p-3 rounded-md"
         >
-            <h5 class="text-sm font-semibold text-purple-800 mb-3">Upload Options</h5>
+            <h5 class="text-sm font-semibold upload-options-title mb-3">Upload Options</h5>
 
             <!-- Texture Name Input -->
             <div class="mb-3">
                 <label
                     for="textureName"
-                    class="block text-xs font-medium text-purple-700 mb-1"
+                    class="block text-xs font-medium upload-options-label mb-1"
                 >Texture Name</label>
                 <input
                     id="textureName"
                     v-model="textureName"
                     type="text"
                     :placeholder="app.fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture'"
-                    class="w-full px-3 py-2 text-sm border border-purple-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    class="texture-name-input w-full px-3 py-2 text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
             </div>
 
@@ -61,13 +61,13 @@
             <div class="flex items-center justify-between">
                 <label
                     for="isPublic"
-                    class="text-xs font-medium text-purple-700"
+                    class="text-xs font-medium upload-options-label"
                 >Make texture public</label>
                 <button
                     id="isPublic"
                     type="button"
                     @click="isPublic = !isPublic"
-                    :class="isPublic ? 'bg-purple-600' : 'bg-gray-300'"
+                    :class="isPublic ? 'bg-purple-600' : 'toggle-off'"
                     class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
                     role="switch"
                     :aria-checked="isPublic"
@@ -128,10 +128,10 @@
         <!-- Show uploaded URLs -->
         <div
             v-if="uploadedTextureSetId"
-            class="uploaded-urls mb-4 p-3 bg-green-50 border border-green-200 rounded-md"
+            class="uploaded-urls-container mb-4 p-3 rounded-md"
         >
-            <p class="text-sm font-medium text-green-800 mb-2">
-                Texture Set: <code class="bg-green-100 px-1 rounded">{{ uploadedTextureSetId }}</code>
+            <p class="text-sm font-medium uploaded-text-title mb-2">
+                Texture Set: <code class="uploaded-code px-1 rounded">{{ uploadedTextureSetId }}</code>
             </p>
 
             <!-- Thumbnail preview -->
@@ -139,7 +139,7 @@
                 v-if="uploadedThumbnailUrl"
                 class="mb-3"
             >
-                <p class="text-xs text-green-700 mb-1">Thumbnail:</p>
+                <p class="text-xs uploaded-text-secondary mb-1">Thumbnail:</p>
                 <a
                     :href="uploadedThumbnailUrl"
                     target="_blank"
@@ -147,13 +147,13 @@
                     <img
                         :src="uploadedThumbnailUrl"
                         alt="Texture thumbnail"
-                        class="w-24 h-24 object-cover rounded border border-green-300 hover:border-green-500 transition-colors"
+                        class="w-24 h-24 object-cover rounded border border-green-500 hover:border-green-400 transition-colors"
                     />
                 </a>
             </div>
 
-            <p class="text-xs text-green-700 mb-2">CDN URLs:</p>
-            <ul class="text-xs text-green-700 space-y-1">
+            <p class="text-xs uploaded-text-secondary mb-2">CDN URLs:</p>
+            <ul class="text-xs uploaded-text-secondary space-y-1">
                 <li
                     v-for="(url, index) in uploadedUrls"
                     :key="index"
@@ -390,9 +390,9 @@
 <style scoped>
     .download-section {
         padding: 0.75rem;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--border-primary);
         border-radius: 0.5rem;
-        background: #f8fafc;
+        background: var(--bg-secondary);
         text-align: left;
     }
 
@@ -400,6 +400,53 @@
         .download-section {
             padding: 0.75rem 1rem;
         }
+    }
+
+    /* Upload options styling */
+    .upload-options {
+        background-color: var(--accent-purple-light);
+        border: 1px solid #9333ea40;
+    }
+
+    .upload-options-title {
+        color: var(--text-primary);
+    }
+
+    .upload-options-label {
+        color: var(--text-secondary);
+    }
+
+    .texture-name-input {
+        background-color: var(--bg-input);
+        border: 1px solid var(--border-secondary);
+        color: var(--text-primary);
+    }
+
+    .texture-name-input::placeholder {
+        color: var(--text-muted);
+    }
+
+    .toggle-off {
+        background-color: var(--bg-muted-alt);
+    }
+
+    /* Uploaded URLs styling */
+    .uploaded-urls-container {
+        background-color: var(--accent-green-light);
+        border: 1px solid #10b98140;
+    }
+
+    .uploaded-text-title {
+        color: var(--text-primary);
+    }
+
+    .uploaded-text-secondary {
+        color: var(--text-secondary);
+    }
+
+    .uploaded-code {
+        background-color: var(--bg-muted);
+        color: var(--text-primary);
     }
 
     .download-all-button,

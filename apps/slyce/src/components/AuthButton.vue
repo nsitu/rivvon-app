@@ -114,7 +114,7 @@
 
   .avatar-placeholder {
     font-size: 28px;
-    color: #6b7280;
+    color: var(--text-muted);
   }
 
   @media (min-width: 640px) {
@@ -125,7 +125,7 @@
 
   .username {
     font-size: 0.8rem;
-    color: #333;
+    color: var(--text-primary);
     max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -173,12 +173,12 @@
   }
 
   .btn-logout {
-    background-color: #f0f0f0;
-    color: #333;
+    background-color: var(--bg-muted);
+    color: var(--text-primary);
   }
 
   .btn-logout:hover {
-    background-color: #e0e0e0;
+    background-color: var(--bg-muted-alt);
   }
 
   .btn-login .material-symbols-outlined,
@@ -214,8 +214,8 @@
     border-radius: 0;
     font-size: 0.8rem;
     font-weight: 500;
-    background-color: #f0f0f0;
-    color: #333;
+    background-color: var(--bg-muted);
+    color: var(--text-primary);
     text-decoration: none;
     transition: background-color 0.2s;
   }
@@ -228,7 +228,7 @@
   }
 
   .nav-link:hover {
-    background-color: #e0e0e0;
+    background-color: var(--bg-muted-alt);
   }
 
   .nav-link-active {

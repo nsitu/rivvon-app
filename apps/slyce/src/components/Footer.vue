@@ -88,12 +88,12 @@
     }
 
     a {
-        color: #4a4a4a;
+        color: var(--text-secondary);
         text-decoration: underline;
         transition: color 0.2s;
     }
 
     a:hover {
-        color: #1a1a1a;
+        color: var(--text-primary);
     }
 </style>

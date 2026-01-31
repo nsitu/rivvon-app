@@ -151,10 +151,10 @@
 
     .reset-button {
         padding: 0.75rem 1rem;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--border-primary);
         border-radius: 0.5rem;
-        background: #f8fafc;
-        color: #64748b;
+        background: var(--bg-secondary);
+        color: var(--text-tertiary);
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -172,7 +172,7 @@
     .results-placeholder {
         align-items: center;
         justify-content: center;
-        color: #64748b;
+        color: var(--text-tertiary);
     }
 
     .results-placeholder a {
@@ -191,6 +191,6 @@
         align-items: center;
         justify-content: center;
         gap: 1rem;
-        color: #64748b;
+        color: var(--text-tertiary);
     }
 </style>

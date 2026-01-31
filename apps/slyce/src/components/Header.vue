@@ -79,7 +79,7 @@
         display: none;
         width: 3px;
         height: 3rem;
-        background: #ddd;
+        background: var(--bg-muted-alt);
         padding: 0px;
         margin: 0 1rem;
     }

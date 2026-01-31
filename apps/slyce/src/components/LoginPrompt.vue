@@ -40,11 +40,17 @@
   .login-prompt {
     text-align: center;
     padding: 3rem 2rem;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
     border-radius: 12px;
     max-width: 480px;
     margin: 2rem auto;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .login-prompt {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
   }
 
   .prompt-icon {
@@ -67,12 +73,12 @@
 
   .login-prompt h2 {
     margin: 0 0 1rem;
-    color: #2d3748;
+    color: var(--text-primary);
     font-size: 1.75rem;
   }
 
   .prompt-description {
-    color: #4a5568;
+    color: var(--text-secondary);
     margin-bottom: 2rem;
     font-size: 1rem;
     line-height: 1.6;
@@ -109,7 +115,7 @@
 
   .hint {
     font-size: 0.85rem;
-    color: #718096;
+    color: var(--text-tertiary);
     margin-top: 1rem;
   }
 
