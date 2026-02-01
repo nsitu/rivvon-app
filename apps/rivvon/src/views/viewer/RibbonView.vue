@@ -15,7 +15,7 @@
     import CountdownProgressBar from '../../components/viewer/CountdownProgressBar.vue';
     import TextInputPanel from '../../components/viewer/TextInputPanel.vue';
     import TextureBrowser from '../../components/viewer/TextureBrowser.vue';
-    import SlycePanel from '../../components/viewer/SlycePanel.vue';
+    import TextureCreator from '../../components/viewer/TextureCreator.vue';
     import BetaModal from '../../components/viewer/BetaModal.vue';
     import ThreeCanvas from '../../components/viewer/ThreeCanvas.vue';
     import DrawCanvas from '../../components/viewer/DrawCanvas.vue';
@@ -315,7 +315,7 @@
         }
     }
 
-    // Handle applying a newly created texture from Slyce
+    // Handle applying a newly created texture 
     async function handleApplyCreatedTexture(texture) {
         console.log('[RibbonView] Applying created texture:', texture);
 
@@ -403,9 +403,9 @@
         />
 
         <!-- Full-page Slyce panel (like drawing mode) -->
-        <SlycePanel
-            v-if="app.slycePanelVisible"
-            :active="app.slycePanelVisible"
+        <TextureCreator
+            v-if="app.textureCreatorVisible"
+            :active="app.textureCreatorVisible"
             @apply-texture="handleApplyCreatedTexture"
         />
 

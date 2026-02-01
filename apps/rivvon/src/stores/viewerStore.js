@@ -30,7 +30,7 @@ export const useViewerStore = defineStore('viewer', {
         textureBrowserVisible: false,
         
         // Slyce panel
-        slycePanelVisible: false,
+        textureCreatorVisible: false,
         
         // UI state
         betaModalVisible: false,
@@ -78,15 +78,15 @@ export const useViewerStore = defineStore('viewer', {
         },
         
         showSlyce() {
-            this.slycePanelVisible = true;
+            this.textureCreatorVisible = true;
         },
         
         hideSlyce() {
-            this.slycePanelVisible = false;
+            this.textureCreatorVisible = false;
         },
         
         toggleSlyce() {
-            this.slycePanelVisible = !this.slycePanelVisible;
+            this.textureCreatorVisible = !this.textureCreatorVisible;
         },
         
         setThumbnailUrl(url) {

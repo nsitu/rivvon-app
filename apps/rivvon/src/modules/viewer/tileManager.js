@@ -74,7 +74,7 @@ export class TileManager {
         this.sharedFlowOffsetUniform = { value: 0.0 };
         this.flowOffset = 0.0;         // Current fractional offset (0.0 to 1.0)
         this.tileFlowOffset = 0;       // Current base tile offset (integer)
-        this.flowSpeed = 0.25;          // Tiles per second
+        this.flowSpeed = -0.25;          // Tiles per second (negative and positive imply opposite direciotn. )
         this.flowEnabled = false;       // Can be toggled
         this.flowMaterials = [];       // Track all dual-texture materials for uniform updates
 

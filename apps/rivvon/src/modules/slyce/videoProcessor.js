@@ -106,7 +106,7 @@ const processVideo = async (settings) => {
     const app = useSlyceStore()  // Pinia store 
 
     // go to the processing tab.
-    app.set('currentStep', '2')
+    app.set('currentStep', '3')
     app.set('readerIsFinished', false)
 
     // Calculate how many frames will actually be used vs skipped

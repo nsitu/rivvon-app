@@ -29,7 +29,7 @@ export const useSlyceStore = defineStore('slyce', {
         timestamps: [],     // store recent frame timestamps
         lastFPSUpdate: 0,   // helps ensure we don't recalc FPS too often
 
-        currentStep: '0',
+        currentStep: '1',
         tilePlan: {},
         blobURLs: {},
         // New properties for synchronization
@@ -164,7 +164,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.fpsNow = 0;
             this.timestamps = [];
             this.lastFPSUpdate = 0;
-            this.currentStep = '0';
+            this.currentStep = '1';
             this.tilePlan = {};
             this.blobURLs = {};
             this.ktx2BlobURLs = {};

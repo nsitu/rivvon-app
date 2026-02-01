@@ -81,9 +81,15 @@
                     linear
                 >
                     <StepList>
-                        <Step value="1">Add Video</Step>
-                        <Step value="2">Settings</Step>
-                        <Step value="3">Results</Step>
+                        <Step value="1"><span class="material-symbols-outlined">
+                                video_camera_back_add
+                            </span></Step>
+                        <Step value="2"><span class="material-symbols-outlined">
+                                settings
+                            </span></Step>
+                        <Step value="3"><span class="material-symbols-outlined">
+                                done_outline
+                            </span></Step>
                     </StepList>
                     <StepPanels>
                         <StepPanel
@@ -169,6 +175,8 @@
         background: transparent;
         justify-content: center;
         padding: 0 0 1rem 0;
+        max-width: 360px;
+        margin: 0 auto;
     }
 
     .slyce-content :deep(.p-step) {

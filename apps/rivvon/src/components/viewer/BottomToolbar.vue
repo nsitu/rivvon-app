@@ -39,24 +39,24 @@
     >
         <!-- Back button (only in drawing, slyce, or texture browser mode) -->
         <button
-            v-if="app.isDrawingMode || app.slycePanelVisible || app.textureBrowserVisible"
+            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible"
             class="back-button"
             v-tooltip.top="'Back'"
-            @click="app.isDrawingMode ? emit('toggle-draw-mode') : app.slycePanelVisible ? app.toggleSlyce() : app.hideTextureBrowser()"
+            @click="app.isDrawingMode ? emit('toggle-draw-mode') : app.textureCreatorVisible ? app.toggleSlyce() : app.hideTextureBrowser()"
         >
             <span class="material-symbols-outlined">arrow_back_ios</span>
         </button>
 
 
         <div
-            v-if="app.isDrawingMode || app.slycePanelVisible || app.textureBrowserVisible"
+            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible"
             class="separator"
         ></div>
 
 
         <!-- Draw mode toggle -->
         <button
-            v-if="!app.slycePanelVisible && !app.textureBrowserVisible"
+            v-if="!app.textureCreatorVisible && !app.textureBrowserVisible"
             v-tooltip.top="'Draw'"
             :class="{ active: app.isDrawingMode }"
             @click="emit('toggle-draw-mode')"
@@ -72,13 +72,13 @@
         <button
             v-if="!app.isDrawingMode && !app.textureBrowserVisible"
             v-tooltip.top="'Create Texture'"
-            :class="{ active: app.slycePanelVisible }"
+            :class="{ active: app.textureCreatorVisible }"
             @click="app.toggleSlyce()"
         >
             <span class="material-symbols-outlined">video_camera_back_add</span>
 
             <span
-                v-if="app.slycePanelVisible"
+                v-if="app.textureCreatorVisible"
                 class="mode-label"
             >Create Texture</span>
         </button>
@@ -94,7 +94,7 @@
 
         <!-- Text to SVG -->
         <button
-            v-if="!app.isDrawingMode && !app.slycePanelVisible && !app.textureBrowserVisible"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
             v-tooltip.top="'Text'"
             @click="emit('open-text-panel')"
         >
@@ -103,7 +103,7 @@
 
         <!-- Browse textures -->
         <button
-            v-if="!app.isDrawingMode && !app.slycePanelVisible"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible"
             v-tooltip.top="'Textures'"
             :class="{ active: app.textureBrowserVisible }"
             @click="emit('open-texture-browser')"
@@ -117,7 +117,7 @@
 
         <!-- Import SVG/ZIP -->
         <button
-            v-if="!app.isDrawingMode && !app.slycePanelVisible && !app.textureBrowserVisible"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
             v-tooltip.top="'Import SVG or ZIP texture pack'"
             @click="emit('import-file')"
         >
@@ -127,7 +127,7 @@
 
         <!-- Flow animation toggle -->
         <button
-            v-if="!app.isDrawingMode && !app.slycePanelVisible && !app.textureBrowserVisible"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
             v-tooltip.top="'Toggle texture flow animation'"
             :class="{ active: app.flowEnabled }"
             @click="emit('toggle-flow')"
@@ -137,7 +137,7 @@
 
         <!-- Fullscreen toggle -->
         <button
-            v-if="!app.isDrawingMode && !app.slycePanelVisible && !app.textureBrowserVisible"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
             v-tooltip.top="'Toggle fullscreen'"
             @click="toggleFullscreen"
         >
