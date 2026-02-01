@@ -20,6 +20,7 @@ textureRoutes.get('/', async (c) => {
       ts.cross_section_type, ts.source_frame_count, ts.sampled_frame_count, ts.created_at,
       ts.storage_provider,
       u.id as owner_id,
+      u.google_id as owner_google_id,
       u.name as owner_name,
       u.picture as owner_picture,
       (SELECT COALESCE(SUM(file_size), 0) FROM texture_tiles WHERE texture_set_id = ts.id) as total_size_bytes
@@ -44,6 +45,7 @@ textureRoutes.get('/:id', async (c) => {
     SELECT 
       ts.*,
       u.id as owner_id,
+      u.google_id as owner_google_id,
       u.name as owner_name,
       u.picture as owner_picture
     FROM texture_sets ts

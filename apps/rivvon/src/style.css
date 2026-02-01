@@ -1,18 +1,78 @@
 /* src/style.css */
-/* Global styles for Vue 3 rivvon app */
+/* Global styles for Vue 3 rivvon app (merged: viewer + slyce) */
 
 @import "tailwindcss";
 
-/* Base styles */
+/* Tell Tailwind v4 where to find source files for class detection */
+@source "../src/**/*.vue";
+@source "../src/**/*.js";
+@source "../index.html";
+
+/* ========================================
+   CSS Custom Properties for light/dark mode theming (Slyce)
+   ======================================== */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-tertiary: #f3f4f6;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    --bg-muted: #eeeeee;
+    --bg-muted-alt: #dddddd;
+    
+    --text-primary: #111827;
+    --text-secondary: #374151;
+    --text-tertiary: #6b7280;
+    --text-muted: #9ca3af;
+    
+    --border-primary: #e5e7eb;
+    --border-secondary: #d1d5db;
+    --border-muted: #eeeeee;
+    
+    --accent-green: #10b981;
+    --accent-green-light: #ecfdf5;
+    --accent-purple: #9333ea;
+    --accent-purple-light: #faf5ff;
+    
+    color-scheme: dark;
+}
+
+/* Force dark mode via .app-dark class on html element */
+:root.app-dark {
+    --bg-primary: #111827;
+    --bg-secondary: #1f2937;
+    --bg-tertiary: #374151;
+    --bg-card: #1f2937;
+    --bg-input: #374151;
+    --bg-muted: #374151;
+    --bg-muted-alt: #4b5563;
+    
+    --text-primary: #f9fafb;
+    --text-secondary: #e5e7eb;
+    --text-tertiary: #9ca3af;
+    --text-muted: #6b7280;
+    
+    --border-primary: #374151;
+    --border-secondary: #4b5563;
+    --border-muted: #4b5563;
+    
+    --accent-green: #10b981;
+    --accent-green-light: #064e3b;
+    --accent-purple: #a855f7;
+    --accent-purple-light: #3b0764;
+}
+
+/* ========================================
+   Base styles (shared)
+   ======================================== */
 html,
 body {
-    @apply m-0 overflow-hidden fixed w-full h-full;
-    touch-action: none;
+    margin: 0;
+    padding: 0;
     font-family: "Roboto", sans-serif;
     font-optical-sizing: auto;
     font-weight: 400;
     font-style: normal;
-    background: #1a1a2e;
 }
 
 body {
@@ -20,24 +80,55 @@ body {
     -webkit-overflow-scrolling: touch;
 }
 
-/* App container - overlay for UI, let pointer events pass through to Three.js canvas */
+/* ========================================
+   Viewer mode styles (for Three.js canvas)
+   ======================================== */
+.viewer-mode {
+    /* These aggressive styles only apply in viewer mode */
+}
+
+html:has(.viewer-mode),
+body:has(.viewer-mode) {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    background: #1a1a2e;
+}
+
+/* ========================================
+   Slyce mode styles
+   ======================================== */
+body:not(:has(.viewer-mode)) {
+    min-height: 100vh;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* App container */
 #app {
+    /* Normal flow by default for Slyce */
+}
+
+/* Fixed positioning only in viewer mode */
+#app:has(.viewer-mode) {
     position: fixed;
     inset: 0;
     z-index: 1;
     pointer-events: none;
 }
 
-/* Re-enable pointer events on interactive elements */
-#app button,
-#app a,
-#app input,
-#app select,
-#app textarea,
-#app [role="button"],
-#app .clickable {
-    pointer-events: auto;
+/* Viewer mode: let pointer events pass through to Three.js canvas */
+.viewer-mode {
+    pointer-events: none;
 }
+
+/* 
+ * NOTE: Pointer events for interactive elements are now handled
+ * specifically in RibbonView.vue using scoped :deep() rules
+ * to avoid broad selectors that create invisible clickable areas
+ */
 
 /* Blurred texture background */
 .blurred-background {
@@ -94,19 +185,19 @@ body {
     opacity: 1;
 }
 
-/* Base button styles */
-button {
+/* Viewer-specific button styles (dark semi-transparent for overlay on 3D canvas) */
+.viewer-mode button {
     @apply px-4 py-3 text-lg text-white border-none cursor-pointer select-none;
     @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0.92;
 }
 
-button:hover {
+.viewer-mode button:hover {
     @apply bg-black/70;
 }
 
-button:active {
+.viewer-mode button:active {
     @apply bg-black/80;
 }
 
@@ -246,4 +337,86 @@ body.debug-mode .renderer-indicator {
     @apply absolute top-4 right-4;
     @apply bg-transparent text-gray-500 text-2xl p-0 min-w-0 min-h-0;
     @apply hover:text-white;
+}
+
+/* ========================================
+   Slyce-specific styles
+   ======================================== */
+
+/* Cascadia Code font */
+.cascadia {
+    font-family: "Cascadia Code", sans-serif;
+    font-optical-sizing: auto;
+}
+
+/* Slyce branding */
+.slyce {
+    font-weight: 900;
+    font-style: italic;
+    font-size: clamp(2rem, 8vw, 4rem);
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.15rem;
+}
+
+@media (min-width: 640px) {
+    .slyce {
+        letter-spacing: -0.25rem;
+    }
+}
+
+.tagline {
+    font-weight: 300;
+    font-style: normal;
+    font-size: 1.2rem;
+}
+
+/* Responsive utility for hiding on mobile */
+.hide-mobile {
+    display: none;
+}
+
+@media (min-width: 640px) {
+    .hide-mobile {
+        display: block;
+    }
+}
+
+/* Responsive input rows that wrap on mobile */
+.input-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+/* Highlight the upload area when dragging files over the page */
+body.hover .upload-area {
+    border-color: #22c55e;
+    background-color: #dcfce7;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+    body.hover .upload-area {
+        background-color: #064e3b;
+    }
+}
+
+/* Slyce body overrides (applied via .slyce-view class on route) */
+.slyce-view {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.slyce-view body {
+    padding: 12px;
+}
+
+@media (min-width: 640px) {
+    .slyce-view body {
+        padding: 20px;
+    }
 }

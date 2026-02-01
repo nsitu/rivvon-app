@@ -8,6 +8,7 @@ import {
     clearAuthCookies,
     setOAuthStateCookie,
     clearOAuthStateCookie,
+    isLocalDev,
 } from '../utils/cookies';
 import { createSessionToken, verifySessionToken, type SessionUser } from '../utils/session';
 
@@ -36,6 +37,9 @@ const SCOPES = [
  * Accepts optional redirect_to param to return to originating app
  */
 authRoutes.get('/login', async (c) => {
+    // Detect local development for cookie settings
+    const localDev = isLocalDev(c);
+    
     // Generate CSRF state token
     const state = crypto.randomUUID();
 
@@ -56,7 +60,7 @@ authRoutes.get('/login', async (c) => {
     const finalRedirect = allowedOrigins.includes(redirectTo) ? redirectTo : c.env.APP_URL;
 
     // Store state in HTTP-only cookie for validation on callback
-    setOAuthStateCookie(c, state);
+    setOAuthStateCookie(c, state, localDev);
 
     // Store redirect destination in HTTP-only cookie
     // NOTE: Must use { append: true } to not overwrite the oauth_state cookie
@@ -64,6 +68,7 @@ authRoutes.get('/login', async (c) => {
         maxAge: 600, // 10 minutes
         path: '/api/auth',
         sameSite: 'Lax', // Lax is fine for this cookie
+        isLocalDev: localDev,
     }), { append: true });
 
     // Build Google OAuth URL
@@ -89,6 +94,9 @@ authRoutes.get('/login', async (c) => {
  * - Redirects back to originating app (stored in oauth_redirect cookie)
  */
 authRoutes.get('/callback', async (c) => {
+    // Detect local development for cookie settings
+    const localDev = isLocalDev(c);
+    
     const code = c.req.query('code');
     const state = c.req.query('state');
     const error = c.req.query('error');
@@ -165,6 +173,10 @@ authRoutes.get('/callback', async (c) => {
 
         // Create session token
         const sessionToken = await createSessionToken(user, c.env.SESSION_SECRET);
+        console.log('[callback] User created/updated:', user.email);
+        console.log('[callback] Session token created, length:', sessionToken.length);
+        console.log('[callback] isLocalDev:', localDev);
+        console.log('[callback] Redirecting to:', redirectTo);
 
         // Build redirect response with cookies
         // Note: c.redirect() doesn't include headers set via c.header(), so we build manually
@@ -172,16 +184,20 @@ authRoutes.get('/callback', async (c) => {
         headers.set('Location', redirectTo); // Redirect back to originating app
 
         // Session cookie
-        headers.append('Set-Cookie', buildCookieString('session', sessionToken, {
+        const sessionCookie = buildCookieString('session', sessionToken, {
             maxAge: 7 * 24 * 60 * 60,
             path: '/',
-        }));
+            isLocalDev: localDev,
+        });
+        console.log('[callback] Session cookie:', sessionCookie.substring(0, 100) + '...');
+        headers.append('Set-Cookie', sessionCookie);
 
         // Refresh token cookie (if provided)
         if (tokens.refresh_token) {
             headers.append('Set-Cookie', buildCookieString('google_refresh_token', tokens.refresh_token, {
                 maxAge: 30 * 24 * 60 * 60,
                 path: '/api/auth',
+                isLocalDev: localDev,
             }));
         }
 
@@ -189,12 +205,14 @@ authRoutes.get('/callback', async (c) => {
         headers.append('Set-Cookie', buildCookieString('oauth_state', '', {
             maxAge: 0,
             path: '/api/auth',
+            isLocalDev: localDev,
         }));
 
         // Clear the oauth_redirect cookie
         headers.append('Set-Cookie', buildCookieString('oauth_redirect', '', {
             maxAge: 0,
             path: '/api/auth',
+            isLocalDev: localDev,
         }));
 
         return new Response(null, {
@@ -203,8 +221,9 @@ authRoutes.get('/callback', async (c) => {
         });
     } catch (err) {
         console.error('OAuth callback error:', err);
+        console.error('Error stack:', err instanceof Error ? err.stack : 'no stack');
         const fallbackRedirect = getCookie(c, 'oauth_redirect') || c.env.APP_URL || 'https://slyce.rivvon.ca';
-        return c.redirect(`${fallbackRedirect}/login?error=callback_failed`);
+        return c.redirect(`${fallbackRedirect}?auth_error=callback_failed`);
     }
 });
 
@@ -215,13 +234,21 @@ authRoutes.get('/callback', async (c) => {
  * Returns { authenticated: false } if not logged in
  */
 authRoutes.get('/me', async (c) => {
+    // Debug: log incoming cookies
+    const cookieHeader = c.req.header('Cookie');
+    console.log('[/me] Cookie header present:', !!cookieHeader);
+    console.log('[/me] Cookie header:', cookieHeader?.substring(0, 100) || 'missing');
+    
     const sessionToken = getCookie(c, 'session');
+    console.log('[/me] Session token present:', !!sessionToken);
 
     if (!sessionToken) {
+        console.log('[/me] No session token found');
         return c.json({ authenticated: false });
     }
 
     const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
+    console.log('[/me] Session verification result:', user ? 'valid' : 'invalid');
 
     if (!user) {
         return c.json({ authenticated: false });
@@ -339,8 +366,9 @@ authRoutes.post('/drive-folder', async (c) => {
  * Clear all auth cookies
  */
 authRoutes.post('/logout', (c) => {
-    console.log('[Auth] Logout called, clearing cookies');
-    clearAuthCookies(c);
+    const localDev = isLocalDev(c);
+    console.log('[Auth] Logout called, clearing cookies, localDev:', localDev);
+    clearAuthCookies(c, localDev);
     console.log('[Auth] Set-Cookie headers:', c.res.headers.getSetCookie?.() || 'N/A');
     return c.json({ success: true });
 });

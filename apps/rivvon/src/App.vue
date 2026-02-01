@@ -1,9 +1,14 @@
 <script setup>
-    import { RouterView } from 'vue-router';
-    import { onMounted } from 'vue';
-    import { useAppStore } from './stores/appStore';
+    import { RouterView, useRoute } from 'vue-router';
+    import { onMounted, computed } from 'vue';
+    import { useViewerStore } from './stores/viewerStore';
+    import AuthLoadingState from './components/slyce/AuthLoadingState.vue';
 
-    const app = useAppStore();
+    const app = useViewerStore();
+    const route = useRoute();
+
+    // Viewer mode is active when NOT on slyce routes
+    const isViewerMode = computed(() => !route.path.startsWith('/slyce'));
 
     onMounted(() => {
         // Add app-active class to body when Vue app loads
@@ -12,7 +17,10 @@
 </script>
 
 <template>
-    <RouterView />
+    <div :class="{ 'viewer-mode': isViewerMode }">
+        <AuthLoadingState />
+        <RouterView />
+    </div>
 </template>
 
 <style>

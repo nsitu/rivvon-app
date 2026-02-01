@@ -1,0 +1,121 @@
+// src/stores/viewerStore.js
+// Pinia store for rivvon viewer state
+
+import { defineStore } from 'pinia';
+
+export const useViewerStore = defineStore('viewer', {
+    state: () => ({
+        // Renderer state
+        rendererType: 'webgl',    // 'webgl' | 'webgpu'
+        
+        // Drawing state
+        isDrawingMode: false,
+        strokeCount: 0,
+        countdownSeconds: null,
+        countdownProgress: 0,
+        inFinalCountdown: false,
+        
+        // Ribbon/3D state
+        flowEnabled: false,
+        
+        // Texture state
+        currentTextureId: null,
+        thumbnailUrl: null,
+        
+        // Text to SVG
+        textPanelVisible: false,
+        selectedFont: null,
+        
+        // Texture browser
+        textureBrowserVisible: false,
+        
+        // Slyce panel
+        slycePanelVisible: false,
+        
+        // UI state
+        betaModalVisible: false,
+        betaModalReason: null, // 'default' | 'texture-auth' | 'access-denied'
+        debugMode: false,
+        isFullscreen: false,
+        
+        // Three.js references (set by composable)
+        threeContext: null,
+    }),
+    
+    actions: {
+        setDrawingMode(enabled) {
+            this.isDrawingMode = enabled;
+        },
+        
+        toggleFlow() {
+            this.flowEnabled = !this.flowEnabled;
+        },
+        
+        showBetaModal(reason = 'default') {
+            this.betaModalReason = reason;
+            this.betaModalVisible = true;
+        },
+        
+        hideBetaModal() {
+            this.betaModalVisible = false;
+            this.betaModalReason = null;
+        },
+        
+        showTextPanel() {
+            this.textPanelVisible = true;
+        },
+        
+        hideTextPanel() {
+            this.textPanelVisible = false;
+        },
+        
+        showTextureBrowser() {
+            this.textureBrowserVisible = true;
+        },
+        
+        hideTextureBrowser() {
+            this.textureBrowserVisible = false;
+        },
+        
+        showSlyce() {
+            this.slycePanelVisible = true;
+        },
+        
+        hideSlyce() {
+            this.slycePanelVisible = false;
+        },
+        
+        toggleSlyce() {
+            this.slycePanelVisible = !this.slycePanelVisible;
+        },
+        
+        setThumbnailUrl(url) {
+            this.thumbnailUrl = url;
+        },
+        
+        setStrokeCount(count) {
+            this.strokeCount = count;
+        },
+        
+        setCountdownSeconds(seconds) {
+            this.countdownSeconds = seconds;
+        },
+        
+        setCountdownProgress(progress, inFinal = false) {
+            this.countdownProgress = progress;
+            this.inFinalCountdown = inFinal;
+        },
+        
+        setThreeContext(context) {
+            this.threeContext = context;
+        },
+        
+        setFullscreen(enabled) {
+            this.isFullscreen = enabled;
+        },
+    },
+    
+    getters: {
+        hasActiveStrokes: (state) => state.strokeCount > 0,
+    }
+});

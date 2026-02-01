@@ -1,7 +1,7 @@
 // src/services/textureService.js
 // Service for fetching textures from the Rivvon API
 
-const API_BASE = 'https://api.rivvon.ca';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 
 /**
  * Fetch list of available public textures
@@ -14,7 +14,9 @@ export async function fetchTextures({ limit = 50, offset = 0 } = {}) {
     const url = `${API_BASE}/textures?limit=${limit}&offset=${offset}`;
     console.log('[TextureService] Fetching textures from:', url);
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        credentials: 'include' // Include cookies for auth
+    });
     console.log('[TextureService] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
@@ -34,7 +36,9 @@ export async function fetchTextures({ limit = 50, offset = 0 } = {}) {
 export async function fetchTextureSet(textureSetId) {
     const url = `${API_BASE}/textures/${textureSetId}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        credentials: 'include' // Include cookies for auth
+    });
     if (!response.ok) {
         throw new Error(`Failed to fetch texture set: ${response.statusText}`);
     }

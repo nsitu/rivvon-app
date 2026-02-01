@@ -1,7 +1,7 @@
 <script setup>
     import { onMounted } from 'vue';
     import { useRouter, useRoute } from 'vue-router';
-    import { useGoogleAuth } from '../composables/useGoogleAuth';
+    import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
 
     const router = useRouter();
     const route = useRoute();
