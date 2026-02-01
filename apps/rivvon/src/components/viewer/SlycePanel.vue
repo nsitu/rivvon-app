@@ -20,7 +20,7 @@
         }
     });
 
-    const emit = defineEmits(['close']);
+    const emit = defineEmits(['close', 'apply-texture']);
 
     const slyce = useSlyceStore();
     const viewer = useViewerStore();
@@ -105,6 +105,7 @@
                             <ResultsArea
                                 @back="handleBackFromResults(activateCallback)"
                                 @reset="handleReset(activateCallback)"
+                                @apply-texture="(texture) => emit('apply-texture', texture)"
                             />
                         </StepPanel>
                     </StepPanels>

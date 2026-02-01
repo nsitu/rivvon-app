@@ -314,6 +314,17 @@
             loadingProgress.value = '';
         }
     }
+
+    // Handle applying a newly created texture from Slyce
+    async function handleApplyCreatedTexture(texture) {
+        console.log('[RibbonView] Applying created texture:', texture);
+
+        // Close the Slyce panel
+        app.toggleSlyce();
+
+        // Load the texture using the same mechanism as the texture browser
+        await handleTextureSelect(texture);
+    }
 </script>
 
 <template>
@@ -395,6 +406,7 @@
         <SlycePanel
             v-if="app.slycePanelVisible"
             :active="app.slycePanelVisible"
+            @apply-texture="handleApplyCreatedTexture"
         />
 
         <BetaModal />

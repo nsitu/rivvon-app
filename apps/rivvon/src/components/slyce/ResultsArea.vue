@@ -8,7 +8,7 @@
     import ProgressSpinner from 'primevue/progressspinner';
 
     const app = useSlyceStore();
-    const emit = defineEmits(['back', 'reset']);
+    const emit = defineEmits(['back', 'reset', 'apply-texture']);
 
     // Check if there are any tiles available for download
     const hasTiles = computed(() => {
@@ -82,7 +82,7 @@
             />
         </div>
         <div class="results-download">
-            <DownloadArea />
+            <DownloadArea @apply-texture="(texture) => emit('apply-texture', texture)" />
         </div>
 
     </div>

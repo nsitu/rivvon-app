@@ -186,18 +186,19 @@ body:not(:has(.viewer-mode)) {
 }
 
 /* Viewer-specific button styles (dark semi-transparent for overlay on 3D canvas) */
-.viewer-mode button {
+/* Only applies to toolbar buttons, not header auth buttons, form controls, or panel buttons */
+.viewer-mode .bottom-toolbar button {
     @apply px-4 py-3 text-lg text-white border-none cursor-pointer select-none;
     @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0.92;
 }
 
-.viewer-mode button:hover {
+.viewer-mode .bottom-toolbar button:hover {
     @apply bg-black/70;
 }
 
-.viewer-mode button:active {
+.viewer-mode .bottom-toolbar button:active {
     @apply bg-black/80;
 }
 

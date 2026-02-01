@@ -15,7 +15,6 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      slyce: ${{ steps.filter.outputs.slyce }}
       rivvon: ${{ steps.filter.outputs.rivvon }}
       api: ${{ steps.filter.outputs.api }}
       packages: ${{ steps.filter.outputs.packages }}
@@ -26,62 +25,12 @@ jobs:
         id: filter
         with:
           filters: |
-            slyce:
-              - 'apps/slyce/**'
             rivvon:
               - 'apps/rivvon/**'
             api:
               - 'apps/api/**'
             packages:
               - 'packages/**'
-
-  # Deploy Slyce frontend
-  deploy-slyce:
-    needs: detect-changes
-    if: |
-      github.event_name == 'push' && 
-      (needs.detect-changes.outputs.slyce == 'true' || 
-       needs.detect-changes.outputs.packages == 'true')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Slyce
-        run: pnpm --filter slyce build
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-
-      - name: Deploy to Cloudflare Pages
-        id: deploy-slyce
-        uses: cloudflare/wrangler-action@v3
-        continue-on-error: true
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/slyce
-          command: pages deploy dist --project-name=slyce --branch=main --commit-dirty=true
-
-      - name: Show Wrangler logs on failure
-        if: steps.deploy-slyce.outcome == 'failure'
-        run: |
-          echo "Deployment failed. Showing logs:"
-          find ~/.config/.wrangler/logs -name "*.log" -type f -exec echo "=== {} ===" \; -exec cat {} \;
-
-      - name: Fail if deployment failed
-        if: steps.deploy-slyce.outcome == 'failure'
-        run: exit 1
 
   # Deploy Rivvon frontend
   deploy-rivvon:
@@ -186,14 +135,6 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_API_URL: ${{ secrets.VITE_API_URL_PREVIEW }}
-
-      - name: Deploy Slyce Preview
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: apps/slyce
-          command: pages deploy dist --project-name=slyce --branch=${{ github.head_ref }} --commit-dirty=true
 
       - name: Deploy Rivvon Preview
         uses: cloudflare/wrangler-action@v3

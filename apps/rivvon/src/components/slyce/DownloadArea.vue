@@ -125,93 +125,36 @@
             >✗ {{ uploadError }}</span>
         </button>
 
-        <!-- Show uploaded URLs -->
+        <!-- Show uploaded texture with Apply button -->
         <div
             v-if="uploadedTextureSetId"
-            class="uploaded-urls-container mb-4 p-3 rounded-md"
+            class="uploaded-texture-container mb-4 p-3 rounded-md flex items-center gap-4"
         >
-            <p class="text-sm font-medium uploaded-text-title mb-2">
-                Texture Set: <code class="uploaded-code px-1 rounded">{{ uploadedTextureSetId }}</code>
-            </p>
-
             <!-- Thumbnail preview -->
-            <div
+            <img
                 v-if="uploadedThumbnailUrl"
-                class="mb-3"
+                :src="uploadedThumbnailUrl"
+                alt="Texture thumbnail"
+                class="w-16 h-16 object-cover rounded border border-green-500"
+            />
+            <div
+                v-else
+                class="w-16 h-16 rounded bg-gray-600 flex items-center justify-center"
             >
-                <p class="text-xs uploaded-text-secondary mb-1">Thumbnail:</p>
-                <a
-                    :href="uploadedThumbnailUrl"
-                    target="_blank"
-                >
-                    <img
-                        :src="uploadedThumbnailUrl"
-                        alt="Texture thumbnail"
-                        class="w-24 h-24 object-cover rounded border border-green-500 hover:border-green-400 transition-colors"
-                    />
-                </a>
+                <span class="material-symbols-outlined text-gray-400">texture</span>
             </div>
 
-            <p class="text-xs uploaded-text-secondary mb-2">CDN URLs:</p>
-            <ul class="text-xs uploaded-text-secondary space-y-1">
-                <li
-                    v-for="(url, index) in uploadedUrls"
-                    :key="index"
-                    class="break-all"
-                >
-                    <a
-                        :href="url"
-                        target="_blank"
-                        class="hover:underline"
-                    >{{ url }}</a>
-                </li>
-            </ul>
-        </div>
+            <div class="flex-1">
+                <p class="text-sm font-medium uploaded-text-title">Texture uploaded!</p>
+                <p class="text-xs uploaded-text-secondary">Ready to apply to ribbon</p>
+            </div>
 
-        <div class="flex flex-wrap gap-2">
             <button
-                v-for="(blobURL, tileNumber) in currentBlobURLs"
-                :key="tileNumber"
-                :disabled="downloadingTiles.has(blobURL)"
-                class="download-button bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center justify-center"
-                @click="download(blobURL, tileNumber)"
-                :aria-label="`Download Tile ${tileNumber}`"
+                @click="applyTexture"
+                class="apply-texture-btn bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 flex items-center gap-2"
             >
-                <span v-if="downloadingTiles.has(blobURL)">Downloading...</span>
-                <span v-else>Tile {{ tileNumber }}</span>
-
-                <!-- Spinner -->
-                <svg
-                    v-if="downloadingTiles.has(blobURL)"
-                    class="animate-spin h-5 w-5 text-white ml-2"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                >
-                    <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                    ></circle>
-                    <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                </svg>
-
-                <!-- Success/Error indicators -->
-                <span
-                    v-if="downloadSuccess[tileNumber]"
-                    class="ml-2"
-                >✓</span>
-                <span
-                    v-if="downloadError[tileNumber]"
-                    class="ml-2"
-                >✗</span>
+                <span class="material-symbols-outlined">check</span>
+                Apply
             </button>
         </div>
     </div>
@@ -220,13 +163,15 @@
 <script setup>
     import { computed, reactive, ref } from 'vue';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
-    import { downloadBlob } from '../../modules/slyce/blobDownloader.js';
     import { downloadAllAsZip } from '../../modules/slyce/zipDownloader.js';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useRivvonAPI } from '../../services/api.js';
 
     // Access the Pinia store
     const app = useSlyceStore();
+
+    // Emit events
+    const emit = defineEmits(['apply-texture']);
 
     // Google Auth and API integration
     const { isAuthenticated } = useGoogleAuth();
@@ -250,39 +195,7 @@
         return app.outputFormat === 'ktx2' ? app.ktx2BlobURLs : app.blobURLs;
     });
 
-    // Reactive sets to track downloading, success, and error states
-    const downloadingTiles = reactive(new Set());
-    const downloadSuccess = reactive({});
-    const downloadError = reactive({});
     const isDownloadingZip = ref(false);
-
-    // Download function
-    const download = async (blobUrl, tileNumber) => {
-        if (downloadingTiles.has(blobUrl)) return; // Prevent multiple downloads
-
-        downloadingTiles.add(blobUrl);
-        delete downloadSuccess[tileNumber];
-        delete downloadError[tileNumber];
-
-        try {
-            // Determine format descriptor based on output format
-            const format = app.outputFormat === 'ktx2'
-                ? { mime: 'image/ktx2', extension: 'ktx2' }
-                : { mime: 'video/webm', extension: 'webm' };
-
-            await downloadBlob(blobUrl, tileNumber, app.fileInfo, format);
-            downloadSuccess[tileNumber] = true;
-            // Remove success message after 3 seconds
-            setTimeout(() => delete downloadSuccess[tileNumber], 3000);
-        } catch (error) {
-            console.error(`Download failed for tile ${tileNumber}:`, error);
-            downloadError[tileNumber] = true;
-            // Remove error message after 3 seconds
-            setTimeout(() => delete downloadError[tileNumber], 3000);
-        } finally {
-            downloadingTiles.delete(blobUrl);
-        }
-    };
 
     // Download all tiles as ZIP
     const downloadAll = async () => {
@@ -373,6 +286,13 @@
             uploadedUrls.value = result.tiles.map((t) => t.url);
             uploadedThumbnailUrl.value = result.thumbnailUrl;
 
+            // Log CDN URLs to console for reference
+            console.log('[DownloadArea] Texture uploaded successfully:', {
+                textureSetId: result.textureSetId,
+                thumbnailUrl: result.thumbnailUrl,
+                tileUrls: result.tiles.map((t) => t.url),
+            });
+
             uploadSuccess.value = true;
             uploadProgress.value = '';
             setTimeout(() => { uploadSuccess.value = false; }, 5000);
@@ -384,6 +304,17 @@
         } finally {
             isUploading.value = false;
         }
+    };
+
+    // Apply texture to the ribbon
+    const applyTexture = () => {
+        if (!uploadedTextureSetId.value) return;
+
+        emit('apply-texture', {
+            id: uploadedTextureSetId.value,
+            name: textureName.value.trim() || app.fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture',
+            thumbnail_url: uploadedThumbnailUrl.value,
+        });
     };
 </script>
 
@@ -431,7 +362,7 @@
     }
 
     /* Uploaded URLs styling */
-    .uploaded-urls-container {
+    .uploaded-texture-container {
         background-color: var(--accent-green-light);
         border: 1px solid #10b98140;
     }
@@ -444,9 +375,8 @@
         color: var(--text-secondary);
     }
 
-    .uploaded-code {
-        background-color: var(--bg-muted);
-        color: var(--text-primary);
+    .apply-texture-btn {
+        min-height: 44px;
     }
 
     .download-all-button,
@@ -462,21 +392,6 @@
         .upload-cdn-button {
             width: auto;
         }
-    }
-
-    .download-button {
-        min-width: 100px;
-        min-height: 44px;
-        transition: background-color 0.3s;
-    }
-
-    .download-button:hover:not(:disabled) {
-        background-color: #2563eb;
-    }
-
-    .download-button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
     }
 
     .upload-options input[type="text"] {
