@@ -19,7 +19,7 @@ loadMaterialSymbols([
     'video_file', 'frame_source', 'barcode', 'timer', 'speed',
     'calculate', 'view_compact', 'rotate_right', 'equalizer',
     'arrow_range', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
-    'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'video_camera_back_add','arrow_back_ios','check','done_outline','info'
+    'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'video_camera_back_add','arrow_back_ios','check','done_outline'
 ]);
 
 // Import utilities

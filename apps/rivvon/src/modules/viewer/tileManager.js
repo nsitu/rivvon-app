@@ -109,7 +109,7 @@ export class TileManager {
         if (this.loadFromCDN) {
             console.log(`[TileManager] Loading default texture from CDN: ${DEFAULT_TEXTURE_ID}`);
             // Import fetchTextureSet dynamically to avoid circular dependency
-            const { fetchTextureSet } = await import('./textureService.js');
+            const { fetchTextureSet } = await import('../../services/textureService.js');
 
             try {
                 if (this.onProgress) {
