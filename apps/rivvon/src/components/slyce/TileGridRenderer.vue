@@ -60,7 +60,7 @@
     import { TileGridRendererWebGPU } from '../../modules/slyce/tileGridRenderer-webgpu.js';
 
     // Import grid calculator utility
-    import { calculateGridPositions } from '../../utils/slyce/grid-calculator.js';
+    import { calculateGridPositions } from '../../utils/grid-calculator.js';
 
     // Access the Pinia store
     const app = useSlyceStore();

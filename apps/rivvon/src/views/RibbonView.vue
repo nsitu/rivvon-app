@@ -1,25 +1,25 @@
 <script setup>
     import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
-    import { useViewerStore } from '../../stores/viewerStore';
-    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
-    import { useThreeSetup } from '../../composables/viewer/useThreeSetup';
-    import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../../modules/viewer/svgPathToPoints';
-    import { fetchTextureSet } from '../../services/textureService';
+    import { useViewerStore } from '../stores/viewerStore';
+    import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
+    import { useThreeSetup } from '../composables/viewer/useThreeSetup';
+    import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
+    import { fetchTextureSet } from '../services/textureService';
     import * as THREE from 'three';
 
     // Components
-    import AppHeader from '../../components/viewer/AppHeader.vue';
-    import BottomToolbar from '../../components/viewer/BottomToolbar.vue';
-    import CountdownNumbers from '../../components/viewer/CountdownNumbers.vue';
-    import CountdownProgressBar from '../../components/viewer/CountdownProgressBar.vue';
-    import TextInputPanel from '../../components/viewer/TextInputPanel.vue';
-    import TextureBrowser from '../../components/viewer/TextureBrowser.vue';
-    import TextureCreator from '../../components/viewer/TextureCreator.vue';
-    import BetaModal from '../../components/viewer/BetaModal.vue';
-    import ThreeCanvas from '../../components/viewer/ThreeCanvas.vue';
-    import DrawCanvas from '../../components/viewer/DrawCanvas.vue';
-    import RendererIndicator from '../../components/viewer/RendererIndicator.vue';
+    import AppHeader from '../components/viewer/AppHeader.vue';
+    import BottomToolbar from '../components/viewer/BottomToolbar.vue';
+    import CountdownNumbers from '../components/viewer/CountdownNumbers.vue';
+    import CountdownProgressBar from '../components/viewer/CountdownProgressBar.vue';
+    import TextInputPanel from '../components/viewer/TextInputPanel.vue';
+    import TextureBrowser from '../components/viewer/TextureBrowser.vue';
+    import TextureCreator from '../components/viewer/TextureCreator.vue';
+    import BetaModal from '../components/viewer/BetaModal.vue';
+    import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
+    import DrawCanvas from '../components/viewer/DrawCanvas.vue';
+    import RendererIndicator from '../components/viewer/RendererIndicator.vue';
 
     const app = useViewerStore();
     const { isAuthenticated } = useGoogleAuth();

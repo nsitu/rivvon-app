@@ -1,6 +1,6 @@
 <template>
     <div class="local-textures-page slyce-page">
-        <SlyceHeader />
+
 
         <div class="max-w-6xl mx-auto px-4 py-8">
             <div class="flex justify-between items-center mb-6">
@@ -162,14 +162,11 @@
             </div>
         </div>
 
-        <SlyceFooter />
     </div>
 </template>
 
 <script setup>
     import { ref, onMounted } from 'vue'
-    import SlyceHeader from '../../components/slyce/Header.vue'
-    import SlyceFooter from '../../components/slyce/Footer.vue'
     // TODO: Import localStorage service when implemented
     // import { useLocalStorage } from '../../services/localStorage'
 

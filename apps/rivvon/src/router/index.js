@@ -8,12 +8,12 @@ const routes = [
     {
         path: '/',
         name: 'home',
-        component: () => import('../views/viewer/RibbonView.vue')
+        component: () => import('../views/RibbonView.vue')
     },
     {
         path: '/texture/:textureId',
         name: 'texture',
-        component: () => import('../views/viewer/RibbonView.vue'),
+        component: () => import('../views/RibbonView.vue'),
         props: true
     },
     
@@ -33,7 +33,7 @@ const routes = [
     {
         path: '/slyce/local',
         name: 'local-textures',
-        component: () => import('../views/slyce/LocalTexturesView.vue')
+        component: () => import('../views/LocalTexturesView.vue')
     },
     
     // ============ SHARED ROUTES ============
