@@ -1,18 +1,70 @@
 <script setup>
-    import { ref } from 'vue';
+    import { ref, computed } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import Dialog from 'primevue/dialog';
+    import Button from 'primevue/button';
+    import Menu from 'primevue/menu';
 
     const app = useViewerStore();
     const { user, isAuthenticated, login, logout } = useGoogleAuth();
 
     const showInfoDialog = ref(false);
+    const menu = ref();
+
+    function toggleMenu(event) {
+        menu.value.toggle(event);
+    }
 
     function handleLoginClick() {
         // Show beta modal before login
         app.showBetaModal();
     }
+
+    // Build menu items based on auth state
+    const menuItems = computed(() => {
+        const items = [
+            {
+                label: 'About Rivvon',
+                icon: 'pi pi-info-circle',
+                command: () => {
+                    showInfoDialog.value = true;
+                }
+            }
+        ];
+
+        if (isAuthenticated.value) {
+            items.unshift({
+                label: user.value?.name || user.value?.email || 'User',
+                icon: 'pi pi-user',
+                disabled: true,
+                class: 'menu-user-item'
+            });
+            items.push({
+                separator: true
+            });
+            items.push({
+                label: 'Sign out',
+                icon: 'pi pi-sign-out',
+                command: () => {
+                    logout();
+                }
+            });
+        } else {
+            items.push({
+                separator: true
+            });
+            items.push({
+                label: 'Sign in with Google',
+                icon: 'pi pi-sign-in',
+                command: () => {
+                    handleLoginClick();
+                }
+            });
+        }
+
+        return items;
+    });
 </script>
 
 <template>
@@ -31,41 +83,25 @@
             />
         </a>
 
-        <!-- Auth controls -->
-        <div class="auth-container">
-            <!-- Info button -->
-            <button
-                class="auth-btn info-btn"
-                title="About Rivvon"
-                @click="showInfoDialog = true"
-            >
-                <span class="material-symbols-outlined">info</span>
-            </button>
-
-            <!-- Login button (when not authenticated) -->
-            <button
-                v-if="!isAuthenticated"
-                class="auth-btn login-btn"
-                title="Sign in with Google"
-                @click="handleLoginClick"
-            >
-                <span class="material-symbols-outlined">person</span>
-            </button>
-
-            <!-- User info (when authenticated) -->
-            <div
-                v-else
-                class="user-info"
-            >
-                <span class="user-name">{{ user?.name || user?.email }}</span>
-                <button
-                    class="auth-btn logout-btn"
-                    title="Sign out"
-                    @click="logout"
-                >
-                    <span class="material-symbols-outlined">logout</span>
-                </button>
-            </div>
+        <!-- Menu button and popup -->
+        <div class="menu-container">
+            <Button
+                type="button"
+                class="menu-toggle-btn"
+                @click="toggleMenu"
+                aria-haspopup="true"
+                aria-controls="header_menu"
+                text
+            ><span class="material-symbols-outlined">
+                    menu
+                </span>
+            </Button>
+            <Menu
+                ref="menu"
+                id="header_menu"
+                :model="menuItems"
+                :popup="true"
+            />
         </div>
 
         <!-- Info Dialog -->
@@ -164,41 +200,21 @@
         background: rgba(0, 0, 0, 0.25);
     }
 
-    .auth-container {
+    .menu-container {
         display: flex;
         align-items: center;
     }
 
-    .auth-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+    .menu-toggle-btn {
         padding: 2rem 1rem;
-        color: white;
+        color: white !important;
         border: none;
         cursor: pointer;
+        background: transparent !important;
     }
 
-    .auth-btn:hover {
-        background: rgba(0, 0, 0, 0.25);
-    }
-
-    .user-info {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .user-name {
-        color: white;
-        font-size: 0.9rem;
-
-    }
-
-    .logout-btn {
-        padding: 2rem 1rem;
-        min-width: auto;
-        min-height: auto;
+    .menu-toggle-btn:hover {
+        background: rgba(0, 0, 0, 0.25) !important;
     }
 
     /* Mobile adjustments */

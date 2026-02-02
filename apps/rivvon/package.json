@@ -13,28 +13,28 @@
     "lint": "echo 'No linter configured'"
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
-    "tailwindcss": "^4.1.14",
-    "vite": "^7.3.0",
-    "vite-plugin-vue-devtools": "^8.0.3"
+    "autoprefixer": "^10.4.24",
+    "tailwindcss": "^4.1.18",
+    "vite": "^7.3.1",
+    "vite-plugin-vue-devtools": "^8.0.5"
   },
   "dependencies": {
-    "@primevue/themes": "^4.4.1",
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-vue": "^6.0.1",
-    "@vueuse/core": "^13.9.0",
+    "@primeuix/themes": "^2.0.3",
+    "@tailwindcss/vite": "^4.1.18",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vueuse/core": "^14.2.0",
     "canvas-size": "^2.0.0",
     "events": "^3.3.0",
     "jszip": "^3.10.1",
     "ktx-parse": "^1.1.0",
-    "mediabunny": "^1.24.0",
-    "pinia": "^3.0.3",
-    "primevue": "^4.4.1",
+    "mediabunny": "^1.31.0",
+    "pinia": "^3.0.4",
+    "primevue": "^4.5.4",
     "svgpath": "^2.6.0",
     "three": "^0.182.0",
-    "vite-plugin-static-copy": "^3.1.4",
-    "vue": "^3.5.22",
-    "vue-router": "^4.6.4",
-    "workerpool": "^9.3.4"
+    "vite-plugin-static-copy": "^3.2.0",
+    "vue": "^3.5.27",
+    "vue-router": "^5.0.2",
+    "workerpool": "^10.0.1"
   }
 }

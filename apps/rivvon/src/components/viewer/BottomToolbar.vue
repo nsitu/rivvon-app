@@ -132,18 +132,9 @@
             :class="{ active: app.flowState !== 'off' }"
             @click="emit('toggle-flow')"
         >
-            <span
-                v-if="app.flowState === 'off'"
-                class="material-symbols-outlined"
-            >sprint</span>
-            <span
-                v-else-if="app.flowState === 'forward'"
-                class="material-symbols-outlined"
-            >arrow_forward</span>
-            <span
-                v-else
-                class="material-symbols-outlined"
-            >arrow_back</span>
+            <span class="material-symbols-outlined">
+                speed
+            </span>
         </button>
 
         <!-- Fullscreen toggle -->
