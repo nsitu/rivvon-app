@@ -56,9 +56,6 @@
     >
         <div class="text-input-container">
             <div class="text-input-content">
-                <div class="text-panel-header">
-                    <h2>Text to Ribbon</h2>
-                </div>
 
                 <div class="text-form">
                     <div class="form-group">
@@ -102,7 +99,7 @@
                         @click="generate"
                     >
                         <span class="material-symbols-outlined">check</span>
-                        Generate
+                        Go
                     </button>
 
                     <p
@@ -154,17 +151,6 @@
         width: 100%;
         max-width: 500px;
         margin: 0 auto;
-    }
-
-    .text-panel-header {
-        margin-bottom: 2rem;
-    }
-
-    .text-panel-header h2 {
-        color: #fff;
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin: 0;
     }
 
     .text-form {
