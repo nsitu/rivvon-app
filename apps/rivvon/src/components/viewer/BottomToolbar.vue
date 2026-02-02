@@ -30,6 +30,11 @@
         emit('export-image');
     }
 
+    function handleExportVideo() {
+        importPopover.value.hide();
+        emit('export-video');
+    }
+
     const emit = defineEmits([
         'toggle-draw-mode',
         'toggle-flow',
@@ -37,6 +42,7 @@
         'open-texture-browser',
         'import-file',
         'export-image',
+        'export-video',
         'toggle-fullscreen',
         'finish-drawing'
     ]);
@@ -118,6 +124,7 @@
             @click="emit('finish-drawing')"
         >
             <span class="material-symbols-outlined">check</span>
+            <span>OK</span>
         </button>
 
         <!-- Text to SVG -->
@@ -184,6 +191,13 @@
                     <span class="material-symbols-outlined">image</span>
                     <span>Export Image</span>
                 </button>
+                <button
+                    class="import-option"
+                    @click="handleExportVideo"
+                >
+                    <span class="material-symbols-outlined">videocam</span>
+                    <span>Export Video (5s)</span>
+                </button>
             </div>
         </Popover>
 
@@ -210,8 +224,8 @@
                     :class="{ selected: app.flowState === 'off' }"
                     @click="setFlowState('off')"
                 >
-                    <span class="material-symbols-outlined">block</span>
-                    <span>Off</span>
+                    <span class="material-symbols-outlined">airwave</span>
+                    <span>Standard</span>
                 </button>
                 <button
                     class="flow-option"

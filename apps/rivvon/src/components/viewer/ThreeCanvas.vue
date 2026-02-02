@@ -33,7 +33,9 @@
         loadTexturesFromRemote,
         loadTexturesFromLocal,
         setFlowState,
-        exportImage
+        exportImage,
+        exportVideo,
+        setBackgroundFromUrl
     } = useThreeSetup();
 
     onMounted(async () => {
@@ -95,7 +97,9 @@
         loadTexturesFromRemote,
         loadTexturesFromLocal,
         setFlowState,
-        exportImage
+        exportImage,
+        exportVideo,
+        setBackgroundFromUrl
     });
 </script>
 

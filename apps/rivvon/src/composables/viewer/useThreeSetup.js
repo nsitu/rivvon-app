@@ -25,6 +25,7 @@ export function useThreeSetup() {
     
     const isInitialized = ref(false);
     const resetCamera = ref(null);
+    const backgroundTexture = shallowRef(null);
     
     let animationId = null;
     let renderCallback = null;
@@ -169,6 +170,105 @@ export function useThreeSetup() {
         } catch (error) {
             console.error('[ThreeSetup] Failed to export image:', error);
         }
+    }
+
+    /**
+     * Export the current scene as a video clip using MediaRecorder
+     * @param {Object} options - Export options
+     * @param {number} options.duration - Duration in seconds (default: 5)
+     * @param {number} options.fps - Frames per second (default: 30)
+     * @param {string} options.filename - Output filename (default: 'rivvon-export.webm')
+     * @param {Function} options.onProgress - Progress callback receiving value 0-1
+     * @param {Function} options.onStart - Called when recording starts
+     * @param {Function} options.onComplete - Called when recording completes with blob
+     * @returns {Promise<Blob>} The recorded video blob
+     */
+    async function exportVideo(options = {}) {
+        const {
+            duration = 5,
+            fps = 30,
+            filename = 'rivvon-export.webm',
+            onProgress = null,
+            onStart = null,
+            onComplete = null
+        } = options;
+
+        if (!renderer.value || !scene.value || !camera.value) {
+            console.error('[ThreeSetup] Cannot export video - not initialized');
+            return null;
+        }
+
+        const canvas = renderer.value.domElement;
+        const stream = canvas.captureStream(fps);
+
+        // Check for codec support - prefer VP9 for better quality
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? 'video/webm;codecs=vp9'
+            : 'video/webm';
+
+        const recorder = new MediaRecorder(stream, {
+            mimeType,
+            videoBitsPerSecond: 8000000 // 8 Mbps for good quality
+        });
+
+        const chunks = [];
+
+        console.log(`[ThreeSetup] Starting video export: ${duration}s at ${fps}fps, codec: ${mimeType}`);
+
+        return new Promise((resolve, reject) => {
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunks.push(e.data);
+                }
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: mimeType });
+                const url = URL.createObjectURL(blob);
+
+                // Trigger download
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = url;
+                link.click();
+
+                // Clean up
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                console.log('[ThreeSetup] Video exported:', filename, `(${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+
+                if (onComplete) onComplete(blob);
+                resolve(blob);
+            };
+
+            recorder.onerror = (event) => {
+                console.error('[ThreeSetup] Video export failed:', event.error);
+                reject(event.error);
+            };
+
+            // Start recording
+            recorder.start(100); // Collect data every 100ms for smoother progress
+            if (onStart) onStart();
+
+            // Progress tracking
+            const startTime = performance.now();
+            const durationMs = duration * 1000;
+
+            const progressInterval = setInterval(() => {
+                const elapsed = performance.now() - startTime;
+                const progress = Math.min(elapsed / durationMs, 1);
+                if (onProgress) onProgress(progress);
+            }, 100);
+
+            // Stop after duration
+            setTimeout(() => {
+                clearInterval(progressInterval);
+                if (recorder.state === 'recording') {
+                    recorder.stop();
+                }
+                if (onProgress) onProgress(1);
+            }, durationMs);
+        });
     }
 
     /**
@@ -437,6 +537,13 @@ export function useThreeSetup() {
     onUnmounted(() => {
         stopRenderLoop();
         
+        if (backgroundTexture.value) {
+            backgroundTexture.value.dispose();
+            backgroundTexture.value = null;
+            if (scene.value) {
+                scene.value.background = null;
+            }
+        }
         if (ribbon.value) {
             ribbon.value.dispose();
             ribbon.value = null;
@@ -509,6 +616,108 @@ export function useThreeSetup() {
         loadTexturesFromRemote,
         loadTexturesFromLocal,
         setFlowState,
-        exportImage
+        exportImage,
+        exportVideo,
+        setBackgroundFromUrl
     };
+
+    /**
+     * Set scene background from an image URL with pre-applied blur
+     * This renders the background as part of the Three.js scene so it appears in exports
+     * @param {string|null} imageUrl - URL of the image, or null to clear
+     * @param {Object} options - Blur options
+     * @param {number} options.blurRadius - Blur radius in pixels (default: 60)
+     * @param {number} options.saturation - Saturation multiplier (default: 1.2)
+     * @param {number} options.opacity - Background opacity 0-1 (default: 0.7)
+     */
+    async function setBackgroundFromUrl(imageUrl, options = {}) {
+        const {
+            blurRadius = 15,
+            saturation = 1.2,
+            opacity = 0.7
+        } = options;
+
+        // Dispose previous background texture
+        if (backgroundTexture.value) {
+            backgroundTexture.value.dispose();
+            backgroundTexture.value = null;
+        }
+
+        if (!imageUrl) {
+            if (scene.value) {
+                scene.value.background = null;
+            }
+            return;
+        }
+
+        if (!scene.value) {
+            console.warn('[ThreeSetup] Cannot set background - scene not initialized');
+            return;
+        }
+
+        try {
+            // Load the image
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = () => reject(new Error('Failed to load background image'));
+                img.src = imageUrl;
+            });
+
+            // Create an offscreen canvas for pre-blurring
+            // Use lower resolution for performance (blur hides detail anyway)
+            const maxSize = 512;
+            const aspectRatio = img.width / img.height;
+            let canvasWidth, canvasHeight;
+
+            if (aspectRatio > 1) {
+                canvasWidth = maxSize;
+                canvasHeight = Math.round(maxSize / aspectRatio);
+            } else {
+                canvasHeight = maxSize;
+                canvasWidth = Math.round(maxSize * aspectRatio);
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            const ctx = canvas.getContext('2d');
+
+            // Scale blur radius proportionally to canvas size
+            const scaledBlur = Math.round(blurRadius * (canvasWidth / img.width) * 2);
+
+            // Apply blur and saturation via CSS filter
+            ctx.filter = `blur(${scaledBlur}px) saturate(${saturation})`;
+
+            // Draw image slightly larger to avoid edge artifacts from blur
+            const overflow = scaledBlur * 2;
+            ctx.drawImage(
+                img,
+                -overflow,
+                -overflow,
+                canvasWidth + overflow * 2,
+                canvasHeight + overflow * 2
+            );
+
+            // Apply opacity by drawing a semi-transparent overlay
+            ctx.filter = 'none';
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            // Create Three.js texture from canvas
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            backgroundTexture.value = texture;
+
+            // Set as scene background
+            scene.value.background = texture;
+
+            console.log('[ThreeSetup] Background set from URL with pre-blur');
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to set background:', error);
+        }
+    }
 }

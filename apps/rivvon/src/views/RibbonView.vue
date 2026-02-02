@@ -35,20 +35,6 @@
     // Local state
     const isReady = ref(false);
 
-    // Background style based on thumbnail
-    const backgroundStyle = computed(() => {
-        if (app.thumbnailUrl) {
-            return {
-                backgroundImage: `url(${app.thumbnailUrl})`
-            };
-        }
-        return {};
-    });
-
-    const backgroundClass = computed(() => {
-        return app.thumbnailUrl ? 'visible' : '';
-    });
-
     // Watch drawing mode to control renderer visibility
     watch(() => app.isDrawingMode, (isDrawing) => {
         // Hide/show the Three.js canvas when in drawing mode
@@ -59,6 +45,14 @@
         // Also disable orbit controls when drawing
         if (threeCanvasRef.value?.controls) {
             threeCanvasRef.value.controls.enabled = !isDrawing;
+        }
+    });
+
+    // Watch thumbnail URL changes and update Three.js scene background
+    // This makes the blurred background part of the scene for video/image exports
+    watch(() => app.thumbnailUrl, (url) => {
+        if (threeCanvasRef.value?.setBackgroundFromUrl) {
+            threeCanvasRef.value.setBackgroundFromUrl(url);
         }
     });
 
@@ -237,6 +231,38 @@
         threeCanvasRef.value?.exportImage(filename);
     }
 
+    // Video export handler
+    async function handleExportVideo() {
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `rivvon-${timestamp}.webm`;
+
+        isLoadingTexture.value = true;
+        loadingProgress.value = 'Recording video... 0%';
+
+        try {
+            await threeCanvasRef.value?.exportVideo({
+                duration: 5,
+                fps: 30,
+                filename,
+                onProgress: (progress) => {
+                    loadingProgress.value = `Recording video... ${Math.round(progress * 100)}%`;
+                },
+                onComplete: () => {
+                    loadingProgress.value = 'Video saved!';
+                }
+            });
+        } catch (error) {
+            console.error('Video export failed:', error);
+            loadingProgress.value = 'Video export failed';
+        } finally {
+            // Brief delay to show completion message
+            setTimeout(() => {
+                isLoadingTexture.value = false;
+            }, 500);
+        }
+    }
+
     // Texture browser handler
     function openTextureBrowser() {
         app.showTextureBrowser();
@@ -395,15 +421,6 @@
 </script>
 
 <template>
-    <!-- Blurred background teleported to body for correct stacking with Three.js canvas -->
-    <Teleport to="body">
-        <div
-            class="blurred-background"
-            :class="backgroundClass"
-            :style="backgroundStyle"
-        ></div>
-    </Teleport>
-
     <div class="ribbon-view">
         <!-- Checkerboard for drawing mode -->
         <div
@@ -445,6 +462,7 @@
             @open-texture-browser="openTextureBrowser"
             @import-file="openFileImport"
             @export-image="handleExportImage"
+            @export-video="handleExportVideo"
             @finish-drawing="finishDrawing"
         />
 
@@ -494,31 +512,6 @@
         </Transition>
     </div>
 </template>
-
-<!-- Unscoped styles for teleported elements -->
-<style>
-
-    /* Blurred background - teleported to body, must be unscoped */
-    .blurred-background {
-        position: fixed;
-        top: -10%;
-        left: -10%;
-        width: 120%;
-        height: 120%;
-        z-index: -1;
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        filter: blur(60px) saturate(1.2);
-        opacity: 0;
-        transition: opacity 0.8s ease-in-out;
-        pointer-events: none;
-    }
-
-    .blurred-background.visible {
-        opacity: 0.7;
-    }
-</style>
 
 <style scoped>
     .ribbon-view {

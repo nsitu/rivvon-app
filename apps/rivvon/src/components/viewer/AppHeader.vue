@@ -210,12 +210,14 @@
         color: white !important;
         border: none !important;
         cursor: pointer;
+        border-radius: 0 !important;
         background: transparent !important;
     }
 
     .menu-toggle-btn:hover {
         background: rgba(0, 0, 0, 0.25) !important;
-        border: 1px solid transparent !important;
+        border-radius: 0 !important;
+        border: none !important;
     }
 
     /* Mobile adjustments */
