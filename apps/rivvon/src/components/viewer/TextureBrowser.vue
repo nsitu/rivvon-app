@@ -4,6 +4,7 @@
     import { fetchTextures } from '../../services/textureService';
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
+    import { useLocalStorage } from '../../services/localStorage.js';
 
     const props = defineProps({
         visible: {
@@ -16,14 +17,16 @@
         }
     });
 
-    const emit = defineEmits(['close', 'select']);
+    const emit = defineEmits(['close', 'select', 'select-local']);
 
     const app = useViewerStore();
     const { deleteTextureSet } = useRivvonAPI();
     const { isAuthenticated, user } = useGoogleAuth();
+    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet } = useLocalStorage();
 
     // State
     const textures = ref([]);
+    const localTextures = ref([]);
     const isLoading = ref(false);
     const error = ref(null);
     const hasLoaded = ref(false);
@@ -32,19 +35,55 @@
     // Delete state
     const textureToDelete = ref(null);
     const deletingId = ref(null);
+    const isLocalDelete = ref(false);
 
-    // Filtered textures based on active tab
-    const filteredTextures = computed(() => {
-        if (activeTab.value === 'mine' && user.value) {
-            // Use google_id for reliable cross-environment ownership check
-            return textures.value.filter(t => t.owner_google_id === user.value.googleId);
+    // Combined textures for display (adds isLocal flag to distinguish)
+    const displayTextures = computed(() => {
+        const tab = activeTab.value;
+
+        // Map local textures with isLocal flag
+        const localMapped = localTextures.value.map(t => ({
+            ...t,
+            isLocal: true,
+            thumbnail_url: t.thumbnail_data_url // normalize field name
+        }));
+
+        // Map cloud textures with isLocal flag
+        const cloudMapped = textures.value.map(t => ({
+            ...t,
+            isLocal: false
+        }));
+
+        switch (tab) {
+            case 'local':
+                // My Local: only local textures
+                return localMapped;
+            case 'my-cloud':
+                // My Cloud: user's own cloud textures
+                if (!user.value) return [];
+                return cloudMapped.filter(t => t.owner_google_id === user.value.googleId);
+            case 'public':
+                // Public: all cloud textures (stored on Cloudflare)
+                return cloudMapped;
+            case 'all':
+            default:
+                // All: combine local + cloud, sorted by date (newest first)
+                return [...localMapped, ...cloudMapped].sort((a, b) => {
+                    const dateA = a.created_at || 0;
+                    const dateB = b.created_at || 0;
+                    return dateB - dateA;
+                });
         }
-        return textures.value;
     });
 
     // Check if current user owns a texture (using google_id for cross-environment reliability)
     function isOwner(texture) {
         return user.value && texture.owner_google_id === user.value.googleId;
+    }
+
+    // Check if texture is local
+    function isLocalTexture(texture) {
+        return texture.isLocal === true;
     }
 
     // Load textures when component mounts or visibility changes
@@ -62,8 +101,17 @@
         error.value = null;
 
         try {
-            const result = await fetchTextures({ limit: 100 });
+            // Load both remote and local textures
+            const [result, localResult] = await Promise.all([
+                fetchTextures({ limit: 100 }),
+                getLocalTextures().catch(err => {
+                    console.warn('[TextureBrowser] Failed to load local textures:', err);
+                    return [];
+                })
+            ]);
+
             textures.value = result.textures || [];
+            localTextures.value = localResult || [];
             hasLoaded.value = true;
         } catch (err) {
             console.error('[TextureBrowser] Failed to load textures:', err);
@@ -71,6 +119,12 @@
         } finally {
             isLoading.value = false;
         }
+    }
+
+    function selectLocalTexture(texture) {
+        console.log('[TextureBrowser] Selected local texture:', texture.id, texture.name);
+        emit('select-local', texture);
+        close();
     }
 
     function selectTexture(texture) {
@@ -98,6 +152,7 @@
     function confirmDelete(texture, event) {
         event.stopPropagation(); // Prevent card click
         textureToDelete.value = texture;
+        isLocalDelete.value = isLocalTexture(texture);
     }
 
     async function performDelete() {
@@ -105,15 +160,22 @@
 
         deletingId.value = textureToDelete.value.id;
         try {
-            await deleteTextureSet(textureToDelete.value.id);
-            // Remove from local list
-            textures.value = textures.value.filter(t => t.id !== textureToDelete.value.id);
+            if (isLocalDelete.value) {
+                // Delete from IndexedDB
+                await deleteLocalTextureSet(textureToDelete.value.id);
+                localTextures.value = localTextures.value.filter(t => t.id !== textureToDelete.value.id);
+            } else {
+                // Delete from cloud
+                await deleteTextureSet(textureToDelete.value.id);
+                textures.value = textures.value.filter(t => t.id !== textureToDelete.value.id);
+            }
             textureToDelete.value = null;
         } catch (err) {
             console.error('[TextureBrowser] Failed to delete texture:', err);
             error.value = 'Failed to delete: ' + err.message;
         } finally {
             deletingId.value = null;
+            isLocalDelete.value = false;
         }
     }
 
@@ -144,6 +206,11 @@
         div.textContent = text;
         return div.innerHTML;
     }
+
+    function formatDate(timestamp) {
+        if (!timestamp) return 'Unknown';
+        return new Date(timestamp).toLocaleDateString();
+    }
 </script>
 
 <template>
@@ -165,14 +232,26 @@
                             :class="['tab-button', { active: activeTab === 'all' }]"
                             @click="activeTab = 'all'"
                         >
-                            All Textures
+                            All
+                        </button>
+                        <button
+                            :class="['tab-button', { active: activeTab === 'local' }]"
+                            @click="activeTab = 'local'"
+                        >
+                            My Local
                         </button>
                         <button
                             v-if="isAuthenticated"
-                            :class="['tab-button', { active: activeTab === 'mine' }]"
-                            @click="activeTab = 'mine'"
+                            :class="['tab-button', { active: activeTab === 'my-cloud' }]"
+                            @click="activeTab = 'my-cloud'"
                         >
-                            My Textures
+                            My Cloud
+                        </button>
+                        <button
+                            :class="['tab-button', { active: activeTab === 'public' }]"
+                            @click="activeTab = 'public'"
+                        >
+                            Public
                         </button>
                     </div>
                 </div>
@@ -199,11 +278,18 @@
 
                 <!-- Empty state -->
                 <div
-                    v-else-if="filteredTextures.length === 0"
+                    v-else-if="displayTextures.length === 0"
                     class="texture-browser-empty"
                 >
-                    <template v-if="activeTab === 'mine'">
-                        You haven't created any textures yet.
+                    <template v-if="activeTab === 'local'">
+                        No local textures saved yet.
+                        <a
+                            href="/slyce"
+                            class="slyce-link"
+                        >Create one with slyce</a>
+                    </template>
+                    <template v-else-if="activeTab === 'my-cloud'">
+                        You haven't uploaded any textures to the cloud yet.
                         <a
                             href="/slyce"
                             class="slyce-link"
@@ -214,20 +300,21 @@
                     </template>
                 </div>
 
-                <!-- Texture grid -->
+                <!-- Unified Texture grid -->
                 <div
-                    v-else
+                    v-if="displayTextures.length > 0 && !isLoading && !error"
                     class="texture-browser-list"
                 >
                     <div
-                        v-for="texture in filteredTextures"
+                        v-for="texture in displayTextures"
                         :key="texture.id"
                         class="texture-card"
+                        :class="{ 'local-texture-card': isLocalTexture(texture) }"
                         role="button"
                         tabindex="0"
-                        @click="selectTexture(texture)"
-                        @keydown.enter="selectTexture(texture)"
-                        @keydown.space.prevent="selectTexture(texture)"
+                        @click="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
+                        @keydown.enter="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
+                        @keydown.space.prevent="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
                     >
                         <!-- Thumbnail -->
                         <div class="texture-card-thumbnail">
@@ -244,6 +331,14 @@
                             </div>
                             <!-- Storage indicator badge -->
                             <div
+                                v-if="isLocalTexture(texture)"
+                                class="storage-badge local-badge"
+                                title="Stored locally in browser"
+                            >
+                                <span class="material-symbols-outlined">hard_drive</span>
+                            </div>
+                            <div
+                                v-else
                                 class="storage-badge"
                                 :class="{ 'requires-auth': getStorageInfo(texture).requiresAuth }"
                                 :title="getStorageInfo(texture).label"
@@ -254,9 +349,9 @@
                                     class="storage-icon"
                                 />
                             </div>
-                            <!-- Delete button for owned textures -->
+                            <!-- Delete button for owned textures (cloud) or all local -->
                             <button
-                                v-if="isOwner(texture)"
+                                v-if="isLocalTexture(texture) || isOwner(texture)"
                                 class="delete-button"
                                 title="Delete texture"
                                 @click="confirmDelete(texture, $event)"
@@ -284,9 +379,9 @@
                         <div class="texture-card-info">
                             <h3 class="texture-card-name">{{ texture.name }}</h3>
 
-                            <!-- Owner -->
+                            <!-- Owner (cloud textures only) -->
                             <div
-                                v-if="texture.owner_name"
+                                v-if="!isLocalTexture(texture) && texture.owner_name"
                                 class="texture-card-owner"
                             >
                                 <img
@@ -310,14 +405,20 @@
                                 <span>{{ texture.tile_resolution }}px</span>
                                 <span>{{ texture.cross_section_type || 'waves' }}</span>
                                 <span>{{ texture.layer_count }} layers</span>
-                                <span v-if="formatSize(texture.total_size_bytes)">
+                                <span v-if="!isLocalTexture(texture) && formatSize(texture.total_size_bytes)">
                                     {{ formatSize(texture.total_size_bytes) }}
                                 </span>
                             </div>
 
-                            <!-- Frame info -->
+                            <!-- Frame info / Created date -->
                             <p
-                                v-if="texture.sampled_frame_count && texture.source_frame_count"
+                                v-if="isLocalTexture(texture)"
+                                class="texture-card-frames"
+                            >
+                                Saved {{ formatDate(texture.created_at) }}
+                            </p>
+                            <p
+                                v-else-if="texture.sampled_frame_count && texture.source_frame_count"
                                 class="texture-card-frames"
                             >
                                 Sampled from {{ texture.sampled_frame_count }} of {{ texture.source_frame_count }}
@@ -330,9 +431,9 @@
                                 Sampled from {{ texture.source_frame_count }} source frames
                             </p>
 
-                            <!-- Description -->
+                            <!-- Description (cloud textures only) -->
                             <p
-                                v-if="texture.description"
+                                v-if="!isLocalTexture(texture) && texture.description"
                                 class="texture-card-desc"
                             >
                                 {{ texture.description }}
@@ -358,16 +459,20 @@
             <div
                 v-if="textureToDelete"
                 class="delete-modal-overlay"
-                @click.self="textureToDelete = null"
+                @click.self="textureToDelete = null; isLocalDelete = false"
             >
                 <div class="delete-modal">
-                    <h3>Delete Texture</h3>
+                    <h3>Delete {{ isLocalDelete ? 'Local' : 'Cloud' }} Texture</h3>
                     <p>Are you sure you want to delete "<strong>{{ textureToDelete.name }}</strong>"?</p>
-                    <p class="delete-warning">This action cannot be undone.</p>
+                    <p class="delete-warning">
+                        {{ isLocalDelete ? 'This will remove the texture from your browser storage.' : 'This action
+                        cannot be
+                        undone.' }}
+                    </p>
                     <div class="delete-modal-actions">
                         <button
                             class="cancel-button"
-                            @click="textureToDelete = null"
+                            @click="textureToDelete = null; isLocalDelete = false"
                             :disabled="deletingId"
                         >
                             Cancel
@@ -795,5 +900,25 @@
     .confirm-delete-button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+    }
+
+    /* Local Texture Styling */
+    .local-texture-card {
+        border: 2px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .local-texture-card:hover {
+        border-color: #3b82f6;
+    }
+
+    .local-badge {
+        background: rgba(59, 130, 246, 0.9);
+        padding: 4px;
+        min-width: 28px;
+    }
+
+    .local-badge .material-symbols-outlined {
+        font-size: 18px;
+        color: #fff;
     }
 </style>

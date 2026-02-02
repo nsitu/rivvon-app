@@ -1411,4 +1411,115 @@ export class TileManager {
             return false;
         }
     }
+
+    /**
+     * Load textures from local IndexedDB storage.
+     * Reads KTX2 tiles from browser storage and builds materials.
+     * @param {Object} textureSet - Texture set metadata from localStorage service
+     * @param {string} textureSet.id - Texture set ID
+     * @param {number} textureSet.tile_count - Number of tiles
+     * @param {number} textureSet.layer_count - Layers per tile
+     * @param {string} textureSet.cross_section_type - 'planes' or 'waves'
+     * @param {string} textureSet.thumbnail_data_url - Thumbnail for background
+     * @param {Function} getTiles - Function to get tiles from localStorage: (textureSetId) => Promise<Array>
+     * @param {Function} onProgress - Optional progress callback: (stage, current, total) => {}
+     * @returns {Promise<boolean>} True if successful, false otherwise
+     */
+    async loadFromLocal(textureSet, getTiles, onProgress = null) {
+        try {
+            const { id, tile_count, layer_count, cross_section_type, thumbnail_data_url } = textureSet;
+
+            console.log(`[TileManager] Loading local texture set: ${id}, ${tile_count} tiles`);
+
+            // Clean up existing materials
+            this.#disposeMaterials();
+
+            // Update state from texture set metadata
+            this.tileCount = tile_count;
+            this.variant = cross_section_type || 'waves';
+            this.isKTX2 = true;
+            this.isZip = true; // Use zip-like flow to parse from buffers
+
+            // Store texture set for thumbnail access
+            this.currentTextureSet = {
+                ...textureSet,
+                thumbnail_url: thumbnail_data_url
+            };
+
+            // Reset layer state
+            this.layerCount = 0;
+            this.currentLayer = 0;
+            this.direction = 1;
+            this.sharedLayerUniform.value = 0;
+
+            // Reset flow state
+            this.tileFlowOffset = 0;
+            this.flowAccumulator = 0;
+
+            // Initialize KTX2 loader if not already done
+            if (!this._ktx2Loader) {
+                const ok = await this.#initKTX2();
+                if (!ok) {
+                    console.error('[TileManager] Failed to initialize KTX2 loader for local textures');
+                    return false;
+                }
+            }
+
+            // Fetch tiles from IndexedDB
+            if (onProgress) {
+                onProgress('downloading', 0, tile_count);
+            }
+
+            const tiles = await getTiles(id);
+
+            if (!tiles || tiles.length === 0) {
+                console.error('[TileManager] No tiles found in local texture set');
+                return false;
+            }
+
+            // Convert blobs to Uint8Arrays and store in zipFiles format
+            this.zipFiles = {};
+            let loadedCount = 0;
+
+            for (const tile of tiles) {
+                if (tile.blob) {
+                    const arrayBuffer = await tile.blob.arrayBuffer();
+                    this.zipFiles[`${tile.tile_index}.ktx2`] = new Uint8Array(arrayBuffer);
+                    loadedCount++;
+                    if (onProgress) {
+                        onProgress('downloading', loadedCount, tile_count);
+                    }
+                }
+            }
+
+            console.log(`[TileManager] Loaded ${loadedCount} tiles from IndexedDB`);
+
+            // Build materials with progress tracking
+            let completedBuilds = 0;
+            if (onProgress) {
+                onProgress('building', 0, this.tileCount);
+            }
+
+            const promises = [];
+            for (let i = 0; i < this.tileCount; i++) {
+                const promise = this.#loadKTX2Tile(i).then(result => {
+                    completedBuilds++;
+                    if (onProgress) {
+                        onProgress('building', completedBuilds, this.tileCount);
+                    }
+                    return result;
+                });
+                promises.push(promise);
+            }
+
+            const results = await Promise.all(promises);
+            this.materials = results;
+
+            console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from local, layerCount=${this.layerCount}`);
+            return true;
+        } catch (error) {
+            console.error('[TileManager] Failed to load local textures:', error);
+            return false;
+        }
+    }
 }

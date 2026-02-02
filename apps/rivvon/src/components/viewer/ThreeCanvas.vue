@@ -31,6 +31,7 @@
         createRibbonFromDrawing,
         loadTextures,
         loadTexturesFromRemote,
+        loadTexturesFromLocal,
         setFlowEnabled
     } = useThreeSetup();
 
@@ -91,6 +92,7 @@
         createRibbonFromDrawing,
         loadTextures,
         loadTexturesFromRemote,
+        loadTexturesFromLocal,
         setFlowEnabled
     });
 </script>

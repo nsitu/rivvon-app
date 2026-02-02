@@ -10,7 +10,13 @@
             class="download-all-button bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 mb-4 flex items-center disabled:opacity-60 disabled:cursor-not-allowed"
         >
             <span v-if="isDownloadingZip">Creating ZIP...</span>
-            <span v-else>Download All as ZIP</span>
+            <span
+                v-else
+                class="flex items-center gap-1"
+            >
+                <span class="material-symbols-outlined text-lg">folder_zip</span>
+                Download All as ZIP
+            </span>
 
             <svg
                 v-if="isDownloadingZip"
@@ -91,7 +97,13 @@
             <span v-if="isUploading && uploadProgress">{{ uploadProgress }}</span>
             <span v-else-if="isUploading">Uploading...</span>
             <span v-else-if="!isAuthenticated">Login to Upload</span>
-            <span v-else>Upload to CDN</span>
+            <span
+                v-else
+                class="flex items-center gap-1"
+            >
+                <span class="material-symbols-outlined text-lg">cloud_upload</span>
+                Upload to CDN
+            </span>
 
             <svg
                 v-if="isUploading"
@@ -124,6 +136,78 @@
                 class="ml-2 text-red-200"
             >✗ {{ uploadError }}</span>
         </button>
+
+        <!-- Save Locally Button (no auth required) -->
+        <button
+            @click="saveLocally"
+            :disabled="isSavingLocally"
+            class="save-local-button bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 mb-4 flex items-center disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Save to browser storage (no login required)"
+        >
+            <span v-if="isSavingLocally && saveLocalProgress">{{ saveLocalProgress }}</span>
+            <span v-else-if="isSavingLocally">Saving...</span>
+            <span
+                v-else
+                class="flex items-center gap-1"
+            >
+                <span class="material-symbols-outlined text-lg">hard_drive</span>
+                Save Locally
+            </span>
+
+            <svg
+                v-if="isSavingLocally"
+                class="animate-spin h-5 w-5 text-white ml-2"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+            >
+                <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                ></circle>
+                <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                ></path>
+            </svg>
+
+            <span
+                v-if="saveLocalSuccess"
+                class="ml-2 text-green-200"
+            >✓ Saved!</span>
+            <span
+                v-if="saveLocalError"
+                class="ml-2 text-red-200"
+            >✗ {{ saveLocalError }}</span>
+        </button>
+
+        <!-- Show locally saved texture with View button -->
+        <div
+            v-if="savedLocalTextureId"
+            class="saved-local-container mb-4 p-3 rounded-md flex items-center gap-4"
+        >
+            <div class="w-16 h-16 rounded bg-blue-600 flex items-center justify-center">
+                <span class="text-2xl">💾</span>
+            </div>
+
+            <div class="flex-1">
+                <p class="text-sm font-medium saved-text-title">Saved locally!</p>
+                <p class="text-xs saved-text-secondary">Available in Local Textures</p>
+            </div>
+
+            <router-link
+                :to="`/?local=${savedLocalTextureId}`"
+                class="view-local-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2"
+            >
+                <span class="material-symbols-outlined">visibility</span>
+                View
+            </router-link>
+        </div>
 
         <!-- Show uploaded texture with Apply button -->
         <div
@@ -166,6 +250,7 @@
     import { downloadAllAsZip } from '../../modules/slyce/zipDownloader.js';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useRivvonAPI } from '../../services/api.js';
+    import { useLocalStorage } from '../../services/localStorage.js';
 
     // Access the Pinia store
     const app = useSlyceStore();
@@ -177,6 +262,9 @@
     const { isAuthenticated } = useGoogleAuth();
     const { uploadTextureSet } = useRivvonAPI();
 
+    // Local storage
+    const { saveTextureSet: saveToLocal } = useLocalStorage();
+
     // Upload state
     const isUploading = ref(false);
     const uploadProgress = ref('');
@@ -185,6 +273,13 @@
     const uploadedTextureSetId = ref(null);
     const uploadedUrls = ref([]);
     const uploadedThumbnailUrl = ref(null);
+
+    // Save locally state
+    const isSavingLocally = ref(false);
+    const saveLocalProgress = ref('');
+    const saveLocalSuccess = ref(false);
+    const saveLocalError = ref(null);
+    const savedLocalTextureId = ref(null);
 
     // Upload options
     const textureName = ref('');
@@ -306,6 +401,84 @@
         }
     };
 
+    // Save texture locally to IndexedDB (no auth required)
+    const saveLocally = async () => {
+        if (isSavingLocally.value) return;
+
+        isSavingLocally.value = true;
+        saveLocalSuccess.value = false;
+        saveLocalError.value = null;
+        saveLocalProgress.value = 'Preparing...';
+        savedLocalTextureId.value = null;
+
+        try {
+            const defaultName = app.fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture';
+            const finalName = textureName.value.trim() || defaultName;
+
+            // Get KTX2 blobs from blob URLs
+            const blobUrls = currentBlobURLs.value;
+            const ktx2Blobs = {};
+
+            saveLocalProgress.value = 'Fetching tiles...';
+            for (const [tileIndex, blobUrl] of Object.entries(blobUrls)) {
+                const response = await fetch(blobUrl);
+                ktx2Blobs[tileIndex] = await response.blob();
+            }
+
+            // Get thumbnail data URL
+            let thumbnailDataUrl = null;
+            if (app.thumbnailBlob) {
+                thumbnailDataUrl = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.readAsDataURL(app.thumbnailBlob);
+                });
+            }
+
+            // Calculate effective frame count
+            const effectiveFrameCount = app.framesToSample > 0
+                ? Math.min(app.framesToSample, app.frameCount)
+                : app.frameCount;
+
+            saveLocalProgress.value = 'Saving to browser...';
+
+            // Save to IndexedDB
+            const savedId = await saveToLocal({
+                name: finalName,
+                tileCount: Object.keys(ktx2Blobs).length,
+                tileResolution: app.potResolution || 512,
+                layerCount: app.crossSectionCount || 60,
+                crossSectionType: app.crossSectionType || 'planes',
+                sourceMetadata: {
+                    filename: app.fileInfo?.name,
+                    width: app.fileInfo?.width,
+                    height: app.fileInfo?.height,
+                    duration: app.fileInfo?.duration,
+                    frame_count: effectiveFrameCount,
+                },
+                thumbnailDataUrl,
+                ktx2Blobs,
+                onProgress: (current, total) => {
+                    const pct = Math.round((current / total) * 100);
+                    saveLocalProgress.value = `Saving ${pct}%`;
+                },
+            });
+
+            savedLocalTextureId.value = savedId;
+            saveLocalSuccess.value = true;
+            saveLocalProgress.value = '';
+            console.log('[DownloadArea] Texture saved locally:', savedId);
+            setTimeout(() => { saveLocalSuccess.value = false; }, 5000);
+        } catch (error) {
+            console.error('Local save failed:', error);
+            saveLocalError.value = error.message || 'Save failed';
+            saveLocalProgress.value = '';
+            setTimeout(() => { saveLocalError.value = null; }, 5000);
+        } finally {
+            isSavingLocally.value = false;
+        }
+    };
+
     // Apply texture to the ribbon
     const applyTexture = () => {
         if (!uploadedTextureSetId.value) return;
@@ -380,7 +553,8 @@
     }
 
     .download-all-button,
-    .upload-cdn-button {
+    .upload-cdn-button,
+    .save-local-button {
         width: 100%;
         min-height: 44px;
         justify-content: center;
@@ -389,9 +563,28 @@
     @media (min-width: 640px) {
 
         .download-all-button,
-        .upload-cdn-button {
+        .upload-cdn-button,
+        .save-local-button {
             width: auto;
         }
+    }
+
+    /* Saved locally container styling */
+    .saved-local-container {
+        background-color: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+
+    .saved-text-title {
+        color: var(--text-primary);
+    }
+
+    .saved-text-secondary {
+        color: var(--text-secondary);
+    }
+
+    .view-local-btn {
+        min-height: 44px;
     }
 
     .upload-options input[type="text"] {

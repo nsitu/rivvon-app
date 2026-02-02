@@ -167,8 +167,14 @@
 
 <script setup>
     import { ref, onMounted } from 'vue'
-    // TODO: Import localStorage service when implemented
-    // import { useLocalStorage } from '../../services/localStorage'
+    import { useLocalStorage } from '../services/localStorage.js'
+
+    const {
+        getAllTextureSets,
+        deleteTextureSet,
+        downloadTextureSetAsZip,
+        getStorageUsage
+    } = useLocalStorage()
 
     const textures = ref([])
     const isLoading = ref(true)
@@ -185,10 +191,7 @@
     async function loadTextures() {
         isLoading.value = true
         try {
-            // TODO: Load from IndexedDB when service is implemented
-            // const localStorage = useLocalStorage()
-            // textures.value = await localStorage.getAllTextureSets()
-            textures.value = [] // Placeholder
+            textures.value = await getAllTextureSets()
         } catch (err) {
             console.error('Failed to load local textures:', err)
         } finally {
@@ -197,12 +200,10 @@
     }
 
     async function checkStorageUsage() {
-        if (navigator.storage && navigator.storage.estimate) {
-            const estimate = await navigator.storage.estimate()
-            storageUsage.value = {
-                used: estimate.usage || 0,
-                quota: estimate.quota || 0,
-            }
+        try {
+            storageUsage.value = await getStorageUsage()
+        } catch (err) {
+            console.error('Failed to get storage usage:', err)
         }
     }
 
@@ -215,11 +216,11 @@
 
         deletingId.value = textureToDelete.value.id
         try {
-            // TODO: Delete from IndexedDB
-            // const localStorage = useLocalStorage()
-            // await localStorage.deleteTextureSet(textureToDelete.value.id)
+            await deleteTextureSet(textureToDelete.value.id)
             textures.value = textures.value.filter(t => t.id !== textureToDelete.value.id)
             textureToDelete.value = null
+            // Refresh storage usage after delete
+            await checkStorageUsage()
         } catch (err) {
             console.error('Failed to delete texture:', err)
         } finally {
@@ -230,8 +231,10 @@
     async function exportTexture(texture) {
         exporting.value = texture.id
         try {
-            // TODO: Export as .zip
-            console.log('Exporting texture:', texture.id)
+            await downloadTextureSetAsZip(texture.id)
+        } catch (err) {
+            console.error('Failed to export texture:', err)
+            alert('Failed to export texture: ' + err.message)
         } finally {
             exporting.value = null
         }

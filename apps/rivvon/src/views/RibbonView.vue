@@ -6,6 +6,7 @@
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { fetchTextureSet } from '../services/textureService';
+    import { useLocalStorage } from '../services/localStorage.js';
     import * as THREE from 'three';
 
     // Components
@@ -255,6 +256,64 @@
         }
     }, { immediate: true });
 
+    // Check for local texture query param
+    const { getTextureSet: getLocalTextureSet, getTiles } = useLocalStorage();
+
+    watch(() => route.query.local, async (localTextureId) => {
+        if (localTextureId && threeCanvasRef.value?.isInitialized) {
+            await loadLocalTexture(localTextureId);
+            // Clear the query param to prevent reloading on refresh
+            router.replace({ path: route.path, query: {} });
+        }
+    }, { immediate: true });
+
+    // Load local texture by ID
+    async function loadLocalTexture(textureId) {
+        console.log('[RibbonView] Loading local texture:', textureId);
+        isLoadingTexture.value = true;
+        loadingProgress.value = 'Loading local texture...';
+
+        try {
+            const textureSet = await getLocalTextureSet(textureId);
+
+            if (!textureSet) {
+                throw new Error('Local texture not found');
+            }
+
+            console.log(`[RibbonView] Found local texture set: ${textureSet.name}`);
+
+            // Load textures from local storage via TileManager
+            await threeCanvasRef.value?.loadTexturesFromLocal(textureSet, getTiles, (stage, current, total) => {
+                if (stage === 'downloading') {
+                    const pct = Math.round((current / total) * 100);
+                    loadingProgress.value = `Loading ${pct}%`;
+                } else if (stage === 'building') {
+                    const pct = Math.round((current / total) * 100);
+                    loadingProgress.value = `Building ${pct}%`;
+                }
+            });
+
+            // Set blurred background from thumbnail
+            if (textureSet.thumbnail_data_url) {
+                app.setThumbnailUrl(textureSet.thumbnail_data_url);
+            }
+
+            console.log('[RibbonView] Local texture loaded successfully');
+        } catch (error) {
+            console.error('[RibbonView] Failed to load local texture:', error);
+            alert('Failed to load local texture: ' + error.message);
+        } finally {
+            isLoadingTexture.value = false;
+            loadingProgress.value = '';
+        }
+    }
+
+    // Handle local texture selection from browser
+    async function handleLocalTextureSelect(texture) {
+        console.log('[RibbonView] Selected local texture from browser:', texture.name);
+        await loadLocalTexture(texture.id);
+    }
+
     // Loading state for remote texture
     const isLoadingTexture = ref(false);
     const loadingProgress = ref('');
@@ -400,6 +459,7 @@
             :initial-tab="textureBrowserInitialTab"
             @close="app.hideTextureBrowser"
             @select="handleTextureSelect"
+            @select-local="handleLocalTextureSelect"
         />
 
         <!-- Full-page Slyce panel (like drawing mode) -->

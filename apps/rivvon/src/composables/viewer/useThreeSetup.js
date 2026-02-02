@@ -319,6 +319,41 @@ export function useThreeSetup() {
     }
 
     /**
+     * Load textures from local IndexedDB storage
+     * @param {Object} textureSet - Texture set metadata from localStorage service
+     * @param {Function} getTiles - Function to get tiles: (textureSetId) => Promise<Array>
+     * @param {Function} onProgress - Progress callback (stage, current, total)
+     */
+    async function loadTexturesFromLocal(textureSet, getTiles, onProgress = null) {
+        if (!tileManager.value) {
+            console.error('[ThreeSetup] Cannot load local textures - not initialized');
+            return false;
+        }
+
+        try {
+            const success = await tileManager.value.loadFromLocal(textureSet, getTiles, onProgress);
+
+            if (success) {
+                console.log(`[ThreeSetup] Local texture loaded: ${tileManager.value.getTileCount()} tiles`);
+                
+                // Update thumbnail from local texture set
+                const thumbnailUrl = tileManager.value.getThumbnailUrl();
+                if (thumbnailUrl) {
+                    app.setThumbnailUrl(thumbnailUrl);
+                }
+                
+                // Rebuild ribbons with new textures
+                rebuildRibbonsWithNewTextures();
+            }
+
+            return success;
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to load local textures:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Rebuild existing ribbons with new textures
      */
     function rebuildRibbonsWithNewTextures() {
@@ -433,6 +468,7 @@ export function useThreeSetup() {
         createRibbonFromDrawing,
         loadTextures,
         loadTexturesFromRemote,
+        loadTexturesFromLocal,
         setFlowEnabled
     };
 }
