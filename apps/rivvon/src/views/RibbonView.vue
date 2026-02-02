@@ -229,6 +229,14 @@
         event.target.value = '';
     }
 
+    // Image export handler
+    function handleExportImage() {
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `rivvon-${timestamp}.png`;
+        threeCanvasRef.value?.exportImage(filename);
+    }
+
     // Texture browser handler
     function openTextureBrowser() {
         app.showTextureBrowser();
@@ -436,6 +444,7 @@
             @open-text-panel="app.showTextPanel"
             @open-texture-browser="openTextureBrowser"
             @import-file="openFileImport"
+            @export-image="handleExportImage"
             @finish-drawing="finishDrawing"
         />
 
@@ -526,7 +535,7 @@
     /* Re-enable pointer events only on specific interactive containers */
     .ribbon-view :deep(.app-header),
     .ribbon-view :deep(.bottom-toolbar),
-    .ribbon-view :deep(.text-input-panel),
+    .ribbon-view :deep(.text-input-panel.active),
     .ribbon-view :deep(.beta-modal),
     .ribbon-view :deep(.texture-browser.active),
     .ribbon-view :deep(.slyce-panel.active),

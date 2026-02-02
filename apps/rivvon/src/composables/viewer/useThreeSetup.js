@@ -142,6 +142,36 @@ export function useThreeSetup() {
     }
 
     /**
+     * Export the current scene as a PNG image
+     * @param {string} filename - Optional filename (default: 'rivvon-export.png')
+     */
+    function exportImage(filename = 'rivvon-export.png') {
+        if (!renderer.value || !scene.value || !camera.value) {
+            console.error('[ThreeSetup] Cannot export image - not initialized');
+            return;
+        }
+
+        try {
+            // Force a render to ensure the latest frame is captured
+            renderer.value.render(scene.value, camera.value);
+
+            // Get the canvas data URL
+            const canvas = renderer.value.domElement;
+            const dataURL = canvas.toDataURL('image/png');
+
+            // Create a download link and trigger download
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataURL;
+            link.click();
+
+            console.log('[ThreeSetup] Image exported:', filename);
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to export image:', error);
+        }
+    }
+
+    /**
      * Create a ribbon from points
      * Note: Uses RibbonSeries internally for consistent animation behavior
      */
@@ -478,6 +508,7 @@ export function useThreeSetup() {
         loadTextures,
         loadTexturesFromRemote,
         loadTexturesFromLocal,
-        setFlowState
+        setFlowState,
+        exportImage
     };
 }

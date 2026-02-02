@@ -50,57 +50,59 @@
 </script>
 
 <template>
-    <Teleport to="body">
-        <div
-            v-if="visible"
-            class="panel-overlay"
-            @mousedown.self="close"
-        >
-            <div class="text-input-panel">
+    <div
+        class="text-input-panel"
+        :class="{ active: visible }"
+    >
+        <div class="text-input-container">
+            <div class="text-input-content">
                 <div class="text-panel-header">
-                    <h3>rivvon from text</h3>
-                    <button
-                        class="close-btn"
-                        @click="close"
-                    >&times;</button>
+                    <h2>Text to Ribbon</h2>
                 </div>
 
-                <div class="text-panel-content">
-                    <label for="textInputField">Enter text:</label>
-                    <input
-                        id="textInputField"
-                        v-model="textInput"
-                        type="text"
-                        placeholder="Type your text here..."
-                        @keyup.enter="generate"
-                    />
+                <div class="text-form">
+                    <div class="form-group">
+                        <label for="textInputField">Enter text:</label>
+                        <input
+                            id="textInputField"
+                            v-model="textInput"
+                            type="text"
+                            placeholder="Type your text here..."
+                            class="text-field"
+                            @keyup.enter="generate"
+                        />
+                    </div>
 
-                    <label for="fontSelector">Font:</label>
-                    <select
-                        id="fontSelector"
-                        :value="selectedFont"
-                        :disabled="isLoading || fonts.length === 0"
-                        @change="handleFontChange"
-                    >
-                        <option
-                            v-if="isLoading"
-                            value=""
-                        >Loading fonts...</option>
-                        <option
-                            v-for="font in fonts"
-                            :key="font"
-                            :value="font"
+                    <div class="form-group">
+                        <label for="fontSelector">Font:</label>
+                        <select
+                            id="fontSelector"
+                            :value="selectedFont"
+                            :disabled="isLoading || fonts.length === 0"
+                            class="font-select"
+                            @change="handleFontChange"
                         >
-                            {{ font }}
-                        </option>
-                    </select>
+                            <option
+                                v-if="isLoading"
+                                value=""
+                            >Loading fonts...</option>
+                            <option
+                                v-for="font in fonts"
+                                :key="font"
+                                :value="font"
+                            >
+                                {{ font }}
+                            </option>
+                        </select>
+                    </div>
 
                     <button
                         class="generate-btn"
                         :disabled="!textInput.trim() || isLoading"
                         @click="generate"
                     >
-                        Go
+                        <span class="material-symbols-outlined">check</span>
+                        Generate
                     </button>
 
                     <p
@@ -110,97 +112,123 @@
                 </div>
             </div>
         </div>
-    </Teleport>
+    </div>
 </template>
 
 <style scoped>
-    .panel-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 50;
-        background: rgba(0, 0, 0, 0.5);
+    .text-input-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 5;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        flex-direction: column;
     }
 
-    .text-input-panel {
-        background: rgba(17, 24, 39, 0.95);
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        min-width: 300px;
-        max-width: 90vw;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    .text-input-panel.active {
+        pointer-events: auto;
+        opacity: 1;
+    }
+
+    .text-input-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        background: #1a1a1a;
+        padding-top: 5.5rem;
+        /* Space for AppHeader */
+        padding-bottom: 5.5rem;
+        /* Space for BottomToolbar */
+    }
+
+    .text-input-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
     }
 
     .text-panel-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
     }
 
-    .text-panel-header h3 {
-        color: white;
-        font-size: 1.125rem;
+    .text-panel-header h2 {
+        color: #fff;
+        font-size: 1.5rem;
         font-weight: 600;
         margin: 0;
     }
 
-    .close-btn {
-        background: transparent;
-        color: white;
-        font-size: 1.5rem;
-        padding: 0;
-        min-width: auto;
-        min-height: auto;
-        line-height: 1;
-    }
-
-    .close-btn:hover {
-        color: #f87171;
-        background: transparent;
-    }
-
-    .text-panel-content {
+    .text-form {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 1.5rem;
     }
 
-    .text-panel-content label {
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-group label {
         color: #d1d5db;
         font-size: 0.875rem;
     }
 
-    .text-panel-content input,
-    .text-panel-content select {
+    .text-field,
+    .font-select {
         width: 100%;
-        padding: 0.5rem 0.75rem;
-        border-radius: 0.25rem;
-        background: #1f2937;
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        background: #252525;
         color: white;
         border: 1px solid #374151;
+        font-size: 1rem;
     }
 
-    .text-panel-content input:focus,
-    .text-panel-content select:focus {
+    .text-field:focus,
+    .font-select:focus {
         outline: none;
-        border-color: #3b82f6;
+        border-color: #4caf50;
     }
 
     .generate-btn {
-        background: #2563eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        background: #4caf50;
+        color: #fff;
+        border: none;
+        padding: 0.875rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.2s ease;
         margin-top: 0.5rem;
     }
 
     .generate-btn:hover:not(:disabled) {
-        background: #3b82f6;
+        background: #43a047;
     }
 
     .generate-btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    .generate-btn .material-symbols-outlined {
+        font-size: 1.25rem;
     }
 
     .error-message {

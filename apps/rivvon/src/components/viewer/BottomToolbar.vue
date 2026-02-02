@@ -5,6 +5,7 @@
 
     const app = useViewerStore();
     const flowPopover = ref();
+    const importPopover = ref();
 
     function toggleFlowPopover(event) {
         flowPopover.value.toggle(event);
@@ -15,12 +16,27 @@
         flowPopover.value.hide();
     }
 
+    function toggleImportPopover(event) {
+        importPopover.value.toggle(event);
+    }
+
+    function handleImport(type) {
+        importPopover.value.hide();
+        emit('import-file', type);
+    }
+
+    function handleExportImage() {
+        importPopover.value.hide();
+        emit('export-image');
+    }
+
     const emit = defineEmits([
         'toggle-draw-mode',
         'toggle-flow',
         'open-text-panel',
         'open-texture-browser',
         'import-file',
+        'export-image',
         'toggle-fullscreen',
         'finish-drawing'
     ]);
@@ -49,26 +65,26 @@
         class="bottom-toolbar"
         :class="{ hidden: app.isFullscreen }"
     >
-        <!-- Back button (only in drawing, slyce, or texture browser mode) -->
+        <!-- Back button (only in drawing, slyce, texture browser, or text panel mode) -->
         <button
-            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible"
+            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
             class="back-button"
             v-tooltip.top="'Back'"
-            @click="app.isDrawingMode ? emit('toggle-draw-mode') : app.textureCreatorVisible ? app.toggleSlyce() : app.hideTextureBrowser()"
+            @click="app.isDrawingMode ? emit('toggle-draw-mode') : app.textureCreatorVisible ? app.toggleSlyce() : app.textureBrowserVisible ? app.hideTextureBrowser() : app.hideTextPanel()"
         >
             <span class="material-symbols-outlined">arrow_back_ios</span>
         </button>
 
 
         <div
-            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible"
+            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
             class="separator"
         ></div>
 
 
         <!-- Draw mode toggle -->
         <button
-            v-if="!app.textureCreatorVisible && !app.textureBrowserVisible"
+            v-if="!app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
             v-tooltip.top="'Draw'"
             :class="{ active: app.isDrawingMode }"
             @click="emit('toggle-draw-mode')"
@@ -82,7 +98,7 @@
 
         <!-- Slyce texture tool -->
         <button
-            v-if="!app.isDrawingMode && !app.textureBrowserVisible"
+            v-if="!app.isDrawingMode && !app.textureBrowserVisible && !app.textPanelVisible"
             v-tooltip.top="'Create Texture'"
             :class="{ active: app.textureCreatorVisible }"
             @click="app.toggleSlyce()"
@@ -108,14 +124,19 @@
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
             v-tooltip.top="'Text'"
+            :class="{ active: app.textPanelVisible }"
             @click="emit('open-text-panel')"
         >
             <span class="material-symbols-outlined">text_fields</span>
+            <span
+                v-if="app.textPanelVisible"
+                class="mode-label"
+            >Text</span>
         </button>
 
         <!-- Browse textures -->
         <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textPanelVisible"
             v-tooltip.top="'Textures'"
             :class="{ active: app.textureBrowserVisible }"
             @click="emit('open-texture-browser')"
@@ -127,20 +148,50 @@
             >Textures</span>
         </button>
 
-        <!-- Import SVG/ZIP -->
+        <!-- Import SVG/ZIP with popover menu -->
         <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="'Import SVG or ZIP texture pack'"
-            @click="emit('import-file')"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
+            v-tooltip.top="'Import & Export'"
+            @click="toggleImportPopover"
         >
-            <span class="material-symbols-outlined">upload</span>
+            <span class="material-symbols-outlined">file_export</span>
         </button>
+
+        <Popover
+            ref="importPopover"
+            class="import-popover"
+        >
+            <div class="import-menu">
+                <button
+                    class="import-option"
+                    @click="handleImport('svg')"
+                >
+                    <span class="material-symbols-outlined">polyline</span>
+                    <span>Import SVG</span>
+                </button>
+                <button
+                    class="import-option"
+                    @click="handleImport('zip')"
+                >
+                    <span class="material-symbols-outlined">folder_zip</span>
+                    <span>Import ZIP Texture</span>
+                </button>
+                <div class="menu-divider"></div>
+                <button
+                    class="import-option"
+                    @click="handleExportImage"
+                >
+                    <span class="material-symbols-outlined">image</span>
+                    <span>Export Image</span>
+                </button>
+            </div>
+        </Popover>
 
 
         <!-- Flow animation toggle with popover menu -->
         <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="'Flow animation'"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
+            v-tooltip.top="'Animation'"
             :class="{ active: app.flowState !== 'off' }"
             @click="toggleFlowPopover"
         >
@@ -183,8 +234,8 @@
 
         <!-- Fullscreen toggle -->
         <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="'Toggle fullscreen'"
+            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
+            v-tooltip.top="'Fullscreen'"
             @click="toggleFullscreen"
         >
             <span class="material-symbols-outlined">fullscreen</span>
@@ -338,6 +389,42 @@
 
     .flow-option .material-symbols-outlined {
         font-size: 1.25rem;
+    }
+
+    /* Import popover menu styles */
+    .import-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 180px;
+    }
+
+    .import-option {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.625rem 0.875rem;
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        color: var(--p-text-color, #fff);
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background 0.15s ease;
+    }
+
+    .import-option:hover {
+        background: var(--p-content-hover-background, rgba(255, 255, 255, 0.1));
+    }
+
+    .import-option .material-symbols-outlined {
+        font-size: 1.25rem;
+    }
+
+    .menu-divider {
+        height: 1px;
+        background: var(--p-content-border-color, rgba(255, 255, 255, 0.15));
+        margin: 0.25rem 0;
     }
 
 </style>

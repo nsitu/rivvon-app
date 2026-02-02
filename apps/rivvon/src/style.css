@@ -230,43 +230,7 @@ body.debug-mode .renderer-indicator {
 }
 
  
-
-
-/* Text input panel */
-.text-input-panel {
-    @apply fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[50];
-    @apply bg-gray-900/95 rounded-lg p-6;
-    @apply min-w-[300px] max-w-[90vw];
-    @apply shadow-2xl;
-}
-
-.text-panel-header {
-    @apply flex justify-between items-center mb-4;
-}
-
-.text-panel-header h3 {
-    @apply text-white text-lg font-semibold m-0;
-}
-
-.close-btn {
-    @apply bg-transparent text-white text-2xl p-0 min-w-0 min-h-0;
-    @apply hover:text-red-400;
-}
-
-.text-panel-content {
-    @apply flex flex-col gap-3;
-}
-
-.text-panel-content label {
-    @apply text-gray-300 text-sm;
-}
-
-.text-panel-content input,
-.text-panel-content select {
-    @apply w-full px-3 py-2 rounded;
-    @apply bg-gray-800 text-white border border-gray-700;
-    @apply focus:outline-none focus:border-blue-500;
-}
+  
 
 .generate-btn {
     @apply bg-blue-600 hover:bg-blue-500 mt-2;
