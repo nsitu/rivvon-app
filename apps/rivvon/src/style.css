@@ -229,24 +229,8 @@ body.debug-mode .renderer-indicator {
     line-height: 1;
 }
 
-/* Finish drawing button */
-.finish-drawing-btn {
-    @apply fixed bottom-24 right-4 z-[100];
-    @apply w-16 h-16 rounded-full;
-    @apply flex items-center justify-center;
-    @apply bg-green-500/90 hover:bg-green-500;
-    @apply opacity-0 pointer-events-none;
-    @apply transition-opacity duration-300;
-    @apply shadow-lg;
-}
+ 
 
-.finish-drawing-btn.visible {
-    @apply opacity-100 pointer-events-auto;
-}
-
-.finish-drawing-btn .finish-icon {
-    @apply w-8 h-8;
-}
 
 /* Text input panel */
 .text-input-panel {

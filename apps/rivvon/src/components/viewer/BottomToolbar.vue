@@ -297,11 +297,12 @@
     }
 
     .finish-drawing-btn {
-        color: #22c55e !important;
+        background: rgba(34, 197, 94, 1) !important;
+        color: #ffffff !important;
     }
 
     .finish-drawing-btn:hover {
-        background: rgba(34, 197, 94, 0.2) !important;
+        background: rgba(34, 197, 94, 0.8) !important;
     }
 
     /* Flow popover menu styles */
