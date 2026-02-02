@@ -1,7 +1,19 @@
 <script setup>
+    import { ref } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
+    import Popover from 'primevue/popover';
 
     const app = useViewerStore();
+    const flowPopover = ref();
+
+    function toggleFlowPopover(event) {
+        flowPopover.value.toggle(event);
+    }
+
+    function setFlowState(state) {
+        app.setFlowState(state);
+        flowPopover.value.hide();
+    }
 
     const emit = defineEmits([
         'toggle-draw-mode',
@@ -125,17 +137,49 @@
         </button>
 
 
-        <!-- Flow animation toggle (3-state: off -> forward -> backward) -->
+        <!-- Flow animation toggle with popover menu -->
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="app.flowState === 'off' ? 'Enable flow (forward)' : app.flowState === 'forward' ? 'Flow backward' : 'Disable flow'"
+            v-tooltip.top="'Flow animation'"
             :class="{ active: app.flowState !== 'off' }"
-            @click="emit('toggle-flow')"
+            @click="toggleFlowPopover"
         >
             <span class="material-symbols-outlined">
-                speed
+                animation
             </span>
         </button>
+
+        <Popover
+            ref="flowPopover"
+            class="flow-popover"
+        >
+            <div class="flow-menu">
+                <button
+                    class="flow-option"
+                    :class="{ selected: app.flowState === 'off' }"
+                    @click="setFlowState('off')"
+                >
+                    <span class="material-symbols-outlined">block</span>
+                    <span>Off</span>
+                </button>
+                <button
+                    class="flow-option"
+                    :class="{ selected: app.flowState === 'forward' }"
+                    @click="setFlowState('forward')"
+                >
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                    <span>Forward</span>
+                </button>
+                <button
+                    class="flow-option"
+                    :class="{ selected: app.flowState === 'backward' }"
+                    @click="setFlowState('backward')"
+                >
+                    <span class="material-symbols-outlined">arrow_back</span>
+                    <span>Backward</span>
+                </button>
+            </div>
+        </Popover>
 
         <!-- Fullscreen toggle -->
         <button
@@ -258,6 +302,41 @@
 
     .finish-drawing-btn:hover {
         background: rgba(34, 197, 94, 0.2) !important;
+    }
+
+    /* Flow popover menu styles */
+    .flow-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 140px;
+    }
+
+    .flow-option {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.625rem 0.875rem;
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        color: var(--p-text-color, #fff);
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background 0.15s ease;
+    }
+
+    .flow-option:hover {
+        background: var(--p-content-hover-background, rgba(255, 255, 255, 0.1));
+    }
+
+    .flow-option.selected {
+        background: var(--p-primary-color, #6366f1);
+        color: var(--p-primary-contrast-color, #fff);
+    }
+
+    .flow-option .material-symbols-outlined {
+        font-size: 1.25rem;
     }
 
 </style>
