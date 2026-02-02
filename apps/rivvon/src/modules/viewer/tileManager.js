@@ -1266,6 +1266,57 @@ export class TileManager {
     }
 
     /**
+     * Fetch a URL with byte-level progress tracking using ReadableStream.
+     * Falls back to simple fetch if streaming is not available.
+     * @param {string} url - URL to fetch
+     * @param {Function} onBytesReceived - Callback: (bytesReceived) => {}
+     * @returns {Promise<ArrayBuffer>} The fetched data
+     */
+    async #fetchWithProgress(url, onBytesReceived) {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Check if streaming is available
+        if (!response.body) {
+            // Fallback: no streaming, report full size at end
+            const data = await response.arrayBuffer();
+            if (onBytesReceived) {
+                onBytesReceived(data.byteLength);
+            }
+            return data;
+        }
+
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedLength = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            chunks.push(value);
+            receivedLength += value.length;
+
+            // Report bytes received for this chunk
+            if (onBytesReceived) {
+                onBytesReceived(value.length);
+            }
+        }
+
+        // Combine chunks into single ArrayBuffer
+        const buffer = new Uint8Array(receivedLength);
+        let position = 0;
+        for (const chunk of chunks) {
+            buffer.set(chunk, position);
+            position += chunk.length;
+        }
+
+        return buffer.buffer;
+    }
+
+    /**
      * Load textures from a remote texture set (via Rivvon API).
      * Downloads KTX2 tiles from CDN URLs and builds materials.
      * @param {Object} textureSet - Texture set metadata from API
@@ -1315,48 +1366,70 @@ export class TileManager {
                 }
             }
 
-            // Track download progress across all tiles
-            const totalTiles = tiles.length;
-            let completedDownloads = 0;
+            // Calculate total bytes for progress tracking
+            // Use fileSize from tile metadata, or estimate based on tile count
+            const totalBytes = tiles.reduce((sum, tile) => sum + (tile.fileSize || tile.file_size || 0), 0);
+            const hasFileSizes = totalBytes > 0;
+            let downloadedBytes = 0;
 
-            if (onProgress) {
-                onProgress('downloading', 0, totalTiles);
+            // Determine if this is a Google Drive source (no streaming support)
+            const isDriveSource = tiles.some(tile => tile.driveFileId || (tile.url && tile.url.includes('drive.google.com')));
+            
+            console.log(`[TileManager] Progress tracking mode: ${hasFileSizes ? 'byte-level' : 'tile-count fallback'}`);
+            console.log(`[TileManager] Source type: ${isDriveSource ? 'Google Drive' : 'CDN'}`);
+            if (hasFileSizes) {
+                console.log(`[TileManager] Total bytes to download: ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
+            } else {
+                console.log(`[TileManager] No file sizes available, using tile count: ${tiles.length}`);
             }
 
-            // Download all tile data in parallel with cumulative progress tracking
+            if (onProgress) {
+                onProgress('downloading', 0, hasFileSizes ? totalBytes : tiles.length);
+            }
+
+            // Download all tile data in parallel with byte-level progress tracking
             const tileDataArray = await Promise.all(
                 tiles.map(async (tile) => {
                     try {
                         const tileIndex = tile.index ?? tile.tileIndex ?? 0;
                         let data;
 
+                        // Progress callback for byte-level tracking
+                        const onBytesReceived = (bytes) => {
+                            downloadedBytes += bytes;
+                            if (onProgress && hasFileSizes) {
+                                onProgress('downloading', downloadedBytes, totalBytes);
+                            }
+                        };
+
                         // Check if this is a Google Drive URL (needs API fetch) or direct URL (CDN)
                         if (tile.driveFileId) {
-                            // Use Drive API via auth module
+                            console.log(`[TileManager] Tile ${tileIndex}: Fetching from Google Drive`);
                             const { fetchDriveFile } = await import('./auth.js');
-                            data = await fetchDriveFile(tile.driveFileId);
+                            // Pass progress callback to test streaming support
+                            data = await fetchDriveFile(tile.driveFileId, onBytesReceived);
+                            console.log(`[TileManager] Tile ${tileIndex} complete (Drive): ${(data.byteLength / 1024).toFixed(1)} KB`);
                         } else if (tile.url && tile.url.includes('drive.google.com')) {
-                            // Extract file ID from Drive URL and use API
                             const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
                             if (fileIdMatch) {
+                                console.log(`[TileManager] Tile ${tileIndex}: Fetching from Google Drive URL`);
                                 const { fetchDriveFile } = await import('./auth.js');
-                                data = await fetchDriveFile(fileIdMatch[1]);
+                                data = await fetchDriveFile(fileIdMatch[1], onBytesReceived);
+                                console.log(`[TileManager] Tile ${tileIndex} complete (Drive URL): ${(data.byteLength / 1024).toFixed(1)} KB`);
                             } else {
                                 throw new Error('Invalid Drive URL format');
                             }
                         } else {
-                            // Direct URL (R2/CDN) - standard fetch
-                            const response = await fetch(tile.url);
-                            if (!response.ok) {
-                                throw new Error(`Failed to fetch tile ${tileIndex}: ${response.statusText}`);
-                            }
-                            data = await response.arrayBuffer();
+                            // Direct URL (R2/CDN) - use streaming fetch with byte progress
+                            console.log(`[TileManager] Tile ${tileIndex}: Streaming from CDN`);
+                            data = await this.#fetchWithProgress(tile.url, onBytesReceived);
+                            console.log(`[TileManager] Tile ${tileIndex} complete (CDN): ${(data.byteLength / 1024).toFixed(1)} KB`);
                         }
 
-                        // Increment completed count and report progress
-                        completedDownloads++;
-                        if (onProgress) {
-                            onProgress('downloading', completedDownloads, totalTiles);
+                        // For tile-count based progress (fallback when no file sizes)
+                        if (!hasFileSizes && onProgress) {
+                            downloadedBytes++;
+                            onProgress('downloading', downloadedBytes, tiles.length);
                         }
 
                         return { index: tileIndex, data: new Uint8Array(data) };
@@ -1365,15 +1438,17 @@ export class TileManager {
                         console.error(`[TileManager] Failed to download tile ${tileIndex}:`, err);
 
                         // Still increment to avoid stuck progress
-                        completedDownloads++;
-                        if (onProgress) {
-                            onProgress('downloading', completedDownloads, totalTiles);
+                        if (!hasFileSizes && onProgress) {
+                            downloadedBytes++;
+                            onProgress('downloading', downloadedBytes, tiles.length);
                         }
 
                         return { index: tileIndex, data: null };
                     }
                 })
             );
+
+            console.log(`[TileManager] Download complete. Total bytes received: ${(downloadedBytes / 1024 / 1024).toFixed(2)} MB`);
 
             // Store in zipFiles format for compatibility with #loadKTX2Tile
             this.zipFiles = {};

@@ -81,15 +81,65 @@
                     linear
                 >
                     <StepList>
-                        <Step value="1"><span class="material-symbols-outlined">
-                                video_camera_back_add
-                            </span></Step>
-                        <Step value="2"><span class="material-symbols-outlined">
-                                settings
-                            </span></Step>
-                        <Step value="3"><span class="material-symbols-outlined">
-                                done_outline
-                            </span></Step>
+                        <Step
+                            v-slot="{ activateCallback, value, a11yAttrs }"
+                            asChild
+                            value="1"
+                        >
+                            <div
+                                class="step-item"
+                                v-bind="a11yAttrs.root"
+                            >
+                                <button
+                                    class="step-button"
+                                    :class="{ active: value <= slyce.currentStep }"
+                                    @click="activateCallback"
+                                    v-bind="a11yAttrs.header"
+                                >
+                                    <span class="material-symbols-outlined">video_camera_back_add</span>
+                                </button>
+                                <div class="step-separator"></div>
+                            </div>
+                        </Step>
+                        <Step
+                            v-slot="{ activateCallback, value, a11yAttrs }"
+                            asChild
+                            value="2"
+                        >
+                            <div
+                                class="step-item"
+                                v-bind="a11yAttrs.root"
+                            >
+                                <button
+                                    class="step-button"
+                                    :class="{ active: value <= slyce.currentStep }"
+                                    @click="activateCallback"
+                                    v-bind="a11yAttrs.header"
+                                >
+                                    <span class="material-symbols-outlined">settings</span>
+                                </button>
+                                <div class="step-separator"></div>
+                            </div>
+                        </Step>
+                        <Step
+                            v-slot="{ activateCallback, value, a11yAttrs }"
+                            asChild
+                            value="3"
+                        >
+                            <div
+                                class="step-item step-item-last"
+                                v-bind="a11yAttrs.root"
+                            >
+                                <button
+                                    class="step-button"
+                                    :class="{ active: value <= slyce.currentStep }"
+                                    @click="activateCallback"
+                                    v-bind="a11yAttrs.header"
+                                >
+                                    <span class="material-symbols-outlined">done_outline</span>
+                                </button>
+                            </div>
+                        </Step>
                     </StepList>
                     <StepPanels>
                         <StepPanel
@@ -177,11 +227,64 @@
         padding: 0 0 1rem 0;
         max-width: 360px;
         margin: 0 auto;
+        gap: 0;
     }
 
     .slyce-content :deep(.p-step) {
         background: transparent;
         color: #888;
+        padding: 0;
+    }
+
+    /* Custom step item layout */
+    .step-item {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        flex: 1;
+        gap: 0;
+    }
+
+    .step-item-last {
+        flex: 0;
+    }
+
+    .step-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 50%;
+        border: 2px solid #555;
+        background: #333;
+        color: #888;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .step-button:hover {
+        border-color: #777;
+        background: #444;
+    }
+
+    .step-button.active {
+        background: #4caf50;
+        color: #fff;
+        border-color: #4caf50;
+    }
+
+    .step-button .material-symbols-outlined {
+        font-size: 1.25rem;
+    }
+
+    .step-separator {
+        flex: 1;
+        height: 2px;
+        background: #555;
+        margin: 0 0.5rem;
+        min-width: 2rem;
     }
 
     .slyce-content :deep(.p-step-number) {

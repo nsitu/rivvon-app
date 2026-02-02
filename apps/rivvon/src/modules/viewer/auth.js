@@ -151,9 +151,10 @@ export async function getAccessToken() {
  * Fetch a file from Google Drive using the Drive API
  * This bypasses CORS issues with direct Drive links
  * @param {string} driveFileId - The Google Drive file ID
+ * @param {Function} onBytesReceived - Optional callback for streaming progress: (bytes) => {}
  * @returns {Promise<ArrayBuffer>} The file data
  */
-export async function fetchDriveFile(driveFileId) {
+export async function fetchDriveFile(driveFileId, onBytesReceived = null) {
     const token = await getAccessToken();
     if (!token) {
         throw new Error('Not authenticated - please log in to view this texture');
@@ -175,5 +176,34 @@ export async function fetchDriveFile(driveFileId) {
         throw new Error(`Failed to fetch file: ${response.statusText}`);
     }
 
+    // If we have streaming support and a progress callback, use streaming
+    if (onBytesReceived && response.body) {
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedLength = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            chunks.push(value);
+            receivedLength += value.length;
+
+            // Report bytes received
+            onBytesReceived(value.length);
+        }
+
+        // Combine chunks into single ArrayBuffer
+        const buffer = new Uint8Array(receivedLength);
+        let position = 0;
+        for (const chunk of chunks) {
+            buffer.set(chunk, position);
+            position += chunk.length;
+        }
+
+        return buffer.buffer;
+    }
+
+    // Fallback: simple arrayBuffer() call
     return response.arrayBuffer();
 }
