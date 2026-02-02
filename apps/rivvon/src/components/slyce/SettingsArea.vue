@@ -461,41 +461,6 @@
                 <span v-if="app.prioritize === 'quantity' || app.prioritize === 'powersOfTwo'">down-scaling</span>
             </div>
 
-            <h3 class="text-xl">Output Format</h3>
-
-            <div class="flex w-full segmented-control">
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-left"
-                    for="webm"
-                    :class="(app.outputFormat === 'webm') ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.outputFormat"
-                            inputId="webm"
-                            name="outputFormat"
-                            value="webm"
-                        />
-                        <span>Video Loop</span>
-                    </div>
-                </label>
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-right"
-                    for="ktx2"
-                    :class="(app.outputFormat === 'ktx2') ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.outputFormat"
-                            inputId="ktx2"
-                            name="outputFormat"
-                            value="ktx2"
-                        />
-                        <span>KTX2 Texture Array</span>
-                    </div>
-                </label>
-            </div>
-
 
 
         </div>

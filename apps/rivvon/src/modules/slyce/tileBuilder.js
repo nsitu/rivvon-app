@@ -4,8 +4,7 @@ import { EventEmitter } from 'events';  // https://www.npmjs.com/package/events
 export class TileBuilder extends EventEmitter {
     constructor(settings) {
         super();
-        this.settings = settings
-        this.outputFormat = settings.outputFormat || 'webm'; // Default to webm if not specified
+        this.settings = settings;
         this.canvasses = this.createCanvasses();
     }
 
@@ -247,28 +246,19 @@ export class TileBuilder extends EventEmitter {
 
         // Check if this is the last frame of the tile
         if (frameNumber === tilePlan.tiles[tileNumber].end) {
-            let images, kind;
+            // Extract RGBA pixel data for KTX2 encoding
+            const images = this.canvasses.map(canvas => {
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx.getImageData(0, 0, tilePlan.width, tilePlan.height);
+                return {
+                    rgba: imageData.data, // Uint8ClampedArray with RGBA values
+                    width: tilePlan.width,
+                    height: tilePlan.height
+                };
+            });
 
-            if (this.outputFormat === 'ktx2') {
-                // KTX2 mode: Extract RGBA pixel data
-                kind = 'ktx2';
-                images = this.canvasses.map(canvas => {
-                    const ctx = canvas.getContext('2d');
-                    const imageData = ctx.getImageData(0, 0, tilePlan.width, tilePlan.height);
-                    return {
-                        rgba: imageData.data, // Uint8ClampedArray with RGBA values
-                        width: tilePlan.width,
-                        height: tilePlan.height
-                    };
-                });
-            } else {
-                // WebM mode: Use ImageBitmap (existing behavior)
-                kind = 'webm';
-                images = this.canvasses.map(canvas => canvas.transferToImageBitmap());
-            }
-
-            // Emit consistent payload with kind discriminator
-            this.emit('complete', { images, kind });
+            // Emit images for KTX2 encoding
+            this.emit('complete', { images, kind: 'ktx2' });
 
             // "destroy" these canvasses
             delete this.canvasses

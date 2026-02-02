@@ -1,45 +1,8 @@
 <template>
     <!-- Download UI (format-agnostic) -->
     <div class="download-section">
-        <h4 class="text-lg font-semibold mb-3">Download Tiles</h4>
 
-        <!-- Download All Button -->
-        <button
-            @click="downloadAll"
-            :disabled="isDownloadingZip"
-            class="download-all-button bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 mb-4 flex items-center disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-            <span v-if="isDownloadingZip">Creating ZIP...</span>
-            <span
-                v-else
-                class="flex items-center gap-1"
-            >
-                <span class="material-symbols-outlined text-lg">folder_zip</span>
-                Download All as ZIP
-            </span>
 
-            <svg
-                v-if="isDownloadingZip"
-                class="animate-spin h-5 w-5 text-white ml-2"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-            >
-                <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                ></circle>
-                <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                ></path>
-            </svg>
-        </button>
 
         <!-- Upload Options (only show when authenticated) -->
         <div
@@ -191,22 +154,20 @@
             v-if="savedLocalTextureId"
             class="saved-local-container mb-4 p-3 rounded-md flex items-center gap-4"
         >
-            <div class="w-16 h-16 rounded bg-blue-600 flex items-center justify-center">
-                <span class="text-2xl">💾</span>
-            </div>
+
 
             <div class="flex-1">
-                <p class="text-sm font-medium saved-text-title">Saved locally!</p>
+                <p class="text-sm font-medium saved-text-title">Saved locally.</p>
                 <p class="text-xs saved-text-secondary">Available in Local Textures</p>
             </div>
 
-            <router-link
-                :to="`/?local=${savedLocalTextureId}`"
+            <button
+                @click="viewLocalTexture"
                 class="view-local-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2"
             >
                 <span class="material-symbols-outlined">visibility</span>
                 View
-            </router-link>
+            </button>
         </div>
 
         <!-- Show uploaded texture with Apply button -->
@@ -241,19 +202,61 @@
                 Apply
             </button>
         </div>
+
+        <!-- Download All Button -->
+        <button
+            @click="downloadAll"
+            :disabled="isDownloadingZip"
+            class="download-all-button bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 mb-4 flex items-center disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+            <span v-if="isDownloadingZip">Creating ZIP...</span>
+            <span
+                v-else
+                class="flex items-center gap-1"
+            >
+                <span class="material-symbols-outlined text-lg">folder_zip</span>
+                Download ZIP
+            </span>
+
+            <svg
+                v-if="isDownloadingZip"
+                class="animate-spin h-5 w-5 text-white ml-2"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+            >
+                <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                ></circle>
+                <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                ></path>
+            </svg>
+        </button>
     </div>
 </template>
 
 <script setup>
-    import { computed, reactive, ref } from 'vue';
+    import { ref } from 'vue';
+    import { useRouter } from 'vue-router';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { downloadAllAsZip } from '../../modules/slyce/zipDownloader.js';
     import { useSlyceStore } from '../../stores/slyceStore';
+    import { useViewerStore } from '../../stores/viewerStore';
     import { useRivvonAPI } from '../../services/api.js';
     import { useLocalStorage } from '../../services/localStorage.js';
 
-    // Access the Pinia store
+    // Access the Pinia stores
     const app = useSlyceStore();
+    const viewerStore = useViewerStore();
+    const router = useRouter();
 
     // Emit events
     const emit = defineEmits(['apply-texture']);
@@ -285,11 +288,6 @@
     const textureName = ref('');
     const isPublic = ref(true);
 
-    // Computed property for current blob URLs based on format
-    const currentBlobURLs = computed(() => {
-        return app.outputFormat === 'ktx2' ? app.ktx2BlobURLs : app.blobURLs;
-    });
-
     const isDownloadingZip = ref(false);
 
     // Download all tiles as ZIP
@@ -299,11 +297,8 @@
         isDownloadingZip.value = true;
 
         try {
-            const format = app.outputFormat === 'ktx2'
-                ? { mime: 'image/ktx2', extension: 'ktx2' }
-                : { mime: 'video/webm', extension: 'webm' };
-
-            await downloadAllAsZip(currentBlobURLs.value, app.fileInfo, format, app);
+            const format = { mime: 'image/ktx2', extension: 'ktx2' };
+            await downloadAllAsZip(app.ktx2BlobURLs, app.fileInfo, format, app);
         } catch (error) {
             console.error('Failed to create ZIP:', error);
             alert('Failed to create ZIP file. Files may be too large.');
@@ -325,7 +320,7 @@
         uploadedThumbnailUrl.value = null;
 
         try {
-            const blobUrls = Object.entries(currentBlobURLs.value);
+            const blobUrls = Object.entries(app.ktx2BlobURLs);
             const defaultName = app.fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture';
             const finalName = textureName.value.trim() || defaultName;
 
@@ -488,6 +483,17 @@
             name: textureName.value.trim() || app.fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture',
             thumbnail_url: uploadedThumbnailUrl.value,
         });
+    };
+
+    // View locally saved texture - close texture creator and navigate
+    const viewLocalTexture = () => {
+        if (!savedLocalTextureId.value) return;
+
+        // Close the texture creator panel
+        viewerStore.toggleSlyce();
+
+        // Navigate to the local texture
+        router.push(`/?local=${savedLocalTextureId.value}`);
     };
 </script>
 

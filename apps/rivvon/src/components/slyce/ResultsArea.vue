@@ -3,8 +3,8 @@
     import { useSlyceStore } from '../../stores/slyceStore';
     import StatusBox from './StatusBox.vue';
     import DownloadArea from './DownloadArea.vue';
-    import VideoGrid from './VideoGrid.vue';
-    import TileGridRenderer from './TileGridRenderer.vue';
+    import TileLinearViewer from './TileLinearViewer.vue';
+    // import TileGridRenderer from './TileGridRenderer.vue'; // Available for 3D grid view if needed
     import ProgressSpinner from 'primevue/progressspinner';
 
     const app = useSlyceStore();
@@ -12,19 +12,13 @@
 
     // Check if there are any tiles available for download
     const hasTiles = computed(() => {
-        const blobURLs = app.outputFormat === 'ktx2' ? app.ktx2BlobURLs : app.blobURLs;
-        return Object.keys(blobURLs).length > 0;
+        return Object.keys(app.ktx2BlobURLs).length > 0;
     });
 
     // Check if processing is in progress (has status messages but no tiles yet)
     const isProcessing = computed(() => {
         return Object.keys(app.status).length > 0 && !hasTiles.value;
     });
-
-    // Handle playback state changes from the video grid
-    function handlePlaybackStateChange({ currentTime, playing }) {
-        app.updatePlaybackState({ currentTime, playing });
-    }
 
     // Reset app and return to upload screen
     function handleReset() {
@@ -62,27 +56,14 @@
                     Start Over
                 </button>
             </div>
+            <DownloadArea @apply-texture="(texture) => emit('apply-texture', texture)" />
         </div>
         <div class="results-main">
-            <!-- WebM Video Grid -->
-            <VideoGrid
-                v-if="app.outputFormat === 'webm'"
-                :blobURLs="app.blobURLs"
-                :outputMode="app.outputMode"
-                :playbackTime="app.currentPlaybackTime"
-                :isPlaying="app.isPlaying"
-                @playback-state-change="handlePlaybackStateChange"
-            />
-
-            <!-- KTX2 Three.js Renderer -->
-            <TileGridRenderer
-                v-else-if="app.outputFormat === 'ktx2'"
+            <!-- Linear KTX2 Viewer (document-like layout) -->
+            <TileLinearViewer
                 :ktx2BlobURLs="app.ktx2BlobURLs"
                 :outputMode="app.outputMode"
             />
-        </div>
-        <div class="results-download">
-            <DownloadArea @apply-texture="(texture) => emit('apply-texture', texture)" />
         </div>
 
     </div>

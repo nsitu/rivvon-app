@@ -31,18 +31,11 @@ export const useSlyceStore = defineStore('slyce', {
 
         currentStep: '1',
         tilePlan: {},
-        blobURLs: {},
-        // New properties for synchronization
-        currentPlaybackTime: 0,
-        isPlaying: false,
 
-        // Output format control
-        outputFormat: 'ktx2', // 'webm' | 'ktx2' (default 'ktx2' initially)
-
-        // KTX2-specific blob URLs (parallel to blobURLs)
+        // KTX2 blob URLs
         ktx2BlobURLs: {},
 
-        // KTX2 playback state (separate from WebM video timing)
+        // KTX2 playback state
         ktx2Playback: {
             currentLayer: 0,      // current layer index (0 to layerCount-1)
             layerCount: 0,        // total layers in texture array
@@ -71,29 +64,20 @@ export const useSlyceStore = defineStore('slyce', {
         log(message) {
             this.messages.push(message);
         },
-        addBlobURL(tileNumber, blob) {
-            this.blobURLs[tileNumber] = blob;
-        },
-        // Register blob URL for specific format and revoke any previous URL for same tile
-        registerBlobURL(format, tileNumber, blob) {
-            const blobStore = format === 'ktx2' ? this.ktx2BlobURLs : this.blobURLs;
+        // Register KTX2 blob URL and revoke any previous URL for same tile
+        registerBlobURL(tileNumber, blob) {
             // Revoke previous URL if exists
-            if (blobStore[tileNumber]) {
-                URL.revokeObjectURL(blobStore[tileNumber]);
+            if (this.ktx2BlobURLs[tileNumber]) {
+                URL.revokeObjectURL(this.ktx2BlobURLs[tileNumber]);
             }
-            blobStore[tileNumber] = URL.createObjectURL(blob);
+            this.ktx2BlobURLs[tileNumber] = URL.createObjectURL(blob);
         },
-        // Revoke all blob URLs for a specific format
-        revokeBlobURLs(format) {
-            const blobStore = format === 'ktx2' ? this.ktx2BlobURLs : this.blobURLs;
-            Object.values(blobStore).forEach(url => {
+        // Revoke all KTX2 blob URLs
+        revokeBlobURLs() {
+            Object.values(this.ktx2BlobURLs).forEach(url => {
                 if (url) URL.revokeObjectURL(url);
             });
-            if (format === 'ktx2') {
-                this.ktx2BlobURLs = {};
-            } else {
-                this.blobURLs = {};
-            }
+            this.ktx2BlobURLs = {};
         },
         setStatus(key, value) {
             this.status[key] = value;
@@ -109,10 +93,7 @@ export const useSlyceStore = defineStore('slyce', {
             // Abort any ongoing processing
             abortProcessing();
 
-            // Revoke all blob URLs before clearing
-            Object.values(this.blobURLs).forEach(url => {
-                if (url) URL.revokeObjectURL(url);
-            });
+            // Revoke all KTX2 blob URLs before clearing
             Object.values(this.ktx2BlobURLs).forEach(url => {
                 if (url) URL.revokeObjectURL(url);
             });
@@ -125,10 +106,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.fpsNow = 0;
             this.timestamps = [];
             this.lastFPSUpdate = 0;
-            this.blobURLs = {};
             this.ktx2BlobURLs = {};
-            this.currentPlaybackTime = 0;
-            this.isPlaying = false;
             this.ktx2Playback = {
                 currentLayer: 0,
                 layerCount: 0,
@@ -141,10 +119,7 @@ export const useSlyceStore = defineStore('slyce', {
             // Abort any ongoing processing
             abortProcessing();
 
-            // Revoke all blob URLs before clearing
-            Object.values(this.blobURLs).forEach(url => {
-                if (url) URL.revokeObjectURL(url);
-            });
+            // Revoke all KTX2 blob URLs before clearing
             Object.values(this.ktx2BlobURLs).forEach(url => {
                 if (url) URL.revokeObjectURL(url);
             });
@@ -166,10 +141,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.lastFPSUpdate = 0;
             this.currentStep = '1';
             this.tilePlan = {};
-            this.blobURLs = {};
             this.ktx2BlobURLs = {};
-            this.currentPlaybackTime = 0;
-            this.isPlaying = false;
             this.ktx2Playback = {
                 currentLayer: 0,
                 layerCount: 0,
@@ -183,11 +155,6 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropWidth = null;
             this.cropHeight = null;
             this.thumbnailBlob = null;
-        },
-        // Playback control
-        updatePlaybackState({ currentTime, playing }) {
-            this.currentPlaybackTime = currentTime;
-            this.isPlaying = playing;
         },
         trackFrame() {
             // Called each time a frame is processed/decoded
@@ -219,13 +186,6 @@ export const useSlyceStore = defineStore('slyce', {
         // be a separate FPS for encoding tiles. 
         fps() {
             return this.fpsNow
-        },
-        // Format mode getters for convenient access
-        isKTX2Mode() {
-            return this.outputFormat === 'ktx2';
-        },
-        isWebMMode() {
-            return this.outputFormat === 'webm';
         },
         // Cropping getters
         effectiveWidth() {

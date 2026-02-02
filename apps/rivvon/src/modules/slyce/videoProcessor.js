@@ -1,7 +1,6 @@
 import { useSlyceStore } from '../../stores/slyceStore';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 import { resourceUsageReport } from './resourceMonitor.js';
-import { encodeVideo } from './videoEncoder.js';
 import { TileBuilder } from './tileBuilder.js';
 import { KTX2Assembler } from './ktx2-assembler.js';
 import { KTX2WorkerPool } from './ktx2-worker-pool.js';
@@ -299,8 +298,8 @@ const processVideo = async (settings) => {
                             const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(ktx2WorkerPool, images, onProgress);
                             const blob = new Blob([ktx2Buffer], { type: 'image/ktx2' });
 
-                            // Register KTX2 blob URL using new helper
-                            app.registerBlobURL('ktx2', tileNumber, blob);
+                    // Register KTX2 blob URL
+                            app.registerBlobURL(tileNumber, blob);
 
                             // Remove per-tile status when this tile is done
                             app.removeStatus(`Tile ${tileNumber + 1}`);
@@ -310,10 +309,6 @@ const processVideo = async (settings) => {
                             console.error(`[KTX2] Failed to encode tile ${tileNumber}:`, error);
                             app.setStatus(`Tile ${tileNumber + 1} Error`, error.message);
                         }
-                    } else {
-                        // WebM mode: Use existing video encoder
-                        const blob = await encodeVideo(images, tilePlan, tileNumber, crossSectionType);
-                        app.registerBlobURL('webm', tileNumber, blob);
                     }
 
                     // Track completion and cleanup when all tiles are done
@@ -335,10 +330,8 @@ const processVideo = async (settings) => {
                         app.removeStatus('Frame Limit');
                         app.removeStatus('Decoding');
                         app.removeStatus('System');
-                        // Cleanup KTX2 worker pool if it was used
-                        if (app.outputFormat === 'ktx2') {
-                            cleanupKTX2Workers();
-                        }
+                        // Cleanup KTX2 worker pool
+                        cleanupKTX2Workers();
                     }
                 });
             }
