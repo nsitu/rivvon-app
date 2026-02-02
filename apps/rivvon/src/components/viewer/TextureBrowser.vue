@@ -465,9 +465,7 @@
                     <h3>Delete {{ isLocalDelete ? 'Local' : 'Cloud' }} Texture</h3>
                     <p>Are you sure you want to delete "<strong>{{ textureToDelete.name }}</strong>"?</p>
                     <p class="delete-warning">
-                        {{ isLocalDelete ? 'This will remove the texture from your browser storage.' : 'This action
-                        cannot be
-                        undone.' }}
+                        {{ isLocalDelete ? 'This will remove the texture from your browser storage.' : 'This action cannot be undone.' }}
                     </p>
                     <div class="delete-modal-actions">
                         <button

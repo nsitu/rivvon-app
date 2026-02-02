@@ -125,14 +125,25 @@
         </button>
 
 
-        <!-- Flow animation toggle -->
+        <!-- Flow animation toggle (3-state: off -> forward -> backward) -->
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="'Toggle texture flow animation'"
-            :class="{ active: app.flowEnabled }"
+            v-tooltip.top="app.flowState === 'off' ? 'Enable flow (forward)' : app.flowState === 'forward' ? 'Flow backward' : 'Disable flow'"
+            :class="{ active: app.flowState !== 'off' }"
             @click="emit('toggle-flow')"
         >
-            <span class="material-symbols-outlined">sprint</span>
+            <span
+                v-if="app.flowState === 'off'"
+                class="material-symbols-outlined"
+            >sprint</span>
+            <span
+                v-else-if="app.flowState === 'forward'"
+                class="material-symbols-outlined"
+            >arrow_forward</span>
+            <span
+                v-else
+                class="material-symbols-outlined"
+            >arrow_back</span>
         </button>
 
         <!-- Fullscreen toggle -->

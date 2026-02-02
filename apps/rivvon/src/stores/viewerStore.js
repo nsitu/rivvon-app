@@ -16,7 +16,8 @@ export const useViewerStore = defineStore('viewer', {
         inFinalCountdown: false,
         
         // Ribbon/3D state
-        flowEnabled: false,
+        flowState: 'off', // 'off' | 'forward' | 'backward'
+        flowSpeed: 0.25, // Base flow speed (positive value)
         
         // Texture state
         currentTextureId: null,
@@ -47,8 +48,19 @@ export const useViewerStore = defineStore('viewer', {
             this.isDrawingMode = enabled;
         },
         
-        toggleFlow() {
-            this.flowEnabled = !this.flowEnabled;
+        cycleFlowState() {
+            // Cycle: off -> forward -> backward -> off
+            if (this.flowState === 'off') {
+                this.flowState = 'forward';
+            } else if (this.flowState === 'forward') {
+                this.flowState = 'backward';
+            } else {
+                this.flowState = 'off';
+            }
+        },
+        
+        setFlowState(state) {
+            this.flowState = state;
         },
         
         showBetaModal(reason = 'default') {
@@ -117,5 +129,6 @@ export const useViewerStore = defineStore('viewer', {
     
     getters: {
         hasActiveStrokes: (state) => state.strokeCount > 0,
+        flowEnabled: (state) => state.flowState !== 'off',
     }
 });

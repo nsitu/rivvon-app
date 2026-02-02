@@ -383,13 +383,22 @@ export function useThreeSetup() {
     }
 
     /**
-     * Toggle flow animation
+     * Set flow animation state
+     * @param {string} state - 'off' | 'forward' | 'backward'
      */
-    function setFlowEnabled(enabled) {
+    function setFlowState(state) {
         if (tileManager.value) {
-            tileManager.value.setFlowEnabled(enabled);
+            const baseSpeed = app.flowSpeed || 0.25;
+            if (state === 'off') {
+                tileManager.value.setFlowEnabled(false);
+            } else {
+                // Set speed based on direction
+                const speed = state === 'forward' ? baseSpeed : -baseSpeed;
+                tileManager.value.setFlowSpeed(speed);
+                tileManager.value.setFlowEnabled(true);
+            }
         }
-        app.flowEnabled = enabled;
+        app.setFlowState(state);
     }
 
     /**
@@ -469,6 +478,6 @@ export function useThreeSetup() {
         loadTextures,
         loadTexturesFromRemote,
         loadTexturesFromLocal,
-        setFlowEnabled
+        setFlowState
     };
 }

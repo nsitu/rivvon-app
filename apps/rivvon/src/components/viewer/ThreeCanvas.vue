@@ -32,7 +32,7 @@
         loadTextures,
         loadTexturesFromRemote,
         loadTexturesFromLocal,
-        setFlowEnabled
+        setFlowState
     } = useThreeSetup();
 
     onMounted(async () => {
@@ -73,9 +73,9 @@
         stopRenderLoop();
     });
 
-    // Watch for flow toggle
-    watch(() => app.flowEnabled, (enabled) => {
-        setFlowEnabled(enabled);
+    // Watch for flow state changes
+    watch(() => app.flowState, (state) => {
+        setFlowState(state);
     });
 
     // Expose methods for parent component
@@ -93,7 +93,7 @@
         loadTextures,
         loadTexturesFromRemote,
         loadTexturesFromLocal,
-        setFlowEnabled
+        setFlowState
     });
 </script>
 

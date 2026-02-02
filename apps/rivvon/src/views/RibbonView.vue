@@ -177,9 +177,9 @@
         }
     }
 
-    // Flow toggle
+    // Flow toggle (cycles through: off -> forward -> backward -> off)
     function toggleFlow() {
-        app.toggleFlow();
+        app.cycleFlowState();
     }
 
     // Text to SVG handler
