@@ -208,13 +208,14 @@
     .menu-toggle-btn {
         padding: 2rem 1rem;
         color: white !important;
-        border: none;
+        border: none !important;
         cursor: pointer;
         background: transparent !important;
     }
 
     .menu-toggle-btn:hover {
         background: rgba(0, 0, 0, 0.25) !important;
+        border: 1px solid transparent !important;
     }
 
     /* Mobile adjustments */
