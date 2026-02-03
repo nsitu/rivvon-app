@@ -57,18 +57,28 @@
     });
 
     // Initialize when Three.js canvas is ready
-    function handleThreeInitialized(context) {
+    async function handleThreeInitialized(context) {
         console.log('[RibbonView] Three.js initialized with context:', context);
         console.log('[RibbonView] tileManager:', context.tileManager);
         console.log('[RibbonView] scene:', context.scene);
-        isReady.value = true;
 
-        // Initialize default ribbon
-        initializeDefaultRibbon();
+        // Show loading indicator during initial setup
+        isLoadingTexture.value = true;
+        loadingProgress.value = 'Initializing...';
 
-        // Check for texture deep link
-        if (route.params.textureId) {
-            loadTextureFromRoute(route.params.textureId);
+        try {
+            // Initialize default ribbon
+            await initializeDefaultRibbon();
+
+            // Check for texture deep link
+            if (route.params.textureId) {
+                await loadTextureFromRoute(route.params.textureId);
+            }
+
+            isReady.value = true;
+        } finally {
+            isLoadingTexture.value = false;
+            loadingProgress.value = '';
         }
     }
 
@@ -84,6 +94,7 @@
 
         try {
             // Load default SVG path (spiral.svg exists in public folder)
+            loadingProgress.value = 'Loading shape...';
             console.log('[RibbonView] Fetching /spiral.svg...');
             const response = await fetch('/spiral.svg');
             if (!response.ok) {
@@ -93,6 +104,7 @@
             const svgContent = await response.text();
             console.log('[RibbonView] SVG loaded, length:', svgContent.length);
 
+            loadingProgress.value = 'Building ribbon...';
             const paths = parseSvgContentDynamicResolution(svgContent, {}, 5, 0);
             console.log('[RibbonView] Parsed paths:', paths.length, paths);
 
@@ -116,6 +128,7 @@
         if (!threeCanvasRef.value) return;
 
         try {
+            loadingProgress.value = 'Loading texture...';
             console.log('[RibbonView] Loading texture:', textureId);
             await threeCanvasRef.value.loadTextures(textureId);
         } catch (error) {
@@ -562,7 +575,7 @@
     .loading-overlay {
         position: fixed;
         inset: 0;
-        z-index: 1000;
+        z-index: 5;
         display: flex;
         align-items: center;
         justify-content: center;
