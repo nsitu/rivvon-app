@@ -47,6 +47,16 @@ export async function fetchTextureSet(textureSetId) {
 }
 
 /**
+ * Fetch a texture set with full tile data (includes tile URLs)
+ * Alias for fetchTextureSet - both return tiles array
+ * @param {string} textureSetId - The texture set ID
+ * @returns {Promise<Object>} Texture set with tiles array
+ */
+export async function fetchTextureWithTiles(textureSetId) {
+    return fetchTextureSet(textureSetId);
+}
+
+/**
  * Format file size for display
  * @param {number} bytes 
  * @returns {string}

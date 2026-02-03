@@ -283,6 +283,80 @@ export function useRivvonAPI() {
     }
 
     /**
+     * Complete texture set upload workflow using Cloudflare R2 (Admin only)
+     * Creates set, uploads all tiles directly to R2 via API, marks complete
+     * 
+     * @param {Object} options - Upload options (same as uploadTextureSet)
+     */
+    async function uploadTextureSetToR2(options) {
+        const {
+            name,
+            description,
+            isPublic = true,
+            tileResolution,
+            layerCount,
+            crossSectionType,
+            sourceMetadata,
+            tiles,
+            thumbnailBlob,
+            onProgress,
+        } = options
+
+        // 1. Create texture set in API with R2 storage provider
+        if (onProgress) onProgress('creating', 'Creating texture set (R2)...')
+        const { textureSetId, tiles: preallocatedTiles } = await createTextureSet({
+            name,
+            description,
+            isPublic,
+            tileResolution,
+            tileCount: tiles.length,
+            layerCount,
+            crossSectionType,
+            sourceMetadata,
+            storageProvider: 'r2',
+        })
+
+        // 2. Upload each tile directly to R2 via API
+        const uploadedTiles = []
+        for (let i = 0; i < tiles.length; i++) {
+            const tile = tiles[i]
+            if (onProgress) {
+                onProgress('tile', `Uploading tile ${i + 1}/${tiles.length} to R2...`)
+            }
+
+            const result = await uploadTile(textureSetId, tile.index, tile.blob)
+            uploadedTiles.push(result)
+        }
+
+        // 3. Upload thumbnail to R2
+        let thumbnailUrl = null
+        if (thumbnailBlob) {
+            if (onProgress) onProgress('thumbnail', 'Uploading thumbnail...')
+            try {
+                const result = await uploadThumbnail(textureSetId, thumbnailBlob)
+                thumbnailUrl = result.thumbnailUrl
+            } catch (err) {
+                console.warn('Thumbnail upload failed (non-fatal):', err)
+            }
+        }
+
+        // 4. Mark as complete
+        if (onProgress) onProgress('completing', 'Finalizing...')
+        await completeTextureSet(textureSetId)
+
+        // 5. Return texture set info with R2 CDN URLs
+        return {
+            textureSetId,
+            storageProvider: 'r2',
+            thumbnailUrl,
+            tiles: uploadedTiles.map((t) => ({
+                tileIndex: t.tileIndex,
+                url: t.url || t.publicUrl,
+            })),
+        }
+    }
+
+    /**
      * Get current user's texture sets (authenticated)
      * GET /my-textures
      */
@@ -322,6 +396,7 @@ export function useRivvonAPI() {
         completeTextureSet,
         uploadThumbnail,
         uploadTextureSet,
+        uploadTextureSetToR2,
         listTextures,
         getTexture,
         getMyTextures,

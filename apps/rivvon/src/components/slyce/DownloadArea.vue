@@ -47,6 +47,25 @@
                     ></span>
                 </button>
             </div>
+
+            <!-- Storage Destination (Admin Only) -->
+            <div
+                v-if="isAdmin"
+                class="mt-3 pt-3 border-t border-purple-500/30"
+            >
+                <label
+                    for="storageDestination"
+                    class="block text-xs font-medium upload-options-label mb-1"
+                >Storage Destination <span class="text-purple-400">(Admin)</span></label>
+                <Select
+                    id="storageDestination"
+                    v-model="storageDestination"
+                    :options="storageOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    class="w-full"
+                />
+            </div>
         </div>
 
         <!-- Upload to CDN Button -->
@@ -246,6 +265,7 @@
 <script setup>
     import { ref } from 'vue';
     import { useRouter } from 'vue-router';
+    import Select from 'primevue/select';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { downloadAllAsZip } from '../../modules/slyce/zipDownloader.js';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -262,8 +282,8 @@
     const emit = defineEmits(['apply-texture']);
 
     // Google Auth and API integration
-    const { isAuthenticated } = useGoogleAuth();
-    const { uploadTextureSet } = useRivvonAPI();
+    const { isAuthenticated, isAdmin } = useGoogleAuth();
+    const { uploadTextureSet, uploadTextureSetToR2 } = useRivvonAPI();
 
     // Local storage
     const { saveTextureSet: saveToLocal } = useLocalStorage();
@@ -287,6 +307,11 @@
     // Upload options
     const textureName = ref('');
     const isPublic = ref(true);
+    const storageDestination = ref('google-drive'); // 'google-drive' or 'cloudflare' (admin only)
+    const storageOptions = [
+        { label: 'Google Drive', value: 'google-drive' },
+        { label: 'Cloudflare R2 (CDN)', value: 'cloudflare' },
+    ];
 
     const isDownloadingZip = ref(false);
 
@@ -349,8 +374,14 @@
                 });
             }
 
+            // Choose upload method based on storage destination (admin only for R2)
+            const useR2 = isAdmin.value && storageDestination.value === 'cloudflare';
+            const uploadFn = useR2 ? uploadTextureSetToR2 : uploadTextureSet;
+
+            console.log('[DownloadArea] Upload destination:', useR2 ? 'Cloudflare R2' : 'Google Drive');
+
             // Upload texture set with all tiles and thumbnail
-            const result = await uploadTextureSet({
+            const result = await uploadFn({
                 name: finalName,
                 description: `Uploaded on ${new Date().toLocaleDateString()}`,
                 isPublic: isPublic.value,

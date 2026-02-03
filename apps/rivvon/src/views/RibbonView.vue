@@ -94,7 +94,7 @@
 
         try {
             // Load default SVG path (spiral.svg exists in public folder)
-            loadingProgress.value = 'Loading shape...';
+            loadingProgress.value = 'Loading...';
             console.log('[RibbonView] Fetching /spiral.svg...');
             const response = await fetch('/spiral.svg');
             if (!response.ok) {
@@ -104,7 +104,6 @@
             const svgContent = await response.text();
             console.log('[RibbonView] SVG loaded, length:', svgContent.length);
 
-            loadingProgress.value = 'Building ribbon...';
             const paths = parseSvgContentDynamicResolution(svgContent, {}, 5, 0);
             console.log('[RibbonView] Parsed paths:', paths.length, paths);
 

@@ -1,7 +1,7 @@
 <script setup>
     import { ref, computed, onMounted, watch } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { fetchTextures } from '../../services/textureService';
+    import { fetchTextures, fetchTextureWithTiles } from '../../services/textureService';
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
@@ -20,9 +20,9 @@
     const emit = defineEmits(['close', 'select', 'select-local']);
 
     const app = useViewerStore();
-    const { deleteTextureSet } = useRivvonAPI();
-    const { isAuthenticated, user } = useGoogleAuth();
-    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet } = useLocalStorage();
+    const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2 } = useRivvonAPI();
+    const { isAuthenticated, isAdmin, user } = useGoogleAuth();
+    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet } = useLocalStorage();
 
     // State
     const textures = ref([]);
@@ -37,6 +37,16 @@
     const deletingId = ref(null);
     const isLocalDelete = ref(false);
 
+    // Copy state
+    const textureToCopy = ref(null);
+    const copyDestination = ref(null); // 'google-drive', 'r2', or 'local'
+    const isCopying = ref(false);
+    const copyProgress = ref('');
+    const copyError = ref(null);
+    const showCopyMenu = ref(null); // texture id to show copy menu for
+    const copyMenuPosition = ref({ top: 0, left: 0 }); // position for teleported menu
+    const copyMenuTexture = ref(null); // texture object for menu
+
     // Combined textures for display (adds isLocal flag to distinguish)
     const displayTextures = computed(() => {
         const tab = activeTab.value;
@@ -49,10 +59,20 @@
         }));
 
         // Map cloud textures with isLocal flag
-        const cloudMapped = textures.value.map(t => ({
-            ...t,
-            isLocal: false
-        }));
+        // Filter out Google Drive textures for unauthenticated users (they require auth to access)
+        const cloudMapped = textures.value
+            .filter(t => {
+                const provider = t.storage_provider || 'r2';
+                // If not authenticated, only show R2/Cloudflare textures (not Google Drive)
+                if (!isAuthenticated.value && provider === 'google-drive') {
+                    return false;
+                }
+                return true;
+            })
+            .map(t => ({
+                ...t,
+                isLocal: false
+            }));
 
         switch (tab) {
             case 'local':
@@ -140,13 +160,37 @@
 
     function handleKeydown(event) {
         if (event.key === 'Escape') {
-            if (textureToDelete.value) {
+            if (textureToCopy.value) {
+                cancelCopy();
+            } else if (textureToDelete.value) {
                 textureToDelete.value = null;
+            } else if (showCopyMenu.value) {
+                showCopyMenu.value = null;
             } else {
                 close();
             }
         }
     }
+
+    // Close copy menu when clicking outside
+    function handleGlobalClick(event) {
+        if (showCopyMenu.value &&
+            !event.target.closest('.action-button.copy-button') &&
+            !event.target.closest('.copy-menu-teleport')) {
+            showCopyMenu.value = null;
+            copyMenuTexture.value = null;
+        }
+    }
+
+    // Set up global click listener
+    watch(() => props.visible, (isVisible) => {
+        if (isVisible) {
+            document.addEventListener('click', handleGlobalClick);
+        } else {
+            document.removeEventListener('click', handleGlobalClick);
+            showCopyMenu.value = null;
+        }
+    });
 
     // Delete functionality
     function confirmDelete(texture, event) {
@@ -177,6 +221,189 @@
             deletingId.value = null;
             isLocalDelete.value = false;
         }
+    }
+
+    // Copy functionality
+    function toggleCopyMenu(texture, event) {
+        event.stopPropagation();
+        if (showCopyMenu.value === texture.id) {
+            showCopyMenu.value = null;
+            copyMenuTexture.value = null;
+        } else {
+            // Calculate position from button
+            const button = event.currentTarget;
+            const rect = button.getBoundingClientRect();
+            copyMenuPosition.value = {
+                top: rect.bottom + 4,
+                left: rect.left // align left edge with button
+            };
+            showCopyMenu.value = texture.id;
+            copyMenuTexture.value = texture;
+        }
+    }
+
+    function closeCopyMenu() {
+        showCopyMenu.value = null;
+    }
+
+    /**
+     * Get available copy destinations for a texture
+     * Rules:
+     * - Local textures: can copy to Google Drive (if authenticated) or R2 (if admin)
+     * - Google Drive textures: can copy to R2 (if admin)
+     * - R2 textures: no copy needed (already on CDN)
+     */
+    function getCopyDestinations(texture) {
+        const destinations = [];
+        const isLocal = isLocalTexture(texture);
+        const provider = texture.storage_provider || 'r2';
+
+        if (isLocal) {
+            // Local textures can be copied to cloud
+            if (isAuthenticated.value) {
+                destinations.push({
+                    value: 'google-drive',
+                    label: 'Google Drive',
+                    icon: '/google-drive.svg'
+                });
+            }
+            if (isAdmin.value) {
+                destinations.push({
+                    value: 'r2',
+                    label: 'Cloudflare R2',
+                    icon: '/cloudflare.svg'
+                });
+            }
+        } else if (provider === 'google-drive') {
+            // Google Drive textures can be copied to R2 (admin only)
+            if (isAdmin.value) {
+                destinations.push({
+                    value: 'r2',
+                    label: 'Cloudflare R2',
+                    icon: '/cloudflare.svg'
+                });
+            }
+        }
+        // R2 textures have no copy destinations (already on CDN)
+
+        return destinations;
+    }
+
+    async function startCopy(texture, destination, event) {
+        event.stopPropagation();
+        showCopyMenu.value = null;
+        textureToCopy.value = texture;
+        copyDestination.value = destination;
+    }
+
+    async function performCopy() {
+        if (!textureToCopy.value || !copyDestination.value) return;
+
+        isCopying.value = true;
+        copyProgress.value = 'Preparing...';
+        copyError.value = null;
+
+        try {
+            const texture = textureToCopy.value;
+            const destination = copyDestination.value;
+            const isLocal = isLocalTexture(texture);
+
+            // 1. Fetch tiles from source
+            let tiles = [];
+            let thumbnailBlob = null;
+
+            if (isLocal) {
+                // Fetch from IndexedDB
+                copyProgress.value = 'Loading tiles from local storage...';
+                const localTiles = await getLocalTiles(texture.id);
+                tiles = localTiles.map(t => ({
+                    index: t.tile_index,
+                    blob: t.blob
+                }));
+
+                // Convert thumbnail data URL to blob if available
+                if (texture.thumbnail_data_url) {
+                    const response = await fetch(texture.thumbnail_data_url);
+                    thumbnailBlob = await response.blob();
+                }
+            } else {
+                // Fetch from cloud (Google Drive or R2)
+                copyProgress.value = 'Fetching tiles from cloud...';
+                const textureData = await fetchTextureWithTiles(texture.id);
+
+                // Download each tile as blob
+                for (let i = 0; i < textureData.tiles.length; i++) {
+                    copyProgress.value = `Downloading tile ${i + 1}/${textureData.tiles.length}...`;
+                    const tile = textureData.tiles[i];
+                    const response = await fetch(tile.url);
+                    const blob = await response.blob();
+                    tiles.push({
+                        index: tile.tile_index,
+                        blob
+                    });
+                }
+
+                // Download thumbnail if available
+                if (texture.thumbnail_url) {
+                    try {
+                        const response = await fetch(texture.thumbnail_url);
+                        thumbnailBlob = await response.blob();
+                    } catch (e) {
+                        console.warn('Failed to fetch thumbnail:', e);
+                    }
+                }
+            }
+
+            // 2. Upload to destination
+            const uploadOptions = {
+                name: texture.name + ' (copy)',
+                description: texture.description || `Copied on ${new Date().toLocaleDateString()}`,
+                isPublic: texture.is_public !== false,
+                tileResolution: texture.tile_resolution,
+                layerCount: texture.layer_count,
+                crossSectionType: texture.cross_section_type || 'waves',
+                sourceMetadata: texture.source_metadata || {
+                    filename: texture.name,
+                    sourceFrameCount: texture.source_frame_count,
+                    sampledFrameCount: texture.sampled_frame_count
+                },
+                tiles,
+                thumbnailBlob,
+                onProgress: (step, detail) => {
+                    copyProgress.value = detail;
+                }
+            };
+
+            if (destination === 'google-drive') {
+                copyProgress.value = 'Uploading to Google Drive...';
+                await uploadTextureSet(uploadOptions);
+            } else if (destination === 'r2') {
+                copyProgress.value = 'Uploading to Cloudflare R2...';
+                await uploadTextureSetToR2(uploadOptions);
+            }
+
+            // 3. Refresh textures list
+            copyProgress.value = 'Refreshing...';
+            await loadTextures();
+
+            // Close modal
+            textureToCopy.value = null;
+            copyDestination.value = null;
+            copyProgress.value = '';
+
+        } catch (err) {
+            console.error('[TextureBrowser] Copy failed:', err);
+            copyError.value = err.message || 'Copy failed';
+        } finally {
+            isCopying.value = false;
+        }
+    }
+
+    function cancelCopy() {
+        textureToCopy.value = null;
+        copyDestination.value = null;
+        copyProgress.value = '';
+        copyError.value = null;
     }
 
     function formatSize(bytes) {
@@ -316,6 +543,28 @@
                         @keydown.enter="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
                         @keydown.space.prevent="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
                     >
+                        <!-- Action buttons (positioned at card level, not thumbnail) -->
+                        <div class="texture-card-actions">
+                            <!-- Delete button -->
+                            <button
+                                v-if="isLocalTexture(texture) || isOwner(texture)"
+                                class="action-button delete-button"
+                                title="Delete texture"
+                                @click="confirmDelete(texture, $event)"
+                            >
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
+                            <!-- Copy button -->
+                            <button
+                                v-if="getCopyDestinations(texture).length > 0"
+                                class="action-button copy-button"
+                                title="Copy to another storage"
+                                @click="toggleCopyMenu(texture, $event)"
+                            >
+                                <span class="material-symbols-outlined">content_copy</span>
+                            </button>
+                        </div>
+
                         <!-- Thumbnail -->
                         <div class="texture-card-thumbnail">
                             <img
@@ -349,30 +598,6 @@
                                     class="storage-icon"
                                 />
                             </div>
-                            <!-- Delete button for owned textures (cloud) or all local -->
-                            <button
-                                v-if="isLocalTexture(texture) || isOwner(texture)"
-                                class="delete-button"
-                                title="Delete texture"
-                                @click="confirmDelete(texture, $event)"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                >
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path
-                                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                                    ></path>
-                                </svg>
-                            </button>
                         </div>
 
                         <!-- Info -->
@@ -487,6 +712,76 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </Teleport>
+
+        <!-- Copy confirmation modal -->
+        <Teleport to="body">
+            <div
+                v-if="textureToCopy"
+                class="delete-modal-overlay copy-modal-overlay"
+                @click.self="cancelCopy"
+            >
+                <div class="delete-modal copy-modal">
+                    <h3>Copy Texture</h3>
+                    <p>
+                        Copy "<strong>{{ textureToCopy.name }}</strong>" to
+                        <strong>{{ copyDestination === 'google-drive' ? 'Google Drive' : 'Cloudflare R2' }}</strong>?
+                    </p>
+                    <p
+                        v-if="copyProgress"
+                        class="copy-progress"
+                    >
+                        {{ copyProgress }}
+                    </p>
+                    <p
+                        v-if="copyError"
+                        class="copy-error"
+                    >
+                        Error: {{ copyError }}
+                    </p>
+                    <div class="delete-modal-actions">
+                        <button
+                            class="cancel-button"
+                            @click="cancelCopy"
+                            :disabled="isCopying"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            class="confirm-copy-button"
+                            @click="performCopy"
+                            :disabled="isCopying"
+                        >
+                            {{ isCopying ? 'Copying...' : 'Copy' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- Copy destination dropdown menu (teleported to body to avoid overflow issues) -->
+        <Teleport to="body">
+            <div
+                v-if="showCopyMenu && copyMenuTexture"
+                class="copy-menu-teleport"
+                :style="{ top: copyMenuPosition.top + 'px', left: copyMenuPosition.left + 'px' }"
+                @click.stop
+            >
+                <div class="copy-menu-header">Copy to:</div>
+                <button
+                    v-for="dest in getCopyDestinations(copyMenuTexture)"
+                    :key="dest.value"
+                    class="copy-menu-item"
+                    @click="startCopy(copyMenuTexture, dest.value, $event)"
+                >
+                    <img
+                        :src="dest.icon"
+                        :alt="dest.label"
+                        class="copy-menu-icon"
+                    />
+                    {{ dest.label }}
+                </button>
             </div>
         </Teleport>
     </div>
@@ -780,36 +1075,6 @@
         transform: scale(1.05);
     }
 
-    /* Delete button */
-    .delete-button {
-        position: absolute;
-        top: 8px;
-        left: 8px;
-        background: rgba(220, 38, 38, 0.9);
-        border: none;
-        color: white;
-        width: 28px;
-        height: 28px;
-        border-radius: 4px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: opacity 0.2s, background 0.2s;
-        padding: 0;
-        min-width: 28px;
-        min-height: 28px;
-    }
-
-    .texture-card:hover .delete-button {
-        opacity: 1;
-    }
-
-    .delete-button:hover {
-        background: rgba(185, 28, 28, 1);
-    }
-
     /* Retry button */
     .retry-button {
         margin-top: 12px;
@@ -921,5 +1186,147 @@
     .local-badge .material-symbols-outlined {
         font-size: 18px;
         color: #fff;
+    }
+
+    /* Action buttons (delete, copy) at card level */
+    .texture-card-actions {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        display: flex;
+        gap: 6px;
+        z-index: 2;
+    }
+
+    .action-button {
+        border: none;
+        border-radius: 4px;
+        padding: 4px;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        flex-shrink: 0;
+    }
+
+    .texture-card:hover .action-button {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .action-button .material-symbols-outlined {
+        font-size: 18px;
+        color: #fff;
+    }
+
+    .action-button.copy-button {
+        background: rgba(59, 130, 246, 0.9);
+    }
+
+    .action-button.copy-button:hover {
+        background: #3b82f6;
+        transform: scale(1.1);
+    }
+
+    .action-button.delete-button {
+        background: rgba(220, 38, 38, 0.9);
+    }
+
+    .action-button.delete-button:hover {
+        background: #dc2626;
+        transform: scale(1.1);
+    }
+
+    /* Teleported copy menu */
+    .copy-menu-teleport {
+        position: fixed;
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 6px 0;
+        min-width: 140px;
+        z-index: 9999;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .copy-menu-header {
+        padding: 4px 10px;
+        font-size: 10px;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .copy-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 10px;
+        background: transparent;
+        border: none;
+        color: #fff;
+        font-size: 12px;
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.2s ease;
+    }
+
+    .copy-menu-item:hover {
+        background: rgba(59, 130, 246, 0.2);
+    }
+
+    .copy-menu-icon {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+    }
+
+    /* Copy modal styles */
+    .copy-modal-overlay {
+        background: rgba(0, 0, 0, 0.7);
+    }
+
+    .copy-modal {
+        max-width: 400px;
+    }
+
+    .copy-progress {
+        color: #60a5fa;
+        font-size: 14px;
+        margin: 12px 0;
+        padding: 8px;
+        background: rgba(59, 130, 246, 0.1);
+        border-radius: 4px;
+    }
+
+    .copy-error {
+        color: #f87171;
+        font-size: 14px;
+        margin: 12px 0;
+    }
+
+    .confirm-copy-button {
+        background: #3b82f6;
+        border: none;
+        color: #fff;
+        padding: 10px 20px;
+        cursor: pointer;
+        font-size: 14px;
+        border-radius: 4px;
+    }
+
+    .confirm-copy-button:hover:not(:disabled) {
+        background: #2563eb;
+    }
+
+    .confirm-copy-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 </style>
