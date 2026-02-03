@@ -1,12 +1,13 @@
 // src/routes/upload.ts
 import { Hono } from 'hono';
 import { verifySession } from '../middleware/session';
-import { syncUser } from '../utils/user';
+import { syncUser, isAdminUser } from '../utils/user';
 import { nanoid } from 'nanoid';
 
 type Bindings = {
   DB: D1Database;
   BUCKET: R2Bucket;
+  ADMIN_USERS?: string;
 };
 
 export const uploadRoutes = new Hono<{ Bindings: Bindings }>();
@@ -403,18 +404,28 @@ uploadRoutes.patch('/:setId/thumbnail-url', async (c) => {
   return c.json({ success: true, thumbnailUrl });
 });
 
-// Delete a texture set (owner only)
+// Delete a texture set (owner or admin)
 uploadRoutes.delete('/:id', async (c) => {
   const auth = c.get('auth');
   const textureSetId = c.req.param('id');
 
-  // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
-    SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(textureSetId, auth.userId).first();
+  // Check if user is admin
+  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
+
+  // Get texture set (admins can delete any, owners can delete their own)
+  let textureSet;
+  if (isAdmin) {
+    textureSet = await c.env.DB.prepare(`
+      SELECT * FROM texture_sets WHERE id = ?
+    `).bind(textureSetId).first();
+  } else {
+    textureSet = await c.env.DB.prepare(`
+      SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
+    `).bind(textureSetId, auth.userId).first();
+  }
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found or not owned by you' }, 404);
+    return c.json({ error: 'Texture set not found or not authorized' }, 404);
   }
 
   // Get all tiles to delete from R2

@@ -631,9 +631,9 @@
                     >
                         <!-- Action buttons (positioned at card level, not thumbnail) -->
                         <div class="texture-card-actions">
-                            <!-- Delete button -->
+                            <!-- Delete button (owner, admin, or local) -->
                             <button
-                                v-if="isLocalTexture(texture) || isOwner(texture)"
+                                v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
                                 class="action-button delete-button"
                                 title="Delete texture"
                                 @click="confirmDelete(texture, $event)"
