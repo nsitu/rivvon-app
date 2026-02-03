@@ -5,6 +5,7 @@
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
+    import { fetchDriveFile } from '../../modules/viewer/auth.js';
 
     const props = defineProps({
         visible: {
@@ -330,15 +331,35 @@
                 // Fetch from cloud (Google Drive or R2)
                 copyProgress.value = 'Fetching tiles from cloud...';
                 const textureData = await fetchTextureWithTiles(texture.id);
+                const isGoogleDrive = texture.storage_provider === 'google-drive';
 
                 // Download each tile as blob
                 for (let i = 0; i < textureData.tiles.length; i++) {
                     copyProgress.value = `Downloading tile ${i + 1}/${textureData.tiles.length}...`;
                     const tile = textureData.tiles[i];
-                    const response = await fetch(tile.url);
-                    const blob = await response.blob();
+                    let blob;
+
+                    if (isGoogleDrive && tile.driveFileId) {
+                        // Use Google Drive API with OAuth token (CORS-safe)
+                        const arrayBuffer = await fetchDriveFile(tile.driveFileId);
+                        blob = new Blob([arrayBuffer], { type: 'image/ktx2' });
+                    } else if (tile.url && tile.url.includes('drive.google.com')) {
+                        // Parse Drive file ID from URL and use API
+                        const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
+                        if (fileIdMatch) {
+                            const arrayBuffer = await fetchDriveFile(fileIdMatch[1]);
+                            blob = new Blob([arrayBuffer], { type: 'image/ktx2' });
+                        } else {
+                            throw new Error('Invalid Google Drive URL format');
+                        }
+                    } else {
+                        // Direct URL (R2/CDN) - simple fetch
+                        const response = await fetch(tile.url);
+                        blob = await response.blob();
+                    }
+
                     tiles.push({
-                        index: tile.tile_index,
+                        index: tile.tileIndex,
                         blob
                     });
                 }
