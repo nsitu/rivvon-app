@@ -8,6 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 
 // Shared state across all component instances
 const user = ref(null)
+const isAdmin = ref(false)
 const isLoading = ref(false)
 const error = ref(null)
 
@@ -44,6 +45,7 @@ export function useGoogleAuth() {
         }
 
         user.value = null
+        isAdmin.value = false
         accessToken = null
         tokenExpiresAt = null
         error.value = null
@@ -69,21 +71,27 @@ export function useGoogleAuth() {
                 
                 if (data.authenticated && data.user) {
                     user.value = data.user
+                    isAdmin.value = data.isAdmin || false
                     authStore.setUser(data.user)
                     console.log('[Auth] Session found:', user.value.name)
+                    console.log('[Auth] User email:', user.value.email)
+                    console.log('[Auth] Admin status:', isAdmin.value ? '✓ ADMIN' : 'regular user')
                 } else {
                     user.value = null
+                    isAdmin.value = false
                     authStore.clearUser()
                     console.log('[Auth] No active session')
                 }
             } else {
                 // Not authenticated - that's ok
                 user.value = null
+                isAdmin.value = false
                 authStore.clearUser()
             }
         } catch (e) {
             console.error('[Auth] Session check error:', e)
             user.value = null
+            isAdmin.value = false
             authStore.clearUser()
         } finally {
             isLoading.value = false
@@ -113,6 +121,7 @@ export function useGoogleAuth() {
             if (response.status === 401) {
                 // Refresh token expired or revoked, need to re-login
                 user.value = null
+                isAdmin.value = false
                 accessToken = null
                 tokenExpiresAt = null
                 authStore.clearUser()
@@ -161,6 +170,7 @@ export function useGoogleAuth() {
     return {
         // State
         user,
+        isAdmin,
         isAuthenticated,
         isLoading,
         error,

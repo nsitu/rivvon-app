@@ -18,6 +18,8 @@ bucket_name = "rivvon-textures"
 CORS_ORIGINS = "https://slyce.rivvon.ca,https://rivvon.ca,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
 API_URL = "https://api.rivvon.ca"
 APP_URL = "https://slyce.rivvon.ca"
+# Comma-separated list of admin user emails
+ADMIN_USERS = "harold@nsitu.ca"
 
 # Secrets (set via wrangler secret put)
 # GOOGLE_CLIENT_ID     - Google OAuth client ID

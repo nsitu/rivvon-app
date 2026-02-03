@@ -7,6 +7,23 @@ export interface UserProfile {
 }
 
 /**
+ * Check if a user email is in the admin list
+ * @param adminUsersEnv - Comma-separated list of admin emails from env
+ * @param email - User's email to check
+ * @returns true if user is an admin
+ */
+export function isAdminUser(adminUsersEnv: string | undefined, email: string | null | undefined): boolean {
+    if (!adminUsersEnv || !email) return false;
+    
+    const adminEmails = adminUsersEnv
+        .split(',')
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e.length > 0);
+    
+    return adminEmails.includes(email.toLowerCase());
+}
+
+/**
  * Upsert user info from request body.
  * Creates user on first seen, updates name/email/picture on subsequent requests.
  * @param db - D1 database instance

@@ -11,6 +11,7 @@ import {
     isLocalDev,
 } from '../utils/cookies';
 import { createSessionToken, verifySessionToken, type SessionUser } from '../utils/session';
+import { isAdminUser } from '../utils/user';
 
 type Bindings = {
     DB: D1Database;
@@ -19,6 +20,7 @@ type Bindings = {
     SESSION_SECRET: string;
     API_URL: string;
     APP_URL: string;
+    ADMIN_USERS?: string;
 };
 
 const authRoutes = new Hono<{ Bindings: Bindings }>();
@@ -254,7 +256,11 @@ authRoutes.get('/me', async (c) => {
         return c.json({ authenticated: false });
     }
 
-    return c.json({ authenticated: true, user });
+    // Check if user is an admin
+    const isAdmin = isAdminUser(c.env.ADMIN_USERS, user.email);
+    console.log('[/me] Admin check:', user.email, isAdmin);
+
+    return c.json({ authenticated: true, user, isAdmin });
 });
 
 /**
