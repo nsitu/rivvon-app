@@ -471,7 +471,7 @@ uploadRoutes.delete('/:id', async (c) => {
   });
 });
 
-// Update texture set metadata (name, description, etc.)
+// Update texture set metadata (name, description, etc.) - owner or admin
 uploadRoutes.patch('/:id', async (c) => {
   const auth = c.get('auth');
   const textureSetId = c.req.param('id');
@@ -479,7 +479,10 @@ uploadRoutes.patch('/:id', async (c) => {
 
   const { name, description, isPublic } = body;
 
-  // Verify ownership
+  // Check if user is admin
+  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
+
+  // Verify ownership or admin status
   const textureSet = await c.env.DB.prepare(`
     SELECT owner_id FROM texture_sets WHERE id = ?
   `).bind(textureSetId).first();
@@ -488,7 +491,7 @@ uploadRoutes.patch('/:id', async (c) => {
     return c.json({ error: 'Texture set not found' }, 404);
   }
 
-  if (textureSet.owner_id !== auth.userId) {
+  if (textureSet.owner_id !== auth.userId && !isAdmin) {
     return c.json({ error: 'Not authorized to update this texture set' }, 403);
   }
 

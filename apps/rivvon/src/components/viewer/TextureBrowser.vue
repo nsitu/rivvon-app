@@ -640,9 +640,9 @@
                             >
                                 <span class="material-symbols-outlined">delete</span>
                             </button>
-                            <!-- Edit button -->
+                            <!-- Edit button (owner or admin) -->
                             <button
-                                v-if="isLocalTexture(texture) || isOwner(texture)"
+                                v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
                                 class="action-button edit-button"
                                 title="Edit name"
                                 @click="startEdit(texture, $event)"
