@@ -459,3 +459,64 @@ uploadRoutes.delete('/:id', async (c) => {
     deletedFiles: r2KeysToDelete.length
   });
 });
+
+// Update texture set metadata (name, description, etc.)
+uploadRoutes.patch('/:id', async (c) => {
+  const auth = c.get('auth');
+  const textureSetId = c.req.param('id');
+  const body = await c.req.json();
+
+  const { name, description, isPublic } = body;
+
+  // Verify ownership
+  const textureSet = await c.env.DB.prepare(`
+    SELECT owner_id FROM texture_sets WHERE id = ?
+  `).bind(textureSetId).first();
+
+  if (!textureSet) {
+    return c.json({ error: 'Texture set not found' }, 404);
+  }
+
+  if (textureSet.owner_id !== auth.userId) {
+    return c.json({ error: 'Not authorized to update this texture set' }, 403);
+  }
+
+  // Build dynamic update query based on provided fields
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (name !== undefined) {
+    updates.push('name = ?');
+    values.push(name);
+  }
+
+  if (description !== undefined) {
+    updates.push('description = ?');
+    values.push(description);
+  }
+
+  if (isPublic !== undefined) {
+    updates.push('is_public = ?');
+    values.push(isPublic ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return c.json({ error: 'No fields to update' }, 400);
+  }
+
+  // Add updated_at timestamp
+  updates.push('updated_at = ?');
+  values.push(Math.floor(Date.now() / 1000));
+
+  // Add textureSetId for WHERE clause
+  values.push(textureSetId);
+
+  await c.env.DB.prepare(`
+    UPDATE texture_sets SET ${updates.join(', ')} WHERE id = ?
+  `).bind(...values).run();
+
+  return c.json({
+    success: true,
+    message: 'Texture set updated'
+  });
+});
