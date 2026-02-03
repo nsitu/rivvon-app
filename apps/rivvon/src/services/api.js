@@ -388,6 +388,27 @@ export function useRivvonAPI() {
         return response.json()
     }
 
+    /**
+     * Update texture set metadata (name, description, isPublic)
+     * PATCH /texture-set/:id
+     */
+    async function updateTextureSet(textureSetId, updates) {
+        const response = await authFetch(`${API_BASE_URL}/texture-set/${textureSetId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updates),
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to update texture set' }))
+            throw new Error(error.error || 'Failed to update texture set')
+        }
+
+        return response.json()
+    }
+
     return {
         isAuthenticated,
         user,
@@ -401,5 +422,6 @@ export function useRivvonAPI() {
         getTexture,
         getMyTextures,
         deleteTextureSet,
+        updateTextureSet,
     }
 }

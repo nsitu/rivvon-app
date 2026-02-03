@@ -21,9 +21,9 @@
     const emit = defineEmits(['close', 'select', 'select-local']);
 
     const app = useViewerStore();
-    const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2 } = useRivvonAPI();
+    const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
-    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet } = useLocalStorage();
+    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet, updateTextureSet: updateLocalTextureSet } = useLocalStorage();
 
     // State
     const textures = ref([]);
@@ -47,6 +47,12 @@
     const showCopyMenu = ref(null); // texture id to show copy menu for
     const copyMenuPosition = ref({ top: 0, left: 0 }); // position for teleported menu
     const copyMenuTexture = ref(null); // texture object for menu
+
+    // Edit state
+    const textureToEdit = ref(null);
+    const editName = ref('');
+    const isEditing = ref(false);
+    const editError = ref(null);
 
     // Combined textures for display (adds isLocal flag to distinguish)
     const displayTextures = computed(() => {
@@ -161,7 +167,9 @@
 
     function handleKeydown(event) {
         if (event.key === 'Escape') {
-            if (textureToCopy.value) {
+            if (textureToEdit.value) {
+                cancelEdit();
+            } else if (textureToCopy.value) {
                 cancelCopy();
             } else if (textureToDelete.value) {
                 textureToDelete.value = null;
@@ -427,6 +435,63 @@
         copyError.value = null;
     }
 
+    // Edit functionality
+    function startEdit(texture, event) {
+        event.stopPropagation();
+        textureToEdit.value = texture;
+        editName.value = texture.name || '';
+        editError.value = null;
+    }
+
+    async function performEdit() {
+        if (!textureToEdit.value || !editName.value.trim()) {
+            editError.value = 'Name cannot be empty';
+            return;
+        }
+
+        isEditing.value = true;
+        editError.value = null;
+
+        try {
+            const texture = textureToEdit.value;
+            const newName = editName.value.trim();
+            const isLocal = isLocalTexture(texture);
+
+            if (isLocal) {
+                // Update in IndexedDB
+                await updateLocalTextureSet(texture.id, { name: newName });
+                // Update local ref
+                const idx = localTextures.value.findIndex(t => t.id === texture.id);
+                if (idx !== -1) {
+                    localTextures.value[idx].name = newName;
+                }
+            } else {
+                // Update in cloud
+                await updateTextureSet(texture.id, { name: newName });
+                // Update local ref
+                const idx = textures.value.findIndex(t => t.id === texture.id);
+                if (idx !== -1) {
+                    textures.value[idx].name = newName;
+                }
+            }
+
+            // Close modal
+            textureToEdit.value = null;
+            editName.value = '';
+        } catch (err) {
+            console.error('[TextureBrowser] Edit failed:', err);
+            editError.value = err.message || 'Failed to update';
+        } finally {
+            isEditing.value = false;
+        }
+    }
+
+    function cancelEdit() {
+        textureToEdit.value = null;
+        editName.value = '';
+        editError.value = null;
+    }
+
     function formatSize(bytes) {
         if (!bytes) return null;
         return (bytes / 1024 / 1024).toFixed(1) + ' MB';
@@ -574,6 +639,15 @@
                                 @click="confirmDelete(texture, $event)"
                             >
                                 <span class="material-symbols-outlined">delete</span>
+                            </button>
+                            <!-- Edit button -->
+                            <button
+                                v-if="isLocalTexture(texture) || isOwner(texture)"
+                                class="action-button edit-button"
+                                title="Edit name"
+                                @click="startEdit(texture, $event)"
+                            >
+                                <span class="material-symbols-outlined">edit</span>
                             </button>
                             <!-- Copy button -->
                             <button
@@ -803,6 +877,52 @@
                     />
                     {{ dest.label }}
                 </button>
+            </div>
+        </Teleport>
+
+        <!-- Edit name modal -->
+        <Teleport to="body">
+            <div
+                v-if="textureToEdit"
+                class="delete-modal-overlay edit-modal-overlay"
+                @click.self="cancelEdit"
+            >
+                <div class="delete-modal edit-modal">
+                    <h3>Edit Texture Name</h3>
+                    <div class="edit-input-container">
+                        <input
+                            v-model="editName"
+                            type="text"
+                            class="edit-name-input"
+                            placeholder="Texture name"
+                            @keydown.enter="performEdit"
+                            @keydown.escape="cancelEdit"
+                            autofocus
+                        />
+                    </div>
+                    <p
+                        v-if="editError"
+                        class="edit-error"
+                    >
+                        {{ editError }}
+                    </p>
+                    <div class="delete-modal-actions">
+                        <button
+                            class="cancel-button"
+                            @click="cancelEdit"
+                            :disabled="isEditing"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            class="confirm-edit-button"
+                            @click="performEdit"
+                            :disabled="isEditing || !editName.trim()"
+                        >
+                            {{ isEditing ? 'Saving...' : 'Save' }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </Teleport>
     </div>
@@ -1263,6 +1383,20 @@
         transform: scale(1.1);
     }
 
+    .action-button.edit-button {
+        background: rgba(34, 197, 94, 0.9);
+    }
+
+    .action-button.edit-button:hover {
+        background: #22c55e;
+        transform: scale(1.1);
+    }
+
+    .action-button.delete-button:hover {
+        background: #dc2626;
+        transform: scale(1.1);
+    }
+
     /* Teleported copy menu */
     .copy-menu-teleport {
         position: fixed;
@@ -1347,6 +1481,64 @@
     }
 
     .confirm-copy-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Edit modal styles */
+    .edit-modal-overlay {
+        background: rgba(0, 0, 0, 0.7);
+    }
+
+    .edit-modal {
+        max-width: 400px;
+    }
+
+    .edit-input-container {
+        margin: 16px 0;
+    }
+
+    .edit-name-input {
+        width: 100%;
+        padding: 10px 12px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s ease;
+    }
+
+    .edit-name-input:focus {
+        border-color: #22c55e;
+    }
+
+    .edit-name-input::placeholder {
+        color: #888;
+    }
+
+    .edit-error {
+        color: #f87171;
+        font-size: 13px;
+        margin: 8px 0;
+    }
+
+    .confirm-edit-button {
+        background: #22c55e;
+        border: none;
+        color: #fff;
+        padding: 10px 20px;
+        cursor: pointer;
+        font-size: 14px;
+        border-radius: 4px;
+    }
+
+    .confirm-edit-button:hover:not(:disabled) {
+        background: #16a34a;
+    }
+
+    .confirm-edit-button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
     }

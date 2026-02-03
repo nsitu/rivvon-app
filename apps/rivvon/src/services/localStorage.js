@@ -281,6 +281,38 @@ async function deleteTextureSet(id) {
 }
 
 /**
+ * Update a texture set's metadata (name, etc.)
+ * @param {string} id - Texture set ID
+ * @param {Object} updates - Fields to update (e.g., { name: 'New Name' })
+ * @returns {Promise<void>}
+ */
+async function updateTextureSet(id, updates) {
+    const db = await openDatabase();
+
+    // Get existing texture set
+    const existing = await getTextureSet(id);
+    if (!existing) {
+        throw new Error('Texture set not found');
+    }
+
+    // Merge updates
+    const updated = { ...existing, ...updates };
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readwrite');
+
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
+            console.log(`[LocalStorage] Updated texture set: ${id}`);
+            resolve();
+        };
+
+        const store = transaction.objectStore(STORE_TEXTURE_SETS);
+        store.put(updated);
+    });
+}
+
+/**
  * Get storage usage estimate
  * @returns {Promise<{used: number, quota: number}>}
  */
@@ -386,6 +418,7 @@ export function useLocalStorage() {
         getTiles,
         getTile,
         deleteTextureSet,
+        updateTextureSet,
         getStorageUsage,
         exportTextureSetAsZip,
         downloadTextureSetAsZip
@@ -400,6 +433,7 @@ export {
     getTiles,
     getTile,
     deleteTextureSet,
+    updateTextureSet,
     getStorageUsage,
     exportTextureSetAsZip,
     downloadTextureSetAsZip
