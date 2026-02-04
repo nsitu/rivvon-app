@@ -138,7 +138,7 @@
 
     @media (min-width: 1024px) {
         .results-sidebar {
-            flex: 0 0 300px;
+            flex: 0 0 400px;
         }
     }
 

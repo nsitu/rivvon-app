@@ -192,30 +192,32 @@
         <!-- Show uploaded texture with Apply button -->
         <div
             v-if="uploadedTextureSetId"
-            class="uploaded-texture-container mb-4 p-3 rounded-md flex items-center gap-4"
+            class="uploaded-texture-container mb-4 p-3 rounded-md"
         >
-            <!-- Thumbnail preview -->
-            <img
-                v-if="uploadedThumbnailUrl"
-                :src="uploadedThumbnailUrl"
-                alt="Texture thumbnail"
-                class="w-16 h-16 object-cover rounded border border-green-500"
-            />
-            <div
-                v-else
-                class="w-16 h-16 rounded bg-gray-600 flex items-center justify-center"
-            >
-                <span class="material-symbols-outlined text-gray-400">texture</span>
-            </div>
+            <div class="flex items-center gap-4 mb-3">
+                <!-- Thumbnail preview -->
+                <img
+                    v-if="uploadedThumbnailUrl"
+                    :src="uploadedThumbnailUrl"
+                    alt="Texture thumbnail"
+                    class="w-16 h-16 object-cover rounded border border-green-500"
+                />
+                <div
+                    v-else
+                    class="w-16 h-16 rounded bg-gray-600 flex items-center justify-center"
+                >
+                    <span class="material-symbols-outlined text-gray-400">texture</span>
+                </div>
 
-            <div class="flex-1">
-                <p class="text-sm font-medium uploaded-text-title">Texture uploaded!</p>
-                <p class="text-xs uploaded-text-secondary">Ready to apply to ribbon</p>
+                <div class="flex-1">
+                    <p class="text-sm font-medium uploaded-text-title">Texture uploaded!</p>
+                    <p class="text-xs uploaded-text-secondary">Ready to apply to ribbon</p>
+                </div>
             </div>
 
             <button
                 @click="applyTexture"
-                class="apply-texture-btn bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 flex items-center gap-2"
+                class="apply-texture-btn bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 flex items-center justify-center gap-2 w-full"
             >
                 <span class="material-symbols-outlined">check</span>
                 Apply
@@ -442,7 +444,7 @@
             const finalName = textureName.value.trim() || defaultName;
 
             // Get KTX2 blobs from blob URLs
-            const blobUrls = currentBlobURLs.value;
+            const blobUrls = app.ktx2BlobURLs;
             const ktx2Blobs = {};
 
             saveLocalProgress.value = 'Fetching tiles...';
