@@ -138,8 +138,8 @@
     }
 
     // Drawing mode handlers
-    function toggleDrawMode() {
-        app.setDrawingMode(!app.isDrawingMode);
+    function enterDrawMode() {
+        app.setDrawingMode(true);
     }
 
     function handleDrawingComplete(strokesData) {
@@ -427,7 +427,7 @@
         console.log('[RibbonView] Applying created texture:', texture);
 
         // Close the Slyce panel
-        app.toggleSlyce();
+        app.hideSlyce();
 
         // Load the texture using the same mechanism as the texture browser
         await handleTextureSelect(texture);
@@ -470,7 +470,8 @@
 
         <!-- Bottom toolbar -->
         <BottomToolbar
-            @toggle-draw-mode="toggleDrawMode"
+            @enter-draw-mode="enterDrawMode"
+            @enter-slyce-mode="app.showSlyce"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"
             @open-texture-browser="openTextureBrowser"

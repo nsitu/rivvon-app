@@ -13,14 +13,14 @@ import './style.css';
 import { loadMaterialSymbols } from './modules/shared/iconLoader';
 loadMaterialSymbols([ 
     'sprint', 'upload', 'grid_view', 'text_fields', 
-    'fullscreen', 'logout', 'login', 'draw', 'info', 'drive_file_move', 'cloud', 'person',
+    'fullscreen', 'fullscreen_exit', 'logout', 'login', 'draw', 'info', 'drive_file_move', 'cloud', 'person',
     'home', 'palette', 'settings', 'rotate_90_degrees_cw',
     'step_over', 'close_fullscreen', 'open_in_full', 'warning',
     'video_file', 'frame_source', 'barcode', 'timer', 'speed',
     'calculate', 'view_compact', 'rotate_right', 'equalizer',
     'arrow_range', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
     'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'arrow_forward', 'video_camera_back_add','arrow_back_ios','check','done_outline','visibility','hard_drive','cloud_upload','folder_zip','menu','block','animation',
-    'polyline','file_export','image','airwave','videocam','content_copy','delete','edit'
+    'polyline','file_export','image','airwave','videocam','content_copy','delete','edit','instant_mix'
 ]);
 
 // Import utilities

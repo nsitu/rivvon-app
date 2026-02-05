@@ -523,7 +523,7 @@
         if (!savedLocalTextureId.value) return;
 
         // Close the texture creator panel
-        viewerStore.toggleSlyce();
+        viewerStore.hideSlyce();
 
         // Navigate to the local texture
         router.push(`/?local=${savedLocalTextureId.value}`);

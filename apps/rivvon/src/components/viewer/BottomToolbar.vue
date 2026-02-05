@@ -4,42 +4,38 @@
     import Popover from 'primevue/popover';
 
     const app = useViewerStore();
-    const flowPopover = ref();
-    const importPopover = ref();
+    const toolsPopover = ref();
 
-    function toggleFlowPopover(event) {
-        flowPopover.value.toggle(event);
+    function toggleToolsPopover(event) {
+        toolsPopover.value.toggle(event);
     }
 
     function setFlowState(state) {
         app.setFlowState(state);
-        flowPopover.value.hide();
-    }
-
-    function toggleImportPopover(event) {
-        importPopover.value.toggle(event);
+        toolsPopover.value.hide();
     }
 
     function handleImport(type) {
-        importPopover.value.hide();
+        toolsPopover.value.hide();
         emit('import-file', type);
     }
 
     function handleExportImage() {
-        importPopover.value.hide();
+        toolsPopover.value.hide();
         emit('export-image');
     }
 
     function handleExportVideo() {
-        importPopover.value.hide();
+        toolsPopover.value.hide();
         emit('export-video');
     }
 
     const emit = defineEmits([
-        'toggle-draw-mode',
+        'enter-draw-mode',
         'toggle-flow',
         'open-text-panel',
         'open-texture-browser',
+        'enter-slyce-mode',
         'import-file',
         'export-image',
         'export-video',
@@ -48,6 +44,7 @@
     ]);
 
     function toggleFullscreen() {
+        toolsPopover.value.hide();
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen();
             app.setFullscreen(true);
@@ -76,7 +73,7 @@
             v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
             class="back-button"
             v-tooltip.top="'Back'"
-            @click="app.isDrawingMode ? emit('toggle-draw-mode') : app.textureCreatorVisible ? app.toggleSlyce() : app.textureBrowserVisible ? app.hideTextureBrowser() : app.hideTextPanel()"
+            @click="app.isDrawingMode ? app.setDrawingMode(false) : app.textureCreatorVisible ? app.hideSlyce() : app.textureBrowserVisible ? app.hideTextureBrowser() : app.hideTextPanel()"
         >
             <span class="material-symbols-outlined">arrow_back_ios</span>
         </button>
@@ -88,12 +85,12 @@
         ></div>
 
 
-        <!-- Draw mode toggle -->
+        <!-- Draw mode button -->
         <button
             v-if="!app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
             v-tooltip.top="'Draw'"
             :class="{ active: app.isDrawingMode }"
-            @click="emit('toggle-draw-mode')"
+            @click="emit('enter-draw-mode')"
         >
             <span class="material-symbols-outlined">draw</span>
             <span
@@ -107,7 +104,7 @@
             v-if="!app.isDrawingMode && !app.textureBrowserVisible && !app.textPanelVisible"
             v-tooltip.top="'Create Texture'"
             :class="{ active: app.textureCreatorVisible }"
-            @click="app.toggleSlyce()"
+            @click="emit('enter-slyce-mode')"
         >
             <span class="material-symbols-outlined">video_camera_back_add</span>
 
@@ -155,72 +152,25 @@
             >Textures</span>
         </button>
 
-        <!-- Import SVG/ZIP with popover menu -->
+        <!-- Tools menu (Import/Export + Animation) -->
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="'Import & Export'"
-            @click="toggleImportPopover"
-        >
-            <span class="material-symbols-outlined">file_export</span>
-        </button>
-
-        <Popover
-            ref="importPopover"
-            class="import-popover"
-        >
-            <div class="import-menu">
-                <button
-                    class="import-option"
-                    @click="handleImport('svg')"
-                >
-                    <span class="material-symbols-outlined">polyline</span>
-                    <span>Import SVG</span>
-                </button>
-                <button
-                    class="import-option"
-                    @click="handleImport('zip')"
-                >
-                    <span class="material-symbols-outlined">folder_zip</span>
-                    <span>Import ZIP Texture</span>
-                </button>
-                <div class="menu-divider"></div>
-                <button
-                    class="import-option"
-                    @click="handleExportImage"
-                >
-                    <span class="material-symbols-outlined">image</span>
-                    <span>Export Image</span>
-                </button>
-                <button
-                    class="import-option"
-                    @click="handleExportVideo"
-                >
-                    <span class="material-symbols-outlined">videocam</span>
-                    <span>Export Video (5s)</span>
-                </button>
-            </div>
-        </Popover>
-
-
-        <!-- Flow animation toggle with popover menu -->
-        <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="'Animation'"
+            v-tooltip.top="'Tools'"
             :class="{ active: app.flowState !== 'off' }"
-            @click="toggleFlowPopover"
+            @click="toggleToolsPopover"
         >
-            <span class="material-symbols-outlined">
-                animation
-            </span>
+            <span class="material-symbols-outlined">instant_mix</span>
         </button>
 
         <Popover
-            ref="flowPopover"
-            class="flow-popover"
+            ref="toolsPopover"
+            class="tools-popover"
         >
-            <div class="flow-menu">
+            <div class="tools-menu">
+                <!-- Animation section -->
+                <div class="menu-section-label">Animation</div>
                 <button
-                    class="flow-option"
+                    class="menu-option"
                     :class="{ selected: app.flowState === 'off' }"
                     @click="setFlowState('off')"
                 >
@@ -228,7 +178,7 @@
                     <span>Oscillate</span>
                 </button>
                 <button
-                    class="flow-option"
+                    class="menu-option"
                     :class="{ selected: app.flowState === 'forward' }"
                     @click="setFlowState('forward')"
                 >
@@ -236,24 +186,61 @@
                     <span>Forward</span>
                 </button>
                 <button
-                    class="flow-option"
+                    class="menu-option"
                     :class="{ selected: app.flowState === 'backward' }"
                     @click="setFlowState('backward')"
                 >
                     <span class="material-symbols-outlined">arrow_back</span>
                     <span>Backward</span>
                 </button>
+
+                <div class="menu-divider"></div>
+
+                <!-- Import / Export section -->
+                <div class="menu-section-label">Import / Export</div>
+                <button
+                    class="menu-option"
+                    @click="handleImport('svg')"
+                >
+                    <span class="material-symbols-outlined">polyline</span>
+                    <span>Import SVG</span>
+                </button>
+                <button
+                    class="menu-option"
+                    @click="handleImport('zip')"
+                >
+                    <span class="material-symbols-outlined">folder_zip</span>
+                    <span>Import ZIP Texture</span>
+                </button>
+                <button
+                    class="menu-option"
+                    @click="handleExportImage"
+                >
+                    <span class="material-symbols-outlined">image</span>
+                    <span>Export Image</span>
+                </button>
+                <button
+                    class="menu-option"
+                    @click="handleExportVideo"
+                >
+                    <span class="material-symbols-outlined">videocam</span>
+                    <span>Export Video (5s)</span>
+                </button>
+
+                <div class="menu-divider"></div>
+
+                <!-- Fullscreen section -->
+                <div class="menu-section-label">Display</div>
+                <button
+                    class="menu-option"
+                    @click="toggleFullscreen"
+                >
+                    <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen'
+                        }}</span>
+                    <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
+                </button>
             </div>
         </Popover>
-
-        <!-- Fullscreen toggle -->
-        <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="'Fullscreen'"
-            @click="toggleFullscreen"
-        >
-            <span class="material-symbols-outlined">fullscreen</span>
-        </button>
     </div>
 </template>
 
@@ -370,50 +357,24 @@
         background: rgba(34, 197, 94, 0.8) !important;
     }
 
-    /* Flow popover menu styles */
-    .flow-menu {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        min-width: 140px;
-    }
-
-    .flow-option {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.625rem 0.875rem;
-        background: transparent;
-        border: none;
-        border-radius: 6px;
-        color: var(--p-text-color, #fff);
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: background 0.15s ease;
-    }
-
-    .flow-option:hover {
-        background: var(--p-content-hover-background, rgba(255, 255, 255, 0.1));
-    }
-
-    .flow-option.selected {
-        background: var(--p-primary-color, #6366f1);
-        color: var(--p-primary-contrast-color, #fff);
-    }
-
-    .flow-option .material-symbols-outlined {
-        font-size: 1.25rem;
-    }
-
-    /* Import popover menu styles */
-    .import-menu {
+    /* Tools popover menu styles */
+    .tools-menu {
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
         min-width: 180px;
     }
 
-    .import-option {
+    .menu-section-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.5));
+        padding: 0.5rem 0.875rem 0.25rem;
+    }
+
+    .menu-option {
         display: flex;
         align-items: center;
         gap: 0.75rem;
@@ -427,18 +388,23 @@
         transition: background 0.15s ease;
     }
 
-    .import-option:hover {
+    .menu-option:hover {
         background: var(--p-content-hover-background, rgba(255, 255, 255, 0.1));
     }
 
-    .import-option .material-symbols-outlined {
+    .menu-option.selected {
+        background: var(--p-primary-color, #6366f1);
+        color: var(--p-primary-contrast-color, #fff);
+    }
+
+    .menu-option .material-symbols-outlined {
         font-size: 1.25rem;
     }
 
     .menu-divider {
         height: 1px;
         background: var(--p-content-border-color, rgba(255, 255, 255, 0.15));
-        margin: 0.25rem 0;
+        margin: 0.5rem 0;
     }
 
 </style>
