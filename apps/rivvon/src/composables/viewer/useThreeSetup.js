@@ -693,6 +693,7 @@ export function useThreeSetup() {
 
         // Load the image as a Three.js texture
         const loader = new THREE.TextureLoader();
+        loader.crossOrigin = 'anonymous'; // Required for CORS when loading from CDN
         const sourceTexture = await new Promise((resolve, reject) => {
             loader.load(
                 imageUrl,
@@ -826,6 +827,7 @@ export function useThreeSetup() {
     async function setBackgroundWithShaderBlur(imageUrl, blurRadius, saturation, opacity) {
         // Load the image as a Three.js texture
         const loader = new THREE.TextureLoader();
+        loader.crossOrigin = 'anonymous'; // Required for CORS when loading from CDN
         const sourceTexture = await new Promise((resolve, reject) => {
             loader.load(
                 imageUrl,
