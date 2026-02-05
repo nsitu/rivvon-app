@@ -665,9 +665,18 @@ export function useThreeSetup() {
                 await setBackgroundWithShaderBlur(imageUrl, blurRadius, saturation, opacity);
             }
         } catch (error) {
-            console.log(error)
-            console.error('[ThreeSetup] Failed to set background:');
+            // CORS errors are common with CDN-served images, especially on iOS Safari
+            // Log but don't crash - the app works fine without the blurred background
+            const isCorsError = error.message?.includes('Failed to load') || 
+                               error.message?.includes('CORS') ||
+                               error.message?.includes('access control');
             
+            if (isCorsError) {
+                console.warn('[ThreeSetup] Background image blocked by CORS - skipping blur effect. This is usually a CDN caching issue.');
+            } else {
+                console.error('[ThreeSetup] Failed to set background:', error);
+            }
+            // Continue without background - don't throw
         }
     }
 

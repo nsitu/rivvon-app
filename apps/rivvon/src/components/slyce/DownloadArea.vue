@@ -201,6 +201,7 @@
                     :src="uploadedThumbnailUrl"
                     alt="Texture thumbnail"
                     class="w-16 h-16 object-cover rounded border border-green-500"
+                    crossorigin="anonymous"
                 />
                 <div
                     v-else

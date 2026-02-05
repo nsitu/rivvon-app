@@ -666,6 +666,7 @@
                                 v-if="texture.thumbnail_url"
                                 :src="texture.thumbnail_url"
                                 :alt="texture.name"
+                                crossorigin="anonymous"
                             />
                             <div
                                 v-else
@@ -762,15 +763,6 @@
                     </div>
                 </div>
 
-                <!-- Create CTA -->
-                <div class="texture-browser-create">
-                    <p class="create-invite">Created with</p>
-                    <a
-                        href="/slyce"
-                        class="slyce-link"
-                    >slyce</a>
-                    <p class="create-invite">texture builder.</p>
-                </div>
             </div>
         </div>
 
