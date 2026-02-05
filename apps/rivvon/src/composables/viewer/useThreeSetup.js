@@ -665,7 +665,9 @@ export function useThreeSetup() {
                 await setBackgroundWithShaderBlur(imageUrl, blurRadius, saturation, opacity);
             }
         } catch (error) {
-            console.error('[ThreeSetup] Failed to set background:', error);
+            console.log(error)
+            console.error('[ThreeSetup] Failed to set background:');
+            
         }
     }
 
