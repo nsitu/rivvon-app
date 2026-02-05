@@ -49,10 +49,12 @@
     });
 
     // Watch thumbnail URL changes and update Three.js scene background
-    // This makes the blurred background part of the scene for video/image exports
-    watch(() => app.thumbnailUrl, (url) => {
-        if (threeCanvasRef.value?.setBackgroundFromUrl) {
-            threeCanvasRef.value.setBackgroundFromUrl(url);
+    // Uses the tile texture directly to avoid CORS issues with CDN thumbnails
+    watch(() => app.thumbnailUrl, () => {
+        // When thumbnail URL changes, it means textures were loaded
+        // Use the tile texture directly instead of loading the thumbnail URL
+        if (threeCanvasRef.value?.setBackgroundFromTileManager) {
+            threeCanvasRef.value.setBackgroundFromTileManager();
         }
     });
 

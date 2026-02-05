@@ -35,7 +35,8 @@
         setFlowState,
         exportImage,
         exportVideo,
-        setBackgroundFromUrl
+        setBackgroundFromUrl,
+        setBackgroundFromTileManager
     } = useThreeSetup();
 
     onMounted(async () => {
@@ -99,7 +100,8 @@
         setFlowState,
         exportImage,
         exportVideo,
-        setBackgroundFromUrl
+        setBackgroundFromUrl,
+        setBackgroundFromTileManager
     });
 </script>
 
