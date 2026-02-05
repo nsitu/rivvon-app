@@ -846,6 +846,7 @@ export function useThreeSetup() {
                 uOpacity: { value: opacity }
             },
             vertexShader: `
+                precision highp float;
                 varying vec2 vUv;
                 void main() {
                     vUv = uv;
@@ -853,6 +854,7 @@ export function useThreeSetup() {
                 }
             `,
             fragmentShader: `
+                precision highp float;
                 uniform sampler2D tDiffuse;
                 uniform vec2 uResolution;
                 uniform float uOffset;
