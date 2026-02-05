@@ -51,9 +51,6 @@ importers:
       canvas-size:
         specifier: ^2.0.0
         version: 2.0.0
-      context-filter-polyfill:
-        specifier: ^0.3.23
-        version: 0.3.23
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1213,9 +1210,6 @@ packages:
 
   confbox@0.2.2:
     resolution: {integrity: sha512-1NB+BKqhtNipMsov4xI/NnhCKp9XG9NamYp5PVm9klAT0fsrNPjaFICsCFhNhwZJKNh7zB/3q8qXz0E9oaMNtQ==}
-
-  context-filter-polyfill@0.3.23:
-    resolution: {integrity: sha512-kkr1NpyK6XeDVZ7ua/WtVV3sGPp/zubQ6gPaI/MdwL3LsWASlEYPiqigQWdQO/YVC4tJx/OcuiBgBCtsKgKabA==}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -2860,8 +2854,6 @@ snapshots:
   confbox@0.1.8: {}
 
   confbox@0.2.2: {}
-
-  context-filter-polyfill@0.3.23: {}
 
   convert-source-map@2.0.0: {}
 

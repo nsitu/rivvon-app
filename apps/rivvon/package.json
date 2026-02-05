@@ -24,7 +24,6 @@
     "@vitejs/plugin-vue": "^6.0.4",
     "@vueuse/core": "^14.2.0",
     "canvas-size": "^2.0.0",
-    "context-filter-polyfill": "^0.3.23",
     "events": "^3.3.0",
     "jszip": "^3.10.1",
     "ktx-parse": "^1.1.0",
