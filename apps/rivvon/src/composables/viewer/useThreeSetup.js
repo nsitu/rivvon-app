@@ -5,6 +5,9 @@ import { ref, shallowRef, onUnmounted } from 'vue';
 import { useViewerStore } from '../../stores/viewerStore';
 import * as THREE from 'three';
 
+// Polyfill for canvas filter support on Safari/iOS
+import 'context-filter-polyfill';
+
 // Import existing modules (these work as-is)
 import { initThree as initThreeModule } from '../../modules/viewer/threeSetup';
 import { TileManager } from '../../modules/viewer/tileManager';
@@ -685,48 +688,22 @@ export function useThreeSetup() {
             canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
 
-            // Use downscale-upscale blur technique for consistent cross-device support
-            // CSS canvas filters (ctx.filter) are unreliable on Safari/iOS
-            const blurPasses = Math.max(1, Math.round(blurRadius / 10));
-            
-            // Create a tiny canvas for blur effect (downscaling creates natural blur)
-            const tinySize = Math.max(8, Math.round(32 / blurPasses));
-            const tinyCanvas = document.createElement('canvas');
-            const tinyAspect = canvasWidth / canvasHeight;
-            tinyCanvas.width = tinyAspect > 1 ? tinySize : Math.round(tinySize * tinyAspect);
-            tinyCanvas.height = tinyAspect > 1 ? Math.round(tinySize / tinyAspect) : tinySize;
-            const tinyCtx = tinyCanvas.getContext('2d');
-            
-            // Draw image to tiny canvas (downscale)
-            tinyCtx.drawImage(img, 0, 0, tinyCanvas.width, tinyCanvas.height);
-            
-            // Multiple passes for stronger blur
-            for (let i = 1; i < blurPasses; i++) {
-                tinyCtx.drawImage(tinyCanvas, 0, 0);
-            }
-            
-            // Draw tiny canvas back to main canvas (upscale with interpolation = blur)
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(tinyCanvas, 0, 0, canvasWidth, canvasHeight);
-            
-            // Apply saturation manually via pixel manipulation
-            if (saturation !== 1.0) {
-                const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-                const data = imageData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-                    // Calculate luminance
-                    const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                    // Adjust saturation
-                    data[i] = Math.min(255, Math.max(0, gray + (r - gray) * saturation));
-                    data[i + 1] = Math.min(255, Math.max(0, gray + (g - gray) * saturation));
-                    data[i + 2] = Math.min(255, Math.max(0, gray + (b - gray) * saturation));
-                }
-                ctx.putImageData(imageData, 0, 0);
-            }
+            // Use CSS canvas filters with polyfill for Safari/iOS support
+            // context-filter-polyfill patches ctx.filter to work consistently across all browsers
+            const scaledBlur = Math.round(blurRadius * (canvasWidth / img.width) * 2);
+
+            // Apply blur and saturation via CSS filter
+            ctx.filter = `blur(${scaledBlur}px) saturate(${saturation})`;
+
+            // Draw image slightly larger to avoid edge artifacts from blur
+            const overflow = scaledBlur * 2;
+            ctx.drawImage(
+                img,
+                -overflow,
+                -overflow,
+                canvasWidth + overflow * 2,
+                canvasHeight + overflow * 2
+            );
 
             // Apply opacity by drawing a semi-transparent overlay
             ctx.filter = 'none';
