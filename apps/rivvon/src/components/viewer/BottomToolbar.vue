@@ -1,10 +1,20 @@
 <script setup>
-    import { ref } from 'vue';
+    import { ref, computed } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import Popover from 'primevue/popover';
 
     const app = useViewerStore();
     const toolsPopover = ref();
+
+    // Detect touch device to disable tooltips on mobile
+    // Uses pointer: coarse media query which is more reliable than touch event detection
+    const isTouchDevice = computed(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(pointer: coarse)').matches;
+    });
+
+    // Helper to conditionally return tooltip text (null disables tooltip)
+    const tip = (text) => isTouchDevice.value ? null : text;
 
     function toggleToolsPopover(event) {
         toolsPopover.value.toggle(event);
@@ -72,7 +82,7 @@
         <button
             v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
             class="back-button"
-            v-tooltip.top="'Back'"
+            v-tooltip.top="tip('Back')"
             @click="app.isDrawingMode ? app.setDrawingMode(false) : app.textureCreatorVisible ? app.hideSlyce() : app.textureBrowserVisible ? app.hideTextureBrowser() : app.hideTextPanel()"
         >
             <span class="material-symbols-outlined">arrow_back_ios</span>
@@ -88,7 +98,7 @@
         <!-- Draw mode button -->
         <button
             v-if="!app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="'Draw'"
+            v-tooltip.top="tip('Draw')"
             :class="{ active: app.isDrawingMode }"
             @click="emit('enter-draw-mode')"
         >
@@ -102,7 +112,7 @@
         <!-- Slyce texture tool -->
         <button
             v-if="!app.isDrawingMode && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="'Create Texture'"
+            v-tooltip.top="tip('Create Texture')"
             :class="{ active: app.textureCreatorVisible }"
             @click="emit('enter-slyce-mode')"
         >
@@ -117,7 +127,7 @@
         <button
             v-if="app.isDrawingMode && app.hasActiveStrokes"
             class="finish-drawing-btn"
-            v-tooltip.top="'Finish drawing and create ribbons'"
+            v-tooltip.top="tip('Finish drawing and create ribbons')"
             @click="emit('finish-drawing')"
         >
             <span class="material-symbols-outlined">check</span>
@@ -127,7 +137,7 @@
         <!-- Text to SVG -->
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="'Text'"
+            v-tooltip.top="tip('Text')"
             :class="{ active: app.textPanelVisible }"
             @click="emit('open-text-panel')"
         >
@@ -141,7 +151,7 @@
         <!-- Browse textures -->
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textPanelVisible"
-            v-tooltip.top="'Textures'"
+            v-tooltip.top="tip('Textures')"
             :class="{ active: app.textureBrowserVisible }"
             @click="emit('open-texture-browser')"
         >
@@ -155,7 +165,7 @@
         <!-- Tools menu (Import/Export + Animation) -->
         <button
             v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="'Tools'"
+            v-tooltip.top="tip('Tools')"
             :class="{ active: app.flowState !== 'off' }"
             @click="toggleToolsPopover"
         >
@@ -236,7 +246,7 @@
                     @click="toggleFullscreen"
                 >
                     <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen'
-                        }}</span>
+                    }}</span>
                     <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
                 </button>
             </div>
