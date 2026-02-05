@@ -225,7 +225,7 @@
                     @click="setFlowState('off')"
                 >
                     <span class="material-symbols-outlined">airwave</span>
-                    <span>Standard</span>
+                    <span>Oscillate</span>
                 </button>
                 <button
                     class="flow-option"

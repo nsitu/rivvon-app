@@ -632,11 +632,11 @@ export function useThreeSetup() {
      * @param {number} options.opacity - Background opacity 0-1 (default: 0.7)
      */
     async function setBackgroundFromTileManager(options = {}) {
-        const {
-            blurRadius = 15,
-            saturation = 1.2,
-            opacity = 0.7
-        } = options;
+         const {
+        blurRadius = 40,    // Amount of blur (higher = more blur)
+        saturation = 1,   // Color saturation multiplier
+        opacity = 0.7       // Background opacity (0-1)
+    } = options;
 
         // Dispose previous background texture
         if (backgroundTexture.value) {
