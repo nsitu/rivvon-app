@@ -666,7 +666,6 @@
                                 v-if="texture.thumbnail_url"
                                 :src="texture.thumbnail_url"
                                 :alt="texture.name"
-                                crossorigin="anonymous"
                             />
                             <div
                                 v-else
@@ -710,7 +709,6 @@
                                     :src="texture.owner_picture"
                                     :alt="texture.owner_name"
                                     class="owner-avatar"
-                                    crossorigin="anonymous"
                                     referrerpolicy="no-referrer"
                                 />
                                 <span
