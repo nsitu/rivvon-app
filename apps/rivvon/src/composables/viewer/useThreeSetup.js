@@ -1030,16 +1030,19 @@ export function useThreeSetup() {
      */
     async function setBackgroundFromArrayTextureWebGL(arrayTexture, blurRadius, saturation, opacity) {
         // Create shader that samples from layer 0 of the array texture
+        // Must use GLSL ES 3.0 for sampler2DArray support
+        // Note: Swap and flip UV to match WebGPU/tileManager orientation (90° CCW rotation)
         const sampleShader = {
             uniforms: {
                 tArray: { value: arrayTexture },
                 uLayer: { value: 0 }
             },
+            glslVersion: THREE.GLSL3,
             vertexShader: `
                 precision highp float;
-                varying vec2 vUv;
+                out vec2 vUv;
                 void main() {
-                    vUv = uv;
+                    vUv = vec2(1.0 - uv.y, uv.x);
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
@@ -1048,9 +1051,10 @@ export function useThreeSetup() {
                 precision highp sampler2DArray;
                 uniform sampler2DArray tArray;
                 uniform int uLayer;
-                varying vec2 vUv;
+                in vec2 vUv;
+                out vec4 fragColor;
                 void main() {
-                    gl_FragColor = texture(tArray, vec3(vUv, float(uLayer)));
+                    fragColor = texture(tArray, vec3(vUv, float(uLayer)));
                 }
             `
         };
@@ -1163,15 +1167,12 @@ export function useThreeSetup() {
 
         renderer.value.setRenderTarget(null);
 
-        // Use result as background
-        const resultTexture = rtA.texture.clone();
-        resultTexture.needsUpdate = true;
-        backgroundTexture.value = resultTexture;
-        scene.value.background = resultTexture;
+        // Use result as background - keep rtA alive, don't dispose it!
+        backgroundTexture.value = rtA.texture;
+        scene.value.background = rtA.texture;
 
-        // Cleanup
+        // Cleanup - but NOT rtA since we're using its texture as background
         sampleRT.dispose();
-        rtA.dispose();
         rtB.dispose();
         sampleMaterial.dispose();
         sampleQuad.geometry.dispose();
