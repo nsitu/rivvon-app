@@ -17,9 +17,6 @@ type Bindings = {
     CORS_ORIGINS: string;
     // Admin users (comma-separated emails)
     ADMIN_USERS?: string;
-    // Legacy Auth0 (can be removed after migration)
-    AUTH0_DOMAIN?: string;
-    AUTH0_AUDIENCE?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();

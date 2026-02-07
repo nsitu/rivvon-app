@@ -13,7 +13,7 @@ export function useRivvonAPI() {
 
     /**
      * Make an authenticated API request
-     * Uses session cookie (credentials: 'include') instead of Bearer token
+     * Uses session cookie (credentials: 'include') for authentication
      */
     async function authFetch(url, options = {}) {
         const response = await fetch(url, {

@@ -27,7 +27,7 @@ export function isAdminUser(adminUsersEnv: string | undefined, email: string | n
  * Upsert user info from request body.
  * Creates user on first seen, updates name/email/picture on subsequent requests.
  * @param db - D1 database instance
- * @param userId - Auth0 user ID (sub claim from JWT)
+ * @param userId - Internal user ID
  * @param profile - Optional user profile from request body
  */
 export async function syncUser(

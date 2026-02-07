@@ -1,5 +1,7 @@
 # Rivvon API - Backend Project Plan
 
+> **⚠️ NOTE (Feb 2026):** This was the original project plan. Auth0 has been fully replaced by Google OAuth with session-based cookies (`middleware/session.ts`). All Auth0 references below are historical. The current auth system uses Google Identity Services on the frontend and HMAC-SHA256 signed session cookies on the backend.
+
 ## Overview
 
 A Cloudflare-based backend API to enable Slyce (texture encoder) to upload KTX2 texture arrays that Rivvon (texture renderer) can consume. The API handles authentication, file uploads to R2, and metadata storage in D1.
@@ -8,7 +10,7 @@ A Cloudflare-based backend API to enable Slyce (texture encoder) to upload KTX2 
 
 ```
 rivvon.ca              → Rivvon frontend (texture renderer/consumer)
-slyce.rivvon.ca        → Slyce frontend (texture encoder/creator) 
+slyce.rivvon.ca        → Slyce frontend (texture encoder/creator)
 api.rivvon.ca          → Backend API (Cloudflare Worker)
 cdn.rivvon.ca          → R2 public bucket (texture tile delivery)
 ```
@@ -20,6 +22,7 @@ cdn.rivvon.ca          → R2 public bucket (texture tile delivery)
 This API is part of the **Rivvon ecosystem** - a suite of tools for creating and rendering artistic video textures using slit-scan-inspired techniques.
 
 ### Rivvon (Texture Renderer/Consumer)
+
 - **Repository**: [github.com/nsitu/rivvon](https://github.com/nsitu/rivvon)
 - **Live site**: [rivvon.ca](https://rivvon.ca)
 - **Purpose**: WebGL/WebGPU frontend that renders KTX2 texture arrays along SVG paths to create animated ribbons
@@ -27,14 +30,16 @@ This API is part of the **Rivvon ecosystem** - a suite of tools for creating and
 - **Role**: Consumes textures from this API (public read access)
 
 ### Slyce (Texture Encoder/Creator)
+
 - **Repository**: [github.com/nsitu/slyce](https://github.com/nsitu/slyce)
-- **Live site**: [slyce.rivvon.ca](https://slyce.rivvon.ca)  
+- **Live site**: [slyce.rivvon.ca](https://slyce.rivvon.ca)
 - **Currently**: [nsitu.github.io/slyce](https://nsitu.github.io/slyce)
 - **Purpose**: Browser-based video processor that samples cross-sections from videos and encodes them as KTX2 texture arrays
 - **Tech stack**: Vue 3, WebCodecs, mediabunny, Basis Universal (WASM), Vite, CloudFlare Pages
 - **Role**: Creates textures and uploads them to this API (authenticated write access)
 
 ### This Repository (Backend API)
+
 - **Repository**: [github.com/nsitu/rivvon-api](https://github.com/nsitu/rivvon-api) (this repo)
 - **Live API**: [api.rivvon.ca](https://api.rivvon.ca)
 - **Purpose**: Cloudflare Worker API that handles authentication, texture uploads, metadata storage, and public texture serving
@@ -168,6 +173,7 @@ The authentication follows a **stateless SPA flow**:
 ```
 
 **Key points:**
+
 - Auth0 redirects back to **Slyce frontend**, not the API
 - The API **never handles OAuth callbacks**
 - The API is **stateless** - no sessions, no cookies
@@ -253,6 +259,7 @@ wrangler r2 bucket create rivvon-textures
 wrangler secret put AUTH0_DOMAIN
 wrangler secret put AUTH0_AUDIENCE
 ```
+
 ### 3.3 Configure Custom Subdomains
 
 #### api.rivvon.ca (Worker API)
@@ -286,6 +293,7 @@ wrangler secret put AUTH0_AUDIENCE
    - Cloudflare will create DNS records automatically
 
 3. **Verify DNS** (should be auto-configured):
+
    ```
    Type: CNAME
    Name: cdn
@@ -294,6 +302,7 @@ wrangler secret put AUTH0_AUDIENCE
    ```
 
 4. **Configure CORS** (for browser access):
+
    ```bash
    # Create cors.json
    cat > cors.json << EOF
@@ -311,6 +320,7 @@ wrangler secret put AUTH0_AUDIENCE
    # Apply CORS configuration
    wrangler r2 bucket cors put rivvon-textures --cors-config cors.json
    ```
+
 ---
 
 ## Phase 4: D1 Database Schema
@@ -329,20 +339,20 @@ CREATE TABLE IF NOT EXISTS texture_sets (
     thumbnail_url TEXT,                   -- R2 public URL for preview
     created_at INTEGER DEFAULT (unixepoch()),
     updated_at INTEGER DEFAULT (unixepoch()),
-    
+
     -- Source video metadata
     source_filename TEXT,
     source_width INTEGER,
     source_height INTEGER,
     source_duration REAL,
     source_frame_count INTEGER,
-    
+
     -- Texture configuration
     tile_resolution INTEGER NOT NULL,     -- 256, 512, 1024, etc.
     tile_count INTEGER NOT NULL,          -- Number of tiles in set
     layer_count INTEGER NOT NULL,         -- Layers per tile (e.g., 60)
     cross_section_type TEXT,              -- 'planes' or 'waves'
-    
+
     -- Status
     status TEXT DEFAULT 'pending',        -- pending, uploading, complete, error
     is_public INTEGER DEFAULT 0           -- Whether publicly listed
@@ -357,7 +367,7 @@ CREATE TABLE IF NOT EXISTS texture_tiles (
     file_size INTEGER,
     checksum TEXT,                        -- MD5 or SHA256
     created_at INTEGER DEFAULT (unixepoch()),
-    
+
     FOREIGN KEY (texture_set_id) REFERENCES texture_sets(id) ON DELETE CASCADE,
     UNIQUE(texture_set_id, tile_index)
 );
@@ -382,10 +392,10 @@ wrangler d1 execute rivvon-textures --file=./src/db/schema.sql
 
 ```typescript
 // src/index.ts
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { uploadRoutes } from './routes/upload';
-import { textureRoutes } from './routes/textures';
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { uploadRoutes } from "./routes/upload";
+import { textureRoutes } from "./routes/textures";
 
 type Bindings = {
   DB: D1Database;
@@ -398,23 +408,23 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 // CORS middleware
-app.use('*', async (c, next) => {
-  const origins = c.env.CORS_ORIGINS.split(',');
+app.use("*", async (c, next) => {
+  const origins = c.env.CORS_ORIGINS.split(",");
   return cors({
     origin: origins,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })(c, next);
 });
 
 // Health check
-app.get('/', (c) => c.json({ status: 'ok', service: 'rivvon-api' }));
+app.get("/", (c) => c.json({ status: "ok", service: "rivvon-api" }));
 
 // Mount routes
 // Note: No /auth routes needed - Slyce handles Auth0 directly
-app.route('/upload', uploadRoutes);
-app.route('/textures', textureRoutes);
+app.route("/upload", uploadRoutes);
+app.route("/textures", textureRoutes);
 
 export default app;
 ```
@@ -423,8 +433,8 @@ export default app;
 
 ```typescript
 // src/middleware/auth.ts
-import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { Context, Next } from 'hono';
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import type { Context, Next } from "hono";
 
 export interface AuthContext {
   userId: string;
@@ -432,48 +442,48 @@ export interface AuthContext {
 }
 
 export async function verifyAuth(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
-  
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing or invalid authorization header' }, 401);
+  const authHeader = c.req.header("Authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "Missing or invalid authorization header" }, 401);
   }
-  
+
   const token = authHeader.slice(7);
   const domain = c.env.AUTH0_DOMAIN;
   const audience = c.env.AUTH0_AUDIENCE;
-  
+
   try {
     // Create JWKS client (Auth0 publishes keys at /.well-known/jwks.json)
     const JWKS = createRemoteJWKSet(
-      new URL(`https://${domain}/.well-known/jwks.json`)
+      new URL(`https://${domain}/.well-known/jwks.json`),
     );
-    
+
     const { payload } = await jwtVerify(token, JWKS, {
       issuer: `https://${domain}/`,
       audience: audience,
     });
-    
+
     // Attach user info to context
-    c.set('auth', {
+    c.set("auth", {
       userId: payload.sub,
       permissions: payload.permissions || [],
     } as AuthContext);
-    
+
     await next();
   } catch (error) {
-    console.error('JWT verification failed:', error);
-    return c.json({ error: 'Invalid token' }, 401);
+    console.error("JWT verification failed:", error);
+    return c.json({ error: "Invalid token" }, 401);
   }
 }
 
 export function requirePermission(permission: string) {
   return async (c: Context, next: Next) => {
-    const auth = c.get('auth') as AuthContext;
-    
+    const auth = c.get("auth") as AuthContext;
+
     if (!auth?.permissions?.includes(permission)) {
-      return c.json({ error: 'Insufficient permissions' }, 403);
+      return c.json({ error: "Insufficient permissions" }, 403);
     }
-    
+
     await next();
   };
 }
@@ -483,9 +493,9 @@ export function requirePermission(permission: string) {
 
 ```typescript
 // src/routes/upload.ts
-import { Hono } from 'hono';
-import { verifyAuth, requirePermission } from '../middleware/auth';
-import { nanoid } from 'nanoid';
+import { Hono } from "hono";
+import { verifyAuth, requirePermission } from "../middleware/auth";
+import { nanoid } from "nanoid";
 
 type Bindings = {
   DB: D1Database;
@@ -495,13 +505,13 @@ type Bindings = {
 export const uploadRoutes = new Hono<{ Bindings: Bindings }>();
 
 // All upload routes require authentication
-uploadRoutes.use('*', verifyAuth);
+uploadRoutes.use("*", verifyAuth);
 
 // Create a new texture set and get upload URLs
-uploadRoutes.post('/texture-set', async (c) => {
-  const auth = c.get('auth');
+uploadRoutes.post("/texture-set", async (c) => {
+  const auth = c.get("auth");
   const body = await c.req.json();
-  
+
   const {
     name,
     description,
@@ -511,16 +521,17 @@ uploadRoutes.post('/texture-set', async (c) => {
     crossSectionType,
     sourceMetadata,
   } = body;
-  
+
   // Validate required fields
   if (!name || !tileResolution || !tileCount || !layerCount) {
-    return c.json({ error: 'Missing required fields' }, 400);
+    return c.json({ error: "Missing required fields" }, 400);
   }
-  
+
   const textureSetId = nanoid();
-  
+
   // Insert texture set record
-  await c.env.DB.prepare(`
+  await c.env.DB.prepare(
+    `
     INSERT INTO texture_sets (
       id, owner_id, name, description, 
       tile_resolution, tile_count, layer_count, cross_section_type,
@@ -528,34 +539,41 @@ uploadRoutes.post('/texture-set', async (c) => {
       source_duration, source_frame_count,
       status
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
-  `).bind(
-    textureSetId,
-    auth.userId,
-    name,
-    description || null,
-    tileResolution,
-    tileCount,
-    layerCount,
-    crossSectionType || null,
-    sourceMetadata?.filename || null,
-    sourceMetadata?.width || null,
-    sourceMetadata?.height || null,
-    sourceMetadata?.duration || null,
-    sourceMetadata?.frameCount || null,
-  ).run();
-  
+  `,
+  )
+    .bind(
+      textureSetId,
+      auth.userId,
+      name,
+      description || null,
+      tileResolution,
+      tileCount,
+      layerCount,
+      crossSectionType || null,
+      sourceMetadata?.filename || null,
+      sourceMetadata?.width || null,
+      sourceMetadata?.height || null,
+      sourceMetadata?.duration || null,
+      sourceMetadata?.frameCount || null,
+    )
+    .run();
+
   // Generate signed upload URLs for each tile
   const uploadUrls = [];
   for (let i = 0; i < tileCount; i++) {
     const tileId = nanoid();
     const r2Key = `textures/${textureSetId}/${i}.ktx2`;
-    
+
     // Insert tile record
-    await c.env.DB.prepare(`
+    await c.env.DB.prepare(
+      `
       INSERT INTO texture_tiles (id, texture_set_id, tile_index, r2_key)
       VALUES (?, ?, ?, ?)
-    `).bind(tileId, textureSetId, i, r2Key).run();
-    
+    `,
+    )
+      .bind(tileId, textureSetId, i, r2Key)
+      .run();
+
     // Generate signed upload URL (valid for 1 hour)
     // Note: R2 signed URLs require additional setup via wrangler
     uploadUrls.push({
@@ -564,56 +582,75 @@ uploadRoutes.post('/texture-set', async (c) => {
       r2Key,
     });
   }
-  
+
   return c.json({
     textureSetId,
     uploadUrls,
-    message: 'Upload URLs generated. Upload files then call /complete',
+    message: "Upload URLs generated. Upload files then call /complete",
   });
 });
 
 // Mark upload as complete
-uploadRoutes.post('/texture-set/:id/complete', async (c) => {
-  const auth = c.get('auth');
-  const textureSetId = c.req.param('id');
-  
+uploadRoutes.post("/texture-set/:id/complete", async (c) => {
+  const auth = c.get("auth");
+  const textureSetId = c.req.param("id");
+
   // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
+  const textureSet = await c.env.DB.prepare(
+    `
     SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(textureSetId, auth.userId).first();
-  
+  `,
+  )
+    .bind(textureSetId, auth.userId)
+    .first();
+
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return c.json({ error: "Texture set not found" }, 404);
   }
-  
+
   // Verify all tiles exist in R2
-  const tiles = await c.env.DB.prepare(`
+  const tiles = await c.env.DB.prepare(
+    `
     SELECT * FROM texture_tiles WHERE texture_set_id = ?
-  `).bind(textureSetId).all();
-  
+  `,
+  )
+    .bind(textureSetId)
+    .all();
+
   for (const tile of tiles.results) {
     const object = await c.env.BUCKET.head(tile.r2_key);
     if (!object) {
-      return c.json({ 
-        error: `Tile ${tile.tile_index} not uploaded`, 
-        missingTile: tile.tile_index 
-      }, 400);
+      return c.json(
+        {
+          error: `Tile ${tile.tile_index} not uploaded`,
+          missingTile: tile.tile_index,
+        },
+        400,
+      );
     }
-    
+
     // Update tile with file info
-    await c.env.DB.prepare(`
+    await c.env.DB.prepare(
+      `
       UPDATE texture_tiles SET file_size = ? WHERE id = ?
-    `).bind(object.size, tile.id).run();
+    `,
+    )
+      .bind(object.size, tile.id)
+      .run();
   }
-  
+
   // Mark as complete
-  await c.env.DB.prepare(`
+  await c.env.DB.prepare(
+    `
     UPDATE texture_sets 
     SET status = 'complete', updated_at = unixepoch()
     WHERE id = ?
-  `).bind(textureSetId).run();
-  
-  return c.json({ status: 'complete', textureSetId });
+  `,
+  )
+    .bind(textureSetId)
+    .run();
+
+  return c.json({ status: "complete", textureSetId });
 });
 ```
 
@@ -621,7 +658,7 @@ uploadRoutes.post('/texture-set/:id/complete', async (c) => {
 
 ```typescript
 // src/routes/textures.ts
-import { Hono } from 'hono';
+import { Hono } from "hono";
 
 type Bindings = {
   DB: D1Database;
@@ -631,11 +668,12 @@ type Bindings = {
 export const textureRoutes = new Hono<{ Bindings: Bindings }>();
 
 // List public texture sets
-textureRoutes.get('/', async (c) => {
-  const limit = parseInt(c.req.query('limit') || '50');
-  const offset = parseInt(c.req.query('offset') || '0');
-  
-  const results = await c.env.DB.prepare(`
+textureRoutes.get("/", async (c) => {
+  const limit = parseInt(c.req.query("limit") || "50");
+  const offset = parseInt(c.req.query("offset") || "0");
+
+  const results = await c.env.DB.prepare(
+    `
     SELECT 
       id, name, description, thumbnail_url,
       tile_resolution, tile_count, layer_count,
@@ -644,8 +682,11 @@ textureRoutes.get('/', async (c) => {
     WHERE status = 'complete' AND is_public = 1
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
-  `).bind(limit, offset).all();
-  
+  `,
+  )
+    .bind(limit, offset)
+    .all();
+
   return c.json({
     textures: results.results,
     pagination: { limit, offset },
@@ -653,32 +694,40 @@ textureRoutes.get('/', async (c) => {
 });
 
 // Get single texture set with tile URLs
-textureRoutes.get('/:id', async (c) => {
-  const textureSetId = c.req.param('id');
-  
-  const textureSet = await c.env.DB.prepare(`
+textureRoutes.get("/:id", async (c) => {
+  const textureSetId = c.req.param("id");
+
+  const textureSet = await c.env.DB.prepare(
+    `
     SELECT * FROM texture_sets 
     WHERE id = ? AND status = 'complete'
-  `).bind(textureSetId).first();
-  
+  `,
+  )
+    .bind(textureSetId)
+    .first();
+
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return c.json({ error: "Texture set not found" }, 404);
   }
-  
-  const tiles = await c.env.DB.prepare(`
+
+  const tiles = await c.env.DB.prepare(
+    `
     SELECT tile_index, r2_key, file_size 
     FROM texture_tiles 
     WHERE texture_set_id = ?
     ORDER BY tile_index
-  `).bind(textureSetId).all();
-  
+  `,
+  )
+    .bind(textureSetId)
+    .all();
+
   // Generate public URLs for each tile (using custom CDN domain)
   const tileUrls = tiles.results.map((tile: any) => ({
     tileIndex: tile.tile_index,
     url: `https://cdn.rivvon.ca/${tile.r2_key}`,
     fileSize: tile.file_size,
   }));
-  
+
   return c.json({
     ...textureSet,
     tiles: tileUrls,
@@ -686,29 +735,33 @@ textureRoutes.get('/:id', async (c) => {
 });
 
 // Download texture tile (proxy through worker if needed)
-textureRoutes.get('/:setId/tile/:index', async (c) => {
-  const setId = c.req.param('setId');
-  const tileIndex = parseInt(c.req.param('index'));
-  
-  const tile = await c.env.DB.prepare(`
+textureRoutes.get("/:setId/tile/:index", async (c) => {
+  const setId = c.req.param("setId");
+  const tileIndex = parseInt(c.req.param("index"));
+
+  const tile = await c.env.DB.prepare(
+    `
     SELECT r2_key FROM texture_tiles 
     WHERE texture_set_id = ? AND tile_index = ?
-  `).bind(setId, tileIndex).first();
-  
+  `,
+  )
+    .bind(setId, tileIndex)
+    .first();
+
   if (!tile) {
-    return c.json({ error: 'Tile not found' }, 404);
+    return c.json({ error: "Tile not found" }, 404);
   }
-  
+
   const object = await c.env.BUCKET.get(tile.r2_key);
   if (!object) {
-    return c.json({ error: 'File not found in storage' }, 404);
+    return c.json({ error: "File not found in storage" }, 404);
   }
-  
+
   return new Response(object.body, {
     headers: {
-      'Content-Type': 'image/ktx2',
-      'Cache-Control': 'public, max-age=31536000',
-      'Access-Control-Allow-Origin': '*',
+      "Content-Type": "image/ktx2",
+      "Cache-Control": "public, max-age=31536000",
+      "Access-Control-Allow-Origin": "*",
     },
   });
 });
@@ -787,6 +840,7 @@ wrangler deploy
 ```
 
 Test the deployment:
+
 ```bash
 curl https://rivvon-api.<your-subdomain>.workers.dev/
 # Should return: {"status":"ok","service":"rivvon-api"}
@@ -827,14 +881,14 @@ Now that the Worker is verified, connect Git for ongoing deployments.
 
 ### 6.3 Ongoing Workflow (After Git Connected)
 
-| Task | Tool |
-|------|------|
-| Production deployments | **Git push** (automatic) |
-| Local development | `wrangler dev` |
-| D1 migrations | `wrangler d1 execute --remote` |
-| Add/update secrets | `wrangler secret put` |
-| View live logs | `wrangler tail` |
-| Manage R2 buckets | `wrangler r2` |
+| Task                   | Tool                           |
+| ---------------------- | ------------------------------ |
+| Production deployments | **Git push** (automatic)       |
+| Local development      | `wrangler dev`                 |
+| D1 migrations          | `wrangler d1 execute --remote` |
+| Add/update secrets     | `wrangler secret put`          |
+| View live logs         | `wrangler tail`                |
+| Manage R2 buckets      | `wrangler r2`                  |
 
 **⚠️ Important**: After Git is connected, **stop using `wrangler deploy` for production**. Git becomes the single source of truth for deployments.
 
@@ -850,13 +904,13 @@ To keep Wrangler and Git in sync:
 
 ### 6.5 What Persists After Git Connected
 
-| Resource | Status |
-|----------|--------|
-| D1 Database | ✅ Persists (data intact) |
-| R2 Bucket | ✅ Persists (files intact) |
-| Secrets | ✅ Persists (AUTH0_DOMAIN, AUTH0_AUDIENCE) |
-| Bindings | ✅ Managed by wrangler.toml |
-| Custom Domain | ✅ Persists |
+| Resource      | Status                                     |
+| ------------- | ------------------------------------------ |
+| D1 Database   | ✅ Persists (data intact)                  |
+| R2 Bucket     | ✅ Persists (files intact)                 |
+| Secrets       | ✅ Persists (AUTH0_DOMAIN, AUTH0_AUDIENCE) |
+| Bindings      | ✅ Managed by wrangler.toml                |
+| Custom Domain | ✅ Persists                                |
 
 Git deploys rebuild and redeploy the Worker using committed `wrangler.toml` config.
 
@@ -868,20 +922,20 @@ Git deploys rebuild and redeploy the Worker using committed `wrangler.toml` conf
 
 ```javascript
 // In Slyce frontend - add to stores or composables
-import { createAuth0Client } from '@auth0/auth0-spa-js';
+import { createAuth0Client } from "@auth0/auth0-spa-js";
 
 // Initialize Auth0 client (runs on app startup)
 const auth0 = await createAuth0Client({
-  domain: 'login.rivvon.ca', // CNAME points to my-tenant.auth0.com
-  clientId: 'your-client-id',
+  domain: "login.rivvon.ca", // CNAME points to my-tenant.auth0.com
+  clientId: "your-client-id",
   authorizationParams: {
-    audience: 'https://api.rivvon.ca',
-    redirect_uri: window.location.origin + '/callback', // Slyce handles callback
+    audience: "https://api.rivvon.ca",
+    redirect_uri: window.location.origin + "/callback", // Slyce handles callback
   },
 });
 
 // Handle Auth0 callback on page load (if redirected from Auth0)
-if (window.location.search.includes('code=')) {
+if (window.location.search.includes("code=")) {
   await auth0.handleRedirectCallback();
   window.history.replaceState({}, document.title, window.location.pathname);
 }
@@ -899,13 +953,13 @@ async function getAccessToken() {
 // Upload texture set
 async function uploadTextureSet(zipBlob, metadata) {
   const token = await getAccessToken();
-  
+
   // 1. Create texture set and get upload URLs
-  const response = await fetch('https://api.rivvon.ca/upload/texture-set', {
-    method: 'POST',
+  const response = await fetch("https://api.rivvon.ca/upload/texture-set", {
+    method: "POST",
     headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       name: metadata.name,
@@ -916,18 +970,21 @@ async function uploadTextureSet(zipBlob, metadata) {
       sourceMetadata: metadata.source,
     }),
   });
-  
+
   const { textureSetId, uploadUrls } = await response.json();
-  
+
   // 2. Upload each tile to R2
   // (Extract from zip and upload individually)
-  
+
   // 3. Mark complete
-  await fetch(`https://api.rivvon.ca/upload/texture-set/${textureSetId}/complete`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-  });
-  
+  await fetch(
+    `https://api.rivvon.ca/upload/texture-set/${textureSetId}/complete`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
   return textureSetId;
 }
 ```
@@ -941,7 +998,7 @@ async function uploadTextureSet(zipBlob, metadata) {
 ```javascript
 // In Rivvon - add to tileManager.js or create textureService.js
 
-const API_BASE = 'https://api.rivvon.ca';
+const API_BASE = "https://api.rivvon.ca";
 
 async function fetchAvailableTextures() {
   const response = await fetch(`${API_BASE}/textures`);
@@ -957,12 +1014,12 @@ async function fetchTextureSet(textureSetId) {
 class TileManager {
   async loadFromRemote(textureSetId) {
     const textureSet = await fetchTextureSet(textureSetId);
-    
+
     // Update internal state
     this.tileCount = textureSet.tile_count;
     this.layerCount = textureSet.layer_count;
     this.variant = textureSet.cross_section_type;
-    
+
     // Load tiles from URLs
     for (const tile of textureSet.tiles) {
       await this.#loadKTX2TileFromUrl(tile.tileIndex, tile.url);
@@ -975,17 +1032,17 @@ class TileManager {
 
 ## Timeline Estimate
 
-| Phase | Task | Duration |
-|-------|------|----------|
-| 1 | Repository & Infrastructure Setup | 1 day |
-| 2 | Auth0 Configuration | 0.5 day |
-| 3 | Cloudflare Resources (D1, R2, Worker) | 0.5 day |
-| 4 | D1 Schema & Migrations | 0.5 day |
-| 5 | Worker Implementation | 2-3 days |
-| 6 | GitHub Actions CI/CD | 0.5 day |
-| 7 | Slyce Frontend Integration | 1-2 days |
-| 8 | Rivvon Integration | 1 day |
-| - | Testing & Refinement | 1-2 days |
+| Phase | Task                                  | Duration |
+| ----- | ------------------------------------- | -------- |
+| 1     | Repository & Infrastructure Setup     | 1 day    |
+| 2     | Auth0 Configuration                   | 0.5 day  |
+| 3     | Cloudflare Resources (D1, R2, Worker) | 0.5 day  |
+| 4     | D1 Schema & Migrations                | 0.5 day  |
+| 5     | Worker Implementation                 | 2-3 days |
+| 6     | GitHub Actions CI/CD                  | 0.5 day  |
+| 7     | Slyce Frontend Integration            | 1-2 days |
+| 8     | Rivvon Integration                    | 1 day    |
+| -     | Testing & Refinement                  | 1-2 days |
 
 **Total: ~8-11 days**
 

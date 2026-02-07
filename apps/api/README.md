@@ -5,6 +5,7 @@ A Cloudflare Worker-based backend API for the Rivvon ecosystem, enabling texture
 ## Overview
 
 This API serves as the central backend connecting:
+
 - **Slyce** (texture encoder) - authenticated uploads
 - **Rivvon** (texture renderer) - public consumption
 
@@ -14,7 +15,7 @@ This API serves as the central backend connecting:
 - **Framework**: Hono
 - **Database**: Cloudflare D1 (SQLite)
 - **Storage**: Cloudflare R2 (Object Storage)
-- **Auth**: Auth0 + JWT (jose)
+- **Auth**: Google OAuth + session cookies (HMAC-SHA256)
 
 ## Domains
 
@@ -24,10 +25,12 @@ This API serves as the central backend connecting:
 ## API Endpoints
 
 ### Public Routes
+
 - `GET /textures` - List available textures
 - `GET /textures/:id` - Get texture metadata and tile URLs
 
-### Authenticated Routes (Bearer token required)
+### Authenticated Routes (session cookie required)
+
 - `POST /upload/texture-set` - Create texture set and get upload URLs
 - `POST /upload/texture-set/:id/complete` - Mark upload as complete
 
@@ -57,4 +60,3 @@ Secrets are managed via `wrangler secret put`.
 ## License
 
 ISC
-
