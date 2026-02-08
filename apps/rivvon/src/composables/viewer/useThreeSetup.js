@@ -95,11 +95,8 @@ export function useThreeSetup() {
             });
             await tileManager.value.loadAllTiles();
 
-            // Get thumbnail URL for blurred background
-            const thumbnailUrl = tileManager.value.getThumbnailUrl();
-            if (thumbnailUrl) {
-                app.setThumbnailUrl(thumbnailUrl);
-            }
+            // Set blurred background from the first tile texture
+            await setBackgroundFromTileManager();
 
             isInitialized.value = true;
             console.log(`[ThreeSetup] Initialized with ${ctx.rendererType}`);
@@ -445,14 +442,11 @@ export function useThreeSetup() {
         });
         await tileManager.value.loadAllTiles();
         
-        // Update thumbnail
-        const thumbnailUrl = tileManager.value.getThumbnailUrl();
-        if (thumbnailUrl) {
-            app.setThumbnailUrl(thumbnailUrl);
-        }
-
         // Rebuild ribbons with new textures
         rebuildRibbonsWithNewTextures();
+
+        // Update scene background from new textures
+        await setBackgroundFromTileManager();
     }
 
     /**
@@ -474,6 +468,9 @@ export function useThreeSetup() {
                 
                 // Rebuild ribbons with new textures
                 rebuildRibbonsWithNewTextures();
+
+                // Update scene background from new textures
+                await setBackgroundFromTileManager();
             }
 
             return success;
@@ -501,14 +498,11 @@ export function useThreeSetup() {
             if (success) {
                 console.log(`[ThreeSetup] Local texture loaded: ${tileManager.value.getTileCount()} tiles`);
                 
-                // Update thumbnail from local texture set
-                const thumbnailUrl = tileManager.value.getThumbnailUrl();
-                if (thumbnailUrl) {
-                    app.setThumbnailUrl(thumbnailUrl);
-                }
-                
                 // Rebuild ribbons with new textures
                 rebuildRibbonsWithNewTextures();
+
+                // Update scene background from new textures
+                await setBackgroundFromTileManager();
             }
 
             return success;

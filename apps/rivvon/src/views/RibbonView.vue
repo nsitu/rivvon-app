@@ -48,15 +48,8 @@
         }
     });
 
-    // Watch thumbnail URL changes and update Three.js scene background
-    // Uses the tile texture directly to avoid CORS issues with CDN thumbnails
-    watch(() => app.thumbnailUrl, () => {
-        // When thumbnail URL changes, it means textures were loaded
-        // Use the tile texture directly instead of loading the thumbnail URL
-        if (threeCanvasRef.value?.setBackgroundFromTileManager) {
-            threeCanvasRef.value.setBackgroundFromTileManager();
-        }
-    });
+    // Watch thumbnail URL changes (used by texture browser UI, not for scene background)
+    // Scene background is set directly by useThreeSetup after each texture load
 
     // Initialize when Three.js canvas is ready
     async function handleThreeInitialized(context) {
@@ -521,7 +514,7 @@
             >
                 <div class="loading-content">
                     <div class="loading-spinner"></div>
-                    <div class="loading-text">{{ app.isReinitializing ? 'Restoring viewer...' : loadingProgress }}</div>
+                    <div class="loading-text">{{ loadingProgress || 'Loading...' }}</div>
                 </div>
             </div>
         </Transition>
