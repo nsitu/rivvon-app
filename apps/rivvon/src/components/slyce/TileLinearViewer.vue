@@ -75,7 +75,8 @@
 <script setup>
     import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import { TileLinearRenderer } from '../../modules/slyce/tileLinearRenderer.js';
+    import { createAndInitTileLinearRenderer } from '../../modules/slyce/tileLinearRenderer.js';
+    import { chooseRenderer } from '../../utils/renderer-utils.js';
 
     // Props
     const props = defineProps({
@@ -132,8 +133,8 @@
         console.log('[TileLinearViewer] Initializing with container width:', width);
 
         try {
-            renderer = new TileLinearRenderer();
-            await renderer.init(container, {
+            const rendererType = await chooseRenderer();
+            renderer = await createAndInitTileLinearRenderer(container, rendererType, {
                 tileSize: app.potResolution || 512,
                 maxViewportWidth: 2560,
                 maxViewportHeight: 800,
