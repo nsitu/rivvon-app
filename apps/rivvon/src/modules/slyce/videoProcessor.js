@@ -117,6 +117,24 @@ const processVideo = async (settings) => {
 
     const app = useSlyceStore()  // Pinia store 
 
+    // Store tilePlan so ScanlinePreview and other consumers can access it
+    app.set('tilePlan', tilePlan);
+
+    // Pre-compute the effective file dimensions (after crop/scale) for ScanlinePreview
+    let previewFileInfo = fileInfo;
+    if (tilePlan.isCropping) {
+        previewFileInfo = { ...previewFileInfo, width: tilePlan.cropWidth, height: tilePlan.cropHeight };
+    }
+    if (tilePlan.isScaled && app.downsampleStrategy === 'upfront') {
+        const scaleFactor = tilePlan.scaleTo / tilePlan.scaleFrom;
+        previewFileInfo = {
+            ...previewFileInfo,
+            width: Math.floor(previewFileInfo.width * scaleFactor),
+            height: Math.floor(previewFileInfo.height * scaleFactor),
+        };
+    }
+    app.set('effectiveFileInfo', previewFileInfo);
+
     // go to the processing tab.
     app.set('currentStep', '3')
     app.set('readerIsFinished', false)
@@ -357,6 +375,21 @@ const processVideo = async (settings) => {
                 videoFrame: processedFrame,
                 frameNumber
             });
+
+            // Snapshot the tile's layer 0 canvas for the static preview.
+            // Must be AFTER processFrame so the canvas has the latest pixels.
+            // On the last frame of a tile processFrame deletes canvasses — the
+            // optional-chaining handles that gracefully (we just skip it).
+            if (app.previewMode === 'static' && app.scanlinePreviewInstance) {
+                try {
+                    const layerCanvas = tileBuilders[tileNumber]?.canvasses?.[0];
+                    if (layerCanvas) {
+                        app.scanlinePreviewInstance.snapshot(tileNumber, layerCanvas);
+                    }
+                } catch (e) {
+                    // Non-critical — don't let preview errors break processing
+                }
+            }
 
             // Update resource usage
             // TODO: ensure that the worker reports

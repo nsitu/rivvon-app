@@ -4,12 +4,20 @@
     import StatusBox from './StatusBox.vue';
     import DownloadArea from './DownloadArea.vue';
     import TileLinearViewer from './TileLinearViewer.vue';
+    import ScanlinePreview from './ScanlinePreview.vue';
     // import TileGridRenderer from './TileGridRenderer.vue'; // Available for 3D grid view if needed
     import ProgressSpinner from 'primevue/progressspinner';
-    import ToggleSwitch from 'primevue/toggleswitch';
+    import Select from 'primevue/select';
 
     const app = useSlyceStore();
     const emit = defineEmits(['back', 'reset', 'apply-texture']);
+
+    // Preview mode options for the dropdown
+    const previewOptions = [
+        { label: 'Disabled', value: 'disabled' },
+        { label: 'Static Preview', value: 'static' },
+        { label: 'Animated Preview', value: 'animated' },
+    ];
 
     // Check if there are any tiles available for download
     const hasTiles = computed(() => {
@@ -19,6 +27,11 @@
     // Check if processing is in progress (has status messages but no tiles yet)
     const isProcessing = computed(() => {
         return Object.keys(app.status).length > 0 && !hasTiles.value;
+    });
+
+    // Active = processing OR has results (unified so components survive the transition)
+    const isActive = computed(() => {
+        return isProcessing.value || hasTiles.value;
     });
 
     // Reset app and return to upload screen
@@ -36,61 +49,74 @@
 </script>
 
 <template>
+    <!-- Active: processing in progress or has results -->
     <div
         class="results-panel"
-        v-if="hasTiles"
+        v-if="isActive"
     >
         <div class="results-sidebar">
             <StatusBox />
             <div class="preview-toggle">
                 <label class="preview-toggle-label">
-                    <ToggleSwitch v-model="app.previewEnabled" />
-                    <span>Tile Preview</span>
+                    <span>Preview</span>
+                    <Select
+                        v-model="app.previewMode"
+                        :options="previewOptions"
+                        optionLabel="label"
+                        optionValue="value"
+                        class="preview-select"
+                    />
                 </label>
                 <p class="preview-toggle-hint">
-                    Turn off to free resources for faster encoding.
+                    Disable or use static preview to free resources for faster encoding.
                 </p>
             </div>
-            <div class="sidebar-buttons">
-                <button
-                    @click="handleBack"
-                    class="back-button"
-                >
-                    <span class="material-symbols-outlined">arrow_back</span>
-                    Back
-                </button>
-                <button
-                    @click="handleReset"
-                    class="reset-button"
-                >
-                    Start Over
-                </button>
-            </div>
-            <DownloadArea @apply-texture="(texture) => emit('apply-texture', texture)" />
+            <!-- Navigation + download only shown once tiles are available -->
+            <template v-if="hasTiles">
+                <div class="sidebar-buttons">
+                    <button
+                        @click="handleBack"
+                        class="back-button"
+                    >
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        Back
+                    </button>
+                    <button
+                        @click="handleReset"
+                        class="reset-button"
+                    >
+                        Start Over
+                    </button>
+                </div>
+                <DownloadArea @apply-texture="(texture) => emit('apply-texture', texture)" />
+            </template>
         </div>
         <div class="results-main">
-            <!-- Linear KTX2 Viewer (document-like layout) -->
+            <!-- Animated: Full Three.js KTX2 viewer (only when tiles exist) -->
             <TileLinearViewer
+                v-if="app.previewMode === 'animated' && hasTiles"
                 :ktx2BlobURLs="app.ktx2BlobURLs"
                 :outputMode="app.outputMode"
             />
-        </div>
-
-    </div>
-    <!-- Processing in progress - show spinner and status -->
-    <div
-        v-else-if="isProcessing"
-        class="results-panel"
-    >
-        <div class="results-sidebar">
-            <StatusBox />
-        </div>
-        <div class="results-main results-processing">
-            <ProgressSpinner
-                style="width: 50px; height: 50px"
-                strokeWidth="4"
-            />
-            <p>Processing video...</p>
+            <!-- Static: Lightweight 2D scanline canvas (single instance across entire run) -->
+            <ScanlinePreview v-else-if="app.previewMode === 'static'" />
+            <!-- Disabled / animated-but-no-tiles-yet -->
+            <div
+                v-else
+                class="preview-disabled-placeholder"
+            >
+                <template v-if="app.previewMode === 'disabled'">
+                    <span class="material-symbols-outlined">visibility_off</span>
+                    <span>Preview disabled</span>
+                </template>
+                <template v-else>
+                    <ProgressSpinner
+                        style="width: 50px; height: 50px"
+                        strokeWidth="4"
+                    />
+                    <p>Processing video...</p>
+                </template>
+            </div>
         </div>
     </div>
     <!-- No results and not processing -->
@@ -102,9 +128,9 @@
             <p>No results available. Please <a
                     href="#"
                     @click.prevent="emit('back')"
-                >go back</a> and process a video to see results here.</p>
+                >go back</a> and process a video to see
+                results here.</p>
         </div>
-
     </div>
 </template>
 
@@ -242,9 +268,13 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        cursor: pointer;
         font-weight: 500;
         color: var(--text-secondary);
+    }
+
+    .preview-select {
+        flex: 1;
+        min-width: 0;
     }
 
     .preview-toggle-hint {
@@ -252,5 +282,22 @@
         font-size: 0.75rem;
         color: var(--text-tertiary);
         line-height: 1.3;
+    }
+
+    .preview-disabled-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        min-height: 120px;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 14px;
+        background: rgba(15, 15, 15, 0.5);
+        border: 1px dashed rgba(255, 255, 255, 0.15);
+        border-radius: 0.375rem;
+    }
+
+    .preview-disabled-placeholder .material-symbols-outlined {
+        font-size: 1.5rem;
     }
 </style>

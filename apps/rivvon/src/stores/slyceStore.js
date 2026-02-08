@@ -60,8 +60,17 @@ export const useSlyceStore = defineStore('slyce', {
         // Resource management — when true, fully dispose viewer GPU context during processing
         freeGpuResources: false,
 
-        // Preview toggle — when false, the tile preview renderer is disposed to free resources
-        previewEnabled: true,
+        // Preview mode: 'disabled' | 'static' | 'animated'
+        // 'static'   — lightweight 2D scanline canvas (low overhead)
+        // 'animated'  — full Three.js TileLinearRenderer
+        // 'disabled'  — no preview, maximum resources for encoding
+        previewMode: 'static',
+
+        // Reference to active ScanlinePreview instance (set by ScanlinePreview.vue)
+        scanlinePreviewInstance: null,
+
+        // Effective file dimensions after crop/scale (set by videoProcessor for ScanlinePreview)
+        effectiveFileInfo: null,
     }),
     actions: {
         set(key, value) {
@@ -162,7 +171,9 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropWidth = null;
             this.cropHeight = null;
             this.thumbnailBlob = null;
-            this.previewEnabled = true;
+            this.previewMode = 'static';
+            this.scanlinePreviewInstance = null;
+            this.effectiveFileInfo = null;
         },
         trackFrame() {
             // Called each time a frame is processed/decoded
