@@ -214,6 +214,12 @@ export const useSlyceStore = defineStore('slyce', {
         fps() {
             return this.fpsNow
         },
+        // True when all expected tiles have been encoded
+        isComplete() {
+            const expectedTiles = this.tilePlan?.tiles?.length ?? 0;
+            const encodedTiles = Object.keys(this.ktx2BlobURLs).length;
+            return expectedTiles > 0 && encodedTiles >= expectedTiles;
+        },
         // Cropping getters
         effectiveWidth() {
             return this.cropMode && this.cropWidth ? this.cropWidth : this.fileInfo?.width ?? 0;

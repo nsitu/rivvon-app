@@ -359,9 +359,9 @@
             // Use thumbnail from store (captured during video processing)
             const thumbnailBlob = app.thumbnailBlob;
             if (thumbnailBlob) {
-                console.log('[DownloadArea] Using pre-captured thumbnail:', thumbnailBlob.size, 'bytes');
+                console.log('[OutputActions] Using pre-captured thumbnail:', thumbnailBlob.size, 'bytes');
             } else {
-                console.log('[DownloadArea] No thumbnail available');
+                console.log('[OutputActions] No thumbnail available');
             }
 
             // Prepare tiles array with blobs
@@ -380,7 +380,7 @@
             const useR2 = isAdmin.value && storageDestination.value === 'cloudflare';
             const uploadFn = useR2 ? uploadTextureSetToR2 : uploadTextureSet;
 
-            console.log('[DownloadArea] Upload destination:', useR2 ? 'Cloudflare R2' : 'Google Drive');
+            console.log('[OutputActions] Upload destination:', useR2 ? 'Cloudflare R2' : 'Google Drive');
 
             // Upload texture set with all tiles and thumbnail
             const result = await uploadFn({
@@ -410,7 +410,7 @@
             uploadedThumbnailUrl.value = result.thumbnailUrl;
 
             // Log CDN URLs to console for reference
-            console.log('[DownloadArea] Texture uploaded successfully:', {
+            console.log('[OutputActions] Texture uploaded successfully:', {
                 textureSetId: result.textureSetId,
                 thumbnailUrl: result.thumbnailUrl,
                 tileUrls: result.tiles.map((t) => t.url),
@@ -495,7 +495,7 @@
             savedLocalTextureId.value = savedId;
             saveLocalSuccess.value = true;
             saveLocalProgress.value = '';
-            console.log('[DownloadArea] Texture saved locally:', savedId);
+            console.log('[OutputActions] Texture saved locally:', savedId);
             setTimeout(() => { saveLocalSuccess.value = false; }, 5000);
         } catch (error) {
             console.error('Local save failed:', error);

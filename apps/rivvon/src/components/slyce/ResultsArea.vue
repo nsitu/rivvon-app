@@ -2,10 +2,9 @@
     import { computed } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     import StatusBox from './StatusBox.vue';
-    import DownloadArea from './DownloadArea.vue';
+    import OutputActions from './OutputActions.vue';
     import TileLinearViewer from './TileLinearViewer.vue';
     import TilePreview from './TilePreview.vue';
-    // import TileGridRenderer from './TileGridRenderer.vue'; // Available for 3D grid view if needed
     import ProgressSpinner from 'primevue/progressspinner';
     import Select from 'primevue/select';
 
@@ -19,20 +18,22 @@
         { label: 'Animated Preview', value: 'animated' },
     ];
 
-    // Check if there are any tiles available for download
-    const hasTiles = computed(() => {
-        return Object.keys(app.ktx2BlobURLs).length > 0;
-    });
+    // Has at least one tile (show preview during processing or when done)
+    const hasTiles = computed(() => Object.keys(app.ktx2BlobURLs).length > 0);
 
-    // Check if processing is in progress (has status messages but no tiles yet)
-    const isProcessing = computed(() => {
-        return Object.keys(app.status).length > 0 && !hasTiles.value;
-    });
+    // Processing: has status messages but not all tiles encoded yet
+    const isProcessing = computed(() => Object.keys(app.status).length > 0 && !app.isComplete);
 
-    // Active = processing OR has results (unified so components survive the transition)
-    const isActive = computed(() => {
-        return isProcessing.value || hasTiles.value;
-    });
+    // Active = processing OR has results (keeps components alive across the transition)
+    const isActive = computed(() => isProcessing.value || hasTiles.value);
+
+    // Abort processing and go back to settings
+    function handleAbort() {
+        const confirmed = confirm('Abort processing? Any progress will be lost.');
+        if (!confirmed) return;
+        app.resetProcessing();
+        emit('back');
+    }
 
     // Reset app and return to upload screen
     function handleReset() {
@@ -55,41 +56,60 @@
         v-if="isActive"
     >
         <div class="results-sidebar">
-            <StatusBox />
-            <div class="preview-toggle">
-                <label class="preview-toggle-label">
-                    <span>Preview</span>
-                    <Select
-                        v-model="app.previewMode"
-                        :options="previewOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="preview-select"
-                    />
-                </label>
-                <p class="preview-toggle-hint">
-                    Disable or use static preview to free resources for faster encoding.
-                </p>
-            </div>
-            <!-- Navigation + download only shown once tiles are available -->
-            <template v-if="hasTiles">
-                <div class="sidebar-buttons">
-                    <button
-                        @click="handleBack"
-                        class="back-button"
-                    >
-                        <span class="material-symbols-outlined">arrow_back</span>
-                        Back
-                    </button>
-                    <button
-                        @click="handleReset"
-                        class="reset-button"
-                    >
-                        Start Over
-                    </button>
+            <!-- Processing phase: status + preview controls -->
+            <template v-if="isProcessing">
+                <StatusBox />
+                <div class="preview-toggle">
+                    <label class="preview-toggle-label">
+                        <span>Preview</span>
+                        <Select
+                            v-model="app.previewMode"
+                            :options="previewOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            class="preview-select"
+                        />
+                    </label>
+                    <p class="preview-toggle-hint">
+                        Disable or use static preview to free resources for faster encoding.
+                    </p>
                 </div>
-                <DownloadArea @apply-texture="(texture) => emit('apply-texture', texture)" />
             </template>
+
+            <!-- Complete phase: output actions (upload, save, download, apply) -->
+            <OutputActions
+                v-if="app.isComplete"
+                @apply-texture="(texture) => emit('apply-texture', texture)"
+            />
+
+            <!-- Action bar — always visible, content changes by phase -->
+            <div class="sidebar-actions">
+                <button
+                    @click="handleBack"
+                    class="action-button action-back"
+                >
+                    <span class="material-symbols-outlined">arrow_back</span>
+                    Back
+                </button>
+
+                <button
+                    v-if="isProcessing"
+                    @click="handleAbort"
+                    class="action-button action-abort"
+                >
+                    <span class="material-symbols-outlined">cancel</span>
+                    Abort
+                </button>
+
+                <button
+                    v-if="app.isComplete"
+                    @click="handleReset"
+                    class="action-button action-reset"
+                >
+                    <span class="material-symbols-outlined">restart_alt</span>
+                    Start Over
+                </button>
+            </div>
         </div>
         <div class="results-main">
             <!-- Animated: Full Three.js KTX2 viewer (only when tiles exist) -->
@@ -185,54 +205,68 @@
         flex: 1;
     }
 
-    .reset-button {
-        padding: 0.75rem 1rem;
-        border: 1px solid var(--border-primary);
+    /* -- Action bar -- */
+    .sidebar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #333;
+    }
+
+    .action-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.5rem 1rem;
         border-radius: 0.5rem;
-        background: var(--bg-secondary);
-        color: var(--text-tertiary);
-        font-weight: 500;
+        font-size: 0.85rem;
         cursor: pointer;
         transition: all 0.2s ease;
-        text-align: center;
-        width: 100%;
+        border: none;
         min-height: 44px;
     }
 
-    .reset-button:hover {
-        background: #fee2e2;
-        border-color: #fca5a5;
-        color: #dc2626;
+    .action-button .material-symbols-outlined {
+        font-size: 1.1rem;
     }
 
-    .sidebar-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .back-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
+    /* Back — minimal text button, always left-aligned */
+    .action-back {
         background: transparent;
+        color: #aaa;
+        padding-left: 0.5rem;
+        margin-right: auto;
         border: 1px solid #555;
-        color: #888;
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.2s;
     }
 
-    .back-button:hover {
-        background: rgba(255, 255, 255, 0.05);
+    .action-back:hover {
         color: #fff;
+        background: rgba(255, 255, 255, 0.05);
         border-color: #888;
     }
 
-    .back-button .material-symbols-outlined {
-        font-size: 1.1rem;
+    /* Abort — outlined warning */
+    .action-abort {
+        background: transparent;
+        color: #e57373;
+        border: 1px solid #e57373;
+    }
+
+    .action-abort:hover {
+        background: rgba(229, 115, 115, 0.1);
+    }
+
+    /* Start Over — outlined neutral */
+    .action-reset {
+        background: transparent;
+        color: #aaa;
+        border: 1px solid #555;
+    }
+
+    .action-reset:hover {
+        color: #fff;
+        border-color: #888;
     }
 
     .results-placeholder {
@@ -249,15 +283,6 @@
 
     .results-placeholder a:hover {
         color: #2563eb;
-    }
-
-    .results-processing {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 1rem;
-        color: var(--text-tertiary);
     }
 
     .preview-toggle {

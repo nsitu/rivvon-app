@@ -62,7 +62,7 @@ There are **no tests or linters configured** — `pnpm lint` stubs to `echo`. De
 Three storage options exist:
 
 - **Google Drive** (default for authenticated users): Frontend uploads KTX2 tiles directly to user's Drive via Google Drive API, then registers metadata with API via `POST /texture-set/:id/tile/:index/metadata`
-- **R2** (admin-only): Only visible to admin users in the UI (`DownloadArea.vue` gates on `isAdmin`). API generates R2 keys; frontend uploads via `PUT /texture-set/:id/tile/:index`. Served from `cdn.rivvon.ca`
+- **R2** (admin-only): Only visible to admin users in the UI (`OutputActions.vue` gates on `isAdmin`). API generates R2 keys; frontend uploads via `PUT /texture-set/:id/tile/:index`. Served from `cdn.rivvon.ca`
 - **IndexedDB** (local, non-authenticated): Users who aren't logged in can save textures locally via `services/localStorage.js`. Data stays in-browser only — not synced to the API
 
 Google Drive and R2 both share the same D1 schema (`texture_sets` + `texture_tiles` tables), distinguished by the `storage_provider` column.
@@ -71,7 +71,7 @@ Google Drive and R2 both share the same D1 schema (`texture_sets` + `texture_til
 
 - Admin emails are configured via `ADMIN_USERS` env var in `wrangler.toml` (comma-separated)
 - Backend: `utils/user.ts` → `isAdminUser()` checks against this list. Admins can delete any texture set (not just their own) — see `routes/upload.ts` DELETE handler
-- Frontend: `useGoogleAuth()` exposes `isAdmin` ref, populated from `GET /api/auth/me` response. Used in `TextureBrowser.vue` (delete any texture) and `DownloadArea.vue` (R2 upload option)
+- Frontend: `useGoogleAuth()` exposes `isAdmin` ref, populated from `GET /api/auth/me` response. Used in `TextureBrowser.vue` (delete any texture) and `OutputActions.vue` (R2 upload option)
 
 ## File Naming & Organization Patterns
 
