@@ -4,7 +4,7 @@
     import StatusBox from './StatusBox.vue';
     import DownloadArea from './DownloadArea.vue';
     import TileLinearViewer from './TileLinearViewer.vue';
-    import ScanlinePreview from './ScanlinePreview.vue';
+    import TilePreview from './TilePreview.vue';
     // import TileGridRenderer from './TileGridRenderer.vue'; // Available for 3D grid view if needed
     import ProgressSpinner from 'primevue/progressspinner';
     import Select from 'primevue/select';
@@ -98,8 +98,11 @@
                 :ktx2BlobURLs="app.ktx2BlobURLs"
                 :outputMode="app.outputMode"
             />
-            <!-- Static: Lightweight 2D scanline canvas (single instance across entire run) -->
-            <ScanlinePreview v-else-if="app.previewMode === 'static'" />
+            <!-- Static: Tile snapshot thumbnails (progressively updated during encoding) -->
+            <TilePreview
+                v-else-if="app.previewMode === 'static'"
+                :tilePlan="app.tilePlan"
+            />
             <!-- Disabled / animated-but-no-tiles-yet -->
             <div
                 v-else

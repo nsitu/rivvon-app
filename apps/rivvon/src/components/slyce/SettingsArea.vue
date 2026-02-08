@@ -12,7 +12,7 @@
     import { getMetaData } from '../../modules/slyce/metaDataExtractor';
     import { processVideo } from '../../modules/slyce/videoProcessor';
 
-    import Tile from './Tile.vue';
+    import TilePreview from './TilePreview.vue';
     import ExplanatoryMessages from './ExplanatoryMessages.vue';
 
 
@@ -479,46 +479,10 @@
 
             <h3 class="text-xl">Tile Preview</h3>
 
-            <!-- Columns mode: simple horizontal scroll -->
-            <div
-                v-if="tilePlan?.tiles?.length && app.outputMode === 'columns'"
-                class="tile-container-columns"
-            >
-                <Tile
-                    v-for="tile in tilePlan.tiles"
-                    :key="`col-${tile.start}`"
-                    :start="tile.start"
-                    :end="tile.end"
-                    :width="tilePlan.width"
-                    :height="tilePlan.height"
-                ></Tile>
-            </div>
-
-            <!-- Rows mode: horizontal scroll with flow arrows between tiles -->
-            <div
-                v-if="tilePlan?.tiles?.length && app.outputMode === 'rows'"
-                class="tile-container-rows"
-            >
-                <template
-                    v-for="(tile, index) in tilePlan.tiles"
-                    :key="`row-${tile.start}`"
-                >
-                    <Tile
-                        :start="tile.start"
-                        :end="tile.end"
-                        :width="tilePlan.width"
-                        :height="tilePlan.height"
-                    ></Tile>
-                    <!-- Arrow between tiles (not after the last one) -->
-                    <img
-                        v-if="index < tilePlan.tiles.length - 1"
-                        src="/row-flow.svg"
-                        alt=""
-                        class="row-flow-arrow"
-                        aria-hidden="true"
-                    />
-                </template>
-            </div>
+            <TilePreview
+                v-if="tilePlan?.tiles?.length"
+                :tilePlan="tilePlan"
+            />
 
 
 
@@ -732,86 +696,6 @@
         border: 1px solid #10b981;
         border-radius: 0.25rem;
         padding: 0.25rem 0.5rem;
-    }
-
-    .tile-container-columns {
-        display: flex;
-        flex-direction: row;
-        gap: 0.25rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding-bottom: 0.5rem;
-        width: 100%;
-        max-width: calc(120px * 2.5 + 0.5rem);
-        scroll-snap-type: x mandatory;
-    }
-
-    @media (min-width: 640px) {
-        .tile-container-columns {
-            max-width: calc(120px * 3.5 + 0.75rem);
-        }
-    }
-
-    .tile-container-columns>* {
-        flex-shrink: 0;
-        scroll-snap-align: start;
-    }
-
-    /* Rows mode: horizontal scroll with flow arrows */
-    .tile-container-rows {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 0.15rem;
-        /** row-flow.svg takes the place of a gap.  */
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding-bottom: 0.5rem;
-        width: 100%;
-        max-width: calc(120px * 2.5 + 32px);
-        scroll-snap-type: x mandatory;
-    }
-
-    @media (min-width: 640px) {
-        .tile-container-rows {
-            max-width: calc(120px * 3.5 + 32px);
-        }
-    }
-
-    .tile-container-rows>.tile {
-        flex-shrink: 0;
-        scroll-snap-align: start;
-    }
-
-    /* Arrow graphic between tiles in rows mode */
-    .row-flow-arrow {
-        flex-shrink: 0;
-        height: 120px;
-        width: auto;
-        opacity: 0.5;
-    }
-
-    /* Custom scrollbar styling for horizontal scroll */
-    .tile-container-columns::-webkit-scrollbar,
-    .tile-container-rows::-webkit-scrollbar {
-        height: 8px;
-    }
-
-    .tile-container-columns::-webkit-scrollbar-track,
-    .tile-container-rows::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 4px;
-    }
-
-    .tile-container-columns::-webkit-scrollbar-thumb,
-    .tile-container-rows::-webkit-scrollbar-thumb {
-        background: #10b981;
-        border-radius: 4px;
-    }
-
-    .tile-container-columns::-webkit-scrollbar-thumb:hover,
-    .tile-container-rows::-webkit-scrollbar-thumb:hover {
-        background: #059669;
     }
 
 

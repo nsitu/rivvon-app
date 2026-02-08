@@ -61,16 +61,16 @@ export const useSlyceStore = defineStore('slyce', {
         freeGpuResources: false,
 
         // Preview mode: 'disabled' | 'static' | 'animated'
-        // 'static'   — lightweight 2D scanline canvas (low overhead)
+        // 'static'   — lightweight tile snapshot thumbnails (low overhead)
         // 'animated'  — full Three.js TileLinearRenderer
         // 'disabled'  — no preview, maximum resources for encoding
         previewMode: 'static',
 
-        // Reference to active ScanlinePreview instance (set by ScanlinePreview.vue)
-        scanlinePreviewInstance: null,
+        // Reference to active TileSnapshotPreview instance (set by TilePreview.vue)
+        tileSnapshotPreview: null,
 
-        // Effective file dimensions after crop/scale (set by videoProcessor for ScanlinePreview)
-        effectiveFileInfo: null,
+        // Per-tile preview blob URLs keyed by tile index (set by TileSnapshotPreview)
+        tilePreviewUrls: {},
     }),
     actions: {
         set(key, value) {
@@ -86,6 +86,10 @@ export const useSlyceStore = defineStore('slyce', {
                 URL.revokeObjectURL(this.ktx2BlobURLs[tileNumber]);
             }
             this.ktx2BlobURLs[tileNumber] = URL.createObjectURL(blob);
+        },
+        // Set a tile preview blob URL (from TileSnapshotPreview)
+        setTilePreviewUrl(tileIndex, blobUrl) {
+            this.tilePreviewUrls[tileIndex] = blobUrl;
         },
         // Revoke all KTX2 blob URLs
         revokeBlobURLs() {
@@ -172,8 +176,12 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropHeight = null;
             this.thumbnailBlob = null;
             this.previewMode = 'static';
-            this.scanlinePreviewInstance = null;
-            this.effectiveFileInfo = null;
+            // Dispose snapshot preview (revokes blob URLs) before clearing
+            if (this.tileSnapshotPreview) {
+                this.tileSnapshotPreview.dispose();
+            }
+            this.tileSnapshotPreview = null;
+            this.tilePreviewUrls = {};
         },
         trackFrame() {
             // Called each time a frame is processed/decoded

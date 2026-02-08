@@ -117,23 +117,8 @@ const processVideo = async (settings) => {
 
     const app = useSlyceStore()  // Pinia store 
 
-    // Store tilePlan so ScanlinePreview and other consumers can access it
+    // Store tilePlan so TilePreview and other consumers can access it
     app.set('tilePlan', tilePlan);
-
-    // Pre-compute the effective file dimensions (after crop/scale) for ScanlinePreview
-    let previewFileInfo = fileInfo;
-    if (tilePlan.isCropping) {
-        previewFileInfo = { ...previewFileInfo, width: tilePlan.cropWidth, height: tilePlan.cropHeight };
-    }
-    if (tilePlan.isScaled && app.downsampleStrategy === 'upfront') {
-        const scaleFactor = tilePlan.scaleTo / tilePlan.scaleFrom;
-        previewFileInfo = {
-            ...previewFileInfo,
-            width: Math.floor(previewFileInfo.width * scaleFactor),
-            height: Math.floor(previewFileInfo.height * scaleFactor),
-        };
-    }
-    app.set('effectiveFileInfo', previewFileInfo);
 
     // go to the processing tab.
     app.set('currentStep', '3')
@@ -295,6 +280,15 @@ const processVideo = async (settings) => {
                 tileBuilders[tileNumber].on('complete', async (payload) => {
                     delete tileBuilders[tileNumber];
 
+                    // Bake the live preview canvas to a static blob URL
+                    if (app.previewMode === 'static' && app.tileSnapshotPreview) {
+                        try {
+                            await app.tileSnapshotPreview.bake(tileNumber);
+                        } catch (e) {
+                            // Non-critical
+                        }
+                    }
+
                     const { images, kind } = payload;
                     const totalTiles = tilePlan.tiles.length;
 
@@ -380,11 +374,11 @@ const processVideo = async (settings) => {
             // Must be AFTER processFrame so the canvas has the latest pixels.
             // On the last frame of a tile processFrame deletes canvasses — the
             // optional-chaining handles that gracefully (we just skip it).
-            if (app.previewMode === 'static' && app.scanlinePreviewInstance) {
+            if (app.previewMode === 'static' && app.tileSnapshotPreview) {
                 try {
                     const layerCanvas = tileBuilders[tileNumber]?.canvasses?.[0];
                     if (layerCanvas) {
-                        app.scanlinePreviewInstance.snapshot(tileNumber, layerCanvas);
+                        app.tileSnapshotPreview.snapshot(tileNumber, layerCanvas);
                     }
                 } catch (e) {
                     // Non-critical — don't let preview errors break processing
