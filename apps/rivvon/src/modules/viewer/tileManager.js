@@ -1227,6 +1227,36 @@ export class TileManager {
     }
 
     /**
+     * Public dispose — releases all GPU resources held by this TileManager.
+     * Call this when you want to fully free VRAM (e.g., during Slyce processing).
+     */
+    dispose() {
+        this.#disposeMaterials();
+
+        // Dispose raw array textures (not covered by #disposeMaterials)
+        this.arrayTextures.forEach(t => {
+            if (t?.dispose) t.dispose();
+        });
+        this.arrayTextures = [];
+
+        // Dispose flow materials and their texture uniforms
+        this.flowMaterials.forEach(m => {
+            if (m?.uniforms?.uTexArrayA?.value?.dispose) m.uniforms.uTexArrayA.value.dispose();
+            if (m?.uniforms?.uTexArrayB?.value?.dispose) m.uniforms.uTexArrayB.value.dispose();
+            if (m?.dispose) m.dispose();
+        });
+        this.flowMaterials = [];
+
+        // Dispose KTX2 loader (WASM worker pool)
+        if (this._ktx2Loader) {
+            this._ktx2Loader.dispose();
+            this._ktx2Loader = null;
+        }
+
+        console.log('[TileManager] Disposed all GPU resources');
+    }
+
+    /**
      * Dispose of all current materials to free GPU memory
      */
     #disposeMaterials() {

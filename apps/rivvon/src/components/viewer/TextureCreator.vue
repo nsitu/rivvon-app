@@ -48,6 +48,22 @@
         activateCallback('1');
     }
 
+    /**
+     * Guard stepper header clicks. If we're on step 3 and processing is active,
+     * confirm before navigating away (which cancels the process).
+     */
+    function handleStepClick(activateCallback, targetStep) {
+        // Only guard when navigating away from step 3 while processing
+        if (slyce.currentStep === '3' && targetStep !== '3' && isProcessing.value) {
+            const confirmed = confirm(
+                'Video processing is in progress. Navigating away will cancel the current process and discard any results. Continue?'
+            );
+            if (!confirmed) return;
+            slyce.resetProcessing();
+        }
+        activateCallback();
+    }
+
     // Drag and drop handlers
     function handleDragOver(e) {
         e.preventDefault();
@@ -93,7 +109,7 @@
                                 <button
                                     class="step-button"
                                     :class="{ active: value <= slyce.currentStep }"
-                                    @click="activateCallback"
+                                    @click="handleStepClick(activateCallback, '1')"
                                     v-bind="a11yAttrs.header"
                                 >
                                     <span class="material-symbols-outlined">video_camera_back_add</span>
@@ -113,7 +129,7 @@
                                 <button
                                     class="step-button"
                                     :class="{ active: value <= slyce.currentStep }"
-                                    @click="activateCallback"
+                                    @click="handleStepClick(activateCallback, '2')"
                                     v-bind="a11yAttrs.header"
                                 >
                                     <span class="material-symbols-outlined">settings</span>

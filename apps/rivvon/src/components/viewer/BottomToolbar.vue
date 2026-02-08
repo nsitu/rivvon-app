@@ -1,9 +1,11 @@
 <script setup>
     import { ref, computed } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
+    import { useSlyceStore } from '../../stores/slyceStore';
     import Popover from 'primevue/popover';
 
     const app = useViewerStore();
+    const slyce = useSlyceStore();
     const toolsPopover = ref();
 
     // Detect touch device to disable tooltips on mobile
@@ -71,6 +73,32 @@
             app.setFullscreen(!!document.fullscreenElement);
         });
     }
+
+    // Check if Slyce processing is active (has status messages)
+    const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
+
+    /**
+     * Handle the back button press.
+     * If Slyce is visible and processing, confirm before cancelling and closing.
+     */
+    function handleBack() {
+        if (app.isDrawingMode) {
+            app.setDrawingMode(false);
+        } else if (app.textureCreatorVisible) {
+            if (isSlyceProcessing.value) {
+                const confirmed = confirm(
+                    'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
+                );
+                if (!confirmed) return;
+                slyce.resetProcessing();
+            }
+            app.hideSlyce();
+        } else if (app.textureBrowserVisible) {
+            app.hideTextureBrowser();
+        } else if (app.textPanelVisible) {
+            app.hideTextPanel();
+        }
+    }
 </script>
 
 <template>
@@ -83,7 +111,7 @@
             v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
             class="back-button"
             v-tooltip.top="tip('Back')"
-            @click="app.isDrawingMode ? app.setDrawingMode(false) : app.textureCreatorVisible ? app.hideSlyce() : app.textureBrowserVisible ? app.hideTextureBrowser() : app.hideTextPanel()"
+            @click="handleBack"
         >
             <span class="material-symbols-outlined">arrow_back_ios</span>
         </button>
@@ -246,7 +274,7 @@
                     @click="toggleFullscreen"
                 >
                     <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen'
-                    }}</span>
+                        }}</span>
                     <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
                 </button>
             </div>

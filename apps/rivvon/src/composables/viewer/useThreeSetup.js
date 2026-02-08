@@ -29,6 +29,33 @@ export function useThreeSetup() {
     
     let animationId = null;
     let renderCallback = null;
+    let renderLoopPaused = false;
+
+    /**
+     * Pause the render loop to free GPU/CPU resources
+     * (e.g., during Slyce video processing)
+     */
+    function pauseRenderLoop() {
+        if (renderLoopPaused) return;
+        renderLoopPaused = true;
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
+        console.log('[ThreeSetup] Render loop paused');
+    }
+
+    /**
+     * Resume a previously paused render loop
+     */
+    function resumeRenderLoop() {
+        if (!renderLoopPaused) return;
+        renderLoopPaused = false;
+        if (renderCallback) {
+            startRenderLoop(renderCallback);
+        }
+        console.log('[ThreeSetup] Render loop resumed');
+    }
 
     /**
      * Initialize Three.js scene
@@ -53,7 +80,10 @@ export function useThreeSetup() {
                 camera: ctx.camera,
                 renderer: ctx.renderer,
                 controls: ctx.controls,
-                rendererType: ctx.rendererType
+                rendererType: ctx.rendererType,
+                pauseRenderLoop,
+                resumeRenderLoop,
+                teardownViewer
             });
 
             // Initialize tile manager with default texture
@@ -91,6 +121,11 @@ export function useThreeSetup() {
         }
 
         renderCallback = callback;
+
+        // If the loop is paused (e.g., during Slyce processing), store the
+        // callback but don't actually start animating. resumeRenderLoop will
+        // kick it off when ready.
+        if (renderLoopPaused) return;
         
         function animate() {
             const elapsedTime = performance.now() / 1000; // or use a clock
@@ -532,6 +567,52 @@ export function useThreeSetup() {
     }
 
     /**
+     * Tear down the entire viewer — dispose all GPU resources, remove canvas,
+     * and reset state so initThree can be called again.
+     * Unlike onUnmounted cleanup, this preserves threeContext so the store
+     * can still call reinitialize later.
+     */
+    function teardownViewer() {
+        stopRenderLoop();
+
+        if (backgroundTexture.value) {
+            backgroundTexture.value.dispose();
+            backgroundTexture.value = null;
+            if (scene.value) scene.value.background = null;
+        }
+        if (ribbon.value) { ribbon.value.dispose(); ribbon.value = null; }
+        if (ribbonSeries.value) { ribbonSeries.value.dispose(); ribbonSeries.value = null; }
+        if (tileManager.value) { tileManager.value.dispose(); tileManager.value = null; }
+        if (controls.value) { controls.value.dispose?.(); controls.value = null; }
+        if (renderer.value) {
+            if (renderer.value.domElement?.parentNode) {
+                renderer.value.domElement.parentNode.removeChild(renderer.value.domElement);
+            }
+            renderer.value.dispose?.();
+            renderer.value = null;
+        }
+        if (scene.value) {
+            scene.value.traverse((object) => {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(m => m.dispose?.());
+                    } else {
+                        object.material.dispose?.();
+                    }
+                }
+            });
+            scene.value = null;
+        }
+        camera.value = null;
+        resetCamera.value = null;
+        isInitialized.value = false;
+        renderLoopPaused = false;
+
+        console.log('[ThreeSetup] Viewer torn down (full GPU resource release)');
+    }
+
+    /**
      * Clean up on unmount
      */
     onUnmounted(() => {
@@ -609,6 +690,9 @@ export function useThreeSetup() {
         initThree,
         startRenderLoop,
         stopRenderLoop,
+        pauseRenderLoop,
+        resumeRenderLoop,
+        teardownViewer,
         createRibbon,
         createRibbonSeries,
         createRibbonFromDrawing,

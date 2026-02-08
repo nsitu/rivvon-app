@@ -513,15 +513,15 @@
 
         <BetaModal />
 
-        <!-- Loading overlay for texture loading -->
+        <!-- Loading overlay for texture loading or viewer reinitialization -->
         <Transition name="fade">
             <div
-                v-if="isLoadingTexture"
+                v-if="isLoadingTexture || app.isReinitializing"
                 class="loading-overlay"
             >
                 <div class="loading-content">
                     <div class="loading-spinner"></div>
-                    <div class="loading-text">{{ loadingProgress }}</div>
+                    <div class="loading-text">{{ app.isReinitializing ? 'Restoring viewer...' : loadingProgress }}</div>
                 </div>
             </div>
         </Transition>

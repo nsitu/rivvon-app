@@ -87,6 +87,7 @@
 
     import RadioButton from 'primevue/radiobutton';
     import ProgressSpinner from 'primevue/progressspinner';
+    import ToggleSwitch from 'primevue/toggleswitch';
 
     // Loading state - show spinner until metadata is ready
     const isLoading = computed(() => {
@@ -522,6 +523,16 @@
 
 
             <h3 class="text-xl">Are you ready?</h3>
+            <div class="gpu-toggle">
+                <label class="gpu-toggle-label">
+                    <ToggleSwitch v-model="app.freeGpuResources" />
+                    <span>Optimize GPU Resources</span>
+                </label>
+                <p class="gpu-toggle-hint">
+                    Release viewer GPU context while encoding.
+
+                </p>
+            </div>
             <div class="action-buttons">
                 <button
                     class="back-button"
@@ -947,6 +958,27 @@
 
     .settings-placeholder a:hover {
         color: #2563eb;
+    }
+
+    /* GPU resource toggle */
+    .gpu-toggle {
+        margin-bottom: 1rem;
+    }
+
+    .gpu-toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        font-size: 0.95rem;
+        color: #ccc;
+    }
+
+    .gpu-toggle-hint {
+        margin-top: 0.35rem;
+        font-size: 0.8rem;
+        color: #777;
+        line-height: 1.4;
     }
 
     /* Step navigation */

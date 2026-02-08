@@ -1,4 +1,5 @@
 import { useSlyceStore } from '../../stores/slyceStore';
+import { useViewerStore } from '../../stores/viewerStore';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 import { resourceUsageReport } from './resourceMonitor.js';
 import { TileBuilder } from './tileBuilder.js';
@@ -76,12 +77,24 @@ const abortProcessing = () => {
         abortController = null;
     }
     cleanupKTX2Workers();
+    // Resume the viewer if it was suspended for processing
+    try {
+        const viewerStore = useViewerStore();
+        viewerStore.resumeViewer();
+    } catch (e) {
+        // Store may not be initialized yet during early abort
+    }
 };
 
 const processVideo = async (settings) => {
 
     // Abort any previous processing
     abortProcessing();
+
+    // Suspend the viewer to free GPU/CPU resources for encoding
+    const viewerStore = useViewerStore();
+    const slyceStore = useSlyceStore();
+    viewerStore.suspendViewer(slyceStore.freeGpuResources);
 
     // Create new abort controller for this processing run
     abortController = new AbortController();
@@ -332,6 +345,9 @@ const processVideo = async (settings) => {
                         app.removeStatus('System');
                         // Cleanup KTX2 worker pool
                         cleanupKTX2Workers();
+                        // Resume the viewer now that processing is complete
+                        const viewerStore = useViewerStore();
+                        viewerStore.resumeViewer();
                     }
                 });
             }

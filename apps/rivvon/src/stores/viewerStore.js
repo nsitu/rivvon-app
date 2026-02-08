@@ -41,6 +41,14 @@ export const useViewerStore = defineStore('viewer', {
         
         // Three.js references (set by composable)
         threeContext: null,
+        
+        // Suspension state — true when viewer is paused to free resources for Slyce
+        isSuspended: false,
+        
+        // Full resource release state (interventions 5+6)
+        resourcesReleased: false,
+        isReinitializing: false,
+        reinitCallback: null,
     }),
     
     actions: {
@@ -120,6 +128,64 @@ export const useViewerStore = defineStore('viewer', {
         
         setThreeContext(context) {
             this.threeContext = context;
+        },
+        
+        /**
+         * Register the ThreeCanvas reinitialize callback.
+         * This persists across teardown since it's stored on the store, not threeContext.
+         */
+        setReinitCallback(callback) {
+            this.reinitCallback = callback;
+        },
+        
+        /**
+         * Suspend the viewer to free GPU/CPU resources for Slyce processing.
+         * @param {boolean} releaseResources — if true, fully dispose renderer + textures (interventions 5+6)
+         */
+        suspendViewer(releaseResources = false) {
+            if (this.isSuspended) return;
+            this.isSuspended = true;
+            
+            if (releaseResources && this.threeContext?.teardownViewer) {
+                this.threeContext.teardownViewer();
+                this.resourcesReleased = true;
+                console.log('[ViewerStore] Viewer suspended with full GPU resource release');
+            } else {
+                if (this.threeContext?.pauseRenderLoop) {
+                    this.threeContext.pauseRenderLoop();
+                }
+                console.log('[ViewerStore] Viewer suspended (render loop paused)');
+            }
+        },
+        
+        /**
+         * Resume the viewer after Slyce processing completes.
+         * If resources were released, performs full reinitialization.
+         */
+        async resumeViewer() {
+            if (!this.isSuspended) return;
+            this.isSuspended = false;
+            
+            if (this.resourcesReleased) {
+                this.resourcesReleased = false;
+                if (this.reinitCallback) {
+                    this.isReinitializing = true;
+                    console.log('[ViewerStore] Reinitializing viewer...');
+                    try {
+                        await this.reinitCallback();
+                    } catch (e) {
+                        console.error('[ViewerStore] Reinitialization failed:', e);
+                    } finally {
+                        this.isReinitializing = false;
+                    }
+                }
+                console.log('[ViewerStore] Viewer resumed after full reinit');
+            } else {
+                if (this.threeContext?.resumeRenderLoop) {
+                    this.threeContext.resumeRenderLoop();
+                }
+                console.log('[ViewerStore] Viewer resumed');
+            }
         },
         
         setFullscreen(enabled) {

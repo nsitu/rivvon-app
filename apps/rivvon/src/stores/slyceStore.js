@@ -56,6 +56,9 @@ export const useSlyceStore = defineStore('slyce', {
 
         // Thumbnail blob for CDN upload (captured during processing)
         thumbnailBlob: null,
+
+        // Resource management — when true, fully dispose viewer GPU context during processing
+        freeGpuResources: false,
     }),
     actions: {
         set(key, value) {
@@ -99,6 +102,7 @@ export const useSlyceStore = defineStore('slyce', {
             });
 
             // Reset only processing-related state (preserve file, fileInfo, settings)
+            this.currentStep = '2';
             this.frameNumber = 0;
             this.readerIsFinished = false;
             this.messages = [];
