@@ -1,6 +1,7 @@
 <template>
     <!-- Linear Tile Viewer - Document-like KTX2 texture display -->
     <div
+        v-if="app.previewEnabled"
         ref="wrapperRef"
         class="tile-linear-viewer"
         :class="{
@@ -68,6 +69,20 @@
             class="loading-message"
         >
             Waiting for tiles...
+        </div>
+    </div>
+
+    <!-- Preview paused placeholder -->
+    <div
+        v-else
+        class="tile-linear-viewer preview-paused"
+    >
+        <div class="loading-message">
+            <span
+                class="material-symbols-outlined"
+                style="font-size: 1.5rem; vertical-align: middle; margin-right: 0.25rem;"
+            >visibility_off</span>
+            Preview paused to free up resources
         </div>
     </div>
 </template>
@@ -212,6 +227,19 @@
         }
     }
 
+    /**
+     * Dispose renderer and free GPU resources
+     */
+    function disposeRenderer() {
+        if (renderer) {
+            console.log('[TileLinearViewer] Disposing renderer (preview toggled off)');
+            renderer.dispose();
+            renderer = null;
+        }
+        isInitialized.value = false;
+        initializationAttempted.value = false;
+    }
+
     // Mount
     onMounted(async () => {
         await nextTick();
@@ -219,8 +247,8 @@
 
         document.addEventListener('fullscreenchange', handleFullscreenChange);
 
-        // If we already have tiles, initialize immediately
-        if (tileCount.value > 0) {
+        // If we already have tiles and preview is enabled, initialize immediately
+        if (tileCount.value > 0 && app.previewEnabled) {
             await initializeRenderer();
         }
     });
@@ -239,8 +267,28 @@
         }
     });
 
+    // Watch for preview toggle
+    watch(() => app.previewEnabled, async (enabled) => {
+        if (!enabled) {
+            // Exit fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+            disposeRenderer();
+        } else {
+            // Re-initialize if there are tiles to show
+            await nextTick();
+            if (tileCount.value > 0) {
+                await initializeRenderer();
+            }
+        }
+    });
+
     // Watch for blob URL changes
     watch(() => props.ktx2BlobURLs, async () => {
+        // Skip rendering when preview is off
+        if (!app.previewEnabled) return;
+
         const count = Object.keys(props.ktx2BlobURLs).length;
         console.log('[TileLinearViewer] Blob URLs changed, count:', count);
 
@@ -380,5 +428,18 @@
 
     .viewer-container::-webkit-scrollbar-thumb:hover {
         background: rgba(255, 255, 255, 0.3);
+    }
+
+    .preview-paused {
+        background: rgba(15, 15, 15, 0.5);
+        min-height: 120px;
+        border: 1px dashed rgba(255, 255, 255, 0.15);
+    }
+
+    .preview-paused .loading-message {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: rgba(255, 255, 255, 0.4);
     }
 </style>

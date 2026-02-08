@@ -59,6 +59,9 @@ export const useSlyceStore = defineStore('slyce', {
 
         // Resource management — when true, fully dispose viewer GPU context during processing
         freeGpuResources: false,
+
+        // Preview toggle — when false, the tile preview renderer is disposed to free resources
+        previewEnabled: true,
     }),
     actions: {
         set(key, value) {
@@ -159,6 +162,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropWidth = null;
             this.cropHeight = null;
             this.thumbnailBlob = null;
+            this.previewEnabled = true;
         },
         trackFrame() {
             // Called each time a frame is processed/decoded

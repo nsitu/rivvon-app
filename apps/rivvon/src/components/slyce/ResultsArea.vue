@@ -6,6 +6,7 @@
     import TileLinearViewer from './TileLinearViewer.vue';
     // import TileGridRenderer from './TileGridRenderer.vue'; // Available for 3D grid view if needed
     import ProgressSpinner from 'primevue/progressspinner';
+    import ToggleSwitch from 'primevue/toggleswitch';
 
     const app = useSlyceStore();
     const emit = defineEmits(['back', 'reset', 'apply-texture']);
@@ -41,6 +42,15 @@
     >
         <div class="results-sidebar">
             <StatusBox />
+            <div class="preview-toggle">
+                <label class="preview-toggle-label">
+                    <ToggleSwitch v-model="app.previewEnabled" />
+                    <span>Tile Preview</span>
+                </label>
+                <p class="preview-toggle-hint">
+                    Turn off to free resources for faster encoding.
+                </p>
+            </div>
             <div class="sidebar-buttons">
                 <button
                     @click="handleBack"
@@ -219,5 +229,28 @@
         justify-content: center;
         gap: 1rem;
         color: var(--text-tertiary);
+    }
+
+    .preview-toggle {
+        padding: 0.75rem;
+        border: 1px solid var(--border-primary);
+        border-radius: 0.5rem;
+        background: var(--bg-secondary);
+    }
+
+    .preview-toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--text-secondary);
+    }
+
+    .preview-toggle-hint {
+        margin: 0.35rem 0 0 0;
+        font-size: 0.75rem;
+        color: var(--text-tertiary);
+        line-height: 1.3;
     }
 </style>
