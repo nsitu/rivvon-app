@@ -262,7 +262,7 @@
                     @click="handleExportVideo"
                 >
                     <span class="material-symbols-outlined">videocam</span>
-                    <span>Export Video (5s)</span>
+                    <span>Export Video</span>
                 </button>
 
                 <div class="menu-divider"></div>
@@ -274,7 +274,7 @@
                     @click="toggleFullscreen"
                 >
                     <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen'
-                        }}</span>
+                    }}</span>
                     <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
                 </button>
             </div>

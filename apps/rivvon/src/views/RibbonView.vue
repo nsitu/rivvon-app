@@ -18,6 +18,7 @@
     import TextureBrowser from '../components/viewer/TextureBrowser.vue';
     import TextureCreator from '../components/viewer/TextureCreator.vue';
     import BetaModal from '../components/viewer/BetaModal.vue';
+    import ExportVideoDialog from '../components/viewer/ExportVideoDialog.vue';
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
@@ -238,35 +239,55 @@
         threeCanvasRef.value?.exportImage(filename);
     }
 
-    // Video export handler
-    async function handleExportVideo() {
-        // Generate filename with timestamp
+    // Video export dialog state
+    const showExportDialog = ref(false);
+    const exportInfo = ref({});
+    const exportAbortController = ref(null);
+
+    // Video export handler — opens dialog instead of recording immediately
+    function handleExportVideo() {
+        // Gather current scene info for the dialog
+        exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
+        showExportDialog.value = true;
+    }
+
+    // Called when user confirms export settings in the dialog
+    async function handleExportConfirm(settings) {
+        showExportDialog.value = false;
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const filename = `rivvon-${timestamp}.webm`;
+        const ext = settings.format === 'webm' ? 'webm' : 'mp4';
+        const filename = `rivvon-${timestamp}.${ext}`;
 
         isLoadingTexture.value = true;
-        loadingProgress.value = 'Recording video... 0%';
+        loadingProgress.value = 'Preparing export…';
+
+        exportAbortController.value = new AbortController();
 
         try {
             await threeCanvasRef.value?.exportVideo({
-                duration: 5,
-                fps: 30,
+                width: settings.width,
+                height: settings.height,
+                fps: settings.fps,
+                format: settings.format,
+                duration: settings.duration,
+                cameraMovement: settings.cameraMovement,
                 filename,
+                signal: exportAbortController.value.signal,
                 onProgress: (progress) => {
-                    loadingProgress.value = `Recording video... ${Math.round(progress * 100)}%`;
+                    loadingProgress.value = `Encoding… ${Math.round(progress * 100)}%`;
                 },
-                onComplete: () => {
-                    loadingProgress.value = 'Video saved!';
+                onStatus: (status) => {
+                    loadingProgress.value = status;
                 }
             });
+            loadingProgress.value = 'Video saved!';
         } catch (error) {
             console.error('Video export failed:', error);
-            loadingProgress.value = 'Video export failed';
+            loadingProgress.value = 'Export failed: ' + error.message;
         } finally {
-            // Brief delay to show completion message
-            setTimeout(() => {
-                isLoadingTexture.value = false;
-            }, 500);
+            exportAbortController.value = null;
+            setTimeout(() => { isLoadingTexture.value = false; }, 800);
         }
     }
 
@@ -505,6 +526,13 @@
         />
 
         <BetaModal />
+
+        <!-- Export Video Dialog -->
+        <ExportVideoDialog
+            v-model:visible="showExportDialog"
+            :export-info="exportInfo"
+            @export="handleExportConfirm"
+        />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->
         <Transition name="fade">

@@ -38,6 +38,9 @@
         setFlowState,
         exportImage,
         exportVideo,
+        exportVideoLegacy,
+        renderFrameAtTime,
+        getExportInfo,
         setBackgroundFromUrl,
         setBackgroundFromTileManager
     } = useThreeSetup();
@@ -141,6 +144,9 @@
         setFlowState,
         exportImage,
         exportVideo,
+        exportVideoLegacy,
+        renderFrameAtTime,
+        getExportInfo,
         setBackgroundFromUrl,
         setBackgroundFromTileManager,
         pauseRenderLoop,

@@ -1100,6 +1100,131 @@ export class TileManager {
     }
 
     /**
+     * Reset all animation state to time-zero.
+     * Call before a deterministic (frame-accurate) render pass.
+     */
+    resetAnimationState() {
+        this.currentLayer = 0;
+        this.direction = 1;
+        this.sharedLayerUniform.value = 0;
+        this.lastFrameTime = 0;
+        this.flowOffset = 0.0;
+        this.tileFlowOffset = 0;
+        this.sharedFlowOffsetUniform.value = 0.0;
+        this._lastCheckedTileOffset = 0;
+        this._deterministicAccum = 0;
+
+        // Sync WebGPU TSL uniforms
+        if (this.rendererType === 'webgpu') {
+            this.materials.forEach(m => { if (m._layerUniform) m._layerUniform.value = 0; });
+            for (const m of this.flowMaterials) {
+                if (m._layerUniform) m._layerUniform.value = 0;
+                if (m._flowOffsetUniform) m._flowOffsetUniform.value = 0;
+            }
+        }
+
+        console.log('[TileManager] Animation state reset to t=0');
+    }
+
+    /**
+     * Deterministic tick — advance animation by exactly `deltaSec` seconds
+     * from the current state. Unlike tick(nowMs) which depends on wall-clock
+     * deltas, this is fully reproducible for frame-accurate video export.
+     * @param {number} deltaSec - Exact time step in seconds (e.g., 1/30)
+     */
+    tickDeterministic(deltaSec) {
+        if (!this.isKTX2) return;
+
+        // --- Flow animation ---
+        if (this.flowEnabled && this.flowSpeed !== 0) {
+            this.flowOffset += this.flowSpeed * deltaSec;
+            this.sharedFlowOffsetUniform.value = this.flowOffset;
+
+            if (this.rendererType === 'webgpu') {
+                for (const material of this.flowMaterials) {
+                    if (material._flowOffsetUniform) {
+                        material._flowOffsetUniform.value = this.flowOffset;
+                    }
+                }
+            }
+        }
+
+        // --- Layer cycling (frame-rate limited) ---
+        if (this.layerCount <= 1) return;
+
+        // Accumulate fractional frames
+        if (!this._deterministicAccum) this._deterministicAccum = 0;
+        this._deterministicAccum += deltaSec;
+
+        const frameInterval = 1 / this.fps;
+
+        while (this._deterministicAccum >= frameInterval) {
+            this._deterministicAccum -= frameInterval;
+
+            if (this.variant === 'waves') {
+                this.currentLayer = (this.currentLayer + 1) % this.layerCount;
+            } else {
+                this.currentLayer += this.direction;
+                if (this.currentLayer >= this.layerCount - 1) {
+                    this.currentLayer = this.layerCount - 1;
+                    this.direction = -1;
+                } else if (this.currentLayer <= 0) {
+                    this.currentLayer = 0;
+                    this.direction = 1;
+                }
+            }
+        }
+
+        const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1)));
+        this.sharedLayerUniform.value = clamped | 0;
+
+        if (this.rendererType === 'webgpu') {
+            this.materials.forEach(m => { if (m._layerUniform) m._layerUniform.value = clamped; });
+            for (const m of this.flowMaterials) {
+                if (m._layerUniform) m._layerUniform.value = clamped;
+            }
+        }
+    }
+
+    /**
+     * Calculate the duration of one seamless animation loop.
+     * Returns the time at which ALL cyclic animations (layer cycling,
+     * wave undulation, and optionally tile flow) simultaneously return
+     * to their starting state.
+     * @returns {number} Seamless loop duration in seconds
+     */
+    getSeamlessLoopDuration() {
+        const layerCycle = this.getLayerCyclePeriod();
+        const undulationPeriod = this.getOptimalUndulationPeriod(3.0);
+
+        // LCM of layer cycle and undulation period
+        // Both are already aligned (undulation is a multiple of layer cycle),
+        // so the LCM is just the undulation period.
+        let loopDuration = undulationPeriod;
+
+        // If flow is enabled, also incorporate the tile flow cycle:
+        // time for flow to traverse all tiles = tileCount / |flowSpeed|
+        if (this.flowEnabled && this.flowSpeed !== 0) {
+            const flowCycle = this.tileCount / Math.abs(this.flowSpeed);
+            // Simple LCM via stepping: find the first time ≥ loopDuration
+            // that is also a multiple of flowCycle (to nearest frame)
+            const fps = this.fps || 30;
+            const frameTime = 1 / fps;
+            let t = loopDuration;
+            // Cap search to avoid infinite loop (max 120 seconds)
+            while (t < 120) {
+                const flowRemainder = t % flowCycle;
+                const undulRemainder = t % undulationPeriod;
+                if (flowRemainder < frameTime && undulRemainder < frameTime) break;
+                t += frameTime;
+            }
+            loopDuration = t;
+        }
+
+        return loopDuration;
+    }
+
+    /**
      * Load textures from a user-provided zip file (ArrayBuffer).
      * This replaces the current textures with those from the uploaded file.
      * @param {ArrayBuffer} arrayBuffer - The zip file as an ArrayBuffer

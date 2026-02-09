@@ -205,7 +205,7 @@ export function useThreeSetup() {
     }
 
     /**
-     * Export the current scene as a video clip using MediaRecorder
+     * Export the current scene as a video clip using MediaRecorder (legacy)
      * @param {Object} options - Export options
      * @param {number} options.duration - Duration in seconds (default: 5)
      * @param {number} options.fps - Frames per second (default: 30)
@@ -215,7 +215,7 @@ export function useThreeSetup() {
      * @param {Function} options.onComplete - Called when recording completes with blob
      * @returns {Promise<Blob>} The recorded video blob
      */
-    async function exportVideo(options = {}) {
+    async function exportVideoLegacy(options = {}) {
         const {
             duration = 5,
             fps = 30,
@@ -668,6 +668,336 @@ export function useThreeSetup() {
         console.log('[ThreeSetup] Cleanup complete');
     });
 
+    /**
+     * Render a single frame at a precise synthetic time.
+     * Used by the frame-accurate video export pipeline.
+     * Advances animation state by deltaSec and renders at the given wave time.
+     *
+     * @param {number} waveTime - Elapsed time in seconds (for undulation phase)
+     * @param {number} deltaSec - Time step since last frame (for texture cycling)
+     */
+    function renderFrameAtTime(waveTime, deltaSec) {
+        if (!renderer.value || !scene.value || !camera.value) return;
+
+        // 1. Advance texture layer cycling + flow with deterministic delta
+        if (tileManager.value?.tickDeterministic) {
+            tileManager.value.tickDeterministic(deltaSec);
+        }
+
+        // 2. Swap texture pairs if flow offset crossed threshold
+        if (ribbonSeries.value?.updateFlowMaterials) {
+            ribbonSeries.value.updateFlowMaterials();
+        }
+
+        // 3. Update wave undulation at the exact synthetic time
+        if (ribbonSeries.value) {
+            ribbonSeries.value.update(waveTime);
+        }
+
+        // 4. Render
+        renderer.value.render(scene.value, camera.value);
+    }
+
+    /**
+     * Frame-accurate video export using WebCodecs via mediabunny.
+     * Pauses the live render loop, resizes the renderer, renders each frame
+     * under a synthetic clock, encodes via CanvasSource, and restores state.
+     *
+     * @param {Object} options
+     * @param {number} options.width - Output width in pixels (default: 1920)
+     * @param {number} options.height - Output height in pixels (default: 1080)
+     * @param {number} options.fps - Frames per second (default: 30)
+     * @param {string} options.format - 'mp4' | 'webm' (default: 'mp4')
+     * @param {number|null} options.duration - Duration in seconds, or null for auto (one seamless loop)
+     * @param {string} options.filename - Output filename
+     * @param {Function} options.onProgress - Progress callback (0-1)
+     * @param {Function} options.onStatus - Status text callback
+     * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
+     * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
+     */
+    async function exportVideo(options = {}) {
+        const {
+            width = 1920,
+            height = 1080,
+            fps = 30,
+            format = 'mp4',
+            duration = null,
+            filename = null,
+            onProgress = null,
+            onStatus = null,
+            signal = null,
+            cameraMovement = 'none'
+        } = options;
+
+        if (!renderer.value || !scene.value || !camera.value || !tileManager.value) {
+            console.error('[ThreeSetup] Cannot export video — not initialized');
+            return null;
+        }
+
+        // Lazy-import mediabunny to keep it tree-shaken out of the main bundle
+        const MB = await import('mediabunny');
+
+        // Check WebCodecs support
+        if (typeof VideoEncoder === 'undefined') {
+            throw new Error('WebCodecs API is not available in this browser. Use Chrome 94+, Edge 94+, or Firefox 130+.');
+        }
+
+        // --- Determine codec ---
+        let OutputFormat, codec;
+        if (format === 'webm') {
+            OutputFormat = MB.WebMOutputFormat;
+            codec = 'vp9';
+        } else {
+            OutputFormat = MB.Mp4OutputFormat;
+            codec = 'avc';
+        }
+
+        // --- Calculate duration ---
+        const loopDuration = tileManager.value.getSeamlessLoopDuration?.() || 3.0;
+        const exportDuration = duration ?? loopDuration;
+        const totalFrames = Math.ceil(exportDuration * fps);
+        const deltaSec = 1 / fps;
+
+        console.log(`[ThreeSetup] Frame-accurate export: ${totalFrames} frames, ${exportDuration.toFixed(2)}s @ ${fps}fps, ${format}/${codec}, ${width}×${height}`);
+        if (onStatus) onStatus(`Preparing ${format.toUpperCase()} export…`);
+
+        // --- Save current state ---
+        const savedWidth = renderer.value.domElement.width;
+        const savedHeight = renderer.value.domElement.height;
+        const savedAspect = camera.value.aspect;
+        const savedPixelRatio = renderer.value.getPixelRatio();
+        const savedCameraPos = camera.value.position.clone();
+        const savedCameraQuat = camera.value.quaternion.clone();
+
+        // --- Camera movement setup ---
+        // The ribbon is front-facing 2D-derived art, so camera movements
+        // should add subtle depth perception rather than rotate fully around
+        // the subject. All modes except "orbit" work in the camera's local
+        // frame (right/up/forward vectors) to stay near the original
+        // viewpoint. Every path is pure sin/cos — guaranteed seamless loop.
+        //
+        // Orbit-family variants (not exposed in UI, but easy to add):
+        //   tiltedOrbit:     azimuth + θ, elevation + 0.4·sin(θ)
+        //   ellipticalOrbit: azimuth + θ, radius × (1 + 0.2·cos(θ))
+        //   latitudeSweep:   azimuth + θ, elevation + 0.3·sin(2θ)
+        //   epicyclic:       azimuth + θ + 0.12·sin(6θ), elevation + 0.12·cos(6θ)
+        //
+        const lookAtTarget = controls.value
+            ? controls.value.target.clone()
+            : new THREE.Vector3(0, 0, 0);
+
+        const camOffset = savedCameraPos.clone().sub(lookAtTarget);
+        const camDist = camOffset.length();
+        const initAzimuth = Math.atan2(camOffset.x, camOffset.z);
+        const initElevation = Math.asin(
+            Math.min(1, Math.max(-1, camOffset.y / camDist))
+        );
+
+        // Spherical helper — used only by full orbit mode
+        const _tmpPos = new THREE.Vector3();
+        function sphericalToPos(azimuth, elevation, radius) {
+            const cosEl = Math.cos(elevation);
+            return _tmpPos.set(
+                lookAtTarget.x + radius * cosEl * Math.sin(azimuth),
+                lookAtTarget.y + radius * Math.sin(elevation),
+                lookAtTarget.z + radius * cosEl * Math.cos(azimuth)
+            );
+        }
+
+        // Local camera frame — used by all subtle-shift modes
+        const viewForward = camOffset.clone().negate().normalize();
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const camRight = new THREE.Vector3().crossVectors(viewForward, worldUp).normalize();
+        const camLocalUp = new THREE.Vector3().crossVectors(camRight, viewForward).normalize();
+
+        if (cameraMovement !== 'none') {
+            console.log(`[ThreeSetup] Camera movement "${cameraMovement}": dist=${camDist.toFixed(2)}, azimuth=${(initAzimuth * 180 / Math.PI).toFixed(1)}°, elevation=${(initElevation * 180 / Math.PI).toFixed(1)}°`);
+        }
+
+        // --- Pause live render loop ---
+        pauseRenderLoop();
+
+        try {
+            // --- Resize renderer for export ---
+            renderer.value.setPixelRatio(1); // Exact pixel output
+            renderer.value.setSize(width, height);
+            camera.value.aspect = width / height;
+            camera.value.updateProjectionMatrix();
+
+            // Disable orbit control damping during export
+            if (controls.value) controls.value.enabled = false;
+
+            // --- Reset animation to t=0 ---
+            tileManager.value.resetAnimationState();
+
+            // --- Create mediabunny output ---
+            const output = new MB.Output({
+                format: new OutputFormat(),
+                target: new MB.BufferTarget()
+            });
+
+            const videoSource = new MB.CanvasSource(renderer.value.domElement, {
+                codec,
+                bitrate: 8_000_000 // 8 Mbps
+            });
+            output.addVideoTrack(videoSource);
+
+            await output.start();
+
+            if (onStatus) onStatus(`Encoding ${totalFrames} frames…`);
+
+            // --- Frame loop ---
+            for (let frame = 0; frame < totalFrames; frame++) {
+                // Check for cancellation
+                if (signal?.aborted) {
+                    console.log('[ThreeSetup] Export cancelled by user');
+                    await output.finalize();
+                    return null;
+                }
+
+                const t = frame * deltaSec;
+
+                // --- Camera movement animation ---
+                if (cameraMovement !== 'none') {
+                    const progress = t / exportDuration; // 0 → 1
+                    const theta = progress * Math.PI * 2;
+                    let pos;
+
+                    switch (cameraMovement) {
+                        case 'orbit':
+                            // Full horizontal turntable — kept as reference.
+                            pos = sphericalToPos(initAzimuth + theta, initElevation, camDist);
+                            break;
+
+                        case 'conicalSweep': {
+                            // Circle perpendicular to the view direction.
+                            // Produces a cone of sightlines — subtle dolly + pitch.
+                            const conR = camDist * 0.10;
+                            pos = _tmpPos.copy(savedCameraPos)
+                                .addScaledVector(camRight, conR * Math.sin(theta))
+                                .addScaledVector(camLocalUp, conR * Math.cos(theta));
+                            break;
+                        }
+
+                        case 'figureEight': {
+                            // Lissajous ∞ — 1:2 frequency ratio in the local frame.
+                            // Produces flowing parallax while staying near the
+                            // original viewpoint.
+                            const hAmp = camDist * 0.10;
+                            const vAmp = camDist * 0.06;
+                            pos = _tmpPos.copy(savedCameraPos)
+                                .addScaledVector(camRight, hAmp * Math.sin(theta))
+                                .addScaledVector(camLocalUp, vAmp * Math.sin(2 * theta));
+                            break;
+                        }
+
+                        case 'gentleSway': {
+                            // Horizontal pendulum + forward/back dolly with π/2
+                            // phase offset. The camera swings right while pulling
+                            // back, then left while leaning in, tracing an
+                            // ellipse in the right/forward plane.
+                            const swayH = camDist * 0.08;
+                            const swayD = camDist * 0.06;
+                            pos = _tmpPos.copy(savedCameraPos)
+                                .addScaledVector(camRight, swayH * Math.sin(theta))
+                                .addScaledVector(viewForward, swayD * Math.cos(theta));
+                            break;
+                        }
+
+                        case 'drift': {
+                            // Tilted elliptical drift in the camera plane.
+                            // Phase offset between right and up axes produces an
+                            // asymmetric path that feels organic rather than
+                            // mechanical.
+                            const driftH = camDist * 0.09;
+                            const driftV = camDist * 0.05;
+                            pos = _tmpPos.copy(savedCameraPos)
+                                .addScaledVector(camRight, driftH * Math.sin(theta))
+                                .addScaledVector(camLocalUp, driftV * Math.sin(theta + Math.PI / 3));
+                            break;
+                        }
+                    }
+
+                    if (pos) {
+                        camera.value.position.copy(pos);
+                        camera.value.lookAt(lookAtTarget);
+                    }
+                }
+
+                // Render this frame at the exact synthetic time
+                renderFrameAtTime(t, deltaSec);
+
+                // Feed the rendered frame to mediabunny
+                await videoSource.add(t, deltaSec);
+
+                // Report progress
+                if (onProgress) onProgress((frame + 1) / totalFrames);
+            }
+
+            // --- Finalize ---
+            if (onStatus) onStatus('Finalizing…');
+            await output.finalize();
+
+            const buffer = output.target.buffer;
+            const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
+            const blob = new Blob([buffer], { type: mimeType });
+
+            console.log(`[ThreeSetup] Export complete: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
+
+            // --- Auto-download if filename provided ---
+            if (filename) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = url;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }
+
+            return blob;
+        } finally {
+            // --- Restore renderer state ---
+            renderer.value.setPixelRatio(savedPixelRatio);
+            renderer.value.setSize(
+                savedWidth / savedPixelRatio,
+                savedHeight / savedPixelRatio
+            );
+            camera.value.aspect = savedAspect;
+            camera.value.updateProjectionMatrix();
+
+            if (controls.value) controls.value.enabled = true;
+
+            // Restore camera position and orientation
+            camera.value.position.copy(savedCameraPos);
+            camera.value.quaternion.copy(savedCameraQuat);
+
+            // Reset animation state back so live view starts clean
+            tileManager.value.resetAnimationState();
+
+            // Resume live render loop
+            resumeRenderLoop();
+        }
+    }
+
+    /**
+     * Get export metadata for the UI (cycle duration, available codecs, etc.)
+     * @returns {Object} Export info
+     */
+    function getExportInfo() {
+        const tm = tileManager.value;
+        return {
+            seamlessLoopDuration: tm?.getSeamlessLoopDuration?.() ?? 3.0,
+            layerCyclePeriod: tm?.getLayerCyclePeriod?.() ?? 1.0,
+            undulationPeriod: tm?.getOptimalUndulationPeriod?.(3.0) ?? 3.0,
+            layerCount: tm?.getLayerCount?.() ?? 0,
+            fps: tm?.getFps?.() ?? 30,
+            flowEnabled: tm?.isFlowEnabled?.() ?? false,
+            flowSpeed: tm?.getFlowSpeed?.() ?? 0,
+            tileCount: tm?.getTileCount?.() ?? 0,
+            hasWebCodecs: typeof VideoEncoder !== 'undefined'
+        };
+    }
+
     return {
         // State
         scene,
@@ -696,6 +1026,9 @@ export function useThreeSetup() {
         setFlowState,
         exportImage,
         exportVideo,
+        exportVideoLegacy,
+        renderFrameAtTime,
+        getExportInfo,
         setBackgroundFromUrl,
         setBackgroundFromTileManager
     };
