@@ -101,6 +101,7 @@ const processVideo = async (settings) => {
     const abortSignal = abortController.signal;
 
     let frameNumber = 0;
+    let absoluteFrameNumber = 0;
 
     const tileBuilders = {};  // to store builder for each tileNumber
     let completedTiles = 0;  // Track completed tiles 
@@ -128,12 +129,14 @@ const processVideo = async (settings) => {
     const lastTileEnd = tilePlan.tiles[tilePlan.tiles.length - 1].end;
     const framesUsed = lastTileEnd;
     const effectiveFrameCount = app.framesToSample > 0 ? Math.min(app.framesToSample, app.frameCount) : app.frameCount;
+    const frameStart = app.frameStart || 1;
+    const frameEnd = app.frameEnd || app.frameCount;
     const framesSkippedByTiling = effectiveFrameCount - framesUsed;
     const framesSkippedByLimit = app.frameCount - effectiveFrameCount;
 
     // Log upfront information about the processing plan
     if (framesSkippedByLimit > 0) {
-        app.setStatus('Frame Limit', `Using ${effectiveFrameCount} of ${app.frameCount} total frames`);
+        app.setStatus('Frame Range', `Using frames ${frameStart}–${frameEnd} (${effectiveFrameCount} of ${app.frameCount} total)`);
     }
     if (framesSkippedByTiling > 0) {
         const skippedStart = lastTileEnd + 1;
@@ -167,6 +170,28 @@ const processVideo = async (settings) => {
             console.log('[VideoProcessor] Processing aborted, stopping...');
             videoSample.close();
             break;
+        }
+
+        absoluteFrameNumber++;
+
+        // Skip frames before the selected range
+        if (absoluteFrameNumber < frameStart) {
+            videoSample.close();
+            if (absoluteFrameNumber === 1 || absoluteFrameNumber % 30 === 0) {
+                app.setStatus('Seeking', `Skipping to frame ${frameStart} (at frame ${absoluteFrameNumber})`);
+            }
+            continue;
+        }
+
+        // Stop after the selected range
+        if (absoluteFrameNumber > frameEnd) {
+            videoSample.close();
+            break;
+        }
+
+        // Clear seeking status when range begins
+        if (absoluteFrameNumber === frameStart && frameStart > 1) {
+            app.removeStatus('Seeking');
         }
 
         // Convert VideoSample to VideoFrame for compatibility with tileBuilder
@@ -352,7 +377,8 @@ const processVideo = async (settings) => {
                         // Remove all processing status messages
                         app.removeStatus('KTX2 Encoding');
                         app.removeStatus('Processing');
-                        app.removeStatus('Frame Limit');
+                        app.removeStatus('Frame Range');
+                        app.removeStatus('Seeking');
                         app.removeStatus('Decoding');
                         app.removeStatus('System');
                         // Cleanup KTX2 worker pool

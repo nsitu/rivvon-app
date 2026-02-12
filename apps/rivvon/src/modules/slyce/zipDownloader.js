@@ -29,11 +29,15 @@ export async function downloadAllAsZip(blobURLs, fileInfo, format, appStore) {
             sampledFrameCount: appStore?.framesToSample > 0
                 ? Math.min(appStore.framesToSample, appStore.frameCount)
                 : appStore?.frameCount,
+            frameStart: appStore?.frameStart || 1,
+            frameEnd: appStore?.frameEnd || appStore?.frameCount,
         },
 
         // Processing settings
         settings: {
             framesToSample: appStore?.framesToSample,
+            frameStart: appStore?.frameStart,
+            frameEnd: appStore?.frameEnd,
             crossSectionCount: appStore?.crossSectionCount,
             crossSectionType: appStore?.crossSectionType,
             samplingMode: appStore?.samplingMode,

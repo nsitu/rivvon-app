@@ -47,10 +47,11 @@
         }
     });
 
-    // Sync framesToSample with frameCount when frameCount changes (new video loaded)
+    // Sync frame range with frameCount when frameCount changes (new video loaded)
     watch(() => app.frameCount, (newFrameCount) => {
         if (newFrameCount > 0) {
-            app.framesToSample = newFrameCount;
+            app.frameStart = 1;
+            app.frameEnd = newFrameCount;
         }
     });
 
@@ -344,15 +345,22 @@
                 <span>of</span>
                 <span v-if="app.samplePixelCount">
                     {{ app.samplePixelCount }}px</span>
-                <span>from</span>
+                <span>from frames</span>
                 <InputNumber
-                    v-model="app.framesToSample"
+                    v-model="app.frameStart"
                     :min="1"
+                    :max="app.frameEnd || app.frameCount"
+                    :disabled="!app.frameCount"
+                    class="frames-input"
+                ></InputNumber>
+                <span>to</span>
+                <InputNumber
+                    v-model="app.frameEnd"
+                    :min="app.frameStart || 1"
                     :max="app.frameCount"
                     :disabled="!app.frameCount"
                     class="frames-input"
                 ></InputNumber>
-                <span>frames</span>
             </div>
             <div class="input-row">
                 <span>Join samples as</span>

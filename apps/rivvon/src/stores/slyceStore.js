@@ -8,7 +8,8 @@ export const useSlyceStore = defineStore('slyce', {
     state: () => ({
         config: {},
         frameCount: 0,
-        framesToSample: 0, // User-adjustable limit; defaults to frameCount
+        frameStart: 1,       // Start frame of range (1-indexed)
+        frameEnd: 0,         // End frame of range (0 = unset; defaults to frameCount)
         frameNumber: 0,
         crossSectionCount: 30,
         crossSectionType: 'waves', // planes, waves
@@ -147,7 +148,8 @@ export const useSlyceStore = defineStore('slyce', {
             // Reset all state to initial values
             this.config = {};
             this.frameCount = 0;
-            this.framesToSample = 0;
+            this.frameStart = 1;
+            this.frameEnd = 0;
             this.frameNumber = 0;
             this.readerIsFinished = false;
             this.fileInfo = null;
@@ -213,6 +215,13 @@ export const useSlyceStore = defineStore('slyce', {
         // be a separate FPS for encoding tiles. 
         fps() {
             return this.fpsNow
+        },
+        // Number of frames in the selected range (derived from frameStart/frameEnd)
+        framesToSample() {
+            if (this.frameEnd > 0 && this.frameStart > 0) {
+                return this.frameEnd - this.frameStart + 1;
+            }
+            return 0;
         },
         // True when all expected tiles have been encoded
         isComplete() {

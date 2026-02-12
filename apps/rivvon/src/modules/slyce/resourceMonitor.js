@@ -5,9 +5,10 @@ const resourceUsageReport = async () => {
 
     // Update decoding progress with FPS
     const effectiveFrameCount = app.framesToSample > 0 ? Math.min(app.framesToSample, app.frameCount) : app.frameCount;
+    const rangeInfo = app.frameStart > 1 ? ` (from frame ${app.frameStart})` : '';
     const streamStatus = app.readerIsFinished 
         ? 'Complete' 
-        : `Frame ${app.frameNumber} of ${effectiveFrameCount}<br/>${app.fps} FPS`;
+        : `Frame ${app.frameNumber} of ${effectiveFrameCount}${rangeInfo}<br/>${app.fps} FPS`;
     app.setStatus('Decoding', streamStatus);
 
     // Update system metrics

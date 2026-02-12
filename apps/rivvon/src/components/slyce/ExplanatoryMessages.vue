@@ -75,18 +75,20 @@
                 <AccordionHeader>
                     <div class="flex items-center gap-1 cursor-default">
                         <span class="material-symbols-outlined">filter_alt</span>
-                        <span>Limiting to</span>
-                        <span>{{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString() }}
-                            frames</span>
+                        <span>Using frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString()
+                            }}</span>
+                        <span>({{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString()
+                            }})</span>
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left">
-                        Sampling is limited to the first {{ app.framesToSample.toLocaleString() }} frames.
+                        Sampling frames {{ app.frameStart.toLocaleString() }} through {{ app.frameEnd.toLocaleString()
+                        }}
+                        ({{ app.framesToSample.toLocaleString() }} frames).
                         The remaining {{ (app.frameCount - app.framesToSample).toLocaleString() }} frames
                         ({{ Math.round((app.frameCount - app.framesToSample) / app.frameCount * 100) }}% of the video)
-                        will not
-                        be processed.
+                        will not be processed.
                     </p>
                 </AccordionContent>
             </AccordionPanel>
