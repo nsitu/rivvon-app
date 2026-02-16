@@ -632,6 +632,7 @@
     .ribbon-view :deep(.app-header),
     .ribbon-view :deep(.bottom-toolbar),
     .ribbon-view :deep(.tools-panel.active),
+    .ribbon-view :deep(.about-panel.active),
     .ribbon-view :deep(.text-input-panel.active),
     .ribbon-view :deep(.beta-modal),
     .ribbon-view :deep(.texture-browser.active),

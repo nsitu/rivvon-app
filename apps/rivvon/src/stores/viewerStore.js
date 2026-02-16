@@ -36,6 +36,9 @@ export const useViewerStore = defineStore('viewer', {
         // Tools panel
         toolsPanelVisible: false,
 
+        // About panel
+        aboutPanelVisible: false,
+
         // UI state
         betaModalVisible: false,
         betaModalReason: null, // 'default' | 'texture-auth' | 'access-denied'
@@ -106,6 +109,14 @@ export const useViewerStore = defineStore('viewer', {
 
         hideToolsPanel() {
             this.toolsPanelVisible = false;
+        },
+
+        showAboutPanel() {
+            this.aboutPanelVisible = true;
+        },
+
+        hideAboutPanel() {
+            this.aboutPanelVisible = false;
         },
 
         showSlyce() {

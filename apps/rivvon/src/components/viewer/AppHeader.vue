@@ -6,13 +6,31 @@
     const app = useViewerStore();
     const slyce = useSlyceStore();
 
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            app.setFullscreen(true);
+        } else {
+            document.exitFullscreen();
+            app.setFullscreen(false);
+        }
+    }
+
+    // Listen for fullscreen changes (e.g., Escape key)
+    if (typeof document !== 'undefined') {
+        document.addEventListener('fullscreenchange', () => {
+            app.setFullscreen(!!document.fullscreenElement);
+        });
+    }
+
     // Compute which context is active (for header title + close button)
     const activeContext = computed(() => {
         if (app.isDrawingMode) return 'Draw';
-        if (app.textureCreatorVisible) return 'Create Texture';
+        if (app.textureCreatorVisible) return 'Make Texture';
         if (app.textureBrowserVisible) return 'Textures';
         if (app.textPanelVisible) return 'Text';
         if (app.toolsPanelVisible) return 'Tools';
+        if (app.aboutPanelVisible) return 'About';
         return null;
     });
 
@@ -36,6 +54,8 @@
             app.hideTextPanel();
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
+        } else if (app.aboutPanelVisible) {
+            app.hideAboutPanel();
         }
     }
 </script>
@@ -64,13 +84,22 @@
             >{{ activeContext }}</span>
         </Transition>
 
-        <!-- Close button -->
+        <!-- Close button (context active) -->
         <button
             v-if="activeContext"
-            class="close-button"
+            class="header-action"
             @click="closeContext"
         >
             <span class="material-symbols-outlined">close</span>
+        </button>
+
+        <!-- Fullscreen button (no context active) -->
+        <button
+            v-else
+            class="header-action"
+            @click="toggleFullscreen"
+        >
+            <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
         </button>
     </header>
 </template>
@@ -127,7 +156,7 @@
         white-space: nowrap;
     }
 
-    .close-button {
+    .header-action {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -140,12 +169,12 @@
         flex-shrink: 0;
     }
 
-    .close-button:hover {
+    .header-action:hover {
         background: rgba(0, 0, 0, 0.25);
         color: #fff;
     }
 
-    .close-button .material-symbols-outlined {
+    .header-action .material-symbols-outlined {
         font-size: 1.5rem;
     }
 
@@ -167,7 +196,7 @@
             padding-right: 2rem;
         }
 
-        .close-button {
+        .header-action {
             padding: 2rem 1.5rem;
         }
     }

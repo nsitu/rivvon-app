@@ -3,7 +3,6 @@
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
-    import Dialog from 'primevue/dialog';
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
@@ -12,7 +11,8 @@
     const showInfoDialog = ref(false);
 
     function handleAbout() {
-        showInfoDialog.value = true;
+        app.hideToolsPanel();
+        app.showAboutPanel();
     }
 
     function handleLoginClick() {
@@ -37,6 +37,7 @@
 
     function setFlowState(state) {
         app.setFlowState(state);
+        app.hideToolsPanel();
     }
 
     function handleImport(type) {
@@ -69,7 +70,6 @@
         'import-file',
         'export-image',
         'export-video',
-        'toggle-fullscreen',
         'finish-drawing',
         'cinematic-capture',
         'cinematic-toggle',
@@ -89,25 +89,6 @@
     function handleCinematicClear() {
         app.hideToolsPanel();
         emit('cinematic-clear');
-    }
-
-    function toggleFullscreen() {
-        app.hideToolsPanel();
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
-            app.setFullscreen(true);
-        } else {
-            document.exitFullscreen();
-            app.setFullscreen(false);
-        }
-        emit('toggle-fullscreen');
-    }
-
-    // Listen for fullscreen changes (e.g., Escape key)
-    if (typeof document !== 'undefined') {
-        document.addEventListener('fullscreenchange', () => {
-            app.setFullscreen(!!document.fullscreenElement);
-        });
     }
 
     // Check if Slyce processing is active (has status messages)
@@ -135,12 +116,14 @@
             app.hideTextPanel();
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
+        } else if (app.aboutPanelVisible) {
+            app.hideAboutPanel();
         }
     }
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.toolsPanelVisible
+        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.toolsPanelVisible || app.aboutPanelVisible
     );
 
     /**
@@ -169,6 +152,9 @@
         }
         if (app.toolsPanelVisible) {
             app.hideToolsPanel();
+        }
+        if (app.aboutPanelVisible) {
+            app.hideAboutPanel();
         }
         return true;
     }
@@ -237,7 +223,6 @@
             @click="emit('finish-drawing')"
         >
             <span class="material-symbols-outlined">check</span>
-            <span>OK</span>
         </button>
     </div>
 
@@ -288,14 +273,16 @@
                             @click="handleImport('svg')"
                         >
                             <span class="material-symbols-outlined">polyline</span>
-                            <span>Import Shapes <small style="font-weight: bold">.SVG</small></span>
+                            <span>Import Shapes</span>
+                            <span class="tools-hint">.SVG</span>
                         </button>
                         <button
                             class="tools-option"
                             @click="handleImport('zip')"
                         >
                             <span class="material-symbols-outlined">folder_zip</span>
-                            <span>Import Texture <small style="font-weight: bold">.ZIP</small></span>
+                            <span>Import Texture</span>
+                            <span class="tools-hint">.ZIP</span>
                         </button>
                         <button
                             class="tools-option"
@@ -303,6 +290,7 @@
                         >
                             <span class="material-symbols-outlined">image</span>
                             <span>Export Image</span>
+                            <span class="tools-hint">.PNG</span>
                         </button>
                         <button
                             class="tools-option"
@@ -310,6 +298,7 @@
                         >
                             <span class="material-symbols-outlined">videocam</span>
                             <span>Export Video</span>
+                            <span class="tools-hint">.MP4</span>
                         </button>
                     </div>
                 </div>
@@ -332,7 +321,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -354,16 +343,8 @@
 
                 <!-- Display & Account section -->
                 <div class="tools-section">
-                    <div class="tools-section-label">Display & Account</div>
+                    <div class="tools-section-label">Account</div>
                     <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            @click="toggleFullscreen"
-                        >
-                            <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' :
-                                'fullscreen' }}</span>
-                            <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
-                        </button>
                         <button
                             class="tools-option"
                             @click="handleAbout"
@@ -401,59 +382,60 @@
         </div>
     </div>
 
-    <!-- About Rivvon Dialog -->
-    <Dialog
-        v-model:visible="showInfoDialog"
-        header="About Rivvon"
-        :modal="true"
-        :dismissableMask="true"
-        class="info-dialog"
-        :style="{ width: '90vw', maxWidth: '600px' }"
+    <!-- About Rivvon Panel (full-screen overlay) -->
+    <div
+        class="about-panel"
+        :class="{ active: app.aboutPanelVisible }"
     >
-        <div class="info-content">
-            <p>
-                Rivvon renders animated ribbons via GPU shaders using multi-layered KTX2 texture tiles.
-            </p>
-            <p>
-                Textures are created by extracting
-                <a
-                    target="_blank"
-                    href="https://en.wikipedia.org/wiki/Slit-scan_photography"
-                >cross sections</a>
-                from video files using
-                <a
-                    target="_blank"
-                    href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API"
-                >WebCodecs</a>,
-                <a
-                    target="_blank"
-                    href="https://github.com/Vanilagy/mediabunny"
-                >mediabunny</a>, and
-                <a
-                    target="_blank"
-                    href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API"
-                >Canvas</a>.
-                Textures are encoded using
-                <a
-                    target="_blank"
-                    href="https://github.com/BinomialLLC/basis_universal"
-                >Basis Encoder</a>.
-            </p>
-            <p>
-                Animations are achieved by taking multiple cross sections of the same video.
-                Each cross section samples pixels from each frame.
-                This can be done using one of two strategies: a linear sampling pattern that stays on the same row
-                for each sample (planar cross section), or a periodic function that achieves a wave-based,
-                directly loopable animation.
-            </p>
-            <p class="info-credit">
-                Created by <a
-                    target="_blank"
-                    href="https://nsitu.ca"
-                >Harold Sikkema</a>
-            </p>
+        <div class="about-panel-container">
+            <div class="about-panel-content">
+                <div class="info-content">
+                    <p>
+                        Rivvon renders animated ribbons via GPU shaders using multi-layered KTX2 texture tiles.
+                    </p>
+                    <p>
+                        Textures are created by extracting
+                        <a
+                            target="_blank"
+                            href="https://en.wikipedia.org/wiki/Slit-scan_photography"
+                        >cross sections</a>
+                        from video files using
+                        <a
+                            target="_blank"
+                            href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API"
+                        >WebCodecs</a>,
+                        <a
+                            target="_blank"
+                            href="https://github.com/Vanilagy/mediabunny"
+                        >mediabunny</a>, and
+                        <a
+                            target="_blank"
+                            href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API"
+                        >Canvas</a>.
+                        Textures are encoded using
+                        <a
+                            target="_blank"
+                            href="https://github.com/BinomialLLC/basis_universal"
+                        >Basis Encoder</a>.
+                    </p>
+                    <p>
+                        Animations are achieved by taking multiple cross sections of the same video.
+                        Each cross section samples pixels from each frame.
+                        This can be done using one of two strategies: a linear sampling pattern that stays on the same
+                        row
+                        for each sample (planar cross section), or a periodic function that achieves a wave-based,
+                        directly loopable animation.
+                    </p>
+                    <p class="info-credit">
+                        Created by <a
+                            target="_blank"
+                            href="https://nsitu.ca"
+                        >Harold Sikkema</a>
+                    </p>
+                </div>
+            </div>
         </div>
-    </Dialog>
+    </div>
 </template>
 
 <style scoped>
@@ -468,7 +450,7 @@
         justify-content: center;
         align-items: center;
         pointer-events: none;
-        padding: 0 1rem;
+        padding: 0;
         transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
@@ -618,8 +600,9 @@
     }
 
     .tools-option.selected {
-        background: var(--p-primary-color, #6366f1);
-        color: var(--p-primary-contrast-color, #fff);
+        color: #4caf50;
+        border: 1px solid #4caf50;
+        background: rgba(76, 175, 80, 0.1);
     }
 
     .tools-option .material-symbols-outlined {
@@ -640,7 +623,7 @@
         margin-left: auto;
         font-size: 0.65rem;
         font-weight: 600;
-        color: rgba(255, 255, 255, 0.35);
+        color: rgba(255, 255, 255, 0.5);
         background: rgba(255, 255, 255, 0.08);
         padding: 0.2rem 0.45rem;
         border-radius: 4px;
@@ -669,7 +652,47 @@
         background: transparent;
     }
 
-    /* Info dialog content */
+    /* Info panel content */
+    .about-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 5;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .about-panel.active {
+        pointer-events: auto;
+        opacity: 1;
+    }
+
+    .about-panel-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        background: #1a1a1a;
+        padding-top: 5.5rem;
+        padding-bottom: 5.5rem;
+    }
+
+    .about-panel-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 2rem 1.5rem;
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+    }
+
     .info-content {
         display: flex;
         flex-direction: column;

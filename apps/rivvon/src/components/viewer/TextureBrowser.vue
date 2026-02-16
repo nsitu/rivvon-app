@@ -987,6 +987,7 @@
     .tab-button {
         background: transparent;
         border: 1px solid #555;
+        border-radius: 8px;
         color: #888;
         font-size: 14px;
         padding: 8px 16px;
