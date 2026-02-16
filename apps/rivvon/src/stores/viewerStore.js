@@ -33,6 +33,9 @@ export const useViewerStore = defineStore('viewer', {
         // Slyce panel
         textureCreatorVisible: false,
         
+        // Tools panel
+        toolsPanelVisible: false,
+
         // UI state
         betaModalVisible: false,
         betaModalReason: null, // 'default' | 'texture-auth' | 'access-denied'
@@ -97,6 +100,14 @@ export const useViewerStore = defineStore('viewer', {
             this.textureBrowserVisible = false;
         },
         
+        showToolsPanel() {
+            this.toolsPanelVisible = true;
+        },
+
+        hideToolsPanel() {
+            this.toolsPanelVisible = false;
+        },
+
         showSlyce() {
             this.textureCreatorVisible = true;
         },

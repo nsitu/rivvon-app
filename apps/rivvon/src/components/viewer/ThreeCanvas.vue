@@ -21,6 +21,7 @@
         renderer,
         controls,
         tileManager,
+        ribbonSeries,
         isInitialized,
         resetCamera,
         initThree,
@@ -42,7 +43,8 @@
         renderFrameAtTime,
         getExportInfo,
         setBackgroundFromUrl,
-        setBackgroundFromTileManager
+        setBackgroundFromTileManager,
+        cinematicCamera
     } = useThreeSetup();
 
     /**
@@ -71,7 +73,8 @@
                 camera: camera.value,
                 renderer: renderer.value,
                 controls: controls.value,
-                tileManager: tileManager.value
+                tileManager: tileManager.value,
+                cinematicCamera
             });
 
             console.log('[ThreeCanvas] Reinitialization complete');
@@ -105,7 +108,8 @@
                 camera: camera.value,
                 renderer: renderer.value,
                 controls: controls.value,
-                tileManager: tileManager.value
+                tileManager: tileManager.value,
+                cinematicCamera
             });
 
             // Register reinitialize callback on the store so it survives teardown
@@ -133,6 +137,7 @@
         renderer,
         controls,
         tileManager,
+        ribbonSeries,
         isInitialized,
         resetCamera,
         createRibbon,
@@ -152,7 +157,8 @@
         pauseRenderLoop,
         resumeRenderLoop,
         teardownViewer,
-        reinitialize
+        reinitialize,
+        cinematicCamera
     });
 </script>
 

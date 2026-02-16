@@ -10,6 +10,7 @@ import { initThree as initThreeModule } from '../../modules/viewer/threeSetup';
 import { TileManager } from '../../modules/viewer/tileManager';
 import { Ribbon } from '../../modules/viewer/ribbon';
 import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
+import { useCinematicCamera } from './useCinematicCamera';
 
 export function useThreeSetup() {
     const app = useViewerStore();
@@ -26,10 +27,14 @@ export function useThreeSetup() {
     const isInitialized = ref(false);
     const resetCamera = ref(null);
     const backgroundTexture = shallowRef(null);
+
+    // Cinematic camera system
+    const cinematicCamera = useCinematicCamera();
     
     let animationId = null;
     let renderCallback = null;
     let renderLoopPaused = false;
+    let lastFrameTime = 0;
 
     /**
      * Pause the render loop to free GPU/CPU resources
@@ -98,6 +103,9 @@ export function useThreeSetup() {
             // Set blurred background from the first tile texture
             await setBackgroundFromTileManager();
 
+            // Initialize cinematic camera system
+            cinematicCamera.init(ctx.camera, ctx.controls);
+
             isInitialized.value = true;
             console.log(`[ThreeSetup] Initialized with ${ctx.rendererType}`);
             
@@ -125,13 +133,17 @@ export function useThreeSetup() {
         if (renderLoopPaused) return;
         
         function animate() {
-            const elapsedTime = performance.now() / 1000; // or use a clock
+            const now = performance.now();
+            const elapsedTime = now / 1000;
+            // Compute per-frame delta; clamp to avoid jumps after tab-switch
+            const deltaSec = lastFrameTime === 0 ? 0.016 : Math.min((now - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = now;
             
             animationId = requestAnimationFrame(animate);
             
             // Advance KTX2 layer cycling and tile flow (for texture animation)
             if (tileManager.value?.tick) {
-                tileManager.value.tick(performance.now());
+                tileManager.value.tick(now);
             }
             
             // Update ribbon materials for tile flow effect (conveyor belt animation)
@@ -144,13 +156,18 @@ export function useThreeSetup() {
                 ribbonSeries.value.update(elapsedTime);
             }
             
+            // Cinematic camera tick (when playing, controls are disabled)
+            if (cinematicCamera.isPlaying.value) {
+                cinematicCamera.tick(deltaSec);
+            }
+            
             // Call custom render callback if provided
             if (renderCallback) {
                 renderCallback();
             }
             
-            // Update controls
-            if (controls.value) {
+            // Update controls (skip when cinematic is driving the camera)
+            if (controls.value && !cinematicCamera.isPlaying.value) {
                 controls.value.update();
             }
             
@@ -333,6 +350,9 @@ export function useThreeSetup() {
         ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
         ribbonSeries.value.initFlowMaterials();
 
+        // New geometry invalidates all previous ROIs
+        cinematicCamera.clearROIs();
+
         console.log('[ThreeSetup] Created ribbon (via series) with 1 path');
 
         return ribbonSeries.value;
@@ -365,6 +385,9 @@ export function useThreeSetup() {
         // Build from multiple paths
         ribbonSeries.value.buildFromMultiplePaths(pointsArray, options.width || 1.2);
         ribbonSeries.value.initFlowMaterials();
+
+        // New geometry invalidates all previous ROIs
+        cinematicCamera.clearROIs();
 
         console.log('[ThreeSetup] Created ribbon series with', pointsArray.length, 'paths');
 
@@ -415,6 +438,9 @@ export function useThreeSetup() {
         // Build from processed points
         ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
         ribbonSeries.value.initFlowMaterials();
+
+        // New geometry invalidates all previous ROIs
+        cinematicCamera.clearROIs();
 
         console.log('[ThreeSetup] Created ribbon from drawing (via series) with', drawPoints.length, 'input points');
 
@@ -713,6 +739,7 @@ export function useThreeSetup() {
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
+     * @param {string} options.cameraMovement - 'none' | 'cinematic'
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
     async function exportVideo(options = {}) {
@@ -754,12 +781,17 @@ export function useThreeSetup() {
 
         // --- Calculate duration ---
         const loopDuration = tileManager.value.getSeamlessLoopDuration?.() || 3.0;
-        const exportDuration = duration ?? loopDuration;
-        const totalFrames = Math.ceil(exportDuration * fps);
+        // When cinematic is active and no explicit duration, use the cinematic timeline duration.
+        // Note: exportDuration may be updated later by prepareForExport if auto-ROIs are generated.
+        let exportDuration;
+        if (duration != null) {
+            exportDuration = duration;
+        } else if (cameraMovement === 'cinematic' && cinematicCamera.hasROIs.value) {
+            exportDuration = cinematicCamera.getLoopDuration();
+        } else {
+            exportDuration = loopDuration;
+        }
         const deltaSec = 1 / fps;
-
-        console.log(`[ThreeSetup] Frame-accurate export: ${totalFrames} frames, ${exportDuration.toFixed(2)}s @ ${fps}fps, ${format}/${codec}, ${width}×${height}`);
-        if (onStatus) onStatus(`Preparing ${format.toUpperCase()} export…`);
 
         // --- Save current state ---
         const savedWidth = renderer.value.domElement.width;
@@ -769,50 +801,31 @@ export function useThreeSetup() {
         const savedCameraPos = camera.value.position.clone();
         const savedCameraQuat = camera.value.quaternion.clone();
 
-        // --- Camera movement setup ---
-        // The ribbon is front-facing 2D-derived art, so camera movements
-        // should add subtle depth perception rather than rotate fully around
-        // the subject. All modes except "orbit" work in the camera's local
-        // frame (right/up/forward vectors) to stay near the original
-        // viewpoint. Every path is pure sin/cos — guaranteed seamless loop.
-        //
-        // Orbit-family variants (not exposed in UI, but easy to add):
-        //   tiltedOrbit:     azimuth + θ, elevation + 0.4·sin(θ)
-        //   ellipticalOrbit: azimuth + θ, radius × (1 + 0.2·cos(θ))
-        //   latitudeSweep:   azimuth + θ, elevation + 0.3·sin(2θ)
-        //   epicyclic:       azimuth + θ + 0.12·sin(6θ), elevation + 0.12·cos(6θ)
-        //
-        const lookAtTarget = controls.value
-            ? controls.value.target.clone()
-            : new THREE.Vector3(0, 0, 0);
-
-        const camOffset = savedCameraPos.clone().sub(lookAtTarget);
-        const camDist = camOffset.length();
-        const initAzimuth = Math.atan2(camOffset.x, camOffset.z);
-        const initElevation = Math.asin(
-            Math.min(1, Math.max(-1, camOffset.y / camDist))
-        );
-
-        // Spherical helper — used only by full orbit mode
-        const _tmpPos = new THREE.Vector3();
-        function sphericalToPos(azimuth, elevation, radius) {
-            const cosEl = Math.cos(elevation);
-            return _tmpPos.set(
-                lookAtTarget.x + radius * cosEl * Math.sin(azimuth),
-                lookAtTarget.y + radius * Math.sin(elevation),
-                lookAtTarget.z + radius * cosEl * Math.cos(azimuth)
-            );
+        // --- Cinematic camera setup for export ---
+        let cinematicReady = false;
+        if (cameraMovement === 'cinematic') {
+            const inst = cinematicCamera.getInstance();
+            if (inst) {
+                // Pass ribbonSeries so auto-ROIs can be generated if none exist
+                cinematicReady = inst.prepareForExport(ribbonSeries.value);
+                if (cinematicReady) {
+                    // Re-compute duration from the (possibly auto-generated) timeline
+                    if (duration == null) {
+                        exportDuration = inst.getLoopDuration();
+                    }
+                    console.log(`[ThreeSetup] Cinematic camera export: ${inst.roiCount} ROIs, ${inst.getLoopDuration().toFixed(1)}s loop`);
+                }
+            }
+            if (!cinematicReady) {
+                console.warn('[ThreeSetup] Cinematic camera requested but no ROIs — camera will stay fixed');
+            }
         }
 
-        // Local camera frame — used by all subtle-shift modes
-        const viewForward = camOffset.clone().negate().normalize();
-        const worldUp = new THREE.Vector3(0, 1, 0);
-        const camRight = new THREE.Vector3().crossVectors(viewForward, worldUp).normalize();
-        const camLocalUp = new THREE.Vector3().crossVectors(camRight, viewForward).normalize();
+        // Compute total frames (after cinematic setup which may have updated exportDuration)
+        const totalFrames = Math.ceil(exportDuration * fps);
 
-        if (cameraMovement !== 'none') {
-            console.log(`[ThreeSetup] Camera movement "${cameraMovement}": dist=${camDist.toFixed(2)}, azimuth=${(initAzimuth * 180 / Math.PI).toFixed(1)}°, elevation=${(initElevation * 180 / Math.PI).toFixed(1)}°`);
-        }
+        console.log(`[ThreeSetup] Frame-accurate export: ${totalFrames} frames, ${exportDuration.toFixed(2)}s @ ${fps}fps, ${format}/${codec}, ${width}×${height}`);
+        if (onStatus) onStatus(`Preparing ${format.toUpperCase()} export…`);
 
         // --- Pause live render loop ---
         pauseRenderLoop();
@@ -857,71 +870,9 @@ export function useThreeSetup() {
 
                 const t = frame * deltaSec;
 
-                // --- Camera movement animation ---
-                if (cameraMovement !== 'none') {
-                    const progress = t / exportDuration; // 0 → 1
-                    const theta = progress * Math.PI * 2;
-                    let pos;
-
-                    switch (cameraMovement) {
-                        case 'orbit':
-                            // Full horizontal turntable — kept as reference.
-                            pos = sphericalToPos(initAzimuth + theta, initElevation, camDist);
-                            break;
-
-                        case 'conicalSweep': {
-                            // Circle perpendicular to the view direction.
-                            // Produces a cone of sightlines — subtle dolly + pitch.
-                            const conR = camDist * 0.10;
-                            pos = _tmpPos.copy(savedCameraPos)
-                                .addScaledVector(camRight, conR * Math.sin(theta))
-                                .addScaledVector(camLocalUp, conR * Math.cos(theta));
-                            break;
-                        }
-
-                        case 'figureEight': {
-                            // Lissajous ∞ — 1:2 frequency ratio in the local frame.
-                            // Produces flowing parallax while staying near the
-                            // original viewpoint.
-                            const hAmp = camDist * 0.10;
-                            const vAmp = camDist * 0.06;
-                            pos = _tmpPos.copy(savedCameraPos)
-                                .addScaledVector(camRight, hAmp * Math.sin(theta))
-                                .addScaledVector(camLocalUp, vAmp * Math.sin(2 * theta));
-                            break;
-                        }
-
-                        case 'gentleSway': {
-                            // Horizontal pendulum + forward/back dolly with π/2
-                            // phase offset. The camera swings right while pulling
-                            // back, then left while leaning in, tracing an
-                            // ellipse in the right/forward plane.
-                            const swayH = camDist * 0.08;
-                            const swayD = camDist * 0.06;
-                            pos = _tmpPos.copy(savedCameraPos)
-                                .addScaledVector(camRight, swayH * Math.sin(theta))
-                                .addScaledVector(viewForward, swayD * Math.cos(theta));
-                            break;
-                        }
-
-                        case 'drift': {
-                            // Tilted elliptical drift in the camera plane.
-                            // Phase offset between right and up axes produces an
-                            // asymmetric path that feels organic rather than
-                            // mechanical.
-                            const driftH = camDist * 0.09;
-                            const driftV = camDist * 0.05;
-                            pos = _tmpPos.copy(savedCameraPos)
-                                .addScaledVector(camRight, driftH * Math.sin(theta))
-                                .addScaledVector(camLocalUp, driftV * Math.sin(theta + Math.PI / 3));
-                            break;
-                        }
-                    }
-
-                    if (pos) {
-                        camera.value.position.copy(pos);
-                        camera.value.lookAt(lookAtTarget);
-                    }
+                // --- Cinematic camera animation ---
+                if (cinematicReady) {
+                    cinematicCamera.getInstance().updateAtTime(t);
                 }
 
                 // Render this frame at the exact synthetic time
@@ -994,7 +945,9 @@ export function useThreeSetup() {
             flowEnabled: tm?.isFlowEnabled?.() ?? false,
             flowSpeed: tm?.getFlowSpeed?.() ?? 0,
             tileCount: tm?.getTileCount?.() ?? 0,
-            hasWebCodecs: typeof VideoEncoder !== 'undefined'
+            hasWebCodecs: typeof VideoEncoder !== 'undefined',
+            hasROIs: cinematicCamera.hasROIs.value,
+            cinematicDuration: cinematicCamera.getLoopDuration()
         };
     }
 
@@ -1030,7 +983,8 @@ export function useThreeSetup() {
         renderFrameAtTime,
         getExportInfo,
         setBackgroundFromUrl,
-        setBackgroundFromTileManager
+        setBackgroundFromTileManager,
+        cinematicCamera
     };
 
     /**

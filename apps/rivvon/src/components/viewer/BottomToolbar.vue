@@ -2,11 +2,28 @@
     import { ref, computed } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import Popover from 'primevue/popover';
+    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
+    import Dialog from 'primevue/dialog';
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
-    const toolsPopover = ref();
+    const { user, isAuthenticated, login, logout } = useGoogleAuth();
+
+    const showInfoDialog = ref(false);
+
+    function handleAbout() {
+        showInfoDialog.value = true;
+    }
+
+    function handleLoginClick() {
+        app.hideToolsPanel();
+        app.showBetaModal();
+    }
+
+    function handleLogout() {
+        app.hideToolsPanel();
+        logout();
+    }
 
     // Detect touch device to disable tooltips on mobile
     // Uses pointer: coarse media query which is more reliable than touch event detection
@@ -18,29 +35,30 @@
     // Helper to conditionally return tooltip text (null disables tooltip)
     const tip = (text) => isTouchDevice.value ? null : text;
 
-    function toggleToolsPopover(event) {
-        toolsPopover.value.toggle(event);
-    }
-
     function setFlowState(state) {
         app.setFlowState(state);
-        toolsPopover.value.hide();
     }
 
     function handleImport(type) {
-        toolsPopover.value.hide();
+        app.hideToolsPanel();
         emit('import-file', type);
     }
 
     function handleExportImage() {
-        toolsPopover.value.hide();
+        app.hideToolsPanel();
         emit('export-image');
     }
 
     function handleExportVideo() {
-        toolsPopover.value.hide();
+        app.hideToolsPanel();
         emit('export-video');
     }
+
+    // Cinematic camera props (reactive state from composable)
+    const props = defineProps({
+        cinematicPlaying: { type: Boolean, default: false },
+        cinematicRoiCount: { type: Number, default: 0 }
+    });
 
     const emit = defineEmits([
         'enter-draw-mode',
@@ -52,11 +70,29 @@
         'export-image',
         'export-video',
         'toggle-fullscreen',
-        'finish-drawing'
+        'finish-drawing',
+        'cinematic-capture',
+        'cinematic-toggle',
+        'cinematic-clear'
     ]);
 
+    function handleCinematicCapture() {
+        app.hideToolsPanel();
+        emit('cinematic-capture');
+    }
+
+    function handleCinematicToggle() {
+        app.hideToolsPanel();
+        emit('cinematic-toggle');
+    }
+
+    function handleCinematicClear() {
+        app.hideToolsPanel();
+        emit('cinematic-clear');
+    }
+
     function toggleFullscreen() {
-        toolsPopover.value.hide();
+        app.hideToolsPanel();
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen();
             app.setFullscreen(true);
@@ -97,7 +133,49 @@
             app.hideTextureBrowser();
         } else if (app.textPanelVisible) {
             app.hideTextPanel();
+        } else if (app.toolsPanelVisible) {
+            app.hideToolsPanel();
         }
+    }
+
+    // Computed: is any panel/mode currently active?
+    const hasActiveContext = computed(() =>
+        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.toolsPanelVisible
+    );
+
+    /**
+     * Close any active context before switching to a new one.
+     * Returns false if the user cancelled (e.g., Slyce processing confirmation).
+     */
+    function closeActiveContext() {
+        if (app.isDrawingMode) {
+            app.setDrawingMode(false);
+        }
+        if (app.textureCreatorVisible) {
+            if (isSlyceProcessing.value) {
+                const confirmed = confirm(
+                    'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
+                );
+                if (!confirmed) return false;
+                slyce.resetProcessing();
+            }
+            app.hideSlyce();
+        }
+        if (app.textureBrowserVisible) {
+            app.hideTextureBrowser();
+        }
+        if (app.textPanelVisible) {
+            app.hideTextPanel();
+        }
+        if (app.toolsPanelVisible) {
+            app.hideToolsPanel();
+        }
+        return true;
+    }
+
+    function activateContext(action) {
+        if (!closeActiveContext()) return;
+        action();
     }
 </script>
 
@@ -106,51 +184,51 @@
         class="bottom-toolbar"
         :class="{ hidden: app.isFullscreen }"
     >
-        <!-- Back button (only in drawing, slyce, texture browser, or text panel mode) -->
-        <button
-            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
-            class="back-button"
-            v-tooltip.top="tip('Back')"
-            @click="handleBack"
-        >
-            <span class="material-symbols-outlined">arrow_back_ios</span>
-        </button>
-
-
-        <div
-            v-if="app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible"
-            class="separator"
-        ></div>
-
-
         <!-- Draw mode button -->
         <button
-            v-if="!app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
             v-tooltip.top="tip('Draw')"
             :class="{ active: app.isDrawingMode }"
-            @click="emit('enter-draw-mode')"
+            @click="app.isDrawingMode ? handleBack() : activateContext(() => emit('enter-draw-mode'))"
         >
             <span class="material-symbols-outlined">draw</span>
-            <span
-                v-if="app.isDrawingMode"
-                class="mode-label"
-            >Draw</span>
         </button>
 
         <!-- Slyce texture tool -->
         <button
-            v-if="!app.isDrawingMode && !app.textureBrowserVisible && !app.textPanelVisible"
             v-tooltip.top="tip('Create Texture')"
             :class="{ active: app.textureCreatorVisible }"
-            @click="emit('enter-slyce-mode')"
+            @click="app.textureCreatorVisible ? handleBack() : activateContext(() => emit('enter-slyce-mode'))"
         >
             <span class="material-symbols-outlined">video_camera_back_add</span>
-
-            <span
-                v-if="app.textureCreatorVisible"
-                class="mode-label"
-            >Create Texture</span>
         </button>
+
+        <!-- Text to SVG -->
+        <button
+            v-tooltip.top="tip('Text')"
+            :class="{ active: app.textPanelVisible }"
+            @click="app.textPanelVisible ? handleBack() : activateContext(() => emit('open-text-panel'))"
+        >
+            <span class="material-symbols-outlined">text_fields</span>
+        </button>
+
+        <!-- Browse textures -->
+        <button
+            v-tooltip.top="tip('Textures')"
+            :class="{ active: app.textureBrowserVisible }"
+            @click="app.textureBrowserVisible ? handleBack() : activateContext(() => emit('open-texture-browser'))"
+        >
+            <span class="material-symbols-outlined">grid_view</span>
+        </button>
+
+        <!-- Tools panel toggle -->
+        <button
+            v-tooltip.top="tip('Tools')"
+            :class="{ active: app.toolsPanelVisible || (!hasActiveContext && app.flowState !== 'off') }"
+            @click="app.toolsPanelVisible ? handleBack() : activateContext(() => app.showToolsPanel())"
+        >
+            <span class="material-symbols-outlined">instant_mix</span>
+        </button>
+
         <!-- Finish drawing button (only in draw mode with strokes) -->
         <button
             v-if="app.isDrawingMode && app.hasActiveStrokes"
@@ -161,138 +239,224 @@
             <span class="material-symbols-outlined">check</span>
             <span>OK</span>
         </button>
+    </div>
 
-        <!-- Text to SVG -->
-        <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible"
-            v-tooltip.top="tip('Text')"
-            :class="{ active: app.textPanelVisible }"
-            @click="emit('open-text-panel')"
-        >
-            <span class="material-symbols-outlined">text_fields</span>
-            <span
-                v-if="app.textPanelVisible"
-                class="mode-label"
-            >Text</span>
-        </button>
-
-        <!-- Browse textures -->
-        <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textPanelVisible"
-            v-tooltip.top="tip('Textures')"
-            :class="{ active: app.textureBrowserVisible }"
-            @click="emit('open-texture-browser')"
-        >
-            <span class="material-symbols-outlined">grid_view</span>
-            <span
-                v-if="app.textureBrowserVisible"
-                class="mode-label"
-            >Textures</span>
-        </button>
-
-        <!-- Tools menu (Import/Export + Animation) -->
-        <button
-            v-if="!app.isDrawingMode && !app.textureCreatorVisible && !app.textureBrowserVisible && !app.textPanelVisible"
-            v-tooltip.top="tip('Tools')"
-            :class="{ active: app.flowState !== 'off' }"
-            @click="toggleToolsPopover"
-        >
-            <span class="material-symbols-outlined">instant_mix</span>
-        </button>
-
-        <Popover
-            ref="toolsPopover"
-            class="tools-popover"
-        >
-            <div class="tools-menu">
+    <!-- Tools panel (full-screen overlay, like TextureBrowser) -->
+    <div
+        class="tools-panel"
+        :class="{ active: app.toolsPanelVisible }"
+    >
+        <div class="tools-panel-container">
+            <div class="tools-panel-content">
                 <!-- Animation section -->
-                <div class="menu-section-label">Animation</div>
-                <button
-                    class="menu-option"
-                    :class="{ selected: app.flowState === 'off' }"
-                    @click="setFlowState('off')"
-                >
-                    <span class="material-symbols-outlined">airwave</span>
-                    <span>Oscillate</span>
-                </button>
-                <button
-                    class="menu-option"
-                    :class="{ selected: app.flowState === 'forward' }"
-                    @click="setFlowState('forward')"
-                >
-                    <span class="material-symbols-outlined">arrow_forward</span>
-                    <span>Forward</span>
-                </button>
-                <button
-                    class="menu-option"
-                    :class="{ selected: app.flowState === 'backward' }"
-                    @click="setFlowState('backward')"
-                >
-                    <span class="material-symbols-outlined">arrow_back</span>
-                    <span>Backward</span>
-                </button>
-
-                <div class="menu-divider"></div>
+                <div class="tools-section">
+                    <div class="tools-section-label">Animation</div>
+                    <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            :class="{ selected: app.flowState === 'off' }"
+                            @click="setFlowState('off')"
+                        >
+                            <span class="material-symbols-outlined">airwave</span>
+                            <span>Oscillate</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            :class="{ selected: app.flowState === 'forward' }"
+                            @click="setFlowState('forward')"
+                        >
+                            <span class="material-symbols-outlined">arrow_forward</span>
+                            <span>Forward</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            :class="{ selected: app.flowState === 'backward' }"
+                            @click="setFlowState('backward')"
+                        >
+                            <span class="material-symbols-outlined">arrow_back</span>
+                            <span>Backward</span>
+                        </button>
+                    </div>
+                </div>
 
                 <!-- Import / Export section -->
-                <div class="menu-section-label">Import / Export</div>
-                <button
-                    class="menu-option"
-                    @click="handleImport('svg')"
-                >
-                    <span class="material-symbols-outlined">polyline</span>
-                    <span>Import SVG</span>
-                </button>
-                <button
-                    class="menu-option"
-                    @click="handleImport('zip')"
-                >
-                    <span class="material-symbols-outlined">folder_zip</span>
-                    <span>Import ZIP Texture</span>
-                </button>
-                <button
-                    class="menu-option"
-                    @click="handleExportImage"
-                >
-                    <span class="material-symbols-outlined">image</span>
-                    <span>Export Image</span>
-                </button>
-                <button
-                    class="menu-option"
-                    @click="handleExportVideo"
-                >
-                    <span class="material-symbols-outlined">videocam</span>
-                    <span>Export Video</span>
-                </button>
+                <div class="tools-section">
+                    <div class="tools-section-label">Import / Export</div>
+                    <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            @click="handleImport('svg')"
+                        >
+                            <span class="material-symbols-outlined">polyline</span>
+                            <span>Import Shapes <small style="font-weight: bold">.SVG</small></span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            @click="handleImport('zip')"
+                        >
+                            <span class="material-symbols-outlined">folder_zip</span>
+                            <span>Import Texture <small style="font-weight: bold">.ZIP</small></span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            @click="handleExportImage"
+                        >
+                            <span class="material-symbols-outlined">image</span>
+                            <span>Export Image</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            @click="handleExportVideo"
+                        >
+                            <span class="material-symbols-outlined">videocam</span>
+                            <span>Export Video</span>
+                        </button>
+                    </div>
+                </div>
 
-                <div class="menu-divider"></div>
+                <!-- Cinematic Camera section -->
+                <div class="tools-section">
+                    <div class="tools-section-label">Cinematic Camera</div>
+                    <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            :disabled="props.cinematicPlaying"
+                            @click="handleCinematicCapture"
+                        >
+                            <span class="material-symbols-outlined">center_focus_strong</span>
+                            <span>Capture View</span>
+                            <span class="tools-hint">C</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            @click="handleCinematicToggle"
+                        >
+                            <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
+                            }}</span>
+                            <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
+                            <span class="tools-hint">P</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            :disabled="props.cinematicPlaying || props.cinematicRoiCount === 0"
+                            @click="handleCinematicClear"
+                        >
+                            <span class="material-symbols-outlined">delete_sweep</span>
+                            <span>Clear Views</span>
+                            <span
+                                v-if="props.cinematicRoiCount > 0"
+                                class="tools-badge"
+                            >{{ props.cinematicRoiCount }}</span>
+                            <span class="tools-hint">X</span>
+                        </button>
+                    </div>
+                </div>
 
-                <!-- Fullscreen section -->
-                <div class="menu-section-label">Display</div>
-                <button
-                    class="menu-option"
-                    @click="toggleFullscreen"
-                >
-                    <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen'
-                    }}</span>
-                    <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
-                </button>
+                <!-- Display & Account section -->
+                <div class="tools-section">
+                    <div class="tools-section-label">Display & Account</div>
+                    <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            @click="toggleFullscreen"
+                        >
+                            <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' :
+                                'fullscreen' }}</span>
+                            <span>{{ app.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            @click="handleAbout"
+                        >
+                            <span class="material-symbols-outlined">info</span>
+                            <span>About Rivvon</span>
+                        </button>
+                        <button
+                            v-if="isAuthenticated"
+                            class="tools-option tools-user"
+                            disabled
+                        >
+                            <span class="material-symbols-outlined">account_circle</span>
+                            <span>{{ user?.name || user?.email || 'User' }}</span>
+                        </button>
+                        <button
+                            v-if="isAuthenticated"
+                            class="tools-option"
+                            @click="handleLogout"
+                        >
+                            <span class="material-symbols-outlined">logout</span>
+                            <span>Sign Out</span>
+                        </button>
+                        <button
+                            v-if="!isAuthenticated"
+                            class="tools-option"
+                            @click="handleLoginClick"
+                        >
+                            <span class="material-symbols-outlined">login</span>
+                            <span>Sign In with Google</span>
+                        </button>
+                    </div>
+                </div>
             </div>
-        </Popover>
+        </div>
     </div>
+
+    <!-- About Rivvon Dialog -->
+    <Dialog
+        v-model:visible="showInfoDialog"
+        header="About Rivvon"
+        :modal="true"
+        :dismissableMask="true"
+        class="info-dialog"
+        :style="{ width: '90vw', maxWidth: '600px' }"
+    >
+        <div class="info-content">
+            <p>
+                Rivvon renders animated ribbons via GPU shaders using multi-layered KTX2 texture tiles.
+            </p>
+            <p>
+                Textures are created by extracting
+                <a
+                    target="_blank"
+                    href="https://en.wikipedia.org/wiki/Slit-scan_photography"
+                >cross sections</a>
+                from video files using
+                <a
+                    target="_blank"
+                    href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API"
+                >WebCodecs</a>,
+                <a
+                    target="_blank"
+                    href="https://github.com/Vanilagy/mediabunny"
+                >mediabunny</a>, and
+                <a
+                    target="_blank"
+                    href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API"
+                >Canvas</a>.
+                Textures are encoded using
+                <a
+                    target="_blank"
+                    href="https://github.com/BinomialLLC/basis_universal"
+                >Basis Encoder</a>.
+            </p>
+            <p>
+                Animations are achieved by taking multiple cross sections of the same video.
+                Each cross section samples pixels from each frame.
+                This can be done using one of two strategies: a linear sampling pattern that stays on the same row
+                for each sample (planar cross section), or a periodic function that achieves a wave-based,
+                directly loopable animation.
+            </p>
+            <p class="info-credit">
+                Created by <a
+                    target="_blank"
+                    href="https://nsitu.ca"
+                >Harold Sikkema</a>
+            </p>
+        </div>
+    </Dialog>
 </template>
 
 <style scoped>
-    /* .bottom-toolbar {
-        position: fixed;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 10;
-        display: flex;
-        flex-direction: row;
-    } */
-
     .bottom-toolbar {
         position: absolute;
         bottom: 0;
@@ -313,7 +477,6 @@
         transform: translateY(100%);
         pointer-events: none;
     }
-
 
     .bottom-toolbar button {
         padding: 2rem 1rem;
@@ -336,113 +499,200 @@
     }
 
     .bottom-toolbar button.active {
-        background: rgba(0, 0, 0, 0.5);
-    }
-
-    .back-button {
-        pointer-events: auto;
-    }
-
-    .back-button .material-symbols-outlined {
-        font-size: 1.25rem;
-    }
-
-    .mode-label {
-        margin-left: 0.5rem;
-        font-size: 0.85rem;
-        font-weight: 400;
-        letter-spacing: 0.03em;
-    }
-
-    .toggle-icon {
-        width: 24px;
-        height: 24px;
-        filter: invert(1);
-    }
-
-    .draw-icon {
-        opacity: 0.9;
-    }
-
-    button.active .draw-icon {
-        opacity: 1;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: inset 0 -3px 0 0 rgba(255, 255, 255, 0.7);
     }
 
     /* Mobile: buttons expand to fill available space */
     @media (max-width: 768px) {
-
         .bottom-toolbar button {
             flex-grow: 1;
         }
     }
 
-    .separator {
-
-        margin: 0 2rem;
-
-        width: 3px;
-        height: 3rem;
-        background: var(--bg-muted-alt);
-        padding: 0px;
-    }
-
     .finish-drawing-btn {
         background: rgba(34, 197, 94, 1) !important;
         color: #ffffff !important;
+        box-shadow: none !important;
     }
 
     .finish-drawing-btn:hover {
         background: rgba(34, 197, 94, 0.8) !important;
     }
 
-    /* Tools popover menu styles */
-    .tools-menu {
+    /* ─── Tools panel (full-screen overlay) ─────────────────────── */
+    .tools-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 5;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
-        min-width: 180px;
     }
 
-    .menu-section-label {
-        font-size: 0.75rem;
+    .tools-panel.active {
+        pointer-events: auto;
+        opacity: 1;
+    }
+
+    .tools-panel-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        background: #1a1a1a;
+        padding-top: 5.5rem;
+        /* Space for AppHeader */
+        padding-bottom: 5.5rem;
+        /* Space for BottomToolbar */
+    }
+
+    .tools-panel-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem 1.25rem;
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* Desktop: two-column grid to avoid scrolling */
+    @media (min-width: 769px) {
+        .tools-panel-content {
+            max-width: 720px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            align-content: center;
+            gap: 1.25rem 2rem;
+        }
+    }
+
+    .tools-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+
+    .tools-section-label {
+        font-size: 0.7rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.5));
-        padding: 0.5rem 0.875rem 0.25rem;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.4);
+        padding: 0 0.5rem 0.25rem;
     }
 
-    .menu-option {
+    .tools-section-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        padding: 0.25rem;
+    }
+
+    .tools-option {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.625rem 0.875rem;
+        gap: 0.875rem;
+        padding: 0.875rem 1rem;
         background: transparent;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         color: var(--p-text-color, #fff);
         cursor: pointer;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         transition: background 0.15s ease;
     }
 
-    .menu-option:hover {
-        background: var(--p-content-hover-background, rgba(255, 255, 255, 0.1));
+    .tools-option:hover {
+        background: rgba(255, 255, 255, 0.08);
     }
 
-    .menu-option.selected {
+    .tools-option.selected {
         background: var(--p-primary-color, #6366f1);
         color: var(--p-primary-contrast-color, #fff);
     }
 
-    .menu-option .material-symbols-outlined {
-        font-size: 1.25rem;
+    .tools-option .material-symbols-outlined {
+        font-size: 1.35rem;
+        opacity: 0.85;
     }
 
-    .menu-divider {
-        height: 1px;
-        background: var(--p-content-border-color, rgba(255, 255, 255, 0.15));
-        margin: 0.5rem 0;
+    .tools-option:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
     }
 
+    .tools-option:disabled:hover {
+        background: transparent;
+    }
+
+    .tools-hint {
+        margin-left: auto;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.35);
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0.2rem 0.45rem;
+        border-radius: 4px;
+        font-family: monospace;
+        letter-spacing: 0.02em;
+    }
+
+    .tools-badge {
+        margin-left: auto;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--p-primary-contrast-color, #fff);
+        background: var(--p-primary-color, #6366f1);
+        padding: 0.1rem 0.5rem;
+        border-radius: 10px;
+        min-width: 1.2rem;
+        text-align: center;
+    }
+
+    .tools-user {
+        opacity: 0.55;
+        cursor: default;
+    }
+
+    .tools-user:hover {
+        background: transparent;
+    }
+
+    /* Info dialog content */
+    .info-content {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+    }
+
+    .info-content a {
+        color: var(--text-primary);
+        text-decoration: underline;
+        transition: opacity 0.2s;
+    }
+
+    .info-content a:hover {
+        opacity: 0.8;
+    }
+
+    .info-credit {
+        margin-top: 0.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-primary);
+        font-size: 0.85rem;
+    }
 </style>

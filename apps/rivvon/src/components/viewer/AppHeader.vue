@@ -1,70 +1,43 @@
 <script setup>
-    import { ref, computed } from 'vue';
+    import { computed } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
-    import Dialog from 'primevue/dialog';
-    import Button from 'primevue/button';
-    import Menu from 'primevue/menu';
+    import { useSlyceStore } from '../../stores/slyceStore';
 
     const app = useViewerStore();
-    const { user, isAuthenticated, login, logout } = useGoogleAuth();
+    const slyce = useSlyceStore();
 
-    const showInfoDialog = ref(false);
-    const menu = ref();
-
-    function toggleMenu(event) {
-        menu.value.toggle(event);
-    }
-
-    function handleLoginClick() {
-        // Show beta modal before login
-        app.showBetaModal();
-    }
-
-    // Build menu items based on auth state
-    const menuItems = computed(() => {
-        const items = [
-            {
-                label: 'About Rivvon',
-                icon: 'pi pi-info-circle',
-                command: () => {
-                    showInfoDialog.value = true;
-                }
-            }
-        ];
-
-        if (isAuthenticated.value) {
-            items.unshift({
-                label: user.value?.name || user.value?.email || 'User',
-                icon: 'pi pi-user',
-                disabled: true,
-                class: 'menu-user-item'
-            });
-            items.push({
-                separator: true
-            });
-            items.push({
-                label: 'Sign out',
-                icon: 'pi pi-sign-out',
-                command: () => {
-                    logout();
-                }
-            });
-        } else {
-            items.push({
-                separator: true
-            });
-            items.push({
-                label: 'Sign in with Google',
-                icon: 'pi pi-sign-in',
-                command: () => {
-                    handleLoginClick();
-                }
-            });
-        }
-
-        return items;
+    // Compute which context is active (for header title + close button)
+    const activeContext = computed(() => {
+        if (app.isDrawingMode) return 'Draw';
+        if (app.textureCreatorVisible) return 'Create Texture';
+        if (app.textureBrowserVisible) return 'Textures';
+        if (app.textPanelVisible) return 'Text';
+        if (app.toolsPanelVisible) return 'Tools';
+        return null;
     });
+
+    const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
+
+    function closeContext() {
+        if (app.isDrawingMode) {
+            app.setDrawingMode(false);
+        } else if (app.textureCreatorVisible) {
+            if (isSlyceProcessing.value) {
+                const confirmed = confirm(
+                    'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
+                );
+                if (!confirmed) return;
+                slyce.resetProcessing();
+            }
+            app.hideSlyce();
+        } else if (app.textureBrowserVisible) {
+            app.hideTextureBrowser();
+        } else if (app.textPanelVisible) {
+            app.hideTextPanel();
+        } else if (app.toolsPanelVisible) {
+            app.hideToolsPanel();
+        }
+    }
 </script>
 
 <template>
@@ -83,80 +56,22 @@
             />
         </a>
 
-        <!-- Menu button and popup -->
-        <div class="menu-container">
-            <Button
-                type="button"
-                class="menu-toggle-btn"
-                @click="toggleMenu"
-                aria-haspopup="true"
-                aria-controls="header_menu"
-                text
-            ><span class="material-symbols-outlined">
-                    menu
-                </span>
-            </Button>
-            <Menu
-                ref="menu"
-                id="header_menu"
-                :model="menuItems"
-                :popup="true"
-            />
-        </div>
+        <!-- Context title -->
+        <Transition name="fade">
+            <span
+                v-if="activeContext"
+                class="context-title"
+            >{{ activeContext }}</span>
+        </Transition>
 
-        <!-- Info Dialog -->
-        <Dialog
-            v-model:visible="showInfoDialog"
-            header="About Rivvon"
-            :modal="true"
-            :dismissableMask="true"
-            class="info-dialog"
-            :style="{ width: '90vw', maxWidth: '600px' }"
+        <!-- Close button -->
+        <button
+            v-if="activeContext"
+            class="close-button"
+            @click="closeContext"
         >
-            <div class="info-content">
-                <p>
-                    Rivvon renders animated ribbons via GPU shaders using multi-layered KTX2 texture tiles.
-                </p>
-                <p>
-                    Textures are created by extracting
-                    <a
-                        target="_blank"
-                        href="https://en.wikipedia.org/wiki/Slit-scan_photography"
-                    >cross sections</a>
-                    from video files using
-                    <a
-                        target="_blank"
-                        href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API"
-                    >WebCodecs</a>,
-                    <a
-                        target="_blank"
-                        href="https://github.com/Vanilagy/mediabunny"
-                    >mediabunny</a>, and
-                    <a
-                        target="_blank"
-                        href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API"
-                    >Canvas</a>.
-                    Textures are encoded using
-                    <a
-                        target="_blank"
-                        href="https://github.com/BinomialLLC/basis_universal"
-                    >Basis Encoder</a>.
-                </p>
-                <p>
-                    Animations are achieved by taking multiple cross sections of the same video.
-                    Each cross section samples pixels from each frame.
-                    This can be done using one of two strategies: a linear sampling pattern that stays on the same row
-                    for each sample (planar cross section), or a periodic function that achieves a wave-based,
-                    directly loopable animation.
-                </p>
-                <p class="info-credit">
-                    Created by <a
-                        target="_blank"
-                        href="https://nsitu.ca"
-                    >Harold Sikkema</a>
-                </p>
-            </div>
-        </Dialog>
+            <span class="material-symbols-outlined">close</span>
+        </button>
     </header>
 </template>
 
@@ -170,7 +85,7 @@
         display: flex;
         background: rgba(0, 0, 0, 0.5);
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         pointer-events: none;
         transition: opacity 0.3s ease, transform 0.3s ease;
     }
@@ -189,6 +104,7 @@
         display: block;
         text-decoration: none;
         padding: 2rem 3rem;
+        flex-shrink: 0;
     }
 
     .app-logo img {
@@ -200,24 +116,48 @@
         background: rgba(0, 0, 0, 0.25);
     }
 
-    .menu-container {
+    .context-title {
+        margin-left: auto;
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: rgba(255, 255, 255, 0.7);
+        text-transform: uppercase;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+
+    .close-button {
         display: flex;
         align-items: center;
-    }
-
-    .menu-toggle-btn {
-        padding: 2rem 1rem;
-        color: white !important;
-        border: none !important;
+        justify-content: center;
+        padding: 2rem 2.5rem;
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
         cursor: pointer;
-        border-radius: 0 !important;
-        background: transparent !important;
+        transition: background 0.15s ease, color 0.15s ease;
+        flex-shrink: 0;
     }
 
-    .menu-toggle-btn:hover {
-        background: rgba(0, 0, 0, 0.25) !important;
-        border-radius: 0 !important;
-        border: none !important;
+    .close-button:hover {
+        background: rgba(0, 0, 0, 0.25);
+        color: #fff;
+    }
+
+    .close-button .material-symbols-outlined {
+        font-size: 1.5rem;
+    }
+
+    /* Transition */
+    .fade-enter-active,
+    .fade-leave-active {
+        transition: opacity 0.2s ease;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+        opacity: 0;
     }
 
     /* Mobile adjustments */
@@ -227,32 +167,8 @@
             padding-right: 2rem;
         }
 
-    }
-
-    /* Info dialog content */
-    .info-content {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        font-size: 0.9rem;
-        line-height: 1.6;
-        color: var(--text-secondary);
-    }
-
-    .info-content a {
-        color: var(--text-primary);
-        text-decoration: underline;
-        transition: opacity 0.2s;
-    }
-
-    .info-content a:hover {
-        opacity: 0.8;
-    }
-
-    .info-credit {
-        margin-top: 0.5rem;
-        padding-top: 1rem;
-        border-top: 1px solid var(--border-primary);
-        font-size: 0.85rem;
+        .close-button {
+            padding: 2rem 1.5rem;
+        }
     }
 </style>

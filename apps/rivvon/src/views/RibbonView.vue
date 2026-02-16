@@ -36,6 +36,68 @@
     // Local state
     const isReady = ref(false);
 
+    // ─── Cinematic camera keyboard bindings ────────────────────────
+    function handleCinematicKeydown(e) {
+        // Ignore if focus is in a text input
+        const tag = e.target?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
+
+        // Ignore during drawing mode
+        if (app.isDrawingMode) return;
+
+        const cinematic = threeCanvasRef.value?.cinematicCamera;
+        if (!cinematic) return;
+
+        switch (e.key.toLowerCase()) {
+            case 'c': {
+                // Capture ROI (only when not playing)
+                if (cinematic.isPlaying.value) return;
+                cinematic.captureROI();
+                break;
+            }
+            case 'p': {
+                // Toggle cinematic playback (passes ribbonSeries for auto-ROI fallback)
+                const ribbonSeries = threeCanvasRef.value?.ribbonSeries;
+                cinematic.togglePlayback(ribbonSeries);
+                break;
+            }
+            case 'x': {
+                // Clear all ROIs (only when not playing)
+                if (cinematic.isPlaying.value) return;
+                cinematic.clearROIs();
+                break;
+            }
+        }
+    }
+
+    // ─── Cinematic camera toolbar handlers ──────────────────────
+    function handleCinematicCapture() {
+        const cinematic = threeCanvasRef.value?.cinematicCamera;
+        if (!cinematic || cinematic.isPlaying.value) return;
+        cinematic.captureROI();
+    }
+
+    function handleCinematicToggle() {
+        const cinematic = threeCanvasRef.value?.cinematicCamera;
+        if (!cinematic) return;
+        const ribbonSeries = threeCanvasRef.value?.ribbonSeries;
+        cinematic.togglePlayback(ribbonSeries);
+    }
+
+    function handleCinematicClear() {
+        const cinematic = threeCanvasRef.value?.cinematicCamera;
+        if (!cinematic || cinematic.isPlaying.value) return;
+        cinematic.clearROIs();
+    }
+
+    onMounted(() => {
+        window.addEventListener('keydown', handleCinematicKeydown);
+    });
+
+    onUnmounted(() => {
+        window.removeEventListener('keydown', handleCinematicKeydown);
+    });
+
     // Watch drawing mode to control renderer visibility
     watch(() => app.isDrawingMode, (isDrawing) => {
         // Hide/show the Three.js canvas when in drawing mode
@@ -484,6 +546,8 @@
 
         <!-- Bottom toolbar -->
         <BottomToolbar
+            :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
+            :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             @enter-draw-mode="enterDrawMode"
             @enter-slyce-mode="app.showSlyce"
             @toggle-flow="toggleFlow"
@@ -493,6 +557,9 @@
             @export-image="handleExportImage"
             @export-video="handleExportVideo"
             @finish-drawing="finishDrawing"
+            @cinematic-capture="handleCinematicCapture"
+            @cinematic-toggle="handleCinematicToggle"
+            @cinematic-clear="handleCinematicClear"
         />
 
         <!-- Hidden file input -->
@@ -564,6 +631,7 @@
     /* Re-enable pointer events only on specific interactive containers */
     .ribbon-view :deep(.app-header),
     .ribbon-view :deep(.bottom-toolbar),
+    .ribbon-view :deep(.tools-panel.active),
     .ribbon-view :deep(.text-input-panel.active),
     .ribbon-view :deep(.beta-modal),
     .ribbon-view :deep(.texture-browser.active),

@@ -21,17 +21,16 @@
     const fps = ref(30);
     const cameraMovement = ref('none');
 
-    const cameraMovementOptions = [
-        { label: 'None', value: 'none', description: 'Camera stays fixed' },
-        { label: 'Orbit', value: 'orbit', description: 'Full horizontal turntable — useful as reference' },
-        { label: 'Conical Sweep', value: 'conicalSweep', description: 'Circle perpendicular to the view — subtle dolly and pitch shift' },
-        { label: 'Figure Eight', value: 'figureEight', description: 'Lissajous ∞ path — contained parallax with a flowing feel' },
-        { label: 'Gentle Sway', value: 'gentleSway', description: 'Horizontal pendulum with forward/back dolly — elliptical handheld feel' },
-        { label: 'Drift', value: 'drift', description: 'Tilted elliptical drift — asymmetric and organic' },
-    ];
+    const cameraMovementOptions = computed(() => {
+        const hasROIs = props.exportInfo?.hasROIs ?? false;
+        return [
+            { label: 'None', value: 'none', description: 'Camera stays fixed' },
+            { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
+        ];
+    });
 
     const cameraMovementDescription = computed(() => {
-        const opt = cameraMovementOptions.find(o => o.value === cameraMovement.value);
+        const opt = cameraMovementOptions.value.find(o => o.value === cameraMovement.value);
         return opt?.description ?? '';
     });
 
@@ -92,10 +91,11 @@
 
     const resolvedDuration = computed(() => {
         if (durationMode.value === 'auto') {
-            // When camera movement is active, span 2 full animation cycles
-            // so the camera path feels slow and cinematic (~8s instead of ~4s).
-            const cycles = cameraMovement.value !== 'none' ? 2 : 1;
-            return seamlessLoopDuration.value * cycles;
+            if (cameraMovement.value === 'cinematic') {
+                // Use the cinematic timeline duration
+                return props.exportInfo?.cinematicDuration || seamlessLoopDuration.value;
+            }
+            return seamlessLoopDuration.value;
         }
         return customDuration.value;
     });
@@ -226,8 +226,8 @@
                 <div>
                     <div class="info-value">{{ resolvedDuration.toFixed(2) }}s</div>
                     <div class="info-label">
-                        {{ cameraMovement !== 'none'
-                            ? 'Two animation cycles — slower camera movement'
+                        {{ cameraMovement === 'cinematic'
+                            ? 'Cinematic camera loop — duration from ROI timeline'
                             : 'Seamless loop — all animations return to start' }}
                     </div>
                 </div>
