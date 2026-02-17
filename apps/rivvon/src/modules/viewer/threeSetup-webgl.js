@@ -12,7 +12,13 @@ export function initThreeWebGL() {
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 0, 10);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+
+    /***/
+    const renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                preserveDrawingBuffer: true // without this, video rendering fails on ipad
+            }); 
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     renderer.setClearColor(0x000000, 0); // Transparent background
