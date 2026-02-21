@@ -1,0 +1,423 @@
+version: "1.0"
+generated_at: "2026-02-21T13:05:00-05:00"
+repo_root: "d:\\rivvon-app"
+entrypoints:
+  - id: "web_rivvon_vite"
+    path: "apps/rivvon/src/main.js"
+    type: "web"
+    start_command: "pnpm --filter rivvon dev"
+    citations:
+      - "apps/rivvon/package.json:6-9"
+      - "apps/rivvon/src/main.js:1-10"
+  - id: "api_cloudflare_worker"
+    path: "apps/api/index.ts"
+    type: "api"
+    start_command: "pnpm --filter api dev"
+    citations:
+      - "apps/api/package.json:8-11"
+      - "apps/api/wrangler.toml:1-3"
+      - "apps/api/index.ts:22-23"
+  - id: "shared_types_lib"
+    path: "packages/shared-types/src/index.ts"
+    type: "lib"
+    start_command: "none"
+    citations:
+      - "packages/shared-types/package.json:2-10"
+      - "packages/shared-types/src/index.ts:1-7"
+domains:
+  - name: "frontend_rivvon"
+    purpose: "Vue SPA combining public texture viewing and Slyce upload workflows, with session-based auth checks on startup."
+    owned_paths:
+      - "apps/rivvon/src"
+    key_types_or_models:
+      - "Auth/session state in useGoogleAuth (user, isAdmin, accessToken cache)"
+      - "Texture API client workflow payloads in useRivvonAPI"
+    inbound_dependencies:
+      - "Browser navigation to Vue Router routes"
+    outbound_dependencies:
+      - "Rivvon API over VITE_API_URL"
+      - "Google Drive REST APIs for folder/file operations"
+    citations:
+      - "apps/rivvon/src/main.js:68-96"
+      - "apps/rivvon/src/router/index.js:6-66"
+      - "apps/rivvon/src/composables/shared/useGoogleAuth.js:7-17"
+      - "apps/rivvon/src/services/api.js:4-13"
+      - "apps/rivvon/src/services/googleDrive.js:39-44"
+      - "apps/rivvon/src/services/googleDrive.js:184-199"
+  - name: "api_worker"
+    purpose: "Cloudflare Worker API handling OAuth/session auth, texture metadata CRUD, and tile storage mediation across R2 and Google Drive."
+    owned_paths:
+      - "apps/api/index.ts"
+      - "apps/api/routes"
+      - "apps/api/middleware"
+      - "apps/api/utils"
+      - "apps/api/db"
+    key_types_or_models:
+      - "users"
+      - "texture_sets"
+      - "texture_tiles"
+      - "SessionUser"
+    inbound_dependencies:
+      - "Frontend calls to /api/auth, /textures, /texture-set, /my-textures"
+    outbound_dependencies:
+      - "Cloudflare D1 (DB binding)"
+      - "Cloudflare R2 (BUCKET binding)"
+      - "Google OAuth token endpoint"
+    citations:
+      - "apps/api/index.ts:8-20"
+      - "apps/api/index.ts:61-92"
+      - "apps/api/routes/auth.ts:41-49"
+      - "apps/api/routes/textures.ts:11-41"
+      - "apps/api/routes/upload.ts:15-20"
+      - "apps/api/db/schema.sql:4-65"
+      - "apps/api/utils/session.ts:6-21"
+      - "apps/api/routes/auth.ts:128-137"
+  - name: "shared_types"
+    purpose: "Cross-package TypeScript type definitions for textures, API responses, and users."
+    owned_paths:
+      - "packages/shared-types/src"
+    key_types_or_models:
+      - "TextureMetadata"
+      - "TextureSet"
+      - "ApiResponse<T>"
+      - "User"
+    inbound_dependencies:
+      - "Workspace packages via pnpm workspace linkage"
+    outbound_dependencies: []
+    citations:
+      - "pnpm-workspace.yaml:1-3"
+      - "packages/shared-types/src/index.ts:6-39"
+runtime_flows:
+  - id: "frontend_bootstrap_and_session_check"
+    trigger: "Browser loads SPA entrypoint."
+    steps:
+      - from: "browser"
+        to: "Vue app bootstrap"
+        via: "createApp + app.mount + router/store setup"
+        citations:
+          - "apps/rivvon/src/main.js:34-42"
+          - "apps/rivvon/src/main.js:75-83"
+      - from: "Vue bootstrap"
+        to: "auth session probe"
+        via: "useGoogleAuth().checkSession() fetches /api/auth/me with credentials"
+        citations:
+          - "apps/rivvon/src/main.js:89-93"
+          - "apps/rivvon/src/composables/shared/useGoogleAuth.js:59-67"
+      - from: "auth session probe"
+        to: "local auth state"
+        via: "Sets user/isAdmin or clears user depending on authenticated response"
+        citations:
+          - "apps/rivvon/src/composables/shared/useGoogleAuth.js:72-83"
+          - "apps/rivvon/src/composables/shared/useGoogleAuth.js:91-99"
+    failure_modes:
+      - "Session check network/error path clears auth store and continues app."
+    tests_covering: []
+  - id: "google_oauth_cookie_session_flow"
+    trigger: "User invokes login from frontend."
+    steps:
+      - from: "frontend"
+        to: "api /api/auth/login"
+        via: "Redirect with redirect_to origin"
+        citations:
+          - "apps/rivvon/src/composables/shared/useGoogleAuth.js:27-32"
+      - from: "api /api/auth/login"
+        to: "google oauth consent"
+        via: "CSRF state cookie + redirect to accounts.google.com"
+        citations:
+          - "apps/api/routes/auth.ts:45-50"
+          - "apps/api/routes/auth.ts:65-87"
+      - from: "google callback"
+        to: "api /api/auth/callback"
+        via: "State validation, code exchange, user upsert, session cookie issuance"
+        citations:
+          - "apps/api/routes/auth.ts:119-137"
+          - "apps/api/routes/auth.ts:168-177"
+          - "apps/api/routes/auth.ts:188-205"
+      - from: "api callback response"
+        to: "frontend authenticated state"
+        via: "Subsequent /api/auth/me verifies session token"
+        citations:
+          - "apps/api/routes/auth.ts:238-264"
+          - "apps/api/middleware/session.ts:19-37"
+    failure_modes:
+      - "Invalid/missing state redirects with auth error."
+      - "Token exchange failure redirects to login error."
+    tests_covering: []
+  - id: "texture_upload_google_drive_path"
+    trigger: "User uploads a texture set via Slyce Google Drive workflow."
+    steps:
+      - from: "frontend upload orchestrator"
+        to: "google drive folder prep"
+        via: "ensureSlyceFolder + createTextureSetFolder using Drive API"
+        citations:
+          - "apps/rivvon/src/services/api.js:165-173"
+          - "apps/rivvon/src/services/googleDrive.js:22-33"
+          - "apps/rivvon/src/services/googleDrive.js:133-153"
+      - from: "frontend upload orchestrator"
+        to: "api texture-set create"
+        via: "POST /texture-set with storageProvider=google-drive"
+        citations:
+          - "apps/rivvon/src/services/api.js:174-186"
+          - "apps/api/routes/upload.ts:19-33"
+          - "apps/api/routes/upload.ts:45-48"
+      - from: "frontend tile upload"
+        to: "drive + api tile metadata registration"
+        via: "Upload file to Drive then POST /texture-set/:id/tile/:index/metadata"
+        citations:
+          - "apps/rivvon/src/services/googleDrive.js:278-295"
+          - "apps/api/routes/upload.ts:198-203"
+          - "apps/api/routes/upload.ts:257-261"
+      - from: "frontend finalize"
+        to: "api completion"
+        via: "POST /texture-set/:id/complete validates tiles then sets complete/public"
+        citations:
+          - "apps/rivvon/src/services/api.js:223-226"
+          - "apps/api/routes/upload.ts:121-123"
+          - "apps/api/routes/upload.ts:158-183"
+          - "apps/api/routes/upload.ts:186-193"
+    failure_modes:
+      - "Completion fails when expected tiles are missing or tile lacks drive_file_id."
+      - "Tile metadata endpoint rejects non-google-drive sets."
+    tests_covering: []
+interfaces:
+  api_endpoints:
+    - method: "GET"
+      path: "/"
+      auth: "none"
+      citations:
+        - "apps/api/index.ts:58-60"
+    - method: "GET"
+      path: "/api/auth/login"
+      auth: "none"
+      citations:
+        - "apps/api/routes/auth.ts:41-43"
+    - method: "GET"
+      path: "/api/auth/callback"
+      auth: "none"
+      citations:
+        - "apps/api/routes/auth.ts:98-103"
+    - method: "GET"
+      path: "/api/auth/me"
+      auth: "session_cookie_optional"
+      citations:
+        - "apps/api/routes/auth.ts:238-250"
+    - method: "GET"
+      path: "/api/auth/drive-token"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/auth.ts:271-282"
+    - method: "POST"
+      path: "/api/auth/drive-folder"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/auth.ts:343-353"
+    - method: "POST"
+      path: "/api/auth/logout"
+      auth: "session_cookie_optional"
+      citations:
+        - "apps/api/routes/auth.ts:374-379"
+    - method: "GET"
+      path: "/textures"
+      auth: "none"
+      citations:
+        - "apps/api/routes/textures.ts:11-13"
+    - method: "GET"
+      path: "/textures/:id"
+      auth: "none"
+      citations:
+        - "apps/api/routes/textures.ts:40-42"
+    - method: "GET"
+      path: "/textures/:setId/tile/:index"
+      auth: "none"
+      citations:
+        - "apps/api/routes/textures.ts:103-105"
+    - method: "GET"
+      path: "/my-textures"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/index.ts:65-67"
+    - method: "POST"
+      path: "/texture-set"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/upload.ts:16-20"
+    - method: "POST"
+      path: "/texture-set/:id/complete"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/upload.ts:121-123"
+    - method: "POST"
+      path: "/texture-set/:id/tile/:index/metadata"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/upload.ts:198-203"
+    - method: "PUT"
+      path: "/texture-set/:setId/tile/:index"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/upload.ts:277-280"
+    - method: "PUT"
+      path: "/texture-set/:setId/thumbnail"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/upload.ts:315-318"
+    - method: "PATCH"
+      path: "/texture-set/:setId/thumbnail-url"
+      auth: "session_cookie_required"
+      citations:
+        - "apps/api/routes/upload.ts:372-375"
+    - method: "DELETE"
+      path: "/texture-set/:id"
+      auth: "session_cookie_required_owner_or_admin"
+      citations:
+        - "apps/api/routes/upload.ts:408-417"
+    - method: "PATCH"
+      path: "/texture-set/:id"
+      auth: "session_cookie_required_owner_or_admin"
+      citations:
+        - "apps/api/routes/upload.ts:475-496"
+  events:
+    - name: "router_before_each_slyce_basis_preload"
+      producer: "frontend router guard"
+      consumer: "BASIS module loader"
+      citations:
+        - "apps/rivvon/src/main.js:102-108"
+    - name: "auth_state_change_callbacks"
+      producer: "viewer auth module"
+      consumer: "registered listener callbacks"
+      citations:
+        - "apps/rivvon/src/modules/viewer/auth.js:13-25"
+        - "apps/rivvon/src/modules/viewer/auth.js:31-39"
+  queues_or_jobs: []
+  external_services:
+    - name: "Google OAuth"
+      usage: "Authorization code and refresh-token exchanges"
+      citations:
+        - "apps/api/routes/auth.ts:77-84"
+        - "apps/api/routes/auth.ts:128-137"
+        - "apps/api/routes/auth.ts:301-309"
+    - name: "Google Drive API"
+      usage: "Folder discovery/creation, resumable upload, permission updates, file fetch"
+      citations:
+        - "apps/rivvon/src/services/googleDrive.js:39-44"
+        - "apps/rivvon/src/services/googleDrive.js:184-199"
+        - "apps/rivvon/src/services/googleDrive.js:250-262"
+        - "apps/rivvon/src/modules/viewer/auth.js:163-170"
+    - name: "Cloudflare D1"
+      usage: "User/session-linked metadata persistence"
+      citations:
+        - "apps/api/index.ts:8-10"
+        - "apps/api/db/schema.sql:4-13"
+        - "apps/api/db/schema.sql:17-49"
+    - name: "Cloudflare R2"
+      usage: "Tile and thumbnail object storage plus retrieval"
+      citations:
+        - "apps/api/index.ts:9-10"
+        - "apps/api/routes/upload.ts:96-99"
+        - "apps/api/routes/upload.ts:352-355"
+constraints:
+  env_vars:
+    - name: "GOOGLE_CLIENT_ID"
+      scope: "api worker binding/secret"
+      citations:
+        - "apps/api/index.ts:12-13"
+        - "apps/api/routes/auth.ts:78-79"
+        - "apps/api/wrangler.toml:25-27"
+    - name: "GOOGLE_CLIENT_SECRET"
+      scope: "api worker binding/secret"
+      citations:
+        - "apps/api/index.ts:13-14"
+        - "apps/api/routes/auth.ts:134-135"
+        - "apps/api/wrangler.toml:25-27"
+    - name: "SESSION_SECRET"
+      scope: "api worker binding/secret"
+      citations:
+        - "apps/api/index.ts:14-15"
+        - "apps/api/middleware/session.ts:27-31"
+        - "apps/api/wrangler.toml:25-27"
+    - name: "API_URL"
+      scope: "api worker + frontend backend base URL fallback"
+      citations:
+        - "apps/api/index.ts:15-16"
+        - "apps/api/wrangler.toml:19-20"
+        - "apps/rivvon/src/composables/shared/useGoogleAuth.js:7-8"
+    - name: "APP_URL"
+      scope: "oauth redirect default target"
+      citations:
+        - "apps/api/index.ts:16-17"
+        - "apps/api/routes/auth.ts:49-50"
+        - "apps/api/wrangler.toml:20-21"
+    - name: "CORS_ORIGINS"
+      scope: "api CORS allowlist"
+      citations:
+        - "apps/api/index.ts:17-18"
+        - "apps/api/index.ts:25-31"
+        - "apps/api/wrangler.toml:18-19"
+    - name: "ADMIN_USERS"
+      scope: "admin authorization email allowlist"
+      citations:
+        - "apps/api/index.ts:18-20"
+        - "apps/api/routes/upload.ts:413-414"
+        - "apps/api/wrangler.toml:21-23"
+    - name: "VITE_API_URL"
+      scope: "frontend API base URL override"
+      citations:
+        - "apps/rivvon/src/composables/shared/useGoogleAuth.js:7-8"
+        - "apps/rivvon/src/services/api.js:4-5"
+        - "apps/rivvon/src/services/textureService.js:4-5"
+  feature_flags:
+    - name: "debug_hash_flag"
+      rule: "When URL hash is #debug, viewer debugMode is enabled."
+      citations:
+        - "apps/rivvon/src/main.js:84-87"
+  authz_authn_rules:
+    - rule: "Session cookie is required for all /texture-set routes via middleware."
+      citations:
+        - "apps/api/routes/upload.ts:15-17"
+        - "apps/api/middleware/session.ts:20-24"
+    - rule: "Owner-or-admin checks gate texture delete/update operations."
+      citations:
+        - "apps/api/routes/upload.ts:413-425"
+        - "apps/api/routes/upload.ts:482-496"
+    - rule: "Session token is HMAC-SHA256 signed and expires after 7 days."
+      citations:
+        - "apps/api/utils/session.ts:35-36"
+        - "apps/api/utils/session.ts:41-45"
+        - "apps/api/utils/session.ts:77-82"
+quality:
+  test_locations: []
+  lint_typecheck_commands:
+    - command: "pnpm lint"
+      citations:
+        - "package.json:14-15"
+    - command: "pnpm --filter api lint"
+      citations:
+        - "apps/api/package.json:12-13"
+    - command: "pnpm --filter rivvon lint"
+      citations:
+        - "apps/rivvon/package.json:13-14"
+  known_gaps:
+    - description: "App-level lint scripts are placeholders and do not run real lint checks."
+      citations:
+        - "apps/api/package.json:12-13"
+        - "apps/rivvon/package.json:13-14"
+    - description: "Automated tests were not identified in scanned source/config paths."
+      confidence: "low"
+      needs_validation: true
+      citations:
+        - "package.json:5-16"
+        - "apps/api/package.json:8-13"
+        - "apps/rivvon/package.json:6-14"
+indexing_coverage:
+  discovered_top_level_dirs:
+    - "apps"
+    - "packages"
+  unscanned_or_uncertain_dirs:
+    - ".github"
+    - ".vscode"
+    - "node_modules"
+  confidence: "medium"
+todo_for_map_improvement:
+  - "Scan .github/workflows and deployment docs for CI-specific runtime constraints and release flows."
+  - "Validate whether any tests exist in ignored/generated paths and add exact locations if found."
+  - "Resolve API base URL inconsistency between viewer auth module hardcoded value and VITE_API_URL-based clients."

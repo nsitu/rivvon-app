@@ -70,6 +70,24 @@ async function openDatabase() {
 }
 
 /**
+ * Calculate total bytes for a texture set by summing tile sizes
+ * @param {string} textureSetId - Texture set ID
+ * @returns {Promise<number>} Total size in bytes
+ */
+async function calculateTextureSetSize(textureSetId) {
+    const tiles = await getTiles(textureSetId);
+    return tiles.reduce((total, tile) => {
+        if (typeof tile.file_size === 'number' && tile.file_size > 0) {
+            return total + tile.file_size;
+        }
+        if (tile.blob instanceof Blob) {
+            return total + tile.blob.size;
+        }
+        return total;
+    }, 0);
+}
+
+/**
  * Save a texture set with all its tiles to IndexedDB
  * 
  * @param {Object} params
@@ -178,9 +196,27 @@ async function getAllTextureSets() {
         const request = store.getAll();
 
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
+        request.onsuccess = async () => {
+            const withSize = await Promise.all(request.result.map(async (textureSet) => {
+                const existingSize = textureSet.total_size_bytes ?? textureSet.total_size;
+                if (typeof existingSize === 'number' && existingSize > 0) {
+                    return {
+                        ...textureSet,
+                        total_size: existingSize,
+                        total_size_bytes: existingSize
+                    };
+                }
+
+                const calculatedSize = await calculateTextureSetSize(textureSet.id);
+                return {
+                    ...textureSet,
+                    total_size: calculatedSize,
+                    total_size_bytes: calculatedSize
+                };
+            }));
+
             // Sort by created_at descending (newest first)
-            const results = request.result.sort((a, b) => b.created_at - a.created_at);
+            const results = withSize.sort((a, b) => b.created_at - a.created_at);
             resolve(results);
         };
     });

@@ -62,7 +62,8 @@
         const localMapped = localTextures.value.map(t => ({
             ...t,
             isLocal: true,
-            thumbnail_url: t.thumbnail_data_url // normalize field name
+            thumbnail_url: t.thumbnail_data_url, // normalize field name
+            total_size_bytes: t.total_size_bytes ?? t.total_size // normalize size field name
         }));
 
         // Map cloud textures with isLocal flag
@@ -724,7 +725,7 @@
                                 <span>{{ texture.tile_resolution }}px</span>
                                 <span>{{ texture.cross_section_type || 'waves' }}</span>
                                 <span>{{ texture.layer_count }} layers</span>
-                                <span v-if="!isLocalTexture(texture) && formatSize(texture.total_size_bytes)">
+                                <span v-if="formatSize(texture.total_size_bytes)">
                                     {{ formatSize(texture.total_size_bytes) }}
                                 </span>
                             </div>
