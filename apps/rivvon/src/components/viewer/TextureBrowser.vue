@@ -1352,6 +1352,15 @@
         pointer-events: auto;
     }
 
+    /* Always show action buttons on touch/mobile devices (no hover) */
+    @media (hover: none),
+    (max-width: 768px) {
+        .action-button {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    }
+
     .action-button .material-symbols-outlined {
         font-size: 18px;
         color: #fff;
