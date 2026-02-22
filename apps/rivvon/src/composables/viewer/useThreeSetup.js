@@ -740,6 +740,7 @@ export function useThreeSetup() {
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
      * @param {string} options.cameraMovement - 'none' | 'cinematic'
+     * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
     async function exportVideo(options = {}) {
@@ -753,7 +754,8 @@ export function useThreeSetup() {
             onProgress = null,
             onStatus = null,
             signal = null,
-            cameraMovement = 'none'
+            cameraMovement = 'none',
+            quality = 'high'
         } = options;
 
         if (!renderer.value || !scene.value || !camera.value || !tileManager.value) {
@@ -849,9 +851,19 @@ export function useThreeSetup() {
                 target: new MB.BufferTarget()
             });
 
+            // Map quality preset to mediabunny subjective quality constants
+            const qualityMap = {
+                'very-low': MB.QUALITY_VERY_LOW,
+                'low': MB.QUALITY_LOW,
+                'medium': MB.QUALITY_MEDIUM,
+                'high': MB.QUALITY_HIGH,
+                'very-high': MB.QUALITY_VERY_HIGH,
+            };
+            const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
+
             const videoSource = new MB.CanvasSource(renderer.value.domElement, {
                 codec,
-                bitrate: 8_000_000 // 8 Mbps
+                bitrate
             });
             output.addVideoTrack(videoSource);
 

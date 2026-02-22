@@ -334,6 +334,7 @@
                 format: settings.format,
                 duration: settings.duration,
                 cameraMovement: settings.cameraMovement,
+                quality: settings.quality,
                 filename,
                 signal: exportAbortController.value.signal,
                 onProgress: (progress) => {

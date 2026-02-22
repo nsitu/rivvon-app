@@ -20,6 +20,7 @@
     const customDuration = ref(5);
     const fps = ref(30);
     const cameraMovement = ref('none');
+    const quality = ref('high');
 
     const cameraMovementOptions = computed(() => {
         const hasROIs = props.exportInfo?.hasROIs ?? false;
@@ -55,6 +56,19 @@
         { label: 'One full cycle (seamless loop)', value: 'auto' },
         { label: 'Custom duration', value: 'custom' }
     ];
+
+    const qualityOptions = [
+        { label: 'Very Low', value: 'very-low', description: 'Smallest file size, lower fidelity' },
+        { label: 'Low', value: 'low', description: 'Small file, acceptable quality' },
+        { label: 'Medium', value: 'medium', description: 'Balanced file size and quality' },
+        { label: 'High', value: 'high', description: 'Recommended — sharp detail, reasonable size' },
+        { label: 'Very High', value: 'very-high', description: 'Maximum quality, larger file' },
+    ];
+
+    const qualityDescription = computed(() => {
+        const opt = qualityOptions.find(o => o.value === quality.value);
+        return opt?.description ?? '';
+    });
 
     // --- Computed ---
     const resolvedWidth = computed(() => {
@@ -104,10 +118,20 @@
         return Math.ceil(resolvedDuration.value * fps.value);
     });
 
+    const qualityBitrateEstimate = computed(() => {
+        // Rough bitrate estimates per quality level for size preview
+        const map = {
+            'very-low': 1_500_000,
+            'low': 3_000_000,
+            'medium': 5_000_000,
+            'high': 8_000_000,
+            'very-high': 14_000_000,
+        };
+        return map[quality.value] ?? 8_000_000;
+    });
+
     const estimatedSize = computed(() => {
-        // Rough estimate: bitrate * duration / 8
-        const bitrate = 8_000_000; // 8 Mbps
-        const bytes = (bitrate * resolvedDuration.value) / 8;
+        const bytes = (qualityBitrateEstimate.value * resolvedDuration.value) / 8;
         if (bytes > 1024 * 1024) return `~${(bytes / 1024 / 1024).toFixed(1)} MB`;
         return `~${(bytes / 1024).toFixed(0)} KB`;
     });
@@ -125,6 +149,7 @@
             format: format.value,
             duration: resolvedDuration.value,
             cameraMovement: cameraMovement.value,
+            quality: quality.value,
         });
     }
 
@@ -249,6 +274,24 @@
                     suffix=" s"
                     class="w-full"
                 />
+            </div>
+
+            <!-- Quality -->
+            <div class="form-field">
+                <label>Quality</label>
+                <Select
+                    v-model="quality"
+                    :options="qualityOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    class="w-full"
+                />
+                <div
+                    class="field-description"
+                    v-if="qualityDescription"
+                >
+                    {{ qualityDescription }}
+                </div>
             </div>
 
             <!-- Camera movement -->
