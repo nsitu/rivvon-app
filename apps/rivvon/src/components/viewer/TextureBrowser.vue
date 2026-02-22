@@ -1033,6 +1033,7 @@
     }
 
     .texture-card {
+        position: relative;
         background: #252525;
         border-radius: 0;
         overflow: hidden;
