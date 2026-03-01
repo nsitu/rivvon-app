@@ -218,22 +218,81 @@ export class Ribbon {
         return length;
     }
 
+    /**
+     * Build an arc-length–parameterized curve from a polyline.
+     *
+     * The raw points may be very unevenly spaced (e.g. 64 samples per Bézier
+     * but only 2 per line segment from SVGLoader).  A naïve vertex-index
+     * parameterization would compress the texture where points are dense and
+     * stretch it where points are sparse.
+     *
+     * We pre-compute cumulative arc lengths and remap every incoming `t`
+     * (uniform in arc length) to the correct vertex-index position so that
+     * equal `t` intervals always correspond to equal physical distances.
+     */
     createCurveFromPoints(points) {
-        const curve = new THREE.Curve();
-        curve.getPoint = t => {
-            const i = t * (points.length - 1);
-            const a = Math.floor(i);
-            const b = Math.min(Math.ceil(i), points.length - 1);
-            const p1 = points[a];
-            const p2 = points[b];
-            return new THREE.Vector3().lerpVectors(p1, p2, i - a);
+        // ── 1. Build cumulative arc-length table ──────────────────────
+        const n = points.length;
+        const arcLengths = new Float64Array(n);   // arcLengths[0] = 0
+        for (let i = 1; i < n; i++) {
+            arcLengths[i] = arcLengths[i - 1] + points[i].distanceTo(points[i - 1]);
+        }
+        const totalLength = arcLengths[n - 1];
+
+        // Normalise to [0, 1]
+        const normalised = new Float64Array(n);
+        if (totalLength > 0) {
+            for (let i = 0; i < n; i++) {
+                normalised[i] = arcLengths[i] / totalLength;
+            }
+        } else {
+            // Degenerate (all points coincide) – fall back to index-based
+            for (let i = 0; i < n; i++) {
+                normalised[i] = i / (n - 1);
+            }
+        }
+
+        // ── 2. Remap t (arc-length fraction) → vertex-index fraction ─
+        //    Binary-search + linear interpolation within the segment.
+        const remapT = (t) => {
+            // Clamp
+            if (t <= 0) return 0;
+            if (t >= 1) return 1;
+
+            // Binary search for the segment that brackets `t`
+            let lo = 0, hi = n - 1;
+            while (hi - lo > 1) {
+                const mid = (lo + hi) >>> 1;
+                if (normalised[mid] <= t) lo = mid;
+                else hi = mid;
+            }
+
+            // Linear interpolation within the segment [lo, hi]
+            const segLen = normalised[hi] - normalised[lo];
+            const frac = segLen > 0 ? (t - normalised[lo]) / segLen : 0;
+            return (lo + frac) / (n - 1);
         };
-        curve.getTangent = t => {
+
+        // ── 3. Build the curve using the remapped parameterization ────
+        const curve = new THREE.Curve();
+
+        // getPointRaw: index-based lookup (no remap) — used internally
+        const getPointRaw = (u) => {
+            const i = u * (n - 1);
+            const a = Math.floor(i);
+            const b = Math.min(Math.ceil(i), n - 1);
+            return new THREE.Vector3().lerpVectors(points[a], points[b], i - a);
+        };
+
+        curve.getPoint = (t) => getPointRaw(remapT(t));
+
+        curve.getTangent = (t) => {
             const delta = 0.001;
             const p1 = curve.getPoint(Math.max(t - delta, 0));
             const p2 = curve.getPoint(Math.min(t + delta, 1));
             return p2.clone().sub(p1).normalize();
         };
+
         return curve;
     }
 
