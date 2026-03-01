@@ -91,8 +91,12 @@ for (const group of index) {
                 const hasFill = /\bfill\s*=/.test(match);
                 const hasStroke = /\bstroke\s*=/.test(match);
                 if (!hasFill && !hasStroke) {
-                    // No fill, no stroke → treat as stroked outline
-                    return match.replace(`<${tag}`, `<${tag} fill="none" stroke="currentColor" stroke-width="2"`);
+                    // No fill, no stroke → treat as stroked outline.
+                    // Strip any existing stroke-width first (e.g. stroke-width="0"
+                    // on originally-filled shapes) to avoid duplicate attributes
+                    // which produce invalid XML and break the parser.
+                    let cleaned = match.replace(/\s*stroke-width="[^"]*"/g, '');
+                    return cleaned.replace(`<${tag}`, `<${tag} fill="none" stroke="currentColor" stroke-width="2"`);
                 }
                 if (!hasFill && hasStroke) {
                     // Has stroke but no fill → would default-fill to black over the stroke
