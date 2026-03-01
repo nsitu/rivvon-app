@@ -15,6 +15,7 @@
     import CountdownNumbers from '../components/viewer/CountdownNumbers.vue';
     import CountdownProgressBar from '../components/viewer/CountdownProgressBar.vue';
     import TextInputPanel from '../components/viewer/TextInputPanel.vue';
+    import EmojiPickerPanel from '../components/viewer/EmojiPickerPanel.vue';
     import TextureBrowser from '../components/viewer/TextureBrowser.vue';
     import TextureCreator from '../components/viewer/TextureCreator.vue';
     import BetaModal from '../components/viewer/BetaModal.vue';
@@ -248,6 +249,17 @@
 
     // Text to SVG handler
     function handleTextGenerate(pointsArray) {
+        if (!threeCanvasRef.value || pointsArray.length === 0) return;
+
+        if (pointsArray.length === 1) {
+            threeCanvasRef.value.createRibbon(pointsArray[0]);
+        } else {
+            threeCanvasRef.value.createRibbonSeries(pointsArray);
+        }
+    }
+
+    // Emoji picker handler
+    function handleEmojiGenerate(pointsArray) {
         if (!threeCanvasRef.value || pointsArray.length === 0) return;
 
         if (pointsArray.length === 1) {
@@ -553,6 +565,7 @@
             @enter-slyce-mode="app.showSlyce"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"
+            @open-emoji-picker="app.showEmojiPicker"
             @open-texture-browser="openTextureBrowser"
             @import-file="openFileImport"
             @export-image="handleExportImage"
@@ -576,6 +589,10 @@
         <TextInputPanel
             v-model:visible="app.textPanelVisible"
             @generate="handleTextGenerate"
+        />
+        <EmojiPickerPanel
+            v-model:visible="app.emojiPickerVisible"
+            @generate="handleEmojiGenerate"
         />
         <TextureBrowser
             v-if="app.textureBrowserVisible"

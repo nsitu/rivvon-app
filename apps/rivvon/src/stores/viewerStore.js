@@ -36,6 +36,9 @@ export const useViewerStore = defineStore('viewer', {
         // Tools panel
         toolsPanelVisible: false,
 
+        // Emoji picker
+        emojiPickerVisible: false,
+
         // About panel
         aboutPanelVisible: false,
 
@@ -109,6 +112,14 @@ export const useViewerStore = defineStore('viewer', {
 
         hideToolsPanel() {
             this.toolsPanelVisible = false;
+        },
+
+        showEmojiPicker() {
+            this.emojiPickerVisible = true;
+        },
+
+        hideEmojiPicker() {
+            this.emojiPickerVisible = false;
         },
 
         showAboutPanel() {

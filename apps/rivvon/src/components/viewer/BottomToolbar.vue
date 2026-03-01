@@ -65,6 +65,7 @@
         'enter-draw-mode',
         'toggle-flow',
         'open-text-panel',
+        'open-emoji-picker',
         'open-texture-browser',
         'enter-slyce-mode',
         'import-file',
@@ -114,6 +115,8 @@
             app.hideTextureBrowser();
         } else if (app.textPanelVisible) {
             app.hideTextPanel();
+        } else if (app.emojiPickerVisible) {
+            app.hideEmojiPicker();
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
         } else if (app.aboutPanelVisible) {
@@ -123,7 +126,7 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.toolsPanelVisible || app.aboutPanelVisible
+        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible
     );
 
     /**
@@ -149,6 +152,9 @@
         }
         if (app.textPanelVisible) {
             app.hideTextPanel();
+        }
+        if (app.emojiPickerVisible) {
+            app.hideEmojiPicker();
         }
         if (app.toolsPanelVisible) {
             app.hideToolsPanel();
@@ -195,6 +201,15 @@
             @click="app.textPanelVisible ? handleBack() : activateContext(() => emit('open-text-panel'))"
         >
             <span class="material-symbols-outlined">text_fields</span>
+        </button>
+
+        <!-- Emoji picker -->
+        <button
+            v-tooltip.top="tip('Emoji')"
+            :class="{ active: app.emojiPickerVisible }"
+            @click="app.emojiPickerVisible ? handleBack() : activateContext(() => emit('open-emoji-picker'))"
+        >
+            <span class="material-symbols-outlined">mood</span>
         </button>
 
         <!-- Browse textures -->
@@ -321,7 +336,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>

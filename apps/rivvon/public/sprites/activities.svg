@@ -1,0 +1,1173 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<symbol id="1F383" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M39.4,17.6598c-0.68-2.34-0.98-4.83-0.3-7.02c0.39-1.24,1.1-2.5,2.31-3.14c1.36-0.72,3.45-0.16,2.96,1.75 c-0.09,0.37-0.42,0.56-0.62,0.86c-0.89,1.39,0.35,2.32,1.66,1.99c1.64-0.42,2.4-1.63,2.46-3.03c0.01,0.02,0.02,0.04,0.03,0.06 c0-0.09-0.02-0.18-0.02-0.27c0-0.17-0.02-0.34-0.04-0.51c-0.01-0.09-0.02-0.18-0.03-0.27c-0.06-0.33-0.14-0.66-0.27-0.99 c-1.45-3.74-5.96-4.92-9.27-2.86c-2.54,1.58-3.97,4.47-4.87,7.23c-0.66,2.01-1.11,4.13-1.36,6.26"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M7.1349,33.9318c-0.0522,0.2349-0.097,0.4709-0.1418,0.7069c-0.0153,0.0805-0.0338,0.1605-0.0482,0.2411 c-0.0505,0.2827-0.0938,0.5662-0.1334,0.8497C6.8067,35.7638,6.8,35.798,6.7954,35.8323 c-0.2982,2.2099-0.2669,4.4514,0.0752,6.6451c0.1711,1.0981,0.4145,2.1852,0.7446,3.2487 c0.4537,1.4606,1.0535,2.8831,1.7787,4.2331c0.6437,1.1984,1.3849,2.3402,2.2296,3.3903c0.0826,0.1027,0.172,0.1989,0.2564,0.2999 c0.1779,0.2126,0.354,0.4269,0.54,0.6316c0.0008,0.0009,0.0015,0.0016,0.0023,0.0024c0.2498,0.2747,0.4976,0.5352,0.7441,0.787 c0.0821,0.0839,0.1634,0.1624,0.2451,0.2438c0.1662,0.1655,0.332,0.3282,0.4965,0.4839c0.0928,0.0877,0.1849,0.1724,0.2772,0.257 c0.1531,0.1404,0.3054,0.2768,0.457,0.4089c0.0933,0.0813,0.1864,0.1623,0.2791,0.2404c0.1564,0.1319,0.3114,0.2576,0.4661,0.3809 c0.0822,0.0656,0.1649,0.1335,0.2466,0.1966c0.2064,0.1595,0.4111,0.3112,0.6141,0.4559c0.027,0.0192,0.0544,0.0409,0.0814,0.0599 c0.228,0.1606,0.4532,0.3104,0.6767,0.4533c0.0776,0.0496,0.1539,0.0947,0.2309,0.1422c0.1476,0.0911,0.2947,0.1804,0.4402,0.264 c0.088,0.0506,0.175,0.0985,0.2622,0.1464c0.134,0.0737,0.267,0.1446,0.399,0.2122c0.0873,0.0447,0.1744,0.0889,0.2608,0.131 c0.1346,0.0656,0.2678,0.127,0.4003,0.1865c0.0782,0.0352,0.1569,0.0719,0.2343,0.105c0.1667,0.0712,0.3314,0.1367,0.4946,0.1988 c0.0399,0.0152,0.0807,0.0329,0.1204,0.0475c0.1994,0.0737,0.3956,0.1396,0.5893,0.2003c0.0682,0.0214,0.1348,0.0394,0.2023,0.0592 c0.1281,0.0377,0.2554,0.0742,0.3807,0.1066c0.0764,0.0197,0.1516,0.0375,0.2271,0.0553c0.1152,0.0272,0.2293,0.0527,0.3422,0.0757 c0.0745,0.0152,0.1486,0.03,0.222,0.0433c0.1151,0.021,0.2283,0.0392,0.3408,0.0561c0.0652,0.0098,0.1309,0.0206,0.1952,0.0291 c0.1386,0.0182,0.2744,0.0324,0.4088,0.0447c0.035,0.0032,0.0712,0.0081,0.1058,0.0109c0.1666,0.0135,0.3292,0.0222,0.4889,0.0273 c0.0511,0.0016,0.1004,0.0013,0.1509,0.0021c0.1099,0.0019,0.2186,0.0028,0.3249,0.0012c0.0574-0.0009,0.1133-0.0029,0.1696-0.0048 c0.0979-0.0033,0.1943-0.0076,0.289-0.0136c0.0543-0.0034,0.1082-0.0071,0.1614-0.0114c0.0968-0.0078,0.1912-0.0172,0.2844-0.0275 c0.0449-0.0049,0.0905-0.0094,0.1345-0.015c0.1152-0.0145,0.2272-0.0309,0.3365-0.0487c0.0187-0.0031,0.0386-0.0054,0.0571-0.0086 c0.1292-0.0219,0.2535-0.046,0.374-0.0716c0.0272-0.0058,0.0524-0.0122,0.0792-0.0181c0.0919-0.0204,0.1817-0.0415,0.2682-0.0636 c0.0338-0.0087,0.0663-0.0175,0.0993-0.0264c0.0779-0.0209,0.1536-0.0421,0.2269-0.064c0.0297-0.0089,0.0588-0.0175,0.0876-0.0265 c0.0767-0.0237,0.1502-0.0477,0.2213-0.0719c0.0204-0.007,0.0414-0.0137,0.0614-0.0208c0.1843-0.0645,0.3488-0.129,0.4916-0.1904 c0.0011-0.0005,0.002-0.0009,0.0031-0.0014c0.053-0.0228,0.1045-0.0453,0.1515-0.0669c-0.0003-0.0002-0.0007-0.0005-0.001-0.0007 c0.3434-0.1577,0.5293-0.278,0.5293-0.278c1.4545,1.4635,7.593,1.7152,8.0081,1.7307c0.0152,0.0005,0.0291,0.0005,0.0443,0 c0.415-0.0154,6.5535-0.2672,8.0081-1.7307c0,0,6.7755,4.4366,15.4329-5.0859c6.9675-7.0443,7.8211-20.5231,1.9964-28.6674 c-0.5488-0.7675-1.1569-1.4874-1.8248-2.1503c-1.051-1.0431-2.222-1.9655-3.4933-2.7019 c-3.5964-2.0837-7.7466-2.3765-11.6092-0.8917c0,0-2.0076-2.4888-8.532-2.4888s-8.532,2.4888-8.532,2.4888 c-0.1086-0.0417-0.2155-0.0732-0.3237-0.1121"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M27.0273,19.7574c0.0035-0.0016,0.0067-0.0037,0.0102-0.0053c-0.1246-0.0449-0.2475-0.0787-0.3715-0.1198 c-0.1494-0.0496-0.2989-0.1002-0.4474-0.1443c-0.1768-0.0525-0.3522-0.0975-0.5277-0.1425 c-0.1491-0.0382-0.2983-0.0776-0.4464-0.1104c-0.1727-0.0383-0.344-0.0692-0.5154-0.1003 c-0.1483-0.0269-0.2969-0.0552-0.4442-0.0767c-0.1689-0.0247-0.3361-0.0422-0.5035-0.0601 c-0.1472-0.0157-0.2947-0.0329-0.4409-0.0434c-0.1648-0.0119-0.3279-0.0167-0.4912-0.022 c-0.1456-0.0048-0.2914-0.011-0.4358-0.0107c-0.1622,0.0004-0.3224,0.0078-0.483,0.0145c-0.1425,0.006-0.2852,0.0103-0.4263,0.0211 c-0.1594,0.0123-0.317,0.0314-0.4747,0.0498c-0.1393,0.0162-0.2791,0.0308-0.4171,0.0517 c-0.1565,0.0237-0.3108,0.0543-0.4655,0.0839c-0.136,0.0261-0.2724,0.0503-0.4069,0.0808 c-0.1541,0.035-0.3059,0.0767-0.4581,0.1175c-0.1318,0.0353-0.2641,0.0686-0.3945,0.1082 c-0.1519,0.0461-0.3011,0.0988-0.451,0.1504c-0.1271,0.0438-0.2549,0.0856-0.3805,0.1334 c-0.1497,0.0569-0.2968,0.1205-0.4443,0.183c-0.1223,0.0518-0.2452,0.1014-0.3659,0.1569 c-0.1479,0.0679-0.2928,0.1423-0.4384,0.2157c-0.1165,0.0587-0.2339,0.1152-0.3488,0.1773 c-0.1458,0.0788-0.2886,0.1639-0.4318,0.248c-0.1111,0.0652-0.2231,0.1281-0.3327,0.1964 c-0.1434,0.0894-0.2835,0.1851-0.4242,0.2797c-0.1055,0.0709-0.2121,0.1396-0.316,0.2134 c-0.1414,0.1003-0.2792,0.2067-0.4177,0.3123c-0.0989,0.0754-0.1992,0.1484-0.2966,0.2263 c-0.1387,0.1109-0.2736,0.2277-0.4092,0.3436c-0.0936,0.08-0.1886,0.1577-0.2807,0.24c-0.135,0.1207-0.2662,0.2471-0.3979,0.3727 c-0.088,0.0839-0.1776,0.1655-0.2642,0.2515c-0.1327,0.1318-0.2612,0.269-0.3904,0.4057c-0.0812,0.0858-0.1639,0.1693-0.2437,0.257 c-0.1293,0.1422-0.2543,0.2896-0.3798,0.4365c-0.0754,0.0881-0.1525,0.1739-0.2264,0.2637"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M20,48c0,0,15,10,32,0C52,48,36,68,20,48z"/>
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="35.896,47.9282 34.1847,44.9641 32.4734,42 35.896,42 39.3187,42 37.6073,44.9641"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M48.974,37.8449c2.5901-0.9575,3.9136-3.8335,2.956-6.4235l-9.3796,3.4675C43.508,37.479,46.3839,38.8024,48.974,37.8449z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M22.818,37.8449c-2.5901-0.9575-3.9136-3.8335-2.956-6.4235l9.3796,3.4675C28.2841,37.479,25.4081,38.8024,22.818,37.8449z"/>
+  </g>
+</symbol>
+<symbol id="1F384" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="36.0808" cy="25.7442" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="43.6806" cy="49.953" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="28.4046" cy="51.9238" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="41.6806" cy="38.6739" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="32.4046" cy="34.1987" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="34.4046" cy="45.0546" r="2"/>
+  </g>
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="39.778 19.109 47.308 30.774 43.378 30.291 51.471 44.127 46.384 43.491 54.766 60.207 41.932 59.373"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="30.068 59.373 17.234 60.207 25.616 43.491 20.529 44.127 28.622 30.291 24.692 30.774 32.222 19.109"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M40.45,62.4235v3.0417a1.4565,1.4565,0,0,1-1.2931,1.57H32.8436a1.4565,1.4565,0,0,1-1.2931-1.57V62.4235"/>
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="36 4.758 37.87 8.548 42.052 9.155 39.026 12.105 39.74 16.27 36 14.304 32.26 16.27 32.974 12.105 29.948 9.155 34.13 8.548 36 4.758"/>
+  </g>
+</symbol>
+<symbol id="1F386" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <rect x="35" y="38.915" width="2" height="25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <g>
+      <line x1="15.9954" x2="15.9954" y1="32.9114" y2="32.9114" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="55.9886" x2="55.9886" y1="32.902" y2="32.902" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="35.978" x2="35.978" y1="12.9148" y2="12.9148" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="21.8491" x2="31.7486" y1="18.771" y2="28.6705" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="40.2339" x2="50.1334" y1="28.6704" y2="18.771" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="50.1334" x2="40.2339" y1="47.0552" y2="37.1557" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="31.7486" x2="21.8491" y1="37.1557" y2="47.0552" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="29.9913" x2="20.9913" y1="32.9131" y2="32.9131" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="35.9913" x2="35.9913" y1="17.913" y2="26.913" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="50.9912" x2="41.9912" y1="32.9131" y2="32.9131" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="13.0873" x2="19.6434" y1="23.4273" y2="26.143" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="13.0883" x2="19.6442" y1="42.4095" y2="39.6931" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="26.5133" x2="29.2274" y1="55.8299" y2="49.2731" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="45.4951" x2="42.7773" y1="55.8246" y2="49.2693" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="58.9127" x2="52.3553" y1="42.3963" y2="39.6837" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="58.9032" x2="52.3485" y1="23.4149" y2="26.1341" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="45.4716" x2="42.7605" y1="10" y2="16.5581" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="26.492" x2="29.2159" y1="10.0241" y2="16.5769" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <polygon fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2" points="36 34.315 37.7 35.53 37.069 33.538 38.75 32.298 36.661 32.282 36 30.3 35.339 32.282 33.25 32.298 34.931 33.538 34.3 35.53 36 34.315"/>
+    </g>
+  </g>
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="35 58.915 35 38.915 37 38.915"/>
+  </g>
+</symbol>
+<symbol id="1F387" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <g>
+      <line x1="27.612" x2="27.612" y1="16.1095" y2="16.1095" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="55.8981" x2="55.8981" y1="44.3824" y2="44.3824" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="55.8815" x2="55.8815" y1="16.0996" y2="16.0996" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="27.5931" x2="27.5931" y1="16.1284" y2="16.1284" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="41.75" x2="41.75" y1="10.25" y2="24.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="47.75" x2="61.75" y1="30.25" y2="30.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="41.75" x2="41.75" y1="50.25" y2="36.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="35.75" x2="21.75" y1="30.25" y2="30.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="37.5074" x2="31.1434" y1="26.0074" y2="19.6434" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="52.3566" x2="45.9927" y1="19.6434" y2="26.0073" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="52.3566" x2="45.9926" y1="40.8566" y2="34.4926" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="32.2619" x2="34.9775" y1="7.347" y2="13.9031" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="18.8402" x2="25.3966" y1="20.7701" y2="23.4851" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="18.8434" x2="25.399" y1="39.7527" y2="37.0355" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="32.2693" x2="34.9829" y1="53.1711" y2="46.614" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="51.2523" x2="48.5336" y1="53.1636" y2="46.6086" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="64.6674" x2="58.1097" y1="39.7349" y2="37.0228" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="64.6556" x2="58.1013" y1="20.7516" y2="23.4718" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="51.218" x2="48.5105" y1="7.348" y2="13.9076" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="32.2357" x2="34.9513" y1="7.3578" y2="13.914" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    </g>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M13,57,40.6378,29.2409a1.5,1.5,0,0,1,2.1214,0h0a1.5,1.5,0,0,1,0,2.1213L19,55"/>
+  </g>
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M17,52.8787,40.6378,29.2409a1.5,1.5,0,0,1,2.1214,0h0a1.5,1.5,0,0,1,0,2.1213L31.92,42.201"/>
+  </g>
+</symbol>
+<symbol id="1F9E8" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <g>
+      <line x1="62" x2="67.6569" y1="23" y2="21.5858" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="55" x2="56.4142" y1="14.3431" y2="20" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <line x1="60" x2="63" y1="20" y2="15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    </g>
+  </g>
+  <g id="line">
+    <rect x="3.5162" y="31.2797" rx="1" width="40" height="13" transform="translate(-19.8266 27.6939) rotate(-45)" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M58,23.28s-2.7574,6.8285-7,4,.4721-8.7639-4-11c-4-2-9.3417,7.3573-9.3417,7.3573"/>
+  </g>
+</symbol>
+<symbol id="2728" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M20,32l2.1418-11.1605l0.6996,4.1763c0.1122,0.6679,2.3298,13.9055,2.3298,13.9055c0.2615,1.5604,1.6435,2.8154,3.5205,3.1974 L40,44.4198l-11.3161,2.3026c-1.8724,0.381-3.2513,1.6356-3.5127,3.1963L22.1422,68l-3.029-18.0806 c-0.2615-1.5607-1.6405-2.8153-3.5131-3.1964L4.2836,44.4205l11.3171-2.3031C17.4727,41.7362,18.7387,39.5604,19,38"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M42.5556,13.4499l1.5469-8.0604l0.5052,3.0162c0.081,0.4824,1.6827,10.0429,1.6827,10.0429 c0.1889,1.1269,1.1869,2.0334,2.5426,2.3092L57,22.4198l-8.1728,1.663c-1.3523,0.2752-2.3482,1.1812-2.5369,2.3084l-2.1876,13.0587 l-2.1876-13.0582c-0.1889-1.1272-1.1848-2.0333-2.5372-2.3085l-8.173-1.6629l8.1735-1.6634 c1.352-0.2753,2.2663-1.8467,2.455-2.9736"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M53.8482,44.267l1.2335-6.4275l0.4029,2.4052c0.0646,0.3847,1.3418,8.0084,1.3418,8.0084 c0.1506,0.8986,0.9465,1.6215,2.0275,1.8414l6.5126,1.3253l-6.5171,1.3261c-1.0783,0.2194-1.8725,0.9419-2.023,1.8408L55.0819,65 l-1.7445-10.4129c-0.1506-0.8988-0.9448-1.6214-2.0232-1.8409l-6.5174-1.326l6.5177-1.3264 c1.0781-0.2195,1.8072-1.4726,1.9577-2.3712"/>
+  </g>
+</symbol>
+<symbol id="1F388" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2.1216" points="34,47.2098 34.01,49.1498 34.04,55.6098 28.12,51.7998 22.2,47.9998 28.09,45.3398 30.04,44.4598"/>
+    <circle cx="45" cy="27" r="23.0003" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M17.7253,65.09c0.5048,0.0395,1.0254-0.0002,1.547-0.1285c2.7035-0.6648,4.41-3.458,3.8116-6.2388"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M23.1406,58.907c-0.1631-0.4794-0.2535-0.9936-0.2582-1.5307c-0.0246-2.7839,2.2596-5.1284,5.102-5.2364"/>
+  </g>
+</symbol>
+<symbol id="1F389" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="50.6626,45.6395 50.8308,45.8076 28.9606,55.1086 7.0904,64.4096 16.3914,42.5394 25.6923,20.6692"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="25.801,20.7779 38.2616,33.2384 50.6626,45.6395"/>
+    <line x1="25.6923" x2="25.801" y1="20.6692" y2="20.7779" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M46.4905,7.3671c0.2347,0.4487,0.4027,0.943,0.4897,1.473c0.451,2.7473-1.447,5.4141-4.2392,5.9565"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M42.9327,14.7763c-0.5049,0.0384-1.0133,0.1573-1.509,0.364c-2.5697,1.0713-3.828,4.093-2.8105,6.7492"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M61.7928,26.7168c-0.0987,0.4967-0.2778,0.987-0.5425,1.4544c-1.372,2.4225-4.5229,3.309-7.0378,1.98"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M54.3745,30.2558c-0.4173-0.2868-0.8878-0.513-1.4036-0.663c-2.6733-0.7775-5.5486,0.7867-6.4223,3.4936"/>
+  </g>
+</symbol>
+<symbol id="1F38A" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M31.843,18.7784c-3.5265-6.9338-11.9304-9.884-19.0352-6.571S2.5611,23.8546,5.6059,31.013L31.843,18.7784z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M66.6602,30.9614c3.0448-7.1584-0.0971-15.4926-7.2019-18.8056s-15.5087-0.3628-19.0352,6.571L66.6602,30.9614z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M36.3613,30.3421c-0.4363,0.257-0.8402,0.5878-1.1941,0.9918c-1.8345,2.0941-1.6323,5.3611,0.4517,7.297"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M35.4667,38.5125c0.4084,0.2994,0.7771,0.669,1.0888,1.1064c1.6156,2.2673,1.0872,5.4977-1.1802,7.2151"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M20.956,42.9535c-0.4954,0.1047-0.9836,0.2898-1.4477,0.5601c-2.4057,1.4013-3.2539,4.5627-1.8945,7.0613"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M17.5073,50.4141c0.2919,0.4138,0.5237,0.8816,0.68,1.3954c0.8098,2.6637-0.7193,5.5578-3.4155,6.4641"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M53.4927,38.6198c0.4774,0.1689,0.937,0.4165,1.3616,0.7455c2.2007,1.7052,2.6261,4.9507,0.9502,7.249"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M55.9312,46.4689c-0.3437,0.3719-0.6351,0.8051-0.8575,1.294c-1.1528,2.5341-0.0173,5.6041,2.5364,6.8569"/>
+  </g>
+</symbol>
+<symbol id="1F38B" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M41,12c3.3439-0.5011,6.7458-0.4799,10.4994,2.0511c7.8693,5.3059,8.1448,17.1677,8.1532,17.6704 c0.0056,0.3848-0.1372,0.7497-0.3839,0.9795c-0.167,0.1563-0.3688,0.2379-0.5724,0.2379c-0.0972,0-0.1942-0.0187-0.2886-0.056 C57.8743,32.6727,46.6569,28.2104,39,18"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M40.445,27.9895l-5.4208,2.6931c-0.6447,0.3203-0.978,1.0867-0.7746,1.8045c1.2382,4.368,5.9416,19.1975,15.1459,28.9456 c0.5127,0.5431,1.346,0.5627,1.9107,0.0672l9.2458-8.1146c0.7049-0.6187,0.7032-1.763-0.0138-2.3489 c-3.1252-2.5532-10.8734-9.6479-18.2871-22.4672C41.8759,27.9204,41.1009,27.6636,40.445,27.9895z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M15.9497,13.5739c0.0132-2.9297-0.5317-5.7065-1.5405-7.8848c0.2617-0.0942,0.6865-0.1973,1.2671-0.1841l13.1597,0.0586 c0.5742,0.0024,1.0034,0.0991,1.2646,0.1953c-1.0283,2.1694-1.5977,4.9414-1.6108,7.8711 c-0.0059,1.3179,0.103,2.7412,0.3154,4.1152c0.1804,1.1668,0.4319,2.2573,0.733,3.2396H31.64 c-0.3561-1.0208-0.6553-2.2333-0.8583-3.5453c-0.1968-1.2715-0.2974-2.5859-0.292-3.8008c0.0127-2.8184,0.582-5.4443,1.603-7.394 c0.2412-0.4604,0.2256-0.9814-0.0439-1.4292c-0.5508-0.915-2.0161-1.2466-3.2041-1.252L15.6855,3.505 c-1.21,0.0195-2.6558,0.3125-3.2153,1.2227c-0.2734,0.4453-0.2944,0.9658-0.0576,1.4287c1.0039,1.959,1.5498,4.5903,1.5371,7.4087 c-0.0114,2.6023-0.5109,5.3911-1.2535,7.4198h2.1182C15.5073,18.8297,15.9383,16.1669,15.9497,13.5739z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M15.8506,35.7399c0.0116-2.53-0.4008-5.3115-1.1029-7.5328H12.637c0.0374,0.1025,0.0764,0.1989,0.1125,0.3057 c0.7007,2.0723,1.1123,4.7705,1.1011,7.2183c-0.0111,2.5326-0.4857,5.2396-1.1954,7.2538h2.1177 C15.4335,40.8607,15.8395,38.2642,15.8506,35.7399z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M30.3906,35.8048c0.0118-2.6768,0.5377-5.5574,1.316-7.5977h-2.119c-0.728,2.1857-1.1853,4.9222-1.197,7.5889 c-0.0113,2.4971,0.362,5.0714,0.9913,7.1888h2.1103C30.8171,40.9731,30.3793,38.3023,30.3906,35.8048z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M28.5249,54.6486l0.0005,0.0001c-0.1509,1.1279-0.2295,2.2431-0.2339,3.3124c-0.0132,2.9307,0.5317,5.708,1.5405,7.8857 c-0.2617,0.0938-0.6904,0.1797-1.2671,0.1846l-13.1592-0.0596c-0.5742-0.0029-1.0039-0.0996-1.2651-0.1953 c1.0283-2.1699,1.5977-4.9414,1.6108-7.8711c0.0122-2.7077-0.4344-5.4905-1.1622-7.6984h-2.1128 c0.7759,2.0511,1.2873,4.9786,1.275,7.6886c-0.0127,2.8193-0.582,5.4453-1.603,7.3945c-0.2412,0.4609-0.2256,0.9814,0.0439,1.4297 c0.5508,0.915,2.0166,1.2471,3.2046,1.252l13.1592,0.0596c0.0098,0,0.019,0,0.0288,0c1.1821,0,2.6309-0.3203,3.186-1.2236 c0.2734-0.4443,0.2944-0.9658,0.0576-1.4287c-1.0039-1.959-1.5498-4.5898-1.5371-7.4092c0.0044-0.9844,0.0771-2.0127,0.2163-3.0557 c0.0001-0.0008-0.0002-0.0014-0.0001-0.0022c0.2372-1.7746,0.6535-3.4259,1.1619-4.705H29.537 C29.0951,51.4969,28.7445,53.0043,28.5249,54.6486z"/>
+  </g>
+</symbol>
+<symbol id="1F38D" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <line x1="22.7071" x2="31.8995" y1="46.7071" y2="55.8995" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29.0711" x2="29.0711" y1="48.8284" y2="53.0711" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="26.2426" x2="26.2426" y1="46" y2="50.2426" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="24.8284" x2="29.0711" y1="53.0711" y2="53.0711" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="22" x2="26.2426" y1="50.2426" y2="50.2426" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="49.2929" x2="40.1005" y1="46.7071" y2="55.8995" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="42.9289" x2="42.9289" y1="48.8284" y2="53.0711" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="45.7574" x2="45.7574" y1="46" y2="50.2426" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="47.1716" x2="42.9289" y1="53.0711" y2="53.0711" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="50" x2="45.7574" y1="50.2426" y2="50.2426" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="36" x2="36" y1="43" y2="56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="33" x2="36" y1="49" y2="52" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="33" x2="36" y1="45" y2="48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="39" x2="36" y1="49" y2="52" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="39" x2="36" y1="45" y2="48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="35" x2="35" y1="22" y2="33" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="37" x2="37" y1="28" y2="39" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M36.5,8C37.8807,8,39,9.7909,39,12s-1.1193,4-2.5,4S34,14.2091,34,12s1.1193-4,2.5-4m0-2C33.9766,6,32,8.6355,32,12s1.9766,6,4.5,6S41,15.3645,41,12s-1.9766-6-4.5-6Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M40.5,24c1.3807,0,2.5,1.7909,2.5,4s-1.1193,4-2.5,4S38,30.2091,38,28s1.1193-4,2.5-4m0-2c-2.5234,0-4.5,2.6355-4.5,6s1.9766,6,4.5,6S45,31.3645,45,28s-1.9766-6-4.5-6Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M31.5,18c1.3807,0,2.5,1.7909,2.5,4s-1.1193,4-2.5,4S29,24.2091,29,22s1.1193-4,2.5-4m0-2c-2.5234,0-4.5,2.6355-4.5,6s1.9766,6,4.5,6S36,25.3645,36,22s-1.9766-6-4.5-6Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M36.5,8C37.8807,8,39,9.7908,39,12V24.8181A1.9823,1.9823,0,0,1,40.5,24c1.3807,0,2.5,1.7908,2.5,4V55H29V22c0-2.2092,1.1193-4,2.5-4S34,19.7908,34,22l.08-10c0-2.2092,1.039-4,2.42-4m0-2c-2.52,0-4.42,2.5794-4.42,6l-.0325,4.0421A3.5721,3.5721,0,0,0,31.5,16c-2.5234,0-4.5,2.6355-4.5,6V55a2,2,0,0,0,2,2H43a2,2,0,0,0,2-2V28c0-3.1388-1.72-5.6432-4-5.965V12c0-3.3645-1.9766-6-4.5-6Z"/>
+    <line x1="32" x2="32" y1="56" y2="67" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="40" x2="40" y1="56" y2="67" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="46" x2="26" y1="59.5" y2="59.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="26" x2="46" y1="63.5" y2="63.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+  <g id="line">
+    <rect x="26" y="56" width="20" height="11" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F38E" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="16.1336" cy="51.5015" r="1"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="30.3797" cy="51.5015" r="1"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="41.7769" cy="51.4458" r="1"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="56.023" cy="51.4458" r="1"/>
+  </g>
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.2143,17.61a7.9964,7.9964,0,0,1-1.6784-5.1179c0-3.6431,2.0356-6.5965,4.5469-6.5965s4.5463,2.9534,4.5463,6.5965A7.992,7.992,0,0,1,25.9506,17.61"/>
+    <ellipse cx="23.0825" cy="26.2655" rx="7.5232" ry="9.3606" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M45.3151,17.9792h-.0008c-1.8918-.7741-3.1484-2.1429-3.1484-3.7025,0-2.4156,3.0149-4.3739,6.7342-4.3739s6.7333,1.9583,6.7333,4.3739c0,1.56-1.2567,2.9284-3.1484,3.7018"/>
+    <ellipse cx="48.8998" cy="26.2098" rx="7.5232" ry="9.3606" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M42.1227,29.4886a8.6763,8.6763,0,0,1,2.4135-4.2723,1.4387,1.4387,0,0,1,.904-.3863,1.5047,1.5047,0,0,1,.765.1542,6.0138,6.0138,0,0,0,5.3889,0,1.4807,1.4807,0,0,1,1.6691.2321,8.6716,8.6716,0,0,1,2.4136,4.2724"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M50.4534,28.5577s1.4924-2.2386,2.9848,0"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M44.4838,28.5577s1.4924-2.2386,2.9848,0"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.3054,29.545v-.0008a8.6772,8.6772,0,0,1,2.4135-4.2722,1.4392,1.4392,0,0,1,.904-.3863,1.5053,1.5053,0,0,1,.7651.1542,6.0138,6.0138,0,0,0,5.3889,0,1.4808,1.4808,0,0,1,1.6691.2321A8.6722,8.6722,0,0,1,29.86,29.5444v.0007"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M24.6362,28.6134s1.4924-2.2386,2.9847,0"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M18.6666,28.6134s1.4924-2.2386,2.9848,0"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M29.3778,36.1475a9.2515,9.2515,0,0,1,4.7874,8.1065V59.9584H12V44.254a9.2516,9.2516,0,0,1,4.7873-8.1065"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M55.1953,36.1475a9.2516,9.2516,0,0,1,4.7873,8.1065V59.9584H37.8172V44.254a9.2516,9.2516,0,0,1,4.7873-8.1065"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="22.163 55 19.103 40.174 27.062 40.174 24.126 55 22.163 55"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M57.3272,44.8449a9.8764,9.8764,0,0,0-16.8546,0l8.4273,10.1Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12,59.9584s6.0781-3.1474,9.4127-8.594"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M34.1652,59.9584a27.0679,27.0679,0,0,1-9.3418-8.4791"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M37.8172,59.9584a27.6264,27.6264,0,0,0,8.834-7.7089"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M59.9826,59.9584a27.6259,27.6259,0,0,1-8.834-7.709"/>
+  </g>
+</symbol>
+<symbol id="1F38F" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="18" x2="18" y1="67" y2="8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle fill="none" cx="18" cy="7" r="1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle fill="none" cx="18" cy="7" r="2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle fill="none" cx="36" cy="21.3675" r="1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M42,20s3,0,4,2"/>
+    <circle fill="none" cx="34" cy="42.3675" r="1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M40,41s3,0,4,2"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="28 20.385 18 22 28 24.077"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="26 41.385 18 43 26 45.077"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M58.6923,19.1538c2.9231,0,7.3077-2.4615,7.3077-2.4615v9.8462s-2.9231-4.9231-7.3077-2.4616S47,26.5385,47,26.5385L45.5385,29H38.2308l-1.4616-2.4615A20.7985,20.7985,0,0,1,28,24.0769V20.3846s4.3846-3.5555,8.7692-3.5555V14.3675s9.0433-3,17.5385,1.094v2.4616A7.0984,7.0984,0,0,0,58.6923,19.1538Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M56.6923,40.1538c2.9231,0,7.3077-2.4615,7.3077-2.4615v9.8462s-2.9231-4.9231-7.3077-2.4616S45,47.5385,45,47.5385L43.5385,50H36.2308l-1.4616-2.4615A20.7985,20.7985,0,0,1,26,45.0769V41.3846s4.3846-3.5555,8.7692-3.5555V35.3675s9.0433-3,17.5385,1.094v2.4616A7.0984,7.0984,0,0,0,56.6923,40.1538Z"/>
+  </g>
+</symbol>
+<symbol id="1F390" viewBox="0 0 72 72">
+  <g id="line">
+    <g>
+      <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M55.1767,38.6265a19.6726,19.6726,0,0,0,.4943-9.2146A19.9973,19.9973,0,0,0,16,33a19.7418,19.7418,0,0,0,.8242,5.63,2.0054,2.0054,0,0,0,1.9234,1.4292H53.2521A2.0071,2.0071,0,0,0,55.1767,38.6265Z"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M36,13s.7889-4.1056-1-5"/>
+      <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M36,44s1,6-4,9"/>
+      <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M39,41a3,3,0,0,1-6,0"/>
+      <path fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M16,54a14.4232,14.4232,0,0,0,14-4l4,6a14.4232,14.4232,0,0,1-14,4Z"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F391" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <g>
+      <circle cx="36" cy="21" r="9" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+      <g>
+        <g>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M15.0056,43.04a9.8158,9.8158,0,0,1,6.6232,2.9568"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M15.5339,40.0114a10.281,10.281,0,0,1,6.56,2.4528"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M16.2753,37.0059A10.5851,10.5851,0,0,1,22.72,39.1442"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M17.4243,34.009a10.5987,10.5987,0,0,1,6.1608,2.0261"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M24.8463,33.2525a9.9691,9.9691,0,0,0-5.27-2.1559"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M23.0758,28.678a8.7566,8.7566,0,0,1,3.575,2.3416"/>
+        </g>
+        <g>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M20.0056,52.04a9.8158,9.8158,0,0,1,6.6232,2.9568"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M20.5339,49.0114a10.281,10.281,0,0,1,6.56,2.4528"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M21.2753,46.0059A10.5851,10.5851,0,0,1,27.72,48.1442"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M22.4243,43.009a10.5987,10.5987,0,0,1,6.1608,2.0261"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M29.8463,42.2525a9.9691,9.9691,0,0,0-5.27-2.1559"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M28.0758,37.678a8.7566,8.7566,0,0,1,3.575,2.3416"/>
+        </g>
+        <g>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M25,28a12.06,12.06,0,0,0-7,5c-2.88,4.3193-3.686,14.8566-3.912,20.4214"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M30,37a12.06,12.06,0,0,0-7,5c-2.2917,3.4375-3.2693,10.81-3.6873,16.484"/>
+        </g>
+        <polygon fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="0.75" points="52 22.46 52.618 22.902 52.389 22.178 53 21.727 52.24 21.721 52 21 51.76 21.721 51 21.727 51.611 22.088 51.382 22.902 52 22.46"/>
+        <polygon fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.5" points="54.897 32.071 56.197 33 55.715 31.477 57 30.528 55.402 30.516 54.897 29 54.392 30.426 52.794 30.528 54.08 31.477 53.597 33 54.897 32.071"/>
+        <polygon fill="none" stroke="currentColor" stroke-linejoin="round" points="18.5 24.337 19.427 25 19.083 23.913 20 23.237 18.86 23.138 18.5 22.147 18.14 23.228 17 23.237 17.917 23.913 17.573 25 18.5 24.337"/>
+      </g>
+      <circle cx="53.75" cy="47.75" r="2.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <circle cx="47" cy="47.75" r="2.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <circle cx="40.25" cy="47.75" r="2.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <circle cx="43.625" cy="41.75" r="2.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <circle cx="50.375" cy="41.75" r="2.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+      <circle cx="47" cy="35.75" r="2.25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    </g>
+  </g>
+  <g id="line">
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M55.341,49.341a2.25,2.25,0,0,1-3.182-3.182"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M48.591,49.341a2.25,2.25,0,0,1-3.182-3.182"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M41.841,49.341a2.25,2.25,0,0,1-3.182-3.182"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M45.216,43.341a2.25,2.25,0,0,1-3.182-3.182"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M51.966,43.341a2.25,2.25,0,0,1-3.182-3.182"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M48.591,37.341a2.25,2.25,0,0,1-3.182-3.182"/>
+      <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="58.243 53 34 53 34 56"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M42.364,27.364A9,9,0,0,1,29.636,14.636"/>
+      <line x1="40" x2="36" y1="56" y2="64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <circle cx="36" cy="36" r="28" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F9E7" viewBox="0 0 72 72">
+  <g id="line">
+    <g>
+      <g>
+        <line x1="31.8871" x2="31.8871" y1="21.4132" y2="23.8668" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M29.9242,23.8669h3.8493A12.01,12.01,0,0,1,29.7,28.85"/>
+        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M33.5868,28.2638a5.2377,5.2377,0,0,1-1.7-1.4514v5.7744"/>
+        <line x1="34.8121" x2="41.7" y1="22.1481" y2="22.1481" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="35.9805" y="23.8402" width="4.488" height="2.0098" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" points="35.37 32.537 35.37 27.615 38.268 27.615 41.166 27.615 41.166 32.537"/>
+        <line x1="35.3697" x2="41.1664" y1="29.6667" y2="29.6667" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="35.3697" x2="41.1664" y1="31.7164" y2="31.7164" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="38.2294" x2="38.2294" y1="31.7164" y2="27.6149" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <g>
+        <circle cx="36" cy="27" r="10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+        <g>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M55,18a25.4,25.4,0,0,1-9.2886,6.6522"/>
+          <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M26.2886,24.6522A25.4,25.4,0,0,1,17,18"/>
+        </g>
+      </g>
+      <rect x="17" y="5" width="38" height="62" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F380" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.992" d="M59.056,16.1044 c-0.5572-0.3152-1.1471-0.4855-1.762-0.4855c-2.2168,0-5.2008,0.9656-8.2145,2.4537"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.992" d="M40.357,36.2449 c11.5893,3.5957,14.4851,12.5149,20.1946,4.9369c5.8616-7.7802,3.4998-22.2515-1.4956-25.0774"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.992" d="M49.0795,18.0727 c-3.7261,1.8399-7.4976,4.4786-9.9199,7.0785"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.992" d="M30.11,28.4898v0.46c0.01,1.54,0.01,2.7,0,3.58 c0,1.02-0.01,1.67,0,2.14c0,0.57,0.03,0.88,0.11,1.24c0,0.02,0.01,0.03,0.01,0.05c0.02,0.04,0.03,0.09,0.04,0.14h-0.01 c-7.18,2.23-11.02,6.5-14.26,7.62c-1.7,0.59-3.24,0.32-5-1.56c-0.3-0.32-0.61-0.7-0.93-1.12c-1.51-2.01-2.48-4.46-2.99-7.04 c-0.14-0.72-0.25-1.44-0.32-2.17c-0.05-0.44-0.09-0.88-0.1-1.32c-0.03-0.43-0.04-0.87-0.04-1.3c0-5.56,1.77-10.85,4.38-12.87 c0.16-0.13,0.32-0.24,0.49-0.34c0.58-0.34,1.2-0.53,1.84-0.53c0.61,0,1.27,0.07,1.98,0.21c0.23,0.04,0.46,0.09,0.69,0.15 c0.21,0.05,0.43,0.11,0.65,0.17c4.76,1.32,10.85,4.96,14.43,8.61"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M30.2974,36.8198c-1.2433,0.4498-2.3699,0.9827-3.4001,1.5558c-2.2091,2.9385-6.1227,8.8343-10.3118,18.2197 c-0.3339,0.7478,0.1772,1.6439,0.8543,1.496l4.8211-1.054c0.6993-0.1529,1.3995,0.2638,1.7428,1.0375l2.1714,4.8934 c0.38,0.8563,1.4067,0.6854,1.5923-0.2651c0.9416-4.8245,3.1008-15.2418,5.7176-22.2669 C31.9419,40.1079,30.698,38.6771,30.2974,36.8198z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M44.1456,38.4326c-1.0626-0.6085-2.206-1.1647-3.4429-1.6129c-0.4006,1.8573-1.6446,3.2882-3.1877,3.6164 c2.6169,7.0251,4.7762,17.4424,5.7177,22.2669c0.1855,0.9505,1.2123,1.1214,1.5923,0.2651l2.1715-4.8934 c0.3433-0.7734,1.0435-1.1903,1.7428-1.0375l4.8211,1.054c0.6771,0.1479,1.1882-0.7481,0.8543-1.496 C50.2524,47.2699,46.3622,41.3901,44.1456,38.4326z"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M35.8394,22.7182h-1.6787 c-2.2335,0-4.0505,2.3813-4.0505,5.3087v6.6448c0,2.9274,1.817,5.3088,4.0505,5.3088h1.6787c2.2335,0,4.0505-2.3815,4.0505-5.3088 v-6.6448C39.89,25.0995,38.0729,22.7182,35.8394,22.7182z"/>
+  </g>
+</symbol>
+<symbol id="1F381" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="54.0913" x2="17.3557" y1="21.3571" y2="21.3571" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="17.3557,21.3571 14,21.3571 14,35.5 16.3571,35.5 16.3571,60.6429 55.6429,60.6429 55.6429,35.5 58,35.5 58,21.3571 54.0913,21.3571"/>
+    <line x1="16.3571" x2="56.4286" y1="35.5" y2="35.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M50.9612,18.2506c0.3839-0.9798,0.4917-2.3937-0.4893-4.2293c-1.6091-3.0089-3.5365-4.5339-5.7293-4.5339 c-2.5241,0-5.1454,2.0624-7.794,6.133c-0.3388,0.521-0.6562,1.042-0.9488,1.5449c-0.2926-0.5029-0.61-1.0238-0.9495-1.5449 c-2.647-4.0705-5.2692-6.133-7.7933-6.133c-2.1926,0-4.1209,1.5249-5.7292,4.5339c-0.9019,1.689-0.8835,3.0211-0.5752,3.9863"/>
+    <line x1="42.2857" x2="42.2857" y1="60" y2="44.2729" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29.7143" x2="29.7143" y1="41.7857" y2="60" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="42.2857" x2="42.2857" y1="35" y2="22" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29.7143" x2="29.7143" y1="22" y2="35" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <polyline fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" points="42.2857,44.7071 42.2857,35.5 29.7143,35.5202 29.7143,42.8737"/>
+  </g>
+</symbol>
+<symbol id="1F397" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.8125" d="M21.8,62.4L33,66l20-42.7c2.9-6,0-13.4-5.7-15.3L21.8,62.4z"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.8125" points="38.9,62.4 40.2,65 51.4,61.5 45.4,49.3"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.8125" d="M34.2,27.6L25,8c-5.8,1.9-8.6,9.2-5.8,15.3l8.5,18.3"/>
+    <line x1="33.7" x2="38.3" y1="19.1" y2="19.1" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.8125"/>
+    <line x1="43.7" x2="28.6" y1="8.1" y2="8.1" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.8125"/>
+  </g>
+</symbol>
+<symbol id="1F39F" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2.2157" d="M57.1,35.6 c0-4.9,3.9-9.1,9.4-10.6v-5.2h-62v5.5c4.9,1.7,8.4,5.7,8.4,10.3s-3.5,8.6-8.4,10.3v5.5h62v-5.2C61.1,44.7,57.1,40.5,57.1,35.6z"/>
+    <rect x="18.5" y="25" width="34" height="20" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2.0945"/>
+  </g>
+</symbol>
+<symbol id="1F3AB" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M48.1546,23.505 c-3.4279-3.5522-4.0284-8.7836-1.8682-12.9334l-3.6009-3.7315L6.3276,41.9262l3.8016,3.9394 c4.0722-1.5735,8.8681-0.6711,12.09,2.6676s3.9531,8.1636,2.2356,12.1773l3.8016,3.9394l36.3579-35.0861l-3.6009-3.7315 C56.7892,27.8434,51.5825,27.0572,48.1546,23.505z"/>
+    <ellipse cx="37.1223" cy="22.122" rx="2" ry="2" transform="matrix(0.7098 -0.7044 0.7044 0.7098 -4.8096 32.5704)" fill="currentColor" stroke="none"/>
+    <ellipse cx="43.6116" cy="28.6606" rx="2" ry="2" transform="matrix(0.7098 -0.7044 0.7044 0.7098 -7.5322 39.0393)" fill="currentColor" stroke="none"/>
+    <ellipse cx="50.101" cy="35.1992" rx="2" ry="2" transform="matrix(0.7098 -0.7044 0.7044 0.7098 -10.2548 45.5083)" fill="currentColor" stroke="none"/>
+  </g>
+</symbol>
+<symbol id="1F396" viewBox="0 0 72 72">
+  <g id="line">
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="36,27.7371 41.2478,43.888 58.2299,43.888 44.4911,53.8699 49.7388,70.0208 36,60.039 22.2612,70.0208 27.5089,53.8699 13.7701,43.888 30.7522,43.888"/>
+    <line x1="36" x2="36" y1="19.0643" y2="2.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="56,8.9792 56,2.0208 16,2.0208 16,8.9792 36,23.737"/>
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="36,27.7371 41.2478,43.888 58.2299,43.888 44.4911,53.8699 49.7388,70.0208 36,60.039 22.2612,70.0208 27.5089,53.8699 13.7701,43.888 30.7522,43.888"/>
+    <line x1="36" x2="36" y1="19.0643" y2="2.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="56,8.9792 56,2.0208 16,2.0208 16,8.9792 36,23.737"/>
+  </g>
+</symbol>
+<symbol id="1F3C6" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m52.219,11.832c.1581,0,.275.1446.2389.2984-.2055.8767-.9426,4.2922-3.5876,17.5156-1.588,7.942-5.5,12.572-12.833,12.572s-11.245-4.5-12.833-12.443c-2.414-11.8492-3.667-17.943-3.667-17.943h32.6817Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m23.0443,31.479s.079-.261-5.421-3.928c-2.528-1.683-5.459-3.9-5.459-6.943s2.5-5.11,5.539-5.11h1.513"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m48.7113,31.766s.079-.261,5.579-3.928c2.528-1.683,5.541-3.9,5.541-6.943-.0146-2.842-2.3303-5.1341-5.1723-5.1196-.0963.0005-.1926.0037-.2887.0096h-2.154"/>
+    <rect x="26.5503" y="50.332" width="18.333" height="9.167" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle cx="36.0373" cy="24.581" r="5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="36.0373" x2="36.0373" y1="50.332" y2="42.218" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3C5" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="45.0208" r="23" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="45.0208" r="23" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="45.0208" r="23" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="29" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="43" x2="43" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="43" y1="16.0208" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="25.9896" x2="16.9675" y1="13.0104" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="31.9896" x2="23.9831" y1="12.0104" y2="4.0039" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="34" x2="37.9207" y1="8" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="46" x2="54.9988" y1="13" y2="4.0221" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="16.9675" x2="23.9831" y1="3.9883" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="37.9207" x2="54.9988" y1="4.0169" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="45.0208" r="23" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="35.9861,28 30.8575,38.4014 19.3815,40.0733 27.6891,48.1652 25.7329,59.5961 35.9958,54.1957 46.2628,59.5885 44.2981,48.159 52.5996,40.061 41.1225,38.3976"/>
+  </g>
+</symbol>
+<symbol id="1F947" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="44.9746" r="23" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="44.9746" r="23" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="29" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="43" x2="43" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="43" y1="16.0208" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="25.9896" x2="16.9675" y1="13.0104" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="31.9896" x2="23.9831" y1="12.0104" y2="4.0039" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="34" x2="37.9207" y1="8" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="46" x2="54.9988" y1="13" y2="4.0221" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="16.9675" x2="23.9831" y1="3.9883" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="37.9207" x2="54.9988" y1="4.0169" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="30.3593,37.3924 37.5572,32 37.5572,58"/>
+  </g>
+</symbol>
+<symbol id="1F948" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="44.9746" r="23" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="44.9746" r="23" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="29" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="43" x2="43" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="43" y1="16.0208" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="25.9896" x2="16.9675" y1="13.0104" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="31.9896" x2="23.9831" y1="12.0104" y2="4.0039" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="34" x2="37.9207" y1="8" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="46" x2="54.9988" y1="13" y2="4.0221" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="16.9675" x2="23.9831" y1="3.9883" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="37.9207" x2="54.9988" y1="4.0169" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M28.3219,38.3771C29.0666,34.7378,32.2865,32,36.146,32l0,0c2.2052,0,4.202,0.894,5.6472,2.3393 c2.2483,2.2483,2.0406,5.9841-0.0687,8.3627L28.1595,58h15.9729"/>
+  </g>
+</symbol>
+<symbol id="1F949" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="45.0208" r="23" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="45.0208" r="23" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="29" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="43" x2="43" y1="19" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="29" x2="43" y1="16.0208" y2="16.0208" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="25.9896" x2="16.9675" y1="13.0104" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="31.9896" x2="23.9831" y1="12.0104" y2="4.0039" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="34" x2="37.9207" y1="8" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="46" x2="54.9988" y1="13" y2="4.0221" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="16.9675" x2="23.9831" y1="3.9883" y2="3.9883" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="37.9207" x2="54.9988" y1="4.0169" y2="4.0169" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M28.8327,52.81c0.6838,2.9621,3.6397,5.19,7.1827,5.19l0,0c4.0493,0,7.3316-2.9101,7.3316-6.5S40.0647,45,36.0154,45 c4.0493,0,7.3316-2.9101,7.3316-6.5S40.0647,32,36.0154,32l0,0c-3.543,0-6.4989,2.2282-7.1827,5.19"/>
+  </g>
+</symbol>
+<symbol id="26BD" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M65,36c0,1.61-0.13,3.19-0.39,4.73c-0.71,4.39-2.42,8.45-4.89,11.94c0,0,0,0,0,0.01c-4.24,6.03-10.73,10.37-18.24,11.8 C39.7,64.82,37.87,65,36,65c-0.5,0-1-0.01-1.49-0.04h-0.07c-0.47-0.03-0.94-0.06-1.41-0.11c-0.04,0-0.08-0.01-0.1201-0.01 c-0.39-0.04-0.78-0.09-1.17-0.15c-0.11-0.02-0.23-0.03-0.34-0.05c-0.3-0.05-0.59-0.1-0.89-0.16c-0.47-0.09-0.94-0.19-1.41-0.31 c-0.19-0.04-0.39-0.09-0.58-0.14c-0.26-0.07-0.52-0.15-0.78-0.23c-0.23-0.07-0.47-0.14-0.71-0.22 c-0.2401-0.0699-0.47-0.15-0.7-0.24c-0.19-0.07-0.38-0.14-0.57-0.21c-0.11-0.03-0.21-0.07-0.32-0.12 c-0.39-0.16-0.78-0.32-1.16-0.4901c-0.52-0.23-1.03-0.48-1.54-0.74c-0.23-0.12-0.45-0.24-0.68-0.37 c-0.26-0.14-0.51-0.28-0.76-0.43c-0.28-0.17-0.56-0.33-0.84-0.51c-0.08-0.05-0.16-0.11-0.2401-0.16 c-0.39-0.25-0.78-0.52-1.15-0.79c-0.32-0.22-0.63-0.46-0.93-0.69c-0.03-0.02-0.05-0.04-0.08-0.0699 c-0.27-0.21-0.53-0.42-0.78-0.64c-0.13-0.1-0.26-0.21-0.38-0.32c-0.1-0.09-0.19-0.17-0.29-0.26c-0.02-0.01-0.03-0.02-0.04-0.03 c-0.03-0.03-0.06-0.06-0.09-0.08c-0.02-0.01-0.03-0.03-0.04-0.04c-0.02-0.01-0.03-0.02-0.04-0.04c-0.13-0.11-0.25-0.22-0.37-0.34 c-0.13-0.12-0.25-0.23-0.36-0.35c-0.02-0.02-0.04-0.04-0.05-0.06c-0.1-0.1-0.2-0.19-0.3-0.28 c-0.1517-0.1517-0.2917-0.3225-0.4401-0.4795c-0.0066-0.0068-0.0134-0.0137-0.02-0.0205 c0.0008,0.0004,0.0015,0.0009,0.0023,0.0013c-0.3342-0.3544-0.6707-0.7049-0.9923-1.0813c-0.24-0.28-0.48-0.57-0.71-0.87 c-0.3199-0.41-0.6299-0.82-0.93-1.25c-2.46-3.51-4.16-7.59-4.87-12.01C7.12,39.11,7,37.57,7,36c0-6.17,1.92-11.89,5.22-16.59 C15.41,14.83,19.9,11.22,25.15,9.11C28.5,7.74,32.16,7,36,7c3.83,0,7.49,0.74,10.83,2.1c2.52,1,4.86,2.36,6.97,4.02 c0.56,0.43,1.11,0.89,1.64,1.38h0.01c0.53,0.48,1.04,0.98,1.53,1.5c0.75,0.77,1.44,1.58,2.09,2.44c0.21,0.28,0.43,0.57,0.63,0.86 v0.01c0,0,0-0.01,0.01,0c0.5,0.69,0.97,1.42,1.39,2.17c0.15,0.25,0.29,0.5,0.4301,0.76c0.17,0.31,0.33,0.61,0.47,0.92 c0.11,0.21,0.21,0.42,0.31,0.64c0.16,0.32,0.3,0.64,0.43,0.96c0.16,0.36,0.3,0.72,0.43,1.09c0.11,0.28,0.21,0.56,0.3,0.85 c0.08,0.23,0.16,0.47,0.2401,0.72c0.1,0.32,0.19,0.64,0.28,0.96c0.06,0.23,0.12,0.45,0.17,0.68c0.1801,0.71,0.33,1.42,0.44,2.15 c0.04,0.21,0.07,0.42,0.1,0.64c0.05,0.32,0.09,0.65,0.12,0.97c0.02,0.14,0.04,0.28,0.05,0.41c0.03,0.35,0.06,0.7,0.07,1.06 c0.02,0.15,0.03,0.29,0.03,0.44C64.99,35.15,65,35.57,65,36z"/>
+    <path fill="currentColor" stroke="none" d="M34.2366,28.0728l-6.1555,4.4722c-1.0515,0.7639-1.4914,2.118-1.0898,3.3541l2.3512,7.2362 c0.4016,1.2361,1.5535,2.0729,2.8532,2.0729h7.6086c1.2997,0,2.4515-0.8369,2.8532-2.0729l2.3512-7.2362 c0.4016-1.2361-0.0383-2.5902-1.0898-3.3541l-6.1555-4.4722C36.7119,27.3089,35.2881,27.3089,34.2366,28.0728z"/>
+    <path fill="currentColor" stroke="none" d="M46.28,10.18l-8.41,4.12c-0.59,0.28-1.23,0.42-1.87,0.41c-0.57-0.0099-1.14-0.14-1.68-0.39l-8.61-4.1 c-0.42-0.2-0.64-0.67-0.56-1.11C28.5,7.74,32.16,7,36,7c3.83,0,7.49,0.74,10.83,2.1C46.91,9.53,46.7,9.98,46.28,10.18z"/>
+    <path fill="currentColor" stroke="none" d="M30.51,64.48c-0.47-0.09-0.94-0.19-1.41-0.31c-0.19-0.04-0.39-0.09-0.58-0.14c-0.26-0.07-0.52-0.15-0.78-0.23 c-0.23-0.07-0.47-0.14-0.71-0.22c-0.2401-0.0699-0.47-0.15-0.7-0.24c-0.19-0.07-0.38-0.14-0.57-0.21 c-0.11-0.03-0.21-0.07-0.32-0.12c-0.39-0.16-0.78-0.32-1.16-0.4901c-0.522-0.2304-1.0333-0.4806-1.5386-0.741 c-0.2299-0.1179-0.4554-0.2423-0.6817-0.3661c-0.2557-0.1407-0.509-0.2849-0.7601-0.4332 c-0.2823-0.1659-0.5635-0.3326-0.8397-0.5077c-0.0818-0.0522-0.1609-0.108-0.2422-0.161 c-3.1296-2.0298-5.849-4.6387-7.9878-7.691c0.19-0.34,0.58-0.55,1.01-0.5l9.34,1.14c0.64,0.08,1.24,0.3,1.76,0.65 c0.49,0.33,0.91,0.76,1.22,1.27l2.82,4.59l2.19,3.58C30.79,63.71,30.76,64.16,30.51,64.48z"/>
+    <path fill="currentColor" stroke="none" d="M15.16,31.37c-0.14,0.58-0.41,1.13-0.79,1.61l-5.9,7.3c-0.28,0.34-0.73,0.46-1.11,0.33C7.12,39.11,7,37.57,7,36 c0-6.17,1.92-11.89,5.22-16.59c0.42,0.05,0.79,0.35,0.88,0.79l2.08,9.33C15.32,30.14,15.31,30.77,15.16,31.37z"/>
+    <path fill="currentColor" stroke="none" d="M59.72,52.67c0,0,0,0,0,0.01c-4.24,6.03-10.73,10.37-18.24,11.8c-0.26-0.32-0.29-0.78-0.07-1.15L46.4,55.19 c0.3199-0.52,0.74-0.95,1.24-1.28c0.52-0.34,1.11-0.56,1.74-0.64l9.31-1.14C59.13,52.08,59.53,52.31,59.72,52.67z"/>
+    <path fill="currentColor" stroke="none" d="M65,36c0,1.61-0.13,3.19-0.39,4.73c-0.36,0.08-0.75-0.04-1-0.35l-5.25-6.5l-0.73-0.9c-0.78-0.96-1.08-2.23-0.8-3.45 l1.06-4.75v-0.01l1.04-4.69c0.08-0.39,0.39-0.6899,0.77-0.77c0-0.01,0-0.01,0.01,0c0.5,0.69,0.97,1.42,1.39,2.17 c0.15,0.25,0.29,0.5,0.4301,0.76c0.17,0.31,0.33,0.61,0.47,0.92c0.11,0.21,0.21,0.42,0.31,0.64c0.16,0.32,0.3,0.64,0.43,0.96 c0.16,0.36,0.3,0.72,0.43,1.09c0.11,0.28,0.21,0.56,0.3,0.85c0.08,0.23,0.16,0.47,0.2401,0.72c0.1,0.32,0.19,0.64,0.28,0.96 c0.06,0.23,0.12,0.45,0.17,0.68c0.1801,0.71,0.33,1.42,0.44,2.15c0.04,0.21,0.07,0.42,0.1,0.64c0.05,0.32,0.09,0.65,0.12,0.97 c0.02,0.14,0.04,0.28,0.05,0.41c0.03,0.35,0.06,0.7,0.07,1.06c0.02,0.15,0.03,0.29,0.03,0.44C64.99,35.15,65,35.57,65,36z"/>
+    <line x1="36" x2="36" y1="14.7122" y2="27.4999" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="44.9889" x2="56.8125" y1="33.9902" y2="31.3266" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="41.5906" x2="47.6376" y1="44.6172" y2="53.9126" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="30.394" x2="24.3434" y1="44.6059" y2="53.9126" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="27.0013" x2="15.1636" y1="34.0188" y2="31.3728" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="26BE" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="35.9583" r="29" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m56.494,56.5182c-5.2796-5.2522-8.5478-12.5243-8.5478-20.5598,0-8.0081,3.2459-15.2581,8.4939-20.5061"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.5331,15.4522c5.248,5.248,8.4939,12.498,8.4939,20.5061,0,8.0287-3.2455,15.2768-8.5172,20.5279"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="45.9462 35.4583 47.9462 36.4583 49.9462 35.4583"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="26.0271 36.4583 24.027 35.4583 22.027 36.4583"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="25.2025 43.3317 23.4241 41.9762 21.2726 42.5856"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="23.0012 49.4547 21.523 47.7769 19.2938 47.9528"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="19.5977 54.6466 18.8245 52.5484 16.6821 51.9081"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="20.2695 17.7956 18.1198 18.411 17.3222 20.4999"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="23.4875 23.5425 21.2891 23.6516 20.0026 25.5061"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="25.4746 29.7549 23.27 29.3806 21.6479 30.9197"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="46.7708 28.5842 48.5492 29.9397 50.7006 29.3303"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="48.972 22.4611 50.4502 24.1389 52.6794 23.9631"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="52.4993 17.1179 53.2724 19.216 55.4149 19.8564"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="51.5447 53.912 53.6945 53.2967 54.4921 51.2077"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="48.4822 48.4289 50.7156 48.3183 51.9671 46.4653"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="46.4986 42.161 48.7032 42.5352 50.3253 40.9962"/>
+  </g>
+</symbol>
+<symbol id="1F94E" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="23.111 58.006 21.594 53.799 17.319 52.488"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="27.658 51.94 25.199 48.205 20.736 47.93"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="30.692 45.113 27.415 42.069 23.014 42.864"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="31.997 37.918 28.076 35.767 24.003 37.613"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="31.295 29.888 26.963 28.777 23.475 31.576"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="28.666 21.957 24.194 21.938 21.496 25.505"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="24.457 15.353 20.109 16.399 18.336 20.505"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="49.889 58.006 51.406 53.799 55.681 52.488"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="45.342 51.94 47.801 48.205 52.264 47.93"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="42.308 45.113 45.585 42.069 49.986 42.864"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="41.003 37.918 44.924 35.767 48.997 37.613"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="41.705 29.888 46.037 28.777 49.525 31.576"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="44.334 21.957 48.806 21.938 51.504 25.505"/>
+    <polyline fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="48.543 15.353 52.891 16.399 54.664 20.505"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M18,14.5579a27.9882,27.9882,0,0,1,0,42.8842"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M54.5,14.991a27.98,27.98,0,0,0,0,42.018"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="23.111 58.006 21.594 53.799 17.319 52.488"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="27.658 51.94 25.199 48.205 20.736 47.93"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="27.658 51.94 25.199 48.205 20.736 47.93"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="30.692 45.113 27.415 42.069 23.014 42.864"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="31.997 37.918 28.076 35.767 24.003 37.613"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="31.295 29.888 26.963 28.777 23.475 31.576"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="28.666 21.957 24.194 21.938 21.496 25.505"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="24.457 15.353 20.109 16.399 18.336 20.505"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="49.889 58.006 51.406 53.799 55.681 52.488"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="45.342 51.94 47.801 48.205 52.264 47.93"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="42.308 45.113 45.585 42.069 49.986 42.864"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="41.003 37.918 44.924 35.767 48.997 37.613"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="41.705 29.888 46.037 28.777 49.525 31.576"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="44.334 21.957 48.806 21.938 51.504 25.505"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="48.543 15.353 52.891 16.399 54.664 20.505"/>
+    <circle cx="36" cy="36" r="28" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3C0" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="7" x2="65" y1="36" y2="36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="36" x2="36" y1="7" y2="65" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M55.2,57.7c-5.6-5.6-9-13.2-9-21.8c0-8.5,3.4-16.2,9-21.8"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M16.9,14.2c5.6,5.6,9,13.3,9,21.8s-3.4,16.2-9,21.8"/>
+    <circle cx="36" cy="36" r="29" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3D0" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M36,35.9583c0,10.7223-5.6044,19.9898-14.2923,24.9988"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M36,35.958c-8.9994-5.878-13.6673-15.7121-13.1101-25.7252"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M35.9933,35.9513c9.1533-5.6353,20.0795-5.5746,28.8998-0.8024"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M33.0808,48.9141c9.1533-5.6353,20.2095-5.5746,29.0298-0.8024"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M22.9297,60.6942c9.8471-6.0624,21.3595-6.6171,30.2812-2.4044"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M26.813,26.5626c0.0229,10.7489-5.8045,19.8966-14.4818,24.9242"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M22.2601,11.2887c0.0258,12.0976-5.7717,22.6704-14.4061,28.3264"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M49.3099,31.6352c-9.6212-4.7929-15.4122-14.2113-16.0219-24.2213"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M64.3321,33.8675C53.5037,28.4732,46.6464,18.9614,45.4557,8.7083"/>
+    <circle cx="35.9885" cy="35.9583" r="29" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3C8" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <line x1="36" x2="36" y1="4.2" y2="67.7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="38.9" x2="33.1" y1="35.9" y2="35.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="38.9" x2="33.1" y1="30.9" y2="30.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="38.9" x2="33.1" y1="40.9" y2="40.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="25.6" x2="46.5" y1="58.6" y2="58.6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="23.6" x2="48.4" y1="16" y2="16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M35.9,4c-11,6.4-18.3,18.3-18.3,31.9S25,61.5,36,67.9h0.1C47,61.5,54.4,49.6,54.4,36C54.4,22.3,47,10.4,35.9,4"/>
+  </g>
+</symbol>
+<symbol id="1F3C9" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M58.6194,13.2261c-12.3292-3.2325-25.9985-0.0171-35.6616,9.646c-9.6832,9.6832-12.8918,23.3893-9.6257,35.7385l0.0486,0.0486 c12.3292,3.2325,25.9985,0.0171,35.6616-9.646C58.7255,39.33,61.934,25.6239,58.668,13.2747"/>
+    <line x1="58.6692" x2="13.3333" y1="13.276" y2="58.6119" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="41.5751" x2="37.4959" y1="34.4467" y2="30.3675" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="45.1107" x2="41.0314" y1="30.9112" y2="26.832" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="38.0396" x2="33.9604" y1="37.9823" y2="33.903" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="34.5041" x2="30.4248" y1="41.5178" y2="37.4386" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="30.9685" x2="26.8893" y1="45.0533" y2="40.9741" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M26.0156,36.0794c0-1.7991,0.4751-3.4872,1.3066-4.9457"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M41.0078,44.7461c-1.4691,0.8481-3.174,1.3333-4.9922,1.3333"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M46.0156,36.0794c0,1.8198-0.4861,3.5261-1.3355,4.996"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M30.9861,27.4344c1.4575-0.8498,3.1494-1.3415,4.9551-1.3547"/>
+  </g>
+</symbol>
+<symbol id="1F3BE" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M43.7,63.9c0.3-4.4,1.9-6.6,5.4-10.1c3.3-3.3,5.5-7.4,5.5-12.2c0-9.5-8.3-17.2-18.6-17.2s-18.6,7.7-18.6,17.2 c0,4.8,2.2,8.9,5.5,12.2c3.5,3.5,5.1,5.7,5.4,10.1"/>
+  </g>
+  <g id="line">
+    <circle cx="36" cy="36" r="29" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F94F" viewBox="0 0 72 72">
+  <g id="line">
+    <ellipse cx="35.9999" cy="30.5" rx="6.7991" ry="21.9789" transform="translate(-5.0564 53.7513) rotate(-69.7961)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <ellipse cx="35.9999" cy="30.5" rx="11.5334" ry="27.8816" transform="translate(-4.9734 53.8973) rotate(-70)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M39.8023,52.363c2.8865,1.5925,21.926,6.78,23.98,1.8"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M37.778,48.8451c2.3577,1.41,18.0633,6.2843,19.919,2.1969"/>
+  </g>
+</symbol>
+<symbol id="1F3B3" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="19.9983" cy="52.0915" r="15" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="16.197" cy="47.6524" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="19.777" cy="51.6524" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="12.4566" cy="53.6524" r="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3031" d="M8.7027,37.8423a19.06,19.06,0,0,1,5.2688-10.3984c6.8233-6.8233.445-11.226.336-16.1643l.0045.0261a6.3219,6.3219,0,0,1,6.3219-6.3219,6.4947,6.4947,0,0,1,6.3218,6.3219c-.1053,4.7754-6.0734,9.05-.2966,15.497"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3031" d="M26.3992,35.0074a18.4794,18.4794,0,0,1,4.5723-7.5635c6.8233-6.8233.445-11.226.336-16.1643l.0045.0261a6.3219,6.3219,0,0,1,6.3219-6.3219,6.4947,6.4947,0,0,1,6.3218,6.3219c-.1052,4.7674-6.0534,9.0357-.3255,15.4646"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3031" d="M49,67c-6.9436-14.4671-10.2867-30.298-1.0285-39.5561,6.8233-6.8233.445-11.226.336-16.1643l.0045.0261a6.3219,6.3219,0,0,1,6.3219-6.3219,6.4947,6.4947,0,0,1,6.3218,6.3219c-.1089,4.9383-6.4872,9.3409.3361,16.1642C70.55,36.7281,67.1192,52.5329,60.1756,67Z"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.0967" points="32.321 65.557 32.703 66.902 42.547 66.902 43.784 63.329"/>
+  </g>
+</symbol>
+<symbol id="1F3CF" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M20.1808,61.2592l-0.0381,0.0381c-1.5975,1.5975-4.2117,1.5975-5.8092,0l-1.8154-1.8154l-1.8154-1.8154 c-1.5975-1.5975-1.5975-4.2117,0-5.8092L41.201,21.359c0.8894-0.8894,2.0938-1.2836,3.2625-1.1827 c0.719,0.062,1.4244,0.3115,2.0346,0.7483c0.3076,0.2168,0.748,0.1983,1.0232-0.0769l0.0141-0.0138l10.7301-10.7301 c0.7988-0.7988,2.1059-0.7987,2.9046,0l0.3631,0.3631l0.3631,0.3631c0.7988,0.7988,0.7988,2.1058,0,2.9046L51.1628,24.4679 c-0.2752,0.2752-0.3167,0.712-0.0999,1.0196l0.0146,0.0171c0.4356,0.6096,0.6843,1.314,0.7463,2.0319 c0.1008,1.1687-0.2934,2.3731-1.1828,3.2624L32.7465,48.6935"/>
+    <circle cx="27.5081" cy="56.0011" r="5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3D1" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="52.2459" cy="60.8687" r="5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M58.208,12.5205L28.0173,62.7147l0,0c-2.6148,4.3359-8.2494,5.7311-12.5853,3.1163s-5.7311-8.2494-3.1163-12.5853l-0.0479,0.0795 c1.3431-2.2271,4.2373-2.9438,6.4644-1.6007s2.9438,4.2373,1.6007,6.4644c-0.5394,0.8945-0.2516,2.057,0.6429,2.5964 s2.057,0.2516,2.5964-0.6429l0.0104-0.0168L56.3124,5.842c0.5834-0.9674,1.8521-1.2815,2.8195-0.6981l0.4397,0.2652l0.4397,0.2652 c0.9674,0.5834,1.2815,1.8521,0.6981,2.8195l-0.385,0.6385"/>
+  </g>
+</symbol>
+<symbol id="1F3D2" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M67.2748,8.7696l0.5061-0.8583c0.5557-0.9425,0.2392-2.1682-0.7033-2.7239l-0.4284-0.2525l-0.4284-0.2526 c-0.9424-0.5557-2.1682-0.2392-2.7239,0.7033L33.1938,56.7781c-0.4812,0.7463-1.3198,1.2404-2.2739,1.2404h0.0211H7.056 c-1.6851,0-3.0639,1.3788-3.0639,3.0639v2.5609c0,1.6852,1.3788,3.0639,3.0639,3.0639h24.2974 c1.1031,0,2.0849-0.5854,2.6246-1.4662l0,0l31.2688-53.0318"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.9" d="M65.4897,61.6258v3.9515c0,1.1126-4.2382,2.0145-9.4662,2.0145s-9.4662-0.9019-9.4662-2.0145v-3.9515"/>
+    <ellipse cx="56.0235" cy="61.6358" rx="9.4662" ry="1.8788" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.9"/>
+  </g>
+</symbol>
+<symbol id="1F94D" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="31.6963" x2="31.6963" y1="28.5" y2="45.6546" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="27.7518" x2="35.7518" y1="23" y2="23" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="31.6963" x2="31.6963" y1="4.5" y2="28.5" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="28.6963" x2="28.6963" y1="5" y2="25" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.4639"/>
+    <line x1="25.6963" x2="25.6963" y1="7.5" y2="20.2166" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="34.6963" x2="34.6963" y1="5" y2="26" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="37.6963" x2="37.6963" y1="7.5" y2="20.2166" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="22.5353" x2="40.2518" y1="14" y2="14" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="23.8187" x2="39.6849" y1="17" y2="17" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="25.5353" x2="37.2518" y1="20" y2="20" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="23.1849" x2="40.2518" y1="11" y2="11" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="25.2518" x2="39.2518" y1="8" y2="8" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="33.9419" x2="39.1937" y1="8" y2="8" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="33.9419" x2="40.3276" y1="11" y2="11" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="33.9419" x2="40.3276" y1="14" y2="14" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="33.9419" x2="39.7606" y1="17" y2="17" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="33.9419" x2="38.0598" y1="20" y2="20" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="33.9419" x2="36.0756" y1="23" y2="23" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <line x1="28.5353" x2="34.2518" y1="26" y2="26" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="30.22 48.658 29.641 53.203 29.641 67.037 33.37 67.037 33.37 53.203"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M31.7518,28.6842c-3.2557,0-2.1077-2.2747-3.6881-5.6821C27.2314,21.2074,21,15,22.8952,10.0611,24.0612,7.0228,28.3768,5,31.7518,5"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M31.7518,5c3.375,0,7.6906,2.0228,8.8566,5.0611C42.5036,15,36.2722,21.2074,35.44,23.0021c-1.58,3.4074-.4323,5.6821-3.6881,5.6821"/>
+    <circle cx="43" cy="40" r="5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+  </g>
+</symbol>
+<symbol id="1F3D3" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m29.3861,51.208c.4854-1.0846,1.6246-.8975,1.6246-.8975l.0783.0091c6.7209,1.5643,13.0483,1.2476,18.0324-2.4671"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m22.7482,47.1821c.2448-.9303-.436-1.4716-.436-1.4716l-.0365-.0382c-7.2736-6.6788-10.9673-14.9122-5.7359-24.7998C22.6383,9.3458,34.4924-.9163,48.5632,6.5283c11.3007,5.9789,12.4779,16.3166,9.6649,26.0092"/>
+    <line x1="45.5451" x2="15.0699" y1="49.8688" y2="33.7451" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m22.6023,65.8163l10.3603-22.6045-5.9312-3.138s-11.5523,19.1738-12.5539,21.4512c-.538,1.2234-.106,2.6457,1.0123,3.3774.6696.4381,1.5138.925,2.4863,1.3477"/>
+    <circle cx="54.8215" cy="40.8811" r="5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3F8" viewBox="0 0 72 72">
+  <g id="line">
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m48.4009,52.2372c.2055-1.3254-.7025-2.5665-2.0279-2.772-1.3254-.2055-2.5665.7025-2.772,2.0279-.0382.2463-.0382.497-.0001.7432v3.6l-2.05,4.0979-.4957.991-3.0563,6.11,3.2.0005,1.6-1.6,1.6,1.6,1.6-1.6,1.6,1.6,1.6-1.6,1.6,1.6,3.2.0005-3.0631-6.1263-.5629-1.1263-1.9729-3.9465v-3.1548l.0009-.4452Z"/>
+      <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.5" d="m48.4007,53.4372v2.4s-4.8-.0116-4.8-.0008v-2.4l4.8.0008Z"/>
+    </g>
+    <g>
+      <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="24.22 48.658 23.641 53.203 23.641 67.037 27.37 67.037 27.37 53.203"/>
+      <rect fill="none" stroke="currentColor" stroke-width="2" x="24.7518" y="29.5072" width="1.5" height="16"/>
+      <ellipse cx="25.7518" cy="16.8421" rx="9" ry="11.8421" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F94A" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M45.6055,50.9252c0,1.8644-5.3061,3.3324-11.7785,3.3324s-11.7536-1.5175-11.7536-3.3819"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M45.6055,60.1059V46.364c0,0,1.2674-1.1629,2.4125-2.3333c3.7692-3.8524,5.6146-9.8857,5.6146-9.8857 c5.0219-13.3527,0.71-17.7289,0.71-17.7289c-0.9967-1.3248-3.1441-0.5776-3.1441-0.5776c-0.3357-3.0657-1.217-5.0365-1.217-5.0365 c-2.3082-7.0949-21.9067-5.0803-21.9067-5.0803C15.1069,7.5175,15.9463,21.532,15.9463,21.532 c-0.011,18.5937,6.1272,24.8196,6.1272,24.8196v16.7736l0.0005,0.0376c0,1.8644,5.4131,3.3795,12.0327,3.3795"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M33.5724,66.5424c5.3784,0,9.9603-1.0002,11.4895-2.3752c0.0209-0.0188,0.0413-0.0377,0.0611-0.0567"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M41.3212,13.5613c4.9387-4.4356,9.8773,2.2774,9.8773,2.2774s-6.0223,1.8613-4.9836,10.927"/>
+  </g>
+</symbol>
+<symbol id="1F94B" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M28.2667,12.9217c0,0-6.3025,0.7358-8.1775,2.4233s-3.4375,7.0625-3.4375,7.0625L9.5276,45.0492l-0.0009,0.0041l0.0009-0.0303 l-0.0009,0.0041c4.875-1.0208,8.7083,1.8333,8.7083,1.8333v0.0262l6.0634-19.3333l0.5143,18.9039l-4.156,13.9804 c1.7944,1.9678,4.6915,1.352,4.6915,1.352v2.2188c10.6269,1.6752,18.3598,0.6209,22.6412-0.3947"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M43.9299,12.9217c0,0,6.1059,1.0241,7.9809,2.7116s3.4375,7.0625,3.4375,7.0625l7.1241,22.6418l0.0009,0.0041 c-4.875-1.0208-8.7083,1.8333-8.7083,1.8333l-6.0634-19.3333l-0.5143,18.9039l4.6611,15.6794"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M36.0952,17.5229c-2.6908-4.8889-4.9342-7.8331-5.4623-8.6188c0,0-1.1458-1.7917,0.9583-1.7917h4.5h0.0071h4.5 c2.1042,0,0.9583,1.7917,0.9583,1.7917c-1.1477,1.7075-10.3965,13.609-14.7321,33.5106"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M30.9212,42.692c4.1212-17.8053,11.9731-28.1405,13.0087-29.7703l-2.1148-5.2704"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M33.7748,22.0448c-2.6766-5.2005-4.9797-8.2986-5.5081-9.1302"/>
+    <line x1="28.2667" x2="30.3815" y1="12.9217" y2="7.6512" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M47.3123,42.1536c-9.8928,0.9136-17.8024,0.7124-22.6167,0.0011"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M47.2005,46.2577c-9.7712,0.8963-17.5847,0.7032-22.393,0.0074"/>
+  </g>
+</symbol>
+<symbol id="1F945" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="62 55.5 62 17 10 17 10 55.5"/>
+    <line x1="62" x2="52.9038" y1="55.5" y2="46.4038" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="20" x2="53" y1="46" y2="46" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="10" x2="19.0962" y1="55.5" y2="46.4038" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="10" x2="19.32" y1="17" y2="45.5834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="10.7518" x2="61.7518" y1="18.0834" y2="18.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="49.0195" x2="61.6022" y1="18.0834" y2="18.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="16.8857" x2="55.7518" y1="39.0834" y2="39.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="49.0195" x2="55.9329" y1="39.0834" y2="39.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="14.7518" x2="56.7518" y1="32.0834" y2="32.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="49.0195" x2="57.3502" y1="32.0834" y2="32.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="35.7704" x2="35.7704" y1="17.5" y2="45.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="28.7704" x2="28.7704" y1="17.5" y2="45.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="21.7704" x2="21.7704" y1="17.5" y2="45.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="14.7704" x2="14.7704" y1="17.5" y2="50.4486" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="42.7704" x2="42.7704" y1="18.0834" y2="45.5834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="49.7704" x2="49.7704" y1="17.5164" y2="45.5834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="56.7704" x2="56.7704" y1="18.0834" y2="50.0816" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="42.7704" x2="42.7704" y1="21" y2="36.1667" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="12.7675" x2="59.7518" y1="25.0834" y2="25.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="48.7677" x2="60.1849" y1="25.083" y2="25.0834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="57.3502" x2="61.8585" y1="32" y2="36.5082" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="59.7518" x2="61.9026" y1="25.0834" y2="27.2377" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="55.1024" x2="62" y1="39.0834" y2="45.5834" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="14.6865" x2="10.2633" y1="32.0834" y2="36.5065" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="12.7675" x2="10.1599" y1="25.7797" y2="28.3874" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="17.1712" x2="10.3374" y1="38.8196" y2="45.2594" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="53" x2="62" y1="46" y2="18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="26F3" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M17.0033,68c0-5.6246-0.5417-10.3318,8.1621-11.6317c0.1915,2.5172,2.2717,3.5067,4.8379,3.5067s4.6464-0.9896,4.8379-3.5067 c8.7037,1.2999,8.4122,6.0071,8.4122,11.6317H17.0033z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M32.0033,6.8824V6c0-1.1-0.9-2-2-2h0c-1.1,0-2,0.9-2,2v0.8824"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M28.0033,28.75v30.8832c0,0,1.8471,0.5469,4,0V28.75"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M28.0045,24.7409l3.9988-0.0017l21.0638-4.9902h-0.0013c1.0825-0.3304,1.9375-0.8674,1.9375-1.9375s-0.9144-1.6427-1.9375-1.9375 l-21.0625-4.9899h-4L28.0045,24.7409z"/>
+  </g>
+</symbol>
+<symbol id="26F8" viewBox="0 0 72 72">
+  <g id="line">
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1846" d="m15.9489,53.9144c-.7488,1.2651-1.9924,2.1595-3.43,2.4669"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1846" d="m38.8657,54.9569c-.6168.763-1.5263,1.2312-2.5057,1.29h-10.4972c-1.7509.141-3.3997-.8397-4.1116-2.4455"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1846" d="m48.6066,38.7518c-2.8193-.5755-5.3679-2.0706-7.2457-4.2509l-2.79,2.2189,2.79-2.2189c-1.1756-1.2815-2.2083-2.687-3.08-4.1918l-3.6509,1.6818,3.6506-1.6818c-.9021-1.5342-1.6581-3.1498-2.2581-4.8254l-4.4137.99,4.4137-.99c-.088-.2495-.1734-.4966-.2458-.7281-.9735-3.1112-2.3327-12.83-2.3327-12.83l-18.6615,3.4993s1.1664,8.1644,0,12.83c-1.1664,4.6656-3.499,8.1644-2.3327,12.83l10.4971,2.3327s13.9962,5.8317,16.3289,5.8317c4.6654,0,19.8279-1.1663,19.8279-1.1663,0-6.9985-3.499-8.1649-10.4971-9.3312Z"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1846" d="m55.757,54.3411c-.3069,1.1209-1.3229,1.9001-2.485,1.906h-5.832c-1.2206.0967-2.4149-.3902-3.22-1.3127"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1846" d="m7.7844,59.7461h44.3212c5.8318,0,6.7521-1.5811,7.29-2.2575.8235-1.1464,1.0581-2.614.6329-3.96-.05-.2081-.1083-.414-.1731-.6163"/>
+      <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1846" points="13.043 45.576 13.634 50.306 22.965 50.306 22.965 47.754"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F3A3" viewBox="0 0 72 72">
+  <g id="line">
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="53.9106" cy="41.8563" r="1.7664"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m62.3565,56.721c.766.2372,1.487.6866,2.0105,1.4781l2.4829-10.0557s-1.4978-4.969-6.7234-5.113"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m46.8612,66.0371l-1.6868.8404c-.7318.3646-1.579-.3197-1.2981-1.065,1.1586-3.0731,5.3156-4.8418,5.3156-4.8418-6.0185-6.5137-5.6827-12.4594-5.6827-12.4594-.3442-12.4753,7.5746-15.5113,7.5746-15.5113,0,0,10.0419,3.2568,9.6976,15.7322,0,0,.0474,4.2897-7.5845,12.2386,0,0,4.139,1.7874,5.1468,4.8905.2414.7433-.5889,1.3958-1.3077,1.0377l-1.7297-.8618c-2.648-1.3195-5.7971-1.3195-8.4451,0Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m40.1126,51.6063c-.5328.0283-1.138.0835-1.8251.1733v-3.5718s.8311-3.533,5.5082-4.3333"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m51.0838,33l.1114-22.6456s-3.7092-8.8284-16.5482-3.8128c-11.88,4.641-18.2171,25.3384-21.2206,38.0033"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15.1732,49.142l-4.2894,17.4836c-3.5506-.0794-5.7337-1.4067-5.7337-1.4067l4.2894-17.4836s2.6145,1.4067,5.7337,1.4067Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6.0532,61.5291s2.6145,1.4067,5.7337,1.4067"/>
+  </g>
+</symbol>
+<symbol id="1F93F" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m32.823,42.7361c.9093-.0071,1.7956.285,2.5225.8313,2.423,1.8508,7.6443,1.8431,10.6744,1.5713,5.5412-.4972,10.517-1.1755,10.941-8.15l-.4014-7.026,1.5272.04v-3.3261s-8.39-7.1786-24.0823-1.8519h-4.79c-14.7722-5.05-24.2808,1.8519-24.2808,1.8519v3.3261l1.5271-.04-.4014,7.026c.424,6.9749,5.4,7.6532,10.941,8.15,3.03.2718,8.2514.2795,10.6744-1.5713.7269-.5463,1.6132-.8384,2.5225-.8313h2.6258Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m33.9546,27.8015c2.0036-.993,4.2085-1.5125,6.4447-1.5183h8.9545c2.2064.0065,3.9935,1.7936,4,4v7.5668c-.0065,2.2064-1.7936,3.9935-4,4h-7.7713c-2.4532-.1391-4.7119-1.3802-6.1448-3.3763l-1.7829-2.8064c-1.18-1.8569-3.1338-1.8723-4.3424-.034l-1.89,2.8745c-1.468,1.978-3.7383,3.2024-6.1976,3.3422h-7.5587c-2.2064-.0065-3.9935-1.7936-4-4v-7.5668c.0065-2.2064,1.7936-3.9935,4-4h8.6975c2.2762.0155,4.5208.534,6.5732,1.5183,1.5683.8352,3.4495.8352,5.0178,0Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m63.0361,5c1.1046,0,2,.8954,2,2h0v38.0742c.0111,1.2622-.1549,2.5197-.4931,3.7358-.9636,3.683-3.3177,6.8489-6.5674,8.832-2.1253,1.2153-4.5376,1.8384-6.9856,1.8043-.3056,0-.6135-.0088-.9238-.0264-4.7773-.2685-8.1924-1.5967-10.1523-3.9482-.6559-.7785-1.1379-1.6881-1.4139-2.668l-1.5225-.0166c-1.0998-.0127-1.9831-.9108-1.9775-2.0107"/>
+  </g>
+</symbol>
+<symbol id="1F3BD" viewBox="0 0 72 72">
+  <g id="line">
+    <g>
+      <g>
+        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.8914,46.4939V24.0162c5.3229-.1787,4.9687-13.0313,4.9687-13.0313l.0313-5.9687h3.8363a10,10,0,0,0,20,0h4.1637v6s-.41,13,5,13v43h-38v-14.75"/>
+        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M41.6674,8.3189A10.0055,10.0055,0,0,1,29.5179,8.203"/>
+      </g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.9583,52.0078V47.0331C30.7508,47.0331,45.7971,28.1679,45.7971,5H50C50,30.9117,33.4936,52.0078,14.9583,52.0078Z"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F3BF" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M20.2,59.5163c-1.4043,0.72-3.0074,1.1774-4.7117,1.1774c-5.5228,0-10-4.2873-10-9.576"/>
+    <line x1="54.9748" x2="20.1412" y1="39.5643" y2="59.5501" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M13.2332,51.1177c0,2.6758,2.8154,5.8041,5.9541,4.331l38.9131-22.2773l0.052,0.0163c1.4248,0.4466,2.2684,2.0549,1.927,3.4478 l-1.6391,0.9404"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M5.4883,51.1177c0-2.1387,1.7338-3.8724,3.8724-3.8724s3.8724,1.7338,3.8724,3.8724"/>
+    <line x1="48.2143" x2="61.616" y1="24.9316" y2="17.2497" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="46.7005" x2="66.8117" y1="30.384" y2="18.8774" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="39.291" x2="64.4351" y1="25.5016" y2="11.0833" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M23.322,48.2532c-2.2017,1.2619-5.0958,0.3495-6.4642-2.0378s-0.6927-5.3457,1.509-6.6076 c3.9196-2.2465,6.1133-5.9581,4.0787-9.5079l-5.4891-9.6712c0,0,1.4071-2.2402,3.4974-1.8753 c0.3791,0.0662,0.7427-0.0996,0.8868-0.4555c0.8072-1.9941,3.9289-9.1479,7.1264-3.569l12.7285,22.2079 c0.3032,0.5289,0.1535,1.1843-0.3343,1.4639L23.322,48.2532"/>
+    <line x1="20.5454" x2="31.7803" y1="26.752" y2="20.3097" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="19.5776" x2="21.3815" y1="38.8257" y2="41.9716" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="22.4891" x2="24.9334" y1="35.6391" y2="39.9016" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="22.5528" x2="26.8094" y1="30.2945" y2="27.8537" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F6F7" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="32" x2="32" y1="46" y2="37" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="53" x2="53" y1="46" y2="37" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.89,49.34a9.7949,9.7949,0,0,1-3.8723-13.293"/>
+    <line x1="63.6508" x2="23.4911" y1="34.7848" y2="34.6762" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.7157,46.6473l44.8384.1639v3.9736l-46.0629-.1086"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.7248,39.92c-1.3379,2.3173-.4639,6.4342,2.9909,6.7278"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.0175,36.0471A3.8724,3.8724,0,0,1,15.7247,39.92"/>
+  </g>
+</symbol>
+<symbol id="1F94C" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="26" y="17" width="4" height="7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <rect x="12" y="29.0667" rx="12" width="48" height="25.6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <rect x="12" y="40" rx="2.5" width="48" height="5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <rect x="23" y="25" rx="2" width="26" height="4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M44.5,20H30V17H44.5a1.5,1.5,0,0,1,0,3Z"/>
+  </g>
+</symbol>
+<symbol id="1F3AF" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="11.4659" x2="2.5131" y1="11.4989" y2="11.4989" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="11.4662" x2="11.4663" y1="11.4989" y2="2.546" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="15.5067" x2="6.5538" y1="15.5473" y2="15.5473" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="15.5086" x2="15.5086" y1="15.5454" y2="6.5925" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="39.4865" x2="7.4778" y1="39.4644" y2="7.5188" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M21.9689,16.3467c4.8593-3.674,10.9579-5.8915,17.5193-5.8915c16.0163,0,29,12.9837,29,29s-12.9837,29-29,29s-29-12.9837-29-29 c0-6.5467,2.1693-12.5867,5.8283-17.4404"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M26.2567,20.6399c3.7421-2.6364,8.306-4.1847,13.2315-4.1847c12.7025,0,23,10.2975,23,23s-10.2975,23-23,23s-23-10.2975-23-23 c0-4.8704,1.5138-9.3872,4.0966-13.1056"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M32.04,26.4321c2.1945-1.2578,4.7374-1.9769,7.4482-1.9769c8.2843,0,15,6.7157,15,15s-6.7157,15-15,15s-15-6.7157-15-15 c0-2.6162,0.7305-5.1268,1.9079-7.268"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M40.0779,34.4744c2.4674,0.3067,4.3769,2.4111,4.3769,4.9616c0,2.7614-2.2386,5-5,5c-2.4824,0-4.5422-1.809-4.9332-4.1806"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M35.7775,30.1663c1.1474-0.4587,2.3996-0.7111,3.7107-0.7111c5.5228,0,10,4.4772,10,10s-4.4772,10-10,10s-10-4.4771-10-10 c0-1.2548,0.252-2.4731,0.6858-3.5895"/>
+  </g>
+</symbol>
+<symbol id="1FA80" viewBox="0 0 72 72">
+  <g id="line">
+    <polygon fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="24.969 54.8 21.735 49.822 15.801 49.665 19.535 45.051 17.851 39.359 23.393 41.485 28.286 38.124 27.977 44.052 32.685 47.667 26.952 49.205 24.969 54.8"/>
+    <circle cx="24.3282" cy="45.6616" r="13.3282" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.9173,32.8733a13.3293,13.3293,0,1,1,17.706,19.2585"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M53.5939,12.7954c1.2762,3.059,5.5809,2.7469,5.5809,2.7469a3.1806,3.1806,0,0,0,3.5015-3.1043,4.1684,4.1684,0,0,0-4.4128-1.9115s-10.0687.39-12.2819,13.4416c-1.5124,8.9187-4.5094,9.7773-8.8623,9.3163-1.6194-.1716-2.9128-.9946-5.7844-2.2653a9.93,9.93,0,0,0-2.5408-.724s-3.3942-.2966-4.4659.4574"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M16.57,35.0107A13.3293,13.3293,0,1,1,34.2756,54.2692"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M15.8011,35.5411A13.3293,13.3293,0,1,1,33.5071,54.8"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M15.0074,36.3346A13.3293,13.3293,0,1,1,32.7135,55.5931"/>
+  </g>
+</symbol>
+<symbol id="1FA81" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="32.289 45.27 36.889 12.789 15.036 4.719 5.696 26.061 32.289 45.27"/>
+    <line x1="15.3978" x2="31.7804" y1="5.5225" y2="44.1129" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="6.4419" x2="36.3676" y1="25.7642" y2="13.3134" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M31.78,44.523s4.0231,9.2382,16.9864,6.5561C57.6253,49.2464,60.8478,55.6239,62,59.8466a16.0263,16.0263,0,0,1,.4933,4.83"/>
+  </g>
+</symbol>
+<symbol id="1F52B" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M50.4918,22.1986l0.7023-2.2172c0.1487-0.4695,0.4779-0.8607,0.915-1.0875l1.0989-0.5702c0.4895-0.254,0.4276-0.973-0.0982-1.1395 l-1.6256-0.5149c-0.3208-0.1016-0.6633-0.1142-0.9907-0.0362l-3.0108,0.7166l-1.1838,3.5208"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M30,35.9064c1,4,4,4,6,4h2c0-6.7261,4.4351-12.0457,13.4351-12.0457v-1.9543l0,0c-5.2187-2.0984-10.5197-2.7386-16.0745-2.7872 c-5.3001-0.0464-10.5876,0.5232-15.7925,1.5241L13,25.9064v6l0,0h11.0392c0.6381,0,1.2739,0.0783,1.893,0.233h0 C27.8429,32.6172,29.3772,34.0379,30,35.9064L30,35.9064z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M37,31.9064c-1,2-1,3.208-1,5h-1c-1,0-2.5,0-3-5H37z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M50.9266,31.8935c0.3893,0.0047,0.5734,0.5143,0.5734,0.9036v2.294c0,1.6823,1.2468,2.2059,3,3.0462c0,0,0.5946,0.28,0.8992,0.478 C57.6588,40.0837,60.5,48.0256,60.5,50.8295c0,2.8039-2.2386,5.0769-5,5.0769h-3.0361c-2.7614,0-5-2.2386-5-5l0.0361-3.5 c0.0517-1.6036-0.0871-3.5828-1.2586-4.7544c-0.6903-0.6903-1.628-1.0169-2.5215-0.929c-1.1133,0.1095-2.1593-0.5902-2.2896-1.7013 c-0.0026-0.0223-0.0052-0.0448-0.0077-0.0673c-0.1849-1.668,0.2687-3.3442,1.2016-4.7392 c0.8667-1.2961,2.2772-2.7841,4.3758-3.3088C47,31.9064,49.8532,31.8805,50.9266,31.8935z"/>
+  </g>
+</symbol>
+<symbol id="1F3B1" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="35.9583" r="29" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="32.5951" r="3.3632" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="40.3103" r="4.352" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F52E" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="32.8" r="22.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="36" cy="32.8" r="22.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M18,56.6l-3,2.8 c-0.7,0.7-0.3,1.9,0.8,1.9h39.5c1,0,1.5-1.2,0.8-1.9l-2.8-2.8"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M53.2,56.6l2.8,2.8c0.7,0.7,0.2,1.9-0.8,1.9"/>
+  </g>
+</symbol>
+<symbol id="1FA84" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="9.1933" y="34.3473" rx="0.4398" ry="0.4398" width="53.5248" height="3.3851" transform="translate(-14.9528 36.0426) rotate(-45.0701)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="45.8806" x2="47.6346" y1="24.4476" y2="26.0854" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="23.4413" x2="25.8379" y1="46.1937" y2="48.5844" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="47.5749" x2="47.5749" y1="8.9583" y2="7.2929" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="47.5749" x2="47.5749" y1="14.6237" y2="12.9583" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="45.5749" x2="43.9096" y1="10.9583" y2="10.9583" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="51.2403" x2="49.5749" y1="10.9583" y2="10.9583" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="56" x2="56" y1="26.3101" y2="24.6447" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="56" x2="56" y1="31.9755" y2="30.3101" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="54" x2="52.3346" y1="28.3101" y2="28.3101" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+    <line x1="59.6654" x2="58" y1="28.3101" y2="28.3101" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3AE" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M36.0455,53.8657l-10.4464,0 c-0.678,0-1.285,0.3865-1.6097,0.9818c-3.4584,6.3419-8.0837,7.8418-9.3408,8.0783c-0.1622,0.0305-0.3206,0.0576-0.4855,0.0624 C-0.2411,63.4131,7.0666,44.424,7.0666,44.424c2.0845-6.0901,7.1142-13.241,8.808-14.8908 c0.3487-0.3396,0.8102-0.5286,1.2969-0.5286h13.0964h11.4641h13.0964c0.4867,0,0.9483,0.189,1.2969,0.5286 c1.6938,1.6498,6.7235,8.8007,8.808,14.8908c0,0,7.3077,18.9891-7.0965,18.5642c-0.165-0.0049-0.3233-0.0319-0.4855-0.0624 c-1.2571-0.2365-5.8824-1.7364-9.3408-8.0783c-0.3246-0.5953-0.9316-0.9818-1.6097-0.9818l-10.4464,0"/>
+    <polygon fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="24.0106,38.3755 24.0106,39.1856 19.7963,39.1856 14.6472,39.1856 14.6472,38.3755 19.6921,38.3755"/>
+    <polygon fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" points="18.9239,34.0989 19.7339,34.0989 19.7339,38.3132 19.7339,43.4622 18.9239,43.4622 18.9239,38.4174"/>
+    <circle cx="30.25" cy="46" r="4" fill="currentColor" stroke="none"/>
+    <circle cx="41.75" cy="46" r="4" fill="currentColor" stroke="none"/>
+    <circle cx="48.6122" cy="38.7806" r="2" fill="currentColor" stroke="none"/>
+    <circle cx="57.0811" cy="38.7806" r="2" fill="currentColor" stroke="none"/>
+    <circle cx="52.8466" cy="42.5357" r="2" fill="currentColor" stroke="none"/>
+    <circle cx="52.8466" cy="35.0667" r="2" fill="currentColor" stroke="none"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M34.3553,25.0834V7.0572c0,0,0.5049-0.8693,1.2903-0.9914c0.4816-0.0748,1.0688,0.1313,1.7097,0.9914v18.0262"/>
+  </g>
+</symbol>
+<symbol id="1F579" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="14" y="55" width="44" height="10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="m27,55c0-3.866,4.0294-7,9-7s9,3.134,9,7"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="17 55 17 52 24 52 24 55"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="39 44.703 39 44 39 27 33 27 33 44.7053"/>
+    <circle cx="36" cy="17" r="10" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3B0" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="13.23" x2="55.87" y1="19.86" y2="19.86" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.305"/>
+    <line x1="12.08" x2="12.08" y1="52.14" y2="19.86" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="55.95" x2="13.15" y1="52.14" y2="52.14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4.007"/>
+    <line x1="13.15" x2="55.95" y1="19.86" y2="19.86" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4.007"/>
+    <line x1="27.06" x2="27.06" y1="19.86" y2="52.14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="42.04" x2="42.04" y1="19.86" y2="52.14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="57.273" x2="62.91" y1="47.67" y2="47.67" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9163"/>
+    <line x1="62.91" x2="62.91" y1="47.42" y2="34" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle cx="62.91" cy="30.73" r="2.593" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1.297"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="17.3 35.69 17.3 33.7 21.84 33.7 19.03 41.77"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="32.28 31.23 32.28 29.24 36.82 29.24 34.02 37.3"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="47.26 35.69 47.26 33.7 51.8 33.7 49 41.77"/>
+    <line x1="57.02" x2="57.02" y1="19.86" y2="52.14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3B2" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2.069" points="35.6352,54.0172 57.4698,48.7313 57.4698,21.7647 35.6167,26.5155 13.7667,21.7647 13.7667,48.7313 35.6013,54.0172 35.6013,30.3713"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2.069" points="13.7667,21.7647 35.8082,16.4545 57.4698,21.7647"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="21.2735" cy="32.9339" r="3"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="27.2446" cy="44.3761" r="3"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="41.767" cy="45.2211" r="3"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="46.8274" cy="38.0668" r="3"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="51.8878" cy="30.9124" r="3"/>
+    <ellipse fill="none" stroke="currentColor" stroke-width="2" cx="35.8312" cy="21.1219" rx="4" ry="1.6191"/>
+  </g>
+</symbol>
+<symbol id="1F9E9" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="14.402 33.524 14.402 19.513 29.628 19.513"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="28 57.882 14.402 57.882 14.402 43.871"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="52.77 43.871 52.77 57.882 38.348 57.882"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="39.976 19.513 52.77 19.513 52.77 33.524"/>
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.4016,33.5239c2.6813-2.3413,11.6314-3.2873,11.6314,5.1737"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.4016,43.8713c2.6813,2.3413,11.6314,3.2873,11.6314-5.1737"/>
+    </g>
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M28.0005,57.8819c-2.3414-2.6814-3.2873-11.6314,5.1737-11.6314"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M38.3479,57.8819c2.3413-2.6814,3.2873-11.6314-5.1737-11.6314"/>
+    </g>
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M29.6281,19.5133c-2.3414-2.6814-3.2873-11.6314,5.1737-11.6314"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M39.9755,19.5133c2.3413-2.6814,3.2873-11.6314-5.1737-11.6314"/>
+    </g>
+    <g>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M52.77,43.8713c2.6813,2.3413,11.6314,3.2873,11.6314-5.1737"/>
+      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M52.77,33.5239c2.6813-2.3413,11.6314-3.2873,11.6314,5.1737"/>
+    </g>
+  </g>
+</symbol>
+<symbol id="1F9F8" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M30,22.0343a2,2,0,1,0,2-2,2.0007,2.0007,0,0,0-2,2"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M38,22.0343a2,2,0,1,0,2-2,2.0007,2.0007,0,0,0-2,2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M32.7621,34.1416a4.9971,4.9971,0,0,0,6.4747.0009"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M21,24.0448a15,15,0,1,0,15-15,15.0055,15.0055,0,0,0-15,15"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M30.5611,10.066a7.5009,7.5009,0,1,0-8.9647,9.7881"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M11,52.142c0,4.7856,3.3619,8.6656,7.5,8.6656s7.5-3.88,7.5-8.6656c0-4.7813-3.3619-8.6656-7.5-8.6656S11,47.3607,11,52.142"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M46,52.142c0,4.7856,3.3619,8.6656,7.5,8.6656s7.5-3.88,7.5-8.6656c0-4.7813-3.3619-8.6656-7.5-8.6656S46,47.3607,46,52.142"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M14.4143,53.4248a4.0015,4.0015,0,0,0,4,4"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M54,57.4248a4.0015,4.0015,0,0,0,4-4"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M28.5,32.931c0,3.3763,3.3619,6.1138,7.5,6.1138s7.5-2.7375,7.5-6.1138c0-3.3732-3.3618-6.1137-7.5-6.1137s-7.5,2.7405-7.5,6.1137"/>
+    <path fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2" d="M50.4041,19.8542A7.5008,7.5008,0,1,0,41.44,10.0649"/>
+    <line x1="36" x2="36" y1="32.3325" y2="35.3325" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M36,31.9131s-3.2374-.881-3.2374-3.1277c0-1.5446,1.53-1.8607,2.4865-1.9074l1.2638-.0068c.9127.0072,2.7249.2332,2.7249,1.9142,0,2.2467-3.2373,3.1277-3.2373,3.1277"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.2823,43.7251c1.1282-5.2329,5.8479-8.3926,5.8479-8.3926"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M46,35.3325s4.6611,3.1205,5.8264,8.2952"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M24.9516,41.9494,28.5,48.01a3.22,3.22,0,0,0,4.2578,1.3235h0a3.22,3.22,0,0,0,1.4263-4.3471l-1.0163-1.9848"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M47.4348,41.9494,43.6438,48.01a3.22,3.22,0,0,1-4.2578,1.3235h0A3.22,3.22,0,0,1,37.96,44.9867l1.0163-1.9848"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M24.2861,58.0782s9.4536,6.5808,23.4278,0"/>
+  </g>
+</symbol>
+<symbol id="1FA85" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M33.0447,28.718a50.9486,50.9486,0,0,0-2.6571-7.7831.7613.7613,0,0,1-.065-.2757c-.058-1.3759-.6253-12.2818-4.0433-12.1226-3.23.15-2.8123,9.65-2.6741,11.8245a.758.758,0,0,1-.3477.6864l-9.3459,6.0771A2.9579,2.9579,0,0,0,12.48,29.6584V32.652a3.7251,3.7251,0,0,0,3.217,3.69l5.7258.7884c2.1713.21,2.3663,3.5306,2.3676,6.1408,0,.0184.0007.0363.0022.0546l1.255,15.78A1.8525,1.8525,0,0,0,26.9,60.9583h4.0044a1.8524,1.8524,0,0,0,1.8524-1.8525l.4347-8.3377a.7672.7672,0,0,1,.76-.6641h5.6861a.7672.7672,0,0,1,.7584.6513l.6069,8.3505a1.8525,1.8525,0,0,0,1.8525,1.8525h3.2322A1.8525,1.8525,0,0,0,47.94,59.1058l2.1836-19.9222a4.97,4.97,0,0,0-4.9117-5.1686l-9.63-.1064A1.9555,1.9555,0,0,1,33.68,32.1519a28.4052,28.4052,0,0,0-.6348-3.4339"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="30.469 21.121 29.335 21.121 27.827 19.09 26.046 21.121"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="27.8 27.269 25.382 27.269 23.875 25.237 22.094 27.269 20.179 27.269"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="15.7 33.416 17.263 31.385 19.008 33.416 20.923 33.416 22.704 31.385 24.211 33.416 26.63 33.416 28.193 31.385 29.938 33.416"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="31.331 39.836 33.112 37.805 34.62 39.836 37.038 39.836 38.601 37.805 40.346 39.836 42.708 39.836 44.272 37.805 46.017 39.836"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="26.886 45.688 28.45 43.656 30.195 45.688 32.11 45.688 33.891 43.656 35.398 45.688 37.817 45.688 39.38 43.656 41.125 45.688"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M59.5244,44.5659a10.0043,10.0043,0,0,1-6.75-9.46"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M59.5245,50.4176a10.0171,10.0171,0,0,1-6.5469-7.4447"/>
+  </g>
+</symbol>
+<symbol id="1FAA9" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <path fill="none" stroke="currentColor" stroke-width="2" d="m40.3879,15.0054v-2.9262c0-.1172-.095-.2121-.2121-.2121h-8.8847c-.1172,0-.2121.095-.2121.2121v2.9262c0,.1517.153.2486.2923.1887,2.7846-1.1972,5.9398-1.1972,8.7244,0,.1394.0599.2923-.037.2923-.1887Z"/>
+    <ellipse cx="36" cy="40.0972" rx="7.7594" ry="24.9637" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="m60.9174,39.4543c-.2877-5.892-3.4855-11.0882-9.814-14.3179-.0376-.0192-.0685-.0502-.0875-.0879-3.3416-6.6203-8.825-10.9517-15.0161-10.9517-5.4089,0-10.2745,3.3098-13.6466,8.56-.0775.1207-.0119.277.1248.3202,1.0969.3473,1.9001,1.2969,2.0594,2.4379.0187.1338.1448.2184.2719.1729,3.5841-1.2824,7.3651-1.9299,11.173-1.9129,4.6591-.0401,9.2702.9397,13.5101,2.8702.049.0223.089.0621.1114.1111.8906,1.9403,1.5694,3.9708,2.0248,6.0561.033.1513-.1037.2857-.2549.2522-5.0408-1.1165-10.1916-1.6625-15.3553-1.6274-5.1736-.0355-10.3344.5126-15.3845,1.6338-.1516.0337-.2887-.1013-.2551-.253.2728-1.2314.6203-2.4451,1.0406-3.6343.0456-.1291-.0416-.2554-.1775-.2711-.4894-.0563-.9571-.2335-1.3608-.5153-.1178-.0822-.2806-.0401-.3289.0952-.5944,1.6666-1.0539,3.3784-1.374,5.1187-.014.0761-.0689.1364-.1432.1578-1.6417.4724-3.2173,1.148-4.6902,2.0104-.1789.1048-.3913-.0787-.3041-.2668,1.3716-2.9587,3.5837-5.4525,6.3644-7.1675.1165-.0718.1289-.2243.0328-.3218-.3389-.3438-.5892-.7647-.7295-1.2262-.0423-.1391-.2009-.2056-.3225-.126-5.14,3.367-7.1172,8.1825-7.1172,13.5261,0,6.1873,3.0755,11.6679,9.6889,15.0098.0376.019.0685.0498.0876.0873,3.347,6.5523,8.8013,9.5806,14.9549,9.5806,6.1611,0,11.6207-3.0388,14.9671-9.6047.0191-.0375.05-.0683.0875-.0873,6.3555-3.2275,9.5741-8.4352,9.8625-14.3428.0867-.4243.0867-.8618,0-1.2861l.0003.0004h0Zm-24.9351-17.779c-3.8884-.0173-7.7502.6218-11.4232,1.8887-.1917.0661-.3594-.1478-.2458-.3159,2.98-4.4104,7.1175-7.151,11.6867-7.151,4.5749,0,8.7171,2.7471,11.6976,7.1671.1134.1682-.0545.382-.2462.3156-3.6866-1.2777-7.5644-1.9222-11.4691-1.9046Zm22.6132,13.9433c-1.4588-.8379-3.0141-1.4968-4.6322-1.962-.0744-.0214-.1294-.0818-.1434-.1579-.3008-1.632-.7241-3.2388-1.2662-4.8067-.0657-.1899.1443-.3608.313-.2516,2.6167,1.6944,4.7061,4.0884,6.0311,6.9093.088.1873-.1228.372-.3023.2689Zm-40.7619.1938c-.3299,2.7359-.3402,5.5003-.0311,8.2378.0175.1551-.1379.2742-.2851.2222-3.4714-1.2279-5.4626-2.7382-5.4626-4.1752,0-1.4812,2.1121-3.0378,5.7786-4.2848,0,0,.0002,0,.0002,0Zm-4.4885,8.7028c1.477.8647,3.0569,1.5417,4.7032,2.0146.0742.0213.1291.0815.1432.1574.3076,1.6544.7417,3.2826,1.2982,4.8702.0664.1895-.1427.3614-.3119.2531-2.6728-1.7113-4.8019-4.1499-6.137-7.0283-.0873-.1881.1252-.3717.3042-.2669Zm22.6549,19.5097c-4.5369,0-8.6477-2.7027-11.6226-7.0589-.1143-.1674.0525-.3821.2445-.3171,7.3839,2.4988,15.3866,2.4932,22.7669-.0159.192-.0653.359.1493.2448.3169-2.9758,4.3655-7.091,7.075-11.6336,7.075Zm23.93-23.5449c-.2732,1.1371-1.7515,2.2985-4.1788,3.3146-.1182.0495-.1622.1878-.0984.2989.2425.4224.3625.9035.3475,1.389-.0049.1581.1418.278.2888.2196.7915-.3147,1.5587-.6869,2.2953-1.1138.1804-.1045.3952.0823.3064.2709-1.3321,2.828-3.432,5.2262-6.0606,6.9201-.1686.1087-.3789-.0622-.3141-.252.3114-.9109.5818-1.8354.8105-2.7706.035-.143-.0838-.2679-.2308-.2589-.4839.0299-.9674-.0721-1.3983-.2952-.1225-.0634-.2659-.0072-.2992.1266-.4467,1.7978-1.0628,3.5494-1.8404,5.2311-.0226.049-.0628.0888-.1119.111-4.2275,1.9154-8.8218,2.8873-13.4635,2.8476-4.6245.0396-9.2022-.9242-13.4177-2.8245-.049-.0221-.0891-.0617-.1118-.1104-.9088-1.9544-1.6015-4.0019-2.066-6.1061-.0334-.1515.1035-.2863.2549-.2527,5.0474,1.12,10.2055,1.6675,15.3763,1.6321,4.8151.0226,9.6195-.4489,14.3378-1.4067.1516-.0308.2126-.2042.128-.3337-.2675-.4096-.43-.8795-.4724-1.3678-.0109-.1258-.1193-.2151-.2432-.1905-4.5271.8998-9.1344,1.3349-13.7502,1.2987-5.3656.0691-10.7184-.5374-15.9321-1.8048-.0865-.021-.1528-.0939-.1655-.182-.4536-3.1642-.4572-6.3767-.0107-9.5419.0125-.0883.0788-.1614.1655-.1825,5.2171-1.2697,10.5736-1.8771,15.9428-1.808,5.3557-.0685,10.6988.5356,15.9037,1.7977.087.0211.1537.0946.1662.1832.2201,1.5713.3314,3.1559.3335,4.7426,0,.7626-.0255,1.5156-.0764,2.2589-.0093.1361.108.2332.2429.2131.4859-.0721.9821-.018,1.4407.1569.1363.052.2849-.0299.2953-.1754.0582-.808.0979-1.6238.0979-2.4537-.0016-1.3128-.0744-2.6245-.2183-3.9292-.0171-.1547.137-.2734.2838-.2217,3.1837,1.1216,5.125,2.4802,5.443,3.8041.0044.1278.0149.2545.0149.383s-.0108.2548-.0155.3823Z"/>
+  </g>
+  <g id="line">
+    <circle cx="36" cy="40.0609" r="25" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="31.079 15.061 31.079 11.867 40.168 11.867 40.168 15.061"/>
+    <line x1="35.8737" x2="35.8737" y1="11.8671" y2="5.0771" fill="none" stroke="currentColor" stroke-linecap="square" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1FA86" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m48.7 39.87c-12.7-0.3093-12.7-4.817-12.7-4.817 0 3.742-8.025 4.595-12.87 4.769m-3.59 0.0237a20.18 20.18 0 0 1 1.484-3.682c0.6633-1.294 1.313-2.597 1.907-3.924a8.948 8.948 0 0 0 0.3018-4.814c-0.2359-2.07-0.65-4.128-0.7566-6.203a12.46 12.46 0 0 1 11.73-13.29 16.13 16.13 0 0 1 8.449 1.28 12.94 12.94 0 0 1 6.791 13.21c-0.2826 2.007-0.5261 4.02-0.7929 6.029a8.69 8.69 0 0 0 1.112 5.352c0.7755 1.456 1.479 2.957 2.124 4.476a14.78 14.78 0 0 1 0.5636 1.561"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m55.95 43.39a14.31 14.31 0 0 1-0.5829 5.404c-1.545 5.068-3.266 10.08-4.962 15.11l-28.83 0.1014c-1.638-5.112-3.436-10.17-4.979-15.31a14.04 14.04 0 0 1-0.5432-5.291z"/>
+    <circle cx="36" cy="21.75" r="10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="23.76" x2="48.24" y1="60.11" y2="60.11" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m45.11 47.15a10 10 0 0 1-19.91 0.1"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m46 21.75a10.11 10.11 0 0 1-10.07-9.999h0a10.17 10.17 0 0 1-9.934 9.997"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="32.83" cy="23.61" r="2"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="38.98" cy="23.61" r="2"/>
+  </g>
+</symbol>
+<symbol id="2660" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M39.4,52.1 c0.8,3.6,5.4,9.3,7.3,10.1H36H25.3c1.9-0.8,6.6-6.6,7.3-10.1"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.3,42 c0,7,5.6,12.6,12.6,12.6c4.8,0,9-2.7,11.1-6.6c2.1,3.9,6.3,6.6,11.1,6.6c7,0,12.6-5.6,12.6-12.6c0-3-1-5.7-2.8-7.9l0,0L36,8.1 l-20.9,26l0,0C13.3,36.2,12.3,39,12.3,42z"/>
+  </g>
+</symbol>
+<symbol id="2665" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M60.7,26.2 c0-7.2-5.9-13.1-13.1-13.1c-5,0-9.3,2.8-11.5,6.9c-2.2-4.1-6.6-6.9-11.5-6.9c-7.2,0-13.1,5.9-13.1,13.1c0,3.1,1.1,6,2.9,8.2l0,0 l21.8,27l21.8-27l0,0C59.6,32.2,60.7,29.4,60.7,26.2z"/>
+  </g>
+</symbol>
+<symbol id="2666" viewBox="0 0 72 72">
+  <g id="line">
+    <line x1="17" x2="36" y1="36" y2="63" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="36" x2="55" y1="63" y2="36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="17" x2="36" y1="36" y2="9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="36" x2="55" y1="9" y2="36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="2663" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m38.7,38.8c1.2,7.9,7,20.5,8.9,21.3h-22.7c2-.9,8.4-15.1,9-22.8"/>
+    <circle cx="36.2" cy="19.6" r="11.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle cx="53.4" cy="36.7" r="11.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle cx="19" cy="36.7" r="11.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="265F" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="36" cy="17" r="10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21.5338,29.3371a2.0189,2.0189,0,0,0,0,4"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M30.8,35.6464C30.8,46.6134,18.9431,59.22,16.9277,60.1H36"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M41.25,36.8969C42.0826,47.55,53.1331,59.2536,55.0723,60.1H36"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M52.0466,33.3371a2.0189,2.0189,0,0,0,0-4"/>
+    <line x1="21.5338" x2="52.0466" y1="29.3371" y2="29.3371" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="21.5338" x2="52.0466" y1="33.3371" y2="33.3371" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F0CF" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="16.5" y="4.8" width="39" height="62.4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21.0209,23.286c-.6734.15,3.9411-6.4248,11.4258-2.5271,0,0,4.5-10.7789,14.4109-6.7508,0,0-8.1695,6.2635-6.0268,5.9931,8.2578-1.042,9.3575,4.3845,9.3575,4.3845C40.1169,21.5471,45.81,29.9874,45.81,29.9874c-6.8537-6.8408-14.4739-5.7178-19.9542-.7242C25.856,29.2632,28.82,21.5471,21.0209,23.286Z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M25.9961,42.78c-1.211.0039-6.32,3.4383-6.32,5.0027,0,0,6.5691-1.77,8.2538-1.1678,0,0-1.939,3.8151-1.8187,5.8608,0,0,6.3717-3.1424,9.8822-3.1424"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M45.99,42.78c1.211.0039,6.32,3.4383,6.32,5.0027,0,0-6.5692-1.77-8.2539-1.1678,0,0,1.9391,3.8151,1.8187,5.8608,0,0-6.3717-3.1424-9.8822-3.1424"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M23.37,7.35v4.5a2.5,2.5,0,0,1-2.5,2.5h0a2.4908,2.4908,0,0,1-1.6728-.642"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M48.63,64.2165v-4.5a2.5,2.5,0,0,1,2.5-2.5h0a2.4908,2.4908,0,0,1,1.6728.642"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="50.782" cy="27.4753" r="1.9488"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="48.8332" cy="16.4818" r="1.9488"/>
+    <circle fill="none" stroke="currentColor" stroke-width="2" cx="20.6797" cy="26.4668" r="1.9488"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M41.7716,31.0968a1.9489,1.9489,0,1,1-1.9488-1.9489,1.95,1.95,0,0,1,1.9488,1.9489"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M33.9763,31.0968a1.9489,1.9489,0,1,1-1.9489-1.9489,1.95,1.95,0,0,1,1.9489,1.9489"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" d="M35.925,40.8433a7.4566,7.4566,0,0,1-3.3591-.836.9745.9745,0,1,1,.8717-1.7432,5.24,5.24,0,0,0,4.9748,0,.9745.9745,0,1,1,.8717,1.7432A7.4566,7.4566,0,0,1,35.925,40.8433Z"/>
+  </g>
+</symbol>
+<symbol id="1F004" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="17" y="8" width="38" height="56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <line x1="36" x2="36" y1="16" y2="56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <rect x="24" y="24" width="24" height="12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F3B4" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="17" y="5.0503" width="38" height="62" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <circle cx="30.9868" cy="21.3538" r="10" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17,48.1667s18.5-19.5,38,0"/>
+  </g>
+</symbol>
+<symbol id="1F3AD" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M27.9197,46.898l-3.9508,1.0585c-3.7855,1.0144-7.852-3.0433-9.7979-6.4451c-0.9177-1.6042-3.3572-4.5516-4.0536-6.1821 c-0.9213-2.1567-3.3831-8.7075-3.3831-8.7075c-0.9413-2.2036,0.9945-5.9547,3.3091-6.5749c0,0,6.3153-1.3686,8.0716-1.8392 c1.7562-0.4705,7.9098-2.4429,7.9098-2.4429c2.3145-0.6202,5.8665,1.6604,6.1531,4.0394c0,0,1.1435,6.9053,1.4241,9.234 c0.212,1.7598-0.427,5.5314-0.4197,7.3792C33.198,40.3363,31.7052,45.8836,27.9197,46.898z"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M28.3499,39.0182c0.6432,2.4006-2.412-1.2173-4.8126-0.574c-2.4006,0.6432-3.2375,5.3039-3.8808,2.9033 c-0.6432-2.4006,0.7814-4.8681,3.182-5.5113C25.2391,35.1929,27.7066,36.6175,28.3499,39.0182z"/>
+    <ellipse cx="25.7256" cy="27.2976" rx="1.9999" ry="1.5" transform="matrix(0.9659 -0.2588 0.2588 0.9659 -6.1883 7.5881)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M21.6693,23.4356c2.1356-0.765,4.0226-1.1808,5.0998-0.9136c1.2528,0.3108,2.2244,1.0304,3.1249,2.106"/>
+    <ellipse cx="15.8699" cy="29.9379" rx="1.9999" ry="1.5" transform="matrix(0.9659 -0.2588 0.2588 0.9659 -7.2074 5.1273)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M17.4538,24.5652c-2.232,0.4053-4.0741,0.9887-4.8733,1.7587c-0.9295,0.8956-1.4112,2.0046-1.6533,3.3863"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M48.031,55.9565l-3.9507-1.0587c-3.7855-1.0143-5.2784-6.5616-5.2627-10.4806c0.0073-1.8481-0.6316-5.6204-0.4195-7.3807 c0.2805-2.3284,1.4239-9.2325,1.4239-9.2325c0.2866-2.379,3.8386-4.6597,6.1532-4.0395c0,0,6.1535,1.9724,7.9099,2.443 c1.7561,0.4706,8.0715,1.8393,8.0715,1.8393c2.3145,0.6201,4.2503,4.3712,3.309,6.5748c0,0-2.4623,6.5519-3.3837,8.7089 c-0.6963,1.63-3.1355,4.5768-4.0531,6.1807C55.8829,52.9132,51.8165,56.9708,48.031,55.9565z"/>
+    <ellipse cx="55.9304" cy="37.8867" rx="1.5" ry="1.9999" transform="matrix(0.2588 -0.9659 0.9659 0.2588 4.8593 82.1061)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M54.3491,32.5124c2.232,0.4053,4.0741,0.9887,4.8733,1.7587c0.9295,0.8956,1.4112,2.0046,1.6533,3.3863"/>
+    <ellipse cx="46.074" cy="35.245" rx="1.5" ry="1.9999" transform="matrix(0.2588 -0.9659 0.9659 0.2588 0.1055 70.6275)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M50.1336,31.3828c-2.1356-0.765-4.0226-1.1808-5.0998-0.9136c-1.2528,0.3108-2.2244,1.0304-3.1249,2.106"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M44.6141,43.4203c0.6432-2.4006,1.4802,2.2601,3.8808,2.9033c2.4006,0.6433,5.4558-2.9746,4.8125-0.574 c-0.6432,2.4006-3.1107,3.8253-5.5113,3.182C45.3955,48.2884,43.9709,45.8209,44.6141,43.4203z"/>
+  </g>
+</symbol>
+<symbol id="1F5BC" viewBox="0 0 72 72">
+  <g id="line">
+    <rect x="12" y="12" width="48" height="48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <rect x="18" y="18" width="36" height="36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="26" cy="30" r="4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <rect x="18" y="18" width="36" height="36" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M22,43c0.5259-1.0198,0.7275-1.9672,3-3c2.6096-1.1859,3-2,6-4c4.746-3.164,6.792-9.0278,11-9c1.7205,0.0114,5,7,8,8"/>
+  </g>
+</symbol>
+<symbol id="1F3A8" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2" d="M59,36c-0.25-0.75-0.71-2.1-2-3c-1.56-1.08-3.63-1.01-4-1c-0.76,0.03-1.18,0.16-2,0c-0.58-0.12-1.53-0.3-2-1 c-0.4-0.59-0.15-1.08,0-3c0.12-1.51,0.17-2.27,0-3c-0.37-1.58-1.49-2.56-2-3c-1.05-0.92-2.38-1.56-5-2c-1.82-0.31-4.75-0.6-9,0 c-2.15,0.3-5.46,0.87-8,1.72c-1.77,0.58-3.74,1.41-6,3c-0.02,0.01-0.04,0.02-0.05,0.03c-3.44,2.24-5.39,6.2-5.22,10.31 C14.64,57.13,54.56,59.91,59,41C59.09,40.4,59.79,38.35,59,36z M38.21,30.12c-1.53,0-2.76-1.24-2.76-2.76 c0-1.53,1.23-2.76,2.76-2.76h2.71c1.52,0,2.76,1.23,2.76,2.76c0,0.76-0.31,1.45-0.81,1.95s-1.19,0.81-1.95,0.81H38.21z"/>
+    <circle cx="20" cy="33" r="3" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="25" cy="42" r="3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="35" cy="45" r="3" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+    <circle cx="45" cy="44" r="3" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2"/>
+  </g>
+</symbol>
+<symbol id="1F9F5" viewBox="0 0 72 72">
+  <g id="line">
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="49.224 17.187 53.891 12.36 17.207 12.36 21.875 17.187"/>
+    <line x1="21.8746" x2="49.2242" y1="17.1871" y2="17.1871" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1579"/>
+    <line x1="22.2017" x2="49.232" y1="54.7073" y2="54.7073" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1579"/>
+    <polyline fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" points="49.224 54.707 53.891 59.534 17.207 59.534 21.875 54.707"/>
+    <g>
+      <line x1="22.0343" x2="49.0646" y1="17.1871" y2="17.1871" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="22.0115" x2="49.0874" y1="22.5471" y2="22.5471" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="21.9887" x2="49.1102" y1="27.9071" y2="27.9071" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="21.9659" x2="49.133" y1="33.2672" y2="33.2672" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="21.943" x2="49.1558" y1="38.6272" y2="38.6272" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="21.9202" x2="49.1786" y1="43.9872" y2="43.9872" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="21.8974" x2="49.2014" y1="49.3472" y2="49.3472" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <line x1="21.8746" x2="49.2242" y1="54.7073" y2="54.7073" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    </g>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22.2017,43.9829h27.03a9.5279,9.5279,0,0,1,5.6467,2.5918c3.2368,3.2368,5.9341,5.9342,11.3288,5.3947"/>
+  </g>
+</symbol>
+<symbol id="1FAA1" viewBox="0 0 72 72">
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m39.1786,35.6423l15.0183-17.26c1.3106-1.7706.9376-4.2684-.833-5.579-1.7539-1.2982-4.2255-.9461-5.547.7903l-29.2378,45.5991,16.39-18.7271"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m49.9081,19.6608c-.7433.515-1.4725.6747-1.9149.3426-.7033-.5278-.416-2.0979.6416-3.507s2.485-2.1234,3.1882-1.5956c.1476.1146.2563.2719.3111.4506"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m49.005,16.0479c.5413.2799,1.0573.6062,1.5422.9753,4.1633,3.0078,6.1973,8.1622,5.21,13.2026,0,0-1.613,8.9339-10.8977,9.209-8.5048.252-21.4085-8.633-33.8595,2.7982"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m34.5894,18.5635s6.0295-4.8028,12.1836-3.3422"/>
+  </g>
+</symbol>
+<symbol id="1F9F6" viewBox="0 0 72 72">
+  <g id="line">
+    <circle cx="30.8061" cy="34.8221" r="22.2237" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M43.92,17.0156a22.124,22.124,0,0,1-13.1141,4.28,22.1238,22.1238,0,0,1-13.1232-4.2865"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M46.7354,19.6607c-3.3016,4.46-9.726,8.3615-15.9293,8.3615a21.241,21.241,0,0,1-16.21-8.2991"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M49.1487,22.6555C46.3245,29.142,38.6345,34.7491,30.8061,34.7491A21.24,21.24,0,0,1,12.3428,23.0609"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M51.2308,26.4248c-2.6184,8.1809-11.28,15.0511-20.4247,15.0511a22.361,22.361,0,0,1-20.5554-14.815"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M52.559,30.5513A22.2316,22.2316,0,0,1,30.8061,48.2027,22.6412,22.6412,0,0,1,8.8738,31.2144"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M45.1424,51.971c1.3165.9452,3.7331,3.6351,6.6276,3.6753s5.5935-3.1506,7.0575-2.3287c2.6065,1.4632,3.7516,3.7282,6.6919,3.7746"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M37.8184,55.8438A22.7078,22.7078,0,0,1,23.7208,34.8221,22.2316,22.2316,0,0,1,37.8392,14.1228"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M41.5632,15.8254A22.2229,22.2229,0,0,0,30.3879,34.8221,21.8953,21.8953,0,0,0,41.66,53.9286"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M44.5777,17.8248A22.926,22.926,0,0,0,37.055,34.8221c0,6.904,2.8854,13.414,8.0874,17.1489"/>
+  </g>
+</symbol>
+<symbol id="1FAA2" viewBox="0 0 72 72">
+  <g id="line-supplement">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m18.2987,47.0371s.17,2.1674,4.5371,2.8755"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m25.0343,35.4841c1.5108-.494,3.1619-.3057,4.5226.5159"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m26.8582,28.2336c1.6015-.8547,3.4582-1.1009,5.2271-.6931"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m32.27,19.1212s3.0736.3742,2.6079,4.286"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m48.1464,34.9927s4.7358,1.001,5.6255-3.3181"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m41.3957,40.6445c1.7015,1.8357,4.3638,2.4223,6.6792,1.4717"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m33.5978,45.2113s4.3436-.38,5.458,1.5936"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m23.7889,56.9573s2.5774-2.8107,6.0761-1.884"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m44.0919,14.609s2.3364,2.296,1.1682,7.1425"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m39.0558,20.6344s.7182,2.9572-1.898,6.6866"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21.3668,32.03s-.4284,5.567,3.1854,6.1831"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21.9289,45.1819s3.7608,1.0774,4.49-2.3129"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m31.0005,52.5446s6.3137-.9121,5.5583-4.2323"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m44.4663,30.3446s.7807,4.9488,3.0684,5.6554"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m48.4925,22.9816s-.5088,3.9862,1.6566,6.1516"/>
+  </g>
+  <g id="line">
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="m41.9641,17.9355c1.4821-1.6009,2.4632-3.6005,2.8223-5.7523m-9.2964,10.7984c2.4234-1.3109,4.6115-3.0162,6.4745-5.0461m4.4721,25.1245c-.6774,2.396-1.8518,4.6225-3.4466,6.5347-2.4709,2.8661-6.277,4.2061-9.9985,3.52-2.5371-.5704-4.9023-1.7358-6.9005-3.4-2.0518-1.6651-3.7737-3.6996-5.0766-5.9984-2.6069-4.5695-1.688-10.3369,2.21-13.87,1.205-1.0531,2.53-1.9602,3.9477-2.7025m27.9321-2.447c-3.7722,1.1558-5.47,4.594-6.4885,8.8732m-6.5633,6.6843c.36-1.325.6684-2.7358.9833-4.1753,1.42-6.488,3.0295-13.8417,10.6029-16.1625m-28.9462,16.9046c-.333,1.5093-.0935,3.0885.6721,4.4312.9981,1.7545,2.3156,3.3068,3.8847,4.5766,1.3702,1.1583,2.9949,1.9761,4.7415,2.3868,1.2634.237,2.5699.0065,3.6759-.6485m12.0456-34.5259c-1.5262,8.7724-8.587,12.3075-14.8169,15.4264-1.3269.6645-2.6225,1.3133-3.8432,1.9941"/>
+    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m46.5789,20.2442c.2158.16.4297.3252.6416.4957m-22.5637,16.0733c.2582-.8744.5111-1.7968.7587-2.7671,1.2146-4.7269,2.0418-9.96,4.9058-13.1862,2.4707-2.8666,6.2771-4.2066,9.9987-3.5199.5921.1216,1.1755.2823,1.7463.4812m-25.1663,29.7888c1.8163-.5665,3.3895-1.7271,4.4667-3.2954m3.0795,3.9176c-1.5527,1.977-3.6759,3.4286-6.0816,4.1578m17.4873-29.616c-.6778.3552-1.2848.8315-1.7912,1.4052-2.06,2.32-3.1641,6.6137-4.2316,10.7662-.687,2.9894-1.6034,5.9214-2.7411,8.77m18.9162-17.231c-.594-.6732-1.2436-1.2951-1.942-1.8592-.3733-.3007-.7513-.5765-1.1339-.8276m-11.9278,23.24c2.4556-1.803,5.0368-3.4283,7.7239-4.8637,2.8451-1.4566,5.5233-3.2184,7.9874-5.2542.9749-.8864,1.6465-2.0567,1.92-3.3456m-25.29,25.3051c.5187-3.0505,1.8528-5.9039,3.861-8.258m4.2586,2.0785c-1.6646,2.0244-2.7662,4.4517-3.1937,7.0375m23.8477-33.314c.0617.1044.1224.2093.1821.3147,2.6072,4.5699,1.6879,10.3378-2.2108,13.8707-2.5466,2.3289-6.4051,3.6411-9.5366,5.41-1.0044.5089-1.963,1.03-2.87,1.5721m9.5408-26.85h0c.6513.5257,1.2697,1.0909,1.8517,1.6924"/>
+  </g>
+</symbol>
+</svg>
