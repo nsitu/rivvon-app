@@ -28,6 +28,7 @@
         if (app.isDrawingMode) return 'Draw';
         if (app.textureCreatorVisible) return 'Make Texture';
         if (app.textureBrowserVisible) return 'Textures';
+        if (app.emojiPickerVisible) return 'Emoji';
         if (app.textPanelVisible) return 'Text';
         if (app.toolsPanelVisible) return 'Tools';
         if (app.aboutPanelVisible) return 'About';
@@ -50,6 +51,8 @@
             app.hideSlyce();
         } else if (app.textureBrowserVisible) {
             app.hideTextureBrowser();
+        } else if (app.emojiPickerVisible) {
+            app.hideEmojiPicker();
         } else if (app.textPanelVisible) {
             app.hideTextPanel();
         } else if (app.toolsPanelVisible) {

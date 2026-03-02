@@ -72,100 +72,102 @@
         ></div>
 
         <div class="emoji-picker-container">
-            <!-- Loading spinner for initial data load -->
-            <div
-                v-if="!isDataLoaded"
-                class="loading-state"
-            >
-                <span class="material-symbols-outlined spin">progress_activity</span>
-                <span>Loading emoji...</span>
-            </div>
+            <div class="emoji-picker-content">
+                <!-- Loading spinner for initial data load -->
+                <div
+                    v-if="!isDataLoaded"
+                    class="loading-state"
+                >
+                    <span class="material-symbols-outlined spin">progress_activity</span>
+                    <span>Loading emoji...</span>
+                </div>
 
-            <!-- Loading overlay for SVG fetch/parse -->
-            <div
-                v-if="isLoading"
-                class="loading-overlay"
-            >
-                <span class="material-symbols-outlined spin">progress_activity</span>
-                <span>Processing emoji...</span>
-            </div>
+                <!-- Loading overlay for SVG fetch/parse -->
+                <div
+                    v-if="isLoading"
+                    class="loading-overlay"
+                >
+                    <span class="material-symbols-outlined spin">progress_activity</span>
+                    <span>Processing emoji...</span>
+                </div>
 
-            <!-- Error message -->
-            <p
-                v-if="error"
-                class="error-message"
-            >{{ error }}</p>
+                <!-- Error message -->
+                <p
+                    v-if="error"
+                    class="error-message"
+                >{{ error }}</p>
 
-            <!-- Tabbed view -->
-            <Tabs
-                v-if="isDataLoaded"
-                v-model:value="activeTab"
-                class="emoji-tabs"
-            >
-                <TabList class="emoji-tablist">
-                    <Tab
-                        v-for="(group, idx) in emojiGroups"
-                        :key="group.slug"
-                        :value="idx"
-                        class="emoji-tab"
-                        v-tooltip.bottom="group.name"
-                    >
-                        <svg
-                            class="tab-icon"
-                            viewBox="0 0 72 72"
+                <!-- Tabbed view -->
+                <Tabs
+                    v-if="isDataLoaded"
+                    v-model:value="activeTab"
+                    class="emoji-tabs"
+                >
+                    <TabList class="emoji-tablist">
+                        <Tab
+                            v-for="(group, idx) in emojiGroups"
+                            :key="group.slug"
+                            :value="idx"
+                            class="emoji-tab"
+                            v-tooltip.bottom="group.name"
                         >
-                            <use :href="'#' + group.emojis[0].h" />
-                        </svg>
-                    </Tab>
-                </TabList>
-                <TabPanels class="emoji-tabpanels">
-                    <TabPanel
-                        v-for="(group, idx) in emojiGroups"
-                        :key="group.slug"
-                        :value="idx"
-                    >
-                        <div
-                            v-if="isSpriteLoading"
-                            class="sprite-loading"
-                        >
-                            <span class="material-symbols-outlined spin">progress_activity</span>
-                        </div>
-                        <div
-                            v-else
-                            class="emoji-grid"
-                        >
-                            <button
-                                v-for="entry in group.emojis"
-                                :key="entry.h"
-                                class="emoji-btn"
-                                :title="entry.n"
-                                :disabled="isLoading"
-                                @click="handleEmojiClick(entry)"
+                            <svg
+                                class="tab-icon"
+                                viewBox="0 0 72 72"
                             >
-                                <svg
-                                    class="emoji-img"
-                                    viewBox="0 0 72 72"
+                                <use :href="'#' + group.emojis[0].h" />
+                            </svg>
+                        </Tab>
+                    </TabList>
+                    <TabPanels class="emoji-tabpanels">
+                        <TabPanel
+                            v-for="(group, idx) in emojiGroups"
+                            :key="group.slug"
+                            :value="idx"
+                        >
+                            <div
+                                v-if="isSpriteLoading"
+                                class="sprite-loading"
+                            >
+                                <span class="material-symbols-outlined spin">progress_activity</span>
+                            </div>
+                            <div
+                                v-else
+                                class="emoji-grid"
+                            >
+                                <button
+                                    v-for="entry in group.emojis"
+                                    :key="entry.h"
+                                    class="emoji-btn"
+                                    :title="entry.n"
+                                    :disabled="isLoading"
+                                    @click="handleEmojiClick(entry)"
                                 >
-                                    <use :href="'#' + entry.h" />
-                                </svg>
-                            </button>
-                        </div>
-                    </TabPanel>
-                </TabPanels>
-            </Tabs>
+                                    <svg
+                                        class="emoji-img"
+                                        viewBox="0 0 72 72"
+                                    >
+                                        <use :href="'#' + entry.h" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </TabPanel>
+                    </TabPanels>
+                </Tabs>
 
-            <!-- Attribution -->
-            <div class="attribution">
-                Designed by <a
-                    href="https://openmoji.org/"
-                    target="_blank"
-                    rel="noopener"
-                >OpenMoji</a>.
-                License: <a
-                    href="https://creativecommons.org/licenses/by-sa/4.0/#"
-                    target="_blank"
-                    rel="noopener"
-                >CC BY-SA 4.0</a>
+                <!-- Attribution -->
+                <div class="attribution">
+                    Designed by <a
+                        href="https://openmoji.org/"
+                        target="_blank"
+                        rel="noopener"
+                    >OpenMoji</a>.
+                    License: <a
+                        href="https://creativecommons.org/licenses/by-sa/4.0/#"
+                        target="_blank"
+                        rel="noopener"
+                    >CC BY-SA 4.0</a>
+                </div>
             </div>
         </div>
     </div>
@@ -196,25 +198,27 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        max-width: 600px;
-        margin: 0 auto;
         background: #1a1a1a;
         padding-top: 5.5rem;
         padding-bottom: 5.5rem;
-        overflow: hidden;
+    }
+
+    .emoji-picker-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        width: 100%;
     }
 
     /* Tabs */
     .emoji-tabs {
         display: flex;
         flex-direction: column;
-        flex: 1;
-        min-height: 0;
     }
 
     .emoji-tablist {
         flex-shrink: 0;
-        padding: 0 0.5rem;
+        padding: 0;
     }
 
     .emoji-tab {
@@ -231,10 +235,7 @@
     }
 
     .emoji-tabpanels {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        padding: 0.5rem 1rem 1rem;
+        padding: 0.5rem 0 1rem;
     }
 
     /* Loading states */
