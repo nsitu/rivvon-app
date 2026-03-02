@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, watch, computed } from 'vue';
+    import { ref, watch } from 'vue';
     import Tabs from 'primevue/tabs';
     import TabList from 'primevue/tablist';
     import Tab from 'primevue/tab';
@@ -17,74 +17,35 @@
     const emit = defineEmits(['update:visible', 'generate']);
 
     const {
-        filteredGroups,
         emojiGroups,
         isDataLoaded,
         isLoading,
         isSpriteLoading,
         error,
-        searchQuery,
-        matchCount,
         loadEmojiData,
         ensureGroupLoaded,
         selectEmoji,
     } = useEmojiPicker();
 
-    const searchInputRef = ref(null);
     const spriteContainerRef = ref(null);
     const activeTab = ref(0);
 
-    /** Short tab labels to keep the tab bar compact */
-    const TAB_ICONS = {
-        'smileys-emotion': '😀',
-        'people-body': '🧑',
-        'animals-nature': '🐾',
-        'food-drink': '🍔',
-        'travel-places': '✈️',
-        'activities': '⚽',
-        'objects': '💡',
-        'symbols': '💕',
-        'flags': '🏁',
-        'extras-openmoji': '⊕',
-        'extras-unicode': '∞',
-    };
-
-    /** True when search query is active → show flat results instead of tabs */
-    const isSearching = computed(() => searchQuery.value.trim().length > 0);
-
     // Load emoji data lazily when panel first becomes visible,
-    // then load the first group's sprite
+    // then preload all group sprites so tab icons render immediately
     watch(() => props.visible, async (visible) => {
         if (visible && !isDataLoaded.value) {
             await loadEmojiData();
-            // Load the first tab's sprite
-            loadActiveSprite();
-        }
-        if (visible) {
-            setTimeout(() => searchInputRef.value?.focus(), 100);
+            loadAllSprites();
         }
     }, { immediate: true });
 
-    // Load sprite when tab changes
-    watch(activeTab, () => loadActiveSprite());
-
-    /** Load the sprite for the currently active tab */
-    function loadActiveSprite() {
+    /** Load sprites for every group (needed for tab icons + grid) */
+    function loadAllSprites() {
         if (!emojiGroups.value || !spriteContainerRef.value) return;
-        const group = emojiGroups.value[activeTab.value];
-        if (group) {
+        for (const group of emojiGroups.value) {
             ensureGroupLoaded(group.slug, spriteContainerRef.value);
         }
     }
-
-    /** When searching, load sprites for all visible groups */
-    watch(isSearching, (searching) => {
-        if (searching && emojiGroups.value && spriteContainerRef.value) {
-            for (const group of emojiGroups.value) {
-                ensureGroupLoaded(group.slug, spriteContainerRef.value);
-            }
-        }
-    });
 
     function close() {
         emit('update:visible', false);
@@ -111,21 +72,6 @@
         ></div>
 
         <div class="emoji-picker-container">
-            <!-- Search bar — always visible -->
-            <div class="search-bar">
-                <input
-                    ref="searchInputRef"
-                    v-model="searchQuery"
-                    type="text"
-                    placeholder="Search emoji..."
-                    class="search-field"
-                />
-                <span
-                    v-if="searchQuery"
-                    class="search-count"
-                >{{ matchCount }} result{{ matchCount !== 1 ? 's' : '' }}</span>
-            </div>
-
             <!-- Loading spinner for initial data load -->
             <div
                 v-if="!isDataLoaded"
@@ -150,9 +96,9 @@
                 class="error-message"
             >{{ error }}</p>
 
-            <!-- Tabbed view (no search active) -->
+            <!-- Tabbed view -->
             <Tabs
-                v-if="isDataLoaded && !isSearching"
+                v-if="isDataLoaded"
                 v-model:value="activeTab"
                 class="emoji-tabs"
             >
@@ -164,7 +110,12 @@
                         class="emoji-tab"
                         v-tooltip.bottom="group.name"
                     >
-                        {{ TAB_ICONS[group.slug] || '•' }}
+                        <svg
+                            class="tab-icon"
+                            viewBox="0 0 72 72"
+                        >
+                            <use :href="'#' + group.emojis[0].h" />
+                        </svg>
                     </Tab>
                 </TabList>
                 <TabPanels class="emoji-tabpanels">
@@ -203,39 +154,18 @@
                 </TabPanels>
             </Tabs>
 
-            <!-- Flat search results (search active) -->
-            <div
-                v-if="isDataLoaded && isSearching"
-                class="emoji-search-results"
-            >
-                <template
-                    v-for="group in filteredGroups"
-                    :key="group.slug"
-                >
-                    <h3 class="group-header">{{ group.name }}</h3>
-                    <div class="emoji-grid">
-                        <button
-                            v-for="entry in group.emojis"
-                            :key="entry.h"
-                            class="emoji-btn"
-                            :title="entry.n"
-                            :disabled="isLoading"
-                            @click="handleEmojiClick(entry)"
-                        >
-                            <svg
-                                class="emoji-img"
-                                viewBox="0 0 72 72"
-                            >
-                                <use :href="'#' + entry.h" />
-                            </svg>
-                        </button>
-                    </div>
-                </template>
-
-                <p
-                    v-if="matchCount === 0"
-                    class="no-results"
-                >No emoji found for "{{ searchQuery }}"</p>
+            <!-- Attribution -->
+            <div class="attribution">
+                Designed by <a
+                    href="https://openmoji.org/"
+                    target="_blank"
+                    rel="noopener"
+                >OpenMoji</a>.
+                License: <a
+                    href="https://creativecommons.org/licenses/by-sa/4.0/#"
+                    target="_blank"
+                    rel="noopener"
+                >CC BY-SA 4.0</a>
             </div>
         </div>
     </div>
@@ -274,36 +204,6 @@
         overflow: hidden;
     }
 
-    /* Search */
-    .search-bar {
-        flex-shrink: 0;
-        padding: 0.75rem 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .search-field {
-        flex: 1;
-        padding: 0.75rem 1rem;
-        border-radius: 6px;
-        background: #252525;
-        color: white;
-        border: 1px solid #374151;
-        font-size: 1rem;
-    }
-
-    .search-field:focus {
-        outline: none;
-        border-color: #4caf50;
-    }
-
-    .search-count {
-        color: #9ca3af;
-        font-size: 0.75rem;
-        white-space: nowrap;
-    }
-
     /* Tabs */
     .emoji-tabs {
         display: flex;
@@ -318,9 +218,16 @@
     }
 
     .emoji-tab {
-        font-size: 1.25rem;
         padding: 0.4rem 0.5rem;
         min-width: 0;
+    }
+
+    .tab-icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        color: #e0e0e0;
+        overflow: visible;
+        stroke-width: 3;
     }
 
     .emoji-tabpanels {
@@ -328,14 +235,6 @@
         min-height: 0;
         overflow-y: auto;
         padding: 0.5rem 1rem 1rem;
-    }
-
-    /* Flat search results scroll area */
-    .emoji-search-results {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        padding: 0 1rem 1rem;
     }
 
     /* Loading states */
@@ -368,8 +267,13 @@
     }
 
     @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     /* Error */
@@ -378,22 +282,6 @@
         font-size: 0.875rem;
         margin: 0.5rem 0;
         text-align: center;
-    }
-
-    /* Group header (search results only) */
-    .group-header {
-        color: #9ca3af;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin: 1rem 0 0.5rem;
-        padding-bottom: 0.25rem;
-        border-bottom: 1px solid #2a2a2a;
-    }
-
-    .group-header:first-child {
-        margin-top: 0;
     }
 
     /* Emoji grid */
@@ -447,11 +335,22 @@
         color: #9ca3af;
     }
 
-    /* No results */
-    .no-results {
-        color: #6b7280;
-        font-size: 0.875rem;
+    /* Attribution */
+    .attribution {
+        flex-shrink: 0;
+        padding: 0.5rem 1rem;
         text-align: center;
-        padding: 2rem 0;
+        color: #6b7280;
+        font-size: 0.7rem;
+    }
+
+    .attribution a {
+        color: #9ca3af;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    .attribution a:hover {
+        color: #d1d5db;
     }
 </style>

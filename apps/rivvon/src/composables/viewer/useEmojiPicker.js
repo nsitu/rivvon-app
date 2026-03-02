@@ -3,7 +3,7 @@
 // reactivity.  Lazily loads the emoji catalog, provides search/filter,
 // and handles SVG fetch → point conversion on selection.
 
-import { ref, computed, shallowRef } from 'vue';
+import { ref, shallowRef } from 'vue';
 import {
     loadOpenMojiCatalog,
     fetchOpenMojiSvg,
@@ -21,7 +21,6 @@ export function useEmojiPicker() {
     const isLoading = ref(false);
     const isSpriteLoading = ref(false);
     const error = ref(null);
-    const searchQuery = ref('');
 
     /** Track which group sprites have been loaded (slug → true) */
     const loadedSprites = ref(new Set());
@@ -41,38 +40,6 @@ export function useEmojiPicker() {
             error.value = 'Failed to load emoji data.';
         }
     }
-
-    /**
-     * Filtered emoji groups based on search query.
-     * Matches against annotation (name) text.
-     * Groups with zero matches are excluded.
-     */
-    const filteredGroups = computed(() => {
-        if (!emojiGroups.value) return [];
-
-        const query = searchQuery.value.trim().toLowerCase();
-        if (!query) return emojiGroups.value;
-
-        const result = [];
-        for (const group of emojiGroups.value) {
-            const matched = group.emojis.filter(entry =>
-                entry.n.toLowerCase().includes(query)
-            );
-            if (matched.length > 0) {
-                result.push({ ...group, emojis: matched });
-            }
-        }
-        return result;
-    });
-
-    /** Total count of emoji matching the current filter */
-    const matchCount = computed(() => {
-        let count = 0;
-        for (const group of filteredGroups.value) {
-            count += group.emojis.length;
-        }
-        return count;
-    });
 
     /**
      * Ensure a group's SVG spritemap is loaded and injected into the given
@@ -152,9 +119,6 @@ export function useEmojiPicker() {
         isLoading,
         isSpriteLoading,
         error,
-        searchQuery,
-        filteredGroups,
-        matchCount,
         loadEmojiData,
         ensureGroupLoaded,
         selectEmoji,
