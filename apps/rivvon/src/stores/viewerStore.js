@@ -16,7 +16,7 @@ export const useViewerStore = defineStore('viewer', {
         inFinalCountdown: false,
         
         // Ribbon/3D state
-        flowState: 'off', // 'off' | 'forward' | 'backward'
+        flowState: 'forward', // 'off' | 'forward' | 'backward'
         flowSpeed: 0.25, // Base flow speed (positive value)
         
         // Texture state

@@ -52,6 +52,23 @@ export function initThreeWebGL() {
         controls.update();
     }
 
+    // --- Context loss detection ---
+    // Listen for the native canvas event and forward to a registered handler.
+    let _deviceLostHandler = null;
+    renderer.domElement.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        console.error('[ThreeSetup] WebGL context lost');
+        if (_deviceLostHandler) _deviceLostHandler({ api: 'WebGL', message: 'Context lost', reason: 'context-lost' });
+    });
+
+    /**
+     * Register a callback that fires when the WebGL context is lost.
+     * @param {Function} handler - Receives { api, message, reason }.
+     */
+    function onDeviceLost(handler) {
+        _deviceLostHandler = handler;
+    }
+
     console.log('[ThreeSetup] WebGL renderer initialized');
 
     /**
@@ -94,6 +111,7 @@ export function initThreeWebGL() {
         resetCamera,
         createSkySphere,
         handleResize,
+        onDeviceLost,
         rendererType: 'webgl'
     };
 }

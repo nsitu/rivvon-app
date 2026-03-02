@@ -56,6 +56,27 @@ export async function initThreeWebGPU() {
         controls.update();
     }
 
+    // --- Device loss detection ---
+    // Three.js exposes a public `onDeviceLost` callback that fires when the
+    // WebGPU device (or WebGL context) is lost.  We wrap it so external code
+    // (useThreeSetup composable) can register a handler.
+    let _deviceLostHandler = null;
+    const _originalOnDeviceLost = renderer.onDeviceLost.bind(renderer);
+    renderer.onDeviceLost = (info) => {
+        // Run Three.js's default behaviour first (sets _isDeviceLost = true, logs)
+        _originalOnDeviceLost(info);
+        // Notify external listener
+        if (_deviceLostHandler) _deviceLostHandler(info);
+    };
+
+    /**
+     * Register a callback that fires when the GPU device is lost.
+     * @param {Function} handler - Receives the info object { api, message, reason }.
+     */
+    function onDeviceLost(handler) {
+        _deviceLostHandler = handler;
+    }
+
     console.log('[ThreeSetup] WebGPU renderer initialized');
 
     /**
@@ -98,6 +119,7 @@ export async function initThreeWebGPU() {
         resetCamera,
         createSkySphere,
         handleResize,
+        onDeviceLost,
         rendererType: 'webgpu'
     };
 }

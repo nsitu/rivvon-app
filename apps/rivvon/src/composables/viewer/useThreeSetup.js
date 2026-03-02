@@ -28,6 +28,10 @@ export function useThreeSetup() {
     const resetCamera = ref(null);
     const backgroundTexture = shallowRef(null);
 
+    // GPU device loss & recovery state
+    const isDeviceLost = ref(false);
+    const isRecovering = ref(false);
+
     // Cinematic camera system
     const cinematicCamera = useCinematicCamera();
     
@@ -35,6 +39,7 @@ export function useThreeSetup() {
     let renderCallback = null;
     let renderLoopPaused = false;
     let lastFrameTime = 0;
+    let pausedByVisibility = false; // tracks tab-hidden pausing (separate from Slyce)
 
     /**
      * Pause the render loop to free GPU/CPU resources
@@ -61,6 +66,76 @@ export function useThreeSetup() {
         }
         console.log('[ThreeSetup] Render loop resumed');
     }
+
+    // ── Tab-visibility & GPU device-loss recovery ──────────────────────
+    //
+    // Browsers may reclaim GPU resources from background tabs.  We handle
+    // this by:
+    //   1.  Pausing the render loop when the tab is hidden (saves GPU).
+    //   2.  Listening for device/context loss via the setup modules.
+    //   3.  When the tab becomes visible again after a loss, performing a
+    //       full teardown → reinitialize cycle so the user never needs to
+    //       manually refresh.
+
+    /**
+     * Handle document.visibilitychange events.
+     * - hidden  → pause rendering proactively to save GPU
+     * - visible → resume, or recover if the GPU device was lost
+     */
+    async function _onVisibilityChange() {
+        if (document.visibilityState === 'hidden') {
+            // Only pause if we initiated it (don't interfere with Slyce pausing)
+            if (isInitialized.value && !renderLoopPaused && !isDeviceLost.value) {
+                pausedByVisibility = true;
+                pauseRenderLoop();
+                console.log('[ThreeSetup] Tab hidden — render loop paused to conserve GPU');
+            }
+        } else if (document.visibilityState === 'visible') {
+            if (isDeviceLost.value) {
+                // GPU device was lost while backgrounded — need full recovery
+                pausedByVisibility = false;
+                await _recoverFromDeviceLoss();
+            } else if (pausedByVisibility) {
+                // Normal un-hide — resume the loop we paused
+                pausedByVisibility = false;
+                resumeRenderLoop();
+                console.log('[ThreeSetup] Tab visible — render loop resumed');
+            }
+        }
+    }
+
+    /**
+     * Full recovery: tear down the dead renderer and reinitialize everything
+     * from scratch (renderer, scene, camera, textures, ribbon, etc.).
+     * Uses the reinitCallback registered on the viewer store by ThreeCanvas.
+     */
+    async function _recoverFromDeviceLoss() {
+        if (isRecovering.value) return; // guard re-entrancy
+        isRecovering.value = true;
+        console.log('[ThreeSetup] Recovering from GPU device loss…');
+
+        try {
+            // Tear down all GPU resources (sets isInitialized = false)
+            teardownViewer();
+
+            // Reinitialize via the callback registered by ThreeCanvas.vue.
+            // This recreates renderer, scene, tile manager, default ribbon, etc.
+            if (app.reinitCallback) {
+                await app.reinitCallback();
+                console.log('[ThreeSetup] GPU recovery complete — viewer restored');
+            } else {
+                console.error('[ThreeSetup] No reinitCallback available — user must refresh');
+            }
+        } catch (e) {
+            console.error('[ThreeSetup] GPU recovery failed:', e);
+        } finally {
+            isRecovering.value = false;
+            isDeviceLost.value = false;
+        }
+    }
+
+    // Attach the listener once per composable instance
+    document.addEventListener('visibilitychange', _onVisibilityChange);
 
     /**
      * Initialize Three.js scene
@@ -100,11 +175,27 @@ export function useThreeSetup() {
             });
             await tileManager.value.loadAllTiles();
 
+            // Sync flow animation state from store
+            setFlowState(app.flowState);
+
             // Set blurred background from the first tile texture
             await setBackgroundFromTileManager();
 
             // Initialize cinematic camera system
             cinematicCamera.init(ctx.camera, ctx.controls);
+
+            // Register device-loss handler (works for both WebGPU and WebGL)
+            if (ctx.onDeviceLost) {
+                ctx.onDeviceLost((info) => {
+                    console.warn(`[ThreeSetup] GPU device lost (${info.api}): ${info.message}`);
+                    isDeviceLost.value = true;
+                    stopRenderLoop();
+                });
+            }
+
+            // Reset recovery flag on successful init
+            isDeviceLost.value = false;
+            isRecovering.value = false;
 
             isInitialized.value = true;
             console.log(`[ThreeSetup] Initialized with ${ctx.rendererType}`);
@@ -467,6 +558,9 @@ export function useThreeSetup() {
             webgpuMaterialMode: 'node'
         });
         await tileManager.value.loadAllTiles();
+
+        // Sync flow animation state from store
+        setFlowState(app.flowState);
         
         // Rebuild ribbons with new textures
         rebuildRibbonsWithNewTextures();
@@ -636,6 +730,9 @@ export function useThreeSetup() {
      * Clean up on unmount
      */
     onUnmounted(() => {
+        // Remove visibility listener
+        document.removeEventListener('visibilitychange', _onVisibilityChange);
+
         stopRenderLoop();
         
         if (backgroundTexture.value) {
@@ -973,6 +1070,8 @@ export function useThreeSetup() {
         ribbon,
         ribbonSeries,
         isInitialized,
+        isDeviceLost,
+        isRecovering,
         resetCamera,
         
         // Methods
