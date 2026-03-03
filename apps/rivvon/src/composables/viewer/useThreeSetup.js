@@ -436,6 +436,7 @@ export function useThreeSetup() {
         // (wave undulation and texture flow work the same way)
         ribbonSeries.value = new RibbonSeries(scene.value);
         ribbonSeries.value.setTileManager(tileManager.value);
+        ribbonSeries.value.setHelixOptions(app.helixOptions);
         
         // Build from single path (wrapped in array)
         ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
@@ -472,6 +473,7 @@ export function useThreeSetup() {
         // Create new ribbon series - constructor only takes scene
         ribbonSeries.value = new RibbonSeries(scene.value);
         ribbonSeries.value.setTileManager(tileManager.value);
+        ribbonSeries.value.setHelixOptions(app.helixOptions);
         
         // Build from multiple paths
         ribbonSeries.value.buildFromMultiplePaths(pointsArray, options.width || 1.2);
@@ -525,6 +527,7 @@ export function useThreeSetup() {
         // Use RibbonSeries for consistent animation behavior
         ribbonSeries.value = new RibbonSeries(scene.value);
         ribbonSeries.value.setTileManager(tileManager.value);
+        ribbonSeries.value.setHelixOptions(app.helixOptions);
         
         // Build from processed points
         ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
@@ -649,6 +652,7 @@ export function useThreeSetup() {
         }
         if (ribbonSeries.value) {
             ribbonSeries.value.setTileManager(tileManager.value);
+            ribbonSeries.value.setHelixOptions(app.helixOptions);
             // Rebuild ribbon series with new textures
             if (ribbonSeries.value.lastPathsPoints && ribbonSeries.value.lastPathsPoints.length > 0) {
                 ribbonSeries.value.buildFromMultiplePaths(
@@ -678,6 +682,24 @@ export function useThreeSetup() {
             }
         }
         app.setFlowState(state);
+    }
+
+    /**
+     * Apply helix mode options and rebuild ribbons
+     * Called when helix toggle or parameters change in the store
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
+     */
+    function setHelixMode(options) {
+        if (!ribbonSeries.value) return;
+
+        ribbonSeries.value.setHelixOptions(options);
+
+        // Rebuild geometry with new helix params
+        if (ribbonSeries.value.lastPathsPoints && ribbonSeries.value.lastPathsPoints.length > 0) {
+            ribbonSeries.value.rebuildUpdate(performance.now() / 1000);
+            ribbonSeries.value.initFlowMaterials();
+            console.log(`[ThreeSetup] Rebuilt ribbons with helix mode: ${options.helixMode}`);
+        }
     }
 
     /**
@@ -1088,6 +1110,7 @@ export function useThreeSetup() {
         loadTexturesFromRemote,
         loadTexturesFromLocal,
         setFlowState,
+        setHelixMode,
         exportImage,
         exportVideo,
         exportVideoLegacy,

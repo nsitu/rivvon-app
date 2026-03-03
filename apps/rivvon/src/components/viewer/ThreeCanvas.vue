@@ -39,6 +39,7 @@
         loadTexturesFromRemote,
         loadTexturesFromLocal,
         setFlowState,
+        setHelixMode,
         exportImage,
         exportVideo,
         exportVideoLegacy,
@@ -132,6 +133,11 @@
         setFlowState(state);
     });
 
+    // Watch for helix mode/option changes and rebuild ribbons
+    watch(() => app.helixOptions, (options) => {
+        setHelixMode(options);
+    }, { deep: true });
+
     // Expose methods for parent component
     defineExpose({
         scene,
@@ -151,6 +157,7 @@
         loadTexturesFromRemote,
         loadTexturesFromLocal,
         setFlowState,
+        setHelixMode,
         exportImage,
         exportVideo,
         exportVideoLegacy,

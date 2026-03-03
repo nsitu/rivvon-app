@@ -279,6 +279,68 @@
                     </div>
                 </div>
 
+                <!-- Geometry section -->
+                <div class="tools-section">
+                    <div class="tools-section-label">Geometry</div>
+                    <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            :class="{ selected: !app.helixEnabled }"
+                            @click="app.setHelixMode(false)"
+                        >
+                            <span class="material-symbols-outlined">horizontal_rule</span>
+                            <span>Flat Ribbon</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            :class="{ selected: app.helixEnabled }"
+                            @click="app.setHelixMode(true)"
+                        >
+                            <span class="material-symbols-outlined">genetics</span>
+                            <span>Double Helix</span>
+                        </button>
+                        <!-- Helix parameter sliders (visible when helix is active) -->
+                        <template v-if="app.helixEnabled">
+                            <div class="tools-slider">
+                                <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
+                                }}</span></label>
+                                <input
+                                    type="range"
+                                    min="0.1"
+                                    max="1.5"
+                                    step="0.05"
+                                    :value="app.helixRadius"
+                                    @input="app.setHelixOption('helixRadius', parseFloat($event.target.value))"
+                                />
+                            </div>
+                            <div class="tools-slider">
+                                <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
+                                }}</span></label>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="12"
+                                    step="0.5"
+                                    :value="app.helixPitch"
+                                    @input="app.setHelixOption('helixPitch', parseFloat($event.target.value))"
+                                />
+                            </div>
+                            <div class="tools-slider">
+                                <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
+                                }}</span></label>
+                                <input
+                                    type="range"
+                                    min="0.05"
+                                    max="0.8"
+                                    step="0.05"
+                                    :value="app.helixStrandWidth"
+                                    @input="app.setHelixOption('helixStrandWidth', parseFloat($event.target.value))"
+                                />
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
                 <!-- Import / Export section -->
                 <div class="tools-section">
                     <div class="tools-section-label">Import / Export</div>
@@ -665,6 +727,56 @@
 
     .tools-user:hover {
         background: transparent;
+    }
+
+    /* Helix parameter sliders */
+    .tools-slider {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.5rem 1rem 0.625rem;
+    }
+
+    .tools-slider label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .tools-slider-value {
+        color: rgba(255, 255, 255, 0.85);
+        font-family: monospace;
+        font-size: 0.75rem;
+    }
+
+    .tools-slider input[type="range"] {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 2px;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+    }
+
+    .tools-slider input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #4caf50;
+        cursor: pointer;
+    }
+
+    .tools-slider input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #4caf50;
+        border: none;
+        cursor: pointer;
     }
 
     /* Info panel content */

@@ -19,6 +19,12 @@ export const useViewerStore = defineStore('viewer', {
         flowState: 'forward', // 'off' | 'forward' | 'backward'
         flowSpeed: 0.25, // Base flow speed (positive value)
         
+        // Helix mode
+        helixMode: false,
+        helixRadius: 0.4,   // Distance each strand sits from the spine
+        helixPitch: 4,      // Number of full turns along the ribbon length
+        helixStrandWidth: 0.3, // Width of each helical ribbon strip (fraction of original width)
+        
         // Texture state
         currentTextureId: null,
         thumbnailUrl: null,
@@ -224,10 +230,27 @@ export const useViewerStore = defineStore('viewer', {
         setFullscreen(enabled) {
             this.isFullscreen = enabled;
         },
+        
+        setHelixMode(enabled) {
+            this.helixMode = enabled;
+        },
+        
+        setHelixOption(key, value) {
+            if (key in this && ['helixRadius', 'helixPitch', 'helixStrandWidth'].includes(key)) {
+                this[key] = value;
+            }
+        },
     },
     
     getters: {
         hasActiveStrokes: (state) => state.strokeCount > 0,
         flowEnabled: (state) => state.flowState !== 'off',
+        helixEnabled: (state) => state.helixMode,
+        helixOptions: (state) => ({
+            helixMode: state.helixMode,
+            helixRadius: state.helixRadius,
+            helixPitch: state.helixPitch,
+            helixStrandWidth: state.helixStrandWidth,
+        }),
     }
 });

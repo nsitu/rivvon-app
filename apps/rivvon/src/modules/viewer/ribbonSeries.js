@@ -18,6 +18,28 @@ export class RibbonSeries {
         this.lastWidth = 1;
         this._flowMaterials = [];    // Track materials for flow updates
         this._flowWasActive = null;  // Track last flow state (null = not yet initialized)
+
+        // Helix mode options (forwarded to each Ribbon)
+        this._helixOptions = {
+            helixMode: false,
+            helixRadius: 0.4,
+            helixPitch: 4,
+            helixStrandWidth: 0.3,
+        };
+    }
+
+    /**
+     * Set helix mode parameters, forwarded to all child ribbons
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
+     * @returns {RibbonSeries} this for chaining
+     */
+    setHelixOptions(options = {}) {
+        Object.assign(this._helixOptions, options);
+        // Forward to all existing ribbons
+        for (const ribbon of this.ribbons) {
+            ribbon.setHelixOptions(this._helixOptions);
+        }
+        return this;
     }
 
     /**
@@ -69,6 +91,9 @@ export class RibbonSeries {
             if (this.tileManager) {
                 ribbon.setTileManager(this.tileManager);
             }
+
+            // Apply helix options before building
+            ribbon.setHelixOptions(this._helixOptions);
 
             // Set segment offset for continuous texture indexing
             ribbon.setSegmentOffset(segmentOffset);
@@ -148,7 +173,8 @@ export class RibbonSeries {
         let globalSegmentIndex = 0;
 
         for (const ribbon of this.ribbons) {
-            for (const mesh of ribbon.meshSegments) {
+            for (let s = 0; s < ribbon.meshSegments.length; s++) {
+                const mesh = ribbon.meshSegments[s];
                 let material;
                 
                 if (flowActive) {
@@ -165,6 +191,17 @@ export class RibbonSeries {
                         material,
                         baseIndex: globalSegmentIndex
                     });
+
+                    // Assign same material to strand B mesh (helix mode)
+                    if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
+                        const meshB = ribbon.helixMeshSegmentsB[s];
+                        meshB.material = material;
+                        this._flowMaterials.push({
+                            mesh: meshB,
+                            material,
+                            baseIndex: globalSegmentIndex
+                        });
+                    }
                 }
 
                 globalSegmentIndex++;
@@ -196,7 +233,8 @@ export class RibbonSeries {
         let globalSegmentIndex = 0;
 
         for (const ribbon of this.ribbons) {
-            for (const mesh of ribbon.meshSegments) {
+            for (let s = 0; s < ribbon.meshSegments.length; s++) {
+                const mesh = ribbon.meshSegments[s];
                 let material;
                 
                 if (flowActive) {
@@ -215,6 +253,17 @@ export class RibbonSeries {
                         material,
                         baseIndex: globalSegmentIndex
                     });
+
+                    // Assign same material to strand B mesh (helix mode)
+                    if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
+                        const meshB = ribbon.helixMeshSegmentsB[s];
+                        meshB.material = material;
+                        this._flowMaterials.push({
+                            mesh: meshB,
+                            material,
+                            baseIndex: globalSegmentIndex
+                        });
+                    }
                 }
 
                 globalSegmentIndex++;

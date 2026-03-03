@@ -21,8 +21,16 @@ export class Ribbon {
         this.waveFrequency = 0.25;  // Waves per unit length (not per path)
         this.waveSpeed = 2;
 
+        // Helix mode parameters
+        this.helixMode = false;
+        this.helixRadius = 0.4;       // Distance each strand sits from the spine
+        this.helixPitch = 4;          // Full turns along the ribbon length
+        this.helixStrandWidth = 0.3;  // Width of each helical strip (fraction of original width)
+        this.helixMeshSegmentsB = []; // Second strand meshes
+        this._segmentCacheB = [];     // Cache for strand B animation
+
         // Cached geometry data for efficient wave animation updates
-        // Each entry contains: { basePositions, normals, tangents, arcLengths, width }
+        // Each entry contains: { basePositions, normals, binormals, tangents, arcLengths, width }
         this._segmentCache = [];
     }
 
@@ -58,6 +66,19 @@ export class Ribbon {
      */
     setSegmentOffset(offset) {
         this.segmentOffset = offset;
+        return this;
+    }
+
+    /**
+     * Set helix mode parameters
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
+     * @returns {Ribbon} this for chaining
+     */
+    setHelixOptions(options = {}) {
+        if (options.helixMode !== undefined) this.helixMode = options.helixMode;
+        if (options.helixRadius !== undefined) this.helixRadius = options.helixRadius;
+        if (options.helixPitch !== undefined) this.helixPitch = options.helixPitch;
+        if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
         return this;
     }
 
@@ -144,7 +165,7 @@ export class Ribbon {
             referenceNormal = right.cross(initialTangent).normalize();
         }
 
-        // Pre-calculate all normals for the entire path to ensure consistency
+        // Pre-calculate all normals (and binormals for helix mode) for the entire path to ensure consistency
         const pointsPerSegment = 50;
         const totalPoints = segmentCount * pointsPerSegment + 1;
         const normalCache = [];
@@ -171,7 +192,10 @@ export class Ribbon {
                 normal = prevNormal.clone().lerp(normal, 0.1).normalize();
             }
 
-            normalCache.push(normal.clone());
+            // Compute binormal for helix mode (perpendicular to both tangent and normal)
+            const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
+
+            normalCache.push({ normal: normal.clone(), binormal: binormal.clone() });
             prevNormal = normal;
         }
 
@@ -183,6 +207,7 @@ export class Ribbon {
             const endT = (segIdx + 1) / segmentCount;
             const startPointIdx = segIdx * pointsPerSegment;
 
+            // Strand A (or flat ribbon in non-helix mode)
             const segmentMesh = this.createRibbonSegmentWithCache(
                 curve,
                 startT,
@@ -192,14 +217,34 @@ export class Ribbon {
                 segIdx,
                 normalCache,
                 startPointIdx,
-                pointsPerSegment
+                pointsPerSegment,
+                0 // strandOffset = 0 for strand A
             );
 
             if (segmentMesh) {
                 this.meshSegments.push(segmentMesh);
                 this.scene.add(segmentMesh);
-            } else {
-                // console.warn('[Ribbon] Failed to create segment', segIdx);
+            }
+
+            // Strand B (helix mode only — offset by π)
+            if (this.helixMode) {
+                const segmentMeshB = this.createRibbonSegmentWithCache(
+                    curve,
+                    startT,
+                    endT,
+                    width,
+                    time,
+                    segIdx,
+                    normalCache,
+                    startPointIdx,
+                    pointsPerSegment,
+                    Math.PI // strandOffset = π for strand B
+                );
+
+                if (segmentMeshB) {
+                    this.helixMeshSegmentsB.push(segmentMeshB);
+                    this.scene.add(segmentMeshB);
+                }
             }
         }
 
@@ -296,56 +341,88 @@ export class Ribbon {
         return curve;
     }
 
-    createRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, normalCache, startPointIdx, pointsPerSegment) {
-        // console.log('[Ribbon] Creating segment', segmentIndex, {
-        //     startT: startT.toFixed(3),
-        //     endT: endT.toFixed(3),
-        //     hasTileManager: !!this.tileManager
-        // });
-
+    createRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, normalCache, startPointIdx, pointsPerSegment, strandOffset = 0) {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
         const indices = [];
 
         // Cache arrays for efficient animation updates
-        const basePositions = [];  // Center points along the curve
+        const basePositions = [];  // Center points along the curve (spine points)
         const normals = [];        // Pre-rotated base normals
+        const binormals = [];      // Binormals for helix perpendicular plane
         const tangents = [];       // Tangent vectors for axis rotation
         const arcLengths = [];     // Arc length at each point
+        const globalTs = [];       // Global t values for helix angle computation
+
+        const isHelix = this.helixMode;
+        const helixRadius = this.helixRadius * width;  // Scale radius relative to ribbon width
+        const helixPitch = this.helixPitch;
+        const strandWidth = isHelix ? this.helixStrandWidth * width : width;
 
         for (let i = 0; i <= pointsPerSegment; i++) {
-            const localT = i / pointsPerSegment; // Note: still using pointsPerSegment for proper UV mapping
+            const localT = i / pointsPerSegment;
             const globalT = startT + (endT - startT) * localT;
             const point = curve.getPoint(globalT);
             const tangent = curve.getTangent(globalT).normalize();
 
-            // Get the pre-calculated normal from cache
+            // Get the pre-calculated normal and binormal from cache
             const cacheIdx = startPointIdx + i;
-            const normal = normalCache[cacheIdx].clone();
+            const cachedFrame = normalCache[cacheIdx];
+            const normal = cachedFrame.normal.clone();
+            const binormal = cachedFrame.binormal.clone();
 
             // Calculate arc length at this point for wave animation
-            // Using arc length instead of percentage ensures consistent wave density
             const arcLength = globalT * this.pathLength;
 
             // Store base geometry for animation cache
             basePositions.push(point.clone());
             normals.push(normal.clone());
+            binormals.push(binormal.clone());
             tangents.push(tangent.clone());
             arcLengths.push(arcLength);
+            globalTs.push(globalT);
 
-            // Animate phase based on arc length (not percentage)
-            // waveSpeed is synced to layer cycle period so wave completes one full 2π cycle
-            // Phase: sin(arcLength * waveFrequency * 2π + time * waveSpeed)
-            const phase = Math.sin(
-                arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-            ) * this.waveAmplitude;
+            let left, right;
 
-            const animatedNormal = normal.clone();
-            animatedNormal.applyAxisAngle(tangent, phase);
+            if (isHelix) {
+                // ── Helix mode: displace vertices helically around the spine ──
+                // Helix angle based on position along the full path + strand offset
+                const helixAngle = globalT * helixPitch * Math.PI * 2 + strandOffset;
 
-            const left = point.clone().addScaledVector(animatedNormal, -width / 2);
-            const right = point.clone().addScaledVector(animatedNormal, width / 2);
+                // Wave animation modulates the helix angle for a spinning/undulating effect
+                const wavePhase = Math.sin(
+                    arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+                ) * this.waveAmplitude;
+                const animatedAngle = helixAngle + wavePhase;
+
+                // Compute helix center: offset from spine along normal/binormal plane
+                const cosA = Math.cos(animatedAngle);
+                const sinA = Math.sin(animatedAngle);
+                const helixCenter = point.clone()
+                    .addScaledVector(normal, cosA * helixRadius)
+                    .addScaledVector(binormal, sinA * helixRadius);
+
+                // Radial direction (outward from spine) for ribbon width
+                const radialDir = helixCenter.clone().sub(point).normalize();
+
+                // Across direction — perpendicular to both tangent and radial — for ribbon strip width
+                const acrossDir = new THREE.Vector3().crossVectors(tangent, radialDir).normalize();
+
+                left = helixCenter.clone().addScaledVector(acrossDir, -strandWidth / 2);
+                right = helixCenter.clone().addScaledVector(acrossDir, strandWidth / 2);
+            } else {
+                // ── Flat ribbon mode (original behavior) ──
+                const phase = Math.sin(
+                    arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+                ) * this.waveAmplitude;
+
+                const animatedNormal = normal.clone();
+                animatedNormal.applyAxisAngle(tangent, phase);
+
+                left = point.clone().addScaledVector(animatedNormal, -width / 2);
+                right = point.clone().addScaledVector(animatedNormal, width / 2);
+            }
 
             positions.push(left.x, left.y, left.z);
             positions.push(right.x, right.y, right.z);
@@ -361,13 +438,18 @@ export class Ribbon {
             }
         }
 
-        // Store cache for this segment (indexed by segment position in this ribbon)
-        this._segmentCache[segmentIndex] = {
+        // Store cache for this segment
+        // For helix mode strand B, store in _segmentCacheB
+        const cacheTarget = (isHelix && strandOffset > 0) ? this._segmentCacheB : this._segmentCache;
+        cacheTarget[segmentIndex] = {
             basePositions,
             normals,
+            binormals,
             tangents,
             arcLengths,
-            width
+            globalTs,
+            width,
+            strandOffset
         };
 
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -414,6 +496,7 @@ export class Ribbon {
     /**
      * Efficient in-place wave animation update
      * Only modifies vertex positions without recreating geometry or materials
+     * Handles both flat ribbon and helix modes
      * @param {number} time - Current animation time
      */
     updateWaveAnimation(time) {
@@ -421,20 +504,45 @@ export class Ribbon {
             return;
         }
 
+        // Update strand A (flat ribbon or helix strand A)
+        this._updateStrandAnimation(this.meshSegments, this._segmentCache, time);
+
+        // Update strand B (helix mode only)
+        if (this.helixMode && this.helixMeshSegmentsB.length > 0 && this._segmentCacheB.length > 0) {
+            this._updateStrandAnimation(this.helixMeshSegmentsB, this._segmentCacheB, time);
+        }
+    }
+
+    /**
+     * Update vertex positions for a single strand (flat or helix)
+     * @param {Array<THREE.Mesh>} meshes - The mesh segments to update
+     * @param {Array} cache - The segment cache array
+     * @param {number} time - Current animation time
+     */
+    _updateStrandAnimation(meshes, cache, time) {
         // Reusable vectors to avoid GC pressure
         const animatedNormal = new THREE.Vector3();
         const left = new THREE.Vector3();
         const right = new THREE.Vector3();
+        const helixCenter = new THREE.Vector3();
+        const radialDir = new THREE.Vector3();
+        const acrossDir = new THREE.Vector3();
 
-        for (let segIdx = 0; segIdx < this.meshSegments.length; segIdx++) {
-            const mesh = this.meshSegments[segIdx];
-            const cache = this._segmentCache[segIdx];
+        const isHelix = this.helixMode;
+        const helixPitch = this.helixPitch;
 
-            if (!mesh || !cache) continue;
+        for (let segIdx = 0; segIdx < meshes.length; segIdx++) {
+            const mesh = meshes[segIdx];
+            const segCache = cache[segIdx];
+
+            if (!mesh || !segCache) continue;
 
             const positionAttr = mesh.geometry.attributes.position;
             const positions = positionAttr.array;
-            const { basePositions, normals, tangents, arcLengths, width } = cache;
+            const { basePositions, normals, binormals, tangents, arcLengths, globalTs, width, strandOffset } = segCache;
+
+            const helixRadius = this.helixRadius * width;
+            const strandWidth = isHelix ? this.helixStrandWidth * width : width;
 
             for (let i = 0; i < basePositions.length; i++) {
                 const point = basePositions[i];
@@ -442,18 +550,41 @@ export class Ribbon {
                 const tangent = tangents[i];
                 const arcLength = arcLengths[i];
 
-                // Calculate wave phase (synced to layer cycle)
-                const phase = Math.sin(
-                    arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-                ) * this.waveAmplitude;
+                if (isHelix) {
+                    const binormal = binormals[i];
+                    const globalT = globalTs[i];
 
-                // Apply rotation to normal
-                animatedNormal.copy(normal);
-                animatedNormal.applyAxisAngle(tangent, phase);
+                    // Helix angle + wave modulation
+                    const helixAngle = globalT * helixPitch * Math.PI * 2 + (strandOffset || 0);
+                    const wavePhase = Math.sin(
+                        arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+                    ) * this.waveAmplitude;
+                    const animatedAngle = helixAngle + wavePhase;
 
-                // Calculate left and right edge positions
-                left.copy(point).addScaledVector(animatedNormal, -width / 2);
-                right.copy(point).addScaledVector(animatedNormal, width / 2);
+                    const cosA = Math.cos(animatedAngle);
+                    const sinA = Math.sin(animatedAngle);
+
+                    helixCenter.copy(point)
+                        .addScaledVector(normal, cosA * helixRadius)
+                        .addScaledVector(binormal, sinA * helixRadius);
+
+                    radialDir.copy(helixCenter).sub(point).normalize();
+                    acrossDir.crossVectors(tangent, radialDir).normalize();
+
+                    left.copy(helixCenter).addScaledVector(acrossDir, -strandWidth / 2);
+                    right.copy(helixCenter).addScaledVector(acrossDir, strandWidth / 2);
+                } else {
+                    // Flat ribbon mode (original behavior)
+                    const phase = Math.sin(
+                        arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+                    ) * this.waveAmplitude;
+
+                    animatedNormal.copy(normal);
+                    animatedNormal.applyAxisAngle(tangent, phase);
+
+                    left.copy(point).addScaledVector(animatedNormal, -width / 2);
+                    right.copy(point).addScaledVector(animatedNormal, width / 2);
+                }
 
                 // Update position buffer (2 vertices per point: left, right)
                 const idx = i * 6; // 2 vertices * 3 components
@@ -474,19 +605,23 @@ export class Ribbon {
     }
 
     cleanupOldMesh() {
-        // console.log('[Ribbon] Cleaning up old meshes', {
-        //     segmentCount: this.meshSegments.length
-        // });
-        // Clean up segmented meshes
+        // Clean up strand A segmented meshes
         this.meshSegments.forEach(mesh => {
             if (mesh.geometry) mesh.geometry.dispose();
             if (mesh.material) mesh.material.dispose();
             this.scene.remove(mesh);
         });
         this.meshSegments = [];
-        // Clear segment cache
         this._segmentCache = [];
-        // console.log('[Ribbon] Cleanup complete');
+
+        // Clean up strand B (helix mode)
+        this.helixMeshSegmentsB.forEach(mesh => {
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) mesh.material.dispose();
+            this.scene.remove(mesh);
+        });
+        this.helixMeshSegmentsB = [];
+        this._segmentCacheB = [];
     }
 
     dispose() {
