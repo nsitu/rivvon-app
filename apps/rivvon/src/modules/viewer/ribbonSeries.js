@@ -13,11 +13,15 @@ export class RibbonSeries {
         this.scene = scene;
         this.ribbons = [];           // Array of Ribbon instances
         this.tileManager = null;
+        this.tileManagers = [];      // Array of TileManagers for multi-texture mode
         this.totalSegmentCount = 0;  // For tracking total segments across all ribbons
         this.lastPathsPoints = [];   // Store for animation updates
         this.lastWidth = 1;
         this._flowMaterials = [];    // Track materials for flow updates
         this._flowWasActive = null;  // Track last flow state (null = not yet initialized)
+
+        // Round-robin mapping: each entry is { ribbon, strand, tileManager }
+        this._strandTileManagerMap = [];
 
         // Helix mode options (forwarded to each Ribbon)
         this._helixOptions = {
@@ -43,12 +47,25 @@ export class RibbonSeries {
     }
 
     /**
-     * Set the tile manager for texturing
+     * Set the tile manager for texturing (single-texture mode)
      * @param {TileManager} tileManager - The tile manager instance
      * @returns {RibbonSeries} this for chaining
      */
     setTileManager(tileManager) {
         this.tileManager = tileManager;
+        this.tileManagers = [tileManager];
+        return this;
+    }
+
+    /**
+     * Set multiple tile managers for multi-texture mode.
+     * Textures are distributed round-robin across strands.
+     * @param {TileManager[]} tileManagers - Array of TileManager instances
+     * @returns {RibbonSeries} this for chaining
+     */
+    setTileManagers(tileManagers) {
+        this.tileManagers = tileManagers;
+        this.tileManager = tileManagers[0] || null;
         return this;
     }
 
@@ -77,6 +94,8 @@ export class RibbonSeries {
         this.lastWidth = width;
 
         let segmentOffset = 0;  // Track cumulative segment count for texture continuity
+        const N = this.tileManagers.length; // Number of available TileManagers
+        let textureIndex = 0; // Running index for round-robin TileManager assignment
 
         for (let i = 0; i < pathsPoints.length; i++) {
             const points = pathsPoints[i];
@@ -88,12 +107,27 @@ export class RibbonSeries {
 
             const ribbon = new Ribbon(this.scene);
 
-            if (this.tileManager) {
-                ribbon.setTileManager(this.tileManager);
+            // Assign TileManager for strand A via round-robin
+            const tmA = N > 0 ? this.tileManagers[textureIndex % N] : this.tileManager;
+            if (tmA) {
+                ribbon.setTileManager(tmA);
             }
+            this._strandTileManagerMap.push({ ribbon, strand: 'A', tileManager: tmA });
+            textureIndex++;
 
             // Apply helix options before building
             ribbon.setHelixOptions(this._helixOptions);
+
+            // If helix mode and multiple textures, assign strand B a different TileManager
+            if (this._helixOptions.helixMode && N > 1) {
+                const tmB = this.tileManagers[textureIndex % N];
+                ribbon.setTileManagerB(tmB);
+                this._strandTileManagerMap.push({ ribbon, strand: 'B', tileManager: tmB });
+                textureIndex++;
+            } else if (this._helixOptions.helixMode) {
+                // Single texture: strand B uses same TileManager (existing behavior)
+                this._strandTileManagerMap.push({ ribbon, strand: 'B', tileManager: tmA });
+            }
 
             // Set segment offset for continuous texture indexing
             ribbon.setSegmentOffset(segmentOffset);
@@ -173,15 +207,19 @@ export class RibbonSeries {
         let globalSegmentIndex = 0;
 
         for (const ribbon of this.ribbons) {
+            // Determine TileManagers for each strand
+            const tmA = ribbon.tileManager || this.tileManager;
+            const tmB = ribbon.tileManagerB || tmA;
+
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
                 let material;
                 
                 if (flowActive) {
-                    material = this.tileManager.createFlowMaterial(globalSegmentIndex);
+                    material = tmA.createFlowMaterial(globalSegmentIndex);
                 } else {
-                    const textureIndex = globalSegmentIndex + this.tileManager.getTileFlowOffset();
-                    material = this.tileManager.getMaterial(textureIndex);
+                    const textureIndex = globalSegmentIndex + tmA.getTileFlowOffset();
+                    material = tmA.getMaterial(textureIndex);
                 }
                 
                 if (material) {
@@ -189,18 +227,37 @@ export class RibbonSeries {
                     this._flowMaterials.push({
                         mesh,
                         material,
-                        baseIndex: globalSegmentIndex
+                        baseIndex: globalSegmentIndex,
+                        tileManager: tmA
                     });
 
-                    // Assign same material to strand B mesh (helix mode)
+                    // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
-                        meshB.material = material;
-                        this._flowMaterials.push({
-                            mesh: meshB,
-                            material,
-                            baseIndex: globalSegmentIndex
-                        });
+                        let materialB;
+
+                        if (tmB === tmA) {
+                            // Same TileManager: reuse same material
+                            materialB = material;
+                        } else {
+                            // Different TileManager: create separate material
+                            if (flowActive) {
+                                materialB = tmB.createFlowMaterial(globalSegmentIndex);
+                            } else {
+                                const textureIndexB = globalSegmentIndex + tmB.getTileFlowOffset();
+                                materialB = tmB.getMaterial(textureIndexB);
+                            }
+                        }
+
+                        if (materialB) {
+                            meshB.material = materialB;
+                            this._flowMaterials.push({
+                                mesh: meshB,
+                                material: materialB,
+                                baseIndex: globalSegmentIndex,
+                                tileManager: tmB
+                            });
+                        }
                     }
                 }
 
@@ -221,8 +278,10 @@ export class RibbonSeries {
     initFlowMaterials() {
         if (!this.tileManager) return;
 
-        // Clear any existing flow materials tracked by TileManager
-        this.tileManager.clearFlowMaterials?.();
+        // Clear any existing flow materials tracked by all TileManagers
+        for (const tm of this.tileManagers) {
+            tm.clearFlowMaterials?.();
+        }
 
         // Track segment info for later updates
         this._flowMaterials = [];
@@ -233,17 +292,21 @@ export class RibbonSeries {
         let globalSegmentIndex = 0;
 
         for (const ribbon of this.ribbons) {
+            // Determine TileManagers for each strand
+            const tmA = ribbon.tileManager || this.tileManager;
+            const tmB = ribbon.tileManagerB || tmA;
+
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
                 let material;
                 
                 if (flowActive) {
                     // Flow enabled: create dual-texture material for smooth animation
-                    material = this.tileManager.createFlowMaterial(globalSegmentIndex);
+                    material = tmA.createFlowMaterial(globalSegmentIndex);
                 } else {
                     // Flow disabled: use shared single-texture material (optimized)
-                    const textureIndex = globalSegmentIndex + this.tileManager.getTileFlowOffset();
-                    material = this.tileManager.getMaterial(textureIndex);
+                    const textureIndex = globalSegmentIndex + tmA.getTileFlowOffset();
+                    material = tmA.getMaterial(textureIndex);
                 }
                 
                 if (material) {
@@ -251,18 +314,37 @@ export class RibbonSeries {
                     this._flowMaterials.push({
                         mesh,
                         material,
-                        baseIndex: globalSegmentIndex
+                        baseIndex: globalSegmentIndex,
+                        tileManager: tmA
                     });
 
-                    // Assign same material to strand B mesh (helix mode)
+                    // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
-                        meshB.material = material;
-                        this._flowMaterials.push({
-                            mesh: meshB,
-                            material,
-                            baseIndex: globalSegmentIndex
-                        });
+                        let materialB;
+
+                        if (tmB === tmA) {
+                            // Same TileManager: reuse same material
+                            materialB = material;
+                        } else {
+                            // Different TileManager: create separate material
+                            if (flowActive) {
+                                materialB = tmB.createFlowMaterial(globalSegmentIndex);
+                            } else {
+                                const textureIndexB = globalSegmentIndex + tmB.getTileFlowOffset();
+                                materialB = tmB.getMaterial(textureIndexB);
+                            }
+                        }
+
+                        if (materialB) {
+                            meshB.material = materialB;
+                            this._flowMaterials.push({
+                                mesh: meshB,
+                                material: materialB,
+                                baseIndex: globalSegmentIndex,
+                                tileManager: tmB
+                            });
+                        }
                     }
                 }
 
@@ -274,7 +356,7 @@ export class RibbonSeries {
         this._lastTileOffset = this.tileManager.getTileFlowOffset?.() || 0;
         this._flowWasActive = flowActive;
 
-        console.log(`[RibbonSeries] Initialized ${this._flowMaterials.length} materials (flow ${flowActive ? 'enabled - dual texture' : 'disabled - single texture'})`);
+        console.log(`[RibbonSeries] Initialized ${this._flowMaterials.length} materials (flow ${flowActive ? 'enabled - dual texture' : 'disabled - single texture'}, ${this.tileManagers.length} texture set(s))`);
     }
 
     /**
@@ -313,18 +395,19 @@ export class RibbonSeries {
                 wholeTiles = Math.ceil(flowOffset) - 1; // negative
             }
 
-            // Update tile offset in TileManager
-            this.tileManager.wrapFlowOffset(wholeTiles);
-
-            // Clear tracked materials from TileManager
-            this.tileManager.clearFlowMaterials?.();
+            // Update tile offset in all TileManagers
+            for (const tm of this.tileManagers) {
+                tm.wrapFlowOffset(wholeTiles);
+                tm.clearFlowMaterials?.();
+            }
 
             // Create new materials for each segment with updated tile pairs
             for (const entry of this._flowMaterials) {
-                const { mesh, baseIndex } = entry;
+                const { mesh, baseIndex, tileManager: entryTm } = entry;
+                const tm = entryTm || this.tileManager;
                 
                 // Create new dual-texture material with updated tile pair
-                const newMaterial = this.tileManager.createFlowMaterial(baseIndex);
+                const newMaterial = tm.createFlowMaterial(baseIndex);
                 
                 if (newMaterial) {
                     mesh.material = newMaterial;
@@ -369,6 +452,7 @@ export class RibbonSeries {
         this.ribbons.forEach(ribbon => ribbon.dispose());
         this.ribbons = [];
         this._flowMaterials = [];
+        this._strandTileManagerMap = [];
         this._lastTileOffset = 0;
         // Note: Don't reset _flowWasActive here - it tracks across rebuilds
         this.totalSegmentCount = 0;

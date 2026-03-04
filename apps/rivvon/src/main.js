@@ -22,7 +22,8 @@ loadMaterialSymbols([
     'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'arrow_forward', 'video_camera_back_add','arrow_back_ios','check','done_outline','visibility','hard_drive','cloud_upload','folder_zip','menu','block','animation',
     'polyline','file_export','image','airwave','videocam','content_copy','delete','edit','instant_mix','visibility_off',
     'cancel','restart_alt','center_focus_strong','theaters','stop','delete_sweep','close','mood','progress_activity',
-    'genetics','horizontal_rule'
+    'genetics','horizontal_rule',
+    'checklist','check_box','check_box_outline_blank'
 ]);
 
 // Import utilities

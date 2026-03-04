@@ -6,6 +6,7 @@ export class Ribbon {
         this.scene = scene;
         this.meshSegments = [];
         this.tileManager = null;
+        this.tileManagerB = null; // Secondary TileManager for helix strand B (multi-texture)
         this.lastPoints = [];
         this.lastWidth = 1;
         this.segmentOffset = 0; // Offset for texture indexing (used in RibbonSeries)
@@ -38,6 +39,17 @@ export class Ribbon {
         this.tileManager = tileManager;
         // Sync wave speed to layer cycling period
         this.syncWaveSpeedToLayerCycle();
+        return this;
+    }
+
+    /**
+     * Set a secondary TileManager for helix strand B.
+     * When set, strand B will use its own texture set.
+     * @param {TileManager} tileManager - The tile manager for strand B
+     * @returns {Ribbon} this for chaining
+     */
+    setTileManagerB(tileManager) {
+        this.tileManagerB = tileManager;
         return this;
     }
 
@@ -228,6 +240,7 @@ export class Ribbon {
 
             // Strand B (helix mode only — offset by π)
             if (this.helixMode) {
+                const strandBTileManager = this.tileManagerB || this.tileManager;
                 const segmentMeshB = this.createRibbonSegmentWithCache(
                     curve,
                     startT,
@@ -238,7 +251,8 @@ export class Ribbon {
                     normalCache,
                     startPointIdx,
                     pointsPerSegment,
-                    Math.PI // strandOffset = π for strand B
+                    Math.PI, // strandOffset = π for strand B
+                    strandBTileManager // use strand B's TileManager
                 );
 
                 if (segmentMeshB) {
@@ -341,7 +355,7 @@ export class Ribbon {
         return curve;
     }
 
-    createRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, normalCache, startPointIdx, pointsPerSegment, strandOffset = 0) {
+    createRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, normalCache, startPointIdx, pointsPerSegment, strandOffset = 0, overrideTileManager = null) {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
@@ -460,13 +474,14 @@ export class Ribbon {
         // Prefer KTX2 array material if available; fallback to JPG texture
         let material = null;
         const textureIndex = segmentIndex + this.segmentOffset; // Apply offset for RibbonSeries
-        if (this.tileManager && typeof this.tileManager.getMaterial === 'function') {
-            material = this.tileManager.getMaterial(textureIndex) || null;
+        const activeTileManager = overrideTileManager || this.tileManager;
+        if (activeTileManager && typeof activeTileManager.getMaterial === 'function') {
+            material = activeTileManager.getMaterial(textureIndex) || null;
             // console.log('[Ribbon] Segment', segmentIndex, 'material from tileManager:', !!material);
         }
 
         if (!material) {
-            const tileTexture = this.tileManager.getTile(textureIndex);
+            const tileTexture = activeTileManager.getTile(textureIndex);
             material = new THREE.MeshBasicMaterial({
                 map: tileTexture,
                 side: THREE.DoubleSide

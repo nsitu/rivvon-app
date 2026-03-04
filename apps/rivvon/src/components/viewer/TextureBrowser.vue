@@ -18,7 +18,12 @@
         }
     });
 
-    const emit = defineEmits(['close', 'select', 'select-local']);
+    const emit = defineEmits(['close', 'select', 'select-local', 'select-multi']);
+
+    // Multi-select state
+    const MAX_MULTI_SELECT = 4;
+    const multiSelectMode = ref(false);
+    const selectedTextures = ref(new Map()); // id -> { texture, isLocal }
 
     const app = useViewerStore();
     const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
@@ -161,7 +166,62 @@
         close();
     }
 
+    // Multi-select helpers
+    function toggleMultiSelectMode() {
+        multiSelectMode.value = !multiSelectMode.value;
+        if (!multiSelectMode.value) {
+            selectedTextures.value = new Map();
+        }
+    }
+
+    function isTextureSelected(texture) {
+        return selectedTextures.value.has(texture.id);
+    }
+
+    function toggleTextureSelection(texture, event) {
+        event.stopPropagation();
+        const map = new Map(selectedTextures.value);
+        if (map.has(texture.id)) {
+            map.delete(texture.id);
+        } else {
+            if (map.size >= MAX_MULTI_SELECT) return; // cap reached
+            map.set(texture.id, { texture, isLocal: isLocalTexture(texture) });
+        }
+        selectedTextures.value = map;
+    }
+
+    function handleCardClick(texture) {
+        if (multiSelectMode.value) {
+            toggleTextureSelection(texture, event);
+        } else {
+            if (isLocalTexture(texture)) {
+                selectLocalTexture(texture);
+            } else {
+                selectTexture(texture);
+            }
+        }
+    }
+
+    function applyMultiSelection() {
+        const raw = Array.from(selectedTextures.value.values());
+        if (raw.length === 0) return;
+        // Map to the shape RibbonView expects: { id, source, name }
+        const selections = raw.map(entry => ({
+            id: entry.texture.id,
+            source: entry.isLocal ? 'local' : 'cloud',
+            name: entry.texture.name
+        }));
+        console.log('[TextureBrowser] Applying multi-selection:', selections.length, 'textures');
+        emit('select-multi', selections);
+        close();
+    }
+
+    const multiSelectCount = computed(() => selectedTextures.value.size);
+    const isMaxSelected = computed(() => selectedTextures.value.size >= MAX_MULTI_SELECT);
+
     function close() {
+        multiSelectMode.value = false;
+        selectedTextures.value = new Map();
         emit('close');
         app.hideTextureBrowser();
     }
@@ -539,9 +599,19 @@
                 <!-- Header -->
                 <div class="texture-browser-header">
 
-
-                    <!-- Tabs -->
+                    <!-- Tabs + Multi-select toggle -->
                     <div class="texture-browser-tabs">
+                        <!-- Multi-select toggle -->
+                        <button
+                            :class="['tab-button', 'multi-select-toggle', { active: multiSelectMode }]"
+                            @click="toggleMultiSelectMode"
+                            :title="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
+                        >
+                            <span
+                                class="material-symbols-outlined"
+                                style="font-size: 18px;"
+                            >checklist</span>
+                        </button>
                         <button
                             :class="['tab-button', { active: activeTab === 'all' }]"
                             @click="activeTab = 'all'"
@@ -623,42 +693,30 @@
                         v-for="texture in displayTextures"
                         :key="texture.id"
                         class="texture-card"
-                        :class="{ 'local-texture-card': isLocalTexture(texture) }"
+                        :class="{
+                            'local-texture-card': isLocalTexture(texture),
+                            'selected-card': multiSelectMode && isTextureSelected(texture)
+                        }"
                         role="button"
                         tabindex="0"
-                        @click="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
-                        @keydown.enter="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
-                        @keydown.space.prevent="isLocalTexture(texture) ? selectLocalTexture(texture) : selectTexture(texture)"
+                        @click="handleCardClick(texture)"
+                        @keydown.enter="handleCardClick(texture)"
+                        @keydown.space.prevent="handleCardClick(texture)"
                     >
-                        <!-- Action buttons (positioned at card level, not thumbnail) -->
-                        <div class="texture-card-actions">
-                            <!-- Delete button (owner, admin, or local) -->
-                            <button
-                                v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
-                                class="action-button delete-button"
-                                title="Delete texture"
-                                @click="confirmDelete(texture, $event)"
-                            >
-                                <span class="material-symbols-outlined">delete</span>
-                            </button>
-                            <!-- Edit button (owner or admin) -->
-                            <button
-                                v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
-                                class="action-button edit-button"
-                                title="Edit name"
-                                @click="startEdit(texture, $event)"
-                            >
-                                <span class="material-symbols-outlined">edit</span>
-                            </button>
-                            <!-- Copy button -->
-                            <button
-                                v-if="getCopyDestinations(texture).length > 0"
-                                class="action-button copy-button"
-                                title="Copy to another storage"
-                                @click="toggleCopyMenu(texture, $event)"
-                            >
-                                <span class="material-symbols-outlined">content_copy</span>
-                            </button>
+                        <!-- Multi-select checkbox overlay (top-left of thumbnail) -->
+                        <div
+                            v-if="multiSelectMode"
+                            class="multi-select-checkbox"
+                            :class="{
+                                checked: isTextureSelected(texture),
+                                disabled: !isTextureSelected(texture) && isMaxSelected
+                            }"
+                            :title="!isTextureSelected(texture) && isMaxSelected ? `Maximum ${MAX_MULTI_SELECT} textures` : ''"
+                            @click.stop="toggleTextureSelection(texture, $event)"
+                        >
+                            <span class="material-symbols-outlined">
+                                {{ isTextureSelected(texture) ? 'check_box' : 'check_box_outline_blank' }}
+                            </span>
                         </div>
 
                         <!-- Thumbnail -->
@@ -758,11 +816,59 @@
                             >
                                 {{ texture.description }}
                             </p>
+
+                            <!-- Action buttons (inline in info area) -->
+                            <div class="texture-card-actions">
+                                <!-- Edit button (owner or admin) -->
+                                <button
+                                    v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
+                                    class="action-button edit-button"
+                                    title="Edit name"
+                                    @click="startEdit(texture, $event)"
+                                >
+                                    <span class="material-symbols-outlined">edit</span>
+                                </button>
+                                <!-- Copy button -->
+                                <button
+                                    v-if="getCopyDestinations(texture).length > 0"
+                                    class="action-button copy-button"
+                                    title="Copy to another storage"
+                                    @click="toggleCopyMenu(texture, $event)"
+                                >
+                                    <span class="material-symbols-outlined">content_copy</span>
+                                </button>
+                                <!-- Delete button (owner, admin, or local) -->
+                                <button
+                                    v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
+                                    class="action-button delete-button"
+                                    title="Delete texture"
+                                    @click="confirmDelete(texture, $event)"
+                                >
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
             </div>
+
+            <!-- Multi-select Apply bar -->
+            <Transition name="slide-up">
+                <div
+                    v-if="multiSelectMode && multiSelectCount > 0"
+                    class="multi-select-bar"
+                >
+                    <span class="multi-select-count">{{ multiSelectCount }} texture{{ multiSelectCount > 1 ? 's' : '' }}
+                        selected</span>
+                    <button
+                        class="multi-select-apply"
+                        @click="applyMultiSelection"
+                    >
+                        Apply ({{ multiSelectCount }})
+                    </button>
+                </div>
+            </Transition>
         </div>
 
         <!-- Delete confirmation modal -->
@@ -1322,14 +1428,11 @@
         color: #fff;
     }
 
-    /* Action buttons (delete, copy) at card level */
+    /* Action buttons (inline in info area) */
     .texture-card-actions {
-        position: absolute;
-        top: 8px;
-        left: 8px;
         display: flex;
         gap: 6px;
-        z-index: 2;
+        margin-top: 8px;
     }
 
     .action-button {
@@ -1543,5 +1646,108 @@
     .confirm-edit-button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+    }
+
+    /* Multi-select mode */
+    .multi-select-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 10px !important;
+    }
+
+    .multi-select-toggle.active {
+        color: #60a5fa !important;
+        border-color: #60a5fa !important;
+        background: rgba(96, 165, 250, 0.1) !important;
+    }
+
+    .multi-select-checkbox {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 3;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.6);
+        transition: all 0.2s ease;
+    }
+
+    .multi-select-checkbox .material-symbols-outlined {
+        font-size: 22px;
+        color: #888;
+        transition: color 0.2s;
+    }
+
+    .multi-select-checkbox.checked .material-symbols-outlined {
+        color: #4caf50;
+    }
+
+    .multi-select-checkbox.disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .multi-select-checkbox:hover:not(.disabled) .material-symbols-outlined {
+        color: #fff;
+    }
+
+    .texture-card.selected-card {
+        border-color: #4caf50 !important;
+        box-shadow: 0 0 0 1px #4caf50, 0 8px 20px rgba(76, 175, 80, 0.2);
+    }
+
+    /* Multi-select apply bar */
+    .multi-select-bar {
+        position: sticky;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px;
+        background: rgba(30, 30, 30, 0.95);
+        backdrop-filter: blur(10px);
+        border-top: 1px solid #333;
+        z-index: 4;
+    }
+
+    .multi-select-count {
+        color: #ccc;
+        font-size: 14px;
+    }
+
+    .multi-select-apply {
+        background: #4caf50;
+        border: none;
+        color: #fff;
+        padding: 10px 24px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .multi-select-apply:hover {
+        background: #45a049;
+    }
+
+    /* Slide-up transition for apply bar */
+    .slide-up-enter-active,
+    .slide-up-leave-active {
+        transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .slide-up-enter-from,
+    .slide-up-leave-to {
+        transform: translateY(100%);
+        opacity: 0;
     }
 </style>

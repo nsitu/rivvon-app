@@ -451,6 +451,61 @@
         await loadLocalTexture(texture.id);
     }
 
+    /**
+     * Handle multi-texture selection from TextureBrowser
+     * @param {Array<{id: string, source: string, name: string}>} selections
+     *   Each entry has id, source ('cloud'|'local'), and name
+     */
+    async function handleMultiTextureSelect(selections) {
+        console.log('[RibbonView] Multi-texture selection:', selections.length, 'textures');
+        isLoadingTexture.value = true;
+        loadingProgress.value = 'Loading multiple textures...';
+
+        try {
+            // Build texture set entries in parallel
+            const textureSetsWithMeta = await Promise.all(
+                selections.map(async (sel) => {
+                    if (sel.source === 'local') {
+                        const textureSet = await getLocalTextureSet(sel.id);
+                        if (!textureSet) throw new Error(`Local texture not found: ${sel.name}`);
+                        return { textureSet, source: 'local', getTiles };
+                    } else {
+                        const textureSet = await fetchTextureSet(sel.id);
+                        if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
+                            throw new Error(`No tiles found for: ${sel.name}`);
+                        }
+                        return { textureSet, source: 'remote' };
+                    }
+                })
+            );
+
+            // Load all TileManagers and rebuild ribbons
+            const success = await threeCanvasRef.value?.loadMultipleTextures(textureSetsWithMeta);
+
+            if (success) {
+                // Update store with active texture IDs
+                app.setActiveTextures(selections.map(s => s.id));
+
+                // Use first texture's thumbnail for background
+                const firstSel = selections[0];
+                if (firstSel.source === 'local') {
+                    const ts = await getLocalTextureSet(firstSel.id);
+                    if (ts?.thumbnail_data_url) {
+                        app.setThumbnailUrl(ts.thumbnail_data_url);
+                    }
+                }
+
+                console.log('[RibbonView] Multi-texture load complete');
+            }
+        } catch (error) {
+            console.error('[RibbonView] Failed to load multiple textures:', error);
+            alert('Failed to load textures: ' + error.message);
+        } finally {
+            isLoadingTexture.value = false;
+            loadingProgress.value = '';
+        }
+    }
+
     // Loading state for remote texture
     const isLoadingTexture = ref(false);
     const loadingProgress = ref('');
@@ -601,6 +656,7 @@
             @close="app.hideTextureBrowser"
             @select="handleTextureSelect"
             @select-local="handleLocalTextureSelect"
+            @select-multi="handleMultiTextureSelect"
         />
 
         <!-- Full-page Slyce panel (like drawing mode) -->

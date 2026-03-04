@@ -28,6 +28,8 @@ export const useViewerStore = defineStore('viewer', {
         // Texture state
         currentTextureId: null,
         thumbnailUrl: null,
+        activeTextureIds: [],      // Array of texture IDs when multi-texture is active
+        multiTextureActive: false, // True when multiple textures are loaded simultaneously
         
         // Text to SVG
         textPanelVisible: false,
@@ -150,6 +152,16 @@ export const useViewerStore = defineStore('viewer', {
         
         setThumbnailUrl(url) {
             this.thumbnailUrl = url;
+        },
+
+        setActiveTextures(ids) {
+            this.activeTextureIds = ids;
+            this.multiTextureActive = ids.length > 1;
+        },
+
+        clearActiveTextures() {
+            this.activeTextureIds = [];
+            this.multiTextureActive = false;
         },
         
         setStrokeCount(count) {

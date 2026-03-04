@@ -21,6 +21,7 @@ export function useThreeSetup() {
     const renderer = shallowRef(null);
     const controls = shallowRef(null);
     const tileManager = shallowRef(null);
+    const tileManagers = shallowRef([]); // Array of TileManagers for multi-texture mode
     const ribbon = shallowRef(null);
     const ribbonSeries = shallowRef(null);
     
@@ -233,7 +234,12 @@ export function useThreeSetup() {
             animationId = requestAnimationFrame(animate);
             
             // Advance KTX2 layer cycling and tile flow (for texture animation)
-            if (tileManager.value?.tick) {
+            // Tick all TileManagers (multi-texture mode)
+            if (tileManagers.value && tileManagers.value.length > 1) {
+                for (const tm of tileManagers.value) {
+                    tm.tick?.(now);
+                }
+            } else if (tileManager.value?.tick) {
                 tileManager.value.tick(now);
             }
             
@@ -412,6 +418,18 @@ export function useThreeSetup() {
     }
 
     /**
+     * Apply the current TileManager(s) to a RibbonSeries.
+     * Uses the multi-TileManager array when available, otherwise the single primary.
+     */
+    function applyTileManagersToSeries(series) {
+        if (tileManagers.value.length > 1) {
+            series.setTileManagers(tileManagers.value);
+        } else {
+            series.setTileManager(tileManager.value);
+        }
+    }
+
+    /**
      * Create a ribbon from points
      * Note: Uses RibbonSeries internally for consistent animation behavior
      */
@@ -435,7 +453,7 @@ export function useThreeSetup() {
         // Use RibbonSeries even for single path to ensure consistent animation
         // (wave undulation and texture flow work the same way)
         ribbonSeries.value = new RibbonSeries(scene.value);
-        ribbonSeries.value.setTileManager(tileManager.value);
+        applyTileManagersToSeries(ribbonSeries.value);
         ribbonSeries.value.setHelixOptions(app.helixOptions);
         
         // Build from single path (wrapped in array)
@@ -472,7 +490,7 @@ export function useThreeSetup() {
 
         // Create new ribbon series - constructor only takes scene
         ribbonSeries.value = new RibbonSeries(scene.value);
-        ribbonSeries.value.setTileManager(tileManager.value);
+        applyTileManagersToSeries(ribbonSeries.value);
         ribbonSeries.value.setHelixOptions(app.helixOptions);
         
         // Build from multiple paths
@@ -526,7 +544,7 @@ export function useThreeSetup() {
 
         // Use RibbonSeries for consistent animation behavior
         ribbonSeries.value = new RibbonSeries(scene.value);
-        ribbonSeries.value.setTileManager(tileManager.value);
+        applyTileManagersToSeries(ribbonSeries.value);
         ribbonSeries.value.setHelixOptions(app.helixOptions);
         
         // Build from processed points
@@ -544,6 +562,17 @@ export function useThreeSetup() {
     /**
      * Load new texture set
      */
+    /**
+     * Dispose any extra TileManagers from multi-texture mode,
+     * keeping only the primary tileManager.value.
+     */
+    function clearMultiTextureState() {
+        for (const tm of tileManagers.value) {
+            if (tm !== tileManager.value) tm.dispose?.();
+        }
+        tileManagers.value = [];
+    }
+
     async function loadTextures(source) {
         if (!renderer.value) {
             console.error('[ThreeSetup] Cannot load textures - not initialized');
@@ -561,6 +590,9 @@ export function useThreeSetup() {
             webgpuMaterialMode: 'node'
         });
         await tileManager.value.loadAllTiles();
+
+        // Single texture replaces any multi-texture state
+        clearMultiTextureState();
 
         // Sync flow animation state from store
         setFlowState(app.flowState);
@@ -588,6 +620,9 @@ export function useThreeSetup() {
 
             if (success) {
                 console.log(`[ThreeSetup] Remote texture loaded: ${tileManager.value.getTileCount()} tiles`);
+
+                // Single texture replaces any multi-texture state
+                clearMultiTextureState();
                 
                 // Rebuild ribbons with new textures
                 rebuildRibbonsWithNewTextures();
@@ -620,6 +655,9 @@ export function useThreeSetup() {
 
             if (success) {
                 console.log(`[ThreeSetup] Local texture loaded: ${tileManager.value.getTileCount()} tiles`);
+
+                // Single texture replaces any multi-texture state
+                clearMultiTextureState();
                 
                 // Rebuild ribbons with new textures
                 rebuildRibbonsWithNewTextures();
@@ -632,6 +670,88 @@ export function useThreeSetup() {
         } catch (error) {
             console.error('[ThreeSetup] Failed to load local textures:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Load multiple texture sets simultaneously (multi-texture mode).
+     * Creates one TileManager per texture set, distributes via round-robin to ribbon strands.
+     * @param {Array<{textureSet: Object, source: string, tiles?: Array, getTiles?: Function}>} textureSetsWithMeta
+     *   Each entry needs: textureSet (metadata), source ('remote'|'local').
+     *   For local: also getTiles function. For remote: textureSet has tile URLs.
+     * @param {Function} onProgress - Optional progress callback (index, total)
+     */
+    async function loadMultipleTextures(textureSetsWithMeta, onProgress = null) {
+        if (!renderer.value) {
+            console.error('[ThreeSetup] Cannot load textures - not initialized');
+            return false;
+        }
+
+        console.log(`[ThreeSetup] Loading ${textureSetsWithMeta.length} texture sets for multi-texture mode`);
+
+        // Dispose all existing TileManagers
+        for (const tm of tileManagers.value) {
+            tm.dispose?.();
+        }
+        if (tileManager.value && !tileManagers.value.includes(tileManager.value)) {
+            tileManager.value.dispose?.();
+        }
+
+        try {
+            // Create and load all TileManagers in parallel
+            const newTileManagers = await Promise.all(
+                textureSetsWithMeta.map(async (entry, index) => {
+                    const tm = new TileManager({
+                        renderer: renderer.value,
+                        rendererType: app.rendererType,
+                        rotate90: true,
+                        webgpuMaterialMode: 'node'
+                    });
+
+                    let success = false;
+                    if (entry.source === 'local' && entry.getTiles) {
+                        success = await tm.loadFromLocal(entry.textureSet, entry.getTiles);
+                    } else {
+                        success = await tm.loadFromRemote(entry.textureSet);
+                    }
+
+                    if (!success) {
+                        console.warn(`[ThreeSetup] Failed to load texture set ${index}`);
+                        tm.dispose();
+                        return null;
+                    }
+
+                    onProgress?.(index + 1, textureSetsWithMeta.length);
+                    return tm;
+                })
+            );
+
+            // Filter out failed loads
+            const validTileManagers = newTileManagers.filter(Boolean);
+            if (validTileManagers.length === 0) {
+                console.error('[ThreeSetup] All texture sets failed to load');
+                return false;
+            }
+
+            // Store references
+            tileManagers.value = validTileManagers;
+            tileManager.value = validTileManagers[0]; // Primary for background, single-texture compat
+
+            console.log(`[ThreeSetup] Loaded ${validTileManagers.length} TileManagers`);
+
+            // Sync flow state on all TileManagers
+            setFlowState(app.flowState);
+
+            // Rebuild ribbons with multi-texture distribution
+            rebuildRibbonsWithNewTextures();
+
+            // Update background from first texture
+            await setBackgroundFromTileManager();
+
+            return true;
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to load multiple textures:', error);
+            return false;
         }
     }
 
@@ -651,7 +771,7 @@ export function useThreeSetup() {
             }
         }
         if (ribbonSeries.value) {
-            ribbonSeries.value.setTileManager(tileManager.value);
+            applyTileManagersToSeries(ribbonSeries.value);
             ribbonSeries.value.setHelixOptions(app.helixOptions);
             // Rebuild ribbon series with new textures
             if (ribbonSeries.value.lastPathsPoints && ribbonSeries.value.lastPathsPoints.length > 0) {
@@ -670,15 +790,16 @@ export function useThreeSetup() {
      * @param {string} state - 'off' | 'forward' | 'backward'
      */
     function setFlowState(state) {
-        if (tileManager.value) {
-            const baseSpeed = app.flowSpeed || 0.25;
+        const baseSpeed = app.flowSpeed || 0.25;
+        // Apply flow state to ALL TileManagers (multi-texture mode)
+        const targets = tileManagers.value.length > 0 ? tileManagers.value : (tileManager.value ? [tileManager.value] : []);
+        for (const tm of targets) {
             if (state === 'off') {
-                tileManager.value.setFlowEnabled(false);
+                tm.setFlowEnabled(false);
             } else {
-                // Set speed based on direction
                 const speed = state === 'forward' ? baseSpeed : -baseSpeed;
-                tileManager.value.setFlowSpeed(speed);
-                tileManager.value.setFlowEnabled(true);
+                tm.setFlowSpeed(speed);
+                tm.setFlowEnabled(true);
             }
         }
         app.setFlowState(state);
@@ -718,6 +839,11 @@ export function useThreeSetup() {
         }
         if (ribbon.value) { ribbon.value.dispose(); ribbon.value = null; }
         if (ribbonSeries.value) { ribbonSeries.value.dispose(); ribbonSeries.value = null; }
+        // Dispose all TileManagers (multi-texture mode)
+        for (const tm of tileManagers.value) {
+            if (tm !== tileManager.value) tm.dispose?.();
+        }
+        tileManagers.value = [];
         if (tileManager.value) { tileManager.value.dispose(); tileManager.value = null; }
         if (controls.value) { controls.value.dispose?.(); controls.value = null; }
         if (renderer.value) {
@@ -772,6 +898,11 @@ export function useThreeSetup() {
             ribbonSeries.value.dispose();
             ribbonSeries.value = null;
         }
+        // Dispose all TileManagers (multi-texture mode)
+        for (const tm of tileManagers.value) {
+            if (tm !== tileManager.value) tm.dispose?.();
+        }
+        tileManagers.value = [];
         if (tileManager.value) {
             tileManager.value.dispose?.();
             tileManager.value = null;
@@ -1089,6 +1220,7 @@ export function useThreeSetup() {
         renderer,
         controls,
         tileManager,
+        tileManagers,
         ribbon,
         ribbonSeries,
         isInitialized,
@@ -1109,6 +1241,7 @@ export function useThreeSetup() {
         loadTextures,
         loadTexturesFromRemote,
         loadTexturesFromLocal,
+        loadMultipleTextures,
         setFlowState,
         setHelixMode,
         exportImage,
