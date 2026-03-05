@@ -119,74 +119,68 @@
             >✗ {{ uploadError }}</span>
         </button>
 
-        <!-- Save Locally Button (no auth required) -->
-        <button
-            @click="saveLocally"
-            :disabled="isSavingLocally"
-            class="save-local-button bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 mb-4 flex items-center disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Save to browser storage (no login required)"
-        >
-            <span v-if="isSavingLocally && saveLocalProgress">{{ saveLocalProgress }}</span>
-            <span v-else-if="isSavingLocally">Saving...</span>
-            <span
-                v-else
-                class="flex items-center gap-1"
-            >
-                <span class="material-symbols-outlined text-lg">hard_drive</span>
-                Save Locally
-            </span>
-
-            <svg
-                v-if="isSavingLocally"
-                class="animate-spin h-5 w-5 text-white ml-2"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-            >
-                <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                ></circle>
-                <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                ></path>
-            </svg>
-
-            <span
-                v-if="saveLocalSuccess"
-                class="ml-2 text-green-200"
-            >✓ Saved!</span>
-            <span
-                v-if="saveLocalError"
-                class="ml-2 text-red-200"
-            >✗ {{ saveLocalError }}</span>
-        </button>
-
-        <!-- Show locally saved texture with View button -->
+        <!-- Auto-save status / View locally saved texture -->
         <div
-            v-if="savedLocalTextureId"
+            v-if="isSavingLocally || savedLocalTextureId || saveLocalError"
             class="saved-local-container mb-4 p-3 rounded-md flex items-center gap-4"
         >
+            <!-- Saving in progress -->
+            <template v-if="isSavingLocally">
+                <svg
+                    class="animate-spin h-5 w-5 text-blue-400 flex-shrink-0"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                >
+                    <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                    ></circle>
+                    <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                    ></path>
+                </svg>
+                <div class="flex-1">
+                    <p class="text-sm font-medium saved-text-title">{{ saveLocalProgress || 'Saving locally...' }}</p>
+                </div>
+            </template>
 
+            <!-- Save failed -->
+            <template v-else-if="saveLocalError">
+                <span class="material-symbols-outlined text-red-400 flex-shrink-0">error</span>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-red-400">Auto-save failed: {{ saveLocalError }}</p>
+                </div>
+                <button
+                    @click="saveLocally"
+                    class="view-local-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2"
+                >
+                    <span class="material-symbols-outlined">refresh</span>
+                    Retry
+                </button>
+            </template>
 
-            <div class="flex-1">
-                <p class="text-sm font-medium saved-text-title">Saved locally.</p>
-                <p class="text-xs saved-text-secondary">Available in Local Textures</p>
-            </div>
+            <!-- Saved successfully -->
+            <template v-else-if="savedLocalTextureId">
+                <div class="flex-1">
+                    <p class="text-sm font-medium saved-text-title">Saved locally.</p>
+                    <p class="text-xs saved-text-secondary">Available in Local Textures</p>
+                </div>
 
-            <button
-                @click="viewLocalTexture"
-                class="view-local-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2"
-            >
-                <span class="material-symbols-outlined">visibility</span>
-                View
-            </button>
+                <button
+                    @click="viewLocalTexture"
+                    class="view-local-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2"
+                >
+                    <span class="material-symbols-outlined">visibility</span>
+                    View
+                </button>
+            </template>
         </div>
 
         <!-- Show uploaded texture with Apply button -->
@@ -265,7 +259,7 @@
 </template>
 
 <script setup>
-    import { ref } from 'vue';
+    import { ref, onMounted } from 'vue';
     import { useRouter } from 'vue-router';
     import Select from 'primevue/select';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -316,6 +310,11 @@
     ];
 
     const isDownloadingZip = ref(false);
+
+    // Auto-save locally when component mounts (encoding just finished)
+    onMounted(() => {
+        saveLocally();
+    });
 
     // Download all tiles as ZIP
     const downloadAll = async () => {
@@ -592,8 +591,7 @@
     }
 
     .download-all-button,
-    .upload-cdn-button,
-    .save-local-button {
+    .upload-cdn-button {
         width: 100%;
         min-height: 44px;
         justify-content: center;
@@ -602,8 +600,7 @@
     @media (min-width: 640px) {
 
         .download-all-button,
-        .upload-cdn-button,
-        .save-local-button {
+        .upload-cdn-button {
             width: auto;
         }
     }
