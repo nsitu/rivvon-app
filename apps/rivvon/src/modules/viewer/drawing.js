@@ -3,6 +3,7 @@
  * Supports multi-stroke drawing sessions
  */
 
+import { smoothStrokes } from './strokeSmoothing.js';
 
 
 export class DrawingManager {
@@ -259,10 +260,21 @@ export class DrawingManager {
             return null;
         }
 
-        const result = [...this.strokes];
-        console.log('[Drawing] Finalizing drawing', {
+        const rawStrokes = [...this.strokes];
+        const rawPoints = rawStrokes.reduce((sum, s) => sum + s.length, 0);
+
+        // Apply 3-stage smoothing: RDP simplification → Chaikin corner cutting → Catmull-Rom spline
+        const result = smoothStrokes(rawStrokes, {
+            rdpEpsilon: 2,         // Remove noise within 2px tolerance
+            chaikinIterations: 2,  // Two passes of corner cutting
+            splineSegments: 8      // 8 interpolated points per span
+        });
+
+        const smoothedPoints = result.reduce((sum, s) => sum + s.length, 0);
+        console.log('[Drawing] Finalizing drawing (smoothed)', {
             strokeCount: result.length,
-            totalPoints: result.reduce((sum, s) => sum + s.length, 0)
+            rawPoints,
+            smoothedPoints
         });
 
         this.strokes = [];

@@ -177,11 +177,21 @@ export class Ribbon {
             referenceNormal = right.cross(initialTangent).normalize();
         }
 
-        // Pre-calculate all normals (and binormals for helix mode) for the entire path to ensure consistency
-        const pointsPerSegment = 50;
+        // Pre-calculate all normals (and binormals for helix mode) for the entire path
+        // using Rotation Minimizing Frames (Double Reflection method, Wang et al. 2008).
+        // This eliminates accumulated twist error from the old lerp approach, which caused
+        // visible stepping at segment boundaries in helix mode.
+
+        // Scale subdivision density with helix pitch — more turns need more points
+        const basePointsPerSegment = 50;
+        const pointsPerSegment = this.helixMode
+            ? Math.max(basePointsPerSegment, Math.ceil(basePointsPerSegment * (1 + this.helixPitch / 4)))
+            : basePointsPerSegment;
+
         const totalPoints = segmentCount * pointsPerSegment + 1;
         const normalCache = [];
         let prevNormal = referenceNormal.clone();
+        let prevTangent = initialTangent.clone();
 
         for (let i = 0; i < totalPoints; i++) {
             const t = i / (totalPoints - 1);
@@ -191,24 +201,40 @@ export class Ribbon {
             if (i === 0) {
                 normal = prevNormal.clone();
             } else {
-                // Use Frenet frame approach
-                const binormal = tangent.clone().cross(prevNormal).normalize();
-                normal = binormal.cross(tangent).normalize();
+                // Double Reflection RMF (Wang et al. 2008)
+                // Produces twist-free frames without the accumulated error of lerp smoothing
 
-                // Ensure normal doesn't flip
-                if (normal.dot(prevNormal) < 0) {
-                    normal.negate();
+                // Step 1: reflect prevNormal across the bisector plane of prevTangent and tangent
+                const v1 = new THREE.Vector3().subVectors(tangent, prevTangent);
+                const c1 = v1.dot(v1);
+
+                if (c1 < 1e-10) {
+                    // Tangent barely changed — carry forward previous normal
+                    normal = prevNormal.clone();
+                } else {
+                    const rL = prevNormal.clone().addScaledVector(v1, (-2 / c1) * v1.dot(prevNormal));
+                    const tL = prevTangent.clone().addScaledVector(v1, (-2 / c1) * v1.dot(prevTangent));
+
+                    // Step 2: reflect across the plane perpendicular to the new tangent
+                    const v2 = new THREE.Vector3().subVectors(tangent, tL);
+                    const c2 = v2.dot(v2);
+
+                    if (c2 < 1e-10) {
+                        normal = rL;
+                    } else {
+                        normal = rL.addScaledVector(v2, (-2 / c2) * v2.dot(rL));
+                    }
                 }
 
-                // Smooth the transition
-                normal = prevNormal.clone().lerp(normal, 0.1).normalize();
+                normal.normalize();
             }
 
-            // Compute binormal for helix mode (perpendicular to both tangent and normal)
+            // Compute binormal (perpendicular to both tangent and normal)
             const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
 
             normalCache.push({ normal: normal.clone(), binormal: binormal.clone() });
             prevNormal = normal;
+            prevTangent = tangent.clone();
         }
 
         // console.log('[Ribbon] Normal cache computed', { totalPoints });
@@ -278,78 +304,52 @@ export class Ribbon {
     }
 
     /**
-     * Build an arc-length–parameterized curve from a polyline.
+     * Build a smooth arc-length–parameterized curve from a polyline.
      *
-     * The raw points may be very unevenly spaced (e.g. 64 samples per Bézier
-     * but only 2 per line segment from SVGLoader).  A naïve vertex-index
-     * parameterization would compress the texture where points are dense and
-     * stretch it where points are sparse.
+     * Uses CatmullRomCurve3 (centripetal) to produce a smooth spline with
+     * continuous tangent vectors.  The built-in getPointAt / getTangentAt
+     * methods provide arc-length-uniform sampling, which ensures equal t
+     * intervals correspond to equal physical distances along the curve.
      *
-     * We pre-compute cumulative arc lengths and remap every incoming `t`
-     * (uniform in arc length) to the correct vertex-index position so that
-     * equal `t` intervals always correspond to equal physical distances.
+     * Previous implementation used piecewise-linear interpolation, which
+     * caused discontinuous tangent directions at source-point vertices.
+     * In helix mode the normal/binormal frame is derived from the tangent,
+     * so tangent jumps produced visible "steps" in the helix orbit plane.
      */
     createCurveFromPoints(points) {
-        // ── 1. Build cumulative arc-length table ──────────────────────
         const n = points.length;
-        const arcLengths = new Float64Array(n);   // arcLengths[0] = 0
-        for (let i = 1; i < n; i++) {
-            arcLengths[i] = arcLengths[i - 1] + points[i].distanceTo(points[i - 1]);
-        }
-        const totalLength = arcLengths[n - 1];
 
-        // Normalise to [0, 1]
-        const normalised = new Float64Array(n);
-        if (totalLength > 0) {
-            for (let i = 0; i < n; i++) {
-                normalised[i] = arcLengths[i] / totalLength;
-            }
-        } else {
-            // Degenerate (all points coincide) – fall back to index-based
-            for (let i = 0; i < n; i++) {
-                normalised[i] = i / (n - 1);
-            }
+        // For very short paths, fall back to a simple linear curve
+        if (n < 3) {
+            const curve = new THREE.LineCurve3(
+                points[0].clone(),
+                points[n - 1].clone()
+            );
+            // LineCurve3 has getPoint / getTangent but not arc-length remap;
+            // for 2 points it doesn't matter since it's a straight line.
+            return curve;
         }
 
-        // ── 2. Remap t (arc-length fraction) → vertex-index fraction ─
-        //    Binary-search + linear interpolation within the segment.
-        const remapT = (t) => {
-            // Clamp
-            if (t <= 0) return 0;
-            if (t >= 1) return 1;
+        // Build a smooth spline through all points.
+        // "centripetal" parameterization prevents cusps and self-intersections
+        // that can occur with uniform param on unevenly-spaced control points.
+        const spline = new CatmullRomCurve3(points, false, 'centripetal');
 
-            // Binary search for the segment that brackets `t`
-            let lo = 0, hi = n - 1;
-            while (hi - lo > 1) {
-                const mid = (lo + hi) >>> 1;
-                if (normalised[mid] <= t) lo = mid;
-                else hi = mid;
-            }
+        // Increase arc-length resolution for complex paths so that
+        // getPointAt / getTangentAt produce accurate arc-length mapping.
+        spline.arcLengthDivisions = Math.max(200, n * 2);
 
-            // Linear interpolation within the segment [lo, hi]
-            const segLen = normalised[hi] - normalised[lo];
-            const frac = segLen > 0 ? (t - normalised[lo]) / segLen : 0;
-            return (lo + frac) / (n - 1);
-        };
-
-        // ── 3. Build the curve using the remapped parameterization ────
+        // Wrap into the same API the rest of the code expects:
+        //   curve.getPoint(t)   → arc-length-uniform position
+        //   curve.getTangent(t) → arc-length-uniform tangent
         const curve = new THREE.Curve();
 
-        // getPointRaw: index-based lookup (no remap) — used internally
-        const getPointRaw = (u) => {
-            const i = u * (n - 1);
-            const a = Math.floor(i);
-            const b = Math.min(Math.ceil(i), n - 1);
-            return new THREE.Vector3().lerpVectors(points[a], points[b], i - a);
+        curve.getPoint = (t) => {
+            return spline.getPointAt(Math.max(0, Math.min(1, t)));
         };
 
-        curve.getPoint = (t) => getPointRaw(remapT(t));
-
         curve.getTangent = (t) => {
-            const delta = 0.001;
-            const p1 = curve.getPoint(Math.max(t - delta, 0));
-            const p2 = curve.getPoint(Math.min(t + delta, 1));
-            return p2.clone().sub(p1).normalize();
+            return spline.getTangentAt(Math.max(0, Math.min(1, t)));
         };
 
         return curve;
