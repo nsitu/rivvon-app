@@ -33,6 +33,9 @@ export class Ribbon {
         // Cached geometry data for efficient wave animation updates
         // Each entry contains: { basePositions, normals, binormals, tangents, arcLengths, width }
         this._segmentCache = [];
+
+        // Rounded caps: taper ribbon width to zero at endpoints
+        this.roundedCaps = false;
     }
 
     setTileManager(tileManager) {
@@ -91,6 +94,7 @@ export class Ribbon {
         if (options.helixRadius !== undefined) this.helixRadius = options.helixRadius;
         if (options.helixPitch !== undefined) this.helixPitch = options.helixPitch;
         if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
+        if (options.roundedCaps !== undefined) this.roundedCaps = options.roundedCaps;
         return this;
     }
 
@@ -188,7 +192,21 @@ export class Ribbon {
             ? Math.max(basePointsPerSegment, Math.ceil(basePointsPerSegment * (1 + this.helixPitch / 4)))
             : basePointsPerSegment;
 
-        const totalPoints = segmentCount * pointsPerSegment + 1;
+        // When rounded caps are active, increase vertex density in the first
+        // and last segments so the circular taper profile is smooth.
+        const capDensityMultiplier = 3;
+        const segPointCounts = [];          // per-segment vertex counts
+        const segStartIndices = [];         // cumulative start index into normalCache
+        let accumIdx = 0;
+        for (let s = 0; s < segmentCount; s++) {
+            const isCapSegment = this.roundedCaps && (s === 0 || s === segmentCount - 1);
+            const pts = isCapSegment ? pointsPerSegment * capDensityMultiplier : pointsPerSegment;
+            segPointCounts.push(pts);
+            segStartIndices.push(accumIdx);
+            accumIdx += pts;
+        }
+        const totalPoints = accumIdx + 1;   // +1 for the final endpoint
+
         const normalCache = [];
         let prevNormal = referenceNormal.clone();
         let prevTangent = initialTangent.clone();
@@ -243,7 +261,8 @@ export class Ribbon {
         for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
             const startT = segIdx / segmentCount;
             const endT = (segIdx + 1) / segmentCount;
-            const startPointIdx = segIdx * pointsPerSegment;
+            const startPointIdx = segStartIndices[segIdx];
+            const segPts = segPointCounts[segIdx];
 
             // Strand A (or flat ribbon in non-helix mode)
             const segmentMesh = this.createRibbonSegmentWithCache(
@@ -255,7 +274,7 @@ export class Ribbon {
                 segIdx,
                 normalCache,
                 startPointIdx,
-                pointsPerSegment,
+                segPts,
                 0 // strandOffset = 0 for strand A
             );
 
@@ -276,7 +295,7 @@ export class Ribbon {
                     segIdx,
                     normalCache,
                     startPointIdx,
-                    pointsPerSegment,
+                    segPts,
                     Math.PI, // strandOffset = π for strand B
                     strandBTileManager // use strand B's TileManager
                 );
@@ -397,6 +416,9 @@ export class Ribbon {
             arcLengths.push(arcLength);
             globalTs.push(globalT);
 
+            // ── Rounded cap taper: smoothly narrow width near ribbon endpoints ──
+            const capTaper = this._getCapTaper(globalT, isHelix ? strandWidth : width);
+
             let left, right;
 
             if (isHelix) {
@@ -423,8 +445,9 @@ export class Ribbon {
                 // Across direction — perpendicular to both tangent and radial — for ribbon strip width
                 const acrossDir = new THREE.Vector3().crossVectors(tangent, radialDir).normalize();
 
-                left = helixCenter.clone().addScaledVector(acrossDir, -strandWidth / 2);
-                right = helixCenter.clone().addScaledVector(acrossDir, strandWidth / 2);
+                const hw = strandWidth / 2 * capTaper;
+                left = helixCenter.clone().addScaledVector(acrossDir, -hw);
+                right = helixCenter.clone().addScaledVector(acrossDir, hw);
             } else {
                 // ── Flat ribbon mode (original behavior) ──
                 const phase = Math.sin(
@@ -434,16 +457,25 @@ export class Ribbon {
                 const animatedNormal = normal.clone();
                 animatedNormal.applyAxisAngle(tangent, phase);
 
-                left = point.clone().addScaledVector(animatedNormal, -width / 2);
-                right = point.clone().addScaledVector(animatedNormal, width / 2);
+                const hw = width / 2 * capTaper;
+                left = point.clone().addScaledVector(animatedNormal, -hw);
+                right = point.clone().addScaledVector(animatedNormal, hw);
             }
 
             positions.push(left.x, left.y, left.z);
             positions.push(right.x, right.y, right.z);
 
-            // UV mapping rotated 90 degrees for seamless tiling along ribbon direction
-            uvs.push(localT, 0);  // left edge
-            uvs.push(localT, 1);  // right edge
+            // UV mapping — when caps taper the width, crop the texture to show
+            // only the visible center portion rather than compressing it
+            if (this.roundedCaps && capTaper < 1) {
+                const vMin = (1 - capTaper) / 2;
+                const vMax = 1 - vMin;
+                uvs.push(localT, vMin);  // left edge
+                uvs.push(localT, vMax);  // right edge
+            } else {
+                uvs.push(localT, 0);  // left edge
+                uvs.push(localT, 1);  // right edge
+            }
 
             if (i < pointsPerSegment) {
                 const base = i * 2;
@@ -526,6 +558,7 @@ export class Ribbon {
         if (this.helixMode && this.helixMeshSegmentsB.length > 0 && this._segmentCacheB.length > 0) {
             this._updateStrandAnimation(this.helixMeshSegmentsB, this._segmentCacheB, time);
         }
+
     }
 
     /**
@@ -564,10 +597,13 @@ export class Ribbon {
                 const normal = normals[i];
                 const tangent = tangents[i];
                 const arcLength = arcLengths[i];
+                const globalT = globalTs[i];
+
+                // Rounded cap width taper
+                const capTaper = this._getCapTaper(globalT, strandWidth);
 
                 if (isHelix) {
                     const binormal = binormals[i];
-                    const globalT = globalTs[i];
 
                     // Helix angle + wave modulation
                     const helixAngle = globalT * helixPitch * Math.PI * 2 + (strandOffset || 0);
@@ -586,8 +622,9 @@ export class Ribbon {
                     radialDir.copy(helixCenter).sub(point).normalize();
                     acrossDir.crossVectors(tangent, radialDir).normalize();
 
-                    left.copy(helixCenter).addScaledVector(acrossDir, -strandWidth / 2);
-                    right.copy(helixCenter).addScaledVector(acrossDir, strandWidth / 2);
+                    const hwH = strandWidth / 2 * capTaper;
+                    left.copy(helixCenter).addScaledVector(acrossDir, -hwH);
+                    right.copy(helixCenter).addScaledVector(acrossDir, hwH);
                 } else {
                     // Flat ribbon mode (original behavior)
                     const phase = Math.sin(
@@ -597,8 +634,9 @@ export class Ribbon {
                     animatedNormal.copy(normal);
                     animatedNormal.applyAxisAngle(tangent, phase);
 
-                    left.copy(point).addScaledVector(animatedNormal, -width / 2);
-                    right.copy(point).addScaledVector(animatedNormal, width / 2);
+                    const hwF = width / 2 * capTaper;
+                    left.copy(point).addScaledVector(animatedNormal, -hwF);
+                    right.copy(point).addScaledVector(animatedNormal, hwF);
                 }
 
                 // Update position buffer (2 vertices per point: left, right)
@@ -619,6 +657,45 @@ export class Ribbon {
         }
     }
 
+    /**
+     * Compute width multiplier for rounded caps.
+     *
+     * Returns 1.0 for most of the ribbon.  Near the start (globalT ≈ 0)
+     * or end (globalT ≈ 1) it returns a value in [0, 1] that follows
+     * the equation of a circle: √(1 − (1−t)²), so the ribbon's left
+     * and right edges trace a true semicircular arc when viewed from above.
+     *
+     * The taper zone is `halfWidth` of arc length from each end,
+     * matching the semicircle's radius to the ribbon's half-width.
+     *
+     * @param {number} globalT - 0..1 position along the full path
+     * @param {number} ribbonWidth - ribbon width (or strandWidth in helix)
+     * @returns {number} 0..1 scale factor
+     */
+    _getCapTaper(globalT, ribbonWidth) {
+        if (!this.roundedCaps || this.pathLength <= 0) return 1;
+
+        const halfWidth = ribbonWidth / 2;
+        const taperLen = halfWidth;                       // arc-length of taper zone
+        const taperT   = taperLen / this.pathLength;      // same, as fraction of path
+
+        // Clamp so the two taper zones never overlap (very short ribbons)
+        const safeT = Math.min(taperT, 0.5);
+
+        if (globalT < safeT) {
+            // Start taper: 0 → 1 over [0, safeT]
+            // Circle profile: sqrt(1 - (1-t)²) = sqrt(2t - t²)
+            const t = globalT / safeT;
+            return Math.sqrt(1 - (1 - t) * (1 - t));
+        }
+        if (globalT > 1 - safeT) {
+            // End taper: 1 → 0 over [1-safeT, 1]
+            const t = (1 - globalT) / safeT;
+            return Math.sqrt(1 - (1 - t) * (1 - t));
+        }
+        return 1;
+    }
+
     cleanupOldMesh() {
         // Clean up strand A segmented meshes
         this.meshSegments.forEach(mesh => {
@@ -637,6 +714,7 @@ export class Ribbon {
         });
         this.helixMeshSegmentsB = [];
         this._segmentCacheB = [];
+
     }
 
     dispose() {

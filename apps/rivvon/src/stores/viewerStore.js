@@ -24,6 +24,9 @@ export const useViewerStore = defineStore('viewer', {
         helixRadius: 0.4,   // Distance each strand sits from the spine
         helixPitch: 4,      // Number of full turns along the ribbon length
         helixStrandWidth: 0.3, // Width of each helical ribbon strip (fraction of original width)
+
+        // Geometry options
+        roundedCaps: true, // Apply rounded semicircular caps to ribbon ends
         
         // Texture state
         currentTextureId: null,
@@ -252,6 +255,10 @@ export const useViewerStore = defineStore('viewer', {
                 this[key] = value;
             }
         },
+
+        setRoundedCaps(enabled) {
+            this.roundedCaps = !!enabled;
+        },
     },
     
     getters: {
@@ -263,6 +270,7 @@ export const useViewerStore = defineStore('viewer', {
             helixRadius: state.helixRadius,
             helixPitch: state.helixPitch,
             helixStrandWidth: state.helixStrandWidth,
+            roundedCaps: state.roundedCaps,
         }),
     }
 });
