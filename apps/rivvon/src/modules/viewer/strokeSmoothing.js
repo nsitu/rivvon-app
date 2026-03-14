@@ -1,11 +1,14 @@
 /**
  * Stroke smoothing pipeline for drawn paths
  * 
- * Three-stage pipeline:
+ * Four-stage pipeline:
  *   1. Ramer-Douglas-Peucker simplification (noise reduction)
- *   2. Chaikin's corner-cutting subdivision (smooth sharp angles)
- *   3. Catmull-Rom spline interpolation (generate smooth curve)
+ *   2. Cusp splitting — break path at sharp corners into subpaths
+ *   3. Chaikin's corner-cutting subdivision (smooth each subpath)
+ *   4. Catmull-Rom spline interpolation (generate smooth curves)
  */
+
+import { splitAtCusps2D } from './cuspSplitter.js';
 
 
 // ─── Stage 1: Ramer-Douglas-Peucker Simplification ────────────────────────────
@@ -185,50 +188,64 @@ function catmullRomInterpolate(points, segmentsPerSpan) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Full three-stage smoothing pipeline for a single stroke
+ * Full four-stage smoothing pipeline for a single stroke.
+ * Returns an array of subpaths (one stroke may split into multiple at cusps).
  *
  * @param {Array<{x: number, y: number}>} points - Raw stroke points
  * @param {object} [options]
  * @param {number} [options.rdpEpsilon=2]         - RDP tolerance in pixels
+ * @param {number} [options.cuspAngle=60]          - Cusp detection angle threshold (degrees)
  * @param {number} [options.chaikinIterations=2]   - Chaikin subdivision passes
  * @param {number} [options.splineSegments=8]      - Interpolated points per span
- * @returns {Array<{x: number, y: number}>} Smoothed points
+ * @returns {Array<Array<{x: number, y: number}>>} Array of smoothed subpaths
  */
 export function smoothStroke(points, options = {}) {
     const {
         rdpEpsilon = 2,
+        cuspAngle = 60,
         chaikinIterations = 2,
         splineSegments = 8
     } = options;
 
     if (!points || points.length < 3) {
-        return points ? [...points] : [];
+        return points && points.length > 0 ? [[...points]] : [[]];
     }
 
     // Stage 1 — Noise reduction
-    let result = rdpSimplify(points, rdpEpsilon);
+    const simplified = rdpSimplify(points, rdpEpsilon);
 
     // Guard: if RDP collapsed the stroke too aggressively, skip smoothing
-    if (result.length < 3) {
-        return [...points];
+    if (simplified.length < 3) {
+        return [[...points]];
     }
 
-    // Stage 2 — Corner cutting
-    result = chaikinSmooth(result, chaikinIterations);
+    // Stage 2 — Cusp splitting (before any corner-rounding)
+    const subpaths = splitAtCusps2D(simplified, cuspAngle);
 
-    // Stage 3 — Spline interpolation
-    result = catmullRomInterpolate(result, splineSegments);
+    // Stages 3 & 4 — Smooth each subpath independently
+    return subpaths.map(sub => {
+        if (sub.length < 3) return [...sub];
 
-    return result;
+        // Stage 3 — Corner cutting
+        let result = chaikinSmooth(sub, chaikinIterations);
+
+        // Stage 4 — Spline interpolation
+        result = catmullRomInterpolate(result, splineSegments);
+
+        return result;
+    });
 }
 
 /**
- * Smooth every stroke in an array
+ * Smooth every stroke in an array.
+ * Because cusp splitting can turn one stroke into multiple subpaths,
+ * the output may contain more arrays than the input.
+ *
  * @param {Array<Array<{x: number, y: number}>>} strokes
  * @param {object} [options] - Passed through to smoothStroke
- * @returns {Array<Array<{x: number, y: number}>>} Smoothed strokes
+ * @returns {Array<Array<{x: number, y: number}>>} Smoothed subpaths (flattened)
  */
 export function smoothStrokes(strokes, options = {}) {
     if (!strokes || strokes.length === 0) return [];
-    return strokes.map(stroke => smoothStroke(stroke, options));
+    return strokes.flatMap(stroke => smoothStroke(stroke, options));
 }

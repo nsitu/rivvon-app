@@ -263,9 +263,10 @@ export class DrawingManager {
         const rawStrokes = [...this.strokes];
         const rawPoints = rawStrokes.reduce((sum, s) => sum + s.length, 0);
 
-        // Apply 3-stage smoothing: RDP simplification → Chaikin corner cutting → Catmull-Rom spline
+        // Apply smoothing: RDP simplification → cusp splitting → Chaikin corner cutting → Catmull-Rom spline
         const result = smoothStrokes(rawStrokes, {
             rdpEpsilon: 2,         // Remove noise within 2px tolerance
+            cuspAngle: 60,         // Split at cusps sharper than 60°
             chaikinIterations: 2,  // Two passes of corner cutting
             splineSegments: 8      // 8 interpolated points per span
         });

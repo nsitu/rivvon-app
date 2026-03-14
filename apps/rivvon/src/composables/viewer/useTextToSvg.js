@@ -4,6 +4,7 @@
 import { ref, shallowRef } from 'vue';
 import { TextToSvg } from '../../modules/viewer/textToSvg';
 import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../../modules/viewer/svgPathToPoints';
+import { splitAllPathsAtCusps3D } from '../../modules/viewer/cuspSplitter.js';
 
 export function useTextToSvg() {
     const textToSvg = shallowRef(null);
@@ -79,8 +80,11 @@ export function useTextToSvg() {
                 throw new Error('No paths found in generated SVG');
             }
 
+            // Split at cusps before normalizing — preserves sharp corners
+            const splitPaths = splitAllPathsAtCusps3D(paths);
+
             // Normalize points for ribbon creation
-            const normalizedPaths = normalizePointsMultiPath(paths);
+            const normalizedPaths = normalizePointsMultiPath(splitPaths);
             
             return normalizedPaths;
         } catch (e) {

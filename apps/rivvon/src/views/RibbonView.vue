@@ -5,6 +5,7 @@
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
+    import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
     import { fetchTextureSet } from '../services/textureService';
     import { useLocalStorage } from '../services/localStorage.js';
     import * as THREE from 'three';
@@ -211,6 +212,7 @@
         }
 
         // strokesData is Array<Array<{x,y}>> from DrawingManager
+        // (cusp splitting in smoothStrokes may produce more subpaths than original strokes)
         const isMultiStroke = Array.isArray(strokesData) && strokesData.length > 0 && Array.isArray(strokesData[0]);
 
         console.log('[RibbonView] handleDrawingComplete', {
@@ -218,20 +220,19 @@
             strokeCount: isMultiStroke ? strokesData.length : 1
         });
 
-        if (isMultiStroke && strokesData.length > 1) {
-            // Multi-stroke: convert to Vector3 and normalize together
-            const rawPathsPoints = strokesData.map(stroke =>
-                stroke.map(p => new THREE.Vector3(p.x, -p.y, 0))  // Flip Y
-            ).filter(points => points.length >= 2);
+        // Always use multi-path route — cusp splitting may turn 1 stroke into N subpaths
+        const strokes = isMultiStroke ? strokesData : [strokesData];
+        const rawPathsPoints = strokes.map(stroke =>
+            stroke.map(p => new THREE.Vector3(p.x, -p.y, 0))  // Flip Y
+        ).filter(points => points.length >= 2);
 
-            if (rawPathsPoints.length > 0) {
-                const normalizedPaths = normalizePointsMultiPath(rawPathsPoints);
+        if (rawPathsPoints.length > 0) {
+            const normalizedPaths = normalizePointsMultiPath(rawPathsPoints);
+            if (normalizedPaths.length === 1) {
+                threeCanvasRef.value.createRibbon(normalizedPaths[0]);
+            } else {
                 threeCanvasRef.value.createRibbonSeries(normalizedPaths);
             }
-        } else {
-            // Single stroke: use createRibbonFromDrawing which handles conversion internally
-            const singleStroke = isMultiStroke ? strokesData[0] : strokesData;
-            threeCanvasRef.value.createRibbonFromDrawing(singleStroke);
         }
     }
 
@@ -287,7 +288,8 @@
                 const svgContent = e.target.result;
                 const paths = parseSvgContentDynamicResolution(svgContent, {}, 5, 0);
                 if (paths.length > 0) {
-                    const normalizedPaths = normalizePointsMultiPath(paths);
+                    const splitPaths = splitAllPathsAtCusps3D(paths);
+                    const normalizedPaths = normalizePointsMultiPath(splitPaths);
                     if (normalizedPaths.length === 1) {
                         threeCanvasRef.value?.createRibbon(normalizedPaths[0]);
                     } else {

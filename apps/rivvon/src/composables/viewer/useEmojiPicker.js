@@ -13,6 +13,7 @@ import {
     extractSvgFromSprite,
 } from '../../modules/viewer/emojiToSvg';
 import { normalizePointsMultiPath } from '../../modules/viewer/svgPathToPoints';
+import { splitAllPathsAtCusps3D } from '../../modules/viewer/cuspSplitter.js';
 
 export function useEmojiPicker() {
     /** @type {import('vue').Ref<Array|null>} */
@@ -103,7 +104,10 @@ export function useEmojiPicker() {
                 return null;
             }
 
-            return normalizePointsMultiPath(pathsPoints);
+            // Split at cusps before normalizing — preserves sharp corners
+            const splitPaths = splitAllPathsAtCusps3D(pathsPoints);
+
+            return normalizePointsMultiPath(splitPaths);
         } catch (err) {
             console.error('[useEmojiPicker] Failed to process emoji:', err);
             error.value = 'Failed to process emoji.';
