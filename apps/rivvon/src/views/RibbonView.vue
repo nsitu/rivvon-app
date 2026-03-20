@@ -24,6 +24,7 @@
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
+    import CinematicDebugOverlay from '../components/viewer/CinematicDebugOverlay.vue';
 
     const app = useViewerStore();
     const { isAuthenticated } = useGoogleAuth();
@@ -37,6 +38,7 @@
 
     // Local state
     const isReady = ref(false);
+    const showCinematicDebug = ref(false);
 
     // ─── Cinematic camera keyboard bindings ────────────────────────
     function handleCinematicKeydown(e) {
@@ -67,6 +69,11 @@
                 // Clear all ROIs (only when not playing)
                 if (cinematic.isPlaying.value) return;
                 cinematic.clearROIs();
+                break;
+            }
+            case 'd': {
+                // Toggle cinematic debug overlay
+                showCinematicDebug.value = !showCinematicDebug.value;
                 break;
             }
         }
@@ -618,6 +625,7 @@
         <BottomToolbar
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
+            :cinematic-debug="showCinematicDebug"
             @enter-draw-mode="enterDrawMode"
             @enter-slyce-mode="app.showSlyce"
             @toggle-flow="toggleFlow"
@@ -631,6 +639,7 @@
             @cinematic-capture="handleCinematicCapture"
             @cinematic-toggle="handleCinematicToggle"
             @cinematic-clear="handleCinematicClear"
+            @cinematic-debug-toggle="showCinematicDebug = !showCinematicDebug"
         />
 
         <!-- Hidden file input -->
@@ -675,6 +684,12 @@
             v-model:visible="showExportDialog"
             :export-info="exportInfo"
             @export="handleExportConfirm"
+        />
+
+        <!-- Cinematic camera debug overlay (press D to toggle) -->
+        <CinematicDebugOverlay
+            :cinematic-camera="threeCanvasRef?.cinematicCamera"
+            :visible="showCinematicDebug"
         />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->

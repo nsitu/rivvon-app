@@ -23,7 +23,7 @@ loadMaterialSymbols([
     'polyline','file_export','image','airwave','videocam','content_copy','delete','edit','instant_mix','visibility_off',
     'cancel','restart_alt','center_focus_strong','theaters','stop','delete_sweep','close','mood','progress_activity',
     'genetics','horizontal_rule','rounded_corner',
-    'checklist','check_box','check_box_outline_blank'
+    'checklist','check_box','check_box_outline_blank','bug_report'
 ]);
 
 // Import utilities

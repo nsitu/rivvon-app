@@ -58,7 +58,8 @@
     // Cinematic camera props (reactive state from composable)
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
-        cinematicRoiCount: { type: Number, default: 0 }
+        cinematicRoiCount: { type: Number, default: 0 },
+        cinematicDebug: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -74,7 +75,8 @@
         'finish-drawing',
         'cinematic-capture',
         'cinematic-toggle',
-        'cinematic-clear'
+        'cinematic-clear',
+        'cinematic-debug-toggle'
     ]);
 
     function handleCinematicCapture() {
@@ -303,7 +305,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -315,7 +317,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -327,7 +329,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -408,7 +410,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -424,6 +426,15 @@
                                 class="tools-badge"
                             >{{ props.cinematicRoiCount }}</span>
                             <span class="tools-hint">X</span>
+                        </button>
+                        <button
+                            class="tools-option"
+                            :class="{ selected: props.cinematicDebug }"
+                            @click="emit('cinematic-debug-toggle')"
+                        >
+                            <span class="material-symbols-outlined">bug_report</span>
+                            <span>Debug Overlay</span>
+                            <span class="tools-hint">D</span>
                         </button>
                     </div>
                 </div>

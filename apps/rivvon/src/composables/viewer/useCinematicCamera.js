@@ -134,6 +134,32 @@ export function useCinematicCamera() {
         return instance.value;
     }
 
+    /**
+     * Get telemetry snapshot from the CinematicCamera instance.
+     * @returns {Object|null}
+     */
+    function getTelemetry() {
+        return instance.value?.getTelemetry() ?? null;
+    }
+
+    /**
+     * Sample position and target at an arbitrary arc-length u.
+     * @param {number} u
+     * @returns {{ position: Vector3, target: Vector3 } | null}
+     */
+    function getTelemetryAtU(u) {
+        return instance.value?.getTelemetryAtU(u) ?? null;
+    }
+
+    /**
+     * Get spline track geometry for the debug overlay.
+     * @param {number} [sampleCount=100]
+     * @returns {Object|null}
+     */
+    function getTrackGeometry(sampleCount = 100) {
+        return instance.value?.getTrackGeometry(sampleCount) ?? null;
+    }
+
     /** Cleanup. */
     function dispose() {
         if (instance.value) {
@@ -161,6 +187,9 @@ export function useCinematicCamera() {
         togglePlayback,
         tick,
         getLoopDuration,
+        getTelemetry,
+        getTelemetryAtU,
+        getTrackGeometry,
         getInstance,
         dispose
     };

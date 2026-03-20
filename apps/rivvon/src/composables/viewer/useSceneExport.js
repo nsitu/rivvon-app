@@ -2,6 +2,33 @@
 // Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
 
 /**
+ * Align cinematic camera duration with texture loop duration.
+ * Returns a duration >= cinematicDuration that is a near-integer multiple
+ * of textureDuration (snapped to frame boundaries). Caps at 2× cinematic duration.
+ * @param {number} cinematicDuration - Camera loop duration in seconds
+ * @param {number} textureDuration  - Texture seamless loop duration in seconds
+ * @param {number} fps              - Export frame rate
+ * @returns {number}
+ */
+function alignDurations(cinematicDuration, textureDuration, fps) {
+    if (textureDuration <= 0 || cinematicDuration <= 0) return cinematicDuration;
+
+    const frameDuration = 1 / fps;
+    const maxDuration = cinematicDuration * 2;
+
+    // Find the smallest multiple of textureDuration that is >= cinematicDuration
+    const minMultiple = Math.ceil(cinematicDuration / textureDuration);
+    const candidate = minMultiple * textureDuration;
+
+    // Snap to frame boundary
+    const aligned = Math.round(candidate / frameDuration) * frameDuration;
+
+    // Cap at 2× cinematic duration
+    if (aligned > maxDuration) return cinematicDuration;
+    return aligned;
+}
+
+/**
  * Provides image and video export capabilities for the Three.js scene.
  *
  * @param {Object} ctx  - Shared context refs from useThreeSetup
@@ -152,7 +179,13 @@ export function useSceneExport(ctx, deps = {}) {
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) return;
 
         // 1. Advance texture layer cycling + flow with deterministic delta
-        if (ctx.tileManager.value?.tickDeterministic) {
+        //    Tick ALL TileManagers (multi-texture mode) so secondary textures 
+        //    don't freeze during export.
+        if (ctx.tileManagers.value && ctx.tileManagers.value.length > 1) {
+            for (const tm of ctx.tileManagers.value) {
+                if (tm.tickDeterministic) tm.tickDeterministic(deltaSec);
+            }
+        } else if (ctx.tileManager.value?.tickDeterministic) {
             ctx.tileManager.value.tickDeterministic(deltaSec);
         }
 
@@ -235,7 +268,11 @@ export function useSceneExport(ctx, deps = {}) {
         if (duration != null) {
             exportDuration = duration;
         } else if (cameraMovement === 'cinematic' && ctx.cinematicCamera.hasROIs.value) {
-            exportDuration = ctx.cinematicCamera.getLoopDuration();
+            const cinematicDuration = ctx.cinematicCamera.getLoopDuration();
+            // Align with texture loop: snap to nearest frame boundary that is
+            // >= cinematic duration and a near-integer multiple of the texture loop.
+            // Cap at 2× cinematic duration to prevent excessively long exports.
+            exportDuration = alignDurations(cinematicDuration, loopDuration, fps);
         } else {
             exportDuration = loopDuration;
         }
@@ -288,8 +325,14 @@ export function useSceneExport(ctx, deps = {}) {
             // Disable orbit control damping during export
             if (ctx.controls.value) ctx.controls.value.enabled = false;
 
-            // --- Reset animation to t=0 ---
-            ctx.tileManager.value.resetAnimationState();
+            // --- Reset animation to t=0 (all TileManagers) ---
+            if (ctx.tileManagers.value && ctx.tileManagers.value.length > 1) {
+                for (const tm of ctx.tileManagers.value) {
+                    tm.resetAnimationState?.();
+                }
+            } else {
+                ctx.tileManager.value.resetAnimationState();
+            }
 
             // --- Create mediabunny output ---
             const output = new MB.Output({
@@ -380,8 +423,14 @@ export function useSceneExport(ctx, deps = {}) {
             ctx.camera.value.position.copy(savedCameraPos);
             ctx.camera.value.quaternion.copy(savedCameraQuat);
 
-            // Reset animation state back so live view starts clean
-            ctx.tileManager.value.resetAnimationState();
+            // Reset animation state back so live view starts clean (all TileManagers)
+            if (ctx.tileManagers.value && ctx.tileManagers.value.length > 1) {
+                for (const tm of ctx.tileManagers.value) {
+                    tm.resetAnimationState?.();
+                }
+            } else {
+                ctx.tileManager.value.resetAnimationState();
+            }
 
             // Resume live render loop
             deps.resumeRenderLoop?.();

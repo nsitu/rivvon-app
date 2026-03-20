@@ -252,7 +252,7 @@
                     <div class="info-value">{{ resolvedDuration.toFixed(2) }}s</div>
                     <div class="info-label">
                         {{ cameraMovement === 'cinematic'
-                            ? 'Cinematic camera loop — duration from ROI timeline'
+                            ? 'Cinematic camera loop — smooth slow-crawl through ROIs'
                             : 'Seamless loop — all animations return to start' }}
                     </div>
                 </div>

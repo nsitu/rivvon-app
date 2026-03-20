@@ -374,6 +374,18 @@ export class TileManager {
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
                     
+                    // Compute derivatives from the CONTINUOUS shifted UV before
+                    // branching, so the GPU gets correct mip-level selection across
+                    // the seam where shiftedU crosses 1.0.  Without this, adjacent
+                    // fragments in different branches produce a ~1.0 UV jump that
+                    // selects a very high (blurry) mip level, causing a visible
+                    // dotted-line seam on mobile GPUs (iPad WebGL).
+                    vec2 uvForDeriv = vec2(shiftedU, vUv.y);
+                    vec2 uvR_d = (uRotate90 == 1) ? vec2(uvForDeriv.y, 1.0 - uvForDeriv.x) : uvForDeriv;
+                    vec2 flipped_d = vec2(uvR_d.x, 1.0 - uvR_d.y);
+                    vec2 dPdx = dFdx(flipped_d);
+                    vec2 dPdy = dFdy(flipped_d);
+                    
                     vec2 sampleUV;
                     vec4 texColor;
                     
@@ -384,7 +396,7 @@ export class TileManager {
                         vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
                         // Flip V to match texture orientation
                         vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                        texColor = texture(uTexArrayNext, vec3(flippedUv, float(uLayer)));
+                        texColor = textureGrad(uTexArrayNext, vec3(flippedUv, float(uLayer)), dPdx, dPdy);
                     } else {
                         // This region shows the CURRENT tile
                         sampleUV = vec2(shiftedU, vUv.y);
@@ -392,7 +404,7 @@ export class TileManager {
                         vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
                         // Flip V to match texture orientation
                         vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                        texColor = texture(uTexArrayCurrent, vec3(flippedUv, float(uLayer)));
+                        texColor = textureGrad(uTexArrayCurrent, vec3(flippedUv, float(uLayer)), dPdx, dPdy);
                     }
                     
                     outColor = texColor;
