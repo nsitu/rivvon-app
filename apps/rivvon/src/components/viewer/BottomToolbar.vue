@@ -59,7 +59,8 @@
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
-        cinematicDebug: { type: Boolean, default: false }
+        cinematicDebug: { type: Boolean, default: false },
+        realtimeVisible: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -69,6 +70,8 @@
         'open-emoji-picker',
         'open-texture-browser',
         'enter-slyce-mode',
+        'enter-realtime-mode',
+        'close-realtime-mode',
         'import-file',
         'export-image',
         'export-video',
@@ -119,6 +122,8 @@
             app.hideTextPanel();
         } else if (app.emojiPickerVisible) {
             app.hideEmojiPicker();
+        } else if (props.realtimeVisible) {
+            emit('close-realtime-mode');
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
         } else if (app.aboutPanelVisible) {
@@ -128,7 +133,7 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible
+        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || props.realtimeVisible
     );
 
     /**
@@ -164,6 +169,9 @@
         if (app.aboutPanelVisible) {
             app.hideAboutPanel();
         }
+        if (props.realtimeVisible) {
+            emit('close-realtime-mode');
+        }
         return true;
     }
 
@@ -194,6 +202,15 @@
             @click="app.textureCreatorVisible ? handleBack() : activateContext(() => emit('enter-slyce-mode'))"
         >
             <span class="material-symbols-outlined">video_camera_back_add</span>
+        </button>
+
+        <!-- Realtime webcam mode -->
+        <button
+            v-tooltip.top="tip('Realtime Webcam')"
+            :class="{ active: props.realtimeVisible }"
+            @click="props.realtimeVisible ? handleBack() : activateContext(() => emit('enter-realtime-mode'))"
+        >
+            <span class="material-symbols-outlined">videocam</span>
         </button>
 
         <!-- Text to SVG -->
@@ -305,7 +322,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -317,7 +334,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -329,7 +346,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -410,7 +427,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>

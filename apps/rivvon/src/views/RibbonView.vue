@@ -25,11 +25,29 @@
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
     import CinematicDebugOverlay from '../components/viewer/CinematicDebugOverlay.vue';
+    import RealtimeControls from '../components/slyce/RealtimeControls.vue';
+    import { useRealtimeSlyce } from '../composables/slyce/useRealtimeSlyce.js';
 
     const app = useViewerStore();
     const { isAuthenticated } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
+
+    // Realtime webcam mode
+    const realtime = useRealtimeSlyce();
+    const realtimeVisible = ref(false);
+
+    function handleRealtimeStart() {
+        if (!threeCanvasRef.value) return;
+        realtime.startRealtime({
+            tileManager: threeCanvasRef.value.tileManager,
+            ribbonSeries: threeCanvasRef.value.ribbonSeries
+        });
+    }
+
+    function handleRealtimeStop() {
+        realtime.stopRealtime();
+    }
 
     // Template refs
     const threeCanvasRef = ref(null);
@@ -402,6 +420,14 @@
         }
     }, { immediate: true });
 
+    // Check for realtime webcam query param
+    watch(() => route.query.realtime, (realtimeParam) => {
+        if (realtimeParam === 'true') {
+            realtimeVisible.value = true;
+            router.replace({ path: route.path, query: {} });
+        }
+    }, { immediate: true });
+
     // Check for local texture query param
     const { getTextureSet: getLocalTextureSet, getTiles } = useLocalStorage();
 
@@ -626,8 +652,11 @@
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :cinematic-debug="showCinematicDebug"
+            :realtime-visible="realtimeVisible"
             @enter-draw-mode="enterDrawMode"
             @enter-slyce-mode="app.showSlyce"
+            @enter-realtime-mode="realtimeVisible = true"
+            @close-realtime-mode="realtimeVisible = false; handleRealtimeStop()"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"
             @open-emoji-picker="app.showEmojiPicker"
@@ -675,6 +704,27 @@
             v-if="app.textureCreatorVisible"
             :active="app.textureCreatorVisible"
             @apply-texture="handleApplyCreatedTexture"
+        />
+
+        <!-- Realtime webcam controls overlay -->
+        <RealtimeControls
+            v-if="realtimeVisible"
+            :is-capturing="realtime.isCapturing.value"
+            :current-tile-index="realtime.currentTileIndex.value"
+            :current-row="realtime.currentRow.value"
+            :tile-height="realtime.tileHeight.value"
+            :completed-tiles="realtime.completedTiles.value"
+            :max-tiles="realtime.maxTiles.value"
+            :encoding-tiles="realtime.encodingTiles.value"
+            :fps="realtime.fps.value"
+            :camera-resolution="realtime.cameraResolution.value"
+            :pot-resolution="realtime.potResolution.value"
+            @start="handleRealtimeStart"
+            @stop="handleRealtimeStop"
+            @toggle-camera="realtime.toggleCamera"
+            @update:camera-resolution="realtime.setResolution"
+            @update:max-tiles="realtime.setMaxTiles"
+            @update:pot-resolution="realtime.setPotResolution"
         />
 
         <BetaModal />

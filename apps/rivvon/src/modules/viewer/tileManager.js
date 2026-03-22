@@ -86,6 +86,15 @@ export class TileManager {
         this.currentTextureSet = null;
 
         this._ktx2Loader = null;
+
+        // Realtime mode: tiles are added incrementally and the ribbon
+        // should only wrap over the tiles that actually have content.
+        this.realtimeMode = false;
+        this.activeTileCount = 0;
+        this._fallbackMaterial = null;
+
+        // Per-frame callback (e.g. for updating preview textures)
+        this._onTick = null;
     }
 
     /**
@@ -499,8 +508,9 @@ export class TileManager {
             return this.getMaterial(segmentIndex);
         }
 
-        const currentIdx = (segmentIndex + this.tileFlowOffset) % this.tileCount;
-        const nextIdx = (currentIdx + 1) % this.tileCount;
+        const wrapCount = this.getEffectiveTileCount();
+        const currentIdx = (segmentIndex + this.tileFlowOffset) % wrapCount;
+        const nextIdx = (currentIdx + 1) % wrapCount;
 
         const textureCurrent = this.arrayTextures[currentIdx];
         const textureNext = this.arrayTextures[nextIdx];
@@ -531,6 +541,9 @@ export class TileManager {
      * @returns {THREE.DataArrayTexture|null} The array texture or null
      */
     getArrayTexture(index) {
+        if (this.realtimeMode && this.activeTileCount > 0) {
+            return this.arrayTextures[index % this.activeTileCount] || null;
+        }
         return this.arrayTextures[index % this.tileCount] || null;
     }
 
@@ -846,13 +859,44 @@ export class TileManager {
 
     getMaterial(index) {
         if (!this.isKTX2) return undefined;
-        const material = this.materials[index % this.tileCount];
-        // console.log('[TileManager] getMaterial', index, {
-        //     isKTX2: this.isKTX2,
-        //     materialExists: !!material,
-        //     materialType: material?.constructor?.name || 'undefined'
-        // });
-        return material;
+
+        if (this.realtimeMode) {
+            if (this.activeTileCount <= 0) {
+                return this._getFallbackMaterial();
+            }
+            return this.materials[index % this.activeTileCount] || this._getFallbackMaterial();
+        }
+
+        return this.materials[index % this.tileCount];
+    }
+
+    /**
+     * Return the effective tile count used for material wrapping.
+     * In realtime mode this is the number of tiles that actually have
+     * content; otherwise it is the fixed tileCount.
+     */
+    getEffectiveTileCount() {
+        if (this.realtimeMode) {
+            return Math.max(1, this.activeTileCount);
+        }
+        return this.tileCount;
+    }
+
+    /**
+     * Lazy-create a fully-transparent fallback material used for ribbon
+     * segments that have no tile data yet.
+     */
+    _getFallbackMaterial() {
+        if (!this._fallbackMaterial) {
+            this._fallbackMaterial = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+        }
+        return this._fallbackMaterial;
     }
 
     getTileSequence(startIndex, count) {
@@ -945,6 +989,11 @@ export class TileManager {
         // --- Layer cycling animation (frame-rate limited) ---
         if (this.layerCount <= 1) {
             this.lastFrameTime = nowMs;
+            // Still fire per-frame callback so preview textures update even
+            // before the first KTX2 tile sets layerCount.
+            if (this._onTick) {
+                this._onTick(this.currentLayer);
+            }
             return;
         }
 
@@ -975,17 +1024,22 @@ export class TileManager {
             if (this.rendererType === 'webgpu') {
                 // Update regular materials
                 this.materials.forEach(material => {
-                    if (material._layerUniform) {
+                    if (material?._layerUniform) {
                         material._layerUniform.value = clamped;
                     }
                 });
                 // Update flow materials
                 for (const material of this.flowMaterials) {
-                    if (material._layerUniform) {
+                    if (material?._layerUniform) {
                         material._layerUniform.value = clamped;
                     }
                 }
             }
+        }
+
+        // Fire per-frame callback (e.g. preview texture updates)
+        if (this._onTick) {
+            this._onTick(this.currentLayer);
         }
     }
 
@@ -1327,6 +1381,10 @@ export class TileManager {
             this.tileFlowOffset = 0;
             this.flowAccumulator = 0;
 
+            // Exit realtime mode when loading a full texture set
+            this.realtimeMode = false;
+            this.activeTileCount = 0;
+
             // Initialize KTX2 loader if not already done
             if (!this._ktx2Loader) {
                 const ok = await this.#initKTX2();
@@ -1390,6 +1448,16 @@ export class TileManager {
             this._ktx2Loader = null;
         }
 
+        // Dispose fallback material
+        if (this._fallbackMaterial) {
+            this._fallbackMaterial.dispose();
+            this._fallbackMaterial = null;
+        }
+
+        this.realtimeMode = false;
+        this.activeTileCount = 0;
+        this._onTick = null;
+
         console.log('[TileManager] Disposed all GPU resources');
     }
 
@@ -1430,6 +1498,161 @@ export class TileManager {
      */
     getTileCount() {
         return this.tileCount;
+    }
+
+    // ── Realtime mode methods ──────────────────────────────────────────
+
+    /**
+     * Clear all existing tiles and textures, resetting the TileManager
+     * for fresh use (e.g. entering realtime mode). Keeps the KTX2Loader
+     * and renderer intact so new tiles can still be added.
+     */
+    clearAllTiles() {
+        // Dispose materials + their textures
+        this.materials.forEach(material => {
+            if (material) {
+                if (material.map) material.map.dispose();
+                if (material.uniforms?.uTexArray?.value) material.uniforms.uTexArray.value.dispose();
+                material.dispose();
+            }
+        });
+        this.materials = [];
+
+        // Dispose raw array textures
+        this.arrayTextures.forEach(t => {
+            if (t?.dispose) t.dispose();
+        });
+        this.arrayTextures = [];
+
+        // Dispose flow materials
+        this.flowMaterials.forEach(m => {
+            if (m?.uniforms?.uTexArrayA?.value?.dispose) m.uniforms.uTexArrayA.value.dispose();
+            if (m?.uniforms?.uTexArrayB?.value?.dispose) m.uniforms.uTexArrayB.value.dispose();
+            if (m?.dispose) m.dispose();
+        });
+        this.flowMaterials = [];
+
+        // Dispose JPG tiles
+        this.tiles.forEach(texture => {
+            if (texture?.dispose) texture.dispose();
+        });
+        this.tiles = [];
+
+        // Reset layer cycling state
+        this.layerCount = 0;
+        this.currentLayer = 0;
+        this.direction = 1;
+        this.sharedLayerUniform.value = 0;
+        this.loadedCount = 0;
+        this.zipFiles = null;
+
+        // Enter realtime mode with zero active tiles
+        this.realtimeMode = true;
+        this.activeTileCount = 0;
+
+        console.log('[TileManager] Cleared all tiles for realtime mode');
+    }
+
+    /**
+     * Parse a KTX2 buffer and add it as a tile at the given index.
+     * Used by the realtime orchestrator when encoding completes.
+     *
+     * @param {ArrayBuffer|Uint8Array} ktx2Buffer — The KTX2 file data
+     * @param {number} tileIndex — Where to insert in the materials/arrayTextures arrays
+     * @returns {Promise<THREE.Material>} The created sampler2DArray material
+     */
+    async addTileFromBuffer(ktx2Buffer, tileIndex) {
+        if (!this._ktx2Loader) {
+            const ok = await this.#initKTX2();
+            if (!ok) throw new Error('Failed to initialize KTX2Loader');
+        }
+
+        return new Promise((resolve, reject) => {
+            const buffer = ktx2Buffer instanceof Uint8Array
+                ? ktx2Buffer.buffer
+                : ktx2Buffer;
+
+            this._ktx2Loader.parse(
+                buffer,
+                (arrayTexture) => {
+                    arrayTexture.flipY = false;
+                    arrayTexture.generateMipmaps = false;
+                    const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
+                    arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+                    arrayTexture.magFilter = THREE.LinearFilter;
+                    arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
+                    arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+                    if (this.rendererType === 'webgl') {
+                        arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
+                    }
+
+                    if (this.layerCount === 0) {
+                        this.layerCount = arrayTexture.image?.depth || 1;
+                        this.currentLayer = 0;
+                        this.direction = 1;
+                        this.sharedLayerUniform.value = 0;
+                    }
+
+                    this.arrayTextures[tileIndex] = arrayTexture;
+                    const material = this.#createArrayMaterial(arrayTexture);
+                    this.materials[tileIndex] = material;
+
+                    console.log(`[TileManager] Added tile ${tileIndex} from buffer`);
+                    resolve(material);
+                },
+                (error) => {
+                    console.error(`[TileManager] Failed to parse KTX2 tile ${tileIndex} from buffer:`, error);
+                    reject(error);
+                }
+            );
+        });
+    }
+
+    /**
+     * Remove and dispose a single tile by index.
+     * Used for FIFO eviction in realtime mode.
+     *
+     * @param {number} tileIndex
+     */
+    removeTile(tileIndex) {
+        // Dispose array texture
+        if (this.arrayTextures[tileIndex]) {
+            this.arrayTextures[tileIndex].dispose();
+            this.arrayTextures[tileIndex] = null;
+        }
+
+        // Dispose material + its textures
+        const material = this.materials[tileIndex];
+        if (material) {
+            if (material.uniforms?.uTexArray?.value) {
+                material.uniforms.uTexArray.value.dispose();
+            }
+            if (material.map) {
+                material.map.dispose();
+            }
+            material.dispose();
+            this.materials[tileIndex] = null;
+        }
+
+        console.log(`[TileManager] Removed tile ${tileIndex}`);
+    }
+
+    /**
+     * Assign a preview material (sampler2D from PreviewTexture) to a tile slot.
+     * Used for tiles in 'building' or 'encoding' state before KTX2 is ready.
+     *
+     * @param {number} tileIndex
+     * @param {THREE.Material} previewMaterial
+     */
+    setPreviewMaterial(tileIndex, previewMaterial) {
+        this.materials[tileIndex] = previewMaterial;
+        this.isKTX2 = true; // Ensure tick() runs for layer cycling
+
+        // In realtime mode, grow the active tile count as previews are added
+        if (this.realtimeMode) {
+            this.activeTileCount = Math.max(this.activeTileCount, tileIndex + 1);
+        }
     }
 
     /**
@@ -1523,6 +1746,10 @@ export class TileManager {
             // Reset flow state
             this.tileFlowOffset = 0;
             this.flowAccumulator = 0;
+
+            // Exit realtime mode when loading a full texture set
+            this.realtimeMode = false;
+            this.activeTileCount = 0;
 
             // Initialize KTX2 loader if not already done
             if (!this._ktx2Loader) {

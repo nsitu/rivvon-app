@@ -25,6 +25,12 @@ const routes = [
         redirect: { path: '/', query: { slyce: 'true' } }
     },
     {
+        // Redirect to viewer with realtime webcam panel open
+        path: '/realtime',
+        name: 'realtime',
+        redirect: { path: '/', query: { realtime: 'true' } }
+    },
+    {
         // Legacy route - redirect to viewer with texture browser open
         path: '/slyce/my-textures',
         name: 'my-textures',
