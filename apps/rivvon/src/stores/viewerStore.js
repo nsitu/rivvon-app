@@ -33,7 +33,7 @@ export const useViewerStore = defineStore('viewer', {
         thumbnailUrl: null,
         activeTextureIds: [],      // Array of texture IDs when multi-texture is active
         multiTextureActive: false, // True when multiple textures are loaded simultaneously
-        
+
         // Text to SVG
         textPanelVisible: false,
         selectedFont: null,
@@ -43,6 +43,9 @@ export const useViewerStore = defineStore('viewer', {
         
         // Slyce panel
         textureCreatorVisible: false,
+
+        // Realtime sampler screen
+        realtimeSamplerVisible: false,
         
         // Tools panel
         toolsPanelVisible: false,
@@ -152,6 +155,14 @@ export const useViewerStore = defineStore('viewer', {
         toggleSlyce() {
             this.textureCreatorVisible = !this.textureCreatorVisible;
         },
+
+        showRealtimeSampler() {
+            this.realtimeSamplerVisible = true;
+        },
+
+        hideRealtimeSampler() {
+            this.realtimeSamplerVisible = false;
+        },
         
         setThumbnailUrl(url) {
             this.thumbnailUrl = url;
@@ -259,6 +270,7 @@ export const useViewerStore = defineStore('viewer', {
         setRoundedCaps(enabled) {
             this.roundedCaps = !!enabled;
         },
+
     },
     
     getters: {

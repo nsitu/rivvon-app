@@ -25,7 +25,8 @@
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
     import CinematicDebugOverlay from '../components/viewer/CinematicDebugOverlay.vue';
-    import RealtimeControls from '../components/slyce/RealtimeControls.vue';
+    import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
+    import RealtimeSampler from '../components/slyce/RealtimeSampler.vue';
     import { useRealtimeSlyce } from '../composables/slyce/useRealtimeSlyce.js';
 
     const app = useViewerStore();
@@ -35,18 +36,18 @@
 
     // Realtime webcam mode
     const realtime = useRealtimeSlyce();
-    const realtimeVisible = ref(false);
 
-    function handleRealtimeStart() {
+    async function handleRealtimeApply() {
         if (!threeCanvasRef.value) return;
-        realtime.startRealtime({
-            tileManager: threeCanvasRef.value.tileManager,
-            ribbonSeries: threeCanvasRef.value.ribbonSeries
-        });
+        await realtime.applyToViewer(
+            threeCanvasRef.value.tileManager,
+            threeCanvasRef.value.ribbonSeries
+        );
+        app.hideRealtimeSampler();
     }
 
-    function handleRealtimeStop() {
-        realtime.stopRealtime();
+    function handleRealtimeClose() {
+        app.hideRealtimeSampler();
     }
 
     // Template refs
@@ -423,7 +424,7 @@
     // Check for realtime webcam query param
     watch(() => route.query.realtime, (realtimeParam) => {
         if (realtimeParam === 'true') {
-            realtimeVisible.value = true;
+            app.showRealtimeSampler();
             router.replace({ path: route.path, query: {} });
         }
     }, { immediate: true });
@@ -601,6 +602,15 @@
         }
     }
 
+    // GPU device-loss recovery
+    const isDeviceLost = computed(() => threeCanvasRef.value?.isDeviceLost?.value ?? false);
+
+    async function handleDeviceLostRestart() {
+        threeCanvasRef.value?.teardownViewer();
+        await threeCanvasRef.value?.reinitialize();
+        // reinitialize emits 'initialized' which triggers handleThreeInitialized
+    }
+
     // Handle applying a newly created texture 
     async function handleApplyCreatedTexture(texture) {
         console.log('[RibbonView] Applying created texture:', texture);
@@ -652,11 +662,10 @@
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :cinematic-debug="showCinematicDebug"
-            :realtime-visible="realtimeVisible"
             @enter-draw-mode="enterDrawMode"
             @enter-slyce-mode="app.showSlyce"
-            @enter-realtime-mode="realtimeVisible = true"
-            @close-realtime-mode="realtimeVisible = false; handleRealtimeStop()"
+            @enter-realtime-mode="app.showRealtimeSampler()"
+            @close-realtime-mode="handleRealtimeClose"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"
             @open-emoji-picker="app.showEmojiPicker"
@@ -706,28 +715,21 @@
             @apply-texture="handleApplyCreatedTexture"
         />
 
-        <!-- Realtime webcam controls overlay -->
-        <RealtimeControls
-            v-if="realtimeVisible"
-            :is-capturing="realtime.isCapturing.value"
-            :current-tile-index="realtime.currentTileIndex.value"
-            :current-row="realtime.currentRow.value"
-            :tile-height="realtime.tileHeight.value"
-            :completed-tiles="realtime.completedTiles.value"
-            :max-tiles="realtime.maxTiles.value"
-            :encoding-tiles="realtime.encodingTiles.value"
-            :fps="realtime.fps.value"
-            :camera-resolution="realtime.cameraResolution.value"
-            :pot-resolution="realtime.potResolution.value"
-            @start="handleRealtimeStart"
-            @stop="handleRealtimeStop"
-            @toggle-camera="realtime.toggleCamera"
-            @update:camera-resolution="realtime.setResolution"
-            @update:max-tiles="realtime.setMaxTiles"
-            @update:pot-resolution="realtime.setPotResolution"
+        <!-- Full-page Realtime Sampler (like Slyce panel) -->
+        <RealtimeSampler
+            v-if="app.realtimeSamplerVisible"
+            :active="app.realtimeSamplerVisible"
+            @apply="handleRealtimeApply"
+            @close="handleRealtimeClose"
         />
 
         <BetaModal />
+
+        <!-- GPU device lost recovery overlay -->
+        <DeviceLostOverlay
+            :visible="isDeviceLost"
+            @restart="handleDeviceLostRestart"
+        />
 
         <!-- Export Video Dialog -->
         <ExportVideoDialog
@@ -778,6 +780,7 @@
     .ribbon-view :deep(.beta-modal),
     .ribbon-view :deep(.texture-browser.active),
     .ribbon-view :deep(.slyce-panel.active),
+    .ribbon-view :deep(.realtime-panel.active),
     .ribbon-view :deep(.draw-canvas.active),
     .ribbon-view .loading-overlay {
         pointer-events: auto;

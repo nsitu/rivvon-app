@@ -47,6 +47,7 @@ Each segment spans a `[startT, endT]` range along the curve, where `t ∈ [0, 1]
 For each of ~50 sample points within a segment:
 
 **Flat ribbon mode:**
+
 ```
 wavePhase = sin(arcLength × frequency + time × speed) × amplitude
 animatedNormal = normal rotated by wavePhase around tangent
@@ -55,6 +56,7 @@ right = point + (width/2) × animatedNormal
 ```
 
 **Helix mode:**
+
 ```
 helixAngle = globalT × pitch × 2π + strandOffset   (0 for A, π for B)
 animatedAngle = helixAngle + wavePhase
@@ -163,6 +165,7 @@ As `flowOffset` increases from 0 to 1, the visual boundary between current and n
 ### Tile Pair Swapping
 
 When `flowOffset` crosses 1.0:
+
 1. Compute whole tiles shifted: `wholeTiles = floor(flowOffset)`
 2. Call `tileManager.wrapFlowOffset(wholeTiles)`:
    - `tileFlowOffset += wholeTiles` (shifts which tiles each segment references)
@@ -172,11 +175,11 @@ When `flowOffset` crosses 1.0:
 
 ### State Variables
 
-| Variable | Type | Range | Updated | Purpose |
-|---|---|---|---|---|
-| `flowOffset` | float | [0, 1) | Every frame (via `tick()`) | Fractional slide within current tile pair |
-| `tileFlowOffset` | int | unbounded | When flowOffset wraps | Which tile pair each segment references |
-| `flowSpeed` | float | ±N | User control | Tiles per second; `flowOffset += flowSpeed × dt` |
+| Variable         | Type  | Range     | Updated                    | Purpose                                          |
+| ---------------- | ----- | --------- | -------------------------- | ------------------------------------------------ |
+| `flowOffset`     | float | [0, 1)    | Every frame (via `tick()`) | Fractional slide within current tile pair        |
+| `tileFlowOffset` | int   | unbounded | When flowOffset wraps      | Which tile pair each segment references          |
+| `flowSpeed`      | float | ±N        | User control               | Tiles per second; `flowOffset += flowSpeed × dt` |
 
 ### Derivative Trick (Mobile Fix)
 
@@ -192,144 +195,39 @@ vec2 dPdy = dFdy(shiftedUV);
 
 ---
 
-## 5. Gap Architecture (Per-Fragment Virtual Cycle)
-
-### Design Goal
-
-Insert a transparent gap of configurable width after every complete tile set, creating a repeating pattern:
+## 5. Data Flow Summary
 
 ```
-[tile₀ tile₁ ... tileₙ₋₁] [GAP] [tile₀ tile₁ ... tileₙ₋₁] [GAP] ...
-```
-
-The gap scrolls with the conveyor belt and every tile-set repetition gets an identical gap.
-
-### Slider Semantics
-
-The gap slider ranges from **0% to 100%**, representing gap size as a **fraction of one tile length**:
-- 0% = no gap
-- 50% = gap is half a tile wide
-- 100% = gap is one full tile wide
-
-The store value (`tileSetGap`) is passed directly to `TileManager.setTileSetGap(fraction)` in tile-length units.
-
-### Virtual Cycle Model
-
-With `tileCount = N` and `gapSize = G` (in tile units), one **virtual cycle** is:
-
-```
-cycleLength = N + G
-
-Position within cycle:
-  [0, N)  → tile region  (tile index = floor(pos))
-  [N, N+G) → gap region  (discard / transparent)
-```
-
-### Per-Fragment Gap Detection (Shader)
-
-Gap detection runs inside the dual-texture flow shader, using continuous per-pixel math:
-
-```glsl
-uniform float uBasePos;    // segment's starting position in virtual space
-uniform float uTileCount;  // e.g. 33.0
-uniform float uGapSize;    // e.g. 0.5
-
-// Continuous virtual position for THIS fragment
-float virtualPos = uBasePos + shiftedU;      // shiftedU = vUv.x + flowOffset
-
-// Where in the cycle does this fragment fall?
-float cycleLen = uTileCount + uGapSize;
-float cyclePos = mod(virtualPos, cycleLen);   // [0, cycleLen)
-
-if (cyclePos >= uTileCount) discard;          // gap region → transparent
-```
-
-### Why Per-Fragment (Not Per-Segment)?
-
-The previous approach pre-computed gap membership per integer segment index. With non-integer gap sizes (e.g. 0.5 tiles), the modular arithmetic `(intIndex % floatCycle)` caused some tile-set repetitions to skip the gap entirely. Per-fragment computation uses the **continuous** `shiftedU` value (sub-segment precision), guaranteeing every cycle gets identical gap placement regardless of alignment with integer segment boundaries.
-
-### Material Routing
-
-When `tileSetGap > 0`, all segments use the dual-texture flow shader even if flow animation is off (`flowSpeed = 0`). This is because:
-1. The gap discard logic lives in the flow shader
-2. Without flow, `flowOffset` stays at 0.0, so the shader simply renders tiles with gaps but no scrolling
-
-```javascript
-getOrCreateMaterialForSegment(globalSegmentIndex, flowActive) {
-    if (flowActive || this.tileSetGap > 0) {
-        return this.createFlowMaterial(globalSegmentIndex);  // has gap logic
-    }
-    return this.getMaterial(globalSegmentIndex);              // simple path
-}
-```
-
-### Tile Pairing with Gap
-
-When creating flow materials with gap active, tile indices still follow virtual-cycle math to bind the correct textures:
-
-```javascript
-virtualCycle = tileCount + gapSize;
-currentVPos = mod(basePos, virtualCycle);
-nextVPos    = mod(basePos + 1, virtualCycle);
-
-// Tile index: use 0 as placeholder for gap positions
-// (gap fragments are discarded per-pixel, so texture content doesn't matter)
-currentTileIdx = currentVPos >= tileCount ? 0 : floor(currentVPos);
-nextTileIdx    = nextVPos >= tileCount    ? 0 : floor(nextVPos);
-```
-
-### WebGPU Path
-
-WebGPU uses TSL (Three.js Shading Language) nodes. Gap is implemented via the `opacityNode`:
-
-```javascript
-cyclePosNode = virtualPos.sub(cycleLen.mul(virtualPos.div(cycleLen).floor()));
-isGapNode = cyclePosNode.greaterThanEqual(tileCountUniform);
-material.opacityNode = isGapNode.select(float(0), float(1));
-material.transparent = true;
-```
-
----
-
-## 6. Data Flow Summary
-
-```
-User adjusts Gap slider (0–100%)
+User selects texture set (browser / Slyce / Realtime Apply)
         │
         ▼
-viewerStore.tileSetGap = 0.0–1.0
+TileManager.clearAllTiles()
+TileManager.addTileFromBuffer(ktx2, index) × N
         │
-        ▼  (watcher in ThreeCanvas.vue)
-useRibbonBuilder.setTileSetGap(fraction)
+        ▼
+RibbonSeries.initFlowMaterials()
         │
-        ├── TileManager.setTileSetGap(fraction)   // stored as tile-length units
-        ├── viewerStore.setTileSetGap(fraction)    // persisted in store
-        └── RibbonSeries.initFlowMaterials()       // rebuild all materials
-                │
-                ▼
-        For each mesh segment:
-            TileManager.getOrCreateMaterialForSegment(index, flowActive)
-                │
-                ▼
-            createFlowMaterial(index)
-                │
-                ├── Compute basePos, gapSize
-                ├── Resolve tile indices via virtual cycle
-                └── Create dual-texture shader with uBasePos, uTileCount, uGapSize
+        ▼
+For each mesh segment:
+    TileManager.getOrCreateMaterialForSegment(index, flowActive)
+        │
+        ├── flowActive → createFlowMaterial(index) [dual-texture with UV shift]
+        └── static    → getMaterial(index)          [single texture]
 ```
 
 ---
 
-## 7. Key Relationships: Geometry ↔ Texture
+## 6. Key Relationships: Geometry ↔ Texture
 
-| Geometry concept | Texture concept | Relationship |
-|---|---|---|
-| Path arc length | Total tiles displayed | `segmentCount = ceil(pathLength / width)` tiles fit along path |
-| One segment | One tile | 1:1 mapping; segment UV [0,1] = one full tile |
-| Segment width ≈ ribbon width | Tile is roughly square on ribbon | Visual aspect ratio preserved |
-| `segmentOffset` (multi-ribbon) | Global texture index continuity | Prevents index gaps between ribbons |
-| `flowOffset` (shader uniform) | Horizontal UV shift | Slides texture content within segment geometry |
-| `tileFlowOffset` (integer) | Base tile pair selection | Which tile pair each segment shows |
-| `tileSetGap` | Virtual cycle gap region | Per-fragment discard makes geometry transparent in gap zones |
+| Geometry concept               | Texture concept                  | Relationship                                                   |
+| ------------------------------ | -------------------------------- | -------------------------------------------------------------- |
+| Path arc length                | Total tiles displayed            | `segmentCount = ceil(pathLength / width)` tiles fit along path |
+| One segment                    | One tile                         | 1:1 mapping; segment UV [0,1] = one full tile                  |
+| Segment width ≈ ribbon width   | Tile is roughly square on ribbon | Visual aspect ratio preserved                                  |
+| `segmentOffset` (multi-ribbon) | Global texture index continuity  | Prevents index gaps between ribbons                            |
+| `flowOffset` (shader uniform)  | Horizontal UV shift              | Slides texture content within segment geometry                 |
+| `tileFlowOffset` (integer)     | Base tile pair selection         | Which tile pair each segment shows                             |
 
-The geometry never changes for gap or flow — it's always the same mesh segments. All visual effects (conveyor scrolling, gaps) are achieved through shader-level UV manipulation and fragment discard within fixed geometry.
+The geometry never changes for flow — it's always the same mesh segments. All visual effects (conveyor scrolling) are achieved through shader-level UV manipulation within fixed geometry.
+
+> **Note:** Gap architecture (per-fragment virtual cycle with `tileSetGap`, `realtimeGapFraction`, `uGapSize` uniform) was removed. Tiles now tile seamlessly with simple modular indexing.

@@ -98,6 +98,7 @@
                     @input="emit('update:maxTiles', Number(($event.target).value))"
                 />
             </div>
+
         </div>
     </div>
 </template>

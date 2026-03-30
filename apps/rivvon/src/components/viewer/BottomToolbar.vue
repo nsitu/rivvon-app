@@ -59,8 +59,7 @@
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
-        cinematicDebug: { type: Boolean, default: false },
-        realtimeVisible: { type: Boolean, default: false }
+        cinematicDebug: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -122,7 +121,7 @@
             app.hideTextPanel();
         } else if (app.emojiPickerVisible) {
             app.hideEmojiPicker();
-        } else if (props.realtimeVisible) {
+        } else if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
@@ -133,7 +132,7 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || props.realtimeVisible
+        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
 
     /**
@@ -169,7 +168,7 @@
         if (app.aboutPanelVisible) {
             app.hideAboutPanel();
         }
-        if (props.realtimeVisible) {
+        if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');
         }
         return true;
@@ -207,8 +206,8 @@
         <!-- Realtime webcam mode -->
         <button
             v-tooltip.top="tip('Realtime Webcam')"
-            :class="{ active: props.realtimeVisible }"
-            @click="props.realtimeVisible ? handleBack() : activateContext(() => emit('enter-realtime-mode'))"
+            :class="{ active: app.realtimeSamplerVisible }"
+            @click="app.realtimeSamplerVisible ? handleBack() : activateContext(() => emit('enter-realtime-mode'))"
         >
             <span class="material-symbols-outlined">videocam</span>
         </button>

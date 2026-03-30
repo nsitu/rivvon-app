@@ -173,6 +173,14 @@ export class RealtimeCamera {
         return !!this._track && this._track.readyState === 'live';
     }
 
+    /**
+     * Get the raw MediaStream (for binding to a <video> element).
+     * @returns {MediaStream|null}
+     */
+    getMediaStream() {
+        return this._stream;
+    }
+
     // ── Private ────────────────────────────────────────────────────────
 
     async _acquireCamera() {

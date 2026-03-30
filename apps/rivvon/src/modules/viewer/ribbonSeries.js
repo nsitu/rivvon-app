@@ -186,87 +186,10 @@ export class RibbonSeries {
             
             this.buildFromMultiplePaths(this.lastPathsPoints, this.lastWidth, time);
             
-            // Restore flow state and reinitialize materials silently
+            // Restore flow state
             this._flowWasActive = wasActive;
-            this.initFlowMaterialsSilent();
+            this.initFlowMaterials();
         }
-    }
-
-    /**
-     * Initialize flow materials without logging (used during animation updates)
-     */
-    initFlowMaterialsSilent() {
-        if (!this.tileManager) return;
-
-        // Track segment info for later updates
-        this._flowMaterials = [];
-
-        // Check if flow animation is active
-        const flowActive = this.tileManager.isFlowEnabled?.() && this.tileManager.getFlowSpeed?.() !== 0;
-
-        let globalSegmentIndex = 0;
-
-        for (const ribbon of this.ribbons) {
-            // Determine TileManagers for each strand
-            const tmA = ribbon.tileManager || this.tileManager;
-            const tmB = ribbon.tileManagerB || tmA;
-
-            for (let s = 0; s < ribbon.meshSegments.length; s++) {
-                const mesh = ribbon.meshSegments[s];
-                let material;
-                
-                if (flowActive) {
-                    material = tmA.createFlowMaterial(globalSegmentIndex);
-                } else {
-                    const textureIndex = globalSegmentIndex + tmA.getTileFlowOffset();
-                    material = tmA.getMaterial(textureIndex);
-                }
-                
-                if (material) {
-                    mesh.material = material;
-                    this._flowMaterials.push({
-                        mesh,
-                        material,
-                        baseIndex: globalSegmentIndex,
-                        tileManager: tmA
-                    });
-
-                    // Assign strand B material (may use different TileManager in multi-texture mode)
-                    if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
-                        const meshB = ribbon.helixMeshSegmentsB[s];
-                        let materialB;
-
-                        if (tmB === tmA) {
-                            // Same TileManager: reuse same material
-                            materialB = material;
-                        } else {
-                            // Different TileManager: create separate material
-                            if (flowActive) {
-                                materialB = tmB.createFlowMaterial(globalSegmentIndex);
-                            } else {
-                                const textureIndexB = globalSegmentIndex + tmB.getTileFlowOffset();
-                                materialB = tmB.getMaterial(textureIndexB);
-                            }
-                        }
-
-                        if (materialB) {
-                            meshB.material = materialB;
-                            this._flowMaterials.push({
-                                mesh: meshB,
-                                material: materialB,
-                                baseIndex: globalSegmentIndex,
-                                tileManager: tmB
-                            });
-                        }
-                    }
-                }
-
-                globalSegmentIndex++;
-            }
-        }
-
-        this._lastTileOffset = this.tileManager.getTileFlowOffset?.() || 0;
-        this._flowWasActive = flowActive;
     }
 
     /**
@@ -298,16 +221,7 @@ export class RibbonSeries {
 
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
-                let material;
-                
-                if (flowActive) {
-                    // Flow enabled: create dual-texture material for smooth animation
-                    material = tmA.createFlowMaterial(globalSegmentIndex);
-                } else {
-                    // Flow disabled: use shared single-texture material (optimized)
-                    const textureIndex = globalSegmentIndex + tmA.getTileFlowOffset();
-                    material = tmA.getMaterial(textureIndex);
-                }
+                const material = tmA.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
                 
                 if (material) {
                     mesh.material = material;
@@ -321,20 +235,9 @@ export class RibbonSeries {
                     // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
-                        let materialB;
-
-                        if (tmB === tmA) {
-                            // Same TileManager: reuse same material
-                            materialB = material;
-                        } else {
-                            // Different TileManager: create separate material
-                            if (flowActive) {
-                                materialB = tmB.createFlowMaterial(globalSegmentIndex);
-                            } else {
-                                const textureIndexB = globalSegmentIndex + tmB.getTileFlowOffset();
-                                materialB = tmB.getMaterial(textureIndexB);
-                            }
-                        }
+                        const materialB = tmB === tmA
+                            ? material  // Same TileManager: reuse same material
+                            : tmB.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
 
                         if (materialB) {
                             meshB.material = materialB;
@@ -406,8 +309,8 @@ export class RibbonSeries {
                 const { mesh, baseIndex, tileManager: entryTm } = entry;
                 const tm = entryTm || this.tileManager;
                 
-                // Create new dual-texture material with updated tile pair
-                const newMaterial = tm.createFlowMaterial(baseIndex);
+                // Create new material for this segment (gap-aware)
+                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true);
                 
                 if (newMaterial) {
                     mesh.material = newMaterial;

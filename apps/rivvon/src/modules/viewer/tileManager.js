@@ -87,13 +87,7 @@ export class TileManager {
 
         this._ktx2Loader = null;
 
-        // Realtime mode: tiles are added incrementally and the ribbon
-        // should only wrap over the tiles that actually have content.
-        this.realtimeMode = false;
-        this.activeTileCount = 0;
-        this._fallbackMaterial = null;
-
-        // Per-frame callback (e.g. for updating preview textures)
+        // Per-frame callback
         this._onTick = null;
     }
 
@@ -360,7 +354,7 @@ export class TileManager {
                 uLayer: this.sharedLayerUniform,
                 uLayerCount: { value: layerCount },
                 uRotate90: this.sharedRotateUniform,
-                uFlowOffset: this.sharedFlowOffsetUniform
+                uFlowOffset: this.sharedFlowOffsetUniform,
             },
             vertexShader: /* glsl */`
                 out vec2 vUv;
@@ -440,17 +434,11 @@ export class TileManager {
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext) {
         const layerCount = textureCurrent.image?.depth || 1;
 
-        // For now, fall back to simple material in WebGPU
-        // TSL conditional texture sampling is complex; we'll use a simpler approach
-        // TODO: Implement proper TSL dual-texture sampling
-        
         // Create uniforms
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
 
-        // For WebGPU, we'll create a material that updates its texture based on flowOffset
-        // Since TSL doesn't easily support conditional texture selection, we'll use a blend approach
         const baseUV = uv();
         
         // Apply flow offset
@@ -508,15 +496,16 @@ export class TileManager {
             return this.getMaterial(segmentIndex);
         }
 
-        const wrapCount = this.getEffectiveTileCount();
-        const currentIdx = (segmentIndex + this.tileFlowOffset) % wrapCount;
-        const nextIdx = (currentIdx + 1) % wrapCount;
+        const wrapCount = this.tileCount;
+        const basePos = segmentIndex + this.tileFlowOffset;
+        const currentTileIdx = ((basePos % wrapCount) + wrapCount) % wrapCount;
+        const nextTileIdx = (currentTileIdx + 1) % wrapCount;
 
-        const textureCurrent = this.arrayTextures[currentIdx];
-        const textureNext = this.arrayTextures[nextIdx];
+        const textureCurrent = this.arrayTextures[currentTileIdx];
+        const textureNext = this.arrayTextures[nextTileIdx];
 
         if (!textureCurrent || !textureNext) {
-            console.warn(`[TileManager] Missing textures for flow material: ${currentIdx}, ${nextIdx}`);
+            console.warn(`[TileManager] Missing textures for flow material: ${currentTileIdx}, ${nextTileIdx}`);
             return this.getMaterial(segmentIndex);
         }
 
@@ -541,9 +530,7 @@ export class TileManager {
      * @returns {THREE.DataArrayTexture|null} The array texture or null
      */
     getArrayTexture(index) {
-        if (this.realtimeMode && this.activeTileCount > 0) {
-            return this.arrayTextures[index % this.activeTileCount] || null;
-        }
+        return this.arrayTextures[index % this.tileCount] || null;
         return this.arrayTextures[index % this.tileCount] || null;
     }
 
@@ -859,44 +846,14 @@ export class TileManager {
 
     getMaterial(index) {
         if (!this.isKTX2) return undefined;
-
-        if (this.realtimeMode) {
-            if (this.activeTileCount <= 0) {
-                return this._getFallbackMaterial();
-            }
-            return this.materials[index % this.activeTileCount] || this._getFallbackMaterial();
-        }
-
         return this.materials[index % this.tileCount];
     }
 
     /**
-     * Return the effective tile count used for material wrapping.
-     * In realtime mode this is the number of tiles that actually have
-     * content; otherwise it is the fixed tileCount.
+     * Return the tile count used for material wrapping.
      */
     getEffectiveTileCount() {
-        if (this.realtimeMode) {
-            return Math.max(1, this.activeTileCount);
-        }
         return this.tileCount;
-    }
-
-    /**
-     * Lazy-create a fully-transparent fallback material used for ribbon
-     * segments that have no tile data yet.
-     */
-    _getFallbackMaterial() {
-        if (!this._fallbackMaterial) {
-            this._fallbackMaterial = new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                transparent: true,
-                opacity: 0,
-                side: THREE.DoubleSide,
-                depthWrite: false
-            });
-        }
-        return this._fallbackMaterial;
     }
 
     getTileSequence(startIndex, count) {
@@ -905,6 +862,35 @@ export class TileManager {
             sequence.push(this.getTile(startIndex + i));
         }
         return sequence;
+    }
+
+    /**
+     * Resolve an effective segment index to a tile index.
+     * @param {number} effectiveIndex - segmentIndex + tileFlowOffset
+     * @returns {{ isGap: boolean, tileIndex: number }}
+     */
+    resolveSegmentToTile(effectiveIndex) {
+        const tileCount = this.tileCount;
+        return { isGap: false, tileIndex: ((effectiveIndex % tileCount) + tileCount) % tileCount };
+    }
+
+    /**
+     * Get or create the appropriate material for a ribbon segment, accounting
+     * for flow state.
+     * This is the single source of truth for segment → material mapping.
+     * @param {number} globalSegmentIndex - Global segment index across the ribbon
+     * @param {boolean} flowActive - Whether flow animation is currently active
+     * @returns {THREE.Material} The material to assign to the mesh segment
+     */
+    getOrCreateMaterialForSegment(globalSegmentIndex, flowActive) {
+        // Use dual-texture shader when flow animation is active.
+        if (flowActive) {
+            return this.createFlowMaterial(globalSegmentIndex);
+        }
+
+        // Normal: no flow
+        const textureIndex = globalSegmentIndex + this.getTileFlowOffset();
+        return this.getMaterial(textureIndex);
     }
 
     getLayerCount() {
@@ -1102,7 +1088,7 @@ export class TileManager {
      * @param {number} wholeTiles - Number of whole tiles to shift (can be negative)
      */
     wrapFlowOffset(wholeTiles) {
-        // Update tile base offset
+        // Update tile base offset with wrapping
         this.tileFlowOffset = (this.tileFlowOffset + wholeTiles + this.tileCount) % this.tileCount;
         
         // Wrap flowOffset to [0, 1) range
@@ -1381,10 +1367,6 @@ export class TileManager {
             this.tileFlowOffset = 0;
             this.flowAccumulator = 0;
 
-            // Exit realtime mode when loading a full texture set
-            this.realtimeMode = false;
-            this.activeTileCount = 0;
-
             // Initialize KTX2 loader if not already done
             if (!this._ktx2Loader) {
                 const ok = await this.#initKTX2();
@@ -1448,14 +1430,6 @@ export class TileManager {
             this._ktx2Loader = null;
         }
 
-        // Dispose fallback material
-        if (this._fallbackMaterial) {
-            this._fallbackMaterial.dispose();
-            this._fallbackMaterial = null;
-        }
-
-        this.realtimeMode = false;
-        this.activeTileCount = 0;
         this._onTick = null;
 
         console.log('[TileManager] Disposed all GPU resources');
@@ -1546,11 +1520,7 @@ export class TileManager {
         this.loadedCount = 0;
         this.zipFiles = null;
 
-        // Enter realtime mode with zero active tiles
-        this.realtimeMode = true;
-        this.activeTileCount = 0;
-
-        console.log('[TileManager] Cleared all tiles for realtime mode');
+        console.log('[TileManager] Cleared all tiles');
     }
 
     /**
@@ -1636,23 +1606,6 @@ export class TileManager {
         }
 
         console.log(`[TileManager] Removed tile ${tileIndex}`);
-    }
-
-    /**
-     * Assign a preview material (sampler2D from PreviewTexture) to a tile slot.
-     * Used for tiles in 'building' or 'encoding' state before KTX2 is ready.
-     *
-     * @param {number} tileIndex
-     * @param {THREE.Material} previewMaterial
-     */
-    setPreviewMaterial(tileIndex, previewMaterial) {
-        this.materials[tileIndex] = previewMaterial;
-        this.isKTX2 = true; // Ensure tick() runs for layer cycling
-
-        // In realtime mode, grow the active tile count as previews are added
-        if (this.realtimeMode) {
-            this.activeTileCount = Math.max(this.activeTileCount, tileIndex + 1);
-        }
     }
 
     /**
@@ -1746,10 +1699,6 @@ export class TileManager {
             // Reset flow state
             this.tileFlowOffset = 0;
             this.flowAccumulator = 0;
-
-            // Exit realtime mode when loading a full texture set
-            this.realtimeMode = false;
-            this.activeTileCount = 0;
 
             // Initialize KTX2 loader if not already done
             if (!this._ktx2Loader) {

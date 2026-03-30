@@ -2,8 +2,12 @@
  * RealtimeTileBuilder — Streaming cross-section builder for realtime webcam mode.
  *
  * Maintains a pool of canvas sets. Each tile in progress holds its own canvas set
- * (claimed from the pool). Processes one row per canvas per VideoFrame using
- * cosine distribution (planes mode — identical to TileBuilder).
+ * (claimed from the pool). Processes one row per canvas per VideoFrame.
+ *
+ * Supports two cross-section types:
+ *   - "planes": Cosine distribution — each canvas has a fixed sample Y position.
+ *   - "waves":  Sine wave distribution — sample Y oscillates per frame.
+ *              Requires a known total frame count so the wave completes full cycles.
  *
  * Emits 'complete' when a tile's rows are fully sampled, providing both the
  * canvas set (for continued preview display) and extracted RGBA images
@@ -15,18 +19,24 @@ import { EventEmitter } from 'events';
 export class RealtimeTileBuilder extends EventEmitter {
     /**
      * @param {Object} options
-     * @param {number} options.potResolution   — Square tile resolution (128, 256, 512). Default 256.
-     * @param {number} options.crossSectionCount — Number of cross-section canvases per tile. Default 30.
+     * @param {number} options.potResolution      — Square tile resolution (128, 256, 512). Default 256.
+     * @param {number} options.crossSectionCount  — Number of cross-section canvases per tile. Default 30.
+     * @param {string} options.crossSectionType   — 'planes' or 'waves'. Default 'planes'.
+     * @param {number} [options.totalFrames]      — Total frames that will be captured. Required for 'waves'.
      */
     constructor(options = {}) {
         super();
         const {
             potResolution = 256,
-            crossSectionCount = 30
+            crossSectionCount = 30,
+            crossSectionType = 'planes',
+            totalFrames = null
         } = options;
 
         this.potResolution = potResolution;
         this.crossSectionCount = crossSectionCount;
+        this.crossSectionType = crossSectionType;
+        this._totalFrames = totalFrames;
 
         // Canvas pool: array of canvas sets available for reuse
         this._canvasPool = [];
@@ -36,13 +46,25 @@ export class RealtimeTileBuilder extends EventEmitter {
         this._currentRow = 0;
         this._currentCanvasSet = null;
 
-        // Pre-compute cosine distribution sample indices
-        // These don't change per tile — only depend on crossSectionCount
-        this._cosineIndices = new Float64Array(crossSectionCount);
-        for (let i = 0; i < crossSectionCount; i++) {
-            const normalizedIndex = (i / (crossSectionCount - 1)) * Math.PI;
-            // Maps to 0..1 range across the video frame height
-            this._cosineIndices[i] = (Math.cos(normalizedIndex) + 1) / 2;
+        // Global frame index — increments continuously across tiles.
+        // Used by waves mode to track position in the sine cycle.
+        this._globalFrameIndex = 0;
+
+        if (crossSectionType === 'planes') {
+            // Pre-compute cosine distribution sample indices
+            // These don't change per tile — only depend on crossSectionCount
+            this._cosineIndices = new Float64Array(crossSectionCount);
+            for (let i = 0; i < crossSectionCount; i++) {
+                const normalizedIndex = (i / (crossSectionCount - 1)) * Math.PI;
+                this._cosineIndices[i] = (Math.cos(normalizedIndex) + 1) / 2;
+            }
+        } else {
+            // Pre-compute per-canvas phase shifts for sine wave distribution
+            this._phaseShifts = new Float64Array(crossSectionCount);
+            for (let i = 0; i < crossSectionCount; i++) {
+                this._phaseShifts[i] = (2 * Math.PI * i) / crossSectionCount;
+            }
+            this._omega = (2 * Math.PI) / totalFrames; // angular frequency
         }
 
         // Claim initial canvas set and start first tile
@@ -93,7 +115,9 @@ export class RealtimeTileBuilder extends EventEmitter {
     }
 
     /**
-     * Process a single video frame. Samples one row per canvas using cosine distribution.
+     * Process a single video frame. Samples one row per canvas using the
+     * configured cross-section type (cosine distribution for planes,
+     * sine wave for waves).
      *
      * @param {VideoFrame|ImageBitmap} videoFrame — The frame to sample from.
      *   Caller should NOT close the frame — this method closes it.
@@ -107,8 +131,17 @@ export class RealtimeTileBuilder extends EventEmitter {
         for (let c = 0; c < this.crossSectionCount; c++) {
             const ctx = canvasSet[c].getContext('2d');
 
-            // Cosine-distributed sample row from the video frame
-            const sampleY = this._cosineIndices[c] * (frameHeight - 1);
+            let sampleY;
+            if (this.crossSectionType === 'waves') {
+                // Sine wave: Y oscillates per frame, phase-shifted per canvas.
+                // A full sine cycle spans totalFrames, so the pattern wraps.
+                const halfH = frameHeight / 2;
+                sampleY = halfH * Math.sin(this._omega * this._globalFrameIndex + this._phaseShifts[c]) + halfH;
+                sampleY = Math.max(0, Math.min(frameHeight - 1, sampleY));
+            } else {
+                // Planes: fixed cosine-distributed sample position per canvas
+                sampleY = this._cosineIndices[c] * (frameHeight - 1);
+            }
 
             // Sample a 1px-tall strip from video, draw across the full canvas width at drawRow
             ctx.drawImage(
@@ -117,6 +150,8 @@ export class RealtimeTileBuilder extends EventEmitter {
                 0, drawRow, this.potResolution, 1 // dest: full tile width, 1px at drawRow
             );
         }
+
+        this._globalFrameIndex++;
 
         // Close the video frame to release memory
         if (videoFrame.close) {
@@ -171,6 +206,25 @@ export class RealtimeTileBuilder extends EventEmitter {
     /** Tile height (= potResolution). */
     get tileHeight() {
         return this.potResolution;
+    }
+
+    /** Global frame index — total frames processed since construction. */
+    get globalFrameIndex() {
+        return this._globalFrameIndex;
+    }
+
+    /** Whether all required frames have been captured (waves mode). */
+    get isComplete() {
+        return this._totalFrames !== null && this._globalFrameIndex >= this._totalFrames;
+    }
+
+    /**
+     * Get the first canvas of the current tile being built.
+     * Useful for rendering a live preview in the sampling screen.
+     * @returns {HTMLCanvasElement|null}
+     */
+    getCurrentPreviewCanvas() {
+        return this._currentCanvasSet?.[0] ?? null;
     }
 
     /**

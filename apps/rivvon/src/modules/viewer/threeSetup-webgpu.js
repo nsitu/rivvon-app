@@ -61,13 +61,26 @@ export async function initThreeWebGPU() {
     // WebGPU device (or WebGL context) is lost.  We wrap it so external code
     // (useThreeSetup composable) can register a handler.
     let _deviceLostHandler = null;
+    let _deviceLostFired = false;
+
+    function _fireDeviceLost(info) {
+        if (_deviceLostFired) return; // prevent duplicate fires
+        _deviceLostFired = true;
+        if (_deviceLostHandler) _deviceLostHandler(info);
+    }
+
     const _originalOnDeviceLost = renderer.onDeviceLost.bind(renderer);
     renderer.onDeviceLost = (info) => {
         // Run Three.js's default behaviour first (sets _isDeviceLost = true, logs)
         _originalOnDeviceLost(info);
-        // Notify external listener
-        if (_deviceLostHandler) _deviceLostHandler(info);
+        _fireDeviceLost(info);
     };
+
+    // Also listen for the canvas contextlost event as a fallback
+    renderer.domElement.addEventListener('contextlost', (e) => {
+        e.preventDefault();
+        _fireDeviceLost({ api: 'WebGPU', message: 'Canvas context lost', reason: 'context-lost' });
+    });
 
     /**
      * Register a callback that fires when the GPU device is lost.
