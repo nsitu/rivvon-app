@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1640" width="1200" height="1640" font-family="'Segoe UI', Arial, sans-serif">
+<defs>
+  <!-- Arrowhead markers -->
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+  </marker>
+  <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#1565c0"/>
+  </marker>
+  <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/>
+  </marker>
+  <marker id="arrO" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#e65100"/>
+  </marker>
+  <marker id="arrP" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#6a1b9a"/>
+  </marker>
+  <!-- Cross-hatch pattern for gap regions -->
+  <pattern id="hatch" patternUnits="userSpaceOnUse" width="8" height="8">
+    <path d="M-1,1 l2,-2 M0,8 l8,-8 M7,9 l2,-2" stroke="#aaa" stroke-width="1.5"/>
+  </pattern>
+  <!-- Lighter hatch -->
+  <pattern id="hatchL" patternUnits="userSpaceOnUse" width="8" height="8">
+    <path d="M-1,1 l2,-2 M0,8 l8,-8 M7,9 l2,-2" stroke="#ccc" stroke-width="1"/>
+  </pattern>
+</defs>
+
+<!-- =========================================================
+     BACKGROUND
+     ========================================================= -->
+<rect width="1200" height="1640" fill="#f5f7fa"/>
+
+<!-- =========================================================
+     TITLE
+     ========================================================= -->
+<rect x="12" y="12" width="1176" height="56" rx="8" fill="#1a237e"/>
+<text x="600" y="30" font-size="11" font-weight="600" fill="#90caf9"
+      text-anchor="middle">RIVVON ARCHITECTURE REFERENCE</text>
+<text x="600" y="55" font-size="20" font-weight="700" fill="white"
+      text-anchor="middle">Ribbon Geometry, Texture Layout &amp; Gap Architecture</text>
+
+<!-- =========================================================
+     SECTION 1 — GEOMETRY PIPELINE
+     ========================================================= -->
+<rect x="12" y="78" width="1176" height="26" rx="4" fill="#1565c0"/>
+<text x="24" y="97" font-size="13" font-weight="700" fill="white">1.  Ribbon Geometry Pipeline</text>
+
+<!-- ── Pipeline: 5 boxes in one row ── -->
+<!-- Box 1 -->
+<rect x="12"  y="114" width="192" height="56" rx="5" fill="#dbeafe" stroke="#1565c0" stroke-width="1.5"/>
+<text x="108" y="134" font-size="12" font-weight="700" fill="#1e3a8a" text-anchor="middle">User Draws Strokes</text>
+<text x="108" y="151" font-size="11"              fill="#1d4ed8" text-anchor="middle">polyline points</text>
+<!-- Arrow 1→2 -->
+<line x1="204" y1="142" x2="226" y2="142" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+<!-- Box 2 -->
+<rect x="226" y="114" width="212" height="56" rx="5" fill="#dbeafe" stroke="#1565c0" stroke-width="1.5"/>
+<text x="332" y="134" font-size="12" font-weight="700" fill="#1e3a8a" text-anchor="middle">CatmullRomCurve3</text>
+<text x="332" y="151" font-size="11"              fill="#1d4ed8" text-anchor="middle">arc-length-uniform sampling</text>
+<!-- Arrow 2→3 -->
+<line x1="438" y1="142" x2="460" y2="142" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+<!-- Box 3 -->
+<rect x="460" y="114" width="222" height="56" rx="5" fill="#dbeafe" stroke="#1565c0" stroke-width="1.5"/>
+<text x="571" y="134" font-size="12" font-weight="700" fill="#1e3a8a" text-anchor="middle">Divide → N Segments</text>
+<text x="571" y="151" font-size="11"              fill="#1d4ed8" text-anchor="middle">N = ⌈pathLen / ribbonWidth⌉</text>
+<!-- Arrow 3→4 -->
+<line x1="682" y1="142" x2="704" y2="142" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+<!-- Box 4 -->
+<rect x="704" y="114" width="238" height="56" rx="5" fill="#dbeafe" stroke="#1565c0" stroke-width="1.5"/>
+<text x="823" y="134" font-size="12" font-weight="700" fill="#1e3a8a" text-anchor="middle">Per-Segment Vertices</text>
+<text x="823" y="151" font-size="11"              fill="#1d4ed8" text-anchor="middle">~50 pts × (left + right edge)</text>
+<!-- Arrow 4→5 -->
+<line x1="942" y1="142" x2="964" y2="142" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+<!-- Box 5 -->
+<rect x="964" y="114" width="224" height="56" rx="5" fill="#dbeafe" stroke="#1565c0" stroke-width="1.5"/>
+<text x="1076" y="134" font-size="12" font-weight="700" fill="#1e3a8a" text-anchor="middle">BufferGeometry + Material</text>
+<text x="1076" y="151" font-size="11"              fill="#1d4ed8" text-anchor="middle">→ Mesh added to Three.js scene</text>
+
+<!-- ── Annotation area: UV Mapping (left) + RMF Frames (right) ── -->
+<!-- UV Mapping box -->
+<rect x="12" y="180" width="580" height="164" rx="5" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+<text x="302" y="200" font-size="13" font-weight="700" fill="#14532d" text-anchor="middle">UV Mapping — 1 Segment = 1 Tile</text>
+<!-- 4 segment rectangles -->
+<rect x="32"  y="212" width="96" height="58" rx="3" fill="#86efac" stroke="#16a34a" stroke-width="1.5"/>
+<text x="80"  y="236" font-size="12" font-weight="600" fill="#14532d" text-anchor="middle">Seg 0</text>
+<text x="80"  y="253" font-size="11"              fill="#166534" text-anchor="middle">Tile 0</text>
+
+<rect x="132" y="212" width="96" height="58" rx="3" fill="#86efac" stroke="#16a34a" stroke-width="1.5"/>
+<text x="180" y="236" font-size="12" font-weight="600" fill="#14532d" text-anchor="middle">Seg 1</text>
+<text x="180" y="253" font-size="11"              fill="#166534" text-anchor="middle">Tile 1</text>
+
+<rect x="232" y="212" width="96" height="58" rx="3" fill="#86efac" stroke="#16a34a" stroke-width="1.5"/>
+<text x="280" y="236" font-size="12" font-weight="600" fill="#14532d" text-anchor="middle">Seg 2</text>
+<text x="280" y="253" font-size="11"              fill="#166534" text-anchor="middle">Tile 2</text>
+
+<rect x="332" y="212" width="96" height="58" rx="3" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="5,3"/>
+<text x="380" y="244" font-size="18"              fill="#166534" text-anchor="middle">…</text>
+
+<!-- V axis -->
+<line x1="28" y1="212" x2="28" y2="270" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrG)"/>
+<text x="16" y="219" font-size="10" fill="#166534" text-anchor="middle">V=0</text>
+<text x="16" y="266" font-size="10" fill="#166534" text-anchor="middle">V=1</text>
+<!-- U axis -->
+<line x1="32" y1="276" x2="430" y2="276" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrG)"/>
+<text x="30"  y="292" font-size="10" fill="#166534">U=0</text>
+<text x="128" y="292" font-size="10" fill="#166534" text-anchor="middle">U=1/U=0</text>
+<text x="228" y="292" font-size="10" fill="#166534" text-anchor="middle">U=1/U=0</text>
+<text x="328" y="292" font-size="10" fill="#166534" text-anchor="middle">U=1/…</text>
+<!-- notes -->
+<text x="472" y="228" font-size="11" fill="#166534">• V ∈ [0,1] across ribbon width</text>
+<text x="472" y="246" font-size="11" fill="#166534">• U ∈ [0,1] along path direction</text>
+<text x="472" y="264" font-size="11" fill="#166534">• Rounded caps: V remapped via</text>
+<text x="480" y="280" font-size="11" fill="#166534">  f(t) = √(1 − (1−t)²)</text>
+<text x="472" y="298" font-size="11" fill="#166534">• One segment ↔ one tile (1:1)</text>
+<text x="472" y="316" font-size="11" fill="#166534">  This is the fundamental constraint</text>
+
+<!-- RMF Frames box -->
+<rect x="608" y="180" width="580" height="164" rx="5" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="898" y="200" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle">Rotation-Minimizing Frames (RMF)</text>
+<text x="620" y="218" font-size="11" fill="#5b21b6">Double Reflection method (Wang et al. 2008) — pre-computed for entire path</text>
+<!-- Flat mode -->
+<rect x="620" y="228" width="260" height="104" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1"/>
+<text x="750" y="246" font-size="11" font-weight="700" fill="#4c1d95" text-anchor="middle">Flat Ribbon Mode</text>
+<text x="628" y="263" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">wavePhase = sin(s·freq + t·speed)·amp</text>
+<text x="628" y="279" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">animNorm  = normal rotated(wavePhase)</text>
+<text x="628" y="295" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">left  = pt − (w/2) × animNorm</text>
+<text x="628" y="311" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">right = pt + (w/2) × animNorm</text>
+<text x="628" y="327" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">     ↑ prevents twist at corners</text>
+<!-- Helix mode -->
+<rect x="896" y="228" width="284" height="104" rx="4" fill="#ede9fe" stroke="#7c3aed" stroke-width="1"/>
+<text x="1038" y="246" font-size="11" font-weight="700" fill="#4c1d95" text-anchor="middle">Helix Mode (2 Strands)</text>
+<text x="904" y="263" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">angle = globalT·pitch·2π + offset</text>
+<text x="904" y="279" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">      (0 for strand A, π for B)</text>
+<text x="904" y="295" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">ctr = pt + cos(a)·r·n + sin(a)·r·b</text>
+<text x="904" y="311" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">left  = ctr − (w/2) × acrossDir</text>
+<text x="904" y="327" font-size="10" fill="#6d28d9" font-family="'Courier New',monospace">right = ctr + (w/2) × acrossDir</text>
+
+<!-- =========================================================
+     SECTION 2 — TILE ASSIGNMENT (1:1 MAPPING)
+     ========================================================= -->
+<rect x="12" y="356" width="1176" height="26" rx="4" fill="#1565c0"/>
+<text x="24" y="375" font-size="13" font-weight="700" fill="white">2.  Texture Assignment — 1:1 Segment–Tile Mapping (with Wrap-Around)</text>
+
+<!-- ── Segment row (9 segments, tileCount = 5 → wraps) ── -->
+<text x="24" y="402" font-size="12" fill="#333">9 mesh segments with 5 tiles (wrap: segments 5–8 reuse tiles 0–3)</text>
+
+<!-- Segment row y=410 -->
+<!-- Colors for tile identity: T0=#4caf50, T1=#2196f3, T2=#ff9800, T3=#9c27b0, T4=#f44336 -->
+<rect x="12"  y="412" width="112" height="46" rx="3" fill="#c8e6c9" stroke="#388e3c" stroke-width="1.5"/>
+<text x="68"  y="430" font-size="11" font-weight="700" fill="#1b5e20" text-anchor="middle">Seg 0</text>
+<text x="68"  y="447" font-size="10"              fill="#388e3c" text-anchor="middle">→ Tile 0</text>
+
+<rect x="128" y="412" width="112" height="46" rx="3" fill="#bbdefb" stroke="#1976d2" stroke-width="1.5"/>
+<text x="184" y="430" font-size="11" font-weight="700" fill="#0d47a1" text-anchor="middle">Seg 1</text>
+<text x="184" y="447" font-size="10"              fill="#1976d2" text-anchor="middle">→ Tile 1</text>
+
+<rect x="244" y="412" width="112" height="46" rx="3" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.5"/>
+<text x="300" y="430" font-size="11" font-weight="700" fill="#e65100" text-anchor="middle">Seg 2</text>
+<text x="300" y="447" font-size="10"              fill="#e65100" text-anchor="middle">→ Tile 2</text>
+
+<rect x="360" y="412" width="112" height="46" rx="3" fill="#e1bee7" stroke="#7b1fa2" stroke-width="1.5"/>
+<text x="416" y="430" font-size="11" font-weight="700" fill="#4a148c" text-anchor="middle">Seg 3</text>
+<text x="416" y="447" font-size="10"              fill="#7b1fa2" text-anchor="middle">→ Tile 3</text>
+
+<rect x="476" y="412" width="112" height="46" rx="3" fill="#ffcdd2" stroke="#c62828" stroke-width="1.5"/>
+<text x="532" y="430" font-size="11" font-weight="700" fill="#b71c1c" text-anchor="middle">Seg 4</text>
+<text x="532" y="447" font-size="10"              fill="#c62828" text-anchor="middle">→ Tile 4</text>
+
+<!-- Seg 5 wraps to Tile 0 -->
+<rect x="592" y="412" width="112" height="46" rx="3" fill="#c8e6c9" stroke="#388e3c" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="648" y="430" font-size="11" font-weight="700" fill="#1b5e20" text-anchor="middle">Seg 5</text>
+<text x="648" y="447" font-size="10"              fill="#388e3c" text-anchor="middle">→ Tile 0 (wrap)</text>
+
+<rect x="708" y="412" width="112" height="46" rx="3" fill="#bbdefb" stroke="#1976d2" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="764" y="430" font-size="11" font-weight="700" fill="#0d47a1" text-anchor="middle">Seg 6</text>
+<text x="764" y="447" font-size="10"              fill="#1976d2" text-anchor="middle">→ Tile 1 (wrap)</text>
+
+<rect x="824" y="412" width="112" height="46" rx="3" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="880" y="430" font-size="11" font-weight="700" fill="#e65100" text-anchor="middle">Seg 7</text>
+<text x="880" y="447" font-size="10"              fill="#e65100" text-anchor="middle">→ Tile 2 (wrap)</text>
+
+<rect x="940" y="412" width="112" height="46" rx="3" fill="#e1bee7" stroke="#7b1fa2" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="996" y="430" font-size="11" font-weight="700" fill="#4a148c" text-anchor="middle">Seg 8</text>
+<text x="996" y="447" font-size="10"              fill="#7b1fa2" text-anchor="middle">→ Tile 3 (wrap)</text>
+
+<!-- Formula box -->
+<rect x="1068" y="412" width="120" height="46" rx="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+<text x="1128" y="432" font-size="10" font-weight="700" fill="#0d47a1" text-anchor="middle">tileIndex =</text>
+<text x="1128" y="448" font-size="10"              fill="#0d47a1" text-anchor="middle">(seg + offset) % N</text>
+
+<!-- Wrap arrow from seg 5 back to T0 indicator -->
+<path d="M 648 458 L 648 470 L 68 470 L 68 460" stroke="#388e3c" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrG)"/>
+<text x="358" y="484" font-size="10" fill="#2e7d32" text-anchor="middle">tiles wrap round-robin: 0, 1, 2, 3, 4, 0, 1, 2, …</text>
+
+<!-- Multi-ribbon global indexing -->
+<rect x="12" y="498" width="1176" height="70" rx="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="1.5"/>
+<text x="600" y="516" font-size="12" font-weight="700" fill="#bf360c" text-anchor="middle">RibbonSeries — Global Segment Indexing (multi-ribbon continuity)</text>
+<!-- Three ribbon bars -->
+<rect x="32"  y="526" width="260" height="28" rx="3" fill="#ffe082" stroke="#f57f17" stroke-width="1.5"/>
+<text x="162" y="545" font-size="11" font-weight="600" fill="#e65100" text-anchor="middle">Ribbon 0 — segs 0 … 14  (offset = 0)</text>
+
+<rect x="310" y="526" width="270" height="28" rx="3" fill="#ffe082" stroke="#f57f17" stroke-width="1.5"/>
+<text x="445" y="545" font-size="11" font-weight="600" fill="#e65100" text-anchor="middle">Ribbon 1 — segs 15 … 28  (offset = 15)</text>
+
+<rect x="598" y="526" width="280" height="28" rx="3" fill="#ffe082" stroke="#f57f17" stroke-width="1.5"/>
+<text x="738" y="545" font-size="11" font-weight="600" fill="#e65100" text-anchor="middle">Ribbon 2 — segs 29 … 40  (offset = 29)</text>
+
+<text x="900" y="545" font-size="11" fill="#bf360c">Each ribbon stores segmentOffset;</text>
+<text x="900" y="560" font-size="11" fill="#bf360c">ensures seamless multi-path tiling.</text>
+
+<!-- =========================================================
+     SECTION 3 — DUAL-TEXTURE FLOW ANIMATION
+     ========================================================= -->
+<rect x="12" y="580" width="1176" height="26" rx="4" fill="#1b5e20"/>
+<text x="24" y="599" font-size="13" font-weight="700" fill="white">3.  Dual-Texture Flow Animation (Conveyor Belt)</text>
+
+<!-- ── Three states of flowOffset ── -->
+<text x="24" y="620" font-size="12" fill="#333" font-weight="600">Segment N holds two texture references (current + next) and blends per flowOffset:</text>
+
+<!-- State labels -->
+<text x="124" y="640" font-size="12" font-weight="700" fill="#1565c0" text-anchor="middle">flowOffset = 0.0</text>
+<text x="400" y="640" font-size="12" font-weight="700" fill="#1565c0" text-anchor="middle">flowOffset = 0.4</text>
+<text x="682" y="640" font-size="12" font-weight="700" fill="#1565c0" text-anchor="middle">flowOffset = 0.9</text>
+
+<!-- State 1: full tile[N] -->
+<rect x="28"  y="648" width="192" height="60" rx="4" fill="#64b5f6" stroke="#1565c0" stroke-width="2"/>
+<text x="124" y="678" font-size="13" font-weight="700" fill="#0d47a1" text-anchor="middle">tile [N]</text>
+<text x="28"  y="724" font-size="10" fill="#1565c0">U=0</text>
+<text x="210" y="724" font-size="10" fill="#1565c0" text-anchor="end">U=1</text>
+<line x1="28" y1="720" x2="218" y2="720" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrB)"/>
+
+<!-- State 2: split 60/40 -->
+<rect x="304" y="648" width="115" height="60" rx="0"  fill="#64b5f6" stroke="#1565c0" stroke-width="1.5"/>
+<rect x="419" y="648" width="77"  height="60" rx="0"  fill="#4db6ac" stroke="#00796b" stroke-width="1.5"/>
+<!-- rounded outer corners -->
+<rect x="304" y="648" width="192" height="60" rx="4" fill="none" stroke="#555" stroke-width="1.5"/>
+<text x="361" y="678" font-size="11" font-weight="700" fill="#0d47a1" text-anchor="middle">tile [N]</text>
+<text x="458" y="678" font-size="11" font-weight="700" fill="#004d40" text-anchor="middle">tile[N+1]</text>
+<!-- dividing line + flowOffset label -->
+<line x1="419" y1="644" x2="419" y2="714" stroke="#555" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="419" y="738" font-size="10" fill="#555" text-anchor="middle">← shiftedU = 1.0 boundary</text>
+<line x1="304" y1="720" x2="494" y2="720" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrB)"/>
+<text x="304" y="736" font-size="10" fill="#1565c0">U=0</text>
+<text x="494" y="736" font-size="10" fill="#1565c0" text-anchor="end">U=1</text>
+
+<!-- State 3: split 10/90 -->
+<rect x="580" y="648" width="21"  height="60" rx="0" fill="#64b5f6" stroke="#1565c0" stroke-width="1.5"/>
+<rect x="601" y="648" width="171" height="60" rx="0" fill="#4db6ac" stroke="#00796b" stroke-width="1.5"/>
+<rect x="580" y="648" width="192" height="60" rx="4" fill="none" stroke="#555" stroke-width="1.5"/>
+<text x="591" y="680" font-size="9"  fill="#0d47a1" text-anchor="middle">N</text>
+<text x="686" y="678" font-size="11" font-weight="700" fill="#004d40" text-anchor="middle">tile [N+1]</text>
+<line x1="580" y1="720" x2="770" y2="720" stroke="#1565c0" stroke-width="1.5" marker-end="url(#arrB)"/>
+<text x="580" y="736" font-size="10" fill="#1565c0">U=0</text>
+<text x="770" y="736" font-size="10" fill="#1565c0" text-anchor="end">U=1</text>
+
+<!-- Arrows between states -->
+<line x1="226" y1="678" x2="298" y2="678" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+<line x1="502" y1="678" x2="574" y2="678" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+<text x="262" y="670" font-size="10" fill="#555" text-anchor="middle">time →</text>
+<text x="538" y="670" font-size="10" fill="#555" text-anchor="middle">time →</text>
+
+<!-- Shader logic box (right) -->
+<rect x="790" y="630" width="398" height="180" rx="5" fill="#263238" stroke="#37474f" stroke-width="1.5"/>
+<text x="989" y="649" font-size="11" font-weight="700" fill="#80cbc4" text-anchor="middle">Fragment Shader (WebGL)</text>
+<text x="802" y="667" font-size="10" fill="#aed581" font-family="'Courier New',monospace">float shiftedU = vUv.x + uFlowOffset;</text>
+<text x="802" y="683" font-size="10" fill="#80cbc4" font-family="'Courier New',monospace">// pre-compute derivatives (mobile seam fix):</text>
+<text x="802" y="699" font-size="10" fill="#aed581" font-family="'Courier New',monospace">vec2 dPdx = dFdx(shiftedU);</text>
+<text x="802" y="715" font-size="10" fill="#aed581" font-family="'Courier New',monospace">vec2 dPdy = dFdy(shiftedU);</text>
+<text x="802" y="731" font-size="10" fill="#80cbc4" font-family="'Courier New',monospace">if (shiftedU &gt;= 1.0) {</text>
+<text x="810" y="747" font-size="10" fill="#aed581" font-family="'Courier New',monospace">  sample = textureGrad(uTexNext, shiftedU-1.0, ...);</text>
+<text x="802" y="763" font-size="10" fill="#80cbc4" font-family="'Courier New',monospace">} else {</text>
+<text x="810" y="779" font-size="10" fill="#aed581" font-family="'Courier New',monospace">  sample = textureGrad(uTexCurrent, shiftedU, ...);</text>
+<text x="802" y="795" font-size="10" fill="#80cbc4" font-family="'Courier New',monospace">}</text>
+
+<!-- Tile-pair swap note -->
+<rect x="12" y="750" width="770" height="58" rx="5" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="395" y="770" font-size="12" font-weight="700" fill="#1b5e20" text-anchor="middle">Tile Pair Swap (when flowOffset ≥ 1.0)</text>
+<text x="24" y="788" font-size="11" fill="#2e7d32">1. wholeTiles = ⌊flowOffset⌋   2. tileFlowOffset += wholeTiles (shifts all segment tile pairs)   3. flowOffset -= wholeTiles</text>
+<text x="24" y="803" font-size="11" fill="#2e7d32">→ New material's "current" = old "next" — seamless visual transition, no 1-frame glitch.</text>
+
+<!-- =========================================================
+     SECTION 4 — GAP ARCHITECTURE
+     ========================================================= -->
+<rect x="12" y="820" width="1176" height="26" rx="4" fill="#bf360c"/>
+<text x="24" y="839" font-size="13" font-weight="700" fill="white">4.  Gap Architecture — Per-Fragment Virtual Cycle</text>
+
+<!-- ── Virtual cycle bar ── -->
+<text x="24" y="860" font-size="12" font-weight="700" fill="#333">Virtual Cycle (tileCount = 5, gapSize = 1):  cycleLength = N + G = 6</text>
+
+<!-- First cycle: 5 tiles + gap -->
+<!-- T0 -->
+<rect x="12"  y="868" width="110" height="44" rx="0" fill="#c8e6c9" stroke="#388e3c" stroke-width="1.5"/>
+<text x="67"  y="895" font-size="12" font-weight="700" fill="#1b5e20" text-anchor="middle">T0</text>
+<!-- T1 -->
+<rect x="122" y="868" width="110" height="44" rx="0" fill="#bbdefb" stroke="#1976d2" stroke-width="1.5"/>
+<text x="177" y="895" font-size="12" font-weight="700" fill="#0d47a1" text-anchor="middle">T1</text>
+<!-- T2 -->
+<rect x="232" y="868" width="110" height="44" rx="0" fill="#ffe0b2" stroke="#ef6c00" stroke-width="1.5"/>
+<text x="287" y="895" font-size="12" font-weight="700" fill="#e65100" text-anchor="middle">T2</text>
+<!-- T3 -->
+<rect x="342" y="868" width="110" height="44" rx="0" fill="#e1bee7" stroke="#7b1fa2" stroke-width="1.5"/>
+<text x="397" y="895" font-size="12" font-weight="700" fill="#4a148c" text-anchor="middle">T3</text>
+<!-- T4 -->
+<rect x="452" y="868" width="110" height="44" rx="0" fill="#ffcdd2" stroke="#c62828" stroke-width="1.5"/>
+<text x="507" y="895" font-size="12" font-weight="700" fill="#b71c1c" text-anchor="middle">T4</text>
+<!-- GAP 1 -->
+<rect x="562" y="868" width="110" height="44" rx="0" fill="url(#hatch)" stroke="#aaa" stroke-width="1.5"/>
+<text x="617" y="895" font-size="11" font-weight="700" fill="#555" text-anchor="middle">GAP</text>
+<!-- boundary rect for first cycle -->
+<rect x="12" y="868" width="660" height="44" rx="4" fill="none" stroke="#555" stroke-width="2"/>
+
+<!-- Second cycle: lighter tiles + gap -->
+<!-- T0' -->
+<rect x="672" y="868" width="88" height="44" rx="0" fill="#e8f5e9" stroke="#81c784" stroke-width="1.5"/>
+<text x="716" y="895" font-size="11" font-weight="600" fill="#388e3c" text-anchor="middle">T0</text>
+<!-- T1' -->
+<rect x="760" y="868" width="88" height="44" rx="0" fill="#e3f2fd" stroke="#64b5f6" stroke-width="1.5"/>
+<text x="804" y="895" font-size="11" font-weight="600" fill="#1976d2" text-anchor="middle">T1</text>
+<!-- T2' -->
+<rect x="848" y="868" width="88" height="44" rx="0" fill="#fff3e0" stroke="#ffb74d" stroke-width="1.5"/>
+<text x="892" y="895" font-size="11" font-weight="600" fill="#ef6c00" text-anchor="middle">T2</text>
+<!-- T3' -->
+<rect x="936" y="868" width="88" height="44" rx="0" fill="#f3e5f5" stroke="#ce93d8" stroke-width="1.5"/>
+<text x="980" y="895" font-size="11" font-weight="600" fill="#7b1fa2" text-anchor="middle">T3</text>
+<!-- T4' -->
+<rect x="1024" y="868" width="88" height="44" rx="0" fill="#ffebee" stroke="#ef9a9a" stroke-width="1.5"/>
+<text x="1068" y="895" font-size="11" font-weight="600" fill="#c62828" text-anchor="middle">T4</text>
+<!-- GAP 2 -->
+<rect x="1112" y="868" width="64" height="44" rx="0" fill="url(#hatchL)" stroke="#ccc" stroke-width="1.5"/>
+<text x="1144" y="895" font-size="10" fill="#777" text-anchor="middle">GAP</text>
+<!-- boundary rect for second cycle (partial) -->
+<rect x="672" y="868" width="504" height="44" rx="4" fill="none" stroke="#aaa" stroke-width="1.5" stroke-dasharray="5,3"/>
+
+<!-- Cycle length annotations -->
+<line x1="12"  y1="920" x2="672" y2="920" stroke="#555" stroke-width="1" marker-end="url(#arr)"/>
+<line x1="12"  y1="920" x2="12"  y2="920" stroke="#555" stroke-width="1"/>
+<text x="340" y="934" font-size="11" font-weight="700" fill="#333" text-anchor="middle">← cycleLength = tileCount (5) + gapSize (1) = 6 →</text>
+
+<!-- Tile region and gap region labels -->
+<line x1="12"  y1="944" x2="562" y2="944" stroke="#2e7d32" stroke-width="1"/>
+<text x="287"  y="958" font-size="11" fill="#2e7d32" text-anchor="middle">tile region [0, N) → render fragment normally</text>
+<line x1="562" y1="944" x2="672" y2="944" stroke="#c62828" stroke-width="1"/>
+<text x="617"  y="958" font-size="11" fill="#c62828" text-anchor="middle">gap [N, N+G) → discard</text>
+
+<!-- Per-fragment shader box -->
+<rect x="12"  y="968" width="760" height="120" rx="5" fill="#263238" stroke="#37474f" stroke-width="1.5"/>
+<text x="386" y="985" font-size="11" font-weight="700" fill="#80cbc4" text-anchor="middle">Per-Fragment Gap Detection (GLSL)</text>
+<text x="24"  y="1002" font-size="10" fill="#aed581" font-family="'Courier New',monospace">// Continuous virtual position for THIS fragment:</text>
+<text x="24"  y="1018" font-size="10" fill="#e6db74" font-family="'Courier New',monospace">float virtualPos = uBasePos + shiftedU;          // shiftedU = vUv.x + uFlowOffset</text>
+<text x="24"  y="1034" font-size="10" fill="#e6db74" font-family="'Courier New',monospace">float cycleLen   = uTileCount + uGapSize;         // e.g. 5.0 + 1.0 = 6.0</text>
+<text x="24"  y="1050" font-size="10" fill="#e6db74" font-family="'Courier New',monospace">float cyclePos   = mod(virtualPos, cycleLen);     // position within [0, cycleLen)</text>
+<text x="24"  y="1066" font-size="10" fill="#f97316" font-family="'Courier New',monospace">if (cyclePos &gt;= uTileCount) discard;             // gap region → transparent fragment</text>
+<text x="24"  y="1082" font-size="10" fill="#80cbc4" font-family="'Courier New',monospace">// else: render tile as normal (dual-texture flow shader still active)</text>
+
+<!-- Why per-fragment box (right) -->
+<rect x="790" y="968" width="398" height="120" rx="5" fill="#fff8e1" stroke="#fbc02d" stroke-width="1.5"/>
+<text x="989" y="985" font-size="11" font-weight="700" fill="#e65100" text-anchor="middle">Why Per-Fragment (not Per-Segment)?</text>
+<text x="802" y="1002" font-size="10" fill="#5d4037">• Non-integer gap sizes (e.g. 0.5 tiles) cause integer</text>
+<text x="802" y="1016" font-size="10" fill="#5d4037">  segment math to skip gaps in some repetitions.</text>
+<text x="802" y="1030" font-size="10" fill="#5d4037">• Per-fragment uses continuous shiftedU value</text>
+<text x="802" y="1044" font-size="10" fill="#5d4037">  (sub-segment precision) so every cycle gets an</text>
+<text x="802" y="1058" font-size="10" fill="#5d4037">  identical gap regardless of integer boundaries.</text>
+<text x="802" y="1074" font-size="10" fill="#5d4037">• Geometry never changes — all effects are shader-only.</text>
+
+<!-- =========================================================
+     SECTION 5 — FULL DATA FLOW SUMMARY
+     ========================================================= -->
+<rect x="12" y="1100" width="1176" height="26" rx="4" fill="#4a148c"/>
+<text x="24" y="1119" font-size="13" font-weight="700" fill="white">5.  Data Flow Summary — Gap Slider to Shader Uniforms</text>
+
+<!-- Data flow tree -->
+<!-- Level 1: Gap Slider -->
+<rect x="486" y="1136" width="228" height="38" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+<text x="600" y="1151" font-size="12" font-weight="700" fill="#4c1d95" text-anchor="middle">Gap Slider  (0% – 100%)</text>
+<text x="600" y="1166" font-size="11"              fill="#6d28d9" text-anchor="middle">fraction of one tile width</text>
+<line x1="600" y1="1174" x2="600" y2="1190" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+<!-- Level 2: viewerStore -->
+<rect x="456" y="1190" width="288" height="36" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="600" y="1204" font-size="12" font-weight="700" fill="#4c1d95" text-anchor="middle">viewerStore.tileSetGap</text>
+<text x="600" y="1220" font-size="10"              fill="#6d28d9" text-anchor="middle">Pinia store  (0.0 – 1.0)</text>
+<line x1="600" y1="1226" x2="600" y2="1244" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+<text x="612" y="1238" font-size="10" fill="#888">(watcher in ThreeCanvas.vue)</text>
+
+<!-- Level 3: useRibbonBuilder -->
+<rect x="406" y="1244" width="388" height="36" rx="5" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="600" y="1258" font-size="12" font-weight="700" fill="#4c1d95" text-anchor="middle">useRibbonBuilder.setTileSetGap(fraction)</text>
+<text x="600" y="1274" font-size="10"              fill="#6d28d9" text-anchor="middle">composable — bridges store to modules</text>
+
+<!-- Fan-out arrows to 3 branches -->
+<line x1="500" y1="1280" x2="200" y2="1310" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="600" y1="1280" x2="600" y2="1310" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="700" y1="1280" x2="998" y2="1310" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- Branch A: TileManager -->
+<rect x="24" y="1310" width="352" height="36" rx="5" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5"/>
+<text x="200" y="1324" font-size="11" font-weight="700" fill="#1b5e20" text-anchor="middle">TileManager.setTileSetGap(fraction)</text>
+<text x="200" y="1340" font-size="10"              fill="#2e7d32" text-anchor="middle">stored as tile-length units (0.0 – 1.0)</text>
+
+<!-- Branch B: viewerStore persist -->
+<rect x="406" y="1310" width="388" height="36" rx="5" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5"/>
+<text x="600" y="1324" font-size="11" font-weight="700" fill="#1b5e20" text-anchor="middle">viewerStore.setTileSetGap(fraction)</text>
+<text x="600" y="1340" font-size="10"              fill="#2e7d32" text-anchor="middle">persisted in store for UI reactivity</text>
+
+<!-- Branch C: RibbonSeries -->
+<rect x="822" y="1310" width="366" height="36" rx="5" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5"/>
+<text x="1005" y="1324" font-size="11" font-weight="700" fill="#1b5e20" text-anchor="middle">RibbonSeries.initFlowMaterials()</text>
+<text x="1005" y="1340" font-size="10"              fill="#2e7d32" text-anchor="middle">rebuild all segment materials</text>
+
+<!-- Arrow from RibbonSeries downward to per-segment loop -->
+<line x1="1005" y1="1346" x2="780" y2="1376" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+<!-- Per-segment loop -->
+<rect x="550" y="1376" width="460" height="36" rx="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="2"/>
+<text x="780" y="1391" font-size="11" font-weight="700" fill="#bf360c" text-anchor="middle">For each mesh segment:</text>
+<text x="780" y="1407" font-size="10"              fill="#e65100" text-anchor="middle">TileManager.getOrCreateMaterialForSegment(idx, flowActive)</text>
+<line x1="780" y1="1412" x2="780" y2="1430" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+<text x="800" y="1425" font-size="10" fill="#888">if (flowActive || tileSetGap &gt; 0)</text>
+
+<!-- createFlowMaterial -->
+<rect x="614" y="1430" width="332" height="36" rx="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="2"/>
+<text x="780" y="1445" font-size="11" font-weight="700" fill="#bf360c" text-anchor="middle">createFlowMaterial(segmentIndex)</text>
+<text x="780" y="1461" font-size="10"              fill="#e65100" text-anchor="middle">dual-texture shader with gap logic</text>
+
+<!-- Fan-out to 3 outputs -->
+<line x1="700" y1="1466" x2="460" y2="1496" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="780" y1="1466" x2="780" y2="1496" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="860" y1="1466" x2="1060" y2="1496" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- Output A: basePos/gapSize -->
+<rect x="342" y="1496" width="236" height="36" rx="4" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5"/>
+<text x="460" y="1510" font-size="11" font-weight="700" fill="#0d47a1" text-anchor="middle">Compute basePos, gapSize</text>
+<text x="460" y="1526" font-size="10"              fill="#1976d2" text-anchor="middle">basePos = segIdx + tileFlowOffset</text>
+
+<!-- Output B: tile indices -->
+<rect x="614" y="1496" width="332" height="36" rx="4" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5"/>
+<text x="780" y="1510" font-size="11" font-weight="700" fill="#0d47a1" text-anchor="middle">Resolve tile indices via virtual cycle</text>
+<text x="780" y="1526" font-size="10"              fill="#1976d2" text-anchor="middle">currentTile, nextTile (0 placeholder in gap)</text>
+
+<!-- Output C: shader creation -->
+<rect x="982" y="1496" width="206" height="36" rx="4" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5"/>
+<text x="1085" y="1510" font-size="11" font-weight="700" fill="#0d47a1" text-anchor="middle">Create shader material</text>
+<text x="1085" y="1526" font-size="10"              fill="#1976d2" text-anchor="middle">WebGL or WebGPU (TSL)</text>
+
+<!-- Converging arrow to shader uniforms -->
+<line x1="460"  y1="1532" x2="640"  y2="1562" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="780"  y1="1532" x2="780"  y2="1562" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="1085" y1="1532" x2="920"  y2="1562" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<!-- Shader Uniforms box -->
+<rect x="442" y="1562" width="676" height="48" rx="5" fill="#263238" stroke="#37474f" stroke-width="2"/>
+<text x="780" y="1580" font-size="12" font-weight="700" fill="#80cbc4" text-anchor="middle">Shader Uniforms</text>
+<text x="780" y="1600" font-size="10.5"              fill="#e6db74" text-anchor="middle" font-family="'Courier New',monospace">uBasePos   uTileCount   uGapSize   uFlowOffset   uTexArrayCurrent   uTexArrayNext   uLayer</text>
+
+<!-- ── Footer ── -->
+<text x="600" y="1630" font-size="10" fill="#aaa" text-anchor="middle">gap-architecture.svg  ·  Rivvon App  ·  Ribbon Geometry, Texture Layout &amp; Gap Architecture</text>
+</svg>
