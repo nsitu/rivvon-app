@@ -37,6 +37,11 @@
     // Realtime webcam mode
     const realtime = useRealtimeSlyce();
 
+    async function enterRealtimeMode() {
+        await realtime.startCamera();
+        app.showRealtimeSampler();
+    }
+
     async function handleRealtimeApply() {
         if (!threeCanvasRef.value) return;
         await realtime.applyToViewer(
@@ -664,7 +669,7 @@
             :cinematic-debug="showCinematicDebug"
             @enter-draw-mode="enterDrawMode"
             @enter-slyce-mode="app.showSlyce"
-            @enter-realtime-mode="app.showRealtimeSampler()"
+            @enter-realtime-mode="enterRealtimeMode"
             @close-realtime-mode="handleRealtimeClose"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"

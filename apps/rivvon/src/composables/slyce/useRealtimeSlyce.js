@@ -20,6 +20,7 @@ import { KTX2WorkerPool } from '../../modules/slyce/ktx2-worker-pool.js';
 import { KTX2Assembler } from '../../modules/slyce/ktx2-assembler.js';
 
 // ── Shared reactive state (module-level singleton) ─────────────────
+const isCameraActive = ref(false);
 const isCapturing = ref(false);
 const currentTileIndex = ref(0);
 const currentRow = ref(0);
@@ -34,6 +35,7 @@ const targetTileCount = ref(4);          // how many tiles to capture in waves m
 const globalFrameIndex = ref(0);         // total frames processed (for countdown)
 // Sampling screen state
 const cameraStream = shallowRef(null);           // MediaStream for <video> binding
+const cameraFrameRate = ref(null);                // Actual camera FPS (from getSettings)
 const currentPreviewCanvas = shallowRef(null);    // Live-building canvas (first layer)
 const completedKtx2Buffers = ref([]);              // KTX2 ArrayBuffers for handoff
 
@@ -47,7 +49,14 @@ let tileBuilder = null;
 let workerPool = null;
 let frameLoopAbort = null;
 let hasStartedOnce = false;
-let pendingEncodes = 0;  // track in-flight KTX2 encodings
+
+// Generation counter — incremented on each startRealtime() to invalidate
+// in-flight encodes from previous sessions.
+let captureGeneration = 0;
+
+// Max tiles that can be encoding concurrently (prevents main-thread saturation
+// from ktx-parse read/write during assembly).
+const MAX_CONCURRENT_ENCODES = 2;
 
 // Ordered list of completed tile IDs for FIFO eviction
 const completedTileIds = [];
@@ -71,27 +80,68 @@ export function useRealtimeSlyce() {
         }
     }
 
-    // ── Start / Stop ───────────────────────────────────────────────────
+    // ── Camera lifecycle (independent of capture) ───────────────────────
 
     /**
-     * Start realtime capture and processing.
-     * No viewer context needed — capture is fully independent.
+     * Start the webcam so the user can preview / flip before sampling.
      */
-    async function startRealtime() {
-        if (isCapturing.value) return;
+    async function startCamera() {
+        if (camera) return; // already running
 
         if (!hasStartedOnce) {
             detectDefaults();
             hasStartedOnce = true;
         }
 
+        camera = new RealtimeCamera({ resolution: cameraResolution.value });
+        await camera.start();
+        cameraStream.value = camera.getMediaStream();
+        cameraFrameRate.value = camera.frameRate;
+        isCameraActive.value = true;
+        console.log(`[RealtimeSlyce] Camera started (${cameraResolution.value}, ${cameraFrameRate.value}fps)`);
+    }
+
+    /**
+     * Stop the webcam and release resources.
+     */
+    function stopCamera() {
+        if (camera) {
+            camera.stop();
+            camera = null;
+        }
+        cameraStream.value = null;
+        cameraFrameRate.value = null;
+        isCameraActive.value = false;
+    }
+
+    // ── Start / Stop capture ───────────────────────────────────────────
+
+    /**
+     * Start realtime capture and processing.
+     * Camera must already be running via startCamera().
+     */
+    async function startRealtime() {
+        if (isCapturing.value) return;
+        if (!camera) {
+            console.warn('[RealtimeSlyce] Cannot start capture — camera not running');
+            return;
+        }
+
+        // Bump generation so any in-flight encodes from a previous session
+        // will silently discard their results instead of touching current state.
+        captureGeneration++;
+        const gen = captureGeneration;
+
+        // Kill any orphaned worker pool from a previous session
+        if (workerPool) {
+            workerPool.terminate();
+            workerPool = null;
+        }
+
         // Clear previous results
         completedKtx2Buffers.value = [];
         gridTiles.value = [];
         completedTileIds.length = 0;
-
-        // Init camera
-        camera = new RealtimeCamera({ resolution: cameraResolution.value });
 
         // Init tile builder
         const isWave = crossSectionType.value === 'waves';
@@ -131,6 +181,7 @@ export function useRealtimeSlyce() {
 
     /**
      * Stop realtime capture. Preserves completed KTX2 buffers for Apply.
+     * Camera keeps running so the user can start another capture.
      */
     async function stopRealtime() {
         if (!isCapturing.value) return;
@@ -142,12 +193,6 @@ export function useRealtimeSlyce() {
             frameLoopAbort = null;
         }
 
-        // Stop camera
-        if (camera) {
-            camera.stop();
-            camera = null;
-        }
-        cameraStream.value = null;
         currentPreviewCanvas.value = null;
 
         // Clean up tile builder
@@ -156,14 +201,16 @@ export function useRealtimeSlyce() {
             tileBuilder = null;
         }
 
-        // Terminate worker pool — only if no encodings are in-flight.
-        // Otherwise the last encoding to finish will clean up.
-        if (workerPool && pendingEncodes === 0) {
+        // Keep the worker pool alive so in-flight encodes can finish.
+        // The pool will be terminated by encodeAndFinalise once all
+        // pending encodes drain (encodingTiles reaches 0).
+        // If nothing is encoding, terminate immediately.
+        if (workerPool && encodingTiles.value === 0) {
             workerPool.terminate();
             workerPool = null;
         }
 
-        console.log(`[RealtimeSlyce] Stopped. ${completedKtx2Buffers.value.length} KTX2 buffers ready for apply.${pendingEncodes > 0 ? ` (${pendingEncodes} encoding(s) still in flight)` : ''}`);
+        console.log(`[RealtimeSlyce] Stopped. ${completedKtx2Buffers.value.length} KTX2 buffers ready, ${encodingTiles.value} still encoding.`);
     }
 
     // ── Frame loop ─────────────────────────────────────────────────────
@@ -174,11 +221,6 @@ export function useRealtimeSlyce() {
                 if (signal.aborted) {
                     if (frame?.close) frame.close();
                     break;
-                }
-
-                // Expose camera stream for <video> binding (once available)
-                if (!cameraStream.value && camera) {
-                    cameraStream.value = camera.getMediaStream();
                 }
 
                 // Process frame (tile builder handles sampling + close)
@@ -221,8 +263,30 @@ export function useRealtimeSlyce() {
 
     // ── Tile completion handler ────────────────────────────────────────
 
+    // Encoding concurrency gate — resolvers waiting for a slot
+    let encodeSlots = MAX_CONCURRENT_ENCODES;
+    const encodeWaiters = [];
+
+    function acquireEncodeSlot() {
+        if (encodeSlots > 0) {
+            encodeSlots--;
+            return Promise.resolve();
+        }
+        return new Promise(resolve => encodeWaiters.push(resolve));
+    }
+
+    function releaseEncodeSlot() {
+        if (encodeWaiters.length > 0) {
+            encodeWaiters.shift()();
+        } else {
+            encodeSlots++;
+        }
+    }
+
     function handleTileComplete(payload) {
-        const { tileId, canvasSet, images } = payload;
+        const { tileId, canvasSet } = payload;
+        const gen = captureGeneration;
+
         encodingTiles.value++;
 
         // Snapshot the first canvas layer for the tile grid
@@ -234,21 +298,51 @@ export function useRealtimeSlyce() {
         // Add to unified grid immediately as encoding
         gridTiles.value.push({
             id: tileId, canvas: previewCanvas,
-            status: 'encoding', layer: 0, layerTotal: images.length
+            status: 'encoding', layer: 0, layerTotal: crossSectionCount.value
         });
         // Grab the reactive proxy so mutations trigger updates
         const gridEntry = gridTiles.value[gridTiles.value.length - 1];
 
-        encodeAndFinalise(tileId, canvasSet, images, gridEntry);
+        encodeAndFinalise(gen, tileId, canvasSet, gridEntry);
     }
 
-    async function encodeAndFinalise(tileId, canvasSet, images, gridEntry) {
-        pendingEncodes++;
+    async function encodeAndFinalise(gen, tileId, canvasSet, gridEntry) {
+        // Wait for a slot so we never saturate the main thread with
+        // concurrent ktx-parse assembly work.
+        await acquireEncodeSlot();
+
+        // If generation has changed, this encode belongs to an old session — discard.
+        if (gen !== captureGeneration) {
+            releaseEncodeSlot();
+            return;
+        }
+
+        // Extract RGBA data from canvases. This runs after acquiring the
+        // encode slot (not inside processFrame) so the expensive
+        // getImageData calls never block the frame loop.
+        const resolution = potResolution.value;
+        const images = canvasSet.map(canvas => {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, resolution, resolution);
+            return { rgba: imageData.data, width: resolution, height: resolution };
+        });
+
+        // Capture a local reference to the pool for this encode.
+        const pool = workerPool;
+        if (!pool) {
+            releaseEncodeSlot();
+            return;
+        }
+
         try {
-            const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(workerPool, images, (completed, total) => {
+            const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(pool, images, (completed, total) => {
+                if (gen !== captureGeneration) return; // stale
                 gridEntry.layer = completed;
                 gridEntry.layerTotal = total;
             });
+
+            // Stale check after async work
+            if (gen !== captureGeneration) return;
 
             // Store buffer and mark grid entry as completed
             completedKtx2Buffers.value.push(ktx2Buffer);
@@ -258,8 +352,6 @@ export function useRealtimeSlyce() {
             encodingTiles.value = Math.max(0, encodingTiles.value - 1);
 
             // FIFO eviction (oldest completed first)
-            // In waves mode, target is exact — no eviction needed.
-            // In planes mode, evict when exceeding maxTiles.
             const limit = crossSectionType.value === 'waves'
                 ? targetTileCount.value
                 : maxTiles.value;
@@ -276,7 +368,15 @@ export function useRealtimeSlyce() {
             }
 
             console.log(`[RealtimeSlyce] Tile ${tileId} encoded (${completedKtx2Buffers.value.length}/${maxTiles.value})`);
+
+            // If capture has stopped and all encodes have drained,
+            // terminate the worker pool (deferred cleanup from stopRealtime).
+            if (!isCapturing.value && encodingTiles.value === 0 && workerPool) {
+                workerPool.terminate();
+                workerPool = null;
+            }
         } catch (err) {
+            if (gen !== captureGeneration) return; // stale — pool was terminated
             console.error(`[RealtimeSlyce] KTX2 encoding failed for tile ${tileId}:`, err);
             encodingTiles.value = Math.max(0, encodingTiles.value - 1);
 
@@ -288,16 +388,14 @@ export function useRealtimeSlyce() {
             if (tileBuilder) {
                 tileBuilder.releaseCanvasSet(canvasSet);
             }
-        } finally {
-            pendingEncodes--;
 
-            // If capture has stopped and this was the last in-flight encoding,
-            // clean up the worker pool now.
-            if (!isCapturing.value && pendingEncodes === 0 && workerPool) {
+            // Deferred pool cleanup on failure path too
+            if (!isCapturing.value && encodingTiles.value === 0 && workerPool) {
                 workerPool.terminate();
                 workerPool = null;
-                console.log('[RealtimeSlyce] All encodings complete — worker pool terminated.');
             }
+        } finally {
+            releaseEncodeSlot();
         }
     }
 
@@ -354,16 +452,21 @@ export function useRealtimeSlyce() {
     async function toggleCamera() {
         if (!camera) return;
         const newMode = await camera.toggleCamera();
-        // Update stream ref after toggle
         cameraStream.value = camera.getMediaStream();
-        console.log(`[RealtimeSlyce] Camera toggled to: ${newMode}`);
+        cameraFrameRate.value = camera.frameRate;
+        console.log(`[RealtimeSlyce] Camera toggled to: ${newMode} (${cameraFrameRate.value}fps)`);
         return newMode;
     }
 
-    function setResolution(res) {
+    async function setResolution(res) {
         cameraResolution.value = res;
         if (camera) {
             camera.setResolution(res);
+            // If camera is active but not capturing, restart it to apply new resolution
+            if (isCameraActive.value && !isCapturing.value) {
+                stopCamera();
+                await startCamera();
+            }
         }
     }
 
@@ -387,12 +490,14 @@ export function useRealtimeSlyce() {
 
     onUnmounted(() => {
         stopRealtime();
+        stopCamera();
     });
 
     // ── Public API ─────────────────────────────────────────────────────
 
     return {
         // State
+        isCameraActive,
         isCapturing,
         currentTileIndex,
         currentRow,
@@ -418,11 +523,14 @@ export function useRealtimeSlyce() {
 
         // Sampling screen state
         cameraStream,
+        cameraFrameRate,
         currentPreviewCanvas,
         completedKtx2Buffers,
         gridTiles,
 
         // Methods
+        startCamera,
+        stopCamera,
         startRealtime,
         stopRealtime,
         applyToViewer,

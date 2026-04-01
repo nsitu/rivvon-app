@@ -92,6 +92,16 @@ export class RealtimeCamera {
         this._stream = null;
         this._track = null;
         this._stopped = false;
+        this._actualFrameRate = null;
+    }
+
+    /**
+     * Acquire the camera without starting frame processing.
+     * Useful for showing a live preview before capture begins.
+     */
+    async start() {
+        polyfillMSTP();
+        await this._acquireCamera();
     }
 
     /**
@@ -101,7 +111,10 @@ export class RealtimeCamera {
     async *getFrameStream() {
         polyfillMSTP();
 
-        await this._acquireCamera();
+        // Acquire camera if not already started via start()
+        if (!this._track || this._track.readyState !== 'live') {
+            await this._acquireCamera();
+        }
 
         const processor = new MediaStreamTrackProcessor({ track: this._track });
         const reader = processor.readable.getReader();
@@ -133,8 +146,8 @@ export class RealtimeCamera {
         if (this._stream) {
             this._stream.getTracks().forEach(t => t.stop());
         }
-        // Re-acquire with new facing mode
-        await this._acquireCamera();
+        // Re-acquire with exact facing mode to force the switch
+        await this._acquireCamera({ exactFacingMode: true });
         return this._facingMode;
     }
 
@@ -174,6 +187,14 @@ export class RealtimeCamera {
     }
 
     /**
+     * Actual frame rate reported by the camera after acquisition.
+     * @returns {number|null}
+     */
+    get frameRate() {
+        return this._actualFrameRate;
+    }
+
+    /**
      * Get the raw MediaStream (for binding to a <video> element).
      * @returns {MediaStream|null}
      */
@@ -183,26 +204,56 @@ export class RealtimeCamera {
 
     // ── Private ────────────────────────────────────────────────────────
 
-    async _acquireCamera() {
+    async _acquireCamera({ exactFacingMode = false } = {}) {
         this._stopped = false;
         const clamped = clampResolution(this._resolution);
+        const facingConstraint = exactFacingMode
+            ? { exact: this._facingMode }
+            : this._facingMode;
         const constraints = {
             video: {
-                facingMode: this._facingMode,
+                facingMode: facingConstraint,
                 width: { ideal: clamped.width },
-                height: { ideal: clamped.height }
+                height: { ideal: clamped.height },
+                frameRate: { ideal: 60 }
             },
             audio: false
         };
 
-        this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+        try {
+            this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (e) {
+            // exact facingMode failed (e.g. single-camera device) — fall back
+            if (exactFacingMode) {
+                console.warn(`[RealtimeCamera] exact facingMode '${this._facingMode}' failed, falling back`);
+                constraints.video.facingMode = this._facingMode;
+                this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } else {
+                throw e;
+            }
+        }
         this._track = this._stream.getVideoTracks()[0];
 
         if (!this._track) {
             throw new Error('No video track available from camera');
         }
 
+        // Try to apply the maximum supported frame rate
+        if (this._track.getCapabilities) {
+            const caps = this._track.getCapabilities();
+            if (caps.frameRate?.max) {
+                try {
+                    await this._track.applyConstraints({
+                        frameRate: { ideal: caps.frameRate.max }
+                    });
+                } catch (e) {
+                    // Non-fatal — keep whatever rate we got
+                }
+            }
+        }
+
         const settings = this._track.getSettings();
+        this._actualFrameRate = settings.frameRate || null;
         console.log(`[RealtimeCamera] Acquired camera: ${settings.width}x${settings.height} @${settings.frameRate}fps facing=${this._facingMode}`);
     }
 }

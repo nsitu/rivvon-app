@@ -80,9 +80,11 @@
         }
     });
 
-    // Can apply if there are completed KTX2 buffers and not currently capturing
+    // Can apply if there are completed KTX2 buffers, not capturing, and no tiles still encoding
     const canApply = computed(() =>
-        !realtime.isCapturing.value && realtime.completedKtx2Buffers.value.length > 0
+        !realtime.isCapturing.value
+        && realtime.encodingTiles.value === 0
+        && realtime.completedKtx2Buffers.value.length > 0
     );
 
     // Live tile display size (matches actual tile pixel dimensions)
@@ -93,6 +95,9 @@
         if (!realtime.isCapturing.value) {
             const count = realtime.completedKtx2Buffers.value.length;
             if (count > 0) return `${count} tile${count > 1 ? 's' : ''} ready`;
+            if (realtime.isCameraActive.value && realtime.cameraFrameRate.value) {
+                return `Camera ${Math.round(realtime.cameraFrameRate.value)}fps`;
+            }
             return 'Ready';
         }
         const enc = realtime.encodingTiles.value > 0
@@ -107,8 +112,38 @@
     // Estimated duration for waves mode (before capture starts)
     const estimatedDuration = computed(() => {
         if (realtime.crossSectionType.value !== 'waves') return null;
-        return realtime.totalFrames.value / 30; // assume ~30fps for estimate
+        const fps = realtime.cameraFrameRate.value || 30;
+        return realtime.totalFrames.value / fps;
     });
+
+    const estimatedFps = computed(() =>
+        realtime.cameraFrameRate.value ? Math.round(realtime.cameraFrameRate.value) : 30
+    );
+
+    // FPS drop warning: show when capture FPS falls below 50% of camera FPS
+    const nextLowerResolution = computed(() => {
+        const current = realtime.potResolution.value;
+        if (current === 512) return 256;
+        if (current === 256) return 128;
+        return null;
+    });
+
+    const showFpsWarning = computed(() => {
+        if (!realtime.isCapturing.value) return false;
+        if (!nextLowerResolution.value) return false;
+        const captureFps = realtime.fps.value;
+        const cameraFps = realtime.cameraFrameRate.value || 30;
+        // Wait until FPS is measured (non-zero) and below 50% of camera rate
+        return captureFps > 0 && captureFps < cameraFps * 0.5;
+    });
+
+    async function handleDowngrade() {
+        const target = nextLowerResolution.value;
+        if (!target) return;
+        realtime.stopRealtime();
+        realtime.setPotResolution(target);
+        await realtime.startRealtime();
+    }
 
     function formatDuration(seconds) {
         if (seconds <= 0) return '0s';
@@ -138,6 +173,7 @@
             realtime.stopRealtime();
         }
         realtime.discardResults();
+        realtime.stopCamera();
         emit('close');
     }
 
@@ -147,6 +183,7 @@
         if (realtime.isCapturing.value) {
             realtime.stopRealtime();
         }
+        realtime.stopCamera();
     });
 </script>
 
@@ -183,6 +220,10 @@
                                 muted
                                 class="webcam-video"
                             />
+                            <span
+                                v-if="realtime.isCameraActive.value"
+                                class="overlay-label live-label"
+                            >Live</span>
                         </div>
 
                         <!-- Live tile being sampled (prominent, actual pixel size) -->
@@ -195,6 +236,7 @@
                                 class="live-tile-canvas"
                                 :style="{ width: tileSizePx, height: tileSizePx }"
                             />
+                            <span class="overlay-label sampling-label">Sampling</span>
                             <span class="tile-progress-text">
                                 Row {{ realtime.currentRow.value }}/{{ realtime.tileHeight.value }}
                             </span>
@@ -210,7 +252,6 @@
                             v-for="(tile, index) in realtime.gridTiles.value"
                             :key="tile.id"
                             class="tile-preview"
-                            :class="{ 'tile-encoding': tile.status === 'encoding' }"
                         >
                             <canvas
                                 :ref="(el) => { if (el && tile.canvas) { el.width = tile.canvas.width; el.height = tile.canvas.height; el.getContext('2d').drawImage(tile.canvas, 0, 0); } }"
@@ -218,16 +259,33 @@
                             <div
                                 v-if="tile.status === 'encoding'"
                                 class="tile-encoding-overlay"
+                                :style="{ background: `linear-gradient(to right, transparent ${Math.round((tile.layer / (tile.layerTotal || 1)) * 100)}%, rgba(0,0,0,0.55) ${Math.round((tile.layer / (tile.layerTotal || 1)) * 100)}%)` }"
                             >
-                                <span class="material-symbols-outlined encoding-icon">memory</span>
-                                <span>{{ tile.layer }}/{{ tile.layerTotal }}</span>
+                                <span class="overlay-label encoding-label">Encoding</span>
+                                <span class="encoding-progress">{{ tile.layer }}/{{ tile.layerTotal }}</span>
                             </div>
-                            <span
-                                v-else
-                                class="tile-index"
-                            >{{ index }}</span>
+                            <template v-else>
+                                <span class="overlay-label ready-label">Ready</span>
+                                <span class="tile-index">{{ index }}</span>
+                            </template>
                         </div>
                     </div>
+                </div>
+
+                <!-- FPS drop warning -->
+                <div
+                    v-if="showFpsWarning"
+                    class="fps-warning"
+                >
+                    <span class="material-symbols-outlined warning-icon">warning</span>
+                    <span>Processing at {{ realtime.fps.value }}fps — too slow for {{ realtime.potResolution.value }}²
+                        tiles</span>
+                    <button
+                        class="downgrade-btn"
+                        @click="handleDowngrade"
+                    >
+                        Switch to {{ nextLowerResolution }}²
+                    </button>
                 </div>
 
                 <!-- Controls -->
@@ -247,7 +305,7 @@
                     <!-- Camera flip -->
                     <button
                         class="ctrl-btn"
-                        :disabled="!realtime.isCapturing.value"
+                        :disabled="!realtime.isCameraActive.value"
                         @click="realtime.toggleCamera"
                     >
                         <span class="material-symbols-outlined">cameraswitch</span>
@@ -337,7 +395,7 @@
                         v-if="realtime.crossSectionType.value === 'waves' && !realtime.isCapturing.value && estimatedDuration !== null"
                         class="duration-estimate"
                     >
-                        ≈ {{ formatDuration(estimatedDuration) }} @ 30fps
+                        ≈ {{ formatDuration(estimatedDuration) }} @ {{ estimatedFps }}fps
                     </span>
                 </div>
 
@@ -476,6 +534,7 @@
 
     /* Live tile preview (prominent, actual pixel size) */
     .live-tile-section {
+        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -529,26 +588,63 @@
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
 
-    .tile-encoding {
-        box-shadow: inset 0 0 0 2px rgba(255, 183, 77, 0.6);
-    }
-
     .tile-encoding-overlay {
         position: absolute;
         inset: 0;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 0, 0, 0.5);
-        color: rgba(255, 183, 77, 0.9);
-        font-size: 10px;
-        font-variant-numeric: tabular-nums;
-        gap: 2px;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 2px 4px;
+        transition: background 0.3s linear;
     }
 
-    .encoding-icon {
-        font-size: 16px;
+    .encoding-progress {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.7);
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        align-self: flex-end;
+    }
+
+    /* Overlay status labels */
+    .overlay-label {
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 1px 4px;
+        border-radius: 3px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+        line-height: 1.4;
+    }
+
+    .live-label {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: rgba(244, 67, 54, 0.7);
+        color: white;
+    }
+
+    .sampling-label {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        background: rgba(100, 181, 246, 0.7);
+        color: white;
+    }
+
+    .encoding-label {
+        background: rgba(255, 183, 77, 0.7);
+        color: white;
+    }
+
+    .ready-label {
+        position: absolute;
+        top: 2px;
+        left: 4px;
+        background: rgba(76, 175, 80, 0.7);
+        color: white;
     }
 
     /* Controls bar */
@@ -711,5 +807,41 @@
         font-size: 12px;
         color: rgba(255, 183, 77, 0.8);
         white-space: nowrap;
+    }
+
+    /* FPS drop warning */
+    .fps-warning {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(244, 67, 54, 0.2);
+        border: 1px solid rgba(244, 67, 54, 0.5);
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.9);
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .warning-icon {
+        font-size: 18px;
+        color: #ff8a65;
+    }
+
+    .downgrade-btn {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 6px;
+        color: white;
+        padding: 4px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.15s;
+        white-space: nowrap;
+    }
+
+    .downgrade-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
     }
 </style>

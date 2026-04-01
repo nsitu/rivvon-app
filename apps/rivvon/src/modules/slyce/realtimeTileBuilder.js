@@ -94,10 +94,10 @@ export class RealtimeTileBuilder extends EventEmitter {
             const c = document.createElement('canvas');
             c.width = this.potResolution;
             c.height = this.potResolution;
-            // Acquire 2D context immediately so WebGPU's
-            // copyExternalImageToTexture can extract valid image data
-            // when this canvas is used as a texture source.
-            c.getContext('2d').clearRect(0, 0, this.potResolution, this.potResolution);
+            // Use willReadFrequently so the browser keeps pixel data
+            // in CPU memory. Without this, repeated getImageData readbacks
+            // cause progressive GPU memory pressure and FPS degradation.
+            c.getContext('2d', { willReadFrequently: true }).clearRect(0, 0, this.potResolution, this.potResolution);
             set.push(c);
         }
         return set;
@@ -109,7 +109,8 @@ export class RealtimeTileBuilder extends EventEmitter {
      * @param {OffscreenCanvas[]} set
      */
     releaseCanvasSet(set) {
-        if (set && set.length === this.crossSectionCount) {
+        // Cap pool at 2 sets — more would just accumulate memory
+        if (set && set.length === this.crossSectionCount && this._canvasPool.length < 2) {
             this._canvasPool.push(set);
         }
     }
@@ -165,17 +166,6 @@ export class RealtimeTileBuilder extends EventEmitter {
             const completedTileId = this._currentTileId;
             const completedCanvasSet = this._currentCanvasSet;
 
-            // Extract RGBA data for KTX2 encoding
-            const images = completedCanvasSet.map(canvas => {
-                const ctx = canvas.getContext('2d');
-                const imageData = ctx.getImageData(0, 0, this.potResolution, this.potResolution);
-                return {
-                    rgba: imageData.data,
-                    width: this.potResolution,
-                    height: this.potResolution
-                };
-            });
-
             // Start next tile immediately with a fresh canvas set
             // (must advance BEFORE emitting — emit is synchronous and
             // the handler reads currentTileId / _currentCanvasSet)
@@ -183,12 +173,12 @@ export class RealtimeTileBuilder extends EventEmitter {
             this._currentRow = 0;
             this._currentCanvasSet = this.claimCanvasSet();
 
-            // Emit completion — orchestrator gets both canvasSet (for preview)
-            // and images (for KTX2 encoding)
+            // Emit completion with canvasSet only — the orchestrator
+            // extracts RGBA via getImageData after acquiring an encode
+            // slot so the expensive readback never blocks the frame loop.
             this.emit('complete', {
                 tileId: completedTileId,
-                canvasSet: completedCanvasSet,
-                images
+                canvasSet: completedCanvasSet
             });
         }
     }
