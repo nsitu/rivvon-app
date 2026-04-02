@@ -3,6 +3,7 @@
 
 import { defineStore } from 'pinia';
 import { abortProcessing } from '../modules/slyce/videoProcessor';
+import { createLocalSaveState, createObjectLocalSaveController } from '../modules/slyce/localSaveController.js';
 
 export const useSlyceStore = defineStore('slyce', {
     state: () => ({
@@ -58,6 +59,9 @@ export const useSlyceStore = defineStore('slyce', {
         // Thumbnail blob for CDN upload (captured during processing)
         thumbnailBlob: null,
 
+        // File-mode local persistence state
+        ...createLocalSaveState(),
+
         // Resource management — when true, fully dispose viewer GPU context during processing
         freeGpuResources: false,
 
@@ -108,6 +112,15 @@ export const useSlyceStore = defineStore('slyce', {
         clearAllStatus() {
             this.status = {};
         },
+        getLocalSaveController() {
+            return createObjectLocalSaveController(this);
+        },
+        resetLocalSaveState() {
+            return this.getLocalSaveController().resetLocalSaveState();
+        },
+        beginLocalSave() {
+            return this.getLocalSaveController().beginLocalSave();
+        },
         // Partial reset - clears processing results but keeps video and settings
         resetProcessing() {
             // Abort any ongoing processing
@@ -128,6 +141,8 @@ export const useSlyceStore = defineStore('slyce', {
             this.timestamps = [];
             this.lastFPSUpdate = 0;
             this.ktx2BlobURLs = {};
+            this.thumbnailBlob = null;
+            this.resetLocalSaveState();
             this.ktx2Playback = {
                 currentLayer: 0,
                 layerCount: 0,
@@ -177,6 +192,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropWidth = null;
             this.cropHeight = null;
             this.thumbnailBlob = null;
+            this.resetLocalSaveState();
             this.previewMode = 'static';
             // Dispose snapshot preview (revokes blob URLs) before clearing
             if (this.tileSnapshotPreview) {

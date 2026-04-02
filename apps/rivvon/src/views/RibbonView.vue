@@ -409,7 +409,7 @@
 
     // Check for texture browser query param on mount
     watch(() => route.query.textures, (texturesParam) => {
-        if (texturesParam === 'mine' || texturesParam === 'all') {
+        if (texturesParam === 'mine' || texturesParam === 'all' || texturesParam === 'local' || texturesParam === 'my-cloud' || texturesParam === 'public') {
             textureBrowserInitialTab.value = texturesParam;
             app.showTextureBrowser();
             // Clear the query param to prevent reopening on refresh
@@ -622,6 +622,11 @@
 
         // Close the Slyce panel
         app.hideSlyce();
+
+        if (texture?.source === 'local' || texture?.isLocal) {
+            await handleLocalTextureSelect(texture);
+            return;
+        }
 
         // Load the texture using the same mechanism as the texture browser
         await handleTextureSelect(texture);

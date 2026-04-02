@@ -1,20 +1,51 @@
 // tileBuilder.js 
 import { EventEmitter } from 'events';  // https://www.npmjs.com/package/events
+import { getCached2dContext } from './samplingRuntime.js';
 
 export class TileBuilder extends EventEmitter {
     constructor(settings) {
         super();
         this.settings = settings;
+        const {
+            fileInfo,
+            samplingMode,
+            crossSectionCount,
+            crossSectionType,
+            frameCount
+        } = settings;
+
+        this._distributionRange = samplingMode === 'rows' ? fileInfo.height : fileInfo.width;
+
+        if (crossSectionType === 'planes') {
+            this._cosineIndices = new Float64Array(crossSectionCount);
+            if (crossSectionCount === 1) {
+                this._cosineIndices[0] = 0.5;
+            } else {
+                for (let i = 0; i < crossSectionCount; i++) {
+                    const normalizedIndex = (i / (crossSectionCount - 1)) * Math.PI;
+                    this._cosineIndices[i] = (Math.cos(normalizedIndex) + 1) / 2;
+                }
+            }
+        } else {
+            this._phaseShifts = new Float64Array(crossSectionCount);
+            for (let i = 0; i < crossSectionCount; i++) {
+                this._phaseShifts[i] = (2 * Math.PI * i) / crossSectionCount;
+            }
+            this._waveAmplitude = this._distributionRange / 2;
+            this._waveOffset = this._distributionRange / 2;
+            this._omega = frameCount ? (2 * Math.PI) / frameCount : 0;
+        }
+
         this.canvasses = this.createCanvasses();
     }
 
     createCanvasses() {
-        let canvasses = [];
-        let { tilePlan, crossSectionCount, samplingMode, outputMode } = this.settings;
+        const canvasses = [];
+        const { tilePlan, crossSectionCount, samplingMode, outputMode } = this.settings;
 
         for (let i = 0; i < crossSectionCount; i++) {
-            let canvas = new OffscreenCanvas(tilePlan.width, tilePlan.height);
-            let ctx = canvas.getContext('2d');
+            const canvas = new OffscreenCanvas(tilePlan.width, tilePlan.height);
+            const ctx = getCached2dContext(canvas);
             // in cases where rotation happens
             // we need to map of top-to-bottom ⇔ left-to-right
             if (tilePlan.rotate !== 0) {
@@ -32,21 +63,24 @@ export class TileBuilder extends EventEmitter {
                 // Move origin back after rotation
                 ctx.translate(-tilePlan.height / 2, -tilePlan.width / 2);
             }
-            canvasses = canvasses || [];
             canvasses.push(canvas);
         }
 
         return canvasses;
     }
 
-    // Utility function to calculate sine parameters
-    // for the Periodic Function y = A sin(B x + C) + D
-    calculateSineParameters(videoWidth, videoHeight, frameCount, totalCanvases, canvasNumber, samplingMode) {
-        const A = samplingMode === 'rows' ? videoHeight / 2 : videoWidth / 2;
-        const B = (2 * Math.PI) / frameCount;
-        const C = (2 * Math.PI * canvasNumber) / totalCanvases; // Phase shift
-        const D = samplingMode === 'rows' ? videoHeight / 2 : videoWidth / 2;
-        return { A, B, C, D };
+    releaseCanvasSet() {
+        // Offline processing does not pool canvas sets yet, but expose the
+        // same surface as the realtime builder so orchestrators can share it.
+    }
+
+    getCurrentPreviewCanvas() {
+        return this.canvasses?.[0] ?? null;
+    }
+
+    dispose() {
+        this.canvasses = null;
+        this.removeAllListeners();
     }
 
 
@@ -64,7 +98,6 @@ export class TileBuilder extends EventEmitter {
             tilePlan,
             samplingMode,
             outputMode,
-            crossSectionCount,
             crossSectionType,
             frameCount
         } = this.settings
@@ -76,29 +109,16 @@ export class TileBuilder extends EventEmitter {
         let drawLocation = frameNumber - tilePlan.tiles[tileNumber].start;
         // NOTE: ↓ Later we also have a sampleLocation  (unique to each canvas)
 
-
-        this.canvasses.forEach((canvas, canvasNumber) => {
-
-
-            let ctx = canvas.getContext('2d')
+        for (let canvasNumber = 0; canvasNumber < this.canvasses.length; canvasNumber++) {
+            const canvas = this.canvasses[canvasNumber];
+            const ctx = getCached2dContext(canvas);
 
             // We will sample pixels from a different y-location for each canvas    
             // the logic whereby this is done will depend on the crossSectionType
             // planes / waves
 
             if (crossSectionType === 'planes') {
-                // Cosine distribution  (This creates a gentle sway back and forth)
-                // TODO: audit this Math to make sure it uses the full range properly
-                // A normalized index describes the canvas number as a fraction of the total canvasses
-                // (A number between 0 and 1). We multiply this by PI to get a number between 0 and PI
-                // This is a useful range for cosine functions.
-                let normalizedIndex = (canvasNumber / (crossSectionCount - 1)) * Math.PI;
-                // if we are sampling rows, they are distributed along the video height
-                // if we are sampling columns, they are distributed along the video width
-                let distributionRange = 0
-                if (samplingMode === 'rows') distributionRange = fileInfo.height;
-                if (samplingMode === 'columns') distributionRange = fileInfo.width;
-                let sampleLocation = (Math.cos(normalizedIndex) + 1) / 2 * (distributionRange - 1);
+                const sampleLocation = this._cosineIndices[canvasNumber] * (this._distributionRange - 1);
 
 
 
@@ -166,49 +186,14 @@ export class TileBuilder extends EventEmitter {
                 }
             }
             else if (crossSectionType === 'waves') {
-                // Sample pixels via imagined corrugated forms
-                // being in number equal to the number of canvasses 
-                // having amplitude matching the video dimensions
-                // -if sampling rows, then the video height
-                // -if sampling columns, then the video width
-                // and having wavelength spanning the video framecount 
-                // and having offsets from the start evenly distributed 
-                // such that we "wind up back at the beginning"
-                // after having sampled the last frame
-
-                // we will need to find the equation that decscribes this wave 
-                // and then plug into that equation the relevant variables
-                // for the current frame.
-
-                // Calculate sine parameters
-
-
-
-                // NOTE: alternately we could determine the wavelength
-                // based on the framecount of each individual tile
-                // as opposed to the framecount of the entire video
-                // const frameCount = tilePlan.tiles[tileNumber].end - tilePlan.tiles[tileNumber].start + 1;
-
-                const { A, B, C, D } = this.calculateSineParameters(
-                    fileInfo.width,
-                    fileInfo.height,
-                    frameCount,
-                    crossSectionCount,
-                    canvasNumber,
-                    samplingMode
-                );
-
-                // Determine distribution range based on sampling mode
-                const distributionRange = samplingMode === 'rows' ? fileInfo.height : fileInfo.width;
-
                 // Calculate sample location using sine function
                 // Use a continuous global frame index so phase doesn't reset per tile
                 // frameCount is the total number of frames we actually process (framesUsed)
                 const globalIndex = Math.min(frameNumber, frameCount) - 1; // zero-based
-                const sampleLocation = A * Math.sin(B * globalIndex + C) + D;
+                const sampleLocation = this._waveAmplitude * Math.sin(this._omega * globalIndex + this._phaseShifts[canvasNumber]) + this._waveOffset;
 
                 // Clamp sampleLocation to be within video bounds
-                const clampedSampleLocation = Math.max(0, Math.min(distributionRange - 1, sampleLocation));
+                const clampedSampleLocation = Math.max(0, Math.min(this._distributionRange - 1, sampleLocation));
 
                 // Sample the pixel based on sampling mode
                 let sx, sy, sw, sh, dx, dy, dw, dh;
@@ -239,29 +224,22 @@ export class TileBuilder extends EventEmitter {
 
 
             }
-        })
+        }
 
         // Release the VideoFrame now that all drawing is complete
         videoFrame.close();
 
         // Check if this is the last frame of the tile
         if (frameNumber === tilePlan.tiles[tileNumber].end) {
-            // Extract RGBA pixel data for KTX2 encoding
-            const images = this.canvasses.map(canvas => {
-                const ctx = canvas.getContext('2d');
-                const imageData = ctx.getImageData(0, 0, tilePlan.width, tilePlan.height);
-                return {
-                    rgba: imageData.data, // Uint8ClampedArray with RGBA values
-                    width: tilePlan.width,
-                    height: tilePlan.height
-                };
+            const completedCanvasSet = this.canvasses;
+
+            // Mirror the realtime builder contract: the orchestrator owns
+            // readback and encoding after sampling is finished.
+            this.canvasses = null;
+            this.emit('complete', {
+                tileId: tileNumber,
+                canvasSet: completedCanvasSet
             });
-
-            // Emit images for KTX2 encoding
-            this.emit('complete', { images, kind: 'ktx2' });
-
-            // "destroy" these canvasses
-            delete this.canvasses
         }
 
     }

@@ -1,5 +1,7 @@
 <script setup>
     import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+    import { useRoute, useRouter } from 'vue-router';
+    import LocalSaveStatus from './LocalSaveStatus.vue';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
     const props = defineProps({
@@ -12,6 +14,9 @@
     const emit = defineEmits(['close', 'apply']);
 
     const realtime = useRealtimeSlyce();
+    const router = useRouter();
+    const route = useRoute();
+    const CANVAS_2D_CTX_CACHE_KEY = '__rivvonRealtime2dCtx';
 
     // Template ref for the live webcam video element
     const videoRef = ref(null);
@@ -24,29 +29,68 @@
 
     // Track source canvas identity to detect tile reset
     let lastSource = null;
+    let lastDest = null;
+    let liveCanvasCtx = null;
+
+    function getCached2dContext(canvas) {
+        let ctx = canvas?.[CANVAS_2D_CTX_CACHE_KEY] ?? null;
+        if (!ctx && canvas?.getContext) {
+            ctx = canvas.getContext('2d');
+            if (ctx) {
+                canvas[CANVAS_2D_CTX_CACHE_KEY] = ctx;
+            }
+        }
+        return ctx;
+    }
+
+    function drawTilePreview(element, sourceCanvas) {
+        if (!element || !sourceCanvas) return;
+
+        if (element.width !== sourceCanvas.width || element.height !== sourceCanvas.height) {
+            element.width = sourceCanvas.width;
+            element.height = sourceCanvas.height;
+        }
+
+        const ctx = getCached2dContext(element);
+        if (!ctx) return;
+        ctx.drawImage(sourceCanvas, 0, 0);
+    }
 
     function startDrawLoop() {
         function draw() {
             const source = realtime.currentPreviewCanvas.value;
             const dest = liveCanvasRef.value;
             if (source && dest) {
-                // When the source canvas object changes, a new tile has started —
-                // clear the display canvas so no stale pixels remain.
-                if (source !== lastSource) {
-                    const ctx = dest.getContext('2d');
-                    ctx.clearRect(0, 0, dest.width, dest.height);
-                    lastSource = source;
+                if (dest !== lastDest) {
+                    liveCanvasCtx = getCached2dContext(dest);
+                    lastDest = dest;
                 }
 
                 if (dest.width !== source.width || dest.height !== source.height) {
                     dest.width = source.width;
                     dest.height = source.height;
+                    liveCanvasCtx = getCached2dContext(dest);
                 }
-                dest.getContext('2d').drawImage(source, 0, 0);
+
+                if (liveCanvasCtx) {
+                    const previewStart = performance.now();
+
+                    // When the source canvas object changes, a new tile has started —
+                    // clear the display canvas so no stale pixels remain.
+                    if (source !== lastSource) {
+                        liveCanvasCtx.clearRect(0, 0, dest.width, dest.height);
+                        lastSource = source;
+                    }
+
+                    liveCanvasCtx.drawImage(source, 0, 0);
+                    realtime.recordPreviewFrame(performance.now() - previewStart);
+                }
             }
             drawLoopId = requestAnimationFrame(draw);
         }
         lastSource = null;
+        lastDest = null;
+        liveCanvasCtx = null;
         drawLoopId = requestAnimationFrame(draw);
     }
 
@@ -55,6 +99,8 @@
             cancelAnimationFrame(drawLoopId);
             drawLoopId = null;
         }
+        lastDest = null;
+        liveCanvasCtx = null;
     }
 
     // Start/stop draw loop with capture state
@@ -87,6 +133,14 @@
         && realtime.completedKtx2Buffers.value.length > 0
     );
 
+    const showLocalSaveStatus = computed(() =>
+        !realtime.isCapturing.value && (
+            realtime.isSavingLocally.value
+            || !!realtime.saveLocalError.value
+            || !!realtime.savedLocalTextureId.value
+        )
+    );
+
     // Live tile display size (matches actual tile pixel dimensions)
     const tileSizePx = computed(() => realtime.potResolution.value + 'px');
 
@@ -107,6 +161,32 @@
             ? ` | ${formatDuration(realtime.countdownSeconds.value)} remaining`
             : '';
         return `Tile ${realtime.completedTiles.value}/${realtime.crossSectionType.value === 'waves' ? realtime.targetTileCount.value : realtime.maxTiles.value} | Row ${realtime.currentRow.value}/${realtime.tileHeight.value} | ${realtime.fps.value} fps${enc}${countdown}`;
+    });
+
+    const perfSummary = computed(() => {
+        const stats = realtime.perfStats.value;
+        const parts = [];
+
+        if (stats.frameIntervalMs > 0) {
+            parts.push(`Frame ${stats.frameIntervalMs.toFixed(1)}ms`);
+        }
+        if (stats.samplingMs > 0) {
+            parts.push(`Sample ${stats.samplingMs.toFixed(1)}ms/frame`);
+        }
+        if (stats.previewMs > 0) {
+            parts.push(`Preview ${stats.previewMs.toFixed(1)}ms/raf`);
+        }
+        if (stats.readbackMs > 0) {
+            parts.push(`Readback ${stats.readbackMs.toFixed(1)}ms/tile`);
+        }
+        if (stats.encodeQueueMs > 0) {
+            parts.push(`Queue ${stats.encodeQueueMs.toFixed(1)}ms/tile`);
+        }
+        if (stats.encodeMs > 0) {
+            parts.push(`Encode ${stats.encodeMs.toFixed(1)}ms/tile`);
+        }
+
+        return parts.join(' | ');
     });
 
     // Estimated duration for waves mode (before capture starts)
@@ -145,6 +225,10 @@
         await realtime.startRealtime();
     }
 
+    function handleLayerCountChange(event) {
+        realtime.setCrossSectionCount(event.target.valueAsNumber);
+    }
+
     function formatDuration(seconds) {
         if (seconds <= 0) return '0s';
         const m = Math.floor(seconds / 60);
@@ -168,11 +252,19 @@
         realtime.discardResults();
     }
 
+    function handleRetryLocalSave() {
+        realtime.persistResultsLocally(true);
+    }
+
+    function handleOpenTextureBrowser() {
+        router.push({ path: route.path, query: { ...route.query, textures: 'local' } });
+        emit('close');
+    }
+
     function handleClose() {
         if (realtime.isCapturing.value) {
             realtime.stopRealtime();
         }
-        realtime.discardResults();
         realtime.stopCamera();
         emit('close');
     }
@@ -207,6 +299,32 @@
                 <div class="status-bar">
                     <span class="status-text">{{ statusText }}</span>
                 </div>
+
+                <div
+                    v-if="perfSummary"
+                    class="perf-bar"
+                >
+                    {{ perfSummary }}
+                </div>
+
+                <LocalSaveStatus
+                    v-if="showLocalSaveStatus"
+                    :is-saving-locally="realtime.isSavingLocally.value"
+                    :save-local-progress="realtime.saveLocalProgress.value"
+                    :save-local-error="realtime.saveLocalError.value"
+                    :saved-local-texture-id="realtime.savedLocalTextureId.value"
+                    success-detail="Upload or export later from the Texture Browser."
+                    @retry="handleRetryLocalSave"
+                >
+                    <template #success-actions>
+                        <button
+                            class="save-status-btn"
+                            @click="handleOpenTextureBrowser"
+                        >
+                            Open Browser
+                        </button>
+                    </template>
+                </LocalSaveStatus>
 
                 <!-- Webcam + Preview area -->
                 <div class="preview-area">
@@ -254,7 +372,7 @@
                             class="tile-preview"
                         >
                             <canvas
-                                :ref="(el) => { if (el && tile.canvas) { el.width = tile.canvas.width; el.height = tile.canvas.height; el.getContext('2d').drawImage(tile.canvas, 0, 0); } }"
+                                :ref="(el) => drawTilePreview(el, tile.canvas)"
                             />
                             <div
                                 v-if="tile.status === 'encoding'"
@@ -336,6 +454,22 @@
                         <option :value="512">512²</option>
                     </select>
 
+                    <label class="number-group">
+                        <span>Layers</span>
+                        <input
+                            :value="realtime.crossSectionCount.value"
+                            class="ctrl-number"
+                            type="number"
+                            inputmode="numeric"
+                            :min="realtime.minCrossSectionCount"
+                            :max="realtime.maxCrossSectionCount"
+                            step="1"
+                            :disabled="realtime.isCapturing.value"
+                            @change="handleLayerCountChange"
+                            @blur="handleLayerCountChange"
+                        />
+                    </label>
+
                     <!-- Cross-section type toggle -->
                     <div class="type-toggle">
                         <button
@@ -413,6 +547,7 @@
                     </button>
                     <button
                         class="action-btn discard-btn"
+                        :disabled="realtime.isSavingLocally.value"
                         @click="handleDiscard"
                     >
                         <span class="material-symbols-outlined">delete</span>
@@ -496,6 +631,28 @@
         font-variant-numeric: tabular-nums;
         color: rgba(255, 255, 255, 0.9);
         font-size: 14px;
+    }
+
+    .perf-bar {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 12px;
+    }
+
+    .save-status-btn {
+        padding: 0.5rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.08);
+        color: #f4f7ff;
+        cursor: pointer;
+        font-size: 0.82rem;
+        pointer-events: auto;
+    }
+
+    .save-status-btn:hover {
+        background: rgba(255, 255, 255, 0.14);
     }
 
     /* Preview area */
@@ -706,6 +863,33 @@
         cursor: default;
     }
 
+    .number-group {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 84px;
+    }
+
+    .number-group span {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .ctrl-number {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        color: white;
+        padding: 6px 8px;
+        font-size: 13px;
+        width: 100%;
+    }
+
+    .ctrl-number:disabled {
+        opacity: 0.4;
+        cursor: default;
+    }
+
     .slider-group {
         display: flex;
         flex-direction: column;
@@ -746,6 +930,11 @@
 
     .action-btn .material-symbols-outlined {
         font-size: 20px;
+    }
+
+    .action-btn:disabled {
+        opacity: 0.45;
+        cursor: default;
     }
 
     .apply-btn {

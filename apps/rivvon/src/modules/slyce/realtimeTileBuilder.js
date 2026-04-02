@@ -9,12 +9,15 @@
  *   - "waves":  Sine wave distribution — sample Y oscillates per frame.
  *              Requires a known total frame count so the wave completes full cycles.
  *
- * Emits 'complete' when a tile's rows are fully sampled, providing both the
- * canvas set (for continued preview display) and extracted RGBA images
- * (for KTX2 encoding).
+ * Emits 'complete' when a tile's rows are fully sampled, providing the
+ * canvas set so the orchestrator can keep previewing it and later extract
+ * RGBA for KTX2 encoding.
  */
 
 import { EventEmitter } from 'events';
+import { getCached2dContext } from './samplingRuntime.js';
+
+/** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
 export class RealtimeTileBuilder extends EventEmitter {
     /**
@@ -28,10 +31,14 @@ export class RealtimeTileBuilder extends EventEmitter {
         super();
         const {
             potResolution = 256,
-            crossSectionCount = 30,
+            crossSectionCount: requestedCrossSectionCount = 30,
             crossSectionType = 'planes',
             totalFrames = null
         } = options;
+
+        const crossSectionCount = Number.isFinite(requestedCrossSectionCount)
+            ? Math.max(1, Math.round(requestedCrossSectionCount))
+            : 30;
 
         this.potResolution = potResolution;
         this.crossSectionCount = crossSectionCount;
@@ -54,9 +61,13 @@ export class RealtimeTileBuilder extends EventEmitter {
             // Pre-compute cosine distribution sample indices
             // These don't change per tile — only depend on crossSectionCount
             this._cosineIndices = new Float64Array(crossSectionCount);
-            for (let i = 0; i < crossSectionCount; i++) {
-                const normalizedIndex = (i / (crossSectionCount - 1)) * Math.PI;
-                this._cosineIndices[i] = (Math.cos(normalizedIndex) + 1) / 2;
+            if (crossSectionCount === 1) {
+                this._cosineIndices[0] = 0.5;
+            } else {
+                for (let i = 0; i < crossSectionCount; i++) {
+                    const normalizedIndex = (i / (crossSectionCount - 1)) * Math.PI;
+                    this._cosineIndices[i] = (Math.cos(normalizedIndex) + 1) / 2;
+                }
             }
         } else {
             // Pre-compute per-canvas phase shifts for sine wave distribution
@@ -64,7 +75,7 @@ export class RealtimeTileBuilder extends EventEmitter {
             for (let i = 0; i < crossSectionCount; i++) {
                 this._phaseShifts[i] = (2 * Math.PI * i) / crossSectionCount;
             }
-            this._omega = (2 * Math.PI) / totalFrames; // angular frequency
+            this._omega = totalFrames ? (2 * Math.PI) / totalFrames : 0; // angular frequency
         }
 
         // Claim initial canvas set and start first tile
@@ -73,31 +84,45 @@ export class RealtimeTileBuilder extends EventEmitter {
 
     /**
      * Get a canvas set from the pool, or create a new one.
-     * @returns {OffscreenCanvas[]} Array of crossSectionCount canvases.
+     * @returns {RealtimeTileCanvas[]} Array of crossSectionCount canvases.
      */
     claimCanvasSet() {
         if (this._canvasPool.length > 0) {
             const set = this._canvasPool.pop();
             // Clear canvases for reuse
             for (const canvas of set) {
-                const ctx = canvas.getContext('2d');
+                const ctx = getCached2dContext(canvas);
                 ctx.clearRect(0, 0, this.potResolution, this.potResolution);
             }
             return set;
         }
 
-        // Create new set — use regular HTMLCanvasElement so Three.js
-        // can upload them as textures via texImage2D (OffscreenCanvas is
-        // not reliably supported as a THREE.Texture source).
+        // Prefer OffscreenCanvas for the hot sampling path, but fall back
+        // to a regular canvas where OffscreenCanvas 2D is unavailable.
         const set = [];
         for (let i = 0; i < this.crossSectionCount; i++) {
-            const c = document.createElement('canvas');
-            c.width = this.potResolution;
-            c.height = this.potResolution;
-            // Use willReadFrequently so the browser keeps pixel data
-            // in CPU memory. Without this, repeated getImageData readbacks
-            // cause progressive GPU memory pressure and FPS degradation.
-            c.getContext('2d', { willReadFrequently: true }).clearRect(0, 0, this.potResolution, this.potResolution);
+            let c = null;
+            let ctx = null;
+
+            if (typeof OffscreenCanvas !== 'undefined') {
+                c = new OffscreenCanvas(this.potResolution, this.potResolution);
+                ctx = getCached2dContext(c);
+            }
+
+            if (!ctx) {
+                c = document.createElement('canvas');
+                c.width = this.potResolution;
+                c.height = this.potResolution;
+                ctx = getCached2dContext(c);
+            }
+
+            // Keep the live sampling canvases write-optimised.
+            // Full-canvas readback is deferred until tile completion.
+            if (!ctx) {
+                throw new Error('RealtimeTileBuilder requires a 2D canvas context.');
+            }
+
+            ctx.clearRect(0, 0, this.potResolution, this.potResolution);
             set.push(c);
         }
         return set;
@@ -106,7 +131,7 @@ export class RealtimeTileBuilder extends EventEmitter {
     /**
      * Return a canvas set to the pool for reuse.
      * Called by the orchestrator when KTX2 encoding completes.
-     * @param {OffscreenCanvas[]} set
+     * @param {RealtimeTileCanvas[]} set
      */
     releaseCanvasSet(set) {
         // Cap pool at 2 sets — more would just accumulate memory
@@ -130,7 +155,7 @@ export class RealtimeTileBuilder extends EventEmitter {
         const canvasSet = this._currentCanvasSet;
 
         for (let c = 0; c < this.crossSectionCount; c++) {
-            const ctx = canvasSet[c].getContext('2d');
+            const ctx = getCached2dContext(canvasSet[c]);
 
             let sampleY;
             if (this.crossSectionType === 'waves') {
@@ -211,7 +236,7 @@ export class RealtimeTileBuilder extends EventEmitter {
     /**
      * Get the first canvas of the current tile being built.
      * Useful for rendering a live preview in the sampling screen.
-     * @returns {HTMLCanvasElement|null}
+     * @returns {RealtimeTileCanvas|null}
      */
     getCurrentPreviewCanvas() {
         return this._currentCanvasSet?.[0] ?? null;
