@@ -38,6 +38,7 @@
 
     // rAF-based draw loop for live tile preview (no Vue reactivity in hot path)
     let drawLoopId = null;
+    let boundVideoElement = null;
 
     // Track source canvas identity to detect tile reset
     let lastSource = null;
@@ -115,19 +116,55 @@
         liveCanvasCtx = null;
     }
 
+    function detachVideoPreview(element = boundVideoElement) {
+        if (!element) return;
+        try {
+            element.pause();
+        } catch {
+            // No-op: pausing an already-disposed preview is fine.
+        }
+        if (element.srcObject) {
+            element.srcObject = null;
+        }
+        if (boundVideoElement === element) {
+            boundVideoElement = null;
+        }
+    }
+
+    function syncVideoPreview() {
+        const video = videoRef.value;
+
+        if (!video || !showWebcamPreview.value || !realtime.cameraStream.value) {
+            if (video) {
+                detachVideoPreview(video);
+            }
+            return;
+        }
+
+        if (boundVideoElement && boundVideoElement !== video) {
+            detachVideoPreview(boundVideoElement);
+        }
+
+        boundVideoElement = video;
+
+        if (video.srcObject !== realtime.cameraStream.value) {
+            video.srcObject = realtime.cameraStream.value;
+        }
+
+        const playPromise = video.play?.();
+        if (playPromise?.catch) {
+            playPromise.catch(() => {
+                // Autoplay can race with camera rebinds; the next phase change retries.
+            });
+        }
+    }
+
     // Start/stop draw loop with capture state
     watch(() => realtime.isCapturing.value, (capturing) => {
         if (capturing) {
             startDrawLoop();
         } else {
             stopDrawLoop();
-        }
-    });
-
-    // Bind camera stream to video element when it becomes available
-    watch(() => realtime.cameraStream.value, (stream) => {
-        if (videoRef.value && stream) {
-            videoRef.value.srcObject = stream;
         }
     });
 
@@ -144,10 +181,7 @@
 
     onMounted(() => {
         void ensureCameraStarted();
-
-        if (videoRef.value && realtime.cameraStream.value) {
-            videoRef.value.srcObject = realtime.cameraStream.value;
-        }
+        syncVideoPreview();
     });
 
     // Can apply if there are completed KTX2 buffers, not capturing, and no tiles still encoding
@@ -219,6 +253,21 @@
     const isProcessingPhase = computed(() => props.workflowPhase === 'processing');
     const isFinishedPhase = computed(() => props.workflowPhase === 'finished');
     const isFullPhase = computed(() => props.workflowPhase === 'full');
+    const showWebcamPreview = computed(() => !isFinishedPhase.value && (!props.embedded || !isProcessingPhase.value));
+
+    watch(videoRef, (nextVideo, previousVideo) => {
+        if (previousVideo && previousVideo !== nextVideo) {
+            detachVideoPreview(previousVideo);
+        }
+        syncVideoPreview();
+    }, { flush: 'post' });
+
+    watch([
+        () => realtime.cameraStream.value,
+        showWebcamPreview,
+    ], () => {
+        syncVideoPreview();
+    }, { flush: 'post' });
 
     watch(() => props.workflowPhase, async (phase) => {
         if (!props.embedded) return;
@@ -373,6 +422,7 @@
 
     // Cleanup on unmount
     onUnmounted(() => {
+        detachVideoPreview();
         stopDrawLoop();
         if (realtime.isCapturing.value) {
             realtime.stopRealtime();
@@ -455,7 +505,10 @@
                         v-if="!isFinishedPhase"
                         class="capture-section"
                     >
-                        <div class="webcam-section">
+                        <div
+                            v-if="showWebcamPreview"
+                            class="webcam-section"
+                        >
                             <video
                                 ref="videoRef"
                                 autoplay
