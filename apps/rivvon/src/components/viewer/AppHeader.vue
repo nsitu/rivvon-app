@@ -3,6 +3,8 @@
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
 
+    const emit = defineEmits(['close-realtime-mode']);
+
     const app = useViewerStore();
     const slyce = useSlyceStore();
 
@@ -26,7 +28,7 @@
     // Compute which context is active (for header title + close button)
     const activeContext = computed(() => {
         if (app.isDrawingMode) return 'Draw';
-        if (app.textureCreatorVisible) return 'Make Texture';
+        if (app.textureCreatorVisible || app.realtimeSamplerVisible) return 'Create Texture';
         if (app.textureBrowserVisible) return 'Textures';
         if (app.emojiPickerVisible) return 'Emoji';
         if (app.textPanelVisible) return 'Text';
@@ -40,6 +42,8 @@
     function closeContext() {
         if (app.isDrawingMode) {
             app.setDrawingMode(false);
+        } else if (app.realtimeSamplerVisible) {
+            emit('close-realtime-mode');
         } else if (app.textureCreatorVisible) {
             if (isSlyceProcessing.value) {
                 const confirmed = confirm(

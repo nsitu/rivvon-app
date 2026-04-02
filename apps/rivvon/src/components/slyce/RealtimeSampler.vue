@@ -8,10 +8,22 @@
         active: {
             type: Boolean,
             default: false
+        },
+        embedded: {
+            type: Boolean,
+            default: false
+        },
+        autoStartCamera: {
+            type: Boolean,
+            default: false
+        },
+        workflowPhase: {
+            type: String,
+            default: 'full'
         }
     });
 
-    const emit = defineEmits(['close', 'apply']);
+    const emit = defineEmits(['close', 'apply', 'start-capture']);
 
     const realtime = useRealtimeSlyce();
     const router = useRouter();
@@ -120,7 +132,19 @@
     });
 
     // Also bind when video element mounts (stream may already be available)
+    async function ensureCameraStarted() {
+        if (!props.autoStartCamera || realtime.isCameraActive.value) return;
+
+        try {
+            await realtime.startCamera();
+        } catch (error) {
+            console.error('[RealtimeSampler] Failed to auto-start camera:', error);
+        }
+    }
+
     onMounted(() => {
+        void ensureCameraStarted();
+
         if (videoRef.value && realtime.cameraStream.value) {
             videoRef.value.srcObject = realtime.cameraStream.value;
         }
@@ -133,13 +157,83 @@
         && realtime.completedKtx2Buffers.value.length > 0
     );
 
+    const completedTileCount = computed(() => realtime.completedKtx2Buffers.value.length);
+    const textureSetLabel = computed(() => {
+        const count = completedTileCount.value;
+        return count > 0 ? `${count}-tile texture set` : 'texture set';
+    });
+
+    const localSaveInProgressDetail = computed(() =>
+        `This ${textureSetLabel.value} is being saved locally on this device.`
+    );
+
+    const localSaveSuccessDetail = computed(() =>
+        `This ${textureSetLabel.value} is stored locally on this device, so you can return to it later without recapturing.`
+    );
+
+    const doneSaveState = computed(() => {
+        if (realtime.isSavingLocally.value) return 'saving';
+        if (realtime.saveLocalError.value) return 'error';
+        if (realtime.savedLocalTextureId.value) return 'success';
+        return 'pending';
+    });
+
+    const doneSummaryTitle = computed(() => {
+        if (doneSaveState.value === 'success') return 'Texture Saved';
+        if (doneSaveState.value === 'saving') return 'Saving Texture Locally';
+        if (doneSaveState.value === 'error') return 'Local Save Needs Attention';
+        return 'Preparing Local Save';
+    });
+
+    const doneSummaryDetail = computed(() => {
+        if (doneSaveState.value === 'success') {
+            return `Your ${textureSetLabel.value} is processed and stored locally on this device. You can reopen it later without recapturing.`;
+        }
+        if (doneSaveState.value === 'saving') {
+            return `Processing is complete. Your ${textureSetLabel.value} is being saved locally on this device now.`;
+        }
+        if (doneSaveState.value === 'error') {
+            return `Processing is complete, but local save failed for this ${textureSetLabel.value}. Retry if you want to keep it on this device for later.`;
+        }
+        return `Processing is complete. Your ${textureSetLabel.value} is ready, and local saving on this device will begin next.`;
+    });
+
+    const doneSummaryMeta = computed(() => {
+        if (doneSaveState.value === 'saving' && realtime.saveLocalProgress.value) {
+            return realtime.saveLocalProgress.value;
+        }
+        return '';
+    });
+
+    const showDoneSummary = computed(() => isFinishedPhase.value && canApply.value);
+
     const showLocalSaveStatus = computed(() =>
-        !realtime.isCapturing.value && (
+        !isFinishedPhase.value && props.workflowPhase !== 'setup' && !realtime.isCapturing.value && (
             realtime.isSavingLocally.value
             || !!realtime.saveLocalError.value
             || !!realtime.savedLocalTextureId.value
         )
     );
+
+    const isSetupPhase = computed(() => props.workflowPhase === 'setup');
+    const isProcessingPhase = computed(() => props.workflowPhase === 'processing');
+    const isFinishedPhase = computed(() => props.workflowPhase === 'finished');
+    const isFullPhase = computed(() => props.workflowPhase === 'full');
+
+    watch(() => props.workflowPhase, async (phase) => {
+        if (!props.embedded) return;
+
+        if (phase === 'finished') {
+            if (!realtime.isCapturing.value && realtime.isCameraActive.value) {
+                realtime.stopCamera();
+            }
+            return;
+        }
+
+        if ((phase === 'setup' || phase === 'processing') && props.autoStartCamera && !realtime.isCameraActive.value) {
+            await ensureCameraStarted();
+        }
+    });
 
     // Live tile display size (matches actual tile pixel dimensions)
     const tileSizePx = computed(() => realtime.potResolution.value + 'px');
@@ -147,6 +241,13 @@
     // Status text (migrated from RealtimeControls.vue)
     const statusText = computed(() => {
         if (!realtime.isCapturing.value) {
+            if (isSetupPhase.value) {
+                if (realtime.isCameraActive.value && realtime.cameraFrameRate.value) {
+                    return `Camera ${Math.round(realtime.cameraFrameRate.value)}fps`;
+                }
+                return 'Ready';
+            }
+
             const count = realtime.completedKtx2Buffers.value.length;
             if (count > 0) return `${count} tile${count > 1 ? 's' : ''} ready`;
             if (realtime.isCameraActive.value && realtime.cameraFrameRate.value) {
@@ -200,6 +301,10 @@
         realtime.cameraFrameRate.value ? Math.round(realtime.cameraFrameRate.value) : 30
     );
 
+    const activeCameraLabel = computed(() =>
+        realtime.cameraFacingMode.value === 'environment' ? 'Rear Camera' : 'Front Camera'
+    );
+
     // FPS drop warning: show when capture FPS falls below 50% of camera FPS
     const nextLowerResolution = computed(() => {
         const current = realtime.potResolution.value;
@@ -237,6 +342,11 @@
     }
 
     function handleStart() {
+        if (isSetupPhase.value) {
+            emit('start-capture');
+            return;
+        }
+
         realtime.startRealtime();
     }
 
@@ -256,16 +366,8 @@
         realtime.persistResultsLocally(true);
     }
 
-    function handleOpenTextureBrowser() {
+    function handleOpenTextureLibrary() {
         router.push({ path: route.path, query: { ...route.query, textures: 'local' } });
-        emit('close');
-    }
-
-    function handleClose() {
-        if (realtime.isCapturing.value) {
-            realtime.stopRealtime();
-        }
-        realtime.stopCamera();
         emit('close');
     }
 
@@ -282,54 +384,77 @@
 <template>
     <div
         class="realtime-panel"
-        :class="{ active: active }"
+        :class="{ active: active, embedded: embedded }"
     >
-        <div class="realtime-container">
-            <!-- Close button -->
-            <button
-                class="close-btn"
-                @click="handleClose"
-            >
-                <span class="material-symbols-outlined">close</span>
-            </button>
-
+        <div
+            class="realtime-container"
+            :class="{ embedded: embedded }"
+        >
             <!-- Main content area -->
-            <div class="realtime-content">
+            <div
+                class="realtime-content"
+                :class="{ embedded: embedded }"
+            >
                 <!-- Status bar -->
-                <div class="status-bar">
+                <div
+                    v-if="!isFinishedPhase"
+                    class="status-bar"
+                >
                     <span class="status-text">{{ statusText }}</span>
                 </div>
 
                 <div
-                    v-if="perfSummary"
+                    v-if="perfSummary && !isSetupPhase && !isFinishedPhase"
                     class="perf-bar"
                 >
                     {{ perfSummary }}
                 </div>
 
+                <div
+                    v-if="showDoneSummary"
+                    class="done-summary"
+                    :class="`is-${doneSaveState}`"
+                >
+                    <p class="done-summary-kicker">Processing Complete</p>
+                    <h2 class="done-summary-title">{{ doneSummaryTitle }}</h2>
+                    <p class="done-summary-detail">{{ doneSummaryDetail }}</p>
+                    <p
+                        v-if="doneSummaryMeta"
+                        class="done-summary-meta"
+                    >{{ doneSummaryMeta }}</p>
+                    <div
+                        v-if="doneSaveState === 'error'"
+                        class="done-summary-actions"
+                    >
+                        <button
+                            class="done-summary-retry-btn"
+                            @click="handleRetryLocalSave"
+                        >
+                            <span class="material-symbols-outlined">refresh</span>
+                            Retry Save
+                        </button>
+                    </div>
+                </div>
+
                 <LocalSaveStatus
-                    v-if="showLocalSaveStatus"
+                    v-else-if="showLocalSaveStatus"
                     :is-saving-locally="realtime.isSavingLocally.value"
                     :save-local-progress="realtime.saveLocalProgress.value"
                     :save-local-error="realtime.saveLocalError.value"
                     :saved-local-texture-id="realtime.savedLocalTextureId.value"
-                    success-detail="Upload or export later from the Texture Browser."
+                    :saving-detail="localSaveInProgressDetail"
+                    success-title="Texture Saved"
+                    :success-detail="localSaveSuccessDetail"
                     @retry="handleRetryLocalSave"
-                >
-                    <template #success-actions>
-                        <button
-                            class="save-status-btn"
-                            @click="handleOpenTextureBrowser"
-                        >
-                            Open Browser
-                        </button>
-                    </template>
-                </LocalSaveStatus>
+                />
 
                 <!-- Webcam + Preview area -->
                 <div class="preview-area">
                     <!-- Live webcam feed + live tile side by side -->
-                    <div class="capture-section">
+                    <div
+                        v-if="!isFinishedPhase"
+                        class="capture-section"
+                    >
                         <div class="webcam-section">
                             <video
                                 ref="videoRef"
@@ -346,7 +471,7 @@
 
                         <!-- Live tile being sampled (prominent, actual pixel size) -->
                         <div
-                            v-if="realtime.isCapturing.value"
+                            v-if="realtime.isCapturing.value && !isSetupPhase"
                             class="live-tile-section"
                         >
                             <canvas
@@ -363,7 +488,7 @@
 
                     <!-- Unified tile grid: encoding + completed -->
                     <div
-                        v-if="realtime.gridTiles.value.length > 0"
+                        v-if="realtime.gridTiles.value.length > 0 && !isSetupPhase"
                         class="tile-grid"
                     >
                         <div
@@ -371,9 +496,7 @@
                             :key="tile.id"
                             class="tile-preview"
                         >
-                            <canvas
-                                :ref="(el) => drawTilePreview(el, tile.canvas)"
-                            />
+                            <canvas :ref="(el) => drawTilePreview(el, tile.canvas)" />
                             <div
                                 v-if="tile.status === 'encoding'"
                                 class="tile-encoding-overlay"
@@ -392,7 +515,7 @@
 
                 <!-- FPS drop warning -->
                 <div
-                    v-if="showFpsWarning"
+                    v-if="showFpsWarning && !isSetupPhase"
                     class="fps-warning"
                 >
                     <span class="material-symbols-outlined warning-icon">warning</span>
@@ -407,55 +530,74 @@
                 </div>
 
                 <!-- Controls -->
-                <div class="controls-bar">
-                    <!-- Start / Stop -->
-                    <button
-                        class="ctrl-btn"
-                        :class="{ recording: realtime.isCapturing.value }"
-                        @click="realtime.isCapturing.value ? handleStop() : handleStart()"
+                <div
+                    v-if="isSetupPhase || isFullPhase"
+                    class="controls-bar"
+                >
+                    <div
+                        v-if="isFullPhase"
+                        class="control-field control-field-compact"
                     >
-                        <span class="material-symbols-outlined">
-                            {{ realtime.isCapturing.value ? 'stop_circle' : 'videocam' }}
-                        </span>
-                        <span class="btn-label">{{ realtime.isCapturing.value ? 'Stop' : 'Start' }}</span>
-                    </button>
+                        <span class="control-label">Capture</span>
+                        <button
+                            class="ctrl-btn"
+                            :class="{ recording: realtime.isCapturing.value }"
+                            @click="realtime.isCapturing.value ? handleStop() : handleStart()"
+                        >
+                            <span class="material-symbols-outlined">
+                                {{ realtime.isCapturing.value ? 'stop_circle' : 'videocam' }}
+                            </span>
+                            <span class="btn-label">{{ realtime.isCapturing.value ? 'Stop' : 'Start' }}</span>
+                        </button>
+                    </div>
 
                     <!-- Camera flip -->
-                    <button
-                        class="ctrl-btn"
-                        :disabled="!realtime.isCameraActive.value"
-                        @click="realtime.toggleCamera"
-                    >
-                        <span class="material-symbols-outlined">cameraswitch</span>
-                        <span class="btn-label">Flip</span>
-                    </button>
+                    <div class="control-field control-field-compact">
+                        <span class="control-label">Active Camera</span>
+                        <button
+                            class="ctrl-btn"
+                            :disabled="!realtime.isCameraActive.value"
+                            @click="realtime.toggleCamera"
+                        >
+                            <span class="material-symbols-outlined">cameraswitch</span>
+                            <span class="btn-label">{{ activeCameraLabel }}</span>
+                        </button>
+                    </div>
 
                     <!-- Camera resolution -->
-                    <select
-                        class="ctrl-select"
-                        :value="realtime.cameraResolution.value"
-                        :disabled="realtime.isCapturing.value"
-                        @change="realtime.setResolution($event.target.value)"
-                    >
-                        <option value="240p">240p</option>
-                        <option value="480p">480p</option>
-                        <option value="720p">720p</option>
-                    </select>
+                    <label class="control-field">
+                        <span class="control-label">Camera Resolution</span>
+                        <select
+                            class="ctrl-select"
+                            :value="realtime.cameraResolution.value"
+                            :disabled="realtime.isCapturing.value"
+                            aria-label="Camera resolution"
+                            @change="realtime.setResolution($event.target.value)"
+                        >
+                            <option value="240p">240p</option>
+                            <option value="480p">480p</option>
+                            <option value="720p">720p</option>
+                        </select>
+                    </label>
 
                     <!-- Tile resolution -->
-                    <select
-                        class="ctrl-select"
-                        :value="realtime.potResolution.value"
-                        :disabled="realtime.isCapturing.value"
-                        @change="realtime.setPotResolution(Number($event.target.value))"
-                    >
-                        <option :value="128">128²</option>
-                        <option :value="256">256²</option>
-                        <option :value="512">512²</option>
-                    </select>
+                    <label class="control-field">
+                        <span class="control-label">Tile Resolution</span>
+                        <select
+                            class="ctrl-select"
+                            :value="realtime.potResolution.value"
+                            :disabled="realtime.isCapturing.value"
+                            aria-label="Tile resolution"
+                            @change="realtime.setPotResolution(Number($event.target.value))"
+                        >
+                            <option :value="128">128²</option>
+                            <option :value="256">256²</option>
+                            <option :value="512">512²</option>
+                        </select>
+                    </label>
 
-                    <label class="number-group">
-                        <span>Layers</span>
+                    <label class="control-field control-field-narrow">
+                        <span class="control-label">Layers Per Tile</span>
                         <input
                             :value="realtime.crossSectionCount.value"
                             class="ctrl-number"
@@ -465,37 +607,42 @@
                             :max="realtime.maxCrossSectionCount"
                             step="1"
                             :disabled="realtime.isCapturing.value"
+                            aria-label="Layers per tile"
                             @change="handleLayerCountChange"
                             @blur="handleLayerCountChange"
                         />
                     </label>
 
                     <!-- Cross-section type toggle -->
-                    <div class="type-toggle">
-                        <button
-                            class="type-btn"
-                            :class="{ active: realtime.crossSectionType.value === 'planes' }"
-                            :disabled="realtime.isCapturing.value"
-                            @click="realtime.setCrossSectionType('planes')"
-                        >
-                            Planes
-                        </button>
-                        <button
-                            class="type-btn"
-                            :class="{ active: realtime.crossSectionType.value === 'waves' }"
-                            :disabled="realtime.isCapturing.value"
-                            @click="realtime.setCrossSectionType('waves')"
-                        >
-                            Waves
-                        </button>
+                    <div class="control-field control-field-wide">
+                        <span class="control-label">Sampling Mode</span>
+                        <div class="type-toggle">
+                            <button
+                                class="type-btn"
+                                :class="{ active: realtime.crossSectionType.value === 'planes' }"
+                                :disabled="realtime.isCapturing.value"
+                                @click="realtime.setCrossSectionType('planes')"
+                            >
+                                Planes
+                            </button>
+                            <button
+                                class="type-btn"
+                                :class="{ active: realtime.crossSectionType.value === 'waves' }"
+                                :disabled="realtime.isCapturing.value"
+                                @click="realtime.setCrossSectionType('waves')"
+                            >
+                                Waves
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Max tiles slider (planes mode only) -->
                     <div
                         v-if="realtime.crossSectionType.value === 'planes'"
-                        class="slider-group"
+                        class="control-field slider-field"
                     >
-                        <label>Max tiles: {{ realtime.maxTiles.value }}</label>
+                        <span class="control-label">Max Tile Count</span>
+                        <span class="control-value">{{ realtime.maxTiles.value }} tiles</span>
                         <input
                             type="range"
                             min="4"
@@ -503,6 +650,7 @@
                             step="1"
                             :value="realtime.maxTiles.value"
                             :disabled="realtime.isCapturing.value"
+                            aria-label="Maximum tile count"
                             @input="realtime.setMaxTiles(Number($event.target.value))"
                         />
                     </div>
@@ -510,9 +658,10 @@
                     <!-- Target tile count (waves mode) -->
                     <div
                         v-if="realtime.crossSectionType.value === 'waves'"
-                        class="slider-group"
+                        class="control-field slider-field"
                     >
-                        <label>Target tiles: {{ realtime.targetTileCount.value }}</label>
+                        <span class="control-label">Target Tile Count</span>
+                        <span class="control-value">{{ realtime.targetTileCount.value }} tiles</span>
                         <input
                             type="range"
                             min="1"
@@ -520,17 +669,43 @@
                             step="1"
                             :value="realtime.targetTileCount.value"
                             :disabled="realtime.isCapturing.value"
+                            aria-label="Target tile count"
                             @input="realtime.setTargetTileCount(Number($event.target.value))"
                         />
+                        <span
+                            v-if="!realtime.isCapturing.value && estimatedDuration !== null"
+                            class="control-hint"
+                        >
+                            Approx. {{ formatDuration(estimatedDuration) }} at {{ estimatedFps }}fps
+                        </span>
                     </div>
+                </div>
 
-                    <!-- Estimated duration (waves mode, before capture) -->
-                    <span
-                        v-if="realtime.crossSectionType.value === 'waves' && !realtime.isCapturing.value && estimatedDuration !== null"
-                        class="duration-estimate"
+                <div
+                    v-if="isSetupPhase"
+                    class="setup-action-bar"
+                >
+                    <button
+                        class="primary-action-btn"
+                        :disabled="!realtime.isCameraActive.value"
+                        @click="handleStart"
                     >
-                        ≈ {{ formatDuration(estimatedDuration) }} @ {{ estimatedFps }}fps
-                    </span>
+                        <span class="material-symbols-outlined">videocam</span>
+                        Start Capture
+                    </button>
+                </div>
+
+                <div
+                    v-else-if="isProcessingPhase && realtime.isCapturing.value"
+                    class="setup-action-bar"
+                >
+                    <button
+                        class="primary-action-btn danger"
+                        @click="handleStop"
+                    >
+                        <span class="material-symbols-outlined">stop_circle</span>
+                        Stop Capture
+                    </button>
                 </div>
 
                 <!-- Action buttons (Apply / Discard) -->
@@ -544,7 +719,15 @@
                     >
                         <span class="material-symbols-outlined">check_circle</span>
                         Apply to Ribbon
+                    </button><button
+                        v-if="realtime.savedLocalTextureId.value"
+                        class="action-btn library-btn"
+                        @click="handleOpenTextureLibrary"
+                    >
+                        <span class="material-symbols-outlined">grid_view</span>
+                        Open in Library
                     </button>
+
                     <button
                         class="action-btn discard-btn"
                         :disabled="realtime.isSavingLocally.value"
@@ -579,6 +762,14 @@
         opacity: 1;
     }
 
+    .realtime-panel.embedded {
+        position: static;
+        inset: auto;
+        z-index: auto;
+        pointer-events: auto;
+        opacity: 1;
+    }
+
     .realtime-container {
         position: relative;
         display: flex;
@@ -590,26 +781,10 @@
         padding-bottom: 5.5rem;
     }
 
-    .close-btn {
-        position: absolute;
-        top: 6rem;
-        right: 1rem;
-        z-index: 10;
-        background: rgba(255, 255, 255, 0.12);
-        border: none;
-        border-radius: 50%;
-        width: 2.5rem;
-        height: 2.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        cursor: pointer;
-        transition: background 0.15s;
-    }
-
-    .close-btn:hover {
-        background: rgba(255, 255, 255, 0.22);
+    .realtime-container.embedded {
+        background: transparent;
+        padding-top: 0;
+        padding-bottom: 0;
     }
 
     .realtime-content {
@@ -623,6 +798,11 @@
         width: 100%;
         max-width: 720px;
         margin: 0 auto;
+    }
+
+    .realtime-content.embedded {
+        max-width: 920px;
+        padding: 0;
     }
 
     /* Status bar */
@@ -640,19 +820,118 @@
         font-size: 12px;
     }
 
-    .save-status-btn {
-        padding: 0.5rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        background: rgba(255, 255, 255, 0.08);
-        color: #f4f7ff;
-        cursor: pointer;
-        font-size: 0.82rem;
-        pointer-events: auto;
+    .done-summary {
+        width: 100%;
+        padding: 0;
+        text-align: left;
+        align-self: stretch;
     }
 
-    .save-status-btn:hover {
-        background: rgba(255, 255, 255, 0.14);
+    .done-summary-kicker {
+        margin: 0;
+        color: rgba(232, 238, 248, 0.56);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    .done-summary-title {
+        margin: 0.35rem 0 0;
+        color: #f8fbff;
+        font-size: clamp(1.55rem, 2.6vw, 2.2rem);
+        line-height: 1.05;
+    }
+
+    .done-summary-detail {
+        margin: 0.9rem 0 0;
+        max-width: 54rem;
+        color: rgba(232, 238, 248, 0.8);
+        font-size: 0.98rem;
+        line-height: 1.65;
+    }
+
+    .done-summary-meta {
+        margin: 0.75rem 0 0;
+        color: rgba(232, 238, 248, 0.58);
+        font-size: 0.82rem;
+        font-weight: 500;
+    }
+
+    .done-summary-actions {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 1rem;
+    }
+
+    .done-summary-retry-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 44px;
+        padding: 0.7rem 1rem;
+        border: 1px solid rgba(248, 113, 113, 0.34);
+        border-radius: 999px;
+        background: rgba(248, 113, 113, 0.12);
+        color: #fee2e2;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .done-summary-retry-btn:hover {
+        background: rgba(248, 113, 113, 0.18);
+        border-color: rgba(248, 113, 113, 0.46);
+    }
+
+    .done-summary.is-error .done-summary-kicker,
+    .done-summary.is-error .done-summary-meta {
+        color: rgba(252, 165, 165, 0.72);
+    }
+
+    .done-summary.is-error .done-summary-title {
+        color: #fff1f2;
+    }
+
+    .setup-action-bar {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        padding-top: 0.25rem;
+    }
+
+    .primary-action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        min-height: 48px;
+        padding: 0.8rem 1.2rem;
+        border-radius: 999px;
+        border: none;
+        background: #2563eb;
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .primary-action-btn:hover:not(:disabled) {
+        background: #1d4ed8;
+    }
+
+    .primary-action-btn:disabled {
+        opacity: 0.45;
+        cursor: default;
+    }
+
+    .primary-action-btn.danger {
+        background: #dc2626;
+    }
+
+    .primary-action-btn.danger:hover:not(:disabled) {
+        background: #b91c1c;
     }
 
     /* Preview area */
@@ -807,10 +1086,53 @@
     /* Controls bar */
     .controls-bar {
         display: flex;
-        align-items: center;
-        gap: 8px;
+        align-items: flex-end;
+        gap: 12px;
         flex-wrap: wrap;
         justify-content: center;
+    }
+
+    .control-field {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+        min-width: 140px;
+    }
+
+    .control-field-narrow {
+        min-width: 120px;
+    }
+
+    .control-field-wide {
+        min-width: 168px;
+    }
+
+    .control-field-compact {
+        min-width: 0;
+    }
+
+    .control-label {
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(232, 238, 248, 0.72);
+    }
+
+    .control-value,
+    .control-hint {
+        font-size: 0.8rem;
+        line-height: 1.35;
+    }
+
+    .control-value {
+        color: rgba(255, 255, 255, 0.92);
+        font-weight: 500;
+    }
+
+    .control-hint {
+        color: rgba(232, 238, 248, 0.58);
     }
 
     .ctrl-btn {
@@ -848,6 +1170,10 @@
         white-space: nowrap;
     }
 
+    .control-field-compact .ctrl-btn {
+        min-height: 38px;
+    }
+
     .ctrl-select {
         background: rgba(255, 255, 255, 0.12);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -856,6 +1182,7 @@
         padding: 6px 8px;
         font-size: 13px;
         cursor: pointer;
+        width: 100%;
     }
 
     .ctrl-select:disabled {
@@ -863,16 +1190,9 @@
         cursor: default;
     }
 
-    .number-group {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 84px;
-    }
-
-    .number-group span {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.7);
+    .ctrl-select option {
+        color: #111827;
+        background: #ffffff;
     }
 
     .ctrl-number {
@@ -890,19 +1210,7 @@
         cursor: default;
     }
 
-    .slider-group {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 100px;
-    }
-
-    .slider-group label {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.7);
-    }
-
-    .slider-group input[type='range'] {
+    .slider-field input[type='range'] {
         width: 100%;
         accent-color: #64b5f6;
     }
@@ -911,6 +1219,7 @@
     .action-bar {
         display: flex;
         gap: 12px;
+        flex-wrap: wrap;
         justify-content: center;
         padding-top: 0.5rem;
     }
@@ -944,6 +1253,15 @@
 
     .apply-btn:hover {
         background: #43a047;
+    }
+
+    .library-btn {
+        background: #2563eb;
+        color: white;
+    }
+
+    .library-btn:hover {
+        background: #1d4ed8;
     }
 
     .discard-btn {
@@ -989,13 +1307,6 @@
     .type-btn:disabled {
         opacity: 0.4;
         cursor: default;
-    }
-
-    /* Duration estimate label */
-    .duration-estimate {
-        font-size: 12px;
-        color: rgba(255, 183, 77, 0.8);
-        white-space: nowrap;
     }
 
     /* FPS drop warning */

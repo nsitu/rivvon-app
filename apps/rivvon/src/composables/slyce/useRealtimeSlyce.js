@@ -78,7 +78,8 @@ const potResolution = ref(256);
 const crossSectionCount = ref(DEFAULT_CROSS_SECTION_COUNT);
 const fps = ref(0);
 const cameraResolution = ref('240p');
-const crossSectionType = ref('planes');  // 'planes' or 'waves'
+const cameraFacingMode = ref('user');
+const crossSectionType = ref('waves');  // 'planes' or 'waves'
 const targetTileCount = ref(4);          // how many tiles to capture in waves mode
 const globalFrameIndex = ref(0);         // total frames processed (for countdown)
 // Sampling screen state
@@ -305,12 +306,15 @@ export function useRealtimeSlyce() {
             hasStartedOnce = true;
         }
 
-        cameraSource = new CameraFrameSource({ resolution: cameraResolution.value });
+        cameraSource = new CameraFrameSource({
+            resolution: cameraResolution.value,
+            facingMode: cameraFacingMode.value,
+        });
         await cameraSource.start();
         cameraStream.value = cameraSource.getMediaStream();
         cameraFrameRate.value = cameraSource.frameRate;
         isCameraActive.value = true;
-        console.log(`[RealtimeSlyce] Camera started (${cameraResolution.value}, ${cameraFrameRate.value}fps)`);
+        console.log(`[RealtimeSlyce] Camera started (${cameraResolution.value}, ${cameraFrameRate.value}fps, facing=${cameraFacingMode.value})`);
     }
 
     /**
@@ -734,6 +738,7 @@ export function useRealtimeSlyce() {
     async function toggleCamera() {
         if (!cameraSource) return;
         const newMode = await cameraSource.toggleCamera();
+        cameraFacingMode.value = newMode;
         cameraStream.value = cameraSource.getMediaStream();
         cameraFrameRate.value = cameraSource.frameRate;
         console.log(`[RealtimeSlyce] Camera toggled to: ${newMode} (${cameraFrameRate.value}fps)`);
@@ -796,6 +801,7 @@ export function useRealtimeSlyce() {
         maxCrossSectionCount: MAX_CROSS_SECTION_COUNT,
         fps,
         cameraResolution,
+        cameraFacingMode,
         crossSectionType,
         targetTileCount,
         globalFrameIndex,

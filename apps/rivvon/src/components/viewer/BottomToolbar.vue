@@ -69,7 +69,6 @@
         'open-emoji-picker',
         'open-texture-browser',
         'enter-slyce-mode',
-        'enter-realtime-mode',
         'close-realtime-mode',
         'import-file',
         'export-image',
@@ -169,7 +168,7 @@
             app.hideAboutPanel();
         }
         if (app.realtimeSamplerVisible) {
-            emit('close-realtime-mode');
+            emit('close-realtime-mode', { suppressCreateTextureReturn: true });
         }
         return true;
     }
@@ -194,22 +193,13 @@
             <span class="material-symbols-outlined">draw</span>
         </button>
 
-        <!-- Slyce texture tool -->
+        <!-- Create texture tool -->
         <button
             v-tooltip.top="tip('Create Texture')"
-            :class="{ active: app.textureCreatorVisible }"
-            @click="app.textureCreatorVisible ? handleBack() : activateContext(() => emit('enter-slyce-mode'))"
+            :class="{ active: app.textureCreatorVisible || app.realtimeSamplerVisible }"
+            @click="(app.textureCreatorVisible || app.realtimeSamplerVisible) ? handleBack() : activateContext(() => emit('enter-slyce-mode'))"
         >
             <span class="material-symbols-outlined">video_camera_back_add</span>
-        </button>
-
-        <!-- Realtime webcam mode -->
-        <button
-            v-tooltip.top="tip('Realtime Webcam')"
-            :class="{ active: app.realtimeSamplerVisible }"
-            @click="app.realtimeSamplerVisible ? handleBack() : activateContext(() => emit('enter-realtime-mode'))"
-        >
-            <span class="material-symbols-outlined">videocam</span>
         </button>
 
         <!-- Text to SVG -->
@@ -321,7 +311,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -333,7 +323,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -345,7 +335,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -426,7 +416,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>

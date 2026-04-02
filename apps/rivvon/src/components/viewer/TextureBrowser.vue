@@ -670,14 +670,14 @@
                         <a
                             href="/slyce"
                             class="slyce-link"
-                        >Create one with slyce</a>
+                        >Create one in Create Texture</a>
                     </template>
                     <template v-else-if="activeTab === 'my-cloud'">
                         You haven't uploaded any textures to the cloud yet.
                         <a
                             href="/slyce"
                             class="slyce-link"
-                        >Create one with slyce</a>
+                        >Create one in Create Texture</a>
                     </template>
                     <template v-else>
                         No textures available yet.

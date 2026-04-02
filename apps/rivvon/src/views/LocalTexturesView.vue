@@ -48,7 +48,7 @@
                 <div class="text-6xl mb-4">💾</div>
                 <p class="empty-state-text mb-4">No textures saved locally yet.</p>
                 <p class="text-sm text-gray-400 mb-6">
-                    Create textures in Slyce and save them to your browser for offline access.
+                    Create textures in Create Texture mode and save them to your browser for offline access.
                 </p>
                 <router-link
                     to="/slyce"

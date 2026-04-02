@@ -36,8 +36,15 @@
 
     // Realtime webcam mode
     const realtime = useRealtimeSlyce();
+    const returnToCreateTextureOnRealtimeClose = ref(false);
 
-    async function enterRealtimeMode() {
+    function openCreateTextureMode() {
+        returnToCreateTextureOnRealtimeClose.value = false;
+        app.showSlyce();
+    }
+
+    async function enterRealtimeMode(options = {}) {
+        returnToCreateTextureOnRealtimeClose.value = !!options.returnToCreateTexture;
         await realtime.startCamera();
         app.showRealtimeSampler();
     }
@@ -48,11 +55,33 @@
             threeCanvasRef.value.tileManager,
             threeCanvasRef.value.ribbonSeries
         );
+        returnToCreateTextureOnRealtimeClose.value = false;
         app.hideRealtimeSampler();
     }
 
-    function handleRealtimeClose() {
+    async function handleRealtimeApplyFromTextureCreator() {
+        if (!threeCanvasRef.value) return;
+        await realtime.applyToViewer(
+            threeCanvasRef.value.tileManager,
+            threeCanvasRef.value.ribbonSeries
+        );
+        app.hideSlyce();
+    }
+
+    function handleRealtimeClose(options = {}) {
+        if (realtime.isCapturing.value) {
+            realtime.stopRealtime();
+        }
+        realtime.stopCamera();
         app.hideRealtimeSampler();
+
+        const shouldReturnToCreateTexture = returnToCreateTextureOnRealtimeClose.value
+            && !options?.suppressCreateTextureReturn;
+        returnToCreateTextureOnRealtimeClose.value = false;
+
+        if (shouldReturnToCreateTexture) {
+            app.showSlyce();
+        }
     }
 
     // Template refs
@@ -427,10 +456,13 @@
     }, { immediate: true });
 
     // Check for realtime webcam query param
-    watch(() => route.query.realtime, (realtimeParam) => {
+    watch(() => route.query.realtime, async (realtimeParam) => {
         if (realtimeParam === 'true') {
-            app.showRealtimeSampler();
-            router.replace({ path: route.path, query: {} });
+            try {
+                await enterRealtimeMode();
+            } finally {
+                router.replace({ path: route.path, query: {} });
+            }
         }
     }, { immediate: true });
 
@@ -645,7 +677,7 @@
         <RendererIndicator />
 
         <!-- Header with logo and auth -->
-        <AppHeader />
+        <AppHeader @close-realtime-mode="handleRealtimeClose" />
 
         <!-- Three.js canvas -->
         <ThreeCanvas
@@ -673,8 +705,7 @@
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :cinematic-debug="showCinematicDebug"
             @enter-draw-mode="enterDrawMode"
-            @enter-slyce-mode="app.showSlyce"
-            @enter-realtime-mode="enterRealtimeMode"
+            @enter-slyce-mode="openCreateTextureMode"
             @close-realtime-mode="handleRealtimeClose"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"
@@ -722,6 +753,8 @@
         <TextureCreator
             v-if="app.textureCreatorVisible"
             :active="app.textureCreatorVisible"
+            @close="app.hideSlyce"
+            @apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
             @apply-texture="handleApplyCreatedTexture"
         />
 

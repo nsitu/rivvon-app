@@ -1,11 +1,12 @@
 <script setup>
-    import { computed, ref } from 'vue';
+    import { computed, nextTick, ref } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import { useViewerStore } from '../../stores/viewerStore';
+    import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
     import UploadArea from '../slyce/UploadArea.vue';
     import SettingsArea from '../slyce/SettingsArea.vue';
     import ResultsArea from '../slyce/ResultsArea.vue';
+    import RealtimeSampler from '../slyce/RealtimeSampler.vue';
 
     import Stepper from 'primevue/stepper';
     import StepList from 'primevue/steplist';
@@ -20,16 +21,176 @@
         }
     });
 
-    const emit = defineEmits(['close', 'apply-texture']);
+    const emit = defineEmits(['close', 'apply-texture', 'apply-realtime-texture']);
 
     const slyce = useSlyceStore();
-    const viewer = useViewerStore();
+    const realtime = useRealtimeSlyce();
 
     // Check if processing is in progress
     const isProcessing = computed(() => Object.keys(slyce.status).length > 0);
+    const selectedSource = ref(null);
+    const cameraStep = ref('1');
 
-    // Store activate callback for external navigation
-    const activateStep = ref(null);
+    const hasExistingFileFlow = computed(() =>
+        !!slyce.file
+        || Object.keys(slyce.ktx2BlobURLs).length > 0
+        || slyce.currentStep !== '1'
+    );
+
+    const hasRealtimeWork = computed(() =>
+        realtime.isCapturing.value
+        || realtime.encodingTiles.value > 0
+        || realtime.completedKtx2Buffers.value.length > 0
+        || realtime.isSavingLocally.value
+        || !!realtime.savedLocalTextureId.value
+    );
+
+    const isFileFinished = computed(() =>
+        slyce.currentStep === '3' && slyce.isComplete
+    );
+
+    const isCameraFinished = computed(() =>
+        !realtime.isCapturing.value
+        && realtime.encodingTiles.value === 0
+        && realtime.completedKtx2Buffers.value.length > 0
+    );
+
+    const fileDisplayStep = computed(() => {
+        if (slyce.currentStep !== '3') return slyce.currentStep;
+        return isFileFinished.value ? '4' : '3';
+    });
+
+    const cameraDisplayStep = computed(() => {
+        if (cameraStep.value === '1' || cameraStep.value === '2') return cameraStep.value;
+        if (realtime.isCapturing.value || realtime.encodingTiles.value > 0) return '3';
+        if (isCameraFinished.value) return '4';
+        return '2';
+    });
+
+    const stepperValue = computed(() => {
+        if (selectedSource.value === 'camera') return cameraDisplayStep.value;
+        if (selectedSource.value === 'file') return fileDisplayStep.value;
+        return '1';
+    });
+
+    const cameraWorkflowPhase = computed(() => {
+        if (cameraDisplayStep.value === '2') return 'setup';
+        if (cameraDisplayStep.value === '4') return 'finished';
+        return 'processing';
+    });
+    const isSourceNavigationLocked = computed(() => {
+        if (selectedSource.value === 'camera') return realtime.isSavingLocally.value;
+        if (selectedSource.value === 'file') return slyce.isSavingLocally;
+        return false;
+    });
+
+    function selectFileMode() {
+        selectedSource.value = 'file';
+        cameraStep.value = '1';
+
+        if (!hasExistingFileFlow.value) {
+            slyce.set('currentStep', '1');
+        }
+    }
+
+    function handleFileSelected() {
+        selectedSource.value = 'file';
+        cameraStep.value = '1';
+        slyce.set('currentStep', '2');
+    }
+
+    function clearRealtimeFlow() {
+        if (realtime.isCapturing.value) {
+            realtime.stopRealtime();
+        }
+        if (realtime.isCameraActive.value) {
+            realtime.stopCamera();
+        }
+        realtime.discardResults();
+    }
+
+    function selectWebcamMode() {
+        if (hasRealtimeWork.value || realtime.completedKtx2Buffers.value.length > 0) {
+            clearRealtimeFlow();
+        }
+
+        selectedSource.value = 'camera';
+        cameraStep.value = '2';
+    }
+
+    async function handleStartCameraProcessing() {
+        cameraStep.value = '3';
+        await nextTick();
+        await realtime.startRealtime();
+    }
+
+    function handleCameraStepClick(targetStep) {
+        if (targetStep === '1') {
+            returnToSourceChooser();
+            return;
+        }
+
+        if (targetStep === '2' && cameraDisplayStep.value !== '2') {
+            if (hasRealtimeWork.value) {
+                const confirmed = confirm(
+                    'Returning to camera setup will clear the current capture and results. Continue?'
+                );
+                if (!confirmed) return;
+                clearRealtimeFlow();
+            }
+
+            cameraStep.value = '2';
+        }
+    }
+
+    function returnToSourceChooser() {
+        if (selectedSource.value === 'file' && isProcessing.value) {
+            const confirmed = confirm(
+                'Video processing is in progress. Switching source will cancel the current process and clear any generated results. Continue?'
+            );
+            if (!confirmed) return;
+            slyce.resetProcessing();
+        }
+
+        if (selectedSource.value === 'camera' && hasRealtimeWork.value) {
+            const confirmed = confirm(
+                'Current camera capture will be cleared when you switch sources. Continue?'
+            );
+            if (!confirmed) return;
+            clearRealtimeFlow();
+        }
+
+        selectedSource.value = null;
+        cameraStep.value = '1';
+    }
+
+    function handleEmbeddedRealtimeClose() {
+        emit('close');
+    }
+
+    function handleRealtimeApply() {
+        emit('apply-realtime-texture');
+    }
+
+    function isStepActive(value) {
+        return Number(value) <= Number(stepperValue.value);
+    }
+
+    function handleSourceStepClick(activateCallback) {
+        if (isSourceNavigationLocked.value) return;
+
+        if (selectedSource.value === null) {
+            activateCallback();
+            return;
+        }
+
+        returnToSourceChooser();
+    }
+
+    function handleBackFromSettings(activateCallback) {
+        returnToSourceChooser();
+        activateCallback('1');
+    }
 
     // Handle going back from Results with processing check
     function handleBackFromResults(activateCallback) {
@@ -40,11 +201,15 @@
             if (!confirmed) return;
             slyce.resetProcessing();
         }
+
+        slyce.set('currentStep', '2');
         activateCallback('2');
     }
 
     // Handle reset (Start Over)
     function handleReset(activateCallback) {
+        selectedSource.value = null;
+        cameraStep.value = '1';
         activateCallback('1');
     }
 
@@ -53,6 +218,10 @@
      * confirm before navigating away (which cancels the process).
      */
     function handleStepClick(activateCallback, targetStep) {
+        if (selectedSource.value === null && targetStep !== '1') {
+            return;
+        }
+
         // Only guard when navigating away from step 3 while processing
         if (slyce.currentStep === '3' && targetStep !== '3' && isProcessing.value) {
             const confirmed = confirm(
@@ -75,6 +244,8 @@
         e.stopPropagation();
         const file = e.dataTransfer?.files[0];
         if (file && file.type.startsWith('video/')) {
+            selectedSource.value = 'file';
+            cameraStep.value = '1';
             slyce.set('file', file);
             slyce.set('fileURL', URL.createObjectURL(file));
             slyce.set('currentStep', '2');
@@ -93,7 +264,7 @@
             <!-- Main content area -->
             <div class="slyce-content">
                 <Stepper
-                    :value="slyce.currentStep"
+                    :value="stepperValue"
                     linear
                 >
                     <StepList>
@@ -108,12 +279,17 @@
                             >
                                 <button
                                     class="step-button"
-                                    :class="{ active: value <= slyce.currentStep }"
-                                    @click="handleStepClick(activateCallback, '1')"
+                                    :class="{ active: isStepActive(value) }"
+                                    :disabled="selectedSource !== null && isSourceNavigationLocked"
+                                    @click="handleSourceStepClick(activateCallback)"
                                     v-bind="a11yAttrs.header"
                                 >
                                     <span class="material-symbols-outlined">video_camera_back_add</span>
                                 </button>
+                                <span
+                                    class="step-label"
+                                    :class="{ active: isStepActive(value) }"
+                                >Start</span>
                                 <div class="step-separator"></div>
                             </div>
                         </Step>
@@ -128,19 +304,48 @@
                             >
                                 <button
                                     class="step-button"
-                                    :class="{ active: value <= slyce.currentStep }"
-                                    @click="handleStepClick(activateCallback, '2')"
+                                    :class="{ active: isStepActive(value) }"
+                                    :disabled="selectedSource === null"
+                                    @click="selectedSource === 'camera' ? handleCameraStepClick('2') : handleStepClick(activateCallback, '2')"
                                     v-bind="a11yAttrs.header"
                                 >
                                     <span class="material-symbols-outlined">settings</span>
                                 </button>
+                                <span
+                                    class="step-label"
+                                    :class="{ active: isStepActive(value) }"
+                                >Config</span>
                                 <div class="step-separator"></div>
                             </div>
                         </Step>
                         <Step
-                            v-slot="{ activateCallback, value, a11yAttrs }"
+                            v-slot="{ value, a11yAttrs }"
                             asChild
                             value="3"
+                        >
+                            <div
+                                class="step-item"
+                                v-bind="a11yAttrs.root"
+                            >
+                                <button
+                                    class="step-button"
+                                    :class="{ active: isStepActive(value) }"
+                                    :disabled="true"
+                                    v-bind="a11yAttrs.header"
+                                >
+                                    <span class="material-symbols-outlined">progress_activity</span>
+                                </button>
+                                <span
+                                    class="step-label"
+                                    :class="{ active: isStepActive(value) }"
+                                >Process</span>
+                                <div class="step-separator"></div>
+                            </div>
+                        </Step>
+                        <Step
+                            v-slot="{ value, a11yAttrs }"
+                            asChild
+                            value="4"
                         >
                             <div
                                 class="step-item step-item-last"
@@ -148,38 +353,71 @@
                             >
                                 <button
                                     class="step-button"
-                                    :class="{ active: value <= slyce.currentStep }"
-                                    @click="activateCallback"
+                                    :class="{ active: isStepActive(value) }"
+                                    :disabled="true"
                                     v-bind="a11yAttrs.header"
                                 >
-                                    <span class="material-symbols-outlined">done_outline</span>
+                                    <span class="material-symbols-outlined">check_circle</span>
                                 </button>
+                                <span
+                                    class="step-label"
+                                    :class="{ active: isStepActive(value) }"
+                                >Done</span>
                             </div>
                         </Step>
                     </StepList>
                     <StepPanels>
-                        <StepPanel
-                            v-slot="{ activateCallback }"
-                            value="1"
-                        >
-                            <UploadArea @next="activateCallback('2')" />
-                        </StepPanel>
-                        <StepPanel
-                            v-slot="{ activateCallback }"
-                            value="2"
-                        >
-                            <SettingsArea @back="activateCallback('1')" />
-                        </StepPanel>
-                        <StepPanel
-                            v-slot="{ activateCallback }"
-                            value="3"
-                        >
-                            <ResultsArea
-                                @back="handleBackFromResults(activateCallback)"
-                                @reset="handleReset(activateCallback)"
-                                @apply-texture="(texture) => emit('apply-texture', texture)"
+                        <StepPanel value="1">
+                            <UploadArea
+                                :can-resume-file-flow="hasExistingFileFlow"
+                                @resume-file-flow="selectFileMode"
+                                @next="handleFileSelected"
+                                @choose-camera="selectWebcamMode"
                             />
                         </StepPanel>
+
+                        <template v-if="selectedSource === 'camera'">
+                            <div class="camera-flow-panel">
+                                <RealtimeSampler
+                                    embedded
+                                    :active="true"
+                                    auto-start-camera
+                                    :workflow-phase="cameraWorkflowPhase"
+                                    @start-capture="handleStartCameraProcessing"
+                                    @apply="handleRealtimeApply"
+                                    @close="handleEmbeddedRealtimeClose"
+                                />
+                            </div>
+                        </template>
+
+                        <template v-else>
+                            <StepPanel
+                                v-slot="{ activateCallback }"
+                                value="2"
+                            >
+                                <SettingsArea @back="handleBackFromSettings(activateCallback)" />
+                            </StepPanel>
+                            <StepPanel
+                                v-slot="{ activateCallback }"
+                                value="3"
+                            >
+                                <ResultsArea
+                                    @back="handleBackFromResults(activateCallback)"
+                                    @reset="handleReset(activateCallback)"
+                                    @apply-texture="(texture) => emit('apply-texture', texture)"
+                                />
+                            </StepPanel>
+                            <StepPanel
+                                v-slot="{ activateCallback }"
+                                value="4"
+                            >
+                                <ResultsArea
+                                    @back="handleBackFromResults(activateCallback)"
+                                    @reset="handleReset(activateCallback)"
+                                    @apply-texture="(texture) => emit('apply-texture', texture)"
+                                />
+                            </StepPanel>
+                        </template>
                     </StepPanels>
                 </Stepper>
             </div>
@@ -232,6 +470,11 @@
         width: 100%;
     }
 
+    .camera-flow-panel {
+        max-width: 920px;
+        margin: 0 auto;
+    }
+
     /* Override PrimeVue stepper styling for dark theme */
     .slyce-content :deep(.p-stepper) {
         background: transparent;
@@ -241,7 +484,7 @@
         background: transparent;
         justify-content: center;
         padding: 0 0 1rem 0;
-        max-width: 360px;
+        width: min(100%, 760px);
         margin: 0 auto;
         gap: 0;
     }
@@ -256,7 +499,7 @@
     .step-item {
         display: flex;
         flex-direction: row;
-        align-items: center;
+        align-items: flex-start;
         flex: 1;
         gap: 0;
     }
@@ -280,9 +523,13 @@
         flex-shrink: 0;
     }
 
-    .step-button:hover {
+    .step-button:hover:not(:disabled) {
         border-color: #777;
         background: #444;
+    }
+
+    .step-button:disabled {
+        cursor: default;
     }
 
     .step-button.active {
@@ -295,11 +542,28 @@
         font-size: 1.25rem;
     }
 
+    .step-label {
+        display: block;
+        margin-left: 1rem;
+        align-self: center;
+        color: #888;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        line-height: 1.25;
+        text-align: center;
+        text-transform: uppercase;
+    }
+
+    .step-label.active {
+        color: #fff;
+    }
+
     .step-separator {
         flex: 1;
         height: 2px;
         background: #555;
-        margin: 0 0.5rem;
+        margin: 1.45rem 0.5rem 0;
         min-width: 2rem;
     }
 
@@ -334,5 +598,18 @@
 
     .slyce-content :deep(.p-stepper-separator) {
         background: #555;
+    }
+
+    @media (max-width: 720px) {
+        .slyce-content :deep(.p-steplist) {
+            width: 100%;
+            overflow-x: auto;
+            justify-content: flex-start;
+            padding-bottom: 1.25rem;
+        }
+
+        .step-item {
+            flex: 0 0 auto;
+        }
     }
 </style>
