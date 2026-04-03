@@ -686,8 +686,11 @@ export function useRealtimeSlyce() {
      *
      * @param {Object} tileManager - TileManager instance (raw, not ref)
      * @param {Object} ribbonSeries - RibbonSeries instance (raw, not ref)
+     * @param {Object} options
+     * @param {Function|null} options.setBackgroundFromTileManager - Viewer background refresh hook
      */
-    async function applyToViewer(tileManager, ribbonSeries) {
+    async function applyToViewer(tileManager, ribbonSeries, options = {}) {
+        const { setBackgroundFromTileManager = null } = options;
         const buffers = completedKtx2Buffers.value;
         if (buffers.length === 0) {
             console.warn('[RealtimeSlyce] No KTX2 buffers to apply');
@@ -705,10 +708,16 @@ export function useRealtimeSlyce() {
             await tileManager.addTileFromBuffer(buffers[i], i);
         }
 
+        if (ribbonSeries?.setTileManager) {
+            ribbonSeries.setTileManager(tileManager);
+        }
+
         // Single material rebuild
         if (ribbonSeries?.initFlowMaterials) {
             ribbonSeries.initFlowMaterials();
         }
+
+        await setBackgroundFromTileManager?.();
 
         console.log(`[RealtimeSlyce] Applied ${buffers.length} tiles to viewer`);
 

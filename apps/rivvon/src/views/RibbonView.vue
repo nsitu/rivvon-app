@@ -49,22 +49,34 @@
         app.showRealtimeSampler();
     }
 
-    async function handleRealtimeApply() {
-        if (!threeCanvasRef.value) return;
+    async function applyRealtimeResultsToViewer() {
+        if (!threeCanvasRef.value) return false;
+
+        threeCanvasRef.value.clearMultiTextureState?.();
+
         await realtime.applyToViewer(
             threeCanvasRef.value.tileManager,
-            threeCanvasRef.value.ribbonSeries
+            threeCanvasRef.value.ribbonSeries,
+            {
+                setBackgroundFromTileManager: threeCanvasRef.value.setBackgroundFromTileManager,
+            }
         );
+
+        return true;
+    }
+
+    async function handleRealtimeApply() {
+        const applied = await applyRealtimeResultsToViewer();
+        if (!applied) return;
+
         returnToCreateTextureOnRealtimeClose.value = false;
         app.hideRealtimeSampler();
     }
 
     async function handleRealtimeApplyFromTextureCreator() {
-        if (!threeCanvasRef.value) return;
-        await realtime.applyToViewer(
-            threeCanvasRef.value.tileManager,
-            threeCanvasRef.value.ribbonSeries
-        );
+        const applied = await applyRealtimeResultsToViewer();
+        if (!applied) return;
+
         app.hideSlyce();
     }
 

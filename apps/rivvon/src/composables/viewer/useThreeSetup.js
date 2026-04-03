@@ -288,6 +288,7 @@ export function useThreeSetup() {
         createRibbon: ribbons.createRibbon,
         createRibbonSeries: ribbons.createRibbonSeries,
         createRibbonFromDrawing: ribbons.createRibbonFromDrawing,
+        clearMultiTextureState: textures.clearMultiTextureState,
         loadTextures: textures.loadTextures,
         loadTexturesFromRemote: textures.loadTexturesFromRemote,
         loadTexturesFromLocal: textures.loadTexturesFromLocal,

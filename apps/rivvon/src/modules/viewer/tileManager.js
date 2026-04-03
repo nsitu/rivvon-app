@@ -1519,6 +1519,7 @@ export class TileManager {
         this.sharedLayerUniform.value = 0;
         this.loadedCount = 0;
         this.zipFiles = null;
+        this.currentTextureSet = null;
 
         console.log('[TileManager] Cleared all tiles');
     }

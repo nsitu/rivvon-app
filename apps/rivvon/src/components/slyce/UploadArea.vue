@@ -1,5 +1,6 @@
 <script setup>
     import { ref } from 'vue';
+    import Button from 'primevue/button';
 
     import { useSlyceStore } from '../../stores/slyceStore';
     const app = useSlyceStore()  // Pinia store
@@ -37,48 +38,52 @@
 
 <template>
     <section class="upload-area">
-        <div class="source-copy">
-            <h2 class="source-title">Choose a video source.</h2>
-            <p class="source-description">
-                Start from a video file for full control, or sample from your camera for a realtime flow.
-            </p>
-        </div>
 
         <div class="source-grid">
             <div class="source-card source-card-file">
-                <span class="material-symbols-outlined source-icon">movie</span>
-                <span class="source-card-title">Video File</span>
+                <h4 class="flex items-center gap-2 source-card-header">
+                    <span class="material-symbols-outlined source-icon">movie</span>
+                    <span class="source-card-title">Video File</span>
+                </h4>
+
                 <span class="source-card-detail">
                     Upload a video, fine-tune settings, then process and save.
                 </span>
                 <div class="source-actions">
-                    <button
+                    <Button
+                        type="button"
                         class="source-primary-btn"
                         @click="handleFileCardAction"
-                    >
-                        {{ canResumeFileFlow ? 'Continue Video File' : 'Browse Video' }}
-                    </button>
-                    <button
+                        :label="canResumeFileFlow ? 'Continue Video File' : 'Browse Video'"
+                    />
+                    <Button
                         v-if="canResumeFileFlow"
+                        type="button"
                         class="source-secondary-btn"
                         @click="fileInput.click()"
-                    >
-                        Choose Different Video
-                    </button>
+                        label="Choose Different Video"
+                    />
                 </div>
             </div>
 
-            <button
-                class="source-card source-card-camera"
-                @click="emit('choose-camera')"
-            >
-                <span class="material-symbols-outlined source-icon">camera_video</span>
-                <span class="source-card-title">Camera</span>
+            <div class="source-card source-card-file">
+                <h4 class="flex items-center gap-2 source-card-header">
+                    <span class="material-symbols-outlined source-icon">camera_video</span>
+                    <span class="source-card-title">Camera</span>
+                </h4>
+
                 <span class="source-card-detail">
                     Capture from the camera, sample live, and save the result.
                 </span>
-                <span class="camera-cta">Open Camera</span>
-            </button>
+
+                <Button
+                    type="button"
+                    class="source-primary-btn"
+                    @click="emit('choose-camera')"
+                    label="Open Camera"
+                />
+            </div>
+
         </div>
 
         <p class="source-drop-hint">Drag and drop a video anywhere on this screen to jump straight into the file
@@ -149,7 +154,6 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 0.85rem;
-        min-height: 16rem;
         padding: 1.5rem;
         border-radius: 1.4rem;
         border: 1px solid rgba(129, 140, 248, 0.18);
@@ -166,11 +170,6 @@
         border: 1px solid rgba(129, 140, 248, 0.18);
     }
 
-    .source-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(96, 165, 250, 0.45);
-        box-shadow: 0 18px 36px rgba(0, 0, 0, 0.26);
-    }
 
     .source-icon {
         font-size: 2rem;
