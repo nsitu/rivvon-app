@@ -311,7 +311,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -323,7 +323,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -335,7 +335,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -416,7 +416,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -704,9 +704,9 @@
     }
 
     .tools-option.selected {
-        color: #4caf50;
-        border: 1px solid #4caf50;
-        background: rgba(76, 175, 80, 0.1);
+        color: var(--p-primary-color, #10b981);
+        border: 1px solid color-mix(in srgb, var(--p-primary-color, #10b981) 42%, transparent);
+        background: color-mix(in srgb, var(--p-primary-color, #10b981) 12%, transparent);
     }
 
     .tools-option .material-symbols-outlined {
@@ -793,7 +793,7 @@
         width: 16px;
         height: 16px;
         border-radius: 50%;
-        background: #4caf50;
+        background: var(--p-primary-color, #10b981);
         cursor: pointer;
     }
 
@@ -801,7 +801,7 @@
         width: 16px;
         height: 16px;
         border-radius: 50%;
-        background: #4caf50;
+        background: var(--p-primary-color, #10b981);
         border: none;
         cursor: pointer;
     }

@@ -11,11 +11,13 @@
         >Initializing renderer...</div>
 
         <!-- Fullscreen toggle button -->
-        <button
+        <Button
             v-if="isInitialized"
+            type="button"
             class="fullscreen-button"
             @click="toggleFullscreen"
             :title="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+            :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
         >
             <svg
                 v-if="!isFullscreen"
@@ -47,12 +49,13 @@
                 <path
                     d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
             </svg>
-        </button>
+        </Button>
     </div>
 </template>
 
 <script setup>
     import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue';
+    import Button from 'primevue/button';
     import { useSlyceStore } from '../../stores/slyceStore';
 
     // Import both renderer implementations
@@ -384,11 +387,11 @@
         top: 12px;
         right: 12px;
         z-index: 20;
+        min-width: 0;
         background: rgba(0, 0, 0, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 6px;
         padding: 8px;
-        cursor: pointer;
         color: rgba(255, 255, 255, 0.8);
         transition: all 0.2s ease;
         display: flex;

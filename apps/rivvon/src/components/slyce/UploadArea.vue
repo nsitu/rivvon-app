@@ -1,6 +1,7 @@
 <script setup>
     import { ref } from 'vue';
     import Button from 'primevue/button';
+    import Card from 'primevue/card';
 
     import { useSlyceStore } from '../../stores/slyceStore';
     const app = useSlyceStore()  // Pinia store
@@ -40,49 +41,56 @@
     <section class="upload-area">
 
         <div class="source-grid">
-            <div class="source-card source-card-file">
-                <h4 class="flex items-center gap-2 source-card-header">
-                    <span class="material-symbols-outlined source-icon">movie</span>
-                    <span class="source-card-title">Video File</span>
-                </h4>
+            <Card class="source-card source-card-file">
+                <template #title>
+                    <h4 class="flex items-center gap-2 source-card-header">
+                        <span class="material-symbols-outlined source-icon">movie</span>
+                        <span class="source-card-title">Video File</span>
+                    </h4>
+                </template>
+                <template #content>
+                    <span class="source-card-detail">
+                        Upload a video, fine-tune settings, then process and save.
+                    </span>
+                </template>
+                <template #footer>
+                    <div class="source-actions">
+                        <Button
+                            type="button"
+                            @click="handleFileCardAction"
+                            :label="canResumeFileFlow ? 'Continue Video File' : 'Browse Video'"
+                        />
+                        <Button
+                            v-if="canResumeFileFlow"
+                            type="button"
+                            severity="secondary"
+                            @click="fileInput.click()"
+                            label="Choose Different Video"
+                        />
+                    </div>
+                </template>
+            </Card>
 
-                <span class="source-card-detail">
-                    Upload a video, fine-tune settings, then process and save.
-                </span>
-                <div class="source-actions">
+            <Card class="source-card source-card-camera">
+                <template #title>
+                    <h4 class="flex items-center gap-2 source-card-header">
+                        <span class="material-symbols-outlined source-icon">camera_video</span>
+                        <span class="source-card-title">Camera</span>
+                    </h4>
+                </template>
+                <template #content>
+                    <span class="source-card-detail">
+                        Capture from the camera, sample live, and save the result.
+                    </span>
+                </template>
+                <template #footer>
                     <Button
                         type="button"
-                        class="source-primary-btn"
-                        @click="handleFileCardAction"
-                        :label="canResumeFileFlow ? 'Continue Video File' : 'Browse Video'"
+                        @click="emit('choose-camera')"
+                        label="Open Camera"
                     />
-                    <Button
-                        v-if="canResumeFileFlow"
-                        type="button"
-                        class="source-secondary-btn"
-                        @click="fileInput.click()"
-                        label="Choose Different Video"
-                    />
-                </div>
-            </div>
-
-            <div class="source-card source-card-file">
-                <h4 class="flex items-center gap-2 source-card-header">
-                    <span class="material-symbols-outlined source-icon">camera_video</span>
-                    <span class="source-card-title">Camera</span>
-                </h4>
-
-                <span class="source-card-detail">
-                    Capture from the camera, sample live, and save the result.
-                </span>
-
-                <Button
-                    type="button"
-                    class="source-primary-btn"
-                    @click="emit('choose-camera')"
-                    label="Open Camera"
-                />
-            </div>
+                </template>
+            </Card>
 
         </div>
 
@@ -150,30 +158,40 @@
     }
 
     .source-card {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.85rem;
-        padding: 1.5rem;
-        border-radius: 1.4rem;
-        border: 1px solid rgba(129, 140, 248, 0.18);
-        background:
-            radial-gradient(circle at top right, rgba(96, 165, 250, 0.16), transparent 40%),
-            linear-gradient(160deg, rgba(19, 25, 39, 0.98), rgba(12, 18, 30, 0.98));
-        color: #f8fbff;
         text-align: left;
-        transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
     }
 
-    .source-card-camera {
-        cursor: pointer;
-        border: 1px solid rgba(129, 140, 248, 0.18);
+    .source-card :deep(.p-card-body) {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .source-card :deep(.p-card-caption) {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .source-card :deep(.p-card-title) {
+        margin: 0;
+    }
+
+    .source-card :deep(.p-card-content) {
+        display: flex;
+        flex: 1;
+        padding: 0;
+    }
+
+    .source-card :deep(.p-card-footer) {
+        padding: 0;
     }
 
 
     .source-icon {
         font-size: 2rem;
-        color: #8ec5ff;
+        color: var(--p-primary-color);
     }
 
     .source-card-title {
@@ -182,7 +200,7 @@
     }
 
     .source-card-detail {
-        color: rgba(232, 238, 248, 0.78);
+        color: var(--p-text-muted-color);
         font-size: 0.95rem;
         line-height: 1.55;
     }
@@ -192,43 +210,6 @@
         flex-wrap: wrap;
         gap: 0.75rem;
         margin-top: auto;
-    }
-
-    .source-primary-btn,
-    .source-secondary-btn {
-        min-height: 44px;
-        border-radius: 999px;
-        border: 1px solid transparent;
-        padding: 0.7rem 1rem;
-        font-size: 0.92rem;
-        cursor: pointer;
-        transition: background-color 0.2s ease, border-color 0.2s ease;
-    }
-
-    .source-primary-btn {
-        background: #2563eb;
-        color: #fff;
-    }
-
-    .source-primary-btn:hover {
-        background: #1d4ed8;
-    }
-
-    .source-secondary-btn {
-        background: rgba(255, 255, 255, 0.06);
-        color: #f8fbff;
-        border-color: rgba(255, 255, 255, 0.14);
-    }
-
-    .source-secondary-btn:hover {
-        background: rgba(255, 255, 255, 0.12);
-    }
-
-    .camera-cta {
-        margin-top: auto;
-        font-size: 0.92rem;
-        font-weight: 600;
-        color: #8ec5ff;
     }
 
     .source-drop-hint {

@@ -1,5 +1,6 @@
 <script setup>
     import { ref, watch, onMounted } from 'vue';
+    import Button from 'primevue/button';
     import { useTextToSvg } from '../../composables/viewer/useTextToSvg';
 
     const props = defineProps({
@@ -93,14 +94,16 @@
                         </select>
                     </div>
 
-                    <button
-                        class="generate-btn"
+                    <Button
+                        type="button"
+                        class="text-submit-btn"
+                        size="large"
                         :disabled="!textInput.trim() || isLoading"
                         @click="generate"
                     >
                         <span class="material-symbols-outlined">check</span>
                         Go
-                    </button>
+                    </Button>
 
                     <p
                         v-if="error"
@@ -187,33 +190,20 @@
         border-color: #4caf50;
     }
 
-    .generate-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .text-submit-btn {
         gap: 0.5rem;
-        background: #4caf50;
-        color: #fff;
-        border: none;
-        padding: 0.875rem 1.5rem;
+        justify-content: center;
+        min-height: 48px;
         font-size: 1rem;
         font-weight: 500;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: background 0.2s ease;
         margin-top: 0.5rem;
     }
 
-    .generate-btn:hover:not(:disabled) {
-        background: #43a047;
-    }
-
-    .generate-btn:disabled {
+    .text-submit-btn:disabled {
         opacity: 0.5;
-        cursor: not-allowed;
     }
 
-    .generate-btn .material-symbols-outlined {
+    .text-submit-btn .material-symbols-outlined {
         font-size: 1.25rem;
     }
 

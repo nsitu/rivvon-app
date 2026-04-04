@@ -1,35 +1,39 @@
 <template>
-    <div class="download-section">
-        <LocalSaveStatus
-            :is-saving-locally="app.isSavingLocally"
-            :save-local-progress="app.saveLocalProgress"
-            :save-local-error="app.saveLocalError"
-            :saved-local-texture-id="app.savedLocalTextureId"
-            :show-pending="true"
-            @retry="retrySaveLocally"
-        >
-            <template #success-actions>
-                <button
-                    @click="applyTexture"
-                    class="apply-texture-btn bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors duration-300 flex items-center gap-2"
-                >
-                    <span class="material-symbols-outlined">check</span>
-                    Apply
-                </button>
+    <LocalSaveStatus
+        :is-saving-locally="app.isSavingLocally"
+        :save-local-progress="app.saveLocalProgress"
+        :save-local-error="app.saveLocalError"
+        :saved-local-texture-id="app.savedLocalTextureId"
+        :show-pending="true"
+        @retry="retrySaveLocally"
+    >
+        <template #success-actions>
+            <Button
+                type="button"
+                @click="applyTexture"
+                class="apply-texture-btn"
+                severity="success"
+            >
+                <span class="material-symbols-outlined">check</span>
+                Apply
+            </Button>
 
-                <button
-                    @click="openTextureBrowser"
-                    class="view-local-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-300 flex items-center gap-2"
-                >
-                    <span class="material-symbols-outlined">folder</span>
-                    Browser
-                </button>
-            </template>
-        </LocalSaveStatus>
-    </div>
+            <Button
+                type="button"
+                @click="openTextureBrowser"
+                class="view-local-btn"
+                severity="secondary"
+                variant="outlined"
+            >
+                <span class="material-symbols-outlined">folder</span>
+                Browser
+            </Button>
+        </template>
+    </LocalSaveStatus>
 </template>
 
 <script setup>
+    import Button from 'primevue/button';
     import LocalSaveStatus from './LocalSaveStatus.vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -70,24 +74,16 @@
 </script>
 
 <style scoped>
-    .download-section {
-        padding: 0.75rem;
-        border: 1px solid var(--border-primary);
-        border-radius: 0.5rem;
-        background: var(--bg-secondary);
-        text-align: left;
-    }
-
-    @media (min-width: 640px) {
-        .download-section {
-            padding: 0.75rem 1rem;
-        }
-    }
     .apply-texture-btn {
         min-height: 44px;
     }
 
     .view-local-btn {
         min-height: 44px;
+    }
+
+    .apply-texture-btn .material-symbols-outlined,
+    .view-local-btn .material-symbols-outlined {
+        font-size: 1.1rem;
     }
 </style>

@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
+    import Button from 'primevue/button';
     import LocalSaveStatus from './LocalSaveStatus.vue';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
@@ -465,24 +466,49 @@
                     class="done-summary"
                     :class="`is-${doneSaveState}`"
                 >
-                    <p class="done-summary-kicker">Processing Complete</p>
-                    <h2 class="done-summary-title">{{ doneSummaryTitle }}</h2>
-                    <p class="done-summary-detail">{{ doneSummaryDetail }}</p>
-                    <p
-                        v-if="doneSummaryMeta"
-                        class="done-summary-meta"
-                    >{{ doneSummaryMeta }}</p>
+                    <div class="done-summary-icon-wrap">
+                        <span
+                            v-if="doneSaveState === 'saving'"
+                            class="material-symbols-outlined done-summary-icon saving"
+                        >progress_activity</span>
+                        <span
+                            v-else-if="doneSaveState === 'error'"
+                            class="material-symbols-outlined done-summary-icon error"
+                        >error</span>
+                        <span
+                            v-else-if="doneSaveState === 'success'"
+                            class="material-symbols-outlined done-summary-icon success"
+                        >check_circle</span>
+                        <span
+                            v-else
+                            class="material-symbols-outlined done-summary-icon pending"
+                        >schedule</span>
+                    </div>
+
+                    <div class="done-summary-copy">
+                        <p class="done-summary-kicker">Processing Complete</p>
+                        <h2 class="done-summary-title">{{ doneSummaryTitle }}</h2>
+                        <p class="done-summary-detail">{{ doneSummaryDetail }}</p>
+                        <p
+                            v-if="doneSummaryMeta"
+                            class="done-summary-meta"
+                        >{{ doneSummaryMeta }}</p>
+                    </div>
+
                     <div
                         v-if="doneSaveState === 'error'"
                         class="done-summary-actions"
                     >
-                        <button
+                        <Button
+                            type="button"
                             class="done-summary-retry-btn"
+                            severity="danger"
+                            variant="outlined"
                             @click="handleRetryLocalSave"
                         >
                             <span class="material-symbols-outlined">refresh</span>
                             Retry Save
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
@@ -574,12 +600,16 @@
                     <span class="material-symbols-outlined warning-icon">warning</span>
                     <span>Processing at {{ realtime.fps.value }}fps — too slow for {{ realtime.potResolution.value }}²
                         tiles</span>
-                    <button
+                    <Button
+                        type="button"
                         class="downgrade-btn"
+                        severity="danger"
+                        variant="outlined"
+                        size="small"
                         @click="handleDowngrade"
                     >
                         Switch to {{ nextLowerResolution }}²
-                    </button>
+                    </Button>
                 </div>
 
                 <!-- Controls -->
@@ -592,29 +622,36 @@
                         class="control-field control-field-compact"
                     >
                         <span class="control-label">Capture</span>
-                        <button
+                        <Button
+                            type="button"
                             class="ctrl-btn"
-                            :class="{ recording: realtime.isCapturing.value }"
+                            :severity="realtime.isCapturing.value ? 'danger' : 'secondary'"
+                            :variant="realtime.isCapturing.value ? null : 'outlined'"
+                            size="small"
                             @click="realtime.isCapturing.value ? handleStop() : handleStart()"
                         >
                             <span class="material-symbols-outlined">
                                 {{ realtime.isCapturing.value ? 'stop_circle' : 'videocam' }}
                             </span>
                             <span class="btn-label">{{ realtime.isCapturing.value ? 'Stop' : 'Start' }}</span>
-                        </button>
+                        </Button>
                     </div>
 
                     <!-- Camera flip -->
                     <div class="control-field control-field-compact">
                         <span class="control-label">Active Camera</span>
-                        <button
+                        <Button
+                            type="button"
                             class="ctrl-btn"
+                            severity="secondary"
+                            variant="outlined"
+                            size="small"
                             :disabled="!realtime.isCameraActive.value"
                             @click="realtime.toggleCamera"
                         >
                             <span class="material-symbols-outlined">cameraswitch</span>
                             <span class="btn-label">{{ activeCameraLabel }}</span>
-                        </button>
+                        </Button>
                     </div>
 
                     <!-- Camera resolution -->
@@ -670,22 +707,28 @@
                     <div class="control-field control-field-wide">
                         <span class="control-label">Sampling Mode</span>
                         <div class="type-toggle">
-                            <button
+                            <Button
+                                type="button"
                                 class="type-btn"
-                                :class="{ active: realtime.crossSectionType.value === 'planes' }"
+                                :severity="realtime.crossSectionType.value === 'planes' ? 'primary' : 'secondary'"
+                                :variant="realtime.crossSectionType.value === 'planes' ? null : 'outlined'"
+                                size="small"
                                 :disabled="realtime.isCapturing.value"
                                 @click="realtime.setCrossSectionType('planes')"
                             >
                                 Planes
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                                type="button"
                                 class="type-btn"
-                                :class="{ active: realtime.crossSectionType.value === 'waves' }"
+                                :severity="realtime.crossSectionType.value === 'waves' ? 'primary' : 'secondary'"
+                                :variant="realtime.crossSectionType.value === 'waves' ? null : 'outlined'"
+                                size="small"
                                 :disabled="realtime.isCapturing.value"
                                 @click="realtime.setCrossSectionType('waves')"
                             >
                                 Waves
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
@@ -738,27 +781,32 @@
                     v-if="isSetupPhase"
                     class="setup-action-bar"
                 >
-                    <button
+                    <Button
+                        type="button"
                         class="primary-action-btn"
+                        size="large"
                         :disabled="!realtime.isCameraActive.value"
                         @click="handleStart"
                     >
                         <span class="material-symbols-outlined">videocam</span>
                         Start Capture
-                    </button>
+                    </Button>
                 </div>
 
                 <div
                     v-else-if="isProcessingPhase && realtime.isCapturing.value"
                     class="setup-action-bar"
                 >
-                    <button
-                        class="primary-action-btn danger"
+                    <Button
+                        type="button"
+                        class="primary-action-btn"
+                        severity="danger"
+                        size="large"
                         @click="handleStop"
                     >
                         <span class="material-symbols-outlined">stop_circle</span>
                         Stop Capture
-                    </button>
+                    </Button>
                 </div>
 
                 <!-- Action buttons (Apply / Discard) -->
@@ -766,29 +814,38 @@
                     v-if="canApply"
                     class="action-bar"
                 >
-                    <button
-                        class="action-btn apply-btn"
+                    <Button
+                        type="button"
+                        class="action-btn"
+                        severity="success"
                         @click="handleApply"
                     >
                         <span class="material-symbols-outlined">check_circle</span>
                         Apply to Ribbon
-                    </button><button
+                    </Button>
+                    <Button
+                        type="button"
                         v-if="realtime.savedLocalTextureId.value"
-                        class="action-btn library-btn"
+                        class="action-btn"
+                        severity="secondary"
+                        variant="outlined"
                         @click="handleOpenTextureLibrary"
                     >
                         <span class="material-symbols-outlined">grid_view</span>
                         Open in Library
-                    </button>
+                    </Button>
 
-                    <button
-                        class="action-btn discard-btn"
+                    <Button
+                        type="button"
+                        class="action-btn"
+                        severity="danger"
+                        variant="outlined"
                         :disabled="realtime.isSavingLocally.value"
                         @click="handleDiscard"
                     >
                         <span class="material-symbols-outlined">delete</span>
                         Discard
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -874,15 +931,56 @@
     }
 
     .done-summary {
+        --done-summary-accent: var(--p-primary-color, #60a5fa);
         width: 100%;
-        padding: 0;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        column-gap: 0.9rem;
+        row-gap: 0.85rem;
+        padding: 0.95rem 1rem;
+        border-radius: 0.85rem;
+        border: 1px solid color-mix(in srgb, var(--done-summary-accent) 35%, transparent);
+        background: color-mix(in srgb, var(--done-summary-accent) 8%, transparent);
+        color: var(--p-text-color, rgba(255, 255, 255, 0.94));
         text-align: left;
         align-self: stretch;
     }
 
+    .done-summary-icon-wrap {
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 0.1rem;
+    }
+
+    .done-summary-icon {
+        font-size: 1.4rem;
+        color: var(--done-summary-accent);
+    }
+
+    .done-summary-icon.success {
+        color: var(--done-summary-accent);
+    }
+
+    .done-summary-icon.error {
+        color: var(--done-summary-accent);
+    }
+
+    .done-summary-icon.pending,
+    .done-summary-icon.saving {
+        color: var(--done-summary-accent);
+    }
+
+    .done-summary-copy {
+        grid-column: 2;
+        min-width: 0;
+    }
+
     .done-summary-kicker {
         margin: 0;
-        color: rgba(232, 238, 248, 0.56);
+        color: var(--p-text-muted-color, rgba(232, 238, 248, 0.56));
         font-size: 0.78rem;
         font-weight: 700;
         letter-spacing: 0.1em;
@@ -891,60 +989,52 @@
 
     .done-summary-title {
         margin: 0.35rem 0 0;
-        color: #f8fbff;
+        color: var(--p-text-color, #f8fbff);
         font-size: clamp(1.55rem, 2.6vw, 2.2rem);
         line-height: 1.05;
     }
 
     .done-summary-detail {
         margin: 0.9rem 0 0;
-        max-width: 54rem;
-        color: rgba(232, 238, 248, 0.8);
+        color: color-mix(in srgb, var(--p-text-color, #f8fbff) 82%, transparent);
         font-size: 0.98rem;
         line-height: 1.65;
     }
 
     .done-summary-meta {
         margin: 0.75rem 0 0;
-        color: rgba(232, 238, 248, 0.58);
+        color: var(--p-text-muted-color, rgba(232, 238, 248, 0.58));
         font-size: 0.82rem;
         font-weight: 500;
     }
 
     .done-summary-actions {
+        grid-column: 2;
         display: flex;
         justify-content: flex-start;
-        margin-top: 1rem;
+        margin-top: 0.15rem;
     }
 
     .done-summary-retry-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
         min-height: 44px;
-        padding: 0.7rem 1rem;
-        border: 1px solid rgba(248, 113, 113, 0.34);
-        border-radius: 999px;
-        background: rgba(248, 113, 113, 0.12);
-        color: #fee2e2;
         font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.15s ease, border-color 0.15s ease;
     }
 
-    .done-summary-retry-btn:hover {
-        background: rgba(248, 113, 113, 0.18);
-        border-color: rgba(248, 113, 113, 0.46);
+    .done-summary.is-success {
+        --done-summary-accent: var(--p-green-400, #4ade80);
+    }
+
+    .done-summary.is-error {
+        --done-summary-accent: var(--p-red-400, #f87171);
     }
 
     .done-summary.is-error .done-summary-kicker,
     .done-summary.is-error .done-summary-meta {
-        color: rgba(252, 165, 165, 0.72);
+        color: color-mix(in srgb, var(--done-summary-accent) 72%, var(--p-text-color, #fff) 28%);
     }
 
     .done-summary.is-error .done-summary-title {
-        color: #fff1f2;
+        color: color-mix(in srgb, var(--done-summary-accent) 16%, var(--p-text-color, #fff) 84%);
     }
 
     .setup-action-bar {
@@ -955,36 +1045,14 @@
     }
 
     .primary-action-btn {
-        display: inline-flex;
-        align-items: center;
         gap: 0.55rem;
         min-height: 48px;
-        padding: 0.8rem 1.2rem;
-        border-radius: 999px;
-        border: none;
-        background: #2563eb;
-        color: #fff;
         font-size: 0.95rem;
         font-weight: 600;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
-
-    .primary-action-btn:hover:not(:disabled) {
-        background: #1d4ed8;
     }
 
     .primary-action-btn:disabled {
         opacity: 0.45;
-        cursor: default;
-    }
-
-    .primary-action-btn.danger {
-        background: #dc2626;
-    }
-
-    .primary-action-btn.danger:hover:not(:disabled) {
-        background: #b91c1c;
     }
 
     /* Preview area */
@@ -1189,30 +1257,12 @@
     }
 
     .ctrl-btn {
-        display: flex;
-        align-items: center;
         gap: 4px;
-        background: rgba(255, 255, 255, 0.12);
-        border: none;
-        border-radius: 8px;
-        padding: 8px 14px;
-        color: white;
-        cursor: pointer;
         font-size: 13px;
-        transition: background 0.15s;
-    }
-
-    .ctrl-btn:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.22);
     }
 
     .ctrl-btn:disabled {
         opacity: 0.4;
-        cursor: default;
-    }
-
-    .ctrl-btn.recording {
-        background: rgba(244, 67, 54, 0.6);
     }
 
     .ctrl-btn .material-symbols-outlined {
@@ -1278,16 +1328,10 @@
     }
 
     .action-btn {
-        display: flex;
-        align-items: center;
         gap: 6px;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
+        min-height: 44px;
         font-size: 14px;
         font-weight: 500;
-        cursor: pointer;
-        transition: background 0.15s;
     }
 
     .action-btn .material-symbols-outlined {
@@ -1296,70 +1340,20 @@
 
     .action-btn:disabled {
         opacity: 0.45;
-        cursor: default;
-    }
-
-    .apply-btn {
-        background: #4caf50;
-        color: white;
-    }
-
-    .apply-btn:hover {
-        background: #43a047;
-    }
-
-    .library-btn {
-        background: #2563eb;
-        color: white;
-    }
-
-    .library-btn:hover {
-        background: #1d4ed8;
-    }
-
-    .discard-btn {
-        background: rgba(255, 255, 255, 0.12);
-        color: rgba(255, 255, 255, 0.8);
-    }
-
-    .discard-btn:hover {
-        background: rgba(255, 255, 255, 0.22);
     }
 
     /* Planes/Waves toggle */
     .type-toggle {
         display: flex;
-        border-radius: 6px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        gap: 0.5rem;
     }
 
     .type-btn {
-        background: rgba(255, 255, 255, 0.06);
-        border: none;
-        color: rgba(255, 255, 255, 0.6);
-        padding: 6px 12px;
         font-size: 13px;
-        cursor: pointer;
-        transition: background 0.15s, color 0.15s;
-    }
-
-    .type-btn:first-child {
-        border-right: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .type-btn.active {
-        background: rgba(100, 181, 246, 0.3);
-        color: #64b5f6;
-    }
-
-    .type-btn:hover:not(:disabled):not(.active) {
-        background: rgba(255, 255, 255, 0.12);
     }
 
     .type-btn:disabled {
         opacity: 0.4;
-        cursor: default;
     }
 
     /* FPS drop warning */
@@ -1383,18 +1377,8 @@
     }
 
     .downgrade-btn {
-        background: rgba(255, 255, 255, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 6px;
-        color: white;
-        padding: 4px 12px;
+        min-height: 34px;
         font-size: 13px;
-        cursor: pointer;
-        transition: background 0.15s;
         white-space: nowrap;
-    }
-
-    .downgrade-btn:hover {
-        background: rgba(255, 255, 255, 0.25);
     }
 </style>

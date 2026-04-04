@@ -269,12 +269,12 @@
                 >
                     <StepList>
                         <Step
-                            v-slot="{ activateCallback, value, a11yAttrs }"
+                            v-slot="{ activateCallback, value, a11yAttrs, class: stepClass }"
                             asChild
                             value="1"
                         >
                             <div
-                                class="step-item"
+                                :class="[stepClass, 'step-item']"
                                 v-bind="a11yAttrs.root"
                             >
                                 <button
@@ -294,12 +294,12 @@
                             </div>
                         </Step>
                         <Step
-                            v-slot="{ activateCallback, value, a11yAttrs }"
+                            v-slot="{ activateCallback, value, a11yAttrs, class: stepClass }"
                             asChild
                             value="2"
                         >
                             <div
-                                class="step-item"
+                                :class="[stepClass, 'step-item']"
                                 v-bind="a11yAttrs.root"
                             >
                                 <button
@@ -319,12 +319,12 @@
                             </div>
                         </Step>
                         <Step
-                            v-slot="{ value, a11yAttrs }"
+                            v-slot="{ value, a11yAttrs, class: stepClass }"
                             asChild
                             value="3"
                         >
                             <div
-                                class="step-item"
+                                :class="[stepClass, 'step-item']"
                                 v-bind="a11yAttrs.root"
                             >
                                 <button
@@ -343,12 +343,12 @@
                             </div>
                         </Step>
                         <Step
-                            v-slot="{ value, a11yAttrs }"
+                            v-slot="{ value, a11yAttrs, class: stepClass }"
                             asChild
                             value="4"
                         >
                             <div
-                                class="step-item step-item-last"
+                                :class="[stepClass, 'step-item']"
                                 v-bind="a11yAttrs.root"
                             >
                                 <button
@@ -468,6 +468,16 @@
         overflow-y: auto;
         padding: 20px;
         width: 100%;
+        --texture-creator-step-muted: var(--p-stepper-step-number-color, var(--p-text-muted-color, #888));
+        --texture-creator-step-surface: var(--p-stepper-step-number-background, var(--p-content-background, #333));
+        --texture-creator-step-border: var(--p-stepper-step-number-border-color, var(--p-content-border-color, #555));
+        --texture-creator-step-hover-surface: var(--p-content-hover-background, #444);
+        --texture-creator-step-active-bg: var(--p-stepper-step-number-active-background, var(--p-primary-color, #10b981));
+        --texture-creator-step-active-border: var(--p-stepper-step-number-active-border-color, var(--p-primary-color, #10b981));
+        --texture-creator-step-active-color: var(--p-stepper-step-number-active-color, var(--p-primary-contrast-color, #fff));
+        --texture-creator-step-title: var(--p-stepper-step-title-color, var(--p-text-muted-color, #888));
+        --texture-creator-step-title-active: var(--p-stepper-step-title-active-color, var(--p-text-color, #fff));
+        --texture-creator-step-separator: var(--p-stepper-separator-background, var(--p-content-border-color, #555));
     }
 
     .camera-flow-panel {
@@ -475,37 +485,17 @@
         margin: 0 auto;
     }
 
-    /* Override PrimeVue stepper styling for dark theme */
-    .slyce-content :deep(.p-stepper) {
-        background: transparent;
-    }
-
     .slyce-content :deep(.p-steplist) {
-        background: transparent;
         justify-content: center;
         padding: 0 0 1rem 0;
         width: min(100%, 760px);
         margin: 0 auto;
-        gap: 0;
-    }
-
-    .slyce-content :deep(.p-step) {
-        background: transparent;
-        color: #888;
-        padding: 0;
     }
 
     /* Custom step item layout */
     .step-item {
-        display: flex;
         flex-direction: row;
         align-items: flex-start;
-        flex: 1;
-        gap: 0;
-    }
-
-    .step-item-last {
-        flex: 0;
     }
 
     .step-button {
@@ -515,17 +505,17 @@
         width: 3rem;
         height: 3rem;
         border-radius: 50%;
-        border: 2px solid #555;
-        background: #333;
-        color: #888;
+        border: 2px solid var(--texture-creator-step-border);
+        background: var(--texture-creator-step-surface);
+        color: var(--texture-creator-step-muted);
         cursor: pointer;
         transition: all 0.2s ease;
         flex-shrink: 0;
     }
 
     .step-button:hover:not(:disabled) {
-        border-color: #777;
-        background: #444;
+        border-color: var(--texture-creator-step-active-border);
+        background: var(--texture-creator-step-hover-surface);
     }
 
     .step-button:disabled {
@@ -533,9 +523,9 @@
     }
 
     .step-button.active {
-        background: #4caf50;
-        color: #fff;
-        border-color: #4caf50;
+        background: var(--texture-creator-step-active-bg);
+        color: var(--texture-creator-step-active-color);
+        border-color: var(--texture-creator-step-active-border);
     }
 
     .step-button .material-symbols-outlined {
@@ -546,7 +536,7 @@
         display: block;
         margin-left: 1rem;
         align-self: center;
-        color: #888;
+        color: var(--texture-creator-step-title);
         font-size: 0.72rem;
         font-weight: 600;
         letter-spacing: 0.06em;
@@ -556,48 +546,15 @@
     }
 
     .step-label.active {
-        color: #fff;
+        color: var(--texture-creator-step-title-active);
     }
 
     .step-separator {
         flex: 1;
         height: 2px;
-        background: #555;
+        background: var(--texture-creator-step-separator);
         margin: 1.45rem 0.5rem 0;
         min-width: 2rem;
-    }
-
-    .slyce-content :deep(.p-step-number) {
-        background: #333;
-        color: #888;
-        border-color: #555;
-    }
-
-    .slyce-content :deep(.p-step-active .p-step-number) {
-        background: #4caf50;
-        color: #fff;
-        border-color: #4caf50;
-    }
-
-    .slyce-content :deep(.p-step-title) {
-        color: #888;
-    }
-
-    .slyce-content :deep(.p-step-active .p-step-title) {
-        color: #fff;
-    }
-
-    .slyce-content :deep(.p-steppanels) {
-        background: transparent;
-        padding: 24px 0;
-    }
-
-    .slyce-content :deep(.p-steppanel) {
-        padding: 0;
-    }
-
-    .slyce-content :deep(.p-stepper-separator) {
-        background: #555;
     }
 
     @media (max-width: 720px) {

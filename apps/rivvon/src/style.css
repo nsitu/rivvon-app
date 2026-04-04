@@ -229,13 +229,6 @@ body.debug-mode .renderer-indicator {
     line-height: 1;
 }
 
- 
-  
-
-.generate-btn {
-    @apply bg-blue-600 hover:bg-blue-500 mt-2;
-}
-
 /* Beta modal */
 .beta-modal {
     @apply fixed inset-0 z-[200] bg-black/80;

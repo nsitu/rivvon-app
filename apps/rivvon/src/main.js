@@ -4,6 +4,7 @@
 import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 import PrimeVue from 'primevue/config';
+import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 import App from './App.vue';
 import router from './router';
@@ -24,7 +25,7 @@ loadMaterialSymbols([
     'cancel','restart_alt','center_focus_strong','theaters','stop','delete_sweep','close','mood','progress_activity',
     'genetics','horizontal_rule','rounded_corner',
     'checklist','check_box','check_box_outline_blank','bug_report',
-    'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video'
+    'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule'
 ]);
 
 // Import utilities
@@ -33,6 +34,24 @@ import { useViewerStore } from './stores/viewerStore';
 import { useSlyceStore } from './stores/slyceStore';
 import { useGoogleAuth } from './composables/shared/useGoogleAuth';
 import { initAuth } from './modules/viewer/auth';
+
+const RivvonPreset = definePreset(Aura, {
+    components: {
+        stepper: {
+            step: {
+                padding: '0',
+                gap: '0'
+            },
+            steppanels: {
+                padding: '1.5rem 0'
+            },
+            steppanel: {
+                background: 'transparent',
+                padding: '0'
+            }
+        }
+    }
+});
 
 const app = createApp(App);
 
@@ -46,7 +65,7 @@ app.use(router);
 // PrimeVue configuration
 app.use(PrimeVue, {
     theme: {
-        preset: Aura,
+        preset: RivvonPreset,
         options: {
             darkModeSelector: '.app-dark'
         }

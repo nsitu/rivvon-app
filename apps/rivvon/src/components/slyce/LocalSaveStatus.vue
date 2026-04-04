@@ -1,5 +1,6 @@
 <script setup>
     import { computed, useSlots } from 'vue';
+    import Button from 'primevue/button';
 
     const props = defineProps({
         isSavingLocally: {
@@ -154,14 +155,15 @@
             v-if="state === 'error' || hasSuccessActions"
             class="local-save-actions"
         >
-            <button
+            <Button
                 v-if="state === 'error'"
+                type="button"
                 class="local-save-retry-btn"
                 @click="emit('retry')"
             >
                 <span class="material-symbols-outlined">refresh</span>
                 {{ retryLabel }}
-            </button>
+            </Button>
 
             <slot
                 v-else-if="state === 'success'"
@@ -173,9 +175,11 @@
 
 <style scoped>
     .local-save-status {
-        display: flex;
-        align-items: center;
-        gap: 0.9rem;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        column-gap: 0.9rem;
+        row-gap: 0.75rem;
+        align-items: start;
         width: 100%;
         padding: 0.9rem 1rem;
         border-radius: 0.85rem;
@@ -186,10 +190,13 @@
     }
 
     .local-save-icon-wrap {
+        grid-column: 1;
+        grid-row: 1;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+        margin-top: 0.1rem;
         color: #60a5fa;
     }
 
@@ -224,7 +231,7 @@
     }
 
     .local-save-copy {
-        flex: 1;
+        grid-column: 2;
         min-width: 0;
     }
 
@@ -244,29 +251,16 @@
     }
 
     .local-save-actions {
+        grid-column: 2;
         display: flex;
         align-items: center;
         gap: 0.75rem;
         flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-content: flex-start;
     }
 
     .local-save-retry-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
         min-height: 2.75rem;
-        padding: 0.55rem 0.95rem;
-        border-radius: 0.7rem;
-        border: 1px solid rgba(96, 165, 250, 0.4);
-        background: #2563eb;
-        color: white;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
-
-    .local-save-retry-btn:hover {
-        background: #1d4ed8;
     }
 
     .local-save-retry-btn .material-symbols-outlined {
@@ -277,20 +271,10 @@
         from {
             transform: rotate(0deg);
         }
+
         to {
             transform: rotate(360deg);
         }
     }
 
-    @media (max-width: 640px) {
-        .local-save-status {
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-
-        .local-save-actions {
-            width: 100%;
-            justify-content: flex-start;
-        }
-    }
 </style>

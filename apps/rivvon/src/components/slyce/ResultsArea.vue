@@ -7,6 +7,7 @@
     import TilePreview from './TilePreview.vue';
     import ProgressSpinner from 'primevue/progressspinner';
     import Select from 'primevue/select';
+    import Button from 'primevue/button';
 
     const app = useSlyceStore();
     const emit = defineEmits(['back', 'reset', 'apply-texture']);
@@ -84,31 +85,40 @@
 
             <!-- Action bar — always visible, content changes by phase -->
             <div class="sidebar-actions">
-                <button
+                <Button
+                    type="button"
                     @click="handleBack"
                     class="action-button action-back"
+                    severity="secondary"
+                    variant="outlined"
                 >
                     <span class="material-symbols-outlined">arrow_back</span>
                     Back
-                </button>
+                </Button>
 
-                <button
+                <Button
                     v-if="isProcessing"
+                    type="button"
                     @click="handleAbort"
                     class="action-button action-abort"
+                    severity="danger"
+                    variant="outlined"
                 >
                     <span class="material-symbols-outlined">cancel</span>
                     Abort
-                </button>
+                </Button>
 
-                <button
+                <Button
                     v-if="app.isComplete"
+                    type="button"
                     @click="handleReset"
                     class="action-button action-reset"
+                    severity="secondary"
+                    variant="outlined"
                 >
                     <span class="material-symbols-outlined">restart_alt</span>
                     Start Over
-                </button>
+                </Button>
             </div>
         </div>
         <div class="results-main">
@@ -215,15 +225,7 @@
     }
 
     .action-button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
         font-size: 0.85rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border: none;
         min-height: 44px;
     }
 
@@ -231,42 +233,8 @@
         font-size: 1.1rem;
     }
 
-    /* Back — minimal text button, always left-aligned */
     .action-back {
-        background: transparent;
-        color: #aaa;
-        padding-left: 0.5rem;
         margin-right: auto;
-        border: 1px solid #555;
-    }
-
-    .action-back:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.05);
-        border-color: #888;
-    }
-
-    /* Abort — outlined warning */
-    .action-abort {
-        background: transparent;
-        color: #e57373;
-        border: 1px solid #e57373;
-    }
-
-    .action-abort:hover {
-        background: rgba(229, 115, 115, 0.1);
-    }
-
-    /* Start Over — outlined neutral */
-    .action-reset {
-        background: transparent;
-        color: #aaa;
-        border: 1px solid #555;
-    }
-
-    .action-reset:hover {
-        color: #fff;
-        border-color: #888;
     }
 
     .results-placeholder {

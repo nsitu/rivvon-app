@@ -24,6 +24,7 @@
     })
 
     import FileInfo from './FileInfo.vue';
+    import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
 
@@ -506,16 +507,21 @@
                 </p>
             </div>
             <div class="action-buttons">
-                <button
+                <Button
+                    type="button"
                     class="back-button"
+                    severity="secondary"
+                    variant="outlined"
                     @click="emit('back')"
                 >
                     <span class="material-symbols-outlined">arrow_back</span>
                     Back
-                </button>
-                <button
+                </Button>
+                <Button
                     id="process-button"
-                    class="process-button bg-blue-500 text-white px-4 py-2 rounded-md"
+                    type="button"
+                    class="process-button"
+                    label="Process"
                     @click="processVideo({
                         file: app.file,
                         tilePlan: tilePlan,
@@ -527,7 +533,7 @@
                         crossSectionCount: app.crossSectionCount,
                         crossSectionType: app.crossSectionType,
                     })"
-                >Process</button>
+                />
             </div>
         </div>
 
@@ -885,19 +891,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        background: transparent;
-        border: 1px solid #555;
-        color: #888;
         font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .back-button:hover {
-        background: rgba(255, 255, 255, 0.05);
-        color: #fff;
-        border-color: #888;
     }
 
     .back-button .material-symbols-outlined {
