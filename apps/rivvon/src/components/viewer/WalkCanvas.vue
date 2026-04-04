@@ -81,6 +81,8 @@
     watch(isMapVisible, (visible) => {
         if (!visible) return;
 
+        console.log('[Walking] Revealing map after first location fix');
+
         requestAnimationFrame(() => {
             walkingManager.value?.map?.invalidateSize(false);
         });
@@ -260,6 +262,14 @@
 
     :deep(.leaflet-top) {
         top: 5.5rem;
+    }
+
+    :deep(.leaflet-container) {
+        background: #020617;
+    }
+
+    :deep(.leaflet-container img.leaflet-tile) {
+        mix-blend-mode: normal;
     }
 
     :deep(.leaflet-bottom) {

@@ -10,6 +10,7 @@ const MIN_SAMPLE_DISTANCE_METERS = 3;
 const MAX_SAMPLE_DISTANCE_METERS = 12;
 const EARTH_RADIUS = 6378137;
 const MAX_MERCATOR_LAT = 85.05112878;
+const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 function clampLatitude(latitude) {
     return Math.max(-MAX_MERCATOR_LAT, Math.min(MAX_MERCATOR_LAT, latitude));
@@ -45,6 +46,7 @@ export class WalkingManager {
         this.onStateChange = onStateChange;
 
         this.map = null;
+        this.tileLayer = null;
         this.pathPolyline = null;
         this.positionMarker = null;
         this.accuracyCircle = null;
@@ -59,6 +61,11 @@ export class WalkingManager {
         this.isTracking = false;
         this.hasCenteredOnce = false;
         this.watchId = null;
+        this.tileDebug = {
+            started: 0,
+            loaded: 0,
+            errored: 0
+        };
 
         this.kalmanFilter = new KalmanFilter2D({
             processNoise: 8,
@@ -84,11 +91,22 @@ export class WalkingManager {
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        this.tileLayer = L.tileLayer(DARK_TILE_URL, {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 20
-        }).addTo(this.map);
+        });
+
+        this.bindTileLayerDebugEvents();
+        this.tileLayer.addTo(this.map);
+
+        this.map.whenReady(() => {
+            console.log('[Walking] Leaflet map ready', {
+                tileUrlTemplate: DARK_TILE_URL,
+                center: this.map.getCenter(),
+                zoom: this.map.getZoom()
+            });
+        });
 
         this.pathPolyline = L.polyline([], {
             color: '#16a34a',
@@ -115,6 +133,67 @@ export class WalkingManager {
             fillOpacity: 0,
             opacity: 0
         }).addTo(this.map);
+    }
+
+    bindTileLayerDebugEvents() {
+        if (!this.tileLayer) {
+            return;
+        }
+
+        this.tileLayer.on('loading', () => {
+            this.tileDebug.started = 0;
+            this.tileDebug.loaded = 0;
+            this.tileDebug.errored = 0;
+
+            console.log('[Walking] Tile layer loading', {
+                tileUrlTemplate: DARK_TILE_URL,
+                subdomains: this.tileLayer.options.subdomains,
+                maxZoom: this.tileLayer.options.maxZoom
+            });
+        });
+
+        this.tileLayer.on('tileloadstart', (event) => {
+            this.tileDebug.started += 1;
+
+            if (this.tileDebug.started <= 3) {
+                console.log('[Walking] Tile request started', {
+                    count: this.tileDebug.started,
+                    src: event.tile?.src,
+                    coords: event.coords
+                });
+            }
+        });
+
+        this.tileLayer.on('tileload', (event) => {
+            this.tileDebug.loaded += 1;
+
+            if (this.tileDebug.loaded <= 3) {
+                console.log('[Walking] Tile loaded', {
+                    count: this.tileDebug.loaded,
+                    src: event.tile?.src,
+                    coords: event.coords
+                });
+            }
+        });
+
+        this.tileLayer.on('load', () => {
+            console.log('[Walking] Tile layer load complete', {
+                started: this.tileDebug.started,
+                loaded: this.tileDebug.loaded,
+                errored: this.tileDebug.errored
+            });
+        });
+
+        this.tileLayer.on('tileerror', (event) => {
+            this.tileDebug.errored += 1;
+
+            console.warn('[Walking] Tile failed to load', {
+                count: this.tileDebug.errored,
+                src: event.tile?.src,
+                coords: event.coords,
+                error: event.error
+            });
+        });
     }
 
     emitState() {
