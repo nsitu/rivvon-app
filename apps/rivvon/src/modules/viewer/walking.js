@@ -76,6 +76,18 @@ export class WalkingManager {
         this.emitState();
     }
 
+    applyTileDebugStyles(tile) {
+        if (!tile) {
+            return;
+        }
+
+        tile.style.setProperty('mix-blend-mode', 'normal', 'important');
+        tile.style.setProperty('visibility', 'visible', 'important');
+        tile.style.setProperty('opacity', '1', 'important');
+        tile.style.setProperty('display', 'block', 'important');
+        tile.style.setProperty('filter', 'none', 'important');
+    }
+
     createMap() {
         if (this.map) {
             return;
@@ -154,6 +166,7 @@ export class WalkingManager {
 
         this.tileLayer.on('tileloadstart', (event) => {
             this.tileDebug.started += 1;
+            this.applyTileDebugStyles(event.tile);
 
             if (this.tileDebug.started <= 3) {
                 console.log('[Walking] Tile request started', {
@@ -166,12 +179,30 @@ export class WalkingManager {
 
         this.tileLayer.on('tileload', (event) => {
             this.tileDebug.loaded += 1;
+            this.applyTileDebugStyles(event.tile);
 
             if (this.tileDebug.loaded <= 3) {
                 console.log('[Walking] Tile loaded', {
                     count: this.tileDebug.loaded,
                     src: event.tile?.src,
                     coords: event.coords
+                });
+            }
+
+            if (this.tileDebug.loaded === 1 && event.tile) {
+                const computedStyle = window.getComputedStyle(event.tile);
+
+                console.log('[Walking] First tile visibility snapshot', {
+                    src: event.tile.src,
+                    naturalWidth: event.tile.naturalWidth,
+                    naturalHeight: event.tile.naturalHeight,
+                    clientWidth: event.tile.clientWidth,
+                    clientHeight: event.tile.clientHeight,
+                    display: computedStyle.display,
+                    visibility: computedStyle.visibility,
+                    opacity: computedStyle.opacity,
+                    mixBlendMode: computedStyle.mixBlendMode,
+                    filter: computedStyle.filter
                 });
             }
         });

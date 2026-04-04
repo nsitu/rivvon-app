@@ -28,6 +28,7 @@
     } = useWalking();
 
     const isMapVisible = computed(() => props.active && hasLocated.value);
+    const showLocatingOverlay = computed(() => props.active && !hasLocated.value);
 
     const statusLabel = computed(() => {
         if (status.value === 'tracking') return 'Tracking route';
@@ -84,7 +85,10 @@
         console.log('[Walking] Revealing map after first location fix');
 
         requestAnimationFrame(() => {
-            walkingManager.value?.map?.invalidateSize(false);
+            requestAnimationFrame(() => {
+                walkingManager.value?.map?.invalidateSize(false);
+                walkingManager.value?.tileLayer?.redraw?.();
+            });
         });
     });
 
@@ -102,11 +106,10 @@
         <div
             ref="mapRef"
             class="walk-map"
-            :class="{ revealed: isMapVisible }"
         ></div>
 
         <div
-            v-if="!isMapVisible"
+            v-if="showLocatingOverlay"
             class="walk-locating"
         >
             <div class="walk-locating-spinner"></div>
@@ -155,19 +158,13 @@
     .walk-map {
         position: absolute;
         inset: 0;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.2s ease, visibility 0.2s ease;
-    }
-
-    .walk-map.revealed {
-        opacity: 1;
-        visibility: visible;
+        z-index: 0;
     }
 
     .walk-locating {
         position: absolute;
         inset: 0;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -177,6 +174,9 @@
         text-align: center;
         color: rgba(255, 255, 255, 0.92);
         pointer-events: none;
+        background:
+            radial-gradient(circle at top, rgba(34, 197, 94, 0.14), transparent 35%),
+            linear-gradient(180deg, #06111b 0%, #030712 100%);
     }
 
     .walk-locating-spinner {
@@ -206,6 +206,7 @@
         top: 6rem;
         left: 1rem;
         right: 1rem;
+        z-index: 2;
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
@@ -270,6 +271,11 @@
 
     :deep(.leaflet-container img.leaflet-tile) {
         mix-blend-mode: normal;
+    }
+
+    :deep(.leaflet-container img.leaflet-tile.leaflet-tile-loaded) {
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 
     :deep(.leaflet-bottom) {
