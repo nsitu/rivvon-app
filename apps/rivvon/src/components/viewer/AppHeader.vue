@@ -27,6 +27,7 @@
 
     // Compute which context is active (for header title + close button)
     const activeContext = computed(() => {
+        if (app.isWalkMode) return 'Walk';
         if (app.isDrawingMode) return 'Draw';
         if (app.textureCreatorVisible || app.realtimeSamplerVisible) return 'Create Texture';
         if (app.textureBrowserVisible) return 'Textures';
@@ -40,7 +41,9 @@
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
 
     function closeContext() {
-        if (app.isDrawingMode) {
+        if (app.isWalkMode) {
+            app.setWalkMode(false);
+        } else if (app.isDrawingMode) {
             app.setDrawingMode(false);
         } else if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');

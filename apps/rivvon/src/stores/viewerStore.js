@@ -14,6 +14,10 @@ export const useViewerStore = defineStore('viewer', {
         countdownSeconds: null,
         countdownProgress: 0,
         inFinalCountdown: false,
+
+        // Walk capture state
+        isWalkMode: false,
+        walkPointCount: 0,
         
         // Ribbon/3D state
         flowState: 'forward', // 'off' | 'forward' | 'backward'
@@ -77,6 +81,30 @@ export const useViewerStore = defineStore('viewer', {
     actions: {
         setDrawingMode(enabled) {
             this.isDrawingMode = enabled;
+
+            if (enabled) {
+                this.isWalkMode = false;
+                this.walkPointCount = 0;
+            } else {
+                this.strokeCount = 0;
+                this.countdownSeconds = null;
+                this.countdownProgress = 0;
+                this.inFinalCountdown = false;
+            }
+        },
+
+        setWalkMode(enabled) {
+            this.isWalkMode = enabled;
+
+            if (enabled) {
+                this.isDrawingMode = false;
+                this.strokeCount = 0;
+                this.countdownSeconds = null;
+                this.countdownProgress = 0;
+                this.inFinalCountdown = false;
+            } else {
+                this.walkPointCount = 0;
+            }
         },
         
         cycleFlowState() {
@@ -181,6 +209,10 @@ export const useViewerStore = defineStore('viewer', {
         setStrokeCount(count) {
             this.strokeCount = count;
         },
+
+        setWalkPointCount(count) {
+            this.walkPointCount = count;
+        },
         
         setCountdownSeconds(seconds) {
             this.countdownSeconds = seconds;
@@ -275,6 +307,7 @@ export const useViewerStore = defineStore('viewer', {
     
     getters: {
         hasActiveStrokes: (state) => state.strokeCount > 0,
+        hasActiveWalkPath: (state) => state.walkPointCount > 1,
         flowEnabled: (state) => state.flowState !== 'off',
         helixEnabled: (state) => state.helixMode,
         helixOptions: (state) => ({

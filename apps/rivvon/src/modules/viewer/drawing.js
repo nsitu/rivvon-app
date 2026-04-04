@@ -3,7 +3,7 @@
  * Supports multi-stroke drawing sessions
  */
 
-import { smoothStrokes } from './strokeSmoothing.js';
+import { finalizeCapturedPaths } from './pathFinalizer.js';
 
 
 export class DrawingManager {
@@ -263,13 +263,7 @@ export class DrawingManager {
         const rawStrokes = [...this.strokes];
         const rawPoints = rawStrokes.reduce((sum, s) => sum + s.length, 0);
 
-        // Apply smoothing: RDP simplification → cusp splitting → Chaikin corner cutting → Catmull-Rom spline
-        const result = smoothStrokes(rawStrokes, {
-            rdpEpsilon: 2,         // Remove noise within 2px tolerance
-            cuspAngle: 60,         // Split at cusps sharper than 60°
-            chaikinIterations: 2,  // Two passes of corner cutting
-            splineSegments: 8      // 8 interpolated points per span
-        });
+        const result = finalizeCapturedPaths(rawStrokes);
 
         const smoothedPoints = result.reduce((sum, s) => sum + s.length, 0);
         console.log('[Drawing] Finalizing drawing (smoothed)', {

@@ -23,6 +23,7 @@
     import ExportVideoDialog from '../components/viewer/ExportVideoDialog.vue';
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
+    import WalkCanvas from '../components/viewer/WalkCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
     import CinematicDebugOverlay from '../components/viewer/CinematicDebugOverlay.vue';
     import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
@@ -99,6 +100,7 @@
     // Template refs
     const threeCanvasRef = ref(null);
     const drawCanvasRef = ref(null);
+    const walkCanvasRef = ref(null);
     const fileInputRef = ref(null);
 
     // Local state
@@ -112,7 +114,7 @@
         if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
 
         // Ignore during drawing mode
-        if (app.isDrawingMode) return;
+        if (app.isDrawingMode || app.isWalkMode) return;
 
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic) return;
@@ -173,15 +175,17 @@
     });
 
     // Watch drawing mode to control renderer visibility
-    watch(() => app.isDrawingMode, (isDrawing) => {
+    watch(() => [app.isDrawingMode, app.isWalkMode], ([isDrawing, isWalking]) => {
+        const hasPathCaptureOverlay = isDrawing || isWalking;
+
         // Hide/show the Three.js canvas when in drawing mode
         if (threeCanvasRef.value?.renderer) {
-            threeCanvasRef.value.renderer.domElement.style.opacity = isDrawing ? '0' : '1';
+            threeCanvasRef.value.renderer.domElement.style.opacity = hasPathCaptureOverlay ? '0' : '1';
         }
 
         // Also disable orbit controls when drawing
         if (threeCanvasRef.value?.controls) {
-            threeCanvasRef.value.controls.enabled = !isDrawing;
+            threeCanvasRef.value.controls.enabled = !hasPathCaptureOverlay;
         }
     });
 
@@ -272,30 +276,34 @@
         app.setDrawingMode(true);
     }
 
-    function handleDrawingComplete(strokesData) {
+    function enterWalkMode() {
+        app.setWalkMode(true);
+    }
+
+    function handleCapturedPathComplete(strokesData, { flipY = true, mode = 'draw' } = {}) {
         if (!threeCanvasRef.value || !strokesData || strokesData.length === 0) return;
 
-        // Exit drawing mode
-        app.setDrawingMode(false);
+        if (mode === 'walk') {
+            app.setWalkMode(false);
+        } else {
+            app.setDrawingMode(false);
+        }
 
-        // Reset camera before building new ribbon
         if (threeCanvasRef.value.resetCamera) {
             threeCanvasRef.value.resetCamera();
         }
 
-        // strokesData is Array<Array<{x,y}>> from DrawingManager
-        // (cusp splitting in smoothStrokes may produce more subpaths than original strokes)
         const isMultiStroke = Array.isArray(strokesData) && strokesData.length > 0 && Array.isArray(strokesData[0]);
 
-        console.log('[RibbonView] handleDrawingComplete', {
+        console.log('[RibbonView] handleCapturedPathComplete', {
+            mode,
             isMultiStroke,
             strokeCount: isMultiStroke ? strokesData.length : 1
         });
 
-        // Always use multi-path route — cusp splitting may turn 1 stroke into N subpaths
         const strokes = isMultiStroke ? strokesData : [strokesData];
         const rawPathsPoints = strokes.map(stroke =>
-            stroke.map(p => new THREE.Vector3(p.x, -p.y, 0))  // Flip Y
+            stroke.map(p => new THREE.Vector3(p.x, flipY ? -p.y : p.y, 0))
         ).filter(points => points.length >= 2);
 
         if (rawPathsPoints.length > 0) {
@@ -308,10 +316,31 @@
         }
     }
 
+    function handleDrawingComplete(strokesData) {
+        handleCapturedPathComplete(strokesData, {
+            flipY: true,
+            mode: 'draw'
+        });
+    }
+
+    function handleWalkComplete(strokesData) {
+        handleCapturedPathComplete(strokesData, {
+            flipY: false,
+            mode: 'walk'
+        });
+    }
+
     function finishDrawing() {
         if (drawCanvasRef.value) {
             const strokes = drawCanvasRef.value.finalizeDrawing();
             handleDrawingComplete(strokes);
+        }
+    }
+
+    function finishWalk() {
+        if (walkCanvasRef.value) {
+            const strokes = walkCanvasRef.value.finalizeWalk();
+            handleWalkComplete(strokes);
         }
     }
 
@@ -705,6 +734,11 @@
             @drawing-complete="handleDrawingComplete"
         />
 
+        <WalkCanvas
+            ref="walkCanvasRef"
+            :active="app.isWalkMode"
+        />
+
         <!-- Countdown display (numbers in center of screen) -->
         <CountdownNumbers />
 
@@ -717,6 +751,7 @@
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :cinematic-debug="showCinematicDebug"
             @enter-draw-mode="enterDrawMode"
+            @enter-walk-mode="enterWalkMode"
             @enter-slyce-mode="openCreateTextureMode"
             @close-realtime-mode="handleRealtimeClose"
             @toggle-flow="toggleFlow"
@@ -727,6 +762,7 @@
             @export-image="handleExportImage"
             @export-video="handleExportVideo"
             @finish-drawing="finishDrawing"
+            @finish-walk="finishWalk"
             @cinematic-capture="handleCinematicCapture"
             @cinematic-toggle="handleCinematicToggle"
             @cinematic-clear="handleCinematicClear"
@@ -837,6 +873,7 @@
     .ribbon-view :deep(.slyce-panel.active),
     .ribbon-view :deep(.realtime-panel.active),
     .ribbon-view :deep(.draw-canvas.active),
+    .ribbon-view :deep(.walk-canvas.active),
     .ribbon-view .loading-overlay {
         pointer-events: auto;
     }

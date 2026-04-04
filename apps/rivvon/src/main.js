@@ -25,7 +25,7 @@ loadMaterialSymbols([
     'cancel','restart_alt','center_focus_strong','theaters','stop','delete_sweep','close','mood','progress_activity',
     'genetics','horizontal_rule','rounded_corner',
     'checklist','check_box','check_box_outline_blank','bug_report',
-    'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule'
+    'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule','directions_walk'
 ]);
 
 // Import utilities

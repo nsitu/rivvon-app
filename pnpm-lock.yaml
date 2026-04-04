@@ -57,6 +57,9 @@ importers:
       ktx-parse:
         specifier: ^1.1.0
         version: 1.1.0
+      leaflet:
+        specifier: ^1.9.4
+        version: 1.9.4
       mediabunny:
         specifier: ^1.31.0
         version: 1.31.0
@@ -1402,6 +1405,9 @@ packages:
 
   ktx-parse@1.1.0:
     resolution: {integrity: sha512-mKp3y+FaYgR7mXWAbyyzpa/r1zDWeaunH+INJO4fou3hb45XuNSwar+7llrRyvpMWafxSIi99RNFJ05MHedaJQ==}
+
+  leaflet@1.9.4:
+    resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==}
 
   lie@3.3.0:
     resolution: {integrity: sha512-UaiMJzeWRlEujzAuw5LokY1L5ecNQYZKfmyZ9L7wDHb/p5etKaxXhohBcrw0EYby+G/NA52vRSN4N39dxHAIwQ==}
@@ -3034,6 +3040,8 @@ snapshots:
   kolorist@1.8.0: {}
 
   ktx-parse@1.1.0: {}
+
+  leaflet@1.9.4: {}
 
   lie@3.3.0:
     dependencies:

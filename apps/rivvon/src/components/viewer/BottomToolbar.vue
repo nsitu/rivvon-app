@@ -64,6 +64,7 @@
 
     const emit = defineEmits([
         'enter-draw-mode',
+        'enter-walk-mode',
         'toggle-flow',
         'open-text-panel',
         'open-emoji-picker',
@@ -74,6 +75,7 @@
         'export-image',
         'export-video',
         'finish-drawing',
+        'finish-walk',
         'cinematic-capture',
         'cinematic-toggle',
         'cinematic-clear',
@@ -103,7 +105,9 @@
      * If Slyce is visible and processing, confirm before cancelling and closing.
      */
     function handleBack() {
-        if (app.isDrawingMode) {
+        if (app.isWalkMode) {
+            app.setWalkMode(false);
+        } else if (app.isDrawingMode) {
             app.setDrawingMode(false);
         } else if (app.textureCreatorVisible) {
             if (isSlyceProcessing.value) {
@@ -131,14 +135,42 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
+        app.isDrawingMode || app.isWalkMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
+
+    const showFinishCaptureButton = computed(() => {
+        if (app.isWalkMode) {
+            return app.hasActiveWalkPath;
+        }
+
+        return app.isDrawingMode && app.hasActiveStrokes;
+    });
+
+    const finishCaptureTooltip = computed(() => {
+        if (app.isWalkMode) {
+            return tip('Finish walk and create ribbon');
+        }
+
+        return tip('Finish drawing and create ribbons');
+    });
+
+    function handleFinishCapture() {
+        if (app.isWalkMode) {
+            emit('finish-walk');
+            return;
+        }
+
+        emit('finish-drawing');
+    }
 
     /**
      * Close any active context before switching to a new one.
      * Returns false if the user cancelled (e.g., Slyce processing confirmation).
      */
     function closeActiveContext() {
+        if (app.isWalkMode) {
+            app.setWalkMode(false);
+        }
         if (app.isDrawingMode) {
             app.setDrawingMode(false);
         }
@@ -193,6 +225,14 @@
             <span class="material-symbols-outlined">draw</span>
         </button>
 
+        <button
+            v-tooltip.top="tip('Walk')"
+            :class="{ active: app.isWalkMode }"
+            @click="app.isWalkMode ? handleBack() : activateContext(() => emit('enter-walk-mode'))"
+        >
+            <span class="material-symbols-outlined">directions_walk</span>
+        </button>
+
         <!-- Create texture tool -->
         <button
             v-tooltip.top="tip('Create Texture')"
@@ -238,12 +278,12 @@
             <span class="material-symbols-outlined">instant_mix</span>
         </button>
 
-        <!-- Finish drawing button (only in draw mode with strokes) -->
+        <!-- Finish capture button (draw or walk mode) -->
         <button
-            v-if="app.isDrawingMode && app.hasActiveStrokes"
+            v-if="showFinishCaptureButton"
             class="finish-drawing-btn"
-            v-tooltip.top="tip('Finish drawing and create ribbons')"
-            @click="emit('finish-drawing')"
+            v-tooltip.top="finishCaptureTooltip"
+            @click="handleFinishCapture"
         >
             <span class="material-symbols-outlined">check</span>
         </button>
