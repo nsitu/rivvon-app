@@ -13,17 +13,21 @@
     const mapRef = ref(null);
 
     const {
+        walkingManager,
         status,
         errorMessage,
         pointCount,
         distanceMeters,
         accuracyMeters,
         isTracking,
+        hasLocated,
         initWalking,
         setWalkingMode,
         finalizeWalk,
         clearWalk
     } = useWalking();
+
+    const isMapVisible = computed(() => props.active && hasLocated.value);
 
     const statusLabel = computed(() => {
         if (status.value === 'tracking') return 'Tracking route';
@@ -74,6 +78,14 @@
         setWalkingMode(isActive);
     });
 
+    watch(isMapVisible, (visible) => {
+        if (!visible) return;
+
+        requestAnimationFrame(() => {
+            walkingManager.value?.map?.invalidateSize(false);
+        });
+    });
+
     defineExpose({
         finalizeWalk,
         clearWalk
@@ -88,7 +100,17 @@
         <div
             ref="mapRef"
             class="walk-map"
+            :class="{ revealed: isMapVisible }"
         ></div>
+
+        <div
+            v-if="!isMapVisible"
+            class="walk-locating"
+        >
+            <div class="walk-locating-spinner"></div>
+            <div class="walk-locating-title">Finding your location</div>
+            <p class="walk-locating-copy">{{ errorMessage || 'The map will appear after the first location fix.' }}</p>
+        </div>
 
         <div class="walk-hud">
             <div
@@ -118,7 +140,9 @@
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.2s ease;
-        background: #d5dbe1;
+        background:
+            radial-gradient(circle at top, rgba(34, 197, 94, 0.14), transparent 35%),
+            linear-gradient(180deg, #06111b 0%, #030712 100%);
     }
 
     .walk-canvas.active {
@@ -129,6 +153,50 @@
     .walk-map {
         position: absolute;
         inset: 0;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+
+    .walk-map.revealed {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .walk-locating {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.85rem;
+        padding: 2rem;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.92);
+        pointer-events: none;
+    }
+
+    .walk-locating-spinner {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 999px;
+        border: 2px solid rgba(255, 255, 255, 0.14);
+        border-top-color: rgba(134, 239, 172, 0.92);
+        animation: walk-spin 0.8s linear infinite;
+    }
+
+    .walk-locating-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+
+    .walk-locating-copy {
+        max-width: 24rem;
+        margin: 0;
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.5;
     }
 
     .walk-hud {
@@ -162,6 +230,10 @@
 
     .walk-pill.tracking {
         background: rgba(21, 128, 61, 0.86);
+    }
+
+    .walk-pill:not(.tracking) {
+        background: rgba(30, 41, 59, 0.82);
     }
 
     .walk-stats {
@@ -215,6 +287,12 @@
 
         .walk-message {
             font-size: 0.88rem;
+        }
+    }
+
+    @keyframes walk-spin {
+        to {
+            transform: rotate(360deg);
         }
     }
 </style>

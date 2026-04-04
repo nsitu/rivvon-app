@@ -84,7 +84,7 @@ export class WalkingManager {
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 20
@@ -125,7 +125,8 @@ export class WalkingManager {
                 pointCount: this.points.length,
                 distanceMeters: this.totalDistance,
                 accuracyMeters: this.latestAccuracy,
-                isTracking: this.isTracking
+                isTracking: this.isTracking,
+                hasLocated: this.livePoint !== null
             });
         }
     }

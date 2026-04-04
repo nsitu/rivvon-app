@@ -13,6 +13,7 @@ export function useWalking() {
     const distanceMeters = ref(0);
     const accuracyMeters = ref(null);
     const isTracking = ref(false);
+    const hasLocated = ref(false);
 
     function syncState(nextState) {
         status.value = nextState.status;
@@ -21,6 +22,7 @@ export function useWalking() {
         distanceMeters.value = nextState.distanceMeters;
         accuracyMeters.value = nextState.accuracyMeters;
         isTracking.value = nextState.isTracking;
+        hasLocated.value = nextState.hasLocated;
     }
 
     function initWalking(mapElement) {
@@ -75,6 +77,7 @@ export function useWalking() {
         distanceMeters,
         accuracyMeters,
         isTracking,
+        hasLocated,
         initWalking,
         setWalkingMode,
         finalizeWalk,
