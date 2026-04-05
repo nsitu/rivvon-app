@@ -1287,8 +1287,7 @@ export class TileManager {
         try {
             console.log(`[TileManager] Loading user-uploaded zip, size: ${arrayBuffer.byteLength} bytes`);
 
-            // Clean up existing materials
-            this.#disposeMaterials();
+            this.clearAllTiles();
 
             const zip = new JSZip();
             const zipData = await zip.loadAsync(arrayBuffer);
@@ -1394,6 +1393,13 @@ export class TileManager {
 
             const results = await Promise.all(promises);
             this.materials = results;
+
+            const parsedTextureCount = this.arrayTextures.filter(Boolean).length;
+            if (parsedTextureCount !== this.tileCount || this.layerCount <= 0) {
+                console.error(`[TileManager] Incomplete user zip load: parsed ${parsedTextureCount}/${this.tileCount} tiles, layerCount=${this.layerCount}`);
+                this.clearAllTiles();
+                return false;
+            }
 
             console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from user zip, layerCount=${this.layerCount}`);
             return true;
@@ -1518,7 +1524,14 @@ export class TileManager {
         this.direction = 1;
         this.sharedLayerUniform.value = 0;
         this.loadedCount = 0;
+        this.lastFrameTime = 0;
+        this.flowOffset = 0.0;
+        this.tileFlowOffset = 0;
         this.zipFiles = null;
+        this.flowAccumulator = 0;
+        this._lastCheckedTileOffset = 0;
+        this._deterministicAccum = 0;
+        this.sharedFlowOffsetUniform.value = 0.0;
         this.currentTextureSet = null;
 
         console.log('[TileManager] Cleared all tiles');
@@ -1558,18 +1571,22 @@ export class TileManager {
                         arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
                     }
 
+                    const depth = arrayTexture.image?.depth || 1;
+
                     if (this.layerCount === 0) {
-                        this.layerCount = arrayTexture.image?.depth || 1;
+                        this.layerCount = depth;
                         this.currentLayer = 0;
                         this.direction = 1;
                         this.sharedLayerUniform.value = 0;
+                    } else if (depth !== this.layerCount) {
+                        console.warn(`[TileManager] Realtime tile ${tileIndex} depth (${depth}) != layerCount (${this.layerCount})`);
                     }
 
                     this.arrayTextures[tileIndex] = arrayTexture;
                     const material = this.#createArrayMaterial(arrayTexture);
                     this.materials[tileIndex] = material;
 
-                    console.log(`[TileManager] Added tile ${tileIndex} from buffer`);
+                    console.log(`[TileManager] Added tile ${tileIndex} from buffer (depth=${depth})`);
                     resolve(material);
                 },
                 (error) => {
@@ -1682,8 +1699,7 @@ export class TileManager {
 
             console.log(`[TileManager] Loading remote texture set: ${tiles.length} tiles`);
 
-            // Clean up existing materials
-            this.#disposeMaterials();
+            this.clearAllTiles();
 
             // Update state from texture set metadata
             this.tileCount = tile_count || tiles.length;
@@ -1823,6 +1839,13 @@ export class TileManager {
             const results = await Promise.all(promises);
             this.materials = results;
 
+            const parsedTextureCount = this.arrayTextures.filter(Boolean).length;
+            if (parsedTextureCount !== this.tileCount || this.layerCount <= 0) {
+                console.error(`[TileManager] Incomplete remote texture load: parsed ${parsedTextureCount}/${this.tileCount} tiles, layerCount=${this.layerCount}`);
+                this.clearAllTiles();
+                return false;
+            }
+
             console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from remote, layerCount=${this.layerCount}`);
             return true;
         } catch (error) {
@@ -1850,8 +1873,7 @@ export class TileManager {
 
             console.log(`[TileManager] Loading local texture set: ${id}, ${tile_count} tiles`);
 
-            // Clean up existing materials
-            this.#disposeMaterials();
+            this.clearAllTiles();
 
             // Update state from texture set metadata
             this.tileCount = tile_count;
@@ -1900,14 +1922,45 @@ export class TileManager {
             this.zipFiles = {};
             let loadedCount = 0;
 
+            const readBlobWithFileReader = (blob) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error || new Error('Failed to read blob with FileReader'));
+                reader.readAsArrayBuffer(blob);
+            });
+
+            const readTileBuffer = async (tile) => {
+                if (tile.bytes instanceof ArrayBuffer) {
+                    return tile.bytes;
+                }
+                if (ArrayBuffer.isView(tile.bytes)) {
+                    return tile.bytes.buffer.slice(tile.bytes.byteOffset, tile.bytes.byteOffset + tile.bytes.byteLength);
+                }
+                if (tile.blob instanceof Blob) {
+                    try {
+                        return await tile.blob.arrayBuffer();
+                    } catch (error) {
+                        console.warn(`[TileManager] tile.blob.arrayBuffer() failed for tile ${tile.tile_index}, retrying with FileReader`, error);
+                        return await readBlobWithFileReader(tile.blob);
+                    }
+                }
+                return null;
+            };
+
             for (const tile of tiles) {
-                if (tile.blob) {
-                    const arrayBuffer = await tile.blob.arrayBuffer();
+                try {
+                    const arrayBuffer = await readTileBuffer(tile);
+                    if (!arrayBuffer) {
+                        console.error(`[TileManager] Local tile ${tile.tile_index} is missing binary data`);
+                        continue;
+                    }
                     this.zipFiles[`${tile.tile_index}.ktx2`] = new Uint8Array(arrayBuffer);
                     loadedCount++;
                     if (onProgress) {
                         onProgress('downloading', loadedCount, tile_count);
                     }
+                } catch (error) {
+                    console.error(`[TileManager] Failed to read local tile ${tile.tile_index}:`, error);
                 }
             }
 
@@ -1933,6 +1986,13 @@ export class TileManager {
 
             const results = await Promise.all(promises);
             this.materials = results;
+
+            const parsedTextureCount = this.arrayTextures.filter(Boolean).length;
+            if (loadedCount !== tile_count || parsedTextureCount !== this.tileCount || this.layerCount <= 0) {
+                console.error(`[TileManager] Incomplete local texture load: read ${loadedCount}/${tile_count} tiles, parsed ${parsedTextureCount}/${this.tileCount}, layerCount=${this.layerCount}`);
+                this.clearAllTiles();
+                return false;
+            }
 
             console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from local, layerCount=${this.layerCount}`);
             return true;

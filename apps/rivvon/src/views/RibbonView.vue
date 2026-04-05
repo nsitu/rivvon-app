@@ -534,7 +534,7 @@
             console.log(`[RibbonView] Found local texture set: ${textureSet.name}`);
 
             // Load textures from local storage via TileManager
-            await threeCanvasRef.value?.loadTexturesFromLocal(textureSet, getTiles, (stage, current, total) => {
+            const success = await threeCanvasRef.value?.loadTexturesFromLocal(textureSet, getTiles, (stage, current, total) => {
                 if (stage === 'downloading') {
                     const pct = Math.round((current / total) * 100);
                     loadingProgress.value = `Loading ${pct}%`;
@@ -543,6 +543,10 @@
                     loadingProgress.value = `Building ${pct}%`;
                 }
             });
+
+            if (!success) {
+                throw new Error('Local texture data is incomplete or unreadable on this device.');
+            }
 
             // Set blurred background from thumbnail
             if (textureSet.thumbnail_data_url) {
@@ -649,7 +653,7 @@
             console.log(`[RibbonView] Fetched texture set: ${textureSet.tiles.length} tiles`);
 
             // Load textures from remote URLs via TileManager
-            await threeCanvasRef.value?.loadTexturesFromRemote(textureSet, (stage, current, total) => {
+            const success = await threeCanvasRef.value?.loadTexturesFromRemote(textureSet, (stage, current, total) => {
                 if (stage === 'downloading') {
                     const pct = Math.round((current / total) * 100);
                     loadingProgress.value = `Downloading ${pct}%`;
@@ -658,6 +662,10 @@
                     loadingProgress.value = `Building ${pct}%`;
                 }
             });
+
+            if (!success) {
+                throw new Error('Texture data is incomplete or unreadable.');
+            }
 
             // Set blurred background from thumbnail
             if (texture.thumbnail_url) {

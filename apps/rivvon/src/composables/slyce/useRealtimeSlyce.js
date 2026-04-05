@@ -423,6 +423,10 @@ export function useRealtimeSlyce() {
 
         maybePersistResultsLocally();
 
+        if (crossSectionType.value === 'waves' && completedKtx2Buffers.value.length < maxTiles.value) {
+            console.warn(`[RealtimeSlyce] Waves capture stopped early: ${completedKtx2Buffers.value.length}/${maxTiles.value} tiles encoded.`);
+        }
+
         console.log(`[RealtimeSlyce] Stopped. ${completedKtx2Buffers.value.length} KTX2 buffers ready, ${encodingTiles.value} still encoding.`);
     }
 
@@ -697,6 +701,10 @@ export function useRealtimeSlyce() {
             return;
         }
 
+        if (crossSectionType.value === 'waves' && buffers.length < maxTiles.value) {
+            console.warn(`[RealtimeSlyce] Applying partial waves capture: ${buffers.length}/${maxTiles.value} tiles completed.`);
+        }
+
         // Prepare TileManager for new tiles
         tileManager.clearAllTiles();
         tileManager.variant = crossSectionType.value;
@@ -707,6 +715,8 @@ export function useRealtimeSlyce() {
         for (let i = 0; i < buffers.length; i++) {
             await tileManager.addTileFromBuffer(buffers[i], i);
         }
+
+        tileManager.resetAnimationState?.();
 
         if (ribbonSeries?.setTileManager) {
             ribbonSeries.setTileManager(tileManager);
@@ -719,7 +729,7 @@ export function useRealtimeSlyce() {
 
         await setBackgroundFromTileManager?.();
 
-        console.log(`[RealtimeSlyce] Applied ${buffers.length} tiles to viewer`);
+        console.log(`[RealtimeSlyce] Applied ${buffers.length} tiles to viewer (layerCount=${tileManager.layerCount})`);
 
         // Clear in-memory buffers after successful apply, but preserve
         // any completed local save state for the current capture.

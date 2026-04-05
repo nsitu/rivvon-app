@@ -6,6 +6,8 @@
  * Borrowed patterns from timespy's CameraManager and polyfillMSTP.
  */
 
+import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
+
 // ── MSTP Polyfill ──────────────────────────────────────────────────────
 function polyfillMSTP() {
     if (typeof MediaStreamTrackProcessor !== 'undefined') return;
@@ -23,12 +25,13 @@ function polyfillMSTP() {
                     video.muted = true;
                     video.playsInline = true;
                     self._video = video;
-                    self._canvas = new OffscreenCanvas(1, 1);
-                    self._ctx = self._canvas.getContext('2d');
+                    const { canvas, ctx } = createRealtimeCanvas(1, 1);
+                    self._canvas = canvas;
+                    self._ctx = ctx;
                     self._stopped = false;
 
                     video.play().then(() => {
-                        self._pump(controller);
+                        void self._pump(controller);
                     });
                 },
                 cancel() {
@@ -41,7 +44,7 @@ function polyfillMSTP() {
             });
         }
 
-        _pump(controller) {
+        async _pump(controller) {
             if (this._stopped || this._track.readyState === 'ended') {
                 controller.close();
                 return;
@@ -55,13 +58,24 @@ function polyfillMSTP() {
                 if (typeof VideoFrame !== 'undefined') {
                     const frame = new VideoFrame(this._canvas, { timestamp: performance.now() * 1000 });
                     controller.enqueue(frame);
-                } else {
-                    // Fallback: use canvas directly — consumer must handle
+                } else if (typeof this._canvas.transferToImageBitmap === 'function') {
                     const bmp = this._canvas.transferToImageBitmap();
                     controller.enqueue(bmp);
+                } else if (typeof createImageBitmap === 'function') {
+                    try {
+                        const bmp = await createImageBitmap(this._canvas);
+                        controller.enqueue(bmp);
+                    } catch (error) {
+                        console.warn('[RealtimeCamera] createImageBitmap failed, falling back to canvas frame:', error);
+                        controller.enqueue(this._canvas);
+                    }
+                } else {
+                    controller.enqueue(this._canvas);
                 }
             }
-            requestAnimationFrame(() => this._pump(controller));
+            requestAnimationFrame(() => {
+                void this._pump(controller);
+            });
         }
     }
 

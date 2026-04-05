@@ -14,6 +14,7 @@ const DB_NAME = 'rivvon-textures';
 const DB_VERSION = 1;
 const STORE_TEXTURE_SETS = 'texture-sets';
 const STORE_TILES = 'tiles';
+const TILE_MIME_TYPE = 'image/ktx2';
 
 let dbInstance = null;
 
@@ -22,6 +23,58 @@ let dbInstance = null;
  */
 function generateId() {
     return `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+function isArrayBufferView(value) {
+    return ArrayBuffer.isView(value);
+}
+
+function getTileByteLength(tile) {
+    if (typeof tile.file_size === 'number' && tile.file_size > 0) {
+        return tile.file_size;
+    }
+    if (tile.bytes instanceof ArrayBuffer) {
+        return tile.bytes.byteLength;
+    }
+    if (isArrayBufferView(tile.bytes)) {
+        return tile.bytes.byteLength;
+    }
+    if (tile.blob instanceof Blob) {
+        return tile.blob.size;
+    }
+    return 0;
+}
+
+async function toTileArrayBuffer(tileData) {
+    if (tileData instanceof ArrayBuffer) {
+        return tileData;
+    }
+    if (isArrayBufferView(tileData)) {
+        return tileData.buffer.slice(tileData.byteOffset, tileData.byteOffset + tileData.byteLength);
+    }
+    if (tileData instanceof Blob) {
+        return await tileData.arrayBuffer();
+    }
+
+    throw new Error('Unsupported local texture tile payload');
+}
+
+function createTileBlob(tile) {
+    if (tile.blob instanceof Blob) {
+        return new Blob([tile.blob], { type: tile.blob.type || TILE_MIME_TYPE });
+    }
+    if (tile.bytes instanceof ArrayBuffer || isArrayBufferView(tile.bytes)) {
+        return new Blob([tile.bytes], { type: TILE_MIME_TYPE });
+    }
+    return null;
+}
+
+function normalizeTileRecord(tile) {
+    return {
+        ...tile,
+        blob: createTileBlob(tile),
+        file_size: getTileByteLength(tile)
+    };
 }
 
 /**
@@ -77,13 +130,7 @@ async function openDatabase() {
 async function calculateTextureSetSize(textureSetId) {
     const tiles = await getTiles(textureSetId);
     return tiles.reduce((total, tile) => {
-        if (typeof tile.file_size === 'number' && tile.file_size > 0) {
-            return total + tile.file_size;
-        }
-        if (tile.blob instanceof Blob) {
-            return total + tile.blob.size;
-        }
-        return total;
+        return total + getTileByteLength(tile);
     }, 0);
 }
 
@@ -113,18 +160,23 @@ async function saveTextureSet({
     ktx2Blobs,
     onProgress
 }) {
+    const tileEntries = await Promise.all(
+        Object.entries(ktx2Blobs).map(async ([tileIndex, tileData]) => {
+            const bytes = await toTileArrayBuffer(tileData);
+            return {
+                tileIndex: parseInt(tileIndex, 10),
+                bytes,
+                fileSize: bytes.byteLength
+            };
+        })
+    );
+
     const db = await openDatabase();
     const id = generateId();
     const createdAt = Date.now();
 
     // Calculate total size
-    let totalSize = 0;
-    const blobEntries = Object.entries(ktx2Blobs);
-    for (const [, blob] of blobEntries) {
-        if (blob instanceof Blob) {
-            totalSize += blob.size;
-        }
-    }
+    const totalSize = tileEntries.reduce((sum, entry) => sum + entry.fileSize, 0);
 
     // Create texture set metadata
     const textureSet = {
@@ -150,7 +202,7 @@ async function saveTextureSet({
         };
 
         transaction.oncomplete = () => {
-            console.log(`[LocalStorage] Saved texture set: ${id} with ${blobEntries.length} tiles`);
+            console.log(`[LocalStorage] Saved texture set: ${id} with ${tileEntries.length} tiles`);
             resolve(id);
         };
 
@@ -162,21 +214,21 @@ async function saveTextureSet({
         const tilesStore = transaction.objectStore(STORE_TILES);
         let savedCount = 0;
 
-        for (const [tileIndex, blob] of blobEntries) {
-            const tileId = `${id}_${tileIndex}`;
+        for (const entry of tileEntries) {
+            const tileId = `${id}_${entry.tileIndex}`;
             const tile = {
                 id: tileId,
                 texture_set_id: id,
-                tile_index: parseInt(tileIndex),
-                blob: blob,
-                file_size: blob instanceof Blob ? blob.size : 0
+                tile_index: entry.tileIndex,
+                bytes: entry.bytes,
+                file_size: entry.fileSize
             };
 
             const request = tilesStore.add(tile);
             request.onsuccess = () => {
                 savedCount++;
                 if (onProgress) {
-                    onProgress(savedCount, blobEntries.length);
+                    onProgress(savedCount, tileEntries.length);
                 }
             };
         }
@@ -257,7 +309,9 @@ async function getTiles(textureSetId) {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
             // Sort by tile_index
-            const results = request.result.sort((a, b) => a.tile_index - b.tile_index);
+            const results = request.result
+                .sort((a, b) => a.tile_index - b.tile_index)
+                .map(normalizeTileRecord);
             resolve(results);
         };
     });
@@ -279,7 +333,7 @@ async function getTile(textureSetId, tileIndex) {
         const request = store.get(tileId);
 
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result || null);
+        request.onsuccess = () => resolve(request.result ? normalizeTileRecord(request.result) : null);
     });
 }
 
@@ -411,6 +465,9 @@ async function exportTextureSetAsZip(textureSetId) {
 
     // Add each tile
     for (const tile of tiles) {
+        if (!tile.blob) {
+            throw new Error(`Tile ${tile.tile_index} is missing KTX2 data`);
+        }
         zip.file(`${tile.tile_index}.ktx2`, tile.blob, { binary: true });
     }
 

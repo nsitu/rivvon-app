@@ -16,6 +16,7 @@
 
 import { EventEmitter } from 'events';
 import { getCached2dContext } from './samplingRuntime.js';
+import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
 
 /** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
@@ -97,24 +98,9 @@ export class RealtimeTileBuilder extends EventEmitter {
             return set;
         }
 
-        // Prefer OffscreenCanvas for the hot sampling path, but fall back
-        // to a regular canvas where OffscreenCanvas 2D is unavailable.
         const set = [];
         for (let i = 0; i < this.crossSectionCount; i++) {
-            let c = null;
-            let ctx = null;
-
-            if (typeof OffscreenCanvas !== 'undefined') {
-                c = new OffscreenCanvas(this.potResolution, this.potResolution);
-                ctx = getCached2dContext(c);
-            }
-
-            if (!ctx) {
-                c = document.createElement('canvas');
-                c.width = this.potResolution;
-                c.height = this.potResolution;
-                ctx = getCached2dContext(c);
-            }
+            const { canvas: c, ctx } = createRealtimeCanvas(this.potResolution, this.potResolution);
 
             // Keep the live sampling canvases write-optimised.
             // Full-canvas readback is deferred until tile completion.
