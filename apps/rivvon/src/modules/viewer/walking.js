@@ -102,7 +102,7 @@ export class WalkingManager {
         this.map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
         this.tileLayer = L.tileLayer(DARK_TILE_URL, {
-            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 20
         });

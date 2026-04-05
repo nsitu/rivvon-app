@@ -245,13 +245,18 @@
 
     :deep(.leaflet-control-attribution) {
         background: rgba(15, 23, 42, 0.78);
-        color: rgba(255, 255, 255, 0.82);
+        color: rgba(255, 255, 255, 0.52);
         border: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: none;
     }
 
     :deep(.leaflet-control-attribution a) {
-        color: rgba(187, 247, 208, 0.92);
+        color: rgba(226, 232, 240, 0.72);
+        transition: color 0.2s ease;
+    }
+
+    :deep(.leaflet-control-attribution a:hover) {
+        color: rgba(248, 250, 252, 0.9);
     }
 
     @media (max-width: 768px) {
