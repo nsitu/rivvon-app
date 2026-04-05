@@ -2,8 +2,6 @@
     import { ref, computed, onMounted, watch } from 'vue';
     import 'leaflet/dist/leaflet.css';
     import { useWalking } from '../../composables/viewer/useWalking';
-    import { useViewerStore } from '../../stores/viewerStore';
-    import { formatWalkTileFilter } from '../../modules/viewer/walkTileFilter.js';
 
     const props = defineProps({
         active: {
@@ -13,7 +11,6 @@
     });
 
     const mapRef = ref(null);
-    const app = useViewerStore();
 
     const {
         walkingManager,
@@ -48,12 +45,6 @@
     });
 
     const showStats = computed(() => pointCount.value > 0 || !!formattedAccuracy.value);
-    const walkMapStyleVars = computed(() => ({
-        '--walk-map-tile-filter': formatWalkTileFilter(
-            app.walkTileBrightnessMultiplier,
-            app.walkTileContrastMultiplier
-        )
-    }));
 
     onMounted(() => {
         if (mapRef.value) {
@@ -92,7 +83,6 @@
     <div
         class="walk-canvas"
         :class="{ active: props.active }"
-        :style="walkMapStyleVars"
     >
         <div
             ref="mapRef"
@@ -243,7 +233,7 @@
     :deep(.leaflet-container img.leaflet-tile) {
         mix-blend-mode: normal;
         opacity: 1;
-        filter: var(--walk-map-tile-filter);
+        filter: brightness(3);
     }
 
     :deep(.leaflet-container img.leaflet-tile.leaflet-tile-loaded) {

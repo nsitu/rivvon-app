@@ -2,10 +2,6 @@
 // Pinia store for rivvon viewer state
 
 import { defineStore } from 'pinia';
-import {
-    DEFAULT_WALK_TILE_FILTER_MULTIPLIER,
-    clampWalkTileFilterMultiplier
-} from '../modules/viewer/walkTileFilter.js';
 
 export const useViewerStore = defineStore('viewer', {
     state: () => ({
@@ -22,8 +18,6 @@ export const useViewerStore = defineStore('viewer', {
         // Walk capture state
         isWalkMode: false,
         walkPointCount: 0,
-        walkTileBrightnessMultiplier: DEFAULT_WALK_TILE_FILTER_MULTIPLIER,
-        walkTileContrastMultiplier: DEFAULT_WALK_TILE_FILTER_MULTIPLIER,
         
         // Ribbon/3D state
         flowState: 'forward', // 'off' | 'forward' | 'backward'
@@ -218,14 +212,6 @@ export const useViewerStore = defineStore('viewer', {
 
         setWalkPointCount(count) {
             this.walkPointCount = count;
-        },
-
-        setWalkTileBrightnessMultiplier(value) {
-            this.walkTileBrightnessMultiplier = clampWalkTileFilterMultiplier(value);
-        },
-
-        setWalkTileContrastMultiplier(value) {
-            this.walkTileContrastMultiplier = clampWalkTileFilterMultiplier(value);
         },
         
         setCountdownSeconds(seconds) {

@@ -1,7 +1,6 @@
 import L from 'leaflet';
 import { KalmanFilter2D } from './kalmanFilter.js';
 import { finalizeCapturedPaths } from './pathFinalizer.js';
-import { formatWalkTileFilter } from './walkTileFilter.js';
 
 const DEFAULT_CENTER = [20, 0];
 const DEFAULT_ZOOM = 2;
@@ -86,7 +85,7 @@ export class WalkingManager {
         tile.style.setProperty('visibility', 'visible', 'important');
         tile.style.setProperty('opacity', '1', 'important');
         tile.style.setProperty('display', 'block', 'important');
-        tile.style.setProperty('filter', `var(--walk-map-tile-filter, ${formatWalkTileFilter()})`, 'important');
+        tile.style.setProperty('filter', 'brightness(3)', 'important');
     }
 
     createMap() {
