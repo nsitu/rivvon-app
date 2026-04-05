@@ -344,7 +344,7 @@ export class WalkingManager {
         this.updateLivePosition(nextPoint);
 
         if (Number.isFinite(accuracy) && accuracy > MAX_ACCEPTED_ACCURACY_METERS) {
-            this.errorMessage = `Waiting for a more accurate fix (currently ±${Math.round(accuracy)} m).`;
+            this.errorMessage = `Location accuracy low. Check GPS.`;
             this.emitState();
             return;
         }
