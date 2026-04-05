@@ -85,7 +85,7 @@ export class WalkingManager {
         tile.style.setProperty('visibility', 'visible', 'important');
         tile.style.setProperty('opacity', '1', 'important');
         tile.style.setProperty('display', 'block', 'important');
-        tile.style.setProperty('filter', 'none', 'important');
+        tile.style.setProperty('filter', 'brightness(1.06) contrast(1.14)', 'important');
     }
 
     createMap() {

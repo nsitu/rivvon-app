@@ -232,6 +232,8 @@
 
     :deep(.leaflet-container img.leaflet-tile) {
         mix-blend-mode: normal;
+        opacity: 1;
+        filter: brightness(1.06) contrast(1.14);
     }
 
     :deep(.leaflet-container img.leaflet-tile.leaflet-tile-loaded) {
