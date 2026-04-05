@@ -101,8 +101,6 @@ export class WalkingManager {
 
         this.map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
-        L.control.zoom({ position: 'topright' }).addTo(this.map);
-
         this.tileLayer = L.tileLayer(DARK_TILE_URL, {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
             subdomains: 'abcd',

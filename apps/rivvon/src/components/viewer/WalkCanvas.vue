@@ -14,12 +14,10 @@
 
     const {
         walkingManager,
-        status,
         errorMessage,
         pointCount,
         distanceMeters,
         accuracyMeters,
-        isTracking,
         hasLocated,
         initWalking,
         setWalkingMode,
@@ -29,25 +27,6 @@
 
     const isMapVisible = computed(() => props.active && hasLocated.value);
     const showLocatingOverlay = computed(() => props.active && !hasLocated.value);
-
-    const statusLabel = computed(() => {
-        if (status.value === 'tracking') return 'Tracking route';
-        if (status.value === 'locating') return 'Locating';
-        if (status.value === 'error') return 'Location error';
-        return 'Walk mode';
-    });
-
-    const helperText = computed(() => {
-        if (status.value === 'tracking') {
-            return 'Keep moving and tap the green check when the route is ready.';
-        }
-
-        if (status.value === 'locating') {
-            return 'Grant location access and wait for a stable GPS fix.';
-        }
-
-        return 'Location samples are smoothed before the path is turned into a ribbon.';
-    });
 
     const formattedDistance = computed(() => {
         if (distanceMeters.value >= 1000) {
@@ -64,6 +43,8 @@
 
         return `±${Math.round(accuracyMeters.value)} m`;
     });
+
+    const showStats = computed(() => pointCount.value > 0 || !!formattedAccuracy.value);
 
     onMounted(() => {
         if (mapRef.value) {
@@ -119,20 +100,18 @@
 
         <div class="walk-hud">
             <div
-                class="walk-pill"
-                :class="{ tracking: isTracking }"
-            >{{ statusLabel }}</div>
-
-            <div class="walk-stats">
+                v-if="showStats"
+                class="walk-stats"
+            >
                 <span>{{ pointCount }} pts</span>
                 <span v-if="pointCount > 1">{{ formattedDistance }}</span>
                 <span v-if="formattedAccuracy">{{ formattedAccuracy }}</span>
             </div>
 
             <p
+                v-if="errorMessage"
                 class="walk-message"
-                :class="{ error: !!errorMessage }"
-            >{{ errorMessage || helperText }}</p>
+            >{{ errorMessage }}</p>
         </div>
     </div>
 </template>
@@ -213,7 +192,6 @@
         pointer-events: none;
     }
 
-    .walk-pill,
     .walk-stats,
     .walk-message {
         align-self: flex-start;
@@ -221,22 +199,6 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
         backdrop-filter: blur(12px);
         color: rgba(255, 255, 255, 0.92);
-    }
-
-    .walk-pill {
-        padding: 0.6rem 0.9rem;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    .walk-pill.tracking {
-        background: rgba(21, 128, 61, 0.86);
-    }
-
-    .walk-pill:not(.tracking) {
-        background: rgba(30, 41, 59, 0.82);
     }
 
     .walk-stats {
@@ -256,13 +218,9 @@
         font-size: 0.92rem;
     }
 
-    .walk-message.error {
+    .walk-message {
         color: #fecaca;
         border-color: rgba(248, 113, 113, 0.35);
-    }
-
-    :deep(.leaflet-top) {
-        top: 5.5rem;
     }
 
     :deep(.leaflet-container) {
@@ -282,7 +240,6 @@
         bottom: 5.5rem;
     }
 
-    :deep(.leaflet-control-zoom a),
     :deep(.leaflet-control-attribution) {
         background: rgba(15, 23, 42, 0.78);
         color: rgba(255, 255, 255, 0.82);
