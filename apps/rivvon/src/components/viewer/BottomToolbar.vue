@@ -3,6 +3,12 @@
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
+    import {
+        DEFAULT_WALK_TILE_FILTER_MULTIPLIER,
+        MAX_WALK_TILE_FILTER_MULTIPLIER,
+        getWalkTileBrightness,
+        getWalkTileContrast
+    } from '../../modules/viewer/walkTileFilter.js';
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
@@ -209,6 +215,11 @@
         if (!closeActiveContext()) return;
         action();
     }
+
+    const walkTileBrightnessLabel = computed(() => `${app.walkTileBrightnessMultiplier.toFixed(2)}x`);
+    const walkTileContrastLabel = computed(() => `${app.walkTileContrastMultiplier.toFixed(2)}x`);
+    const walkTileBrightnessActual = computed(() => getWalkTileBrightness(app.walkTileBrightnessMultiplier).toFixed(2));
+    const walkTileContrastActual = computed(() => getWalkTileContrast(app.walkTileContrastMultiplier).toFixed(2));
 </script>
 
 <template>
@@ -351,7 +362,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -363,7 +374,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -375,7 +386,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -396,6 +407,42 @@
                             <span>Rounded Caps</span>
                         </button>
 
+                    </div>
+                </div>
+
+                <div class="tools-section">
+                    <div class="tools-section-label">Walk Map</div>
+                    <div class="tools-section-items">
+                        <div class="tools-slider">
+                            <label>
+                                <span>Brightness</span>
+                                <span class="tools-slider-value">{{ walkTileBrightnessLabel }} · {{
+                                    walkTileBrightnessActual }}</span>
+                            </label>
+                            <input
+                                type="range"
+                                :min="DEFAULT_WALK_TILE_FILTER_MULTIPLIER"
+                                :max="MAX_WALK_TILE_FILTER_MULTIPLIER"
+                                step="0.05"
+                                :value="app.walkTileBrightnessMultiplier"
+                                @input="app.setWalkTileBrightnessMultiplier(parseFloat($event.target.value))"
+                            />
+                        </div>
+                        <div class="tools-slider">
+                            <label>
+                                <span>Contrast</span>
+                                <span class="tools-slider-value">{{ walkTileContrastLabel }} · {{ walkTileContrastActual
+                                    }}</span>
+                            </label>
+                            <input
+                                type="range"
+                                :min="DEFAULT_WALK_TILE_FILTER_MULTIPLIER"
+                                :max="MAX_WALK_TILE_FILTER_MULTIPLIER"
+                                step="0.05"
+                                :value="app.walkTileContrastMultiplier"
+                                @input="app.setWalkTileContrastMultiplier(parseFloat($event.target.value))"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -456,7 +503,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
