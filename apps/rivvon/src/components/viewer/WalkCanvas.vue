@@ -95,7 +95,10 @@
         >
             <div class="walk-locating-spinner"></div>
             <div class="walk-locating-title">Finding your location</div>
-            <p class="walk-locating-copy">{{ errorMessage || 'The map will appear after the first location fix.' }}</p>
+            <p
+                v-if="errorMessage"
+                class="walk-locating-copy"
+            >{{ errorMessage }}</p>
         </div>
 
         <div class="walk-hud">
