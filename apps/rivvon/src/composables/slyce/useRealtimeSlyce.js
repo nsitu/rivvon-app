@@ -396,6 +396,11 @@ export function useRealtimeSlyce() {
         if (!isCapturing.value) return;
         isCapturing.value = false;
 
+        const samplingMode = tileBuilder?.samplingSourceMode ?? 'unknown';
+        const expectedTileCount = crossSectionType.value === 'waves'
+            ? targetTileCount.value
+            : maxTiles.value;
+
         // Abort frame loop
         if (frameLoopAbort) {
             frameLoopAbort.abort();
@@ -403,6 +408,26 @@ export function useRealtimeSlyce() {
         }
 
         publishPerfStats();
+
+        const stats = perfStats.value;
+        if (
+            stats.frameIntervalMs > 0
+            || stats.samplingMs > 0
+            || stats.previewMs > 0
+            || stats.readbackMs > 0
+            || stats.encodeQueueMs > 0
+            || stats.encodeMs > 0
+        ) {
+            console.log(
+                `[RealtimeSlyce] Perf summary (${samplingMode}): `
+                + `frame=${stats.frameIntervalMs.toFixed(1)}ms, `
+                + `sample=${stats.samplingMs.toFixed(1)}ms/frame, `
+                + `preview=${stats.previewMs.toFixed(1)}ms/raf, `
+                + `readback=${stats.readbackMs.toFixed(1)}ms/tile, `
+                + `queue=${stats.encodeQueueMs.toFixed(1)}ms/tile, `
+                + `encode=${stats.encodeMs.toFixed(1)}ms/tile`
+            );
+        }
 
         currentPreviewCanvas.value = null;
 
@@ -423,8 +448,8 @@ export function useRealtimeSlyce() {
 
         maybePersistResultsLocally();
 
-        if (crossSectionType.value === 'waves' && completedKtx2Buffers.value.length < maxTiles.value) {
-            console.warn(`[RealtimeSlyce] Waves capture stopped early: ${completedKtx2Buffers.value.length}/${maxTiles.value} tiles encoded.`);
+        if (crossSectionType.value === 'waves' && completedKtx2Buffers.value.length < expectedTileCount) {
+            console.warn(`[RealtimeSlyce] Waves capture stopped early: ${completedKtx2Buffers.value.length}/${expectedTileCount} tiles encoded.`);
         }
 
         console.log(`[RealtimeSlyce] Stopped. ${completedKtx2Buffers.value.length} KTX2 buffers ready, ${encodingTiles.value} still encoding.`);
@@ -696,13 +721,16 @@ export function useRealtimeSlyce() {
     async function applyToViewer(tileManager, ribbonSeries, options = {}) {
         const { setBackgroundFromTileManager = null } = options;
         const buffers = completedKtx2Buffers.value;
+        const expectedTileCount = crossSectionType.value === 'waves'
+            ? targetTileCount.value
+            : maxTiles.value;
         if (buffers.length === 0) {
             console.warn('[RealtimeSlyce] No KTX2 buffers to apply');
             return;
         }
 
-        if (crossSectionType.value === 'waves' && buffers.length < maxTiles.value) {
-            console.warn(`[RealtimeSlyce] Applying partial waves capture: ${buffers.length}/${maxTiles.value} tiles completed.`);
+        if (crossSectionType.value === 'waves' && buffers.length < expectedTileCount) {
+            console.warn(`[RealtimeSlyce] Applying partial waves capture: ${buffers.length}/${expectedTileCount} tiles completed.`);
         }
 
         // Prepare TileManager for new tiles

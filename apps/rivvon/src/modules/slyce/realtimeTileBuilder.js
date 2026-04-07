@@ -278,6 +278,10 @@ export class RealtimeTileBuilder extends EventEmitter {
         return this._totalFrames !== null && this._globalFrameIndex >= this._totalFrames;
     }
 
+    get samplingSourceMode() {
+        return this._useStagingSource ? 'staging-canvas' : 'direct-frame';
+    }
+
     /**
      * Get the first canvas of the current tile being built.
      * Useful for rendering a live preview in the sampling screen.

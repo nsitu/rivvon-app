@@ -10,12 +10,45 @@ function isLikelyIOSOrSafari() {
     return isIOSDevice || isSafariBrowser;
 }
 
+function getRealtimeSamplingOverride() {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const queryValue = params.get('realtimeSamplingSource');
+        if (queryValue === 'staging' || queryValue === 'direct') {
+            return queryValue;
+        }
+    } catch {
+        // Ignore malformed URLs and fall back to storage/defaults.
+    }
+
+    try {
+        const storedValue = window.localStorage?.getItem('rivvon:realtimeSamplingSource');
+        if (storedValue === 'staging' || storedValue === 'direct') {
+            return storedValue;
+        }
+    } catch {
+        // Ignore storage access errors.
+    }
+
+    return null;
+}
+
+export function getRealtimeSamplingSourceMode() {
+    const override = getRealtimeSamplingOverride();
+    if (override) {
+        return override === 'staging' ? 'staging-canvas' : 'direct-frame';
+    }
+    return isLikelyIOSOrSafari() ? 'staging-canvas' : 'direct-frame';
+}
+
 export function shouldUseDomCanvasForRealtime() {
     return isLikelyIOSOrSafari();
 }
 
 export function shouldUseStagingCanvasForRealtimeSampling() {
-    return isLikelyIOSOrSafari();
+    return getRealtimeSamplingSourceMode() === 'staging-canvas';
 }
 
 export function createRealtimeCanvas(width, height) {
