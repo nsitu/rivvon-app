@@ -372,6 +372,14 @@
         return captureFps > 0 && captureFps < cameraFps * 0.5;
     });
 
+    const showEncodeThrottleIndicator = computed(() =>
+        realtime.isCapturing.value || realtime.encodingTiles.value > 0
+    );
+
+    const encodeThrottleText = computed(() =>
+        realtime.isEncodeThrottleEnabled.value ? 'Encode Throttle On' : 'Encode Throttle Off'
+    );
+
     async function handleDowngrade() {
         const target = nextLowerResolution.value;
         if (!target) return;
@@ -452,6 +460,11 @@
                     class="status-bar"
                 >
                     <span class="status-text">{{ statusText }}</span>
+                    <span
+                        v-if="showEncodeThrottleIndicator"
+                        class="throttle-indicator"
+                        :class="realtime.isEncodeThrottleEnabled.value ? 'is-on' : 'is-off'"
+                    >{{ encodeThrottleText }}</span>
                 </div>
 
                 <div
@@ -917,10 +930,40 @@
 
     /* Status bar */
     .status-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.55rem;
         text-align: center;
         font-variant-numeric: tabular-nums;
         color: rgba(255, 255, 255, 0.9);
         font-size: 14px;
+    }
+
+    .throttle-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.22rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        line-height: 1;
+    }
+
+    .throttle-indicator.is-on {
+        color: #ffd68a;
+        background: rgba(255, 183, 77, 0.16);
+        border-color: rgba(255, 183, 77, 0.42);
+    }
+
+    .throttle-indicator.is-off {
+        color: #8ff0c8;
+        background: rgba(76, 175, 80, 0.14);
+        border-color: rgba(76, 175, 80, 0.36);
     }
 
     .perf-bar {

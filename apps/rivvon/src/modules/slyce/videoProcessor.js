@@ -5,6 +5,7 @@ import { readCanvasSetImages } from './samplingRuntime.js';
 import { TileBuilder } from './tileBuilder.js';
 import { KTX2Assembler } from './ktx2-assembler.js';
 import { KTX2WorkerPool } from './ktx2-worker-pool.js';
+import { getSharedBackgroundEncodeConfig } from './encodingPolicy.js';
 import { runSamplingPipeline } from './samplingPipeline.js';
 import { VideoFileFrameSource } from './samplingSources.js';
 import { buildFileTextureSaveSource, saveProcessedTextureSetLocally } from './localTexturePersistence.js';
@@ -171,6 +172,56 @@ const processVideo = async (settings) => {
         }
     });
 
+    const encodeConfig = getSharedBackgroundEncodeConfig();
+    let activeTileEncodeCount = 0;
+    const tileEncodeWaiters = [];
+
+    console.log(`[VideoProcessor] Encode policy: max ${encodeConfig.maxConcurrentTileEncodes} tile(s), ${encodeConfig.layerWorkerCount} layer worker(s)`);
+
+    function acquireTileEncodeSlot() {
+        if (abortSignal.aborted) {
+            return Promise.reject(new DOMException('Video processing aborted.', 'AbortError'));
+        }
+
+        if (activeTileEncodeCount < encodeConfig.maxConcurrentTileEncodes) {
+            activeTileEncodeCount++;
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve, reject) => {
+            const resume = () => {
+                cleanupAbort();
+                activeTileEncodeCount++;
+                resolve();
+            };
+
+            const onAbort = () => {
+                cleanupAbort();
+                const waiterIndex = tileEncodeWaiters.indexOf(resume);
+                if (waiterIndex !== -1) {
+                    tileEncodeWaiters.splice(waiterIndex, 1);
+                }
+                reject(new DOMException('Video processing aborted.', 'AbortError'));
+            };
+
+            const cleanupAbort = () => {
+                abortSignal.removeEventListener('abort', onAbort);
+            };
+
+            abortSignal.addEventListener('abort', onAbort, { once: true });
+            tileEncodeWaiters.push(resume);
+        });
+    }
+
+    function releaseTileEncodeSlot() {
+        activeTileEncodeCount = Math.max(0, activeTileEncodeCount - 1);
+
+        while (tileEncodeWaiters.length > 0 && activeTileEncodeCount < encodeConfig.maxConcurrentTileEncodes) {
+            const resume = tileEncodeWaiters.shift();
+            resume();
+        }
+    }
+
     // Iterate through decoded video samples
     // VideoSampleSink automatically decodes frames using WebCodecs (non-blocking)
     await runSamplingPipeline({
@@ -233,87 +284,107 @@ const processVideo = async (settings) => {
             const totalTiles = tilePlan.tiles.length;
             let images = [];
 
-            // Bake the live preview canvas to a static blob URL
-            if (app.previewMode === 'static' && app.tileSnapshotPreview) {
-                try {
-                    await app.tileSnapshotPreview.bake(tileId);
-                } catch (e) {
-                    // Non-critical
+            app.setStatus(`Tile ${tileId + 1}`, 'Queued');
+
+            try {
+                await acquireTileEncodeSlot();
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error(`[VideoProcessor] Failed to queue tile ${tileId}:`, error);
                 }
+                return;
             }
 
             try {
-                images = readCanvasSetImages(canvasSet);
-            } catch (error) {
-                console.error(`[VideoProcessor] Failed to read back tile ${tileId}:`, error);
-                app.setStatus(`Tile ${tileId + 1} Error`, error.message);
-            }
+                if (abortSignal.aborted) return;
 
-            if (tileId === 0 && images.length > 0) {
-                try {
-                    const thumbnailBlob = await createThumbnailFromRGBA(images[0]);
-                    app.set('thumbnailBlob', thumbnailBlob);
-                } catch (err) {
-                    console.warn('[VideoProcessor] Failed to create thumbnail:', err);
-                }
-            }
-
-            if (images.length > 0) {
-                try {
-                    console.log(`[KTX2] Encoding tile ${tileId} with ${images.length} layers (parallel)`);
-
-                    if (!ktx2WorkerPool) {
-                        ktx2WorkerPool = new KTX2WorkerPool();
-                        await ktx2WorkerPool.init();
-                        console.log('[KTX2] Worker pool created and will be reused for all tiles');
+                // Bake the live preview canvas to a static blob URL
+                if (app.previewMode === 'static' && app.tileSnapshotPreview) {
+                    try {
+                        await app.tileSnapshotPreview.bake(tileId);
+                    } catch (e) {
+                        // Non-critical
                     }
+                }
 
-                    const onProgress = (layersEncoded, totalLayers) => {
-                        app.setStatus(`Tile ${tileId + 1}`, `Encoding layer ${layersEncoded} of ${totalLayers}`);
-                    };
-
-                    const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(ktx2WorkerPool, images, onProgress);
-                    const blob = new Blob([ktx2Buffer], { type: 'image/ktx2' });
-                    encodedTileBlobs[tileId] = blob;
-                    app.registerBlobURL(tileId, blob);
-                    app.removeStatus(`Tile ${tileId + 1}`);
-
-                    console.log(`[KTX2] Tile ${tileId} encoded: ${(blob.size / 1024).toFixed(1)}KB`);
+                try {
+                    images = readCanvasSetImages(canvasSet);
                 } catch (error) {
-                    console.error(`[KTX2] Failed to encode tile ${tileId}:`, error);
+                    console.error(`[VideoProcessor] Failed to read back tile ${tileId}:`, error);
                     app.setStatus(`Tile ${tileId + 1} Error`, error.message);
                 }
-            }
 
-            completedTiles++;
-            app.setStatus('KTX2 Encoding', `Encoded ${completedTiles} of ${totalTiles} tiles`);
+                if (abortSignal.aborted) return;
 
-            if (completedTiles < totalTiles) {
-                app.setStatus(`Tile ${completedTiles + 1}`, 'Queued');
-            }
+                if (tileId === 0 && images.length > 0) {
+                    try {
+                        const thumbnailBlob = await createThumbnailFromRGBA(images[0]);
+                        app.set('thumbnailBlob', thumbnailBlob);
+                    } catch (err) {
+                        console.warn('[VideoProcessor] Failed to create thumbnail:', err);
+                    }
+                }
 
-            if (completedTiles === totalTiles) {
-                console.log(`[VideoProcessor] All ${completedTiles} tiles completed`);
-                app.removeStatus('KTX2 Encoding');
-                app.removeStatus('Processing');
-                app.removeStatus('Frame Range');
-                app.removeStatus('Seeking');
-                app.removeStatus('Decoding');
-                app.removeStatus('System');
-                cleanupKTX2Workers();
-                const viewerStore = useViewerStore();
-                viewerStore.resumeViewer();
-                void saveProcessedTextureSetLocally(localSave, buildFileTextureSaveSource(app, {
-                    ktx2Blobs: encodedTileBlobs,
-                    effectiveFrameCount,
-                    sourceMetadata: {
-                        filename: app.fileInfo?.name,
-                        width: app.fileInfo?.width,
-                        height: app.fileInfo?.height,
-                        duration: app.fileInfo?.duration,
-                        frame_count: effectiveFrameCount,
-                    },
-                }));
+                if (images.length > 0) {
+                    try {
+                        console.log(`[KTX2] Encoding tile ${tileId} with ${images.length} layers (parallel)`);
+
+                        if (!ktx2WorkerPool) {
+                            ktx2WorkerPool = new KTX2WorkerPool(encodeConfig.layerWorkerCount);
+                            await ktx2WorkerPool.init();
+                            console.log(`[KTX2] Worker pool created with ${encodeConfig.layerWorkerCount} workers and will be reused for all tiles`);
+                        }
+
+                        const onProgress = (layersEncoded, totalLayers) => {
+                            app.setStatus(`Tile ${tileId + 1}`, `Encoding layer ${layersEncoded} of ${totalLayers}`);
+                        };
+
+                        const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(ktx2WorkerPool, images, onProgress);
+                        const blob = new Blob([ktx2Buffer], { type: 'image/ktx2' });
+                        encodedTileBlobs[tileId] = blob;
+                        app.registerBlobURL(tileId, blob);
+                        app.removeStatus(`Tile ${tileId + 1}`);
+
+                        console.log(`[KTX2] Tile ${tileId} encoded: ${(blob.size / 1024).toFixed(1)}KB`);
+                    } catch (error) {
+                        if (abortSignal.aborted || error.name === 'AbortError') {
+                            return;
+                        }
+                        console.error(`[KTX2] Failed to encode tile ${tileId}:`, error);
+                        app.setStatus(`Tile ${tileId + 1} Error`, error.message);
+                    }
+                }
+
+                if (abortSignal.aborted) return;
+
+                completedTiles++;
+                app.setStatus('KTX2 Encoding', `Encoded ${completedTiles} of ${totalTiles} tiles`);
+
+                if (completedTiles === totalTiles) {
+                    console.log(`[VideoProcessor] All ${completedTiles} tiles completed`);
+                    app.removeStatus('KTX2 Encoding');
+                    app.removeStatus('Processing');
+                    app.removeStatus('Frame Range');
+                    app.removeStatus('Seeking');
+                    app.removeStatus('Decoding');
+                    app.removeStatus('System');
+                    cleanupKTX2Workers();
+                    const viewerStore = useViewerStore();
+                    viewerStore.resumeViewer();
+                    void saveProcessedTextureSetLocally(localSave, buildFileTextureSaveSource(app, {
+                        ktx2Blobs: encodedTileBlobs,
+                        effectiveFrameCount,
+                        sourceMetadata: {
+                            filename: app.fileInfo?.name,
+                            width: app.fileInfo?.width,
+                            height: app.fileInfo?.height,
+                            duration: app.fileInfo?.duration,
+                            frame_count: effectiveFrameCount,
+                        },
+                    }));
+                }
+            } finally {
+                releaseTileEncodeSlot();
             }
         },
         onError(error) {

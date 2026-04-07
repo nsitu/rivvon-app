@@ -24,10 +24,11 @@ This means the staging canvas is write-only in the hot path. The layer canvases 
 
 ## Realtime Encode Throttling
 
-Realtime capture now throttles encoding more aggressively than file-mode processing.
+Realtime capture now throttles encoding more aggressively than file-mode processing while sampling is still active.
 
-- Realtime keeps only one tile encode in flight at a time.
-- Realtime uses a single KTX2 worker, so only one layer encode runs at a time.
+- While the camera is still sampling, realtime keeps only one tile encode in flight at a time.
+- While the camera is still sampling, realtime uses a single KTX2 worker, so only one layer encode runs at a time.
+- Once sampling stops and the app is only draining queued tiles, realtime disables that extra throttle and switches to the same background encode policy as file mode: up to two concurrent tile encodes, with layer workers sized from `navigator.hardwareConcurrency` (falling back to `4`).
 - File-mode processing is unchanged and still uses its existing parallel worker behavior.
 
 This split is intentional.
@@ -41,7 +42,7 @@ The important detail is that realtime encoding is only partially off the main th
 - Final KTX2 array assembly still happens on the main thread.
 - Only the per-layer Basis compression runs inside workers.
 
-So reducing realtime worker concurrency is not just about worker CPU usage; it also reduces how often the main thread has to compete with encode-related work during live capture.
+So reducing realtime worker concurrency is not just about worker CPU usage; it also reduces how often the main thread has to compete with encode-related work during live capture. Once sampling is over, that constraint relaxes, so realtime can safely drain the remaining tiles using the same background encode policy as file mode.
 
 ## Why We Are Not Using `willReadFrequently`
 

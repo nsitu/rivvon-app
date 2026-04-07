@@ -17,6 +17,7 @@ import { ref, shallowRef, computed, onUnmounted } from 'vue';
 import { RealtimeTileBuilder } from '../../modules/slyce/realtimeTileBuilder.js';
 import { KTX2WorkerPool } from '../../modules/slyce/ktx2-worker-pool.js';
 import { KTX2Assembler } from '../../modules/slyce/ktx2-assembler.js';
+import { getRealtimeSamplingEncodeConfig, getSharedBackgroundEncodeConfig } from '../../modules/slyce/encodingPolicy.js';
 import { getCached2dContext, readCanvasSetImages } from '../../modules/slyce/samplingRuntime.js';
 import { runSamplingPipeline } from '../../modules/slyce/samplingPipeline.js';
 import { CameraFrameSource } from '../../modules/slyce/samplingSources.js';
@@ -104,6 +105,7 @@ const isSavingLocally = localSave.isSavingLocally;
 const saveLocalProgress = localSave.saveLocalProgress;
 const saveLocalError = localSave.saveLocalError;
 const savedLocalTextureId = localSave.savedLocalTextureId;
+const isEncodeThrottleEnabled = ref(true);
 
 // Unified tile grid: encoding + completed tiles in display order
 // Each entry: { id, canvas, status: 'encoding'|'completed', layer, layerTotal }
@@ -113,6 +115,8 @@ const gridTiles = ref([]);
 let cameraSource = null;
 let tileBuilder = null;
 let workerPool = null;
+let drainWorkerPool = null;
+let drainWorkerPoolInitPromise = null;
 let frameLoopAbort = null;
 let hasStartedOnce = false;
 
@@ -120,11 +124,14 @@ let hasStartedOnce = false;
 // in-flight encodes from previous sessions.
 let captureGeneration = 0;
 
-// Realtime mode is intentionally conservative: keep only one tile encode in
-// flight and one worker active so capture stays closer to camera rate on
-// lower-powered devices. File-mode processing uses its own worker strategy.
-const REALTIME_MAX_CONCURRENT_ENCODES = 1;
-const REALTIME_WORKER_COUNT = 1;
+// Realtime mode is intentionally conservative while sampling is still active,
+// then switches to the same background encode policy used by file mode.
+const REALTIME_SAMPLING_ENCODE_CONFIG = getRealtimeSamplingEncodeConfig();
+const BACKGROUND_ENCODE_CONFIG = getSharedBackgroundEncodeConfig();
+const THROTTLED_MAX_CONCURRENT_ENCODES = REALTIME_SAMPLING_ENCODE_CONFIG.maxConcurrentTileEncodes;
+const THROTTLED_WORKER_COUNT = REALTIME_SAMPLING_ENCODE_CONFIG.layerWorkerCount;
+const DRAIN_MAX_CONCURRENT_ENCODES = BACKGROUND_ENCODE_CONFIG.maxConcurrentTileEncodes;
+const DRAIN_WORKER_COUNT = BACKGROUND_ENCODE_CONFIG.layerWorkerCount;
 
 // Ordered list of completed tile IDs for FIFO eviction
 const completedTileIds = [];
@@ -139,6 +146,9 @@ let perfSessionAccumulator = createPerfAccumulator();
 let autoSaveRequestedGeneration = 0;
 let currentCaptureName = '';
 let currentThumbnailBlob = null;
+let activeEncodeCount = 0;
+const encodeWaiters = [];
+const workerPoolUsage = new Map();
 
 export function useRealtimeSlyce() {
 
@@ -290,6 +300,117 @@ export function useRealtimeSlyce() {
         recordPerfMetric('preview', duration);
     }
 
+    function shouldThrottleEncodes() {
+        return isCapturing.value;
+    }
+
+    function getEncodeConcurrencyLimit() {
+        return shouldThrottleEncodes()
+            ? THROTTLED_MAX_CONCURRENT_ENCODES
+            : DRAIN_MAX_CONCURRENT_ENCODES;
+    }
+
+    function syncEncodeThrottleState(reason = '') {
+        const next = shouldThrottleEncodes();
+        if (isEncodeThrottleEnabled.value !== next) {
+            isEncodeThrottleEnabled.value = next;
+            console.log(`[RealtimeSlyce] Encode throttling ${next ? 'enabled' : 'disabled'}${reason ? ` (${reason})` : ''}.`);
+        }
+        return next;
+    }
+
+    function cleanupIdleWorkerPools() {
+        const capturePoolUsage = workerPool ? (workerPoolUsage.get(workerPool) ?? 0) : 0;
+        const drainPoolUsage = drainWorkerPool ? (workerPoolUsage.get(drainWorkerPool) ?? 0) : 0;
+
+        if (workerPool && !isCapturing.value && drainWorkerPool && capturePoolUsage === 0) {
+            workerPool.terminate();
+            workerPool = null;
+        }
+
+        if (drainWorkerPool && encodingTiles.value === 0 && drainPoolUsage === 0) {
+            drainWorkerPool.terminate();
+            drainWorkerPool = null;
+        }
+
+        if (workerPool && !drainWorkerPool && !isCapturing.value && encodingTiles.value === 0 && capturePoolUsage === 0) {
+            workerPool.terminate();
+            workerPool = null;
+        }
+    }
+
+    function retainWorkerPool(pool) {
+        if (!pool) return;
+        workerPoolUsage.set(pool, (workerPoolUsage.get(pool) ?? 0) + 1);
+    }
+
+    function releaseWorkerPool(pool) {
+        if (!pool) return;
+        const next = (workerPoolUsage.get(pool) ?? 0) - 1;
+        if (next > 0) {
+            workerPoolUsage.set(pool, next);
+        } else {
+            workerPoolUsage.delete(pool);
+        }
+        cleanupIdleWorkerPools();
+    }
+
+    function pumpEncodeWaiters() {
+        syncEncodeThrottleState();
+        while (encodeWaiters.length > 0 && activeEncodeCount < getEncodeConcurrencyLimit()) {
+            activeEncodeCount++;
+            const resolve = encodeWaiters.shift();
+            resolve();
+        }
+    }
+
+    function acquireEncodeSlot() {
+        syncEncodeThrottleState();
+        if (activeEncodeCount < getEncodeConcurrencyLimit()) {
+            activeEncodeCount++;
+            return Promise.resolve();
+        }
+        return new Promise(resolve => encodeWaiters.push(resolve));
+    }
+
+    function releaseEncodeSlot(gen) {
+        if (gen !== captureGeneration) return;
+        activeEncodeCount = Math.max(0, activeEncodeCount - 1);
+        pumpEncodeWaiters();
+    }
+
+    async function ensureDrainWorkerPool() {
+        if (drainWorkerPool) return drainWorkerPool;
+        if (!drainWorkerPoolInitPromise) {
+            const pool = new KTX2WorkerPool(DRAIN_WORKER_COUNT);
+            drainWorkerPoolInitPromise = pool.init().then(() => {
+                drainWorkerPool = pool;
+                cleanupIdleWorkerPools();
+                return pool;
+            }).catch(error => {
+                pool.terminate();
+                throw error;
+            }).finally(() => {
+                drainWorkerPoolInitPromise = null;
+            });
+        }
+        return drainWorkerPoolInitPromise;
+    }
+
+    async function getWorkerPoolForEncode() {
+        const throttled = syncEncodeThrottleState();
+        if (throttled) {
+            return workerPool;
+        }
+
+        try {
+            return await ensureDrainWorkerPool();
+        } catch (error) {
+            console.warn('[RealtimeSlyce] Failed to create drain worker pool; continuing with throttled pool.', error);
+            return workerPool;
+        }
+    }
+
     // ── Resource detection ─────────────────────────────────────────────
 
     function detectDefaults() {
@@ -363,6 +484,14 @@ export function useRealtimeSlyce() {
             workerPool.terminate();
             workerPool = null;
         }
+        if (drainWorkerPool) {
+            drainWorkerPool.terminate();
+            drainWorkerPool = null;
+        }
+        drainWorkerPoolInitPromise = null;
+        activeEncodeCount = 0;
+        encodeWaiters.length = 0;
+        workerPoolUsage.clear();
 
         // Clear previous results
         completedKtx2Buffers.value = [];
@@ -377,12 +506,13 @@ export function useRealtimeSlyce() {
             : null;
         tileBuilder = null;
 
-        // Realtime mode uses a single worker so worker-side Basis encoding does
-        // not compete as aggressively with live sampling on constrained devices.
-        workerPool = new KTX2WorkerPool(REALTIME_WORKER_COUNT);
+        // Realtime mode starts in throttled mode so encode work does not fight
+        // the live sampling loop while the camera is still active.
+        workerPool = new KTX2WorkerPool(THROTTLED_WORKER_COUNT);
         await workerPool.init();
 
         isCapturing.value = true;
+        syncEncodeThrottleState('capture-started');
         currentTileIndex.value = 0;
         currentRow.value = 0;
         completedTiles.value = 0;
@@ -406,6 +536,8 @@ export function useRealtimeSlyce() {
     async function stopRealtime() {
         if (!isCapturing.value) return;
         isCapturing.value = false;
+        syncEncodeThrottleState('sampling-complete');
+        pumpEncodeWaiters();
 
         const samplingMode = tileBuilder?.samplingSourceMode ?? 'unknown';
         const expectedTileCount = crossSectionType.value === 'waves'
@@ -446,10 +578,7 @@ export function useRealtimeSlyce() {
         // The pool will be terminated by encodeAndFinalise once all
         // pending encodes drain (encodingTiles reaches 0).
         // If nothing is encoding, terminate immediately.
-        if (workerPool && encodingTiles.value === 0) {
-            workerPool.terminate();
-            workerPool = null;
-        }
+        cleanupIdleWorkerPools();
 
         maybePersistResultsLocally();
 
@@ -552,26 +681,6 @@ export function useRealtimeSlyce() {
 
     // ── Tile completion handler ────────────────────────────────────────
 
-    // Encoding concurrency gate — resolvers waiting for a slot
-    let encodeSlots = REALTIME_MAX_CONCURRENT_ENCODES;
-    const encodeWaiters = [];
-
-    function acquireEncodeSlot() {
-        if (encodeSlots > 0) {
-            encodeSlots--;
-            return Promise.resolve();
-        }
-        return new Promise(resolve => encodeWaiters.push(resolve));
-    }
-
-    function releaseEncodeSlot() {
-        if (encodeWaiters.length > 0) {
-            encodeWaiters.shift()();
-        } else {
-            encodeSlots++;
-        }
-    }
-
     function handleTileComplete(payload) {
         const { tileId, canvasSet } = payload;
         const gen = captureGeneration;
@@ -618,7 +727,7 @@ export function useRealtimeSlyce() {
 
         // If generation has changed, this encode belongs to an old session — discard.
         if (gen !== captureGeneration) {
-            releaseEncodeSlot();
+            releaseEncodeSlot(gen);
             return;
         }
 
@@ -631,15 +740,16 @@ export function useRealtimeSlyce() {
         recordPerfMetric('readback', readbackEnd - readbackStart, readbackEnd);
 
         // Capture a local reference to the pool for this encode.
-        const pool = workerPool;
-        if (!pool) {
-            releaseEncodeSlot();
-            return;
-        }
-
         let encodeStart = 0;
         let encodeRecorded = false;
+        let pool = null;
         try {
+            pool = await getWorkerPoolForEncode();
+            if (!pool) {
+                throw new Error('KTX2 worker pool unavailable.');
+            }
+            retainWorkerPool(pool);
+
             encodeStart = performance.now();
             const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(pool, images, (completed, total) => {
                 if (gen !== captureGeneration) return; // stale
@@ -681,12 +791,7 @@ export function useRealtimeSlyce() {
                 : maxTiles.value;
             console.log(`[RealtimeSlyce] Tile ${tileId} encoded (${completedKtx2Buffers.value.length}/${expectedTileCount})`);
 
-            // If capture has stopped and all encodes have drained,
-            // terminate the worker pool (deferred cleanup from stopRealtime).
-            if (!isCapturing.value && encodingTiles.value === 0 && workerPool) {
-                workerPool.terminate();
-                workerPool = null;
-            }
+            cleanupIdleWorkerPools();
 
             maybePersistResultsLocally();
         } catch (err) {
@@ -707,15 +812,12 @@ export function useRealtimeSlyce() {
                 tileBuilder.releaseCanvasSet(canvasSet);
             }
 
-            // Deferred pool cleanup on failure path too
-            if (!isCapturing.value && encodingTiles.value === 0 && workerPool) {
-                workerPool.terminate();
-                workerPool = null;
-            }
+            cleanupIdleWorkerPools();
 
             maybePersistResultsLocally();
         } finally {
-            releaseEncodeSlot();
+            releaseWorkerPool(pool);
+            releaseEncodeSlot(gen);
         }
     }
 
@@ -881,6 +983,7 @@ export function useRealtimeSlyce() {
         completedKtx2Buffers,
         gridTiles,
         perfStats,
+        isEncodeThrottleEnabled,
         isSavingLocally,
         saveLocalProgress,
         saveLocalError,
