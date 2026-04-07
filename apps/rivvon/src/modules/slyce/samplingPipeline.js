@@ -17,6 +17,7 @@ export async function runSamplingPipeline({
     onItemProcessed = null,
     onTileComplete = null,
     retainBuilderOnComplete = false,
+    disposeBuildersOnExit = true,
     onError = null
 }) {
     if (typeof getBuilderKey !== 'function' || typeof createBuilder !== 'function' || typeof processItem !== 'function') {
@@ -87,8 +88,10 @@ export async function runSamplingPipeline({
             onError
         });
     } finally {
-        for (const builder of builders.values()) {
-            builder.dispose?.();
+        if (disposeBuildersOnExit) {
+            for (const builder of builders.values()) {
+                builder.dispose?.();
+            }
         }
         builders.clear();
     }

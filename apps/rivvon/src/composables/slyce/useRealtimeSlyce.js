@@ -114,6 +114,7 @@ const gridTiles = ref([]);
 // ── Shared internal state ──────────────────────────────────────────
 let cameraSource = null;
 let tileBuilder = null;
+let drainingTileBuilder = null;
 let workerPool = null;
 let drainWorkerPool = null;
 let drainWorkerPoolInitPromise = null;
@@ -339,6 +340,21 @@ export function useRealtimeSlyce() {
         }
     }
 
+    function cleanupDrainingTileBuilder() {
+        if (!drainingTileBuilder || isCapturing.value || encodingTiles.value > 0) {
+            return;
+        }
+
+        drainingTileBuilder.dispose?.();
+        drainingTileBuilder = null;
+    }
+
+    function releaseCanvasSet(ownerBuilder, canvasSet) {
+        if (!ownerBuilder || !canvasSet) return;
+        ownerBuilder.releaseCanvasSet?.(canvasSet);
+        cleanupDrainingTileBuilder();
+    }
+
     function retainWorkerPool(pool) {
         if (!pool) return;
         workerPoolUsage.set(pool, (workerPoolUsage.get(pool) ?? 0) + 1);
@@ -484,6 +500,10 @@ export function useRealtimeSlyce() {
             workerPool.terminate();
             workerPool = null;
         }
+        if (drainingTileBuilder) {
+            drainingTileBuilder.dispose?.();
+            drainingTileBuilder = null;
+        }
         if (drainWorkerPool) {
             drainWorkerPool.terminate();
             drainWorkerPool = null;
@@ -570,7 +590,12 @@ export function useRealtimeSlyce() {
 
         // Clean up tile builder
         if (tileBuilder) {
-            tileBuilder.dispose();
+            if (encodingTiles.value > 0) {
+                drainingTileBuilder = tileBuilder;
+                console.log(`[RealtimeSlyce] Retaining tile builder until ${encodingTiles.value} queued encode(s) finish readback.`);
+            } else {
+                tileBuilder.dispose();
+            }
             tileBuilder = null;
         }
 
@@ -666,10 +691,11 @@ export function useRealtimeSlyce() {
 
                 return true;
             },
-            onTileComplete({ payload }) {
-                handleTileComplete(payload);
+            onTileComplete({ builder, payload }) {
+                handleTileComplete(builder, payload);
             },
             retainBuilderOnComplete: true,
+            disposeBuildersOnExit: false,
             onError(err) {
                 if (err.name !== 'AbortError') {
                     console.error('[RealtimeSlyce] Frame loop error:', err);
@@ -681,7 +707,7 @@ export function useRealtimeSlyce() {
 
     // ── Tile completion handler ────────────────────────────────────────
 
-    function handleTileComplete(payload) {
+    function handleTileComplete(ownerBuilder, payload) {
         const { tileId, canvasSet } = payload;
         const gen = captureGeneration;
 
@@ -714,10 +740,10 @@ export function useRealtimeSlyce() {
         // Grab the reactive proxy so mutations trigger updates
         const gridEntry = gridTiles.value[gridTiles.value.length - 1];
 
-        encodeAndFinalise(gen, tileId, canvasSet, gridEntry);
+        encodeAndFinalise(gen, ownerBuilder, tileId, canvasSet, gridEntry);
     }
 
-    async function encodeAndFinalise(gen, tileId, canvasSet, gridEntry) {
+    async function encodeAndFinalise(gen, ownerBuilder, tileId, canvasSet, gridEntry) {
         // Wait for a slot so we never saturate the main thread with
         // concurrent ktx-parse assembly work.
         const queueStart = performance.now();
@@ -731,19 +757,19 @@ export function useRealtimeSlyce() {
             return;
         }
 
-        // Extract RGBA data from canvases. This runs after acquiring the
-        // encode slot (not inside processFrame) so the expensive
-        // getImageData calls never block the frame loop.
-        const readbackStart = performance.now();
-        const images = readCanvasSetImages(canvasSet);
-        const readbackEnd = performance.now();
-        recordPerfMetric('readback', readbackEnd - readbackStart, readbackEnd);
-
         // Capture a local reference to the pool for this encode.
         let encodeStart = 0;
         let encodeRecorded = false;
         let pool = null;
         try {
+            // Extract RGBA data from canvases. This runs after acquiring the
+            // encode slot (not inside processFrame) so the expensive
+            // getImageData calls never block the frame loop.
+            const readbackStart = performance.now();
+            const images = readCanvasSetImages(canvasSet);
+            const readbackEnd = performance.now();
+            recordPerfMetric('readback', readbackEnd - readbackStart, readbackEnd);
+
             pool = await getWorkerPoolForEncode();
             if (!pool) {
                 throw new Error('KTX2 worker pool unavailable.');
@@ -782,9 +808,7 @@ export function useRealtimeSlyce() {
             }
 
             // Release canvas set back to pool
-            if (tileBuilder) {
-                tileBuilder.releaseCanvasSet(canvasSet);
-            }
+            releaseCanvasSet(ownerBuilder, canvasSet);
 
             const expectedTileCount = crossSectionType.value === 'waves'
                 ? targetTileCount.value
@@ -808,9 +832,7 @@ export function useRealtimeSlyce() {
             if (idx !== -1) gridTiles.value.splice(idx, 1);
 
             // Release canvas set even on failure
-            if (tileBuilder) {
-                tileBuilder.releaseCanvasSet(canvasSet);
-            }
+            releaseCanvasSet(ownerBuilder, canvasSet);
 
             cleanupIdleWorkerPools();
 
@@ -818,6 +840,7 @@ export function useRealtimeSlyce() {
         } finally {
             releaseWorkerPool(pool);
             releaseEncodeSlot(gen);
+            cleanupDrainingTileBuilder();
         }
     }
 

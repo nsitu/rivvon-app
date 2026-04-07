@@ -29,7 +29,7 @@ Realtime capture now throttles encoding more aggressively than file-mode process
 - While the camera is still sampling, realtime keeps only one tile encode in flight at a time.
 - While the camera is still sampling, realtime uses a single KTX2 worker, so only one layer encode runs at a time.
 - Once sampling stops and the app is only draining queued tiles, realtime disables that extra throttle and switches to the same background encode policy as file mode: up to two concurrent tile encodes, with layer workers sized from `navigator.hardwareConcurrency` (falling back to `4`).
-- File-mode processing is unchanged and still uses its existing parallel worker behavior.
+- File-mode processing now uses that same shared background encode policy explicitly, rather than relying on the worker-pool default implicitly.
 
 This split is intentional.
 
