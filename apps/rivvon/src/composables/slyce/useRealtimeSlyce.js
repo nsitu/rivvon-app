@@ -66,6 +66,17 @@ function averageMs(total, count) {
     return Math.round((total / count) * 10) / 10;
 }
 
+function createPerfSnapshotFromAccumulator(accumulator) {
+    return {
+        frameIntervalMs: averageMs(accumulator.frameIntervalTotal, accumulator.frameIntervalCount),
+        samplingMs: averageMs(accumulator.samplingTotal, accumulator.samplingCount),
+        previewMs: averageMs(accumulator.previewTotal, accumulator.previewCount),
+        readbackMs: averageMs(accumulator.readbackTotal, accumulator.readbackCount),
+        encodeQueueMs: averageMs(accumulator.encodeQueueTotal, accumulator.encodeQueueCount),
+        encodeMs: averageMs(accumulator.encodeTotal, accumulator.encodeCount)
+    };
+}
+
 // ── Shared reactive state (module-level singleton) ─────────────────
 const isCameraActive = ref(false);
 const isCapturing = ref(false);
@@ -122,6 +133,7 @@ let lastFpsTime = 0;
 let lastFrameStartTime = 0;
 let perfWindowStart = 0;
 let perfAccumulator = createPerfAccumulator();
+let perfSessionAccumulator = createPerfAccumulator();
 let autoSaveRequestedGeneration = 0;
 let currentCaptureName = '';
 let currentThumbnailBlob = null;
@@ -223,18 +235,19 @@ export function useRealtimeSlyce() {
         void persistResultsLocally(false);
     }
 
-    function hasPerfSamples() {
-        return perfAccumulator.frameIntervalCount > 0
-            || perfAccumulator.samplingCount > 0
-            || perfAccumulator.previewCount > 0
-            || perfAccumulator.readbackCount > 0
-            || perfAccumulator.encodeQueueCount > 0
-            || perfAccumulator.encodeCount > 0;
+    function hasPerfSamples(accumulator = perfAccumulator) {
+        return accumulator.frameIntervalCount > 0
+            || accumulator.samplingCount > 0
+            || accumulator.previewCount > 0
+            || accumulator.readbackCount > 0
+            || accumulator.encodeQueueCount > 0
+            || accumulator.encodeCount > 0;
     }
 
     function resetPerfInstrumentation(now = performance.now()) {
         perfStats.value = createPerfSnapshot();
         perfAccumulator = createPerfAccumulator();
+        perfSessionAccumulator = createPerfAccumulator();
         perfWindowStart = now;
         lastFrameStartTime = 0;
     }
@@ -245,14 +258,7 @@ export function useRealtimeSlyce() {
             return;
         }
 
-        perfStats.value = {
-            frameIntervalMs: averageMs(perfAccumulator.frameIntervalTotal, perfAccumulator.frameIntervalCount),
-            samplingMs: averageMs(perfAccumulator.samplingTotal, perfAccumulator.samplingCount),
-            previewMs: averageMs(perfAccumulator.previewTotal, perfAccumulator.previewCount),
-            readbackMs: averageMs(perfAccumulator.readbackTotal, perfAccumulator.readbackCount),
-            encodeQueueMs: averageMs(perfAccumulator.encodeQueueTotal, perfAccumulator.encodeQueueCount),
-            encodeMs: averageMs(perfAccumulator.encodeTotal, perfAccumulator.encodeCount)
-        };
+        perfStats.value = createPerfSnapshotFromAccumulator(perfAccumulator);
 
         perfAccumulator = createPerfAccumulator();
         perfWindowStart = now;
@@ -267,6 +273,8 @@ export function useRealtimeSlyce() {
 
         perfAccumulator[totalKey] += duration;
         perfAccumulator[countKey] += 1;
+        perfSessionAccumulator[totalKey] += duration;
+        perfSessionAccumulator[countKey] += 1;
 
         if (perfWindowStart === 0) {
             perfWindowStart = now;
@@ -409,15 +417,8 @@ export function useRealtimeSlyce() {
 
         publishPerfStats();
 
-        const stats = perfStats.value;
-        if (
-            stats.frameIntervalMs > 0
-            || stats.samplingMs > 0
-            || stats.previewMs > 0
-            || stats.readbackMs > 0
-            || stats.encodeQueueMs > 0
-            || stats.encodeMs > 0
-        ) {
+        const stats = createPerfSnapshotFromAccumulator(perfSessionAccumulator);
+        if (hasPerfSamples(perfSessionAccumulator)) {
             console.log(
                 `[RealtimeSlyce] Perf summary (${samplingMode}): `
                 + `frame=${stats.frameIntervalMs.toFixed(1)}ms, `

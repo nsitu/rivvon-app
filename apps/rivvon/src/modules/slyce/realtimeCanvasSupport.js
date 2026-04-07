@@ -1,3 +1,6 @@
+const EXPLICIT_SAMPLING_SOURCE_KEY = 'rivvon:realtimeSamplingSource';
+const AUTO_SAMPLING_SOURCE_KEY = 'rivvon:realtimeSamplingSourceAuto';
+
 function isLikelyIOSOrSafari() {
     if (typeof navigator === 'undefined') return false;
 
@@ -24,7 +27,22 @@ function getRealtimeSamplingOverride() {
     }
 
     try {
-        const storedValue = window.localStorage?.getItem('rivvon:realtimeSamplingSource');
+        const storedValue = window.localStorage?.getItem(EXPLICIT_SAMPLING_SOURCE_KEY);
+        if (storedValue === 'staging' || storedValue === 'direct') {
+            return storedValue;
+        }
+    } catch {
+        // Ignore storage access errors.
+    }
+
+    return null;
+}
+
+function getRealtimeSamplingAutoFallback() {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        const storedValue = window.localStorage?.getItem(AUTO_SAMPLING_SOURCE_KEY);
         if (storedValue === 'staging' || storedValue === 'direct') {
             return storedValue;
         }
@@ -40,7 +58,24 @@ export function getRealtimeSamplingSourceMode() {
     if (override) {
         return override === 'staging' ? 'staging-canvas' : 'direct-frame';
     }
+
+    const autoFallback = getRealtimeSamplingAutoFallback();
+    if (autoFallback) {
+        return autoFallback === 'staging' ? 'staging-canvas' : 'direct-frame';
+    }
+
     return isLikelyIOSOrSafari() ? 'staging-canvas' : 'direct-frame';
+}
+
+export function rememberRealtimeSamplingFallback(mode) {
+    if (typeof window === 'undefined') return;
+    if (mode !== 'staging' && mode !== 'direct') return;
+
+    try {
+        window.localStorage?.setItem(AUTO_SAMPLING_SOURCE_KEY, mode);
+    } catch {
+        // Ignore storage access errors.
+    }
 }
 
 export function shouldUseDomCanvasForRealtime() {

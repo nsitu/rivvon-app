@@ -16,7 +16,11 @@
 
 import { EventEmitter } from 'events';
 import { getCached2dContext } from './samplingRuntime.js';
-import { createRealtimeCanvas, shouldUseStagingCanvasForRealtimeSampling } from './realtimeCanvasSupport.js';
+import {
+    createRealtimeCanvas,
+    rememberRealtimeSamplingFallback,
+    shouldUseStagingCanvasForRealtimeSampling
+} from './realtimeCanvasSupport.js';
 
 /** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
@@ -136,6 +140,12 @@ export class RealtimeTileBuilder extends EventEmitter {
         }
 
         console.log(`[RealtimeTileBuilder] Tile ${tileId} layer diversity: ${signatures.size}/${canvasSet.length} unique mid-row signatures`);
+
+        if (!this._useStagingSource && this.crossSectionType === 'waves' && signatures.size <= 1) {
+            rememberRealtimeSamplingFallback('staging');
+            console.warn('[RealtimeTileBuilder] Direct-frame sampling collapsed waves layer diversity; future captures will prefer staging-canvas on this device.');
+        }
+
         this._loggedLayerDiversity = true;
     }
 
