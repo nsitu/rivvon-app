@@ -16,11 +16,7 @@
 
 import { EventEmitter } from 'events';
 import { getCached2dContext } from './samplingRuntime.js';
-import {
-    createRealtimeCanvas,
-    rememberRealtimeSamplingFallback,
-    shouldUseStagingCanvasForRealtimeSampling
-} from './realtimeCanvasSupport.js';
+import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
 
 /** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
@@ -49,7 +45,6 @@ export class RealtimeTileBuilder extends EventEmitter {
         this.crossSectionCount = crossSectionCount;
         this.crossSectionType = crossSectionType;
         this._totalFrames = totalFrames;
-        this._useStagingSource = shouldUseStagingCanvasForRealtimeSampling();
         this._stagingCanvas = null;
         this._stagingCtx = null;
         this._loggedLayerDiversity = false;
@@ -90,16 +85,10 @@ export class RealtimeTileBuilder extends EventEmitter {
         // Claim initial canvas set and start first tile
         this._currentCanvasSet = this.claimCanvasSet();
 
-        if (this._useStagingSource) {
-            console.log('[RealtimeTileBuilder] Using staging canvas for realtime frame sampling');
-        }
+        console.log('[RealtimeTileBuilder] Using staging canvas for realtime frame sampling');
     }
 
     #getSamplingSource(videoFrame, frameWidth, frameHeight) {
-        if (!this._useStagingSource) {
-            return videoFrame;
-        }
-
         const needsCanvas = !this._stagingCanvas
             || this._stagingCanvas.width !== frameWidth
             || this._stagingCanvas.height !== frameHeight;
@@ -140,11 +129,6 @@ export class RealtimeTileBuilder extends EventEmitter {
         }
 
         console.log(`[RealtimeTileBuilder] Tile ${tileId} layer diversity: ${signatures.size}/${canvasSet.length} unique mid-row signatures`);
-
-        if (!this._useStagingSource && this.crossSectionType === 'waves' && signatures.size <= 1) {
-            rememberRealtimeSamplingFallback('staging');
-            console.warn('[RealtimeTileBuilder] Direct-frame sampling collapsed waves layer diversity; future captures will prefer staging-canvas on this device.');
-        }
 
         this._loggedLayerDiversity = true;
     }
@@ -289,7 +273,7 @@ export class RealtimeTileBuilder extends EventEmitter {
     }
 
     get samplingSourceMode() {
-        return this._useStagingSource ? 'staging-canvas' : 'direct-frame';
+        return 'staging-canvas';
     }
 
     /**

@@ -1,6 +1,3 @@
-const EXPLICIT_SAMPLING_SOURCE_KEY = 'rivvon:realtimeSamplingSource';
-const AUTO_SAMPLING_SOURCE_KEY = 'rivvon:realtimeSamplingSourceAuto';
-
 function isLikelyIOSOrSafari() {
     if (typeof navigator === 'undefined') return false;
 
@@ -12,78 +9,8 @@ function isLikelyIOSOrSafari() {
 
     return isIOSDevice || isSafariBrowser;
 }
-
-function getRealtimeSamplingOverride() {
-    if (typeof window === 'undefined') return null;
-
-    try {
-        const params = new URLSearchParams(window.location.search);
-        const queryValue = params.get('realtimeSamplingSource');
-        if (queryValue === 'staging' || queryValue === 'direct') {
-            return queryValue;
-        }
-    } catch {
-        // Ignore malformed URLs and fall back to storage/defaults.
-    }
-
-    try {
-        const storedValue = window.localStorage?.getItem(EXPLICIT_SAMPLING_SOURCE_KEY);
-        if (storedValue === 'staging' || storedValue === 'direct') {
-            return storedValue;
-        }
-    } catch {
-        // Ignore storage access errors.
-    }
-
-    return null;
-}
-
-function getRealtimeSamplingAutoFallback() {
-    if (typeof window === 'undefined') return null;
-
-    try {
-        const storedValue = window.localStorage?.getItem(AUTO_SAMPLING_SOURCE_KEY);
-        if (storedValue === 'staging' || storedValue === 'direct') {
-            return storedValue;
-        }
-    } catch {
-        // Ignore storage access errors.
-    }
-
-    return null;
-}
-
-export function getRealtimeSamplingSourceMode() {
-    const override = getRealtimeSamplingOverride();
-    if (override) {
-        return override === 'staging' ? 'staging-canvas' : 'direct-frame';
-    }
-
-    const autoFallback = getRealtimeSamplingAutoFallback();
-    if (autoFallback) {
-        return autoFallback === 'staging' ? 'staging-canvas' : 'direct-frame';
-    }
-
-    return isLikelyIOSOrSafari() ? 'staging-canvas' : 'direct-frame';
-}
-
-export function rememberRealtimeSamplingFallback(mode) {
-    if (typeof window === 'undefined') return;
-    if (mode !== 'staging' && mode !== 'direct') return;
-
-    try {
-        window.localStorage?.setItem(AUTO_SAMPLING_SOURCE_KEY, mode);
-    } catch {
-        // Ignore storage access errors.
-    }
-}
-
 export function shouldUseDomCanvasForRealtime() {
     return isLikelyIOSOrSafari();
-}
-
-export function shouldUseStagingCanvasForRealtimeSampling() {
-    return getRealtimeSamplingSourceMode() === 'staging-canvas';
 }
 
 export function createRealtimeCanvas(width, height) {

@@ -408,6 +408,7 @@ export function useRealtimeSlyce() {
         const expectedTileCount = crossSectionType.value === 'waves'
             ? targetTileCount.value
             : maxTiles.value;
+        const pendingEncodeCount = encodingTiles.value;
 
         // Abort frame loop
         if (frameLoopAbort) {
@@ -450,7 +451,11 @@ export function useRealtimeSlyce() {
         maybePersistResultsLocally();
 
         if (crossSectionType.value === 'waves' && completedKtx2Buffers.value.length < expectedTileCount) {
-            console.warn(`[RealtimeSlyce] Waves capture stopped early: ${completedKtx2Buffers.value.length}/${expectedTileCount} tiles encoded.`);
+            if (pendingEncodeCount > 0) {
+                console.log(`[RealtimeSlyce] Wave capture sampled all frames; waiting for ${pendingEncodeCount} tile encode(s) to finish (${completedKtx2Buffers.value.length}/${expectedTileCount} ready).`);
+            } else {
+                console.warn(`[RealtimeSlyce] Waves capture stopped early: ${completedKtx2Buffers.value.length}/${expectedTileCount} tiles encoded.`);
+            }
         }
 
         console.log(`[RealtimeSlyce] Stopped. ${completedKtx2Buffers.value.length} KTX2 buffers ready, ${encodingTiles.value} still encoding.`);
@@ -668,7 +673,10 @@ export function useRealtimeSlyce() {
                 tileBuilder.releaseCanvasSet(canvasSet);
             }
 
-            console.log(`[RealtimeSlyce] Tile ${tileId} encoded (${completedKtx2Buffers.value.length}/${maxTiles.value})`);
+            const expectedTileCount = crossSectionType.value === 'waves'
+                ? targetTileCount.value
+                : maxTiles.value;
+            console.log(`[RealtimeSlyce] Tile ${tileId} encoded (${completedKtx2Buffers.value.length}/${expectedTileCount})`);
 
             // If capture has stopped and all encodes have drained,
             // terminate the worker pool (deferred cleanup from stopRealtime).
