@@ -22,6 +22,27 @@ For each camera frame:
 
 This means the staging canvas is write-only in the hot path. The layer canvases are write-dominated during capture and only become read-heavy once a tile finishes.
 
+## Realtime Encode Throttling
+
+Realtime capture now throttles encoding more aggressively than file-mode processing.
+
+- Realtime keeps only one tile encode in flight at a time.
+- Realtime uses a single KTX2 worker, so only one layer encode runs at a time.
+- File-mode processing is unchanged and still uses its existing parallel worker behavior.
+
+This split is intentional.
+
+- File processing is offline work, so higher parallelism is acceptable.
+- Realtime capture must keep up with camera cadence, so reducing encode pressure helps avoid dropped frames while sampling is still underway.
+
+The important detail is that realtime encoding is only partially off the main thread.
+
+- `getImageData()` readback still happens on the main thread.
+- Final KTX2 array assembly still happens on the main thread.
+- Only the per-layer Basis compression runs inside workers.
+
+So reducing realtime worker concurrency is not just about worker CPU usage; it also reduces how often the main thread has to compete with encode-related work during live capture.
+
 ## Why We Are Not Using `willReadFrequently`
 
 Chrome may warn:

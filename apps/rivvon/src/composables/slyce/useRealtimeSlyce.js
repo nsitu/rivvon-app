@@ -120,9 +120,11 @@ let hasStartedOnce = false;
 // in-flight encodes from previous sessions.
 let captureGeneration = 0;
 
-// Max tiles that can be encoding concurrently (prevents main-thread saturation
-// from ktx-parse read/write during assembly).
-const MAX_CONCURRENT_ENCODES = 2;
+// Realtime mode is intentionally conservative: keep only one tile encode in
+// flight and one worker active so capture stays closer to camera rate on
+// lower-powered devices. File-mode processing uses its own worker strategy.
+const REALTIME_MAX_CONCURRENT_ENCODES = 1;
+const REALTIME_WORKER_COUNT = 1;
 
 // Ordered list of completed tile IDs for FIFO eviction
 const completedTileIds = [];
@@ -375,8 +377,9 @@ export function useRealtimeSlyce() {
             : null;
         tileBuilder = null;
 
-        // Init KTX2 worker pool (capped at 2 for realtime)
-        workerPool = new KTX2WorkerPool(2);
+        // Realtime mode uses a single worker so worker-side Basis encoding does
+        // not compete as aggressively with live sampling on constrained devices.
+        workerPool = new KTX2WorkerPool(REALTIME_WORKER_COUNT);
         await workerPool.init();
 
         isCapturing.value = true;
@@ -550,7 +553,7 @@ export function useRealtimeSlyce() {
     // ── Tile completion handler ────────────────────────────────────────
 
     // Encoding concurrency gate — resolvers waiting for a slot
-    let encodeSlots = MAX_CONCURRENT_ENCODES;
+    let encodeSlots = REALTIME_MAX_CONCURRENT_ENCODES;
     const encodeWaiters = [];
 
     function acquireEncodeSlot() {
