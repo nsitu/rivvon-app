@@ -16,7 +16,7 @@
 
 import { EventEmitter } from 'events';
 import { getCached2dContext } from './samplingRuntime.js';
-import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
+import { createRealtimeCanvas, shouldUseStagingCanvasForRealtimeSampling } from './realtimeCanvasSupport.js';
 
 /** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
@@ -45,6 +45,10 @@ export class RealtimeTileBuilder extends EventEmitter {
         this.crossSectionCount = crossSectionCount;
         this.crossSectionType = crossSectionType;
         this._totalFrames = totalFrames;
+        this._useStagingSource = shouldUseStagingCanvasForRealtimeSampling();
+        this._stagingCanvas = null;
+        this._stagingCtx = null;
+        this._loggedLayerDiversity = false;
 
         // Canvas pool: array of canvas sets available for reuse
         this._canvasPool = [];
@@ -81,6 +85,58 @@ export class RealtimeTileBuilder extends EventEmitter {
 
         // Claim initial canvas set and start first tile
         this._currentCanvasSet = this.claimCanvasSet();
+
+        if (this._useStagingSource) {
+            console.log('[RealtimeTileBuilder] Using staging canvas for realtime frame sampling');
+        }
+    }
+
+    #getSamplingSource(videoFrame, frameWidth, frameHeight) {
+        if (!this._useStagingSource) {
+            return videoFrame;
+        }
+
+        const needsCanvas = !this._stagingCanvas
+            || this._stagingCanvas.width !== frameWidth
+            || this._stagingCanvas.height !== frameHeight;
+
+        if (needsCanvas) {
+            const { canvas, ctx } = createRealtimeCanvas(frameWidth, frameHeight);
+            this._stagingCanvas = canvas;
+            this._stagingCtx = ctx;
+        }
+
+        this._stagingCtx.clearRect(0, 0, frameWidth, frameHeight);
+        this._stagingCtx.drawImage(videoFrame, 0, 0, frameWidth, frameHeight);
+        return this._stagingCanvas;
+    }
+
+    #logLayerDiversity(canvasSet, tileId) {
+        if (this._loggedLayerDiversity || !Array.isArray(canvasSet) || canvasSet.length === 0) {
+            return;
+        }
+
+        const signatures = new Set();
+
+        for (const canvas of canvasSet) {
+            const ctx = getCached2dContext(canvas);
+            if (!ctx) continue;
+
+            const sampleWidth = Math.min(16, canvas.width);
+            const sampleY = Math.max(0, Math.min(canvas.height - 1, Math.floor(canvas.height / 2)));
+            const bytes = ctx.getImageData(0, sampleY, sampleWidth, 1).data;
+            let hash = 2166136261;
+
+            for (let i = 0; i < bytes.length; i++) {
+                hash ^= bytes[i];
+                hash = Math.imul(hash, 16777619);
+            }
+
+            signatures.add((hash >>> 0).toString(16));
+        }
+
+        console.log(`[RealtimeTileBuilder] Tile ${tileId} layer diversity: ${signatures.size}/${canvasSet.length} unique mid-row signatures`);
+        this._loggedLayerDiversity = true;
     }
 
     /**
@@ -139,6 +195,7 @@ export class RealtimeTileBuilder extends EventEmitter {
         const frameWidth = videoFrame.displayWidth || videoFrame.width;
         const drawRow = this._currentRow;
         const canvasSet = this._currentCanvasSet;
+        const samplingSource = this.#getSamplingSource(videoFrame, frameWidth, frameHeight);
 
         for (let c = 0; c < this.crossSectionCount; c++) {
             const ctx = getCached2dContext(canvasSet[c]);
@@ -157,7 +214,7 @@ export class RealtimeTileBuilder extends EventEmitter {
 
             // Sample a 1px-tall strip from video, draw across the full canvas width at drawRow
             ctx.drawImage(
-                videoFrame,
+                samplingSource,
                 0, sampleY, frameWidth, 1,       // source: full width, 1px at sampleY
                 0, drawRow, this.potResolution, 1 // dest: full tile width, 1px at drawRow
             );
@@ -176,6 +233,8 @@ export class RealtimeTileBuilder extends EventEmitter {
         if (this._currentRow >= this.potResolution) {
             const completedTileId = this._currentTileId;
             const completedCanvasSet = this._currentCanvasSet;
+
+            this.#logLayerDiversity(completedCanvasSet, completedTileId);
 
             // Start next tile immediately with a fresh canvas set
             // (must advance BEFORE emitting — emit is synchronous and
@@ -234,6 +293,8 @@ export class RealtimeTileBuilder extends EventEmitter {
     dispose() {
         this._currentCanvasSet = null;
         this._canvasPool = [];
+        this._stagingCanvas = null;
+        this._stagingCtx = null;
         this.removeAllListeners();
     }
 }

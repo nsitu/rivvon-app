@@ -14,6 +14,10 @@ export function shouldUseDomCanvasForRealtime() {
     return isLikelyIOSOrSafari();
 }
 
+export function shouldUseStagingCanvasForRealtimeSampling() {
+    return isLikelyIOSOrSafari();
+}
+
 export function createRealtimeCanvas(width, height) {
     const preferDomCanvas = shouldUseDomCanvasForRealtime();
 
