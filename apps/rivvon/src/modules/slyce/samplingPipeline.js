@@ -92,11 +92,6 @@ export async function runSamplingPipeline({
             for (const builder of builders.values()) {
                 builder.dispose?.();
             }
-        } else if (builders.size > 0) {
-            console.log('[SamplingPipeline] Exit retained builder(s) for external cleanup.', {
-                builderCount: builders.size,
-                builderKeys: [...builders.keys()],
-            });
         }
         builders.clear();
     }

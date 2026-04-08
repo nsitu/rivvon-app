@@ -20,8 +20,6 @@ import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
 
 /** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
-let realtimeTileBuilderIdCounter = 0;
-
 export class RealtimeTileBuilder extends EventEmitter {
     /**
      * @param {Object} options
@@ -46,12 +44,9 @@ export class RealtimeTileBuilder extends EventEmitter {
         this.potResolution = potResolution;
         this.crossSectionCount = crossSectionCount;
         this.crossSectionType = crossSectionType;
-        this.debugId = ++realtimeTileBuilderIdCounter;
         this._totalFrames = totalFrames;
         this._stagingCanvas = null;
         this._stagingCtx = null;
-        this._loggedLayerDiversity = false;
-        this._isDisposed = false;
 
         // Canvas pool: array of canvas sets available for reuse
         this._canvasPool = [];
@@ -88,8 +83,6 @@ export class RealtimeTileBuilder extends EventEmitter {
 
         // Claim initial canvas set and start first tile
         this._currentCanvasSet = this.claimCanvasSet();
-
-        console.log(`[RealtimeTileBuilder#${this.debugId}] Using staging canvas for realtime frame sampling`);
     }
 
     #getSamplingSource(videoFrame, frameWidth, frameHeight) {
@@ -108,35 +101,6 @@ export class RealtimeTileBuilder extends EventEmitter {
         return this._stagingCanvas;
     }
 
-    #logLayerDiversity(canvasSet, tileId) {
-        if (this._loggedLayerDiversity || !Array.isArray(canvasSet) || canvasSet.length === 0) {
-            return;
-        }
-
-        const signatures = new Set();
-
-        for (const canvas of canvasSet) {
-            const ctx = getCached2dContext(canvas);
-            if (!ctx) continue;
-
-            const sampleWidth = Math.min(16, canvas.width);
-            const sampleY = Math.max(0, Math.min(canvas.height - 1, Math.floor(canvas.height / 2)));
-            const bytes = ctx.getImageData(0, sampleY, sampleWidth, 1).data;
-            let hash = 2166136261;
-
-            for (let i = 0; i < bytes.length; i++) {
-                hash ^= bytes[i];
-                hash = Math.imul(hash, 16777619);
-            }
-
-            signatures.add((hash >>> 0).toString(16));
-        }
-
-        console.log(`[RealtimeTileBuilder] Tile ${tileId} layer diversity: ${signatures.size}/${canvasSet.length} unique mid-row signatures`);
-
-        this._loggedLayerDiversity = true;
-    }
-
     /**
      * Get a canvas set from the pool, or create a new one.
      * @returns {RealtimeTileCanvas[]} Array of crossSectionCount canvases.
@@ -149,7 +113,6 @@ export class RealtimeTileBuilder extends EventEmitter {
                 const ctx = getCached2dContext(canvas);
                 ctx.clearRect(0, 0, this.potResolution, this.potResolution);
             }
-            console.log(`[RealtimeTileBuilder#${this.debugId}] Reusing canvas set from pool (${this._canvasPool.length} remaining).`);
             return set;
         }
 
@@ -166,7 +129,6 @@ export class RealtimeTileBuilder extends EventEmitter {
             ctx.clearRect(0, 0, this.potResolution, this.potResolution);
             set.push(c);
         }
-        console.log(`[RealtimeTileBuilder#${this.debugId}] Created new canvas set (${this.crossSectionCount} layers at ${this.potResolution}x${this.potResolution}).`);
         return set;
     }
 
@@ -179,14 +141,6 @@ export class RealtimeTileBuilder extends EventEmitter {
         // Cap pool at 2 sets — more would just accumulate memory
         if (set && set.length === this.crossSectionCount && this._canvasPool.length < 2) {
             this._canvasPool.push(set);
-            console.log(`[RealtimeTileBuilder#${this.debugId}] Returned canvas set to pool (pool size ${this._canvasPool.length}).`);
-        } else {
-            console.warn(`[RealtimeTileBuilder#${this.debugId}] Dropped canvas set instead of pooling.`, {
-                hasSet: !!set,
-                layerCount: set?.length ?? null,
-                expectedLayers: this.crossSectionCount,
-                poolSize: this._canvasPool.length,
-            });
         }
     }
 
@@ -242,16 +196,12 @@ export class RealtimeTileBuilder extends EventEmitter {
             const completedTileId = this._currentTileId;
             const completedCanvasSet = this._currentCanvasSet;
 
-            this.#logLayerDiversity(completedCanvasSet, completedTileId);
-
             // Start next tile immediately with a fresh canvas set
             // (must advance BEFORE emitting — emit is synchronous and
             // the handler reads currentTileId / _currentCanvasSet)
             this._currentTileId++;
             this._currentRow = 0;
             this._currentCanvasSet = this.claimCanvasSet();
-
-            console.log(`[RealtimeTileBuilder#${this.debugId}] Tile ${completedTileId} complete; handing off ${completedCanvasSet.length} canvas layers.`);
 
             // Emit completion with canvasSet only — the orchestrator
             // extracts RGBA via getImageData after acquiring an encode
@@ -301,23 +251,10 @@ export class RealtimeTileBuilder extends EventEmitter {
         return this._currentCanvasSet?.[0] ?? null;
     }
 
-    getDebugInfo() {
-        return {
-            debugId: this.debugId,
-            disposed: this._isDisposed,
-            currentTileId: this._currentTileId,
-            currentRow: this._currentRow,
-            poolSize: this._canvasPool.length,
-            hasCurrentCanvasSet: !!this._currentCanvasSet,
-        };
-    }
-
     /**
      * Dispose all resources. Called on stop.
      */
     dispose() {
-        this._isDisposed = true;
-        console.log(`[RealtimeTileBuilder#${this.debugId}] Disposed.`, this.getDebugInfo());
         this._currentCanvasSet = null;
         this._canvasPool = [];
         this._stagingCanvas = null;

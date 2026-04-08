@@ -28,13 +28,29 @@ Realtime capture now throttles encoding more aggressively than file-mode process
 
 - While the camera is still sampling, realtime keeps only one tile encode in flight at a time.
 - While the camera is still sampling, realtime uses a single KTX2 worker, so only one layer encode runs at a time.
-- Once sampling stops and the app is only draining queued tiles, realtime disables that extra throttle and switches to the same background encode policy as file mode: up to two concurrent tile encodes, with layer workers sized from `navigator.hardwareConcurrency` (falling back to `4`).
-- File-mode processing now uses that same shared background encode policy explicitly, rather than relying on the worker-pool default implicitly.
+- Once sampling stops and the app is only draining queued tiles, realtime disables that extra throttle and switches to the same background encode policy as file mode: up to two concurrent tile encodes, with layer workers sized from `navigator.hardwareConcurrency`.
+- File-mode processing uses that same shared background encode policy explicitly, rather than relying on the worker-pool default implicitly.
 
 This split is intentional.
 
 - File processing is offline work, so higher parallelism is acceptable.
 - Realtime capture must keep up with camera cadence, so reducing encode pressure helps avoid dropped frames while sampling is still underway.
+
+## Memory Safeguards
+
+Low-memory mobile devices, especially Apple WebKit on iPad, needed explicit safeguards beyond the basic realtime throttle.
+
+- The shared background encode policy still allows up to two concurrent tile encodes, but it now caps layer-worker count to `2` on Apple WebKit and on clearly memory-constrained devices instead of always using the full reported core count.
+- Realtime does not escalate into the larger post-sampling background pool until the in-flight capture-time worker pool has gone idle. This avoids overlapping the old `1`-worker pool with a new larger pool during drain.
+- Completed realtime tiles are retained safely until deferred readback and encode finish, so post-sampling drain does not lose queued tile data while the capture loop is shutting down.
+
+These safeguards were added because the failure mode on low-powered iPad hardware was not a readback or canvas-lifetime bug once sampling ended. The tiles survived through readback, but worker-side Basis encoding could still abort with out-of-memory errors when the drain phase became too aggressive.
+
+The resulting behavior is:
+
+- Capture-time encoding stays conservative to protect sampling FPS.
+- Post-sampling realtime drain and file-mode processing share the same background encode policy.
+- Low-memory Apple/WebKit devices avoid the worker-count spike that previously caused queued tiles to disappear and partial local saves.
 
 The important detail is that realtime encoding is only partially off the main thread.
 
