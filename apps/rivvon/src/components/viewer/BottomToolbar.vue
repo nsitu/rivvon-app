@@ -1,5 +1,6 @@
 <script setup>
     import { ref, computed } from 'vue';
+    import Select from 'primevue/select';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -35,10 +36,50 @@
     // Helper to conditionally return tooltip text (null disables tooltip)
     const tip = (text) => isTouchDevice.value ? null : text;
 
+    const flowOptions = [
+        { label: 'Oscillate', value: 'off', icon: 'airwave' },
+        { label: 'Forward', value: 'forward', icon: 'arrow_forward' },
+        { label: 'Backward', value: 'backward', icon: 'arrow_back' }
+    ];
+
+    const geometryOptions = [
+        { label: 'Flat Ribbon', value: 'flat', icon: 'horizontal_rule' },
+        { label: 'Double Helix', value: 'helix', icon: 'genetics' }
+    ];
+
+    const capOptions = [
+        { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
+        { label: 'Square Caps', value: 'square', icon: 'crop' }
+    ];
+
     function setFlowState(state) {
         app.setFlowState(state);
         app.hideToolsPanel();
     }
+
+    const selectedFlowOption = computed({
+        get: () => flowOptions.find((option) => option.value === app.flowState) ?? flowOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            setFlowState(option.value);
+        }
+    });
+
+    const selectedGeometryOption = computed({
+        get: () => geometryOptions.find((option) => option.value === (app.helixEnabled ? 'helix' : 'flat')) ?? geometryOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setHelixMode(option.value === 'helix');
+        }
+    });
+
+    const selectedCapOption = computed({
+        get: () => capOptions.find((option) => option.value === (app.roundedCaps ? 'rounded' : 'square')) ?? capOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setRoundedCaps(option.value === 'rounded');
+        }
+    });
 
     function handleImport(type) {
         app.hideToolsPanel();
@@ -300,30 +341,33 @@
                 <div class="tools-section">
                     <div class="tools-section-label">Animation</div>
                     <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.flowState === 'off' }"
-                            @click="setFlowState('off')"
-                        >
-                            <span class="material-symbols-outlined">airwave</span>
-                            <span>Oscillate</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.flowState === 'forward' }"
-                            @click="setFlowState('forward')"
-                        >
-                            <span class="material-symbols-outlined">arrow_forward</span>
-                            <span>Forward</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.flowState === 'backward' }"
-                            @click="setFlowState('backward')"
-                        >
-                            <span class="material-symbols-outlined">arrow_back</span>
-                            <span>Backward</span>
-                        </button>
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedFlowOption"
+                                :options="flowOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
                     </div>
                 </div>
 
@@ -331,27 +375,38 @@
                 <div class="tools-section">
                     <div class="tools-section-label">Geometry</div>
                     <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            :class="{ selected: !app.helixEnabled }"
-                            @click="app.setHelixMode(false)"
-                        >
-                            <span class="material-symbols-outlined">horizontal_rule</span>
-                            <span>Flat Ribbon</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.helixEnabled }"
-                            @click="app.setHelixMode(true)"
-                        >
-                            <span class="material-symbols-outlined">genetics</span>
-                            <span>Double Helix</span>
-                        </button>
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedGeometryOption"
+                                :options="geometryOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
                         <!-- Helix parameter sliders (visible when helix is active) -->
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -363,7 +418,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -375,7 +430,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -386,15 +441,34 @@
                                 />
                             </div>
                         </template>
-                        <!-- Rounded caps (works for both flat ribbon and helix strands) -->
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.roundedCaps }"
-                            @click="app.setRoundedCaps(!app.roundedCaps)"
-                        >
-                            <span class="material-symbols-outlined">rounded_corner</span>
-                            <span>Rounded Caps</span>
-                        </button>
+                        <!-- Cap style (works for both flat ribbon and helix strands) -->
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedCapOption"
+                                :options="capOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
 
                     </div>
                 </div>
@@ -456,7 +530,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -723,6 +797,29 @@
         background: rgba(255, 255, 255, 0.04);
         border-radius: 10px;
         padding: 0.25rem;
+    }
+
+    .tools-select-wrap {
+        padding: 0.5rem;
+    }
+
+    .tools-select {
+        width: 100%;
+    }
+
+    .tools-select-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .tools-select-icon {
+        font-size: 1.2rem;
+        opacity: 0.85;
+    }
+
+    :deep(.tools-select .p-select-label) {
+        font-size: 0.95rem;
     }
 
     .tools-option {
