@@ -20,6 +20,8 @@ import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
 
 /** @typedef {OffscreenCanvas|HTMLCanvasElement} RealtimeTileCanvas */
 
+let realtimeTileBuilderIdCounter = 0;
+
 export class RealtimeTileBuilder extends EventEmitter {
     /**
      * @param {Object} options
@@ -44,10 +46,12 @@ export class RealtimeTileBuilder extends EventEmitter {
         this.potResolution = potResolution;
         this.crossSectionCount = crossSectionCount;
         this.crossSectionType = crossSectionType;
+        this.debugId = ++realtimeTileBuilderIdCounter;
         this._totalFrames = totalFrames;
         this._stagingCanvas = null;
         this._stagingCtx = null;
         this._loggedLayerDiversity = false;
+        this._isDisposed = false;
 
         // Canvas pool: array of canvas sets available for reuse
         this._canvasPool = [];
@@ -85,7 +89,7 @@ export class RealtimeTileBuilder extends EventEmitter {
         // Claim initial canvas set and start first tile
         this._currentCanvasSet = this.claimCanvasSet();
 
-        console.log('[RealtimeTileBuilder] Using staging canvas for realtime frame sampling');
+        console.log(`[RealtimeTileBuilder#${this.debugId}] Using staging canvas for realtime frame sampling`);
     }
 
     #getSamplingSource(videoFrame, frameWidth, frameHeight) {
@@ -145,6 +149,7 @@ export class RealtimeTileBuilder extends EventEmitter {
                 const ctx = getCached2dContext(canvas);
                 ctx.clearRect(0, 0, this.potResolution, this.potResolution);
             }
+            console.log(`[RealtimeTileBuilder#${this.debugId}] Reusing canvas set from pool (${this._canvasPool.length} remaining).`);
             return set;
         }
 
@@ -161,6 +166,7 @@ export class RealtimeTileBuilder extends EventEmitter {
             ctx.clearRect(0, 0, this.potResolution, this.potResolution);
             set.push(c);
         }
+        console.log(`[RealtimeTileBuilder#${this.debugId}] Created new canvas set (${this.crossSectionCount} layers at ${this.potResolution}x${this.potResolution}).`);
         return set;
     }
 
@@ -173,6 +179,14 @@ export class RealtimeTileBuilder extends EventEmitter {
         // Cap pool at 2 sets — more would just accumulate memory
         if (set && set.length === this.crossSectionCount && this._canvasPool.length < 2) {
             this._canvasPool.push(set);
+            console.log(`[RealtimeTileBuilder#${this.debugId}] Returned canvas set to pool (pool size ${this._canvasPool.length}).`);
+        } else {
+            console.warn(`[RealtimeTileBuilder#${this.debugId}] Dropped canvas set instead of pooling.`, {
+                hasSet: !!set,
+                layerCount: set?.length ?? null,
+                expectedLayers: this.crossSectionCount,
+                poolSize: this._canvasPool.length,
+            });
         }
     }
 
@@ -237,6 +251,8 @@ export class RealtimeTileBuilder extends EventEmitter {
             this._currentRow = 0;
             this._currentCanvasSet = this.claimCanvasSet();
 
+            console.log(`[RealtimeTileBuilder#${this.debugId}] Tile ${completedTileId} complete; handing off ${completedCanvasSet.length} canvas layers.`);
+
             // Emit completion with canvasSet only — the orchestrator
             // extracts RGBA via getImageData after acquiring an encode
             // slot so the expensive readback never blocks the frame loop.
@@ -285,10 +301,23 @@ export class RealtimeTileBuilder extends EventEmitter {
         return this._currentCanvasSet?.[0] ?? null;
     }
 
+    getDebugInfo() {
+        return {
+            debugId: this.debugId,
+            disposed: this._isDisposed,
+            currentTileId: this._currentTileId,
+            currentRow: this._currentRow,
+            poolSize: this._canvasPool.length,
+            hasCurrentCanvasSet: !!this._currentCanvasSet,
+        };
+    }
+
     /**
      * Dispose all resources. Called on stop.
      */
     dispose() {
+        this._isDisposed = true;
+        console.log(`[RealtimeTileBuilder#${this.debugId}] Disposed.`, this.getDebugInfo());
         this._currentCanvasSet = null;
         this._canvasPool = [];
         this._stagingCanvas = null;

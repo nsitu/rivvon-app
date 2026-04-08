@@ -151,6 +151,75 @@ let activeEncodeCount = 0;
 const encodeWaiters = [];
 const workerPoolUsage = new Map();
 
+function getBuilderDebugInfo(builder) {
+    if (!builder) return null;
+    if (typeof builder.getDebugInfo === 'function') {
+        return builder.getDebugInfo();
+    }
+
+    return {
+        debugId: builder.debugId ?? 'unknown',
+        disposed: builder._isDisposed ?? 'unknown'
+    };
+}
+
+function summarizeCanvas(canvas) {
+    if (!canvas) return null;
+
+    const ctx = getCached2dContext(canvas);
+    return {
+        type: canvas.constructor?.name ?? typeof canvas,
+        width: canvas.width ?? null,
+        height: canvas.height ?? null,
+        connected: typeof canvas.isConnected === 'boolean' ? canvas.isConnected : null,
+        hasContext: !!ctx,
+    };
+}
+
+function summarizeCanvasSet(canvasSet) {
+    if (!Array.isArray(canvasSet)) {
+        return { valid: false, reason: 'not-array' };
+    }
+
+    return {
+        valid: true,
+        layers: canvasSet.length,
+        sample: canvasSet.slice(0, 2).map(summarizeCanvas),
+    };
+}
+
+function summarizeGridTiles() {
+    return gridTiles.value.map(tile => ({
+        id: tile.id,
+        status: tile.status,
+        progress: `${tile.layer}/${tile.layerTotal}`
+    }));
+}
+
+function getRealtimeDebugSnapshot() {
+    return {
+        generation: captureGeneration,
+        isCapturing: isCapturing.value,
+        completedBuffers: completedKtx2Buffers.value.length,
+        completedTileIds: [...completedTileIds],
+        encodingTiles: encodingTiles.value,
+        activeEncodeCount,
+        queuedEncodes: encodeWaiters.length,
+        gridTiles: summarizeGridTiles(),
+        tileBuilder: getBuilderDebugInfo(tileBuilder),
+        drainingTileBuilder: getBuilderDebugInfo(drainingTileBuilder),
+        capturePoolWorkers: workerPool?.workerCount ?? 0,
+        drainPoolWorkers: drainWorkerPool?.workerCount ?? 0,
+    };
+}
+
+function logRealtimeDrainEvent(event, details = {}, level = 'log') {
+    console[level](`[RealtimeSlyce][Drain] ${event}`, {
+        ...getRealtimeDebugSnapshot(),
+        ...details,
+    });
+}
+
 export function useRealtimeSlyce() {
 
     function createThumbnailFromCanvas(canvas, options = {}) {
@@ -245,6 +314,9 @@ export function useRealtimeSlyce() {
 
     function maybePersistResultsLocally() {
         if (isCapturing.value || encodingTiles.value > 0 || completedKtx2Buffers.value.length === 0) return;
+        logRealtimeDrainEvent('persist-local-requested', {
+            tileCount: completedKtx2Buffers.value.length,
+        });
         void persistResultsLocally(false);
     }
 
@@ -325,16 +397,27 @@ export function useRealtimeSlyce() {
         const drainPoolUsage = drainWorkerPool ? (workerPoolUsage.get(drainWorkerPool) ?? 0) : 0;
 
         if (workerPool && !isCapturing.value && drainWorkerPool && capturePoolUsage === 0) {
+            logRealtimeDrainEvent('terminate-capture-pool', {
+                capturePoolUsage,
+                drainPoolUsage,
+            });
             workerPool.terminate();
             workerPool = null;
         }
 
         if (drainWorkerPool && encodingTiles.value === 0 && drainPoolUsage === 0) {
+            logRealtimeDrainEvent('terminate-drain-pool', {
+                capturePoolUsage,
+                drainPoolUsage,
+            });
             drainWorkerPool.terminate();
             drainWorkerPool = null;
         }
 
         if (workerPool && !drainWorkerPool && !isCapturing.value && encodingTiles.value === 0 && capturePoolUsage === 0) {
+            logRealtimeDrainEvent('terminate-capture-pool-no-drain-pool', {
+                capturePoolUsage,
+            });
             workerPool.terminate();
             workerPool = null;
         }
@@ -345,12 +428,19 @@ export function useRealtimeSlyce() {
             return;
         }
 
+        logRealtimeDrainEvent('dispose-draining-builder', {
+            builder: getBuilderDebugInfo(drainingTileBuilder),
+        });
         drainingTileBuilder.dispose?.();
         drainingTileBuilder = null;
     }
 
     function releaseCanvasSet(ownerBuilder, canvasSet) {
         if (!ownerBuilder || !canvasSet) return;
+        logRealtimeDrainEvent('release-canvas-set', {
+            ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+            canvasSet: summarizeCanvasSet(canvasSet),
+        });
         ownerBuilder.releaseCanvasSet?.(canvasSet);
         cleanupDrainingTileBuilder();
     }
@@ -376,22 +466,39 @@ export function useRealtimeSlyce() {
         while (encodeWaiters.length > 0 && activeEncodeCount < getEncodeConcurrencyLimit()) {
             activeEncodeCount++;
             const resolve = encodeWaiters.shift();
+            logRealtimeDrainEvent('dequeue-encode-slot', {
+                limit: getEncodeConcurrencyLimit(),
+            });
             resolve();
         }
     }
 
-    function acquireEncodeSlot() {
+    function acquireEncodeSlot(tileId) {
         syncEncodeThrottleState();
         if (activeEncodeCount < getEncodeConcurrencyLimit()) {
             activeEncodeCount++;
+            logRealtimeDrainEvent('acquire-encode-slot-immediate', {
+                tileId,
+                limit: getEncodeConcurrencyLimit(),
+            });
             return Promise.resolve();
         }
+
+        logRealtimeDrainEvent('queue-encode-slot', {
+            tileId,
+            limit: getEncodeConcurrencyLimit(),
+            queuedBeforePush: encodeWaiters.length,
+        });
         return new Promise(resolve => encodeWaiters.push(resolve));
     }
 
-    function releaseEncodeSlot(gen) {
+    function releaseEncodeSlot(gen, tileId) {
         if (gen !== captureGeneration) return;
         activeEncodeCount = Math.max(0, activeEncodeCount - 1);
+        logRealtimeDrainEvent('release-encode-slot', {
+            tileId,
+            limit: getEncodeConcurrencyLimit(),
+        });
         pumpEncodeWaiters();
     }
 
@@ -592,6 +699,9 @@ export function useRealtimeSlyce() {
         if (tileBuilder) {
             if (encodingTiles.value > 0) {
                 drainingTileBuilder = tileBuilder;
+                logRealtimeDrainEvent('retain-builder-for-drain', {
+                    builder: getBuilderDebugInfo(tileBuilder),
+                });
                 console.log(`[RealtimeSlyce] Retaining tile builder until ${encodingTiles.value} queued encode(s) finish readback.`);
             } else {
                 tileBuilder.dispose();
@@ -713,6 +823,12 @@ export function useRealtimeSlyce() {
 
         encodingTiles.value++;
 
+        logRealtimeDrainEvent('tile-complete-enqueued', {
+            tileId,
+            ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+            canvasSet: summarizeCanvasSet(canvasSet),
+        });
+
         // Snapshot the first canvas layer for the tile grid
         const previewCanvas = document.createElement('canvas');
         previewCanvas.width = canvasSet[0].width;
@@ -747,13 +863,22 @@ export function useRealtimeSlyce() {
         // Wait for a slot so we never saturate the main thread with
         // concurrent ktx-parse assembly work.
         const queueStart = performance.now();
-        await acquireEncodeSlot();
+        await acquireEncodeSlot(tileId);
         const queueEnd = performance.now();
         recordPerfMetric('encodeQueue', queueEnd - queueStart, queueEnd);
+        logRealtimeDrainEvent('encode-slot-ready', {
+            tileId,
+            waitedMs: Math.round((queueEnd - queueStart) * 10) / 10,
+            ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+        });
 
         // If generation has changed, this encode belongs to an old session — discard.
         if (gen !== captureGeneration) {
-            releaseEncodeSlot(gen);
+            logRealtimeDrainEvent('skip-stale-encode-before-readback', {
+                tileId,
+                ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+            }, 'warn');
+            releaseEncodeSlot(gen, tileId);
             return;
         }
 
@@ -765,16 +890,45 @@ export function useRealtimeSlyce() {
             // Extract RGBA data from canvases. This runs after acquiring the
             // encode slot (not inside processFrame) so the expensive
             // getImageData calls never block the frame loop.
+            logRealtimeDrainEvent('readback-start', {
+                tileId,
+                ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+                canvasSet: summarizeCanvasSet(canvasSet),
+            });
+
             const readbackStart = performance.now();
-            const images = readCanvasSetImages(canvasSet);
+            let images;
+            try {
+                images = readCanvasSetImages(canvasSet);
+            } catch (error) {
+                logRealtimeDrainEvent('readback-failed', {
+                    tileId,
+                    ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+                    canvasSet: summarizeCanvasSet(canvasSet),
+                    errorName: error?.name,
+                    errorMessage: error?.message,
+                }, 'error');
+                throw error;
+            }
             const readbackEnd = performance.now();
             recordPerfMetric('readback', readbackEnd - readbackStart, readbackEnd);
+            logRealtimeDrainEvent('readback-success', {
+                tileId,
+                imageCount: images.length,
+                firstImageBytes: images[0]?.rgba?.byteLength ?? 0,
+                ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+            });
 
             pool = await getWorkerPoolForEncode();
             if (!pool) {
                 throw new Error('KTX2 worker pool unavailable.');
             }
             retainWorkerPool(pool);
+            logRealtimeDrainEvent('worker-pool-selected', {
+                tileId,
+                poolWorkerCount: pool.workerCount,
+                throttled: isEncodeThrottleEnabled.value,
+            });
 
             encodeStart = performance.now();
             const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(pool, images, (completed, total) => {
@@ -787,7 +941,13 @@ export function useRealtimeSlyce() {
             encodeRecorded = true;
 
             // Stale check after async work
-            if (gen !== captureGeneration) return;
+            if (gen !== captureGeneration) {
+                logRealtimeDrainEvent('skip-stale-encode-after-worker', {
+                    tileId,
+                    ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+                }, 'warn');
+                return;
+            }
 
             // Store buffer and mark grid entry as completed
             completedKtx2Buffers.value.push(ktx2Buffer);
@@ -813,6 +973,11 @@ export function useRealtimeSlyce() {
             const expectedTileCount = crossSectionType.value === 'waves'
                 ? targetTileCount.value
                 : maxTiles.value;
+            logRealtimeDrainEvent('tile-encode-complete', {
+                tileId,
+                encodedBytes: ktx2Buffer.byteLength,
+                expectedTileCount,
+            });
             console.log(`[RealtimeSlyce] Tile ${tileId} encoded (${completedKtx2Buffers.value.length}/${expectedTileCount})`);
 
             cleanupIdleWorkerPools();
@@ -824,12 +989,24 @@ export function useRealtimeSlyce() {
                 const encodeEnd = performance.now();
                 recordPerfMetric('encode', encodeEnd - encodeStart, encodeEnd);
             }
+            logRealtimeDrainEvent('tile-encode-failed', {
+                tileId,
+                ownerBuilder: getBuilderDebugInfo(ownerBuilder),
+                canvasSet: summarizeCanvasSet(canvasSet),
+                errorName: err?.name,
+                errorMessage: err?.message,
+            }, 'error');
             console.error(`[RealtimeSlyce] KTX2 encoding failed for tile ${tileId}:`, err);
             encodingTiles.value = Math.max(0, encodingTiles.value - 1);
 
             // Remove failed entry from grid
             const idx = gridTiles.value.findIndex(t => t.id === tileId);
-            if (idx !== -1) gridTiles.value.splice(idx, 1);
+            if (idx !== -1) {
+                gridTiles.value.splice(idx, 1);
+                logRealtimeDrainEvent('remove-grid-entry-on-failure', {
+                    tileId,
+                }, 'warn');
+            }
 
             // Release canvas set even on failure
             releaseCanvasSet(ownerBuilder, canvasSet);
@@ -839,7 +1016,7 @@ export function useRealtimeSlyce() {
             maybePersistResultsLocally();
         } finally {
             releaseWorkerPool(pool);
-            releaseEncodeSlot(gen);
+            releaseEncodeSlot(gen, tileId);
             cleanupDrainingTileBuilder();
         }
     }
