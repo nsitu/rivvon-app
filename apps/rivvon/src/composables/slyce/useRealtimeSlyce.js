@@ -470,13 +470,23 @@ export function useRealtimeSlyce() {
             hasStartedOnce = true;
         }
 
-        cameraSource = new CameraFrameSource({
+        const source = new CameraFrameSource({
             resolution: cameraResolution.value,
             facingMode: cameraFacingMode.value,
         });
-        await cameraSource.start();
-        cameraStream.value = cameraSource.getMediaStream();
-        cameraFrameRate.value = cameraSource.frameRate;
+        cameraSource = source;
+
+        await source.start();
+
+        // Camera startup can race with panel teardown or apply flows that stop
+        // the source while permissions / hardware activation are still resolving.
+        if (cameraSource !== source) {
+            source.stop();
+            return;
+        }
+
+        cameraStream.value = source.getMediaStream();
+        cameraFrameRate.value = source.frameRate;
         isCameraActive.value = true;
         console.log(`[RealtimeSlyce] Camera started (${cameraResolution.value}, ${cameraFrameRate.value}fps, facing=${cameraFacingMode.value})`);
     }

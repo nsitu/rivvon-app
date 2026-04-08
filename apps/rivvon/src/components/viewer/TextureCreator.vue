@@ -30,6 +30,7 @@
     const isProcessing = computed(() => Object.keys(slyce.status).length > 0);
     const selectedSource = ref(null);
     const cameraStep = ref('1');
+    const suppressRealtimeAutoStart = ref(false);
 
     const hasExistingFileFlow = computed(() =>
         !!slyce.file
@@ -87,6 +88,7 @@
     function selectFileMode() {
         selectedSource.value = 'file';
         cameraStep.value = '1';
+        suppressRealtimeAutoStart.value = false;
 
         if (!hasExistingFileFlow.value) {
             slyce.set('currentStep', '1');
@@ -96,6 +98,7 @@
     function handleFileSelected() {
         selectedSource.value = 'file';
         cameraStep.value = '1';
+        suppressRealtimeAutoStart.value = false;
         slyce.set('currentStep', '2');
     }
 
@@ -114,11 +117,13 @@
             clearRealtimeFlow();
         }
 
+        suppressRealtimeAutoStart.value = false;
         selectedSource.value = 'camera';
         cameraStep.value = '2';
     }
 
     async function handleStartCameraProcessing() {
+        suppressRealtimeAutoStart.value = false;
         cameraStep.value = '3';
         await nextTick();
         await realtime.startRealtime();
@@ -139,6 +144,7 @@
                 clearRealtimeFlow();
             }
 
+            suppressRealtimeAutoStart.value = false;
             cameraStep.value = '2';
         }
     }
@@ -162,13 +168,16 @@
 
         selectedSource.value = null;
         cameraStep.value = '1';
+        suppressRealtimeAutoStart.value = false;
     }
 
     function handleEmbeddedRealtimeClose() {
+        suppressRealtimeAutoStart.value = true;
         emit('close');
     }
 
     function handleRealtimeApply() {
+        suppressRealtimeAutoStart.value = true;
         emit('apply-realtime-texture');
     }
 
@@ -381,7 +390,7 @@
                                 <RealtimeSampler
                                     embedded
                                     :active="true"
-                                    auto-start-camera
+                                    :auto-start-camera="!suppressRealtimeAutoStart"
                                     :workflow-phase="cameraWorkflowPhase"
                                     @start-capture="handleStartCameraProcessing"
                                     @apply="handleRealtimeApply"

@@ -53,6 +53,10 @@
     async function applyRealtimeResultsToViewer() {
         if (!threeCanvasRef.value) return false;
 
+        // Once realtime output is being applied, the capture device is no longer
+        // needed for the current flow.
+        realtime.stopCamera();
+
         threeCanvasRef.value.clearMultiTextureState?.();
 
         await realtime.applyToViewer(
