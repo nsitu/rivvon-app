@@ -18,6 +18,16 @@ export const useViewerStore = defineStore('viewer', {
         // Walk capture state
         isWalkMode: false,
         walkPointCount: 0,
+
+        // Viewer control mode
+        viewerControlMode: 'orbit', // 'orbit' | 'headTracking'
+        headTrackingSupported: null,
+        headTrackingActive: false,
+        headTrackingCalibrating: false,
+        headTrackingStatusMessage: '',
+        headTrackingErrorMessage: '',
+        headTrackingSuspendedReason: null,
+        headTrackingRecenterToken: 0,
         
         // Ribbon/3D state
         flowState: 'forward', // 'off' | 'forward' | 'backward'
@@ -105,6 +115,45 @@ export const useViewerStore = defineStore('viewer', {
             } else {
                 this.walkPointCount = 0;
             }
+        },
+
+        setViewerControlMode(mode) {
+            this.viewerControlMode = mode === 'headTracking' ? 'headTracking' : 'orbit';
+        },
+
+        setHeadTrackingSupported(supported) {
+            this.headTrackingSupported = supported == null ? null : !!supported;
+        },
+
+        setHeadTrackingRuntimeState(payload = {}) {
+            if ('supported' in payload) {
+                this.headTrackingSupported = payload.supported == null ? null : !!payload.supported;
+            }
+            if ('active' in payload) {
+                this.headTrackingActive = !!payload.active;
+            }
+            if ('calibrating' in payload) {
+                this.headTrackingCalibrating = !!payload.calibrating;
+            }
+            if ('statusMessage' in payload) {
+                this.headTrackingStatusMessage = payload.statusMessage ?? '';
+            }
+            if ('errorMessage' in payload) {
+                this.headTrackingErrorMessage = payload.errorMessage ?? '';
+            }
+            if ('suspendedReason' in payload) {
+                this.headTrackingSuspendedReason = payload.suspendedReason ?? null;
+            }
+        },
+
+        clearHeadTrackingFeedback() {
+            this.headTrackingStatusMessage = '';
+            this.headTrackingErrorMessage = '';
+            this.headTrackingSuspendedReason = null;
+        },
+
+        requestHeadTrackingRecenter() {
+            this.headTrackingRecenterToken += 1;
         },
         
         cycleFlowState() {
@@ -310,6 +359,8 @@ export const useViewerStore = defineStore('viewer', {
         hasActiveWalkPath: (state) => state.walkPointCount > 1,
         flowEnabled: (state) => state.flowState !== 'off',
         helixEnabled: (state) => state.helixMode,
+        headTrackingSelected: (state) => state.viewerControlMode === 'headTracking',
+        headTrackingMessage: (state) => state.headTrackingErrorMessage || state.headTrackingStatusMessage,
         helixOptions: (state) => ({
             helixMode: state.helixMode,
             helixRadius: state.helixRadius,

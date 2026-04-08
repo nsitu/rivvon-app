@@ -1,10 +1,15 @@
 // vite.config.mjs
 // Unified Vue 3 rivvon app (viewer + slyce)
-import { defineConfig } from 'vite';
+import { defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 import tailwindcss from '@tailwindcss/vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { resolve } from 'path';
+
+const TASKS_VISION_VERSION = '0.10.34';
+const TASKS_VISION_WASM_SOURCE = normalizePath(resolve(__dirname, 'node_modules/@mediapipe/tasks-vision/wasm/*'));
+const TASKS_VISION_WASM_DEST = `vendor/mediapipe/tasks-vision/${TASKS_VISION_VERSION}/wasm`;
 
 export default defineConfig({
     base: '/',
@@ -23,6 +28,14 @@ export default defineConfig({
         }
     },
     plugins: [
+        viteStaticCopy({
+            targets: [
+                {
+                    src: TASKS_VISION_WASM_SOURCE,
+                    dest: TASKS_VISION_WASM_DEST,
+                },
+            ],
+        }),
         tailwindcss(),
         vue(),
         vueDevTools(),

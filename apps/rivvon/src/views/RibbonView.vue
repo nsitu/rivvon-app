@@ -25,7 +25,7 @@
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
     import WalkCanvas from '../components/viewer/WalkCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
-    import CinematicDebugOverlay from '../components/viewer/CinematicDebugOverlay.vue';
+    import ViewerDebugOverlay from '../components/viewer/ViewerDebugOverlay.vue';
     import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
     import RealtimeSampler from '../components/slyce/RealtimeSampler.vue';
     import { useRealtimeSlyce } from '../composables/slyce/useRealtimeSlyce.js';
@@ -44,7 +44,78 @@
         app.showSlyce();
     }
 
+    function forceOrbitControls(options = {}) {
+        const controller = threeCanvasRef.value?.headTracking;
+        if (controller?.exitToOrbit) {
+            controller.exitToOrbit(options);
+            return;
+        }
+
+        app.setViewerControlMode('orbit');
+
+        if (options.clearFeedback) {
+            app.clearHeadTrackingFeedback();
+            return;
+        }
+
+        app.setHeadTrackingRuntimeState({
+            supported: options.supported ?? app.headTrackingSupported,
+            active: false,
+            calibrating: false,
+            statusMessage: options.statusMessage ?? '',
+            errorMessage: options.errorMessage ?? '',
+            suspendedReason: options.reason ?? null,
+        });
+    }
+
+    function ensureOrbitControlsForInteraction(reason, statusMessage) {
+        if (app.viewerControlMode !== 'headTracking') {
+            return false;
+        }
+
+        forceOrbitControls({ reason, statusMessage });
+        return true;
+    }
+
+    function handleViewerControlModeChange(mode) {
+        if (mode === app.viewerControlMode) {
+            return;
+        }
+
+        if (mode === 'orbit') {
+            forceOrbitControls({ clearFeedback: true });
+            return;
+        }
+
+        if (realtime.isCameraActive.value || realtime.isCapturing.value || app.realtimeSamplerVisible) {
+            forceOrbitControls({
+                reason: 'realtime-capture',
+                statusMessage: 'Head tracking is unavailable while realtime webcam capture is using the camera.',
+            });
+            return;
+        }
+
+        if (threeCanvasRef.value?.cinematicCamera?.isPlaying?.value) {
+            forceOrbitControls({
+                reason: 'cinematic-playback',
+                statusMessage: 'Stop cinematic playback before enabling head tracking.',
+            });
+            return;
+        }
+
+        app.clearHeadTrackingFeedback();
+        app.setViewerControlMode('headTracking');
+    }
+
+    function handleHeadTrackingRecenter() {
+        app.requestHeadTrackingRecenter();
+    }
+
     async function enterRealtimeMode(options = {}) {
+        ensureOrbitControlsForInteraction(
+            'realtime-capture',
+            'Head tracking switched back to OrbitControls because realtime webcam capture owns the camera.',
+        );
         returnToCreateTextureOnRealtimeClose.value = !!options.returnToCreateTexture;
         await realtime.startCamera();
         app.showRealtimeSampler();
@@ -109,7 +180,7 @@
 
     // Local state
     const isReady = ref(false);
-    const showCinematicDebug = ref(false);
+    const showDebugOverlay = ref(false);
 
     // ─── Cinematic camera keyboard bindings ────────────────────────
     function handleCinematicKeydown(e) {
@@ -125,26 +196,20 @@
 
         switch (e.key.toLowerCase()) {
             case 'c': {
-                // Capture ROI (only when not playing)
-                if (cinematic.isPlaying.value) return;
-                cinematic.captureROI();
+                handleCinematicCapture();
                 break;
             }
             case 'p': {
-                // Toggle cinematic playback (passes ribbonSeries for auto-ROI fallback)
-                const ribbonSeries = threeCanvasRef.value?.ribbonSeries;
-                cinematic.togglePlayback(ribbonSeries);
+                handleCinematicToggle();
                 break;
             }
             case 'x': {
-                // Clear all ROIs (only when not playing)
-                if (cinematic.isPlaying.value) return;
-                cinematic.clearROIs();
+                handleCinematicClear();
                 break;
             }
             case 'd': {
-                // Toggle cinematic debug overlay
-                showCinematicDebug.value = !showCinematicDebug.value;
+                // Toggle the active contextual debug overlay
+                showDebugOverlay.value = !showDebugOverlay.value;
                 break;
             }
         }
@@ -152,12 +217,20 @@
 
     // ─── Cinematic camera toolbar handlers ──────────────────────
     function handleCinematicCapture() {
+        ensureOrbitControlsForInteraction(
+            'cinematic-authoring',
+            'Head tracking switched back to OrbitControls for cinematic camera authoring.',
+        );
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic || cinematic.isPlaying.value) return;
         cinematic.captureROI();
     }
 
     function handleCinematicToggle() {
+        ensureOrbitControlsForInteraction(
+            'cinematic-playback',
+            'Head tracking switched back to OrbitControls for cinematic playback.',
+        );
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic) return;
         const ribbonSeries = threeCanvasRef.value?.ribbonSeries;
@@ -165,6 +238,10 @@
     }
 
     function handleCinematicClear() {
+        ensureOrbitControlsForInteraction(
+            'cinematic-authoring',
+            'Head tracking switched back to OrbitControls for cinematic camera authoring.',
+        );
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic || cinematic.isPlaying.value) return;
         cinematic.clearROIs();
@@ -189,9 +266,37 @@
 
         // Also disable orbit controls when drawing
         if (threeCanvasRef.value?.controls) {
-            threeCanvasRef.value.controls.enabled = !hasPathCaptureOverlay;
+            if (hasPathCaptureOverlay) {
+                threeCanvasRef.value.controls.enabled = false;
+            } else if (app.viewerControlMode === 'orbit' && !threeCanvasRef.value?.cinematicCamera?.isPlaying?.value) {
+                threeCanvasRef.value.controls.enabled = true;
+            }
         }
     });
+
+    watch(
+        () => [realtime.isCameraActive.value, realtime.isCapturing.value],
+        ([isCameraActive, isCapturing]) => {
+            if ((isCameraActive || isCapturing) && app.viewerControlMode === 'headTracking') {
+                ensureOrbitControlsForInteraction(
+                    'realtime-capture',
+                    'Head tracking switched back to OrbitControls because realtime webcam capture owns the camera.',
+                );
+            }
+        }
+    );
+
+    watch(
+        () => threeCanvasRef.value?.cinematicCamera?.isPlaying?.value ?? false,
+        (isPlaying) => {
+            if (isPlaying && app.viewerControlMode === 'headTracking') {
+                ensureOrbitControlsForInteraction(
+                    'cinematic-playback',
+                    'Head tracking switched back to OrbitControls for cinematic playback.',
+                );
+            }
+        }
+    );
 
     // Watch thumbnail URL changes (used by texture browser UI, not for scene background)
     // Scene background is set directly by useThreeSetup after each texture load
@@ -277,10 +382,18 @@
 
     // Drawing mode handlers
     function enterDrawMode() {
+        ensureOrbitControlsForInteraction(
+            'draw-capture',
+            'Head tracking switched back to OrbitControls for draw capture.',
+        );
         app.setDrawingMode(true);
     }
 
     function enterWalkMode() {
+        ensureOrbitControlsForInteraction(
+            'walk-capture',
+            'Head tracking switched back to OrbitControls for walk capture.',
+        );
         app.setWalkMode(true);
     }
 
@@ -414,6 +527,10 @@
 
     // Image export handler
     function handleExportImage() {
+        ensureOrbitControlsForInteraction(
+            'scene-export',
+            'Head tracking switched back to OrbitControls for export.',
+        );
         // Generate filename with timestamp
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const filename = `rivvon-${timestamp}.png`;
@@ -427,6 +544,10 @@
 
     // Video export handler — opens dialog instead of recording immediately
     function handleExportVideo() {
+        ensureOrbitControlsForInteraction(
+            'scene-export',
+            'Head tracking switched back to OrbitControls for export.',
+        );
         // Gather current scene info for the dialog
         exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
         showExportDialog.value = true;
@@ -434,6 +555,10 @@
 
     // Called when user confirms export settings in the dialog
     async function handleExportConfirm(settings) {
+        ensureOrbitControlsForInteraction(
+            'scene-export',
+            'Head tracking switched back to OrbitControls for export.',
+        );
         showExportDialog.value = false;
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -761,11 +886,13 @@
         <BottomToolbar
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
-            :cinematic-debug="showCinematicDebug"
+            :debug-overlay="showDebugOverlay"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
             @enter-slyce-mode="openCreateTextureMode"
             @close-realtime-mode="handleRealtimeClose"
+            @viewer-control-mode-change="handleViewerControlModeChange"
+            @recenter-head-tracking="handleHeadTrackingRecenter"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"
             @open-emoji-picker="app.showEmojiPicker"
@@ -778,7 +905,7 @@
             @cinematic-capture="handleCinematicCapture"
             @cinematic-toggle="handleCinematicToggle"
             @cinematic-clear="handleCinematicClear"
-            @cinematic-debug-toggle="showCinematicDebug = !showCinematicDebug"
+            @debug-overlay-toggle="showDebugOverlay = !showDebugOverlay"
         />
 
         <!-- Hidden file input -->
@@ -841,10 +968,12 @@
             @export="handleExportConfirm"
         />
 
-        <!-- Cinematic camera debug overlay (press D to toggle) -->
-        <CinematicDebugOverlay
+        <!-- Contextual debug overlay (press D to toggle) -->
+        <ViewerDebugOverlay
             :cinematic-camera="threeCanvasRef?.cinematicCamera"
-            :visible="showCinematicDebug"
+            :head-tracking="threeCanvasRef?.headTracking"
+            :viewer-control-mode="app.viewerControlMode"
+            :visible="showDebugOverlay"
         />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->

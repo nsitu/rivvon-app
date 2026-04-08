@@ -52,6 +52,11 @@
         { label: 'Square Caps', value: 'square', icon: 'crop' }
     ];
 
+    const viewerControlOptions = [
+        { label: 'OrbitControls', value: 'orbit', icon: '3d_rotation' },
+        { label: 'Head Tracking', value: 'headTracking', icon: 'face' }
+    ];
+
     function setFlowState(state) {
         app.setFlowState(state);
         app.hideToolsPanel();
@@ -81,6 +86,41 @@
         }
     });
 
+    const selectedViewerControlOption = computed({
+        get: () => viewerControlOptions.find((option) => option.value === app.viewerControlMode) ?? viewerControlOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            emit('viewer-control-mode-change', option.value);
+        }
+    });
+
+    const showHeadTrackingTools = computed(() => (
+        app.viewerControlMode === 'headTracking'
+        || !!app.headTrackingMessage
+        || app.headTrackingSupported === false
+    ));
+
+    const headTrackingStatusLabel = computed(() => {
+        if (app.headTrackingErrorMessage) return 'Unavailable';
+        if (app.headTrackingCalibrating) return 'Calibrating';
+        if (app.headTrackingActive) return 'Active';
+        if (app.headTrackingSuspendedReason) return 'Paused';
+        if (app.viewerControlMode === 'headTracking') return 'Starting';
+        return 'Viewer Controls';
+    });
+
+    const headTrackingDisplayMessage = computed(() => (
+        app.headTrackingMessage
+        || (app.viewerControlMode === 'headTracking'
+            ? 'Center your face and hold still to start head tracking.'
+            : 'Choose how the viewer camera should respond to input.')
+    ));
+
+    const headTrackingStatusClass = computed(() => ({
+        'is-error': !!app.headTrackingErrorMessage,
+        'is-success': app.headTrackingActive && !app.headTrackingCalibrating,
+    }));
+
     function handleImport(type) {
         app.hideToolsPanel();
         emit('import-file', type);
@@ -100,7 +140,7 @@
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
-        cinematicDebug: { type: Boolean, default: false }
+        debugOverlay: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -117,10 +157,12 @@
         'export-video',
         'finish-drawing',
         'finish-walk',
+        'viewer-control-mode-change',
+        'recenter-head-tracking',
         'cinematic-capture',
         'cinematic-toggle',
         'cinematic-clear',
-        'cinematic-debug-toggle'
+        'debug-overlay-toggle'
     ]);
 
     function handleCinematicCapture() {
@@ -339,6 +381,65 @@
             <div class="tools-panel-content">
                 <!-- Animation section -->
                 <div class="tools-section">
+                    <div class="tools-section-label">Viewer Controls</div>
+                    <div class="tools-section-items">
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedViewerControlOption"
+                                :options="viewerControlOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
+
+                        <div
+                            v-if="showHeadTrackingTools"
+                            class="tools-status-card"
+                            :class="headTrackingStatusClass"
+                        >
+                            <div class="tools-status-row">
+                                <span class="material-symbols-outlined tools-status-icon">face</span>
+                                <div class="tools-status-copy">
+                                    <div class="tools-status-label-row">
+                                        <span class="tools-status-label-text">{{ headTrackingStatusLabel }}</span>
+                                        <button
+                                            v-if="app.viewerControlMode === 'headTracking'"
+                                            type="button"
+                                            class="tools-inline-action"
+                                            @click="emit('recenter-head-tracking')"
+                                        >
+                                            <span class="material-symbols-outlined">center_focus_strong</span>
+                                            <span>Re-center</span>
+                                        </button>
+                                    </div>
+                                    <div class="tools-status-message">{{ headTrackingDisplayMessage }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Animation section -->
+                <div class="tools-section">
                     <div class="tools-section-label">Animation</div>
                     <div class="tools-section-items">
                         <div class="tools-select-wrap">
@@ -406,7 +507,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -418,7 +519,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -430,7 +531,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -530,7 +631,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -547,10 +648,16 @@
                             >{{ props.cinematicRoiCount }}</span>
                             <span class="tools-hint">X</span>
                         </button>
+                    </div>
+                </div>
+
+                <div class="tools-section">
+                    <div class="tools-section-label">Diagnostics</div>
+                    <div class="tools-section-items">
                         <button
                             class="tools-option"
-                            :class="{ selected: props.cinematicDebug }"
-                            @click="emit('cinematic-debug-toggle')"
+                            :class="{ selected: props.debugOverlay }"
+                            @click="emit('debug-overlay-toggle')"
                         >
                             <span class="material-symbols-outlined">bug_report</span>
                             <span>Debug Overlay</span>
@@ -801,6 +908,81 @@
 
     .tools-select-wrap {
         padding: 0.5rem;
+    }
+
+    .tools-status-card {
+        margin: 0 0.5rem 0.5rem;
+        padding: 0.85rem 0.95rem;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tools-status-card.is-error {
+        background: rgba(239, 68, 68, 0.12);
+        border-color: rgba(239, 68, 68, 0.28);
+    }
+
+    .tools-status-card.is-success {
+        background: rgba(16, 185, 129, 0.12);
+        border-color: rgba(16, 185, 129, 0.28);
+    }
+
+    .tools-status-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .tools-status-icon {
+        font-size: 1.2rem;
+        opacity: 0.85;
+        padding-top: 0.15rem;
+    }
+
+    .tools-status-copy {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .tools-status-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .tools-status-label-text {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .tools-status-message {
+        margin-top: 0.4rem;
+        font-size: 0.86rem;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .tools-inline-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        font-size: 0.74rem;
+        font-weight: 600;
+    }
+
+    .tools-inline-action .material-symbols-outlined {
+        font-size: 1rem;
     }
 
     .tools-select {

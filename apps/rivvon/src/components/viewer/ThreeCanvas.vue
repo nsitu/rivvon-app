@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, onMounted, onUnmounted, watch } from 'vue';
+    import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useThreeSetup } from '../../composables/viewer/useThreeSetup';
 
@@ -49,8 +49,11 @@
         getExportInfo,
         setBackgroundFromUrl,
         setBackgroundFromTileManager,
-        cinematicCamera
+        cinematicCamera,
+        headTracking
     } = useThreeSetup();
+
+    const viewerControlMode = computed(() => app.viewerControlMode);
 
     /**
      * Fully reinitialize the viewer after a teardown.
@@ -79,7 +82,9 @@
                 renderer: renderer.value,
                 controls: controls.value,
                 tileManager: tileManager.value,
-                cinematicCamera
+                cinematicCamera,
+                headTracking,
+                viewerControlMode: viewerControlMode.value
             });
 
             console.log('[ThreeCanvas] Reinitialization complete');
@@ -114,7 +119,9 @@
                 renderer: renderer.value,
                 controls: controls.value,
                 tileManager: tileManager.value,
-                cinematicCamera
+                cinematicCamera,
+                headTracking,
+                viewerControlMode: viewerControlMode.value
             });
 
             // Register reinitialize callback on the store so it survives teardown
@@ -173,7 +180,9 @@
         resumeRenderLoop,
         teardownViewer,
         reinitialize,
-        cinematicCamera
+        cinematicCamera,
+        headTracking,
+        viewerControlMode
     });
 </script>
 

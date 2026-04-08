@@ -2,6 +2,7 @@
     import { ref, onUnmounted, watch, nextTick } from 'vue';
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import DebugOverlayFrame from './DebugOverlayFrame.vue';
 
     const props = defineProps({
         cinematicCamera: { type: Object, default: null },
@@ -424,33 +425,19 @@
 </script>
 
 <template>
-    <Transition name="fade">
+    <DebugOverlayFrame
+        :visible="visible && cinematicCamera?.isPlaying?.value"
+        title="Cinematic Camera"
+        :metrics-text="metricsText"
+    >
         <div
-            v-if="visible && cinematicCamera?.isPlaying?.value"
-            class="cinematic-debug-overlay"
-        >
-            <div
-                ref="containerRef"
-                class="track-map"
-            />
-            <pre class="metrics">{{ metricsText }}</pre>
-        </div>
-    </Transition>
+            ref="containerRef"
+            class="track-map"
+        />
+    </DebugOverlayFrame>
 </template>
 
 <style scoped>
-    .cinematic-debug-overlay {
-        position: fixed;
-        bottom: 80px;
-        right: 16px;
-        z-index: 4;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        pointer-events: auto;
-        user-select: none;
-    }
-
     .track-map {
         width: 360px;
         height: 360px;
@@ -464,30 +451,5 @@
     .track-map :deep(canvas) {
         display: block;
         border-radius: 8px;
-    }
-
-    .metrics {
-        margin: 0;
-        padding: 8px 12px;
-        font-family: 'JetBrains Mono', 'Fira Code', monospace;
-        font-size: 11px;
-        line-height: 1.5;
-        color: rgba(255, 255, 255, 0.8);
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(6px);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 8px;
-        white-space: pre;
-        pointer-events: none;
-    }
-
-    .fade-enter-active,
-    .fade-leave-active {
-        transition: opacity 0.3s ease;
-    }
-
-    .fade-enter-from,
-    .fade-leave-to {
-        opacity: 0;
     }
 </style>

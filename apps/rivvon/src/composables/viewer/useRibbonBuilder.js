@@ -43,7 +43,8 @@ export function useRibbonBuilder(ctx) {
         
         // Remove existing series if any
         if (ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.cleanup();
+            ctx.ribbonSeries.value.dispose();
+            ctx.ribbonSeries.value = null;
         }
 
         // Use RibbonSeries even for single path to ensure consistent animation
@@ -81,7 +82,8 @@ export function useRibbonBuilder(ctx) {
         
         // Remove existing series if any
         if (ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.cleanup();
+            ctx.ribbonSeries.value.dispose();
+            ctx.ribbonSeries.value = null;
         }
 
         // Create new ribbon series - constructor only takes scene
@@ -125,7 +127,8 @@ export function useRibbonBuilder(ctx) {
         
         // Remove existing series if any
         if (ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.cleanup();
+            ctx.ribbonSeries.value.dispose();
+            ctx.ribbonSeries.value = null;
         }
 
         // Create a temporary Ribbon to process the drawing points

@@ -16,5 +16,10 @@
     },
     "devDependencies": {
         "turbo": "^2.3.0"
+    },
+    "pnpm": {
+        "patchedDependencies": {
+            "@mediapipe/tasks-vision@0.10.34": "patches/@mediapipe__tasks-vision@0.10.34.patch"
+        }
     }
 }

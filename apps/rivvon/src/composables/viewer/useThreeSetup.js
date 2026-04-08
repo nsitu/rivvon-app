@@ -9,6 +9,7 @@ import { useViewerStore } from '../../stores/viewerStore';
 import { initThree as initThreeModule } from '../../modules/viewer/threeSetup';
 import { TileManager } from '../../modules/viewer/tileManager';
 import { useCinematicCamera } from './useCinematicCamera';
+import { useHeadTracking } from './useHeadTracking';
 import { useRenderLoop } from './useRenderLoop';
 import { useSceneBackground } from './useSceneBackground';
 import { useRibbonBuilder } from './useRibbonBuilder';
@@ -40,6 +41,23 @@ export function useThreeSetup() {
 
     // Cinematic camera system
     const cinematicCamera = useCinematicCamera();
+    const headTracking = useHeadTracking({
+        app,
+        scene,
+        camera,
+        renderer,
+        controls,
+        tileManager,
+        tileManagers,
+        ribbon,
+        ribbonSeries,
+        isInitialized,
+        resetCamera,
+        backgroundTexture,
+        isDeviceLost,
+        isRecovering,
+        cinematicCamera,
+    });
 
     // Context object shared by all sub-composables
     const ctx = {
@@ -49,7 +67,8 @@ export function useThreeSetup() {
         ribbon, ribbonSeries,
         isInitialized, resetCamera, backgroundTexture,
         isDeviceLost, isRecovering,
-        cinematicCamera
+        cinematicCamera,
+        headTracking,
     };
 
     // ── Sub-composables ────────────────────────────────────────────────
@@ -93,6 +112,7 @@ export function useThreeSetup() {
             renderer.value = result.renderer;
             controls.value = result.controls;
             resetCamera.value = result.resetCamera;
+            headTracking.attach(result.camera, result.controls);
             
             // Store context in app store for access by other components
             app.setThreeContext({
@@ -100,6 +120,7 @@ export function useThreeSetup() {
                 camera: result.camera,
                 renderer: result.renderer,
                 controls: result.controls,
+                headTracking,
                 rendererType: result.rendererType,
                 pauseRenderLoop: renderLoop.pauseRenderLoop,
                 resumeRenderLoop: renderLoop.resumeRenderLoop,
@@ -123,6 +144,7 @@ export function useThreeSetup() {
 
             // Initialize cinematic camera system
             cinematicCamera.init(result.camera, result.controls);
+            await headTracking.syncWithSelectedMode();
 
             // Register device-loss handler (works for both WebGPU and WebGL)
             if (result.onDeviceLost) {
@@ -157,6 +179,8 @@ export function useThreeSetup() {
      */
     function teardownViewer() {
         renderLoop.resetState();
+        headTracking.detach({ releaseDetector: false });
+        cinematicCamera.dispose();
 
         background.disposeBackground();
         if (ribbon.value) { ribbon.value.dispose(); ribbon.value = null; }
@@ -205,6 +229,8 @@ export function useThreeSetup() {
         renderLoop.cleanupVisibility();
 
         renderLoop.stopRenderLoop();
+        headTracking.detach({ releaseDetector: true });
+        cinematicCamera.dispose();
         
         background.disposeBackground();
         if (ribbon.value) {
@@ -302,6 +328,7 @@ export function useThreeSetup() {
         getExportInfo: exporter.getExportInfo,
         setBackgroundFromUrl: background.setBackgroundFromUrl,
         setBackgroundFromTileManager: background.setBackgroundFromTileManager,
-        cinematicCamera
+        cinematicCamera,
+        headTracking,
     };
 }

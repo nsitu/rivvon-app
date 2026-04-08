@@ -1,0 +1,321 @@
+diff --git a/wasm/vision_wasm_internal.js b/wasm/vision_wasm_internal.js
+index 15dde9e853f208f27542e65a0c88157101eaf4f7..190ebf9a500264cf2f31e1d187633c1b6f563464 100644
+--- a/wasm/vision_wasm_internal.js
++++ b/wasm/vision_wasm_internal.js
+@@ -152,6 +152,15 @@ var out = console.log.bind(console);
+ 
+ var err = console.error.bind(console);
+ 
++  function emitMediapipeDiagnostic(logger, text) {
++  if (shouldDowngradeMediapipeDiagnostic(text)) {
++    out(text);
++    return;
++    }
++
++    logger(text);
++  }
++
+ // end include: shell.js
+ // include: preamble.js
+ // === Preamble library stuff ===
+@@ -1353,7 +1362,7 @@ var TTY = {
+     },
+     put_char(tty, val) {
+       if (val === null || val === 10) {
+-        out(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(out, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       } else {
+         if (val != 0) tty.output.push(val);
+@@ -1361,7 +1370,7 @@ var TTY = {
+     },
+     fsync(tty) {
+       if (tty.output?.length > 0) {
+-        out(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(out, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       }
+     },
+@@ -1386,7 +1395,7 @@ var TTY = {
+   default_tty1_ops: {
+     put_char(tty, val) {
+       if (val === null || val === 10) {
+-        err(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(err, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       } else {
+         if (val != 0) tty.output.push(val);
+@@ -1394,7 +1403,7 @@ var TTY = {
+     },
+     fsync(tty) {
+       if (tty.output?.length > 0) {
+-        err(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(err, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       }
+     }
+@@ -4654,7 +4663,7 @@ var _emscripten_asm_const_int = (code, sigPtr, argbuf) => runEmAsmFunction(code,
+ 
+ var _emscripten_asm_const_ptr = (code, sigPtr, argbuf) => runEmAsmFunction(code, sigPtr, argbuf);
+ 
+-var _emscripten_errn = (str, len) => err(UTF8ToString(str, len));
++var _emscripten_errn = (str, len) => emitMediapipeDiagnostic(err, UTF8ToString(str, len));
+ 
+ var getHeapMax = () => // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
+ // full 4GB Wasm memories, the size will wrap back to 0 bytes in Wasm side
+@@ -4666,7 +4675,7 @@ var _emscripten_get_heap_max = () => getHeapMax();
+ 
+ var _emscripten_has_asyncify = () => 0;
+ 
+-var _emscripten_outn = (str, len) => out(UTF8ToString(str, len));
++var _emscripten_outn = (str, len) => emitMediapipeDiagnostic(out, UTF8ToString(str, len));
+ 
+ var UNWIND_CACHE = {};
+ 
+@@ -8359,16 +8368,30 @@ function UseBottomLeftGpuOrigin() {
+   return (Module && Module.gpuOriginForWebTexturesIsBottomLeft);
+ }
+ 
++function shouldDowngradeMediapipeDiagnostic(text) {
++  if (typeof text !== "string") {
++    return false;
++  }
++
++  return text.indexOf("Created TensorFlow Lite XNNPACK delegate for CPU.") !== -1 || text.indexOf("Graph successfully started running.") !== -1 || text.indexOf("Graph finished closing successfully.") !== -1 || text.indexOf("OpenGL error checking is disabled.") !== -1 || text.indexOf("gl_context.cc:") !== -1 || text.indexOf("Sets FaceBlendshapesGraph acceleration to xnnpack by default.") !== -1;
++}
++
+ function custom_emscripten_dbgn(str, len) {
++  const text = UTF8ToString(str, len);
++  if (shouldDowngradeMediapipeDiagnostic(text)) {
++    out(text);
++    return;
++  }
++
+   if (typeof (dbg) !== "undefined") {
+-    dbg(UTF8ToString(str, len));
++    dbg(text);
+   } else {
+     if (typeof (custom_dbg) === "undefined") {
+       function custom_dbg(text) {
+         console.warn.apply(console, arguments);
+       }
+     }
+-    custom_dbg(UTF8ToString(str, len));
++    custom_dbg(text);
+   }
+ }
+ 
+diff --git a/wasm/vision_wasm_module_internal.js b/wasm/vision_wasm_module_internal.js
+index a9cd122236c97f30a823e3929568b627218b19ed..011f6ffbe0372fa7294f972e493c8e4b5be5726c 100644
+--- a/wasm/vision_wasm_module_internal.js
++++ b/wasm/vision_wasm_module_internal.js
+@@ -151,6 +151,15 @@ var out = console.log.bind(console);
+ 
+ var err = console.error.bind(console);
+ 
++  function emitMediapipeDiagnostic(logger, text) {
++  if (shouldDowngradeMediapipeDiagnostic(text)) {
++    out(text);
++    return;
++    }
++
++    logger(text);
++  }
++
+ // end include: shell.js
+ // include: preamble.js
+ // === Preamble library stuff ===
+@@ -1356,7 +1365,7 @@ var TTY = {
+     },
+     put_char(tty, val) {
+       if (val === null || val === 10) {
+-        out(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(out, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       } else {
+         if (val != 0) tty.output.push(val);
+@@ -1364,7 +1373,7 @@ var TTY = {
+     },
+     fsync(tty) {
+       if (tty.output?.length > 0) {
+-        out(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(out, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       }
+     },
+@@ -1389,7 +1398,7 @@ var TTY = {
+   default_tty1_ops: {
+     put_char(tty, val) {
+       if (val === null || val === 10) {
+-        err(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(err, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       } else {
+         if (val != 0) tty.output.push(val);
+@@ -1397,7 +1406,7 @@ var TTY = {
+     },
+     fsync(tty) {
+       if (tty.output?.length > 0) {
+-        err(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(err, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       }
+     }
+@@ -4657,7 +4666,7 @@ var _emscripten_asm_const_int = (code, sigPtr, argbuf) => runEmAsmFunction(code,
+ 
+ var _emscripten_asm_const_ptr = (code, sigPtr, argbuf) => runEmAsmFunction(code, sigPtr, argbuf);
+ 
+-var _emscripten_errn = (str, len) => err(UTF8ToString(str, len));
++var _emscripten_errn = (str, len) => emitMediapipeDiagnostic(err, UTF8ToString(str, len));
+ 
+ var getHeapMax = () => // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
+ // full 4GB Wasm memories, the size will wrap back to 0 bytes in Wasm side
+@@ -4669,7 +4678,7 @@ var _emscripten_get_heap_max = () => getHeapMax();
+ 
+ var _emscripten_has_asyncify = () => 0;
+ 
+-var _emscripten_outn = (str, len) => out(UTF8ToString(str, len));
++var _emscripten_outn = (str, len) => emitMediapipeDiagnostic(out, UTF8ToString(str, len));
+ 
+ var UNWIND_CACHE = {};
+ 
+@@ -8362,16 +8371,30 @@ function UseBottomLeftGpuOrigin() {
+   return (Module && Module.gpuOriginForWebTexturesIsBottomLeft);
+ }
+ 
++function shouldDowngradeMediapipeDiagnostic(text) {
++  if (typeof text !== "string") {
++    return false;
++  }
++
++  return text.indexOf("Created TensorFlow Lite XNNPACK delegate for CPU.") !== -1 || text.indexOf("Graph successfully started running.") !== -1 || text.indexOf("Graph finished closing successfully.") !== -1 || text.indexOf("OpenGL error checking is disabled.") !== -1 || text.indexOf("gl_context.cc:") !== -1 || text.indexOf("Sets FaceBlendshapesGraph acceleration to xnnpack by default.") !== -1;
++}
++
+ function custom_emscripten_dbgn(str, len) {
++  const text = UTF8ToString(str, len);
++  if (shouldDowngradeMediapipeDiagnostic(text)) {
++    out(text);
++    return;
++  }
++
+   if (typeof (dbg) !== "undefined") {
+-    dbg(UTF8ToString(str, len));
++    dbg(text);
+   } else {
+     if (typeof (custom_dbg) === "undefined") {
+       function custom_dbg(text) {
+         console.warn.apply(console, arguments);
+       }
+     }
+-    custom_dbg(UTF8ToString(str, len));
++    custom_dbg(text);
+   }
+ }
+ 
+diff --git a/wasm/vision_wasm_nosimd_internal.js b/wasm/vision_wasm_nosimd_internal.js
+index 63312d271bcd69f536ffdfd2357039d8592de916..2643c9d8e0e5c60e1a1b8ab5eb97766dca1f472c 100644
+--- a/wasm/vision_wasm_nosimd_internal.js
++++ b/wasm/vision_wasm_nosimd_internal.js
+@@ -152,6 +152,15 @@ var out = console.log.bind(console);
+ 
+ var err = console.error.bind(console);
+ 
++  function emitMediapipeDiagnostic(logger, text) {
++  if (shouldDowngradeMediapipeDiagnostic(text)) {
++    out(text);
++    return;
++    }
++
++    logger(text);
++  }
++
+ // end include: shell.js
+ // include: preamble.js
+ // === Preamble library stuff ===
+@@ -1353,7 +1362,7 @@ var TTY = {
+     },
+     put_char(tty, val) {
+       if (val === null || val === 10) {
+-        out(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(out, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       } else {
+         if (val != 0) tty.output.push(val);
+@@ -1361,7 +1370,7 @@ var TTY = {
+     },
+     fsync(tty) {
+       if (tty.output?.length > 0) {
+-        out(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(out, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       }
+     },
+@@ -1386,7 +1395,7 @@ var TTY = {
+   default_tty1_ops: {
+     put_char(tty, val) {
+       if (val === null || val === 10) {
+-        err(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(err, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       } else {
+         if (val != 0) tty.output.push(val);
+@@ -1394,7 +1403,7 @@ var TTY = {
+     },
+     fsync(tty) {
+       if (tty.output?.length > 0) {
+-        err(UTF8ArrayToString(tty.output));
++        emitMediapipeDiagnostic(err, UTF8ArrayToString(tty.output));
+         tty.output = [];
+       }
+     }
+@@ -4654,7 +4663,7 @@ var _emscripten_asm_const_int = (code, sigPtr, argbuf) => runEmAsmFunction(code,
+ 
+ var _emscripten_asm_const_ptr = (code, sigPtr, argbuf) => runEmAsmFunction(code, sigPtr, argbuf);
+ 
+-var _emscripten_errn = (str, len) => err(UTF8ToString(str, len));
++var _emscripten_errn = (str, len) => emitMediapipeDiagnostic(err, UTF8ToString(str, len));
+ 
+ var getHeapMax = () => // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
+ // full 4GB Wasm memories, the size will wrap back to 0 bytes in Wasm side
+@@ -4666,7 +4675,7 @@ var _emscripten_get_heap_max = () => getHeapMax();
+ 
+ var _emscripten_has_asyncify = () => 0;
+ 
+-var _emscripten_outn = (str, len) => out(UTF8ToString(str, len));
++var _emscripten_outn = (str, len) => emitMediapipeDiagnostic(out, UTF8ToString(str, len));
+ 
+ var UNWIND_CACHE = {};
+ 
+@@ -8351,16 +8360,30 @@ function UseBottomLeftGpuOrigin() {
+   return (Module && Module.gpuOriginForWebTexturesIsBottomLeft);
+ }
+ 
++function shouldDowngradeMediapipeDiagnostic(text) {
++  if (typeof text !== "string") {
++    return false;
++  }
++
++  return text.indexOf("Created TensorFlow Lite XNNPACK delegate for CPU.") !== -1 || text.indexOf("Graph successfully started running.") !== -1 || text.indexOf("Graph finished closing successfully.") !== -1 || text.indexOf("OpenGL error checking is disabled.") !== -1 || text.indexOf("gl_context.cc:") !== -1 || text.indexOf("Sets FaceBlendshapesGraph acceleration to xnnpack by default.") !== -1;
++}
++
+ function custom_emscripten_dbgn(str, len) {
++  const text = UTF8ToString(str, len);
++  if (shouldDowngradeMediapipeDiagnostic(text)) {
++    out(text);
++    return;
++  }
++
+   if (typeof (dbg) !== "undefined") {
+-    dbg(UTF8ToString(str, len));
++    dbg(text);
+   } else {
+     if (typeof (custom_dbg) === "undefined") {
+       function custom_dbg(text) {
+         console.warn.apply(console, arguments);
+       }
+     }
+-    custom_dbg(UTF8ToString(str, len));
++    custom_dbg(text);
+   }
+ }
+ 

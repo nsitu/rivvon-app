@@ -61,6 +61,8 @@ export function useRenderLoop(ctx, deps = {}) {
      */
     async function _onVisibilityChange() {
         if (document.visibilityState === 'hidden') {
+            ctx.headTracking?.pauseForVisibility?.();
+
             // Only pause if we initiated it (don't interfere with Slyce pausing)
             if (ctx.isInitialized.value && !renderLoopPaused && !ctx.isDeviceLost.value) {
                 pausedByVisibility = true;
@@ -76,6 +78,7 @@ export function useRenderLoop(ctx, deps = {}) {
                 // Normal un-hide — resume the loop we paused
                 pausedByVisibility = false;
                 resumeRenderLoop();
+                await ctx.headTracking?.resumeFromVisibility?.();
                 console.log('[ThreeSetup] Tab visible — render loop resumed');
             }
         }
@@ -165,6 +168,10 @@ export function useRenderLoop(ctx, deps = {}) {
             if (ctx.cinematicCamera.isPlaying.value) {
                 ctx.cinematicCamera.tick(deltaSec);
             }
+
+            if (ctx.app.viewerControlMode === 'headTracking' && !ctx.cinematicCamera.isPlaying.value) {
+                ctx.headTracking?.tick?.(now);
+            }
             
             // Call custom render callback if provided
             if (renderCallback) {
@@ -172,7 +179,11 @@ export function useRenderLoop(ctx, deps = {}) {
             }
             
             // Update controls (skip when cinematic is driving the camera)
-            if (ctx.controls.value && !ctx.cinematicCamera.isPlaying.value) {
+            if (
+                ctx.controls.value
+                && !ctx.cinematicCamera.isPlaying.value
+                && ctx.app.viewerControlMode === 'orbit'
+            ) {
                 ctx.controls.value.update();
             }
             

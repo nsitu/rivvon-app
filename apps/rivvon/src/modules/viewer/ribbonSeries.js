@@ -2,6 +2,7 @@
  * RibbonSeries - Manages multiple ribbons rendered together with continuous texturing
  */
 
+import { Box3, Group, Vector3 } from 'three';
 import { Ribbon } from './ribbon.js';
 
 export class RibbonSeries {
@@ -22,6 +23,17 @@ export class RibbonSeries {
 
         // Round-robin mapping: each entry is { ribbon, strand, tileManager }
         this._strandTileManagerMap = [];
+
+        // Shared transform root so head tracking can move the artwork
+        // without touching the background or other scene content.
+        this._bounds = new Box3();
+        this._pivotCenter = new Vector3();
+        this._transformRoot = new Group();
+        this._transformRoot.name = 'RibbonSeriesRoot';
+        this._contentGroup = new Group();
+        this._contentGroup.name = 'RibbonSeriesContent';
+        this._transformRoot.add(this._contentGroup);
+        this.scene.add(this._transformRoot);
 
         // Helix mode options (forwarded to each Ribbon)
         this._helixOptions = {
@@ -69,6 +81,28 @@ export class RibbonSeries {
         return this;
     }
 
+    _updateTransformRoot(pathsPoints) {
+        this._bounds.makeEmpty();
+
+        for (const points of pathsPoints) {
+            for (const point of points) {
+                this._bounds.expandByPoint(point);
+            }
+        }
+
+        if (this._bounds.isEmpty()) {
+            this._pivotCenter.set(0, 0, 0);
+        } else {
+            this._bounds.getCenter(this._pivotCenter);
+        }
+
+        this._transformRoot.position.copy(this._pivotCenter);
+        this._contentGroup.position.copy(this._pivotCenter).multiplyScalar(-1);
+        this._contentGroup.quaternion.identity();
+        this._contentGroup.scale.setScalar(1);
+        this._transformRoot.updateMatrixWorld(true);
+    }
+
     /**
      * Build ribbons from multiple path point arrays
      * @param {Array<Array<THREE.Vector3>>} pathsPoints - Array of point arrays (one per path)
@@ -92,6 +126,7 @@ export class RibbonSeries {
             points.map(p => p.clone())
         );
         this.lastWidth = width;
+        this._updateTransformRoot(this.lastPathsPoints);
 
         let segmentOffset = 0;  // Track cumulative segment count for texture continuity
         const N = this.tileManagers.length; // Number of available TileManagers
@@ -105,7 +140,7 @@ export class RibbonSeries {
                 continue;
             }
 
-            const ribbon = new Ribbon(this.scene);
+            const ribbon = new Ribbon(this._contentGroup);
 
             // Assign TileManager for strand A via round-robin
             const tmA = N > 0 ? this.tileManagers[textureIndex % N] : this.tileManager;
@@ -349,6 +384,14 @@ export class RibbonSeries {
     }
 
     /**
+     * Get the shared transform root for the full ribbon series.
+     * @returns {THREE.Group}
+     */
+    getTransformRoot() {
+        return this._transformRoot;
+    }
+
+    /**
      * Clean up all ribbons and clear cached path data
      */
     cleanup() {
@@ -368,5 +411,12 @@ export class RibbonSeries {
      */
     dispose() {
         this.cleanup();
+
+        if (this._transformRoot) {
+            this.scene.remove(this._transformRoot);
+            this._transformRoot.clear();
+            this._transformRoot = null;
+            this._contentGroup = null;
+        }
     }
 }
