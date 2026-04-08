@@ -176,7 +176,7 @@ const processVideo = async (settings) => {
     let activeTileEncodeCount = 0;
     const tileEncodeWaiters = [];
 
-    console.log(`[VideoProcessor] Encode policy: max ${encodeConfig.maxConcurrentTileEncodes} tile(s), ${encodeConfig.layerWorkerCount} layer worker(s)`);
+    console.log(`[VideoProcessor] Encode policy: max ${encodeConfig.maxConcurrentTileEncodes} tile(s), ${encodeConfig.layerWorkerCount} layer worker(s) (${encodeConfig.reason})`);
 
     function acquireTileEncodeSlot() {
         if (abortSignal.aborted) {

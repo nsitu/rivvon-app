@@ -377,7 +377,19 @@ export function useRealtimeSlyce() {
         return isCapturing.value;
     }
 
+    function shouldDelayDrainEscalation() {
+        if (isCapturing.value || drainWorkerPool) {
+            return false;
+        }
+
+        return !!workerPool && (workerPoolUsage.get(workerPool) ?? 0) > 0;
+    }
+
     function getEncodeConcurrencyLimit() {
+        if (shouldDelayDrainEscalation()) {
+            return THROTTLED_MAX_CONCURRENT_ENCODES;
+        }
+
         return shouldThrottleEncodes()
             ? THROTTLED_MAX_CONCURRENT_ENCODES
             : DRAIN_MAX_CONCURRENT_ENCODES;
@@ -526,6 +538,14 @@ export function useRealtimeSlyce() {
             return workerPool;
         }
 
+        if (shouldDelayDrainEscalation()) {
+            logRealtimeDrainEvent('delay-drain-pool-escalation', {
+                capturePoolUsage: workerPool ? (workerPoolUsage.get(workerPool) ?? 0) : 0,
+                drainConfig: BACKGROUND_ENCODE_CONFIG,
+            });
+            return workerPool;
+        }
+
         try {
             return await ensureDrainWorkerPool();
         } catch (error) {
@@ -640,6 +660,7 @@ export function useRealtimeSlyce() {
 
         isCapturing.value = true;
         syncEncodeThrottleState('capture-started');
+        console.log(`[RealtimeSlyce] Background encode policy: max ${DRAIN_MAX_CONCURRENT_ENCODES} tile(s), ${DRAIN_WORKER_COUNT} layer worker(s) (${BACKGROUND_ENCODE_CONFIG.reason})`);
         currentTileIndex.value = 0;
         currentRow.value = 0;
         completedTiles.value = 0;
