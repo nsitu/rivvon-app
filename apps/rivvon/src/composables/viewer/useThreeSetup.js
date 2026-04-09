@@ -10,6 +10,7 @@ import { initThree as initThreeModule } from '../../modules/viewer/threeSetup';
 import { TileManager } from '../../modules/viewer/tileManager';
 import { useCinematicCamera } from './useCinematicCamera';
 import { useHeadTracking } from './useHeadTracking';
+import { useMouseTilt } from './useMouseTilt';
 import { useRenderLoop } from './useRenderLoop';
 import { useSceneBackground } from './useSceneBackground';
 import { useRibbonBuilder } from './useRibbonBuilder';
@@ -71,6 +72,9 @@ export function useThreeSetup() {
         headTracking,
     };
 
+    const mouseTilt = useMouseTilt(ctx);
+    ctx.mouseTilt = mouseTilt;
+
     // ── Sub-composables ────────────────────────────────────────────────
     //
     // Some sub-composables depend on functions from others. We use a
@@ -113,6 +117,7 @@ export function useThreeSetup() {
             controls.value = result.controls;
             resetCamera.value = result.resetCamera;
             headTracking.attach(result.camera, result.controls);
+            mouseTilt.attach(result.camera, result.controls);
             
             // Store context in app store for access by other components
             app.setThreeContext({
@@ -145,6 +150,7 @@ export function useThreeSetup() {
             // Initialize cinematic camera system
             cinematicCamera.init(result.camera, result.controls);
             await headTracking.syncWithSelectedMode();
+            mouseTilt.syncWithMode(app.viewerControlMode);
 
             // Register device-loss handler (works for both WebGPU and WebGL)
             if (result.onDeviceLost) {
@@ -180,6 +186,7 @@ export function useThreeSetup() {
     function teardownViewer() {
         renderLoop.resetState();
         headTracking.detach({ releaseDetector: false });
+        mouseTilt.deactivate({ restoreBaseline: false });
         cinematicCamera.dispose();
 
         background.disposeBackground();
@@ -330,5 +337,6 @@ export function useThreeSetup() {
         setBackgroundFromTileManager: background.setBackgroundFromTileManager,
         cinematicCamera,
         headTracking,
+        mouseTilt,
     };
 }

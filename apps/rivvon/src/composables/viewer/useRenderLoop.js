@@ -172,6 +172,10 @@ export function useRenderLoop(ctx, deps = {}) {
             if (ctx.app.viewerControlMode === 'headTracking' && !ctx.cinematicCamera.isPlaying.value) {
                 ctx.headTracking?.tick?.(now);
             }
+
+            if (ctx.app.viewerControlMode === 'mouseTilt' && !ctx.cinematicCamera.isPlaying.value) {
+                ctx.mouseTilt?.tick?.();
+            }
             
             // Call custom render callback if provided
             if (renderCallback) {

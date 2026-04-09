@@ -87,6 +87,13 @@
             return;
         }
 
+        if (mode === 'mouseTilt') {
+            // Mouse tilt needs no camera access — switch directly
+            app.clearHeadTrackingFeedback();
+            app.setViewerControlMode('mouseTilt');
+            return;
+        }
+
         if (realtime.isCameraActive.value || realtime.isCapturing.value || app.realtimeSamplerVisible) {
             forceOrbitControls({
                 reason: 'realtime-capture',

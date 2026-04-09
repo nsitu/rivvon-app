@@ -50,7 +50,8 @@
         setBackgroundFromUrl,
         setBackgroundFromTileManager,
         cinematicCamera,
-        headTracking
+        headTracking,
+        mouseTilt
     } = useThreeSetup();
 
     const viewerControlMode = computed(() => app.viewerControlMode);
@@ -182,6 +183,7 @@
         reinitialize,
         cinematicCamera,
         headTracking,
+        mouseTilt,
         viewerControlMode
     });
 </script>
