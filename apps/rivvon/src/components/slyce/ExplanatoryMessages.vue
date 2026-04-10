@@ -76,9 +76,9 @@
                     <div class="flex items-center gap-1 cursor-default">
                         <span class="material-symbols-outlined">filter_alt</span>
                         <span>Using frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString()
-                        }}</span>
+                            }}</span>
                         <span>({{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString()
-                        }})</span>
+                            }})</span>
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
@@ -148,12 +148,7 @@
                 <AccordionContent>
                     <p class="m-0 text-left">
                         Scaling from {{ plan.scaleFrom }}px to {{ plan.scaleTo }}px
-                        <span v-if="app.downsampleStrategy === 'upfront'">
-                            via upfront frame downsampling for smoother results
-                        </span>
-                        <span v-if="app.downsampleStrategy === 'perSample'">
-                            via fast per-sample downsampling
-                        </span>.
+                        via upfront frame downsampling for smoother results.
                     </p>
                 </AccordionContent>
             </AccordionPanel>

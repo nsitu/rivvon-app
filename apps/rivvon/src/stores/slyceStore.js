@@ -18,7 +18,7 @@ export const useSlyceStore = defineStore('slyce', {
         outputMode: 'rows',         // rows, columns
         tileMode: 'tile',           // tile, full
         potResolution: 512,             // 32, 64, 128, 256, 512, 1024
-        downsampleStrategy: 'upfront', // perSample, upfront
+        downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
         readerIsFinished: false,
         fileInfo: null,
         samplePixelCount: 0, /** equals width or height depending on samplingMode */

@@ -46,7 +46,7 @@ export async function downloadAllAsZip(blobURLs, fileInfo, format, appStore) {
             tileProportion: 'square',
             prioritize: 'powersOfTwo',
             potResolution: appStore?.potResolution,
-            downsampleStrategy: appStore?.downsampleStrategy,
+            downsampleStrategy: 'upfront',
             outputFormat: appStore?.outputFormat,
         },
 

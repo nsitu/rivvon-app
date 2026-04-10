@@ -163,7 +163,6 @@ const processVideo = async (settings) => {
         tilePlan,
         frameStart,
         frameEnd,
-        downsampleStrategy: app.downsampleStrategy,
         onSeekProgress(currentFrame) {
             app.setStatus('Seeking', `Skipping to frame ${frameStart} (at frame ${currentFrame})`);
         },

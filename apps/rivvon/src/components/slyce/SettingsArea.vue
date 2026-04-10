@@ -417,20 +417,7 @@
                     optionValue="value"
                     optionLabel="name"
                 />
-                <span>resolution using</span>
-                <Select
-                    v-model="app.downsampleStrategy"
-                    :options="[{
-                        name: 'per sample',
-                        value: 'perSample'
-                    }, {
-                        name: 'upfront',
-                        value: 'upfront'
-                    }]"
-                    optionValue="value"
-                    optionLabel="name"
-                />
-                <span>down-scaling</span>
+                <span>resolution</span>
             </div>
 
 

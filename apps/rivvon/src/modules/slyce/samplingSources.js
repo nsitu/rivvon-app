@@ -56,7 +56,6 @@ export class VideoFileFrameSource {
         this.tilePlan = options.tilePlan;
         this.frameStart = options.frameStart ?? 1;
         this.frameEnd = options.frameEnd ?? Number.POSITIVE_INFINITY;
-        this.downsampleStrategy = options.downsampleStrategy ?? 'upfront';
         this.onSeekProgress = options.onSeekProgress ?? null;
         this.onRangeStart = options.onRangeStart ?? null;
     }
@@ -124,7 +123,7 @@ export class VideoFileFrameSource {
                     videoFrame.close();
                 }
 
-                if (this.tilePlan.isScaled && this.downsampleStrategy === 'upfront') {
+                if (this.tilePlan.isScaled) {
                     const scaleFactor = this.tilePlan.scaleTo / this.tilePlan.scaleFrom;
                     const scaledWidth = Math.floor(effectiveFileInfo.width * scaleFactor);
                     const scaledHeight = Math.floor(effectiveFileInfo.height * scaleFactor);
