@@ -43,7 +43,7 @@
     ];
 
     const geometryOptions = [
-        { label: 'Standard Ribbon', value: 'flat', icon: '~', textIcon: true },
+        { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
     ];
 
@@ -1011,6 +1011,7 @@
         opacity: 0.85;
         width: 1.2rem;
         text-align: center;
+        line-height: 0.5rem;
     }
 
     :deep(.tools-select .p-select-label) {

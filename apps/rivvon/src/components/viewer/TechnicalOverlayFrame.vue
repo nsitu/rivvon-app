@@ -1,7 +1,7 @@
 <script setup>
     defineProps({
         visible: { type: Boolean, default: false },
-        title: { type: String, default: 'Technical Overlay' },
+        title: { type: String, default: '' },
         metricsText: { type: String, default: '' },
     });
 </script>
@@ -12,7 +12,10 @@
             v-if="visible"
             class="technical-overlay"
         >
-            <div class="technical-overlay-header">
+            <div
+                v-if="title"
+                class="technical-overlay-header"
+            >
                 <span class="technical-overlay-title">{{ title }}</span>
                 <slot name="header-meta" />
             </div>
@@ -30,7 +33,7 @@
 <style scoped>
     .technical-overlay {
         position: fixed;
-        bottom: 80px;
+        bottom: 6.5rem;
         right: 16px;
         z-index: 4;
         display: flex;
@@ -46,7 +49,7 @@
         gap: 8px;
         align-self: flex-start;
         padding: 6px 10px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
+
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.62);
         backdrop-filter: blur(8px);
@@ -70,7 +73,7 @@
         color: rgba(255, 255, 255, 0.8);
         background: rgba(0, 0, 0, 0.55);
         backdrop-filter: blur(6px);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+
         border-radius: 8px;
         white-space: pre;
         pointer-events: none;

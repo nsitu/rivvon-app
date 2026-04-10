@@ -1,6 +1,8 @@
 // src/composables/viewer/useRenderLoop.js
 // Render loop lifecycle: start/stop, pause/resume, tab visibility & GPU recovery
 
+import { ref } from 'vue';
+
 /**
  * Manages the Three.js animation loop, tab-visibility pausing,
  * and GPU device-loss recovery.
@@ -15,6 +17,11 @@ export function useRenderLoop(ctx, deps = {}) {
     let renderLoopPaused = false;
     let lastFrameTime = 0;
     let pausedByVisibility = false; // tracks tab-hidden pausing (separate from Slyce)
+
+    // FPS measurement — updates ~4 times per second
+    const fps = ref(0);
+    let fpsFrameCount = 0;
+    let fpsLastSampleTime = 0;
 
     // ── Pause / Resume ─────────────────────────────────────────────────
 
@@ -141,6 +148,14 @@ export function useRenderLoop(ctx, deps = {}) {
             // Compute per-frame delta; clamp to avoid jumps after tab-switch
             const deltaSec = lastFrameTime === 0 ? 0.016 : Math.min((now - lastFrameTime) / 1000, 0.1);
             lastFrameTime = now;
+
+            // FPS measurement — sample every 250ms
+            fpsFrameCount++;
+            if (now - fpsLastSampleTime >= 250) {
+                fps.value = Math.round(fpsFrameCount / ((now - fpsLastSampleTime) / 1000));
+                fpsFrameCount = 0;
+                fpsLastSampleTime = now;
+            }
             
             animationId = requestAnimationFrame(animate);
             
@@ -232,6 +247,7 @@ export function useRenderLoop(ctx, deps = {}) {
     }
 
     return {
+        fps,
         startRenderLoop,
         stopRenderLoop,
         pauseRenderLoop,

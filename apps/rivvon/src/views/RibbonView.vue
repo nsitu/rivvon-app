@@ -1066,6 +1066,7 @@
             :head-tracking="threeCanvasRef?.headTracking"
             :viewer-control-mode="app.viewerControlMode"
             :visible="showTechnicalOverlay"
+            :fps="threeCanvasRef?.fps ?? 0"
         />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->
