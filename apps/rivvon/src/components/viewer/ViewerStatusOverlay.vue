@@ -33,11 +33,11 @@
 
     const metricsText = computed(() => {
         const lines = [
-            `FPS  ${props.fps}`,
-            `GPU  ${app.rendererType.toUpperCase()}`
+            `FPS       ${props.fps}`,
+            `Renderer  ${app.rendererType.toUpperCase()}`
         ];
         if (storageMB.value !== null) {
-            lines.push(`IDB  ${storageMB.value} MB`);
+            lines.push(`Storage   ${storageMB.value} MB`);
         }
         return lines.join('\n');
     });

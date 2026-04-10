@@ -630,6 +630,19 @@ async function getCachedCloudIds() {
 }
 
 /**
+ * Remove the local cache entry for a cloud texture.
+ * @param {string} cloudTextureId - The cloud texture set ID
+ * @returns {Promise<boolean>} True if a cache entry was removed
+ */
+async function evictCachedTexture(cloudTextureId) {
+    const localId = await getCachedLocalId(cloudTextureId);
+    if (!localId) return false;
+    await deleteTextureSet(localId);
+    console.log(`[LocalStorage] Evicted cache for cloud texture ${cloudTextureId}`);
+    return true;
+}
+
+/**
  * Vue composable for local storage operations
  * @returns {Object} Local storage methods
  */
@@ -647,7 +660,8 @@ export function useLocalStorage() {
         downloadTextureSetAsZip,
         cacheCloudTexture,
         getCachedLocalId,
-        getCachedCloudIds
+        getCachedCloudIds,
+        evictCachedTexture
     };
 }
 
@@ -665,5 +679,6 @@ export {
     downloadTextureSetAsZip,
     cacheCloudTexture,
     getCachedLocalId,
-    getCachedCloudIds
+    getCachedCloudIds,
+    evictCachedTexture
 };

@@ -29,7 +29,7 @@
     const app = useViewerStore();
     const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
-    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId } = useLocalStorage();
+    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
     // State
     const textures = ref([]);
@@ -306,6 +306,16 @@
         } finally {
             deletingId.value = null;
             isLocalDelete.value = false;
+        }
+    }
+
+    async function evictCache(texture, event) {
+        event.stopPropagation();
+        try {
+            await evictCachedTexture(texture.id);
+            cachedCloudIds.value = await getCachedCloudIds();
+        } catch (err) {
+            console.error('[TextureBrowser] Failed to evict cache:', err);
         }
     }
 
@@ -1066,6 +1076,15 @@
                                 >
                                     <span class="material-symbols-outlined">delete</span>
                                 </button>
+                                <!-- Evict cache button (cloud textures with local cache) -->
+                                <button
+                                    v-if="!isLocalTexture(texture) && texture.isCached"
+                                    class="action-button evict-button"
+                                    title="Remove local cache"
+                                    @click="evictCache(texture, $event)"
+                                >
+                                    <span class="material-symbols-outlined">delete_sweep</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1781,6 +1800,15 @@
 
     .action-button.delete-button:hover {
         background: #dc2626;
+        transform: scale(1.1);
+    }
+
+    .action-button.evict-button {
+        background: rgba(234, 179, 8, 0.9);
+    }
+
+    .action-button.evict-button:hover {
+        background: #eab308;
         transform: scale(1.1);
     }
 
