@@ -7,7 +7,7 @@ Output is always in row orientation:
 
 - Tile width = spatial side (sample pixel count or scaled POT resolution)
 - Tile height = temporal side (number of frames)
-  When samplingMode is 'columns', the canvas is rotated 90° so that
+  When samplingAxis resolves to 'columns', the canvas is rotated 90° so that
   column data is written as rows. This avoids needing a separate
   'columns' output path — rotation is handled during tile building.
 
@@ -21,9 +21,9 @@ Both width and height equal potResolution, and framesPerTile = potResolution.
 We are using "sample" to refer to a 1D array of pixels
 sampled from one frame of video. This could be either:
 
-- a row of pixels, when samplingMode == rows
+- a row of pixels, when samplingAxis == rows
   samplePixelCount is then width of the input video
-- a column of pixels, when samplingMode == columns
+- a column of pixels, when samplingAxis == columns
   samplePixelCount is then height of the input video
 
 Tiles have:

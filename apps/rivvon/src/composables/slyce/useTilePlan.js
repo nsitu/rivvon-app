@@ -56,14 +56,14 @@ export function useTilePlan() {
         plan.cropHeight = effectiveHeight;
 
         // Rotation is needed when sampling columns but outputting rows
-        if (app.samplingMode === 'columns') {
+        if (app.samplingAxis === 'columns') {
             plan.rotate = 90;
         }
 
         // Initialize variables
         let framesPerTile; // Number of frames per tile (temporal side)
         // Use effective dimensions for spatial side calculation
-        let spatialSide = app.samplingMode === 'rows' ? effectiveWidth : effectiveHeight;
+        let spatialSide = app.samplingAxis === 'rows' ? effectiveWidth : effectiveHeight;
 
         // Power-of-two square tiles — width and height are both potResolution
         plan.isScaled = true;

@@ -14,14 +14,14 @@ export const useSlyceStore = defineStore('slyce', {
         frameNumber: 0,
         crossSectionCount: 30,
         crossSectionType: 'waves', // planes, waves
-        samplingMode: 'rows',       // rows, columns
+        samplingSide: 'long',       // long, short — resolved to rows/columns via samplingAxis getter
         // tileMode removed — always 'tile' by convention (full-size mode unused)
         potResolution: 512,             // 32, 64, 128, 256, 512, 1024
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
         fileInfo: null,
-        samplePixelCount: 0, /** equals width or height depending on samplingMode */
+        samplePixelCount: 0, /** equals width or height depending on samplingSide */
         messages: [],
         status: {},
 
@@ -242,6 +242,27 @@ export const useSlyceStore = defineStore('slyce', {
         },
         effectiveHeight() {
             return this.cropMode && this.cropHeight ? this.cropHeight : this.fileInfo?.height ?? 0;
+        },
+        // Resolve samplingSide ('long'/'short') to actual axis ('rows'/'columns')
+        // based on perceived dimensions (accounting for rotation metadata).
+        // 'rows' always yields raw-width pixels; 'columns' yields raw-height pixels.
+        // We pick whichever raw axis produces the desired perceived dimension.
+        samplingAxis() {
+            const w = this.effectiveWidth;
+            const h = this.effectiveHeight;
+            if (!w || !h) return 'rows';
+            const rotation = ((this.fileInfo?.rotation || 0) % 360 + 360) % 360;
+            const isRotated = rotation === 90 || rotation === 270;
+            const perceivedW = isRotated ? h : w;
+            const perceivedH = isRotated ? w : h;
+            const perceivedLong = Math.max(perceivedW, perceivedH);
+            // raw width (w) is what 'rows' produces — check if that matches the long edge
+            const longAxisIsRows = (w === perceivedLong);
+            if (this.samplingSide === 'long') {
+                return longAxisIsRows ? 'rows' : 'columns';
+            } else {
+                return longAxisIsRows ? 'columns' : 'rows';
+            }
         }
     }
 });

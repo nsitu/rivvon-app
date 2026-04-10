@@ -64,7 +64,7 @@
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left	">
-                        Sampled {{ app.samplingMode }} will be rotated to rows for output.
+                        Sampled pixel arrays will be rotated to rows for output.
                     </p>
                 </AccordionContent>
             </AccordionPanel>
@@ -76,9 +76,9 @@
                     <div class="flex items-center gap-1 cursor-default">
                         <span class="material-symbols-outlined">filter_alt</span>
                         <span>Using frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString()
-                        }}</span>
+                            }}</span>
                         <span>({{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString()
-                        }})</span>
+                            }})</span>
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
@@ -111,7 +111,7 @@
                             app.frameCount -
                             plan.skipping }} of {{
                             app.frameCount }}
-                        possible sample {{ app.samplingMode }}. {{ plan.skipping }} {{ app.samplingMode }} from frames
+                        possible pixel arrays. {{ plan.skipping }} pixel arrays from frames
                         {{ app.frameCount - plan.skipping + 1 }}-{{ app.frameCount }} do not form a full tile and will
                         be
                         skipped.
@@ -185,7 +185,7 @@
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left">
-                        {{ app.frameCount }} sampled {{ app.samplingMode }} is not adequate to fill a tile.
+                        {{ app.frameCount }} sampled pixel arrays is not adequate to fill a tile.
                     </p>
                 </AccordionContent>
             </AccordionPanel>

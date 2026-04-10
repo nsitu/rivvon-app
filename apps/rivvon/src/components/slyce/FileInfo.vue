@@ -16,6 +16,7 @@
     import VideoPlayer from './VideoPlayer.vue';
     import VideoControls from './VideoControls.vue';
     import CropOverlay from './CropOverlay.vue';
+    import SamplingOverlay from './SamplingOverlay.vue';
 
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
@@ -83,6 +84,14 @@
                 :hasControls="false"
                 @ready="onVideoReady"
             ></VideoPlayer>
+
+            <!-- Sampling line overlay -->
+            <SamplingOverlay
+                v-if="videoDimensions.displayWidth > 0"
+                :containerWidth="videoDimensions.displayWidth"
+                :containerHeight="videoDimensions.displayHeight"
+                :videoPlayer="videoPlayerRef"
+            />
 
             <!-- Crop overlay positioned over video -->
             <CropOverlay

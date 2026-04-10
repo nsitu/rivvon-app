@@ -33,16 +33,16 @@
 
 
 
-    // Watch for changes in samplingMode and adjust samplePixelCount accordingly
+    // Watch for changes in samplingSide and adjust samplePixelCount accordingly
     watchEffect(() => {
         const width = app.cropMode && app.cropWidth ? app.cropWidth : app.fileInfo?.width;
         const height = app.cropMode && app.cropHeight ? app.cropHeight : app.fileInfo?.height;
 
         if (height && width) {
-            if (app.samplingMode === 'columns') {
+            if (app.samplingAxis === 'columns') {
                 app.samplePixelCount = height;
             }
-            if (app.samplingMode === 'rows') {
+            if (app.samplingAxis === 'rows') {
                 app.samplePixelCount = width;
             }
         }
@@ -94,6 +94,23 @@
     // Loading state - show spinner until metadata is ready
     const isLoading = computed(() => {
         return app.file && !app.fileInfo?.name;
+    });
+
+    // Compute perceived long/short side pixel counts (accounting for rotation)
+    const sideOptions = computed(() => {
+        const w = app.cropMode && app.cropWidth ? app.cropWidth : app.fileInfo?.width;
+        const h = app.cropMode && app.cropHeight ? app.cropHeight : app.fileInfo?.height;
+        if (!w || !h) return [];
+        const rotation = ((app.fileInfo?.rotation || 0) % 360 + 360) % 360;
+        const isRotated = rotation === 90 || rotation === 270;
+        const perceivedW = isRotated ? h : w;
+        const perceivedH = isRotated ? w : h;
+        const longPx = Math.max(perceivedW, perceivedH);
+        const shortPx = Math.min(perceivedW, perceivedH);
+        return [
+            { name: `${longPx}`, value: 'long' },
+            { name: `${shortPx}`, value: 'short' },
+        ];
     });
 
 
@@ -339,14 +356,14 @@
                     :max="240"
                 >
                 </InputNumber>
+                <span>arrays of</span>
                 <Select
-                    v-model="app.samplingMode"
-                    :options="['columns', 'rows']"
+                    v-model="app.samplingSide"
+                    :options="sideOptions"
+                    optionValue="value"
+                    optionLabel="name"
                 />
-                <span>of</span>
-                <span v-if="app.samplePixelCount">
-                    {{ app.samplePixelCount }}px</span>
-                <span>from frames</span>
+                <span>pixels from frames</span>
                 <InputNumber
                     v-model="app.frameStart"
                     :min="1"
@@ -364,10 +381,7 @@
                 ></InputNumber>
             </div>
             <div class="input-row">
-                <span>Make </span>
-
-                <span>square</span>
-                <span>tiles with</span>
+                <span>Make square tiles with</span>
                 <Select
                     v-model="app.potResolution"
                     :options="[{
@@ -449,7 +463,7 @@
                     @click="processVideo({
                         file: app.file,
                         tilePlan: tilePlan,
-                        samplingMode: app.samplingMode,
+                        samplingMode: app.samplingAxis,
                         config: app.config,
                         frameCount: app.frameCount,
                         fileInfo: app.fileInfo,
