@@ -44,11 +44,6 @@
             type: Object,
             required: true
         },
-        outputMode: {
-            type: String,
-            required: true,
-            validator: (value) => ['columns', 'rows'].includes(value)
-        },
         maxViewportHeight: {
             type: Number,
             default: 800
@@ -105,7 +100,7 @@
                 tileSize: app.potResolution || 512,
                 maxViewportWidth: 2560,
                 maxViewportHeight: props.maxViewportHeight,
-                flowDirection: props.outputMode === 'columns' ? 'horizontal' : 'vertical'
+                flowDirection: 'vertical'
             });
 
             // Start animation loop
@@ -211,14 +206,6 @@
                 fps: renderer.fps,
                 mode: newMode
             });
-        }
-    });
-
-    // Watch for outputMode changes (flow direction)
-    watch(() => props.outputMode, (newMode) => {
-        if (renderer) {
-            renderer.flowDirection = newMode === 'columns' ? 'horizontal' : 'vertical';
-            renderer.updateLayout();
         }
     });
 

@@ -1104,7 +1104,6 @@
                         ref="previewViewerRef"
                         v-if="Object.keys(previewBlobURLs).length > 0"
                         :ktx2BlobURLs="previewBlobURLs"
-                        outputMode="rows"
                         :maxViewportHeight="7680"
                         :expectedTileCount="previewTexture.tile_count"
                     />
@@ -1133,7 +1132,7 @@
                             (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
-                    }}%
+                        }}%
                         scale)</span>
                 </div>
                 <Button

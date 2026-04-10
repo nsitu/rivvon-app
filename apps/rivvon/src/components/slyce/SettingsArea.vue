@@ -364,13 +364,7 @@
                 ></InputNumber>
             </div>
             <div class="input-row">
-                <span>Join samples as</span>
-
-                <Select
-                    v-model="app.outputMode"
-                    :options="['columns', 'rows']"
-                />
-                <span>to form</span>
+                <span>Join samples to form</span>
                 <Select
                     v-model="app.tileMode"
                     :options="[{
@@ -475,7 +469,6 @@
                         file: app.file,
                         tilePlan: tilePlan,
                         samplingMode: app.samplingMode,
-                        outputMode: app.outputMode,
                         config: app.config,
                         frameCount: app.frameCount,
                         fileInfo: app.fileInfo,

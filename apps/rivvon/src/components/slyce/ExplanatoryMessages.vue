@@ -64,7 +64,7 @@
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left	">
-                        Sampled {{ app.samplingMode }} will be joined as {{ app.outputMode }}.
+                        Sampled {{ app.samplingMode }} will be rotated to rows for output.
                     </p>
                 </AccordionContent>
             </AccordionPanel>
@@ -76,9 +76,9 @@
                     <div class="flex items-center gap-1 cursor-default">
                         <span class="material-symbols-outlined">filter_alt</span>
                         <span>Using frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString()
-                            }}</span>
+                        }}</span>
                         <span>({{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString()
-                            }})</span>
+                        }})</span>
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
@@ -167,8 +167,8 @@
                 <AccordionContent>
                     <p class="m-0 text-left">
                         This video has sufficient data for {{ plan.length }} {{ plan.length == 1 ? 'tile' : 'tiles' }}.
-                        <br /> {{ app.framesToSample.toLocaleString() }} frames ÷ {{ app.outputMode === 'rows' ?
-                            plan.height : plan.width }}px per tile = {{ plan.length }}
+                        <br /> {{ app.framesToSample.toLocaleString() }} frames ÷ {{
+                            plan.height }}px per tile = {{ plan.length }}
                     </p>
                 </AccordionContent>
             </AccordionPanel>

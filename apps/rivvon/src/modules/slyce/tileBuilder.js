@@ -41,25 +41,18 @@ export class TileBuilder extends EventEmitter {
 
     createCanvasses() {
         const canvasses = [];
-        const { tilePlan, crossSectionCount, samplingMode, outputMode } = this.settings;
+        const { tilePlan, crossSectionCount, samplingMode } = this.settings;
 
         for (let i = 0; i < crossSectionCount; i++) {
             const canvas = new OffscreenCanvas(tilePlan.width, tilePlan.height);
             const ctx = getCached2dContext(canvas);
-            // in cases where rotation happens
-            // we need to map of top-to-bottom ⇔ left-to-right
+            // When sampling columns but outputting rows, rotate the canvas
+            // so column data is written in the row direction
             if (tilePlan.rotate !== 0) {
                 // Move origin to center for rotation
                 ctx.translate(tilePlan.width / 2, tilePlan.height / 2);
-                // Apply rotation based on sampling and output modes
-                if (samplingMode === 'rows' && outputMode === 'columns') {
-                    // Counterclockwise
-                    ctx.rotate(-tilePlan.rotate * Math.PI / 180);
-                }
-                else if (samplingMode === 'columns' && outputMode === 'rows') {
-                    // Clockwise
-                    ctx.rotate(tilePlan.rotate * Math.PI / 180);
-                }
+                // Clockwise rotation (columns → rows)
+                ctx.rotate(tilePlan.rotate * Math.PI / 180);
                 // Move origin back after rotation
                 ctx.translate(-tilePlan.height / 2, -tilePlan.width / 2);
             }
@@ -97,7 +90,6 @@ export class TileBuilder extends EventEmitter {
             tileNumber,
             tilePlan,
             samplingMode,
-            outputMode,
             crossSectionType,
             frameCount
         } = this.settings
@@ -127,62 +119,28 @@ export class TileBuilder extends EventEmitter {
                 // When sample and tile dimensions differ, drawImage ⟹ scaling effects
 
                 if (samplingMode === 'columns') {
-                    if (outputMode === 'columns') {
-                        const sx = sampleLocation           // Source x
-                        const sy = 0                        // Source y
-                        const sw = 1                        // Source width
-                        const sh = fileInfo.height      // Source height
-                        const dx = drawLocation             // Destination x
-                        const dy = 0                        // Destination y
-                        const dw = 1                        // Destination width
-                        const dh = tilePlan.height          // Destination height
-                        ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
-                    }
-                    else if (outputMode === 'rows') {
-                        // We have already rotated the canvas
-                        // to account for samplingMode != outputMode
-                        // the lets us write columns to rows
-                        // NOTE: we still need to use tilePlan.width for the height
-                        // since the canvas is rotated.
-                        const sx = sampleLocation           // Source x
-                        const sy = 0                        // Source y
-                        const sw = 1                        // Source width
-                        const sh = fileInfo.height      // Source height
-                        const dx = drawLocation             // Destination x
-                        const dy = 0                        // Destination y
-                        const dw = 1                        // Destination width
-                        const dh = tilePlan.width           // ***Destination height
-                        ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
-                    }
+                    // Column sampling — canvas may be rotated (columns → rows)
+                    // Use tilePlan.width for dh since the canvas coordinate system is rotated
+                    const sx = sampleLocation           // Source x
+                    const sy = 0                        // Source y
+                    const sw = 1                        // Source width
+                    const sh = fileInfo.height      // Source height
+                    const dx = drawLocation             // Destination x
+                    const dy = 0                        // Destination y
+                    const dw = 1                        // Destination width
+                    const dh = tilePlan.width           // Destination height (width because rotated)
+                    ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
                 }
                 else if (samplingMode === 'rows') {
-                    if (outputMode === 'rows') {
-                        const sx = 0                        // Source x
-                        const sy = sampleLocation           // Source y
-                        const sw = fileInfo.width       // Source width
-                        const sh = 1                        // Source height
-                        const dx = 0                        // Destination x
-                        const dy = drawLocation             // Destination y
-                        const dw = tilePlan.width           // Destination width
-                        const dh = 1                        // Destination height
-                        ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
-                    }
-                    else if (outputMode === 'columns') {
-                        // We have already rotated the canvas
-                        // to account for samplingMode != outputMode
-                        // the lets us write rows to columns
-                        // NOTE: we still need to use tilePlan.height for the height
-                        // since the canvas is rotated.
-                        const sx = 0                        // Source x
-                        const sy = sampleLocation           // Source y
-                        const sw = fileInfo.width       // Source width
-                        const sh = 1                        // Source height
-                        const dx = 0                        // Destination x
-                        const dy = drawLocation             // Destination y
-                        const dw = tilePlan.height          // Destination width
-                        const dh = 1                        // Destination height
-                        ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
-                    }
+                    const sx = 0                        // Source x
+                    const sy = sampleLocation           // Source y
+                    const sw = fileInfo.width       // Source width
+                    const sh = 1                        // Source height
+                    const dx = 0                        // Destination x
+                    const dy = drawLocation             // Destination y
+                    const dw = tilePlan.width           // Destination width
+                    const dh = 1                        // Destination height
+                    ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
                 }
             }
             else if (crossSectionType === 'waves') {

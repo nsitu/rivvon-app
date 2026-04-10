@@ -1,25 +1,8 @@
 <template>
     <div class="tile-preview">
-        <!-- Columns mode: simple horizontal scroll -->
+        <!-- Tiles displayed horizontally with flow arrows between them -->
         <div
-            v-if="tiles?.length && outputMode === 'columns'"
-            class="tile-container-columns"
-        >
-            <Tile
-                v-for="(tile, index) in tiles"
-                :key="`col-${tile.start}`"
-                :start="tile.start"
-                :end="tile.end"
-                :width="width"
-                :height="height"
-                :tileIndex="index"
-                :previewUrl="previewUrls[index]"
-            />
-        </div>
-
-        <!-- Rows mode: horizontal scroll with flow arrows between tiles -->
-        <div
-            v-if="tiles?.length && outputMode === 'rows'"
+            v-if="tiles?.length"
             class="tile-container-rows"
         >
             <template
@@ -76,7 +59,6 @@
     const tiles = computed(() => props.tilePlan?.tiles || []);
     const width = computed(() => props.tilePlan?.width || 0);
     const height = computed(() => props.tilePlan?.height || 0);
-    const outputMode = computed(() => app.outputMode);
 
     // Baked blob URLs keyed by tile index (after tile completion)
     const previewUrls = computed(() => app.tilePreviewUrls);
@@ -139,30 +121,7 @@
         width: 100%;
     }
 
-    .tile-container-columns {
-        display: flex;
-        flex-direction: row;
-        gap: 0.25rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding-bottom: 0.5rem;
-        width: 100%;
-        max-width: calc(120px * 2.5 + 0.5rem);
-        scroll-snap-type: x mandatory;
-    }
-
-    @media (min-width: 640px) {
-        .tile-container-columns {
-            max-width: calc(120px * 3.5 + 0.75rem);
-        }
-    }
-
-    .tile-container-columns> :deep(*) {
-        flex-shrink: 0;
-        scroll-snap-align: start;
-    }
-
-    /* Rows mode: horizontal scroll with flow arrows */
+    /* Tiles displayed horizontally with flow arrows */
     .tile-container-rows {
         display: flex;
         flex-direction: row;
@@ -196,24 +155,20 @@
     }
 
     /* Custom scrollbar styling */
-    .tile-container-columns::-webkit-scrollbar,
     .tile-container-rows::-webkit-scrollbar {
         height: 8px;
     }
 
-    .tile-container-columns::-webkit-scrollbar-track,
     .tile-container-rows::-webkit-scrollbar-track {
         background: #f1f1f1;
         border-radius: 4px;
     }
 
-    .tile-container-columns::-webkit-scrollbar-thumb,
     .tile-container-rows::-webkit-scrollbar-thumb {
         background: #10b981;
         border-radius: 4px;
     }
 
-    .tile-container-columns::-webkit-scrollbar-thumb:hover,
     .tile-container-rows::-webkit-scrollbar-thumb:hover {
         background: #059669;
     }

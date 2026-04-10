@@ -112,7 +112,6 @@ const processVideo = async (settings) => {
         tilePlan,
         fileInfo,
         samplingMode,
-        outputMode,
         config,
         crossSectionCount,
         crossSectionType
@@ -235,7 +234,6 @@ const processVideo = async (settings) => {
                         tilePlan,
                         fileInfo: item.effectiveFileInfo,
                         samplingMode,
-                        outputMode,
                         crossSectionCount,
                         crossSectionType,
                         // Base wavelength on frames we actually process (up to lastTileEnd)

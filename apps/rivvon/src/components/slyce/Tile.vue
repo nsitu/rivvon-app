@@ -33,8 +33,7 @@
     const tileClasses = computed(() => {
         let classes = ['tile']
         if (props.previewUrl) classes.push('tile-has-preview')
-        if (app.outputMode == 'rows') classes.push('tile-row')
-        if (app.outputMode == 'columns') classes.push('tile-column')
+        classes.push('tile-row')
         if (app.tileMode == 'full') {
             classes.push('tile-full')
         }
@@ -49,12 +48,7 @@
     const tileStyle = computed(() => {
         let style = '';
         if (app.tileMode == 'full') {
-            if (app.outputMode == 'columns') {
-                style += `aspect-ratio: ${app.frameCount}/${app.samplePixelCount};`
-            }
-            if (app.outputMode == 'rows') {
-                style += `aspect-ratio: ${app.samplePixelCount}/${app.frameCount};`
-            }
+            style += `aspect-ratio: ${app.samplePixelCount}/${app.frameCount};`
         }
         if (props.previewUrl) {
             style += `background: url(${props.previewUrl}) center / cover no-repeat;`
@@ -139,14 +133,6 @@
 
     .tile-preview-canvas[data-has-content] {
         opacity: 1;
-    }
-
-    .tile-column {
-        background: repeating-linear-gradient(90deg,
-                var(--bg-secondary),
-                var(--bg-secondary) 0.25rem,
-                var(--bg-muted-alt) 0.25rem,
-                var(--bg-muted-alt) 0.5rem);
     }
 
     .tile-row {

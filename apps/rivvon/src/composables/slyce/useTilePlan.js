@@ -55,13 +55,10 @@ export function useTilePlan() {
         plan.cropWidth = effectiveWidth;
         plan.cropHeight = effectiveHeight;
 
-        // Determine rotation based on samplingMode and outputMode
-        if (app.samplingMode !== app.outputMode) {
+        // Rotation is needed when sampling columns but outputting rows
+        if (app.samplingMode === 'columns') {
             plan.rotate = 90;
         }
-
-        // Tiles are always square — aspect ratio is 1
-        const aspectRatio = 1;
 
         // Initialize variables
         let framesPerTile; // Number of frames per tile (temporal side)
@@ -70,36 +67,14 @@ export function useTilePlan() {
 
         // Begin processing based on tileMode
         if (app.tileMode === 'tile') {
-            // Power-of-two resolution tiles
+            // Power-of-two square tiles — width and height are both potResolution
             plan.isScaled = true;
             plan.scaleFrom = spatialSide;
             plan.scaleTo = app.potResolution;
 
-            if (app.samplingMode === 'rows') {
-                if (app.outputMode === 'rows') {
-                    // Sampling rows, outputting rows
-                    plan.width = app.potResolution; // Spatial side (POT)
-                    plan.height = Math.floor(app.potResolution / aspectRatio); // Temporal side
-                    framesPerTile = plan.height;
-                } else if (app.outputMode === 'columns') {
-                    // Sampling rows, outputting columns (rotation)
-                    plan.height = app.potResolution; // Spatial side (POT)
-                    plan.width = Math.floor(app.potResolution * aspectRatio); // Temporal side
-                    framesPerTile = plan.width;
-                }
-            } else if (app.samplingMode === 'columns') {
-                if (app.outputMode === 'rows') {
-                    // Sampling columns, outputting rows (rotation)
-                    plan.width = app.potResolution; // Spatial side (POT)
-                    plan.height = Math.floor(app.potResolution / aspectRatio); // Temporal side
-                    framesPerTile = plan.height;
-                } else if (app.outputMode === 'columns') {
-                    // Sampling columns, outputting columns
-                    plan.height = app.potResolution; // Spatial side (POT)
-                    plan.width = Math.floor(app.potResolution * aspectRatio); // Temporal side
-                    framesPerTile = plan.width;
-                }
-            }
+            plan.width = app.potResolution;  // Spatial side (POT)
+            plan.height = app.potResolution; // Temporal side (square tiles)
+            framesPerTile = plan.height;
 
             plan.length = Math.floor(effectiveFrameCount / framesPerTile);
 
@@ -136,24 +111,10 @@ export function useTilePlan() {
             plan.tiles = [{ start: 1, end: effectiveFrameCount }];
             plan.skipping = 0;
 
-            // Determine tile dimensions based on samplingMode and outputMode
-            if (app.samplingMode === 'rows') {
-                if (app.outputMode === 'rows') {
-                    plan.width = spatialSide; // Spatial side
-                    plan.height = effectiveFrameCount; // Temporal side
-                } else if (app.outputMode === 'columns') {
-                    plan.height = spatialSide; // Spatial side
-                    plan.width = effectiveFrameCount; // Temporal side
-                }
-            } else if (app.samplingMode === 'columns') {
-                if (app.outputMode === 'rows') {
-                    plan.width = spatialSide; // Spatial side
-                    plan.height = effectiveFrameCount; // Temporal side
-                } else if (app.outputMode === 'columns') {
-                    plan.height = spatialSide; // Spatial side
-                    plan.width = effectiveFrameCount; // Temporal side
-                }
-            }
+            // Determine tile dimensions: always output as rows
+            // width = spatial side, height = temporal side
+            plan.width = spatialSide;
+            plan.height = effectiveFrameCount;
         } else {
             plan.notices.push('Invalid tile mode.');
             return plan;

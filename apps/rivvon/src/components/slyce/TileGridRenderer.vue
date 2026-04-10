@@ -78,11 +78,6 @@
         ktx2BlobURLs: {
             type: Object,
             required: true
-        },
-        outputMode: {
-            type: String,
-            required: true,
-            validator: (value) => ['columns', 'rows'].includes(value)
         }
     });
 
@@ -275,7 +270,7 @@
 
         if (tileCount === 0) return;
 
-        // Calculate grid layout based on outputMode
+        // Calculate grid layout
         const { positions, tileSize } = calculateGridLayout(tileCount);
 
         // Process all tiles - update positions for existing ones, load new ones
@@ -314,7 +309,7 @@
         // Determine flow direction based on output mode
         // 'columns' mode: pixels assembled column-by-column → tiles flow left-to-right
         // 'rows' mode: pixels assembled row-by-row → tiles flow top-to-bottom
-        const flowDirection = props.outputMode === 'columns' ? 'horizontal' : 'vertical';
+        const flowDirection = 'vertical';
 
         // Calculate optimal grid with positions
         const { positions, cols, rows } = calculateGridPositions(
@@ -324,7 +319,7 @@
             spacing
         );
 
-        console.log(`[TileGridRenderer.vue] Grid layout: ${cols}×${rows} for ${tileCount} tiles (${props.outputMode} mode)`);
+        console.log(`[TileGridRenderer.vue] Grid layout: ${cols}×${rows} for ${tileCount} tiles`);
 
         return { positions, tileSize };
     }
