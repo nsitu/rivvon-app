@@ -364,25 +364,6 @@
                 ></InputNumber>
             </div>
             <div class="input-row">
-                <span>Join samples to form</span>
-                <Select
-                    v-model="app.tileMode"
-                    :options="[{
-                        name: 'full size',
-                        value: 'full'
-                    }, {
-                        name: 'tiled',
-                        value: 'tile'
-                    }]"
-                    optionValue="value"
-                    optionLabel="name"
-                />
-                <span>cross-sections.</span>
-            </div>
-            <div
-                v-if="app.tileMode === 'tile'"
-                class="input-row"
-            >
                 <span>Make </span>
 
                 <span>square</span>

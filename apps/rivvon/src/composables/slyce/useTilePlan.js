@@ -65,60 +65,41 @@ export function useTilePlan() {
         // Use effective dimensions for spatial side calculation
         let spatialSide = app.samplingMode === 'rows' ? effectiveWidth : effectiveHeight;
 
-        // Begin processing based on tileMode
-        if (app.tileMode === 'tile') {
-            // Power-of-two square tiles — width and height are both potResolution
-            plan.isScaled = true;
-            plan.scaleFrom = spatialSide;
-            plan.scaleTo = app.potResolution;
+        // Power-of-two square tiles — width and height are both potResolution
+        plan.isScaled = true;
+        plan.scaleFrom = spatialSide;
+        plan.scaleTo = app.potResolution;
 
-            plan.width = app.potResolution;  // Spatial side (POT)
-            plan.height = app.potResolution; // Temporal side (square tiles)
-            framesPerTile = plan.height;
+        plan.width = app.potResolution;  // Spatial side (POT)
+        plan.height = app.potResolution; // Temporal side (square tiles)
+        framesPerTile = plan.height;
 
-            plan.length = Math.floor(effectiveFrameCount / framesPerTile);
+        plan.length = Math.floor(effectiveFrameCount / framesPerTile);
 
-            // Generate tile frame ranges
-            plan.tiles = Array.from({ length: plan.length }, (_, i) => {
-                const startFrame = i * framesPerTile + 1;
-                const endFrame = (i + 1) * framesPerTile;
-                return {
-                    start: startFrame,
-                    end: endFrame,
-                };
-            });
+        // Generate tile frame ranges
+        plan.tiles = Array.from({ length: plan.length }, (_, i) => {
+            const startFrame = i * framesPerTile + 1;
+            const endFrame = (i + 1) * framesPerTile;
+            return {
+                start: startFrame,
+                end: endFrame,
+            };
+        });
 
-            // Ensure framesPerTile and plan.length are valid
-            if (framesPerTile < 1 || plan.length < 1) {
-                const framesNeeded = framesPerTile || 1;
-                const framesShort = framesNeeded - effectiveFrameCount;
-                plan.notices.push(
-                    `Not enough frames to create tiles with the current settings. Each tile requires ${framesNeeded} frames, but only ${effectiveFrameCount} frames are available. You are short by ${framesShort} frames.`
-                );
-                plan.skipping = effectiveFrameCount; // All frames are skipped
-                return plan;
-            }
-
-            // POT tiles use all allocated frames; remainder is skipped
-            const usedFrames = plan.length * framesPerTile;
-            plan.skipping = effectiveFrameCount - usedFrames;
-        } else if (app.tileMode === 'full') {
-            // Full tile mode: one tile covering all frames
-            plan.length = 1;
-            plan.isScaled = false;
-            plan.scaleFrom = spatialSide;
-            plan.scaleTo = spatialSide;
-            plan.tiles = [{ start: 1, end: effectiveFrameCount }];
-            plan.skipping = 0;
-
-            // Determine tile dimensions: always output as rows
-            // width = spatial side, height = temporal side
-            plan.width = spatialSide;
-            plan.height = effectiveFrameCount;
-        } else {
-            plan.notices.push('Invalid tile mode.');
+        // Ensure framesPerTile and plan.length are valid
+        if (framesPerTile < 1 || plan.length < 1) {
+            const framesNeeded = framesPerTile || 1;
+            const framesShort = framesNeeded - effectiveFrameCount;
+            plan.notices.push(
+                `Not enough frames to create tiles with the current settings. Each tile requires ${framesNeeded} frames, but only ${effectiveFrameCount} frames are available. You are short by ${framesShort} frames.`
+            );
+            plan.skipping = effectiveFrameCount; // All frames are skipped
             return plan;
         }
+
+        // POT tiles use all allocated frames; remainder is skipped
+        const usedFrames = plan.length * framesPerTile;
+        plan.skipping = effectiveFrameCount - usedFrames;
 
         // Ensure dimensions are integers
         plan.width = Math.floor(plan.width);

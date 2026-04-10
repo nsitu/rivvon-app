@@ -15,7 +15,7 @@ export const useSlyceStore = defineStore('slyce', {
         crossSectionCount: 30,
         crossSectionType: 'waves', // planes, waves
         samplingMode: 'rows',       // rows, columns
-        tileMode: 'tile',           // tile, full
+        // tileMode removed — always 'tile' by convention (full-size mode unused)
         potResolution: 512,             // 32, 64, 128, 256, 512, 1024
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)

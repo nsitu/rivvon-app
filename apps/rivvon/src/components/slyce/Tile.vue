@@ -31,15 +31,8 @@
     });
 
     const tileClasses = computed(() => {
-        let classes = ['tile']
+        let classes = ['tile', 'tile-row', 'tile-square']
         if (props.previewUrl) classes.push('tile-has-preview')
-        classes.push('tile-row')
-        if (app.tileMode == 'full') {
-            classes.push('tile-full')
-        }
-        else {
-            classes.push('tile-square')
-        }
         return classes
     })
 
@@ -47,9 +40,6 @@
 
     const tileStyle = computed(() => {
         let style = '';
-        if (app.tileMode == 'full') {
-            style += `aspect-ratio: ${app.samplePixelCount}/${app.frameCount};`
-        }
         if (props.previewUrl) {
             style += `background: url(${props.previewUrl}) center / cover no-repeat;`
         }
