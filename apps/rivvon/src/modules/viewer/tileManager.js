@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as THREE_WEBGPU from 'three/webgpu';
-import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { acquireKTX2Loader, releaseKTX2Loader } from '../slyce/sharedKTX2Loader.js';
 import JSZip from 'jszip';
 
 // TSL imports for WebGPU materials
@@ -305,20 +305,14 @@ export class TileManager {
         }
 
         try {
-            // Use the same KTX2Loader for both renderer types
-            this._ktx2Loader = new KTX2Loader();
-            this._ktx2Loader.setTranscoderPath('./wasm/');
-
+            // Use the shared KTX2Loader (ref-counted singleton)
             if (this.renderer) {
-                // For WebGPU, renderer.init() should already be awaited before this point
-                // For WebGL, detectSupport works synchronously
-                // Both now use the synchronous detectSupport() method
-                this._ktx2Loader.detectSupport(this.renderer);
+                this._ktx2Loader = acquireKTX2Loader(this.renderer);
                 console.log(`[TileManager] KTX2 support detected for ${this.rendererType}`);
             } else {
                 // Best-effort: create a temporary renderer to detect support
                 const tempRenderer = new THREE.WebGLRenderer({ antialias: false });
-                this._ktx2Loader.detectSupport(tempRenderer);
+                this._ktx2Loader = acquireKTX2Loader(tempRenderer);
                 tempRenderer.dispose();
             }
             return true;
@@ -1430,9 +1424,9 @@ export class TileManager {
         });
         this.flowMaterials = [];
 
-        // Dispose KTX2 loader (WASM worker pool)
+        // Release shared KTX2 loader reference
         if (this._ktx2Loader) {
-            this._ktx2Loader.dispose();
+            releaseKTX2Loader();
             this._ktx2Loader = null;
         }
 

@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { acquireKTX2Loader, releaseKTX2Loader } from './sharedKTX2Loader.js';
 
 export class TileLinearRendererWebGL {
     constructor() {
@@ -76,10 +76,8 @@ export class TileLinearRendererWebGL {
         this.renderer.setClearColor(0x000000, 0); // Transparent clear
         this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
-        // Setup KTX2 loader
-        this.ktx2Loader = new KTX2Loader();
-        this.ktx2Loader.setTranscoderPath('./wasm/');
-        this.ktx2Loader.detectSupport(this.renderer);
+        // Setup KTX2 loader (shared instance)
+        this.ktx2Loader = acquireKTX2Loader(this.renderer);
 
         // Initially hide canvas until we have tiles
         this.renderer.domElement.style.display = 'none';
@@ -273,6 +271,7 @@ export class TileLinearRendererWebGL {
 
         requestAnimationFrame(() => {
             this._layoutUpdatePending = false;
+            if (!this.renderer) return;
             this.updateLayout();
         });
     }
@@ -523,7 +522,7 @@ export class TileLinearRendererWebGL {
         window.removeEventListener('resize', () => this.resize());
 
         if (this.ktx2Loader) {
-            this.ktx2Loader.dispose();
+            releaseKTX2Loader();
             this.ktx2Loader = null;
         }
 

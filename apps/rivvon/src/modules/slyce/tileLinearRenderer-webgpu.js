@@ -7,7 +7,7 @@
 
 import * as THREE from 'three/webgpu';
 import { texture, uniform, uv, float } from 'three/tsl';
-import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { acquireKTX2Loader, releaseKTX2Loader } from './sharedKTX2Loader.js';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
 
 export class TileLinearRendererWebGPU {
@@ -86,10 +86,8 @@ export class TileLinearRendererWebGPU {
         // CRITICAL: Wait for WebGPU backend to initialize
         await this.renderer.init();
 
-        // Setup KTX2 loader
-        this.ktx2Loader = new KTX2Loader();
-        this.ktx2Loader.setTranscoderPath('./wasm/');
-        this.ktx2Loader.detectSupport(this.renderer);
+        // Setup KTX2 loader (shared instance)
+        this.ktx2Loader = acquireKTX2Loader(this.renderer);
 
         // Initially hide canvas until we have tiles
         this.renderer.domElement.style.display = 'none';
@@ -284,6 +282,7 @@ export class TileLinearRendererWebGPU {
 
         requestAnimationFrame(() => {
             this._layoutUpdatePending = false;
+            if (!this.renderer) return;
             this.updateLayout();
         });
     }
@@ -525,7 +524,7 @@ export class TileLinearRendererWebGPU {
         }
 
         if (this.ktx2Loader) {
-            this.ktx2Loader.dispose();
+            releaseKTX2Loader();
             this.ktx2Loader = null;
         }
 

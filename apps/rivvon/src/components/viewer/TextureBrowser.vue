@@ -6,6 +6,7 @@
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { fetchDriveFile } from '../../modules/viewer/auth.js';
+    import Button from 'primevue/button';
     import TileLinearViewer from '../slyce/TileLinearViewer.vue';
 
     const props = defineProps({
@@ -617,6 +618,7 @@
     const previewBlobURLs = ref({});       // tileNumber → blob URL
     const previewLoading = ref(false);
     const previewError = ref(null);
+    const previewViewerRef = ref(null);
 
     /**
      * Pre-calculate the expected canvas width for the preview panel.
@@ -1097,25 +1099,53 @@
                 v-if="previewTexture"
                 class="texture-preview-panel"
             >
-                <TileLinearViewer
-                    v-if="Object.keys(previewBlobURLs).length > 0"
-                    :ktx2BlobURLs="previewBlobURLs"
-                    outputMode="rows"
-                    :maxViewportHeight="7680"
-                    :expectedTileCount="previewTexture.tile_count"
-                />
-                <div
-                    v-else-if="previewLoading"
-                    class="preview-loading"
-                >
-                    Loading tiles...
+                <div class="preview-scroll-area">
+                    <TileLinearViewer
+                        ref="previewViewerRef"
+                        v-if="Object.keys(previewBlobURLs).length > 0"
+                        :ktx2BlobURLs="previewBlobURLs"
+                        outputMode="rows"
+                        :maxViewportHeight="7680"
+                        :expectedTileCount="previewTexture.tile_count"
+                    />
+                    <div
+                        v-else-if="previewLoading"
+                        class="preview-loading"
+                    >
+                        Loading tiles...
+                    </div>
+                    <div
+                        v-else-if="previewError"
+                        class="preview-error"
+                    >
+                        Failed to load preview: {{ previewError }}
+                    </div>
                 </div>
                 <div
-                    v-else-if="previewError"
-                    class="preview-error"
+                    v-if="previewViewerRef?.tileCount > 0 || previewTexture?.tile_count"
+                    class="preview-tile-info"
                 >
-                    Failed to load preview: {{ previewError }}
+                    <template v-if="previewViewerRef?.tileCount < previewTexture?.tile_count">
+                        {{ previewViewerRef?.tileCount || 0 }} / {{ previewTexture.tile_count }} tiles
+                    </template>
+                    <template v-else>
+                        {{ previewViewerRef?.tileCount || previewTexture?.tile_count }} tile{{
+                            (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
+                    </template>
+                    <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
+                    }}%
+                        scale)</span>
                 </div>
+                <Button
+                    type="button"
+                    class="preview-apply-button"
+                    severity="info"
+                    title="Apply texture to ribbon"
+                    @click="handleCardClick(previewTexture)"
+                >
+                    <span class="material-symbols-outlined">check</span>
+                    Apply
+                </Button>
             </div>
 
             <!-- Multi-select Apply bar -->
@@ -2073,16 +2103,57 @@
     /* Animated preview fullscreen overlay */
     /* ── Texture Preview Panel (in-place, shares AppHeader/BottomToolbar spacing) ── */
     .texture-preview-panel {
+        position: relative;
         flex: 1;
         display: flex;
-        align-items: flex-start;
-        justify-content: center;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .preview-scroll-area {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: safe center;
         overflow: overlay;
         padding: 1rem;
     }
 
-    .texture-preview-panel>* {
+    .preview-scroll-area>* {
         margin-block: auto;
+    }
+
+    .preview-tile-info {
+        position: absolute;
+        top: 0.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+        background: rgba(0, 0, 0, 0.5);
+        padding: 4px 8px;
+        border-radius: 4px;
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .preview-apply-button {
+        position: absolute;
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: auto;
+        z-index: 2;
+    }
+
+    .preview-apply-button .material-symbols-outlined {
+        font-size: 1.1rem;
+        margin-right: 0.3rem;
+    }
+
+    /* Hide built-in tile-info inside preview (replaced by fixed overlay) */
+    .texture-preview-panel :deep(.tile-info) {
+        display: none;
     }
 
     .texture-preview-panel :deep(.viewer-container) {

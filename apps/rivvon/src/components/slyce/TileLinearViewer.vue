@@ -221,6 +221,8 @@
             renderer.updateLayout();
         }
     });
+
+    defineExpose({ tileCount, displayScale });
 </script>
 
 <style scoped>
