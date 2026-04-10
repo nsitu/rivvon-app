@@ -43,7 +43,7 @@
     ];
 
     const geometryOptions = [
-        { label: 'Flat Ribbon', value: 'flat', icon: 'horizontal_rule' },
+        { label: 'Standard Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
     ];
 
@@ -141,7 +141,7 @@
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
-        debugOverlay: { type: Boolean, default: false }
+        technicalOverlay: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -163,7 +163,7 @@
         'cinematic-capture',
         'cinematic-toggle',
         'cinematic-clear',
-        'debug-overlay-toggle'
+        'technical-overlay-toggle'
     ]);
 
     function handleCinematicCapture() {
@@ -489,7 +489,9 @@
                                         v-if="slotProps.value"
                                         class="tools-select-row"
                                     >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                        <span
+                                            :class="slotProps.value.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
+                                        >{{
                                             slotProps.value.icon }}</span>
                                         <span>{{ slotProps.value.label }}</span>
                                     </div>
@@ -497,7 +499,9 @@
                                 </template>
                                 <template #option="slotProps">
                                     <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                        <span
+                                            :class="slotProps.option.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
+                                        >{{
                                             slotProps.option.icon }}</span>
                                         <span>{{ slotProps.option.label }}</span>
                                     </div>
@@ -543,7 +547,7 @@
                                 />
                             </div>
                         </template>
-                        <!-- Cap style (works for both flat ribbon and helix strands) -->
+                        <!-- Cap style (works for both Standard Ribbon and helix strands) -->
                         <div class="tools-select-wrap">
                             <Select
                                 v-model="selectedCapOption"
@@ -657,11 +661,11 @@
                     <div class="tools-section-items">
                         <button
                             class="tools-option"
-                            :class="{ selected: props.debugOverlay }"
-                            @click="emit('debug-overlay-toggle')"
+                            :class="{ selected: props.technicalOverlay }"
+                            @click="emit('technical-overlay-toggle')"
                         >
-                            <span class="material-symbols-outlined">bug_report</span>
-                            <span>Debug Overlay</span>
+                            <span class="material-symbols-outlined">monitoring</span>
+                            <span>Technical Overlay</span>
                             <span class="tools-hint">D</span>
                         </button>
                     </div>
@@ -999,6 +1003,14 @@
     .tools-select-icon {
         font-size: 1.2rem;
         opacity: 0.85;
+    }
+
+    .tools-text-icon {
+        font-size: 1.4rem;
+        font-weight: 700;
+        opacity: 0.85;
+        width: 1.2rem;
+        text-align: center;
     }
 
     :deep(.tools-select .p-select-label) {

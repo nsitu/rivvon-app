@@ -264,7 +264,7 @@ export class Ribbon {
             const startPointIdx = segStartIndices[segIdx];
             const segPts = segPointCounts[segIdx];
 
-            // Strand A (or flat ribbon in non-helix mode)
+            // Strand A (or Standard Ribbon in non-helix mode)
             const segmentMesh = this.createRibbonSegmentWithCache(
                 curve,
                 startT,
@@ -449,7 +449,7 @@ export class Ribbon {
                 left = helixCenter.clone().addScaledVector(acrossDir, -hw);
                 right = helixCenter.clone().addScaledVector(acrossDir, hw);
             } else {
-                // ── Flat ribbon mode (original behavior) ──
+                // ── Standard Ribbon mode (original behavior) ──
                 const phase = Math.sin(
                     arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
                 ) * this.waveAmplitude;
@@ -543,7 +543,7 @@ export class Ribbon {
     /**
      * Efficient in-place wave animation update
      * Only modifies vertex positions without recreating geometry or materials
-     * Handles both flat ribbon and helix modes
+     * Handles both Standard Ribbon and helix modes
      * @param {number} time - Current animation time
      */
     updateWaveAnimation(time) {
@@ -551,7 +551,7 @@ export class Ribbon {
             return;
         }
 
-        // Update strand A (flat ribbon or helix strand A)
+        // Update strand A (Standard Ribbon or helix strand A)
         this._updateStrandAnimation(this.meshSegments, this._segmentCache, time);
 
         // Update strand B (helix mode only)
@@ -626,7 +626,7 @@ export class Ribbon {
                     left.copy(helixCenter).addScaledVector(acrossDir, -hwH);
                     right.copy(helixCenter).addScaledVector(acrossDir, hwH);
                 } else {
-                    // Flat ribbon mode (original behavior)
+                    // Standard Ribbon mode (original behavior)
                     const phase = Math.sin(
                         arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
                     ) * this.waveAmplitude;

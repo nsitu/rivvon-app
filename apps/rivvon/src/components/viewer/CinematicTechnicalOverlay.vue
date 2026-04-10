@@ -2,7 +2,7 @@
     import { ref, onUnmounted, watch, nextTick } from 'vue';
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import DebugOverlayFrame from './DebugOverlayFrame.vue';
+    import TechnicalOverlayFrame from './TechnicalOverlayFrame.vue';
 
     const props = defineProps({
         cinematicCamera: { type: Object, default: null },
@@ -425,7 +425,7 @@
 </script>
 
 <template>
-    <DebugOverlayFrame
+    <TechnicalOverlayFrame
         :visible="visible && cinematicCamera?.isPlaying?.value"
         title="Cinematic Camera"
         :metrics-text="metricsText"
@@ -434,7 +434,7 @@
             ref="containerRef"
             class="track-map"
         />
-    </DebugOverlayFrame>
+    </TechnicalOverlayFrame>
 </template>
 
 <style scoped>

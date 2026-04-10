@@ -1,5 +1,9 @@
-// let's use the CDN to import a list of icons from Google 
-// icon names are sorted as per Google requirements 
+// Loads Material Symbols Outlined as a variable font from Google CDN.
+// The font supports variable axes: opsz (20-48), wght (100-700), FILL (0-1), GRAD (-50-200).
+// Since the full weight range is loaded, individual icons can use custom weights via CSS:
+//   font-variation-settings: 'wght' 200;              /* thin */
+//   font-variation-settings: 'wght' 700, 'FILL' 1;   /* bold + filled */
+// Icon names are sorted as per Google requirements.
 
 const loadMaterialSymbols = (iconNames = ['home']) => {
     const baseUrl = 'https://fonts.googleapis.com/css2';

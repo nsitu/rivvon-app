@@ -25,7 +25,7 @@
     import DrawCanvas from '../components/viewer/DrawCanvas.vue';
     import WalkCanvas from '../components/viewer/WalkCanvas.vue';
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
-    import ViewerDebugOverlay from '../components/viewer/ViewerDebugOverlay.vue';
+    import ViewerTechnicalOverlay from '../components/viewer/ViewerTechnicalOverlay.vue';
     import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
     import RealtimeSampler from '../components/slyce/RealtimeSampler.vue';
     import { useRealtimeSlyce } from '../composables/slyce/useRealtimeSlyce.js';
@@ -187,7 +187,7 @@
 
     // Local state
     const isReady = ref(false);
-    const showDebugOverlay = ref(false);
+    const showTechnicalOverlay = ref(false);
 
     // ─── Cinematic camera keyboard bindings ────────────────────────
     function handleCinematicKeydown(e) {
@@ -216,7 +216,7 @@
             }
             case 'd': {
                 // Toggle the active contextual debug overlay
-                showDebugOverlay.value = !showDebugOverlay.value;
+                showTechnicalOverlay.value = !showTechnicalOverlay.value;
                 break;
             }
         }
@@ -978,7 +978,7 @@
         <BottomToolbar
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
-            :debug-overlay="showDebugOverlay"
+            :technical-overlay="showTechnicalOverlay"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
             @enter-slyce-mode="openCreateTextureMode"
@@ -997,7 +997,7 @@
             @cinematic-capture="handleCinematicCapture"
             @cinematic-toggle="handleCinematicToggle"
             @cinematic-clear="handleCinematicClear"
-            @debug-overlay-toggle="showDebugOverlay = !showDebugOverlay"
+            @technical-overlay-toggle="showTechnicalOverlay = !showTechnicalOverlay"
         />
 
         <!-- Hidden file input -->
@@ -1060,12 +1060,12 @@
             @export="handleExportConfirm"
         />
 
-        <!-- Contextual debug overlay (press D to toggle) -->
-        <ViewerDebugOverlay
+        <!-- Contextual technical overlay (press D to toggle) -->
+        <ViewerTechnicalOverlay
             :cinematic-camera="threeCanvasRef?.cinematicCamera"
             :head-tracking="threeCanvasRef?.headTracking"
             :viewer-control-mode="app.viewerControlMode"
-            :visible="showDebugOverlay"
+            :visible="showTechnicalOverlay"
         />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->

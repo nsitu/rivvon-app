@@ -1,7 +1,7 @@
 <script setup>
     defineProps({
         visible: { type: Boolean, default: false },
-        title: { type: String, default: 'Debug Overlay' },
+        title: { type: String, default: 'Technical Overlay' },
         metricsText: { type: String, default: '' },
     });
 </script>
@@ -10,10 +10,10 @@
     <Transition name="fade">
         <div
             v-if="visible"
-            class="debug-overlay"
+            class="technical-overlay"
         >
-            <div class="debug-overlay-header">
-                <span class="debug-overlay-title">{{ title }}</span>
+            <div class="technical-overlay-header">
+                <span class="technical-overlay-title">{{ title }}</span>
                 <slot name="header-meta" />
             </div>
 
@@ -21,14 +21,14 @@
 
             <pre
                 v-if="metricsText"
-                class="debug-overlay-metrics"
+                class="technical-overlay-metrics"
             >{{ metricsText }}</pre>
         </div>
     </Transition>
 </template>
 
 <style scoped>
-    .debug-overlay {
+    .technical-overlay {
         position: fixed;
         bottom: 80px;
         right: 16px;
@@ -40,7 +40,7 @@
         user-select: none;
     }
 
-    .debug-overlay-header {
+    .technical-overlay-header {
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -52,7 +52,7 @@
         backdrop-filter: blur(8px);
     }
 
-    .debug-overlay-title {
+    .technical-overlay-title {
         font-family: 'JetBrains Mono', 'Fira Code', monospace;
         font-size: 10px;
         font-weight: 700;
@@ -61,7 +61,7 @@
         color: rgba(255, 255, 255, 0.86);
     }
 
-    .debug-overlay-metrics {
+    .technical-overlay-metrics {
         margin: 0;
         padding: 8px 12px;
         font-family: 'JetBrains Mono', 'Fira Code', monospace;

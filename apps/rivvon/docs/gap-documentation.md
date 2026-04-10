@@ -46,7 +46,7 @@ Each segment spans a `[startT, endT]` range along the curve, where `t ∈ [0, 1]
 
 For each of ~50 sample points within a segment:
 
-**Flat ribbon mode:**
+**Standard Ribbon mode:**
 
 ```
 wavePhase = sin(arcLength × frequency + time × speed) × amplitude
@@ -109,7 +109,7 @@ Path 1 strand B → TileManager 1   (helix only)
 ...
 ```
 
-In flat ribbon mode (no helix), each path's single strand gets the next TileManager in sequence.
+In Standard Ribbon mode (no helix), each path's single strand gets the next TileManager in sequence.
 
 ---
 

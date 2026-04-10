@@ -1,7 +1,7 @@
 <script setup>
     import { computed } from 'vue';
-    import CinematicDebugOverlay from './CinematicDebugOverlay.vue';
-    import HeadTrackingDebugOverlay from './HeadTrackingDebugOverlay.vue';
+    import CinematicTechnicalOverlay from './CinematicTechnicalOverlay.vue';
+    import HeadTrackingTechnicalOverlay from './HeadTrackingTechnicalOverlay.vue';
 
     const props = defineProps({
         cinematicCamera: { type: Object, default: null },
@@ -24,12 +24,12 @@
 </script>
 
 <template>
-    <CinematicDebugOverlay
+    <CinematicTechnicalOverlay
         :cinematic-camera="cinematicCamera"
         :visible="visible && activeContext === 'cinematic'"
     />
 
-    <HeadTrackingDebugOverlay
+    <HeadTrackingTechnicalOverlay
         :head-tracking="headTracking"
         :visible="visible && activeContext === 'headTracking'"
     />

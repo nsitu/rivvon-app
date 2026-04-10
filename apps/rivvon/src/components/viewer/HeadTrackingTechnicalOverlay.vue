@@ -1,7 +1,7 @@
 <script setup>
     import { computed, onUnmounted, ref, watch } from 'vue';
     import { MathUtils } from 'three';
-    import DebugOverlayFrame from './DebugOverlayFrame.vue';
+    import TechnicalOverlayFrame from './TechnicalOverlayFrame.vue';
 
     const MIN_AXIS_RANGES = {
         yaw: MathUtils.degToRad(12),
@@ -232,7 +232,7 @@
 </script>
 
 <template>
-    <DebugOverlayFrame
+    <TechnicalOverlayFrame
         :visible="visible"
         title="Head Tracking"
         :metrics-text="metricsText"
@@ -330,7 +330,7 @@
                 </div>
             </section>
         </div>
-    </DebugOverlayFrame>
+    </TechnicalOverlayFrame>
 </template>
 
 <style scoped>
