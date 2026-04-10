@@ -17,6 +17,7 @@
     import VideoControls from './VideoControls.vue';
     import CropOverlay from './CropOverlay.vue';
     import SamplingOverlay from './SamplingOverlay.vue';
+    import FrameRangeSelector from './FrameRangeSelector.vue';
 
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
@@ -103,6 +104,12 @@
 
         <!-- Custom controls always shown -->
         <VideoControls
+            v-if="app.fileURL"
+            :videoRef="videoPlayerRef"
+        />
+
+        <!-- Frame range selector -->
+        <FrameRangeSelector
             v-if="app.fileURL"
             :videoRef="videoPlayerRef"
         />
