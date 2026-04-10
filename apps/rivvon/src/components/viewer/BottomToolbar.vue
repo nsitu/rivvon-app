@@ -508,7 +508,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -520,7 +520,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -532,7 +532,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -632,7 +632,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -872,12 +872,12 @@
         gap: 1.5rem;
     }
 
-    /* Desktop: two-column grid to avoid scrolling */
+    /* Desktop: two-column flex wrap so sections flow without row-height mismatch */
     @media (min-width: 769px) {
         .tools-panel-content {
-            max-width: 720px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            max-width: none;
+            flex-direction: column;
+            flex-wrap: wrap;
             align-content: center;
             gap: 1.25rem 2rem;
         }
