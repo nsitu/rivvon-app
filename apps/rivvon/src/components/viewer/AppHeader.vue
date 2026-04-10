@@ -30,6 +30,7 @@
         if (app.isWalkMode) return 'Walk';
         if (app.isDrawingMode) return 'Draw';
         if (app.textureCreatorVisible || app.realtimeSamplerVisible) return 'Create Texture';
+        if (app.texturePreviewVisible) return 'Texture Preview';
         if (app.textureBrowserVisible) return 'Textures';
         if (app.emojiPickerVisible) return 'Emoji';
         if (app.textPanelVisible) return 'Text';
@@ -56,6 +57,8 @@
                 slyce.resetProcessing();
             }
             app.hideSlyce();
+        } else if (app.texturePreviewVisible) {
+            app.hideTexturePreview();
         } else if (app.textureBrowserVisible) {
             app.hideTextureBrowser();
         } else if (app.emojiPickerVisible) {

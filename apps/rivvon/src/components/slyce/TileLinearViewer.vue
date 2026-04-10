@@ -4,8 +4,7 @@
         ref="wrapperRef"
         class="tile-linear-viewer"
         :class="{
-            'has-tiles': hasTiles,
-            'is-fullscreen': isFullscreen
+            'has-tiles': hasTiles
         }"
     >
         <!-- Canvas container (handles scrolling) -->
@@ -20,49 +19,8 @@
             class="tile-info"
         >
             {{ tileCount }} tile{{ tileCount > 1 ? 's' : '' }}
-            <span v-if="displayScale < 1">({{ Math.round(displayScale * 100) }}%)</span>
+            <span v-if="displayScale < 1">({{ Math.round(displayScale * 100) }}% scale)</span>
         </div>
-
-        <!-- Fullscreen toggle button -->
-        <Button
-            v-if="hasTiles"
-            type="button"
-            class="fullscreen-button"
-            @click="toggleFullscreen"
-            :title="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
-            :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
-        >
-            <svg
-                v-if="!isFullscreen"
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            >
-                <path
-                    d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-            </svg>
-            <svg
-                v-else
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            >
-                <path
-                    d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-            </svg>
-        </Button>
 
         <!-- Loading placeholder -->
         <div
@@ -76,7 +34,6 @@
 
 <script setup>
     import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-    import Button from 'primevue/button';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { createAndInitTileLinearRenderer } from '../../modules/slyce/tileLinearRenderer.js';
     import { chooseRenderer } from '../../utils/renderer-utils.js';
@@ -91,6 +48,14 @@
             type: String,
             required: true,
             validator: (value) => ['columns', 'rows'].includes(value)
+        },
+        maxViewportHeight: {
+            type: Number,
+            default: 800
+        },
+        expectedTileCount: {
+            type: Number,
+            default: 0
         }
     });
 
@@ -108,7 +73,6 @@
 
     // State
     const displayScale = ref(1);
-    const isFullscreen = ref(false);
 
     // Computed
     const tileCount = computed(() => Object.keys(props.ktx2BlobURLs).length);
@@ -140,7 +104,7 @@
             renderer = await createAndInitTileLinearRenderer(container, rendererType, {
                 tileSize: app.potResolution || 512,
                 maxViewportWidth: 2560,
-                maxViewportHeight: 800,
+                maxViewportHeight: props.maxViewportHeight,
                 flowDirection: props.outputMode === 'columns' ? 'horizontal' : 'vertical'
             });
 
@@ -156,6 +120,12 @@
             isInitialized.value = true;
             console.log('[TileLinearViewer] Initialized successfully');
 
+            // Pre-allocate placeholder slots if we know the expected count
+            const expected = props.expectedTileCount || tileCount.value;
+            if (expected > 0) {
+                renderer.preallocatePlaceholders(expected);
+            }
+
             // Load any existing tiles
             loadTiles();
         } catch (error) {
@@ -164,6 +134,9 @@
             initializationAttempted.value = false;
         }
     }
+
+    // Track tiles currently being loaded to avoid duplicate concurrent loads
+    const loadingTiles = new Set();
 
     /**
      * Load tiles into renderer
@@ -175,52 +148,29 @@
 
         if (tileNumbers.length === 0) return;
 
-        // Load only new tiles
+        // Load only new tiles (placeholders count as needing load)
         tileNumbers.forEach(async (tileNumber) => {
-            if (!renderer.tiles.has(tileNumber)) {
+            const existing = renderer.tiles.get(tileNumber);
+            const needsLoad = !existing || existing.isPlaceholder;
+            if (needsLoad && !loadingTiles.has(tileNumber)) {
+                loadingTiles.add(tileNumber);
                 const blobURL = props.ktx2BlobURLs[tileNumber];
                 try {
                     await renderer.upsertTile(tileNumber, blobURL);
                     displayScale.value = renderer.displayScale;
                 } catch (error) {
                     console.error(`[TileLinearViewer] Failed to load tile ${tileNumber}:`, error);
+                } finally {
+                    loadingTiles.delete(tileNumber);
                 }
             }
         });
-    }
-
-    /**
-     * Toggle fullscreen mode
-     */
-    function toggleFullscreen() {
-        if (!wrapperRef.value) return;
-
-        if (!document.fullscreenElement) {
-            wrapperRef.value.requestFullscreen().catch(err => {
-                console.error('[TileLinearViewer] Fullscreen request failed:', err);
-            });
-        } else {
-            document.exitFullscreen();
-        }
-    }
-
-    /**
-     * Handle fullscreen change
-     */
-    function handleFullscreenChange() {
-        isFullscreen.value = !!document.fullscreenElement;
-
-        if (renderer) {
-            setTimeout(() => renderer.resize(), 100);
-        }
     }
 
     // Mount
     onMounted(async () => {
         await nextTick();
         console.log('[TileLinearViewer] Component mounted');
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
 
         // If we already have tiles, initialize immediately
         if (tileCount.value > 0) {
@@ -230,12 +180,6 @@
 
     // Cleanup
     onBeforeUnmount(() => {
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-
-        if (document.fullscreenElement) {
-            document.exitFullscreen();
-        }
-
         if (renderer) {
             renderer.dispose();
             renderer = null;
@@ -285,21 +229,12 @@
         width: 100%;
         min-height: 100px;
         background: transparent;
-        border-radius: 0.375rem;
+        border-radius: 0;
         display: flex;
         align-items: center;
         justify-content: center;
     }
 
-    .tile-linear-viewer.has-tiles {
-        background: #0f0f0f;
-        min-height: 200px;
-    }
-
-    .tile-linear-viewer.is-fullscreen {
-        border-radius: 0;
-        background: #000;
-    }
 
     .viewer-container {
         width: 100%;
@@ -307,11 +242,6 @@
         justify-content: center;
         align-items: center;
         padding: 1rem;
-    }
-
-    .tile-linear-viewer.is-fullscreen .viewer-container {
-        height: 100vh;
-        padding: 2rem;
     }
 
     .viewer-container :deep(canvas) {
@@ -330,33 +260,6 @@
         padding: 4px 8px;
         border-radius: 4px;
         pointer-events: none;
-    }
-
-    .fullscreen-button {
-        position: absolute;
-        top: 12px;
-        right: 12px;
-        z-index: 20;
-        min-width: 0;
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 6px;
-        padding: 8px;
-        color: rgba(255, 255, 255, 0.8);
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .fullscreen-button:hover {
-        background: rgba(0, 0, 0, 0.8);
-        border-color: rgba(255, 255, 255, 0.4);
-        color: #fff;
-    }
-
-    .fullscreen-button:active {
-        transform: scale(0.95);
     }
 
     .loading-message {

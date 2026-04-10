@@ -500,6 +500,136 @@ async function downloadTextureSetAsZip(textureSetId) {
 }
 
 /**
+ * Cache a cloud texture locally in IndexedDB.
+ * Stores the texture with a `cached_from` field linking to the cloud texture ID.
+ * If already cached, returns the existing local ID without re-saving.
+ * 
+ * @param {Object} params
+ * @param {string} params.cloudTextureId - The cloud texture set ID being cached
+ * @param {string} params.name - Texture name
+ * @param {number} params.tileCount - Number of tiles
+ * @param {number} params.tileResolution - Resolution of each tile
+ * @param {number} params.layerCount - Layers per tile
+ * @param {string} params.crossSectionType - 'planes' or 'waves'
+ * @param {Object} params.sourceMetadata - Original video metadata
+ * @param {string} params.thumbnailDataUrl - Base64 data URL or URL for thumbnail
+ * @param {Object} params.ktx2Blobs - Map of tile index to Blob/ArrayBuffer
+ * @returns {Promise<string>} The local texture set ID (new or existing)
+ */
+async function cacheCloudTexture({
+    cloudTextureId,
+    name,
+    tileCount,
+    tileResolution,
+    layerCount,
+    crossSectionType,
+    sourceMetadata,
+    thumbnailDataUrl,
+    ktx2Blobs
+}) {
+    // Check if already cached
+    const existing = await getCachedLocalId(cloudTextureId);
+    if (existing) {
+        console.log(`[LocalStorage] Cloud texture ${cloudTextureId} already cached as ${existing}`);
+        return existing;
+    }
+
+    const tileEntries = await Promise.all(
+        Object.entries(ktx2Blobs).map(async ([tileIndex, tileData]) => {
+            const bytes = await toTileArrayBuffer(tileData);
+            return {
+                tileIndex: parseInt(tileIndex, 10),
+                bytes,
+                fileSize: bytes.byteLength
+            };
+        })
+    );
+
+    const db = await openDatabase();
+    const id = generateId();
+    const createdAt = Date.now();
+    const totalSize = tileEntries.reduce((sum, entry) => sum + entry.fileSize, 0);
+
+    const textureSet = {
+        id,
+        name,
+        created_at: createdAt,
+        tile_count: tileCount,
+        tile_resolution: tileResolution,
+        layer_count: layerCount,
+        cross_section_type: crossSectionType,
+        source_metadata: sourceMetadata,
+        total_size: totalSize,
+        thumbnail_data_url: thumbnailDataUrl,
+        cached_from: cloudTextureId
+    };
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS, STORE_TILES], 'readwrite');
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
+            console.log(`[LocalStorage] Cached cloud texture ${cloudTextureId} as ${id} (${tileEntries.length} tiles)`);
+            resolve(id);
+        };
+
+        transaction.objectStore(STORE_TEXTURE_SETS).add(textureSet);
+
+        const tilesStore = transaction.objectStore(STORE_TILES);
+        for (const entry of tileEntries) {
+            tilesStore.add({
+                id: `${id}_${entry.tileIndex}`,
+                texture_set_id: id,
+                tile_index: entry.tileIndex,
+                bytes: entry.bytes,
+                file_size: entry.fileSize
+            });
+        }
+    });
+}
+
+/**
+ * Get the local ID for a cached cloud texture, or null if not cached.
+ * @param {string} cloudTextureId - The cloud texture set ID
+ * @returns {Promise<string|null>} Local texture set ID or null
+ */
+async function getCachedLocalId(cloudTextureId) {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
+        const store = transaction.objectStore(STORE_TEXTURE_SETS);
+        const request = store.getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            const match = request.result.find(ts => ts.cached_from === cloudTextureId);
+            resolve(match ? match.id : null);
+        };
+    });
+}
+
+/**
+ * Get a Set of cloud texture IDs that have been cached locally.
+ * @returns {Promise<Set<string>>} Set of cloud texture IDs
+ */
+async function getCachedCloudIds() {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
+        const store = transaction.objectStore(STORE_TEXTURE_SETS);
+        const request = store.getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            const ids = new Set();
+            for (const ts of request.result) {
+                if (ts.cached_from) {
+                    ids.add(ts.cached_from);
+                }
+            }
+            resolve(ids);
+        };
+    });
+}
+
+/**
  * Vue composable for local storage operations
  * @returns {Object} Local storage methods
  */
@@ -514,7 +644,10 @@ export function useLocalStorage() {
         updateTextureSet,
         getStorageUsage,
         exportTextureSetAsZip,
-        downloadTextureSetAsZip
+        downloadTextureSetAsZip,
+        cacheCloudTexture,
+        getCachedLocalId,
+        getCachedCloudIds
     };
 }
 
@@ -529,5 +662,8 @@ export {
     updateTextureSet,
     getStorageUsage,
     exportTextureSetAsZip,
-    downloadTextureSetAsZip
+    downloadTextureSetAsZip,
+    cacheCloudTexture,
+    getCachedLocalId,
+    getCachedCloudIds
 };

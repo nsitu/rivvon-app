@@ -138,13 +138,29 @@ export class TileLinearRendererWebGL {
             if (naturalWidth > containerWidth) {
                 scale = containerWidth / naturalWidth;
             }
+            // Also check height constraint
+            if (naturalHeight * scale > this.maxViewportHeight) {
+                scale = this.maxViewportHeight / naturalHeight;
+            }
             // Cap minimum scale to keep tiles readable
             scale = Math.max(scale, 0.25);
         }
 
         // Compute final canvas dimensions
-        const canvasWidth = Math.round(naturalWidth * scale);
-        const canvasHeight = Math.round(naturalHeight * scale);
+        let canvasWidth = Math.round(naturalWidth * scale);
+        let canvasHeight = Math.round(naturalHeight * scale);
+
+        // Clamp to GPU max texture size accounting for device pixel ratio
+        const pixelRatio = this.renderer ? this.renderer.getPixelRatio() : Math.min(window.devicePixelRatio, 2);
+        const maxGPUSize = this.renderer ? this.renderer.capabilities.maxTextureSize : 8192;
+        const maxCanvasWidth = Math.floor(maxGPUSize / pixelRatio);
+        const maxCanvasHeight = Math.floor(maxGPUSize / pixelRatio);
+        if (canvasWidth > maxCanvasWidth || canvasHeight > maxCanvasHeight) {
+            const clampScale = Math.min(maxCanvasWidth / canvasWidth, maxCanvasHeight / canvasHeight);
+            canvasWidth = Math.round(canvasWidth * clampScale);
+            canvasHeight = Math.round(canvasHeight * clampScale);
+            scale *= clampScale;
+        }
 
         // Calculate tile positions (in world units, centered at origin)
         const positions = tileIds.map((_, index) => {
@@ -226,6 +242,29 @@ export class TileLinearRendererWebGL {
     }
 
     /**
+     * Pre-allocate placeholder meshes for expected tiles.
+     * Creates dark semi-transparent slots so layout is stable from the start.
+     * @param {number} count - Number of tiles expected
+     */
+    preallocatePlaceholders(count) {
+        for (let i = 0; i < count; i++) {
+            const tileId = String(i);
+            if (this.tiles.has(tileId)) continue;
+
+            const geometry = new THREE.PlaneGeometry(this.tileSize, this.tileSize);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x222222,
+                transparent: true,
+                opacity: 0.3
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            this.scene.add(mesh);
+            this.tiles.set(tileId, { mesh, texture: null, material, geometry, isPlaceholder: true });
+        }
+        this.scheduleLayoutUpdate();
+    }
+
+    /**
      * Debounced layout update - batches rapid tile additions
      */
     scheduleLayoutUpdate() {
@@ -303,8 +342,15 @@ export class TileLinearRendererWebGL {
      */
     async upsertTile(tileId, blobURL) {
         return new Promise((resolve, reject) => {
-            // Remove existing tile if present
-            this.removeTile(tileId);
+            // Remove existing tile if present (placeholder or real)
+            const existing = this.tiles.get(tileId);
+            if (existing) {
+                this.scene.remove(existing.mesh);
+                existing.geometry?.dispose();
+                existing.material?.dispose();
+                if (existing.texture) existing.texture.dispose();
+                this.tiles.delete(tileId);
+            }
 
             this.ktx2Loader.load(
                 blobURL,
@@ -315,8 +361,8 @@ export class TileLinearRendererWebGL {
                     texture.minFilter = THREE.LinearFilter;
                     texture.magFilter = THREE.LinearFilter;
 
-                    // Get layer count from first tile
-                    if (this.tiles.size === 0) {
+                    // Get layer count from first real tile
+                    if (this.layerCount === 0) {
                         this.layerCount = texture.image?.depth || 1;
                     }
 

@@ -54,6 +54,7 @@ export const useViewerStore = defineStore('viewer', {
         
         // Texture browser
         textureBrowserVisible: false,
+        texturePreviewVisible: false,
         
         // Slyce panel
         textureCreatorVisible: false,
@@ -199,6 +200,15 @@ export const useViewerStore = defineStore('viewer', {
         
         hideTextureBrowser() {
             this.textureBrowserVisible = false;
+            this.texturePreviewVisible = false;
+        },
+        
+        showTexturePreview() {
+            this.texturePreviewVisible = true;
+        },
+        
+        hideTexturePreview() {
+            this.texturePreviewVisible = false;
         },
         
         showToolsPanel() {

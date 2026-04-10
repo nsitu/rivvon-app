@@ -29,11 +29,12 @@
     const app = useViewerStore();
     const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
-    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet, updateTextureSet: updateLocalTextureSet } = useLocalStorage();
+    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId } = useLocalStorage();
 
     // State
     const textures = ref([]);
     const localTextures = ref([]);
+    const cachedCloudIds = ref(new Set()); // cloud IDs that have a local cache
     const isLoading = ref(false);
     const error = ref(null);
     const hasLoaded = ref(false);
@@ -63,16 +64,19 @@
     // Combined textures for display (adds isLocal flag to distinguish)
     const displayTextures = computed(() => {
         const tab = activeTab.value;
+        const cachedIds = cachedCloudIds.value;
 
-        // Map local textures with isLocal flag
-        const localMapped = localTextures.value.map(t => ({
-            ...t,
-            isLocal: true,
-            thumbnail_url: t.thumbnail_data_url, // normalize field name
-            total_size_bytes: t.total_size_bytes ?? t.total_size // normalize size field name
-        }));
+        // Map local textures with isLocal flag (exclude cache entries for the local tab)
+        const localMapped = localTextures.value
+            .filter(t => !t.cached_from) // hide cache entries from "My Local"
+            .map(t => ({
+                ...t,
+                isLocal: true,
+                thumbnail_url: t.thumbnail_data_url, // normalize field name
+                total_size_bytes: t.total_size_bytes ?? t.total_size // normalize size field name
+            }));
 
-        // Map cloud textures with isLocal flag
+        // Map cloud textures with isLocal flag + isCached indicator
         // Filter out Google Drive textures for unauthenticated users (they require auth to access)
         const cloudMapped = textures.value
             .filter(t => {
@@ -85,13 +89,17 @@
             })
             .map(t => ({
                 ...t,
-                isLocal: false
+                isLocal: false,
+                isCached: cachedIds.has(t.id)
             }));
 
         switch (tab) {
             case 'local':
-                // My Local: only local textures
+                // My Local: only user-created local textures (not caches)
                 return localMapped;
+            case 'cached':
+                // Cached: cloud textures that have a local cache
+                return cloudMapped.filter(t => t.isCached);
             case 'my-cloud':
                 // My Cloud: user's own cloud textures
                 if (!user.value) return [];
@@ -135,17 +143,22 @@
         error.value = null;
 
         try {
-            // Load both remote and local textures
-            const [result, localResult] = await Promise.all([
+            // Load remote, local, and cache status in parallel
+            const [result, localResult, cachedIds] = await Promise.all([
                 fetchTextures({ limit: 100 }),
                 getLocalTextures().catch(err => {
                     console.warn('[TextureBrowser] Failed to load local textures:', err);
                     return [];
+                }),
+                getCachedCloudIds().catch(err => {
+                    console.warn('[TextureBrowser] Failed to load cache status:', err);
+                    return new Set();
                 })
             ]);
 
             textures.value = result.textures || [];
             localTextures.value = localResult || [];
+            cachedCloudIds.value = cachedIds;
             hasLoaded.value = true;
         } catch (err) {
             console.error('[TextureBrowser] Failed to load textures:', err);
@@ -595,12 +608,38 @@
     const previewLoading = ref(false);
     const previewError = ref(null);
 
+    /**
+     * Pre-calculate the expected canvas width for the preview panel.
+     * Replicates the renderer's vertical-flow scale logic so the panel
+     * can be sized before the canvas actually renders.
+     */
+    const previewCanvasWidth = computed(() => {
+        if (!previewTexture.value) return 0;
+        const tileSize = previewTexture.value.tile_resolution || 512;
+        const tileCount = previewTexture.value.tile_count || 1;
+        const maxH = 7680;
+
+        const naturalHeight = tileSize * tileCount;
+        let scale = Math.min(1, maxH / naturalHeight);
+
+        // GPU clamp (same logic as renderer)
+        const pixelRatio = Math.min(window.devicePixelRatio, 2);
+        const maxCanvas = Math.floor(8192 / pixelRatio);
+        const canvasHeight = Math.round(naturalHeight * scale);
+        if (canvasHeight > maxCanvas) {
+            scale *= maxCanvas / canvasHeight;
+        }
+
+        return Math.round(tileSize * scale);
+    });
+
     async function openPreview(texture, event) {
         event.stopPropagation();
         previewTexture.value = texture;
         previewBlobURLs.value = {};
         previewLoading.value = true;
         previewError.value = null;
+        app.showTexturePreview();
 
         try {
             if (isLocalTexture(texture)) {
@@ -612,23 +651,50 @@
                 }
                 previewBlobURLs.value = urls;
             } else {
-                // Remote: fetch tile metadata, then download KTX2 data
-                const textureSet = await fetchTextureWithTiles(texture.id);
-                const tiles = textureSet.tiles || [];
-                for (const tile of tiles) {
-                    const index = tile.tileIndex ?? tile.index ?? tile.tile_index;
-                    let blob;
-                    if (tile.driveFileId) {
-                        blob = await fetchDriveFile(tile.driveFileId);
-                    } else if (tile.url) {
-                        const resp = await fetch(tile.url);
-                        if (!resp.ok) throw new Error(`Failed to fetch tile ${index}`);
-                        blob = await resp.blob();
-                    } else {
-                        continue;
+                // Cloud texture — check cache first
+                let loadedFromCache = false;
+                if (cachedCloudIds.value.has(texture.id)) {
+                    const localId = await getCachedLocalId(texture.id);
+                    if (localId) {
+                        const tiles = await getLocalTiles(localId);
+                        if (tiles && tiles.length > 0) {
+                            const urls = {};
+                            for (const tile of tiles) {
+                                urls[tile.tile_index] = URL.createObjectURL(tile.blob);
+                            }
+                            previewBlobURLs.value = urls;
+                            loadedFromCache = true;
+                        }
                     }
-                    // Update reactively so TileLinearViewer can load tiles incrementally
-                    previewBlobURLs.value = { ...previewBlobURLs.value, [index]: URL.createObjectURL(blob) };
+                }
+
+                if (!loadedFromCache) {
+                    // Remote: fetch tile metadata, then download KTX2 data
+                    const textureSet = await fetchTextureWithTiles(texture.id);
+                    const tiles = textureSet.tiles || [];
+                    const downloadedBlobs = {}; // tileIndex → Blob for caching
+                    for (const tile of tiles) {
+                        const index = tile.tileIndex ?? tile.index ?? tile.tile_index;
+                        let blob;
+                        if (tile.driveFileId) {
+                            const buffer = await fetchDriveFile(tile.driveFileId);
+                            blob = new Blob([buffer], { type: 'image/ktx2' });
+                        } else if (tile.url) {
+                            const resp = await fetch(tile.url);
+                            if (!resp.ok) throw new Error(`Failed to fetch tile ${index}`);
+                            blob = await resp.blob();
+                        } else {
+                            continue;
+                        }
+                        downloadedBlobs[index] = blob;
+                        // Update reactively so TileLinearViewer can load tiles incrementally
+                        previewBlobURLs.value = { ...previewBlobURLs.value, [index]: URL.createObjectURL(blob) };
+                    }
+
+                    // Cache in background after preview is showing
+                    if (Object.keys(downloadedBlobs).length > 0) {
+                        cacheCloudTextureFromBlobs(texture, textureSet, downloadedBlobs);
+                    }
                 }
             }
         } catch (err) {
@@ -639,13 +705,68 @@
         }
     }
 
+    /**
+     * Cache downloaded cloud texture blobs to IndexedDB in background.
+     * Does not block UI — fires and forgets with error logging.
+     */
+    function cacheCloudTextureFromBlobs(texture, textureSet, blobs) {
+        // Convert thumbnail URL to data URL if needed
+        const doCache = async () => {
+            let thumbnailDataUrl = null;
+            if (texture.thumbnail_url) {
+                try {
+                    const resp = await fetch(texture.thumbnail_url);
+                    const thumbBlob = await resp.blob();
+                    thumbnailDataUrl = await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.readAsDataURL(thumbBlob);
+                    });
+                } catch (e) {
+                    // Non-critical — skip thumbnail
+                }
+            }
+
+            await cacheCloudTexture({
+                cloudTextureId: texture.id,
+                name: texture.name,
+                tileCount: textureSet.tile_count ?? Object.keys(blobs).length,
+                tileResolution: textureSet.tile_resolution ?? texture.tile_resolution,
+                layerCount: textureSet.layer_count ?? texture.layer_count,
+                crossSectionType: textureSet.cross_section_type ?? texture.cross_section_type ?? 'waves',
+                sourceMetadata: textureSet.source_metadata ?? texture.source_metadata,
+                thumbnailDataUrl,
+                ktx2Blobs: blobs
+            });
+
+            // Update cache status reactively
+            cachedCloudIds.value = new Set([...cachedCloudIds.value, texture.id]);
+        };
+
+        doCache().catch(err => {
+            console.warn('[TextureBrowser] Background cache failed:', err);
+        });
+    }
+
     function closePreview() {
         // Revoke all blob URLs
         Object.values(previewBlobURLs.value).forEach(url => URL.revokeObjectURL(url));
         previewBlobURLs.value = {};
         previewTexture.value = null;
         previewError.value = null;
+        app.hideTexturePreview();
     }
+
+    // Watch store flag — AppHeader close button sets this to false
+    watch(() => app.texturePreviewVisible, (visible) => {
+        if (!visible && previewTexture.value) {
+            // Store was cleared externally (e.g. AppHeader close) — clean up local state
+            Object.values(previewBlobURLs.value).forEach(url => URL.revokeObjectURL(url));
+            previewBlobURLs.value = {};
+            previewTexture.value = null;
+            previewError.value = null;
+        }
+    });
 
     onBeforeUnmount(() => {
         // Clean up preview blob URLs if component unmounts
@@ -660,7 +781,14 @@
         @keydown="handleKeydown"
         tabindex="-1"
     >
-        <div class="texture-browser-container">
+        <div
+            class="texture-browser-container"
+            :class="{ 'has-preview': previewTexture }"
+            :style="previewTexture ? { '--preview-tile-size': previewCanvasWidth + 'px' } : undefined"
+        >
+
+
+            <!-- Normal browser content -->
             <div class="texture-browser-content">
                 <!-- Header -->
                 <div class="texture-browser-header">
@@ -703,6 +831,13 @@
                         >
                             Public
                         </button>
+                        <button
+                            v-if="cachedCloudIds.size > 0"
+                            :class="['tab-button', { active: activeTab === 'cached' }]"
+                            @click="activeTab = 'cached'"
+                        >
+                            Cached
+                        </button>
                     </div>
                 </div>
 
@@ -744,6 +879,9 @@
                             href="/slyce"
                             class="slyce-link"
                         >Create one in Create Texture</a>
+                    </template>
+                    <template v-else-if="activeTab === 'cached'">
+                        No cached textures yet. Preview or apply a cloud texture to cache it locally.
                     </template>
                     <template v-else>
                         No textures available yet.
@@ -817,6 +955,14 @@
                                     :alt="getStorageInfo(texture).label"
                                     class="storage-icon"
                                 />
+                            </div>
+                            <!-- Cache indicator for cloud textures -->
+                            <div
+                                v-if="!isLocalTexture(texture) && texture.isCached"
+                                class="storage-badge cached-badge"
+                                title="Cached locally"
+                            >
+                                <span class="material-symbols-outlined">download_done</span>
                             </div>
                         </div>
 
@@ -927,10 +1073,36 @@
 
             </div>
 
+            <!-- Preview panel (side-by-side on desktop, replaces browser on mobile) -->
+            <div
+                v-if="previewTexture"
+                class="texture-preview-panel"
+            >
+                <TileLinearViewer
+                    v-if="Object.keys(previewBlobURLs).length > 0"
+                    :ktx2BlobURLs="previewBlobURLs"
+                    outputMode="rows"
+                    :maxViewportHeight="7680"
+                    :expectedTileCount="previewTexture.tile_count"
+                />
+                <div
+                    v-else-if="previewLoading"
+                    class="preview-loading"
+                >
+                    Loading tiles...
+                </div>
+                <div
+                    v-else-if="previewError"
+                    class="preview-error"
+                >
+                    Failed to load preview: {{ previewError }}
+                </div>
+            </div>
+
             <!-- Multi-select Apply bar -->
             <Transition name="slide-up">
                 <div
-                    v-if="multiSelectMode && multiSelectCount > 0"
+                    v-if="multiSelectMode && multiSelectCount > 0 && !previewTexture"
                     class="multi-select-bar"
                 >
                     <span class="multi-select-count">{{ multiSelectCount }} texture{{ multiSelectCount > 1 ? 's' : '' }}
@@ -1097,46 +1269,7 @@
             </div>
         </Teleport>
 
-        <!-- Animated preview fullscreen overlay -->
-        <Teleport to="body">
-            <div
-                v-if="previewTexture"
-                class="preview-overlay"
-                @click.self="closePreview"
-                @keydown.escape="closePreview"
-                tabindex="-1"
-            >
-                <div class="preview-overlay-header">
-                    <h3>{{ previewTexture.name }}</h3>
-                    <button
-                        class="preview-close-button"
-                        @click="closePreview"
-                        title="Close preview"
-                    >
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                </div>
-                <div class="preview-overlay-body">
-                    <TileLinearViewer
-                        v-if="Object.keys(previewBlobURLs).length > 0"
-                        :ktx2BlobURLs="previewBlobURLs"
-                        outputMode="rows"
-                    />
-                    <div
-                        v-else-if="previewLoading"
-                        class="preview-overlay-loading"
-                    >
-                        Loading tiles...
-                    </div>
-                    <div
-                        v-else-if="previewError"
-                        class="preview-overlay-error"
-                    >
-                        Failed to load preview: {{ previewError }}
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        <!-- Animated preview panel is now inline above (not a Teleport) -->
     </div>
 </template>
 
@@ -1170,6 +1303,28 @@
         /* Space for AppHeader */
         padding-bottom: 5.5rem;
         /* Space for BottomToolbar */
+    }
+
+    /* On mobile, hide browser content when preview is active */
+    .texture-browser-container.has-preview .texture-browser-content {
+        display: none;
+    }
+
+    /* Desktop: side-by-side columns */
+    @media (min-width: 768px) {
+        .texture-browser-container.has-preview {
+            flex-direction: row;
+        }
+
+        .texture-browser-container.has-preview .texture-browser-content {
+            display: block;
+        }
+
+        .texture-browser-container.has-preview .texture-preview-panel {
+            flex: none;
+            width: calc(var(--preview-tile-size, 512px) + 2rem);
+            border-right: 1px solid #333;
+        }
     }
 
     .texture-browser-content {
@@ -1314,6 +1469,18 @@
 
     .storage-badge.requires-auth .storage-icon {
         opacity: 1;
+    }
+
+    .storage-badge.cached-badge {
+        top: 8px;
+        right: auto;
+        left: 8px;
+        background: rgba(76, 175, 80, 0.85);
+        color: #fff;
+    }
+
+    .storage-badge.cached-badge .material-symbols-outlined {
+        font-size: 1rem;
     }
 
     .texture-card-info {
@@ -1876,68 +2043,32 @@
     }
 
     /* Animated preview fullscreen overlay */
-    .preview-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        background: rgba(0, 0, 0, 0.95);
-        display: flex;
-        flex-direction: column;
-    }
-
-    .preview-overlay-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid #333;
-        flex: none;
-    }
-
-    .preview-overlay-header h3 {
-        margin: 0;
-        color: #fff;
-        font-size: 1.1rem;
-        font-weight: 600;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .preview-close-button {
-        background: none;
-        border: 1px solid #555;
-        border-radius: 4px;
-        color: #ccc;
-        cursor: pointer;
-        padding: 4px 8px;
-        display: flex;
-        align-items: center;
-        transition: background 0.2s, color 0.2s;
-    }
-
-    .preview-close-button:hover {
-        background: #333;
-        color: #fff;
-    }
-
-    .preview-overlay-body {
+    /* ── Texture Preview Panel (in-place, shares AppHeader/BottomToolbar spacing) ── */
+    .texture-preview-panel {
         flex: 1;
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
-        overflow: auto;
+        overflow: overlay;
         padding: 1rem;
     }
 
-    .preview-overlay-loading,
-    .preview-overlay-error {
+    .texture-preview-panel>* {
+        margin-block: auto;
+    }
+
+    .texture-preview-panel :deep(.viewer-container) {
+        padding: 0;
+    }
+
+    .preview-loading,
+    .preview-error {
         color: #999;
         font-size: 14px;
         text-align: center;
     }
 
-    .preview-overlay-error {
+    .preview-error {
         color: #ef5350;
     }
 </style>
