@@ -39,9 +39,7 @@
             classes.push('tile-full')
         }
         else {
-            if (app.tileProportion == 'square') classes.push('tile-square')
-            if (app.tileProportion == 'landscape') classes.push('tile-landscape')
-            if (app.tileProportion == 'portrait') classes.push('tile-portrait')
+            classes.push('tile-square')
         }
         return classes
     })
@@ -171,14 +169,6 @@
 
     .tile-square {
         aspect-ratio: 1/1;
-    }
-
-    .tile-landscape {
-        aspect-ratio: 16/9;
-    }
-
-    .tile-portrait {
-        aspect-ratio: 9/16;
     }
 
     /* Backdrop for text labels — ensures readability over preview images */

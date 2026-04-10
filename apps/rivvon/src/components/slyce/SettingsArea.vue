@@ -391,45 +391,9 @@
             >
                 <span>Make </span>
 
+                <span>square</span>
+                <span>tiles with</span>
                 <Select
-                    v-model="app.tileProportion"
-                    :options="[{
-                        name: 'square (1:1)',
-                        value: 'square'
-                    }, {
-                        name: 'landscape (16:9)',
-                        value: 'landscape'
-                    }, {
-                        name: 'portrait (9:16)',
-                        value: 'portrait'
-                    }]"
-                    optionValue="value"
-                    optionLabel="name"
-                />
-                <span>tiles optimized for</span>
-                <Select
-                    v-model="app.prioritize"
-                    :options="[{
-                        name: 'quantity',
-                        value: 'quantity'
-                    }, {
-                        name: 'quality',
-                        value: 'quality'
-                    }, {
-                        name: 'powers of two',
-                        value: 'powersOfTwo'
-                    }]"
-                    optionValue="value"
-                    optionLabel="name"
-                />
-            </div>
-            <div
-                v-if="app.tileMode === 'tile'"
-                class="input-row"
-            >
-                <span v-if="app.prioritize === 'powersOfTwo'">with</span>
-                <Select
-                    v-if="app.prioritize === 'powersOfTwo'"
                     v-model="app.potResolution"
                     :options="[{
                         name: '32px',
@@ -453,10 +417,8 @@
                     optionValue="value"
                     optionLabel="name"
                 />
-                <span v-if="app.prioritize === 'powersOfTwo'">resolution</span>
-                <span v-if="app.prioritize === 'quantity' || app.prioritize === 'powersOfTwo'">using</span>
+                <span>resolution using</span>
                 <Select
-                    v-if="app.prioritize === 'quantity' || app.prioritize === 'powersOfTwo'"
                     v-model="app.downsampleStrategy"
                     :options="[{
                         name: 'per sample',
@@ -468,7 +430,7 @@
                     optionValue="value"
                     optionLabel="name"
                 />
-                <span v-if="app.prioritize === 'quantity' || app.prioritize === 'powersOfTwo'">down-scaling</span>
+                <span>down-scaling</span>
             </div>
 
 

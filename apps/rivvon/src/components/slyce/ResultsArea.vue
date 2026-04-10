@@ -3,21 +3,12 @@
     import { useSlyceStore } from '../../stores/slyceStore';
     import StatusBox from './StatusBox.vue';
     import OutputActions from './OutputActions.vue';
-    import TileLinearViewer from './TileLinearViewer.vue';
     import TilePreview from './TilePreview.vue';
     import ProgressSpinner from 'primevue/progressspinner';
-    import Select from 'primevue/select';
     import Button from 'primevue/button';
 
     const app = useSlyceStore();
     const emit = defineEmits(['back', 'reset', 'apply-texture']);
-
-    // Preview mode options for the dropdown
-    const previewOptions = [
-        { label: 'Disabled', value: 'disabled' },
-        { label: 'Static Preview', value: 'static' },
-        { label: 'Animated Preview', value: 'animated' },
-    ];
 
     // Has at least one tile (show preview during processing or when done)
     const hasTiles = computed(() => Object.keys(app.ktx2BlobURLs).length > 0);
@@ -57,24 +48,9 @@
         v-if="isActive"
     >
         <div class="results-sidebar">
-            <!-- Processing phase: status + preview controls -->
+            <!-- Processing phase: status -->
             <template v-if="isProcessing">
                 <StatusBox />
-                <div class="preview-toggle">
-                    <label class="preview-toggle-label">
-                        <span>Preview</span>
-                        <Select
-                            v-model="app.previewMode"
-                            :options="previewOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            class="preview-select"
-                        />
-                    </label>
-                    <p class="preview-toggle-hint">
-                        Disable or use static preview to free resources for faster encoding.
-                    </p>
-                </div>
             </template>
 
             <!-- Complete phase: output actions (upload, save, download, apply) -->
@@ -122,33 +98,21 @@
             </div>
         </div>
         <div class="results-main">
-            <!-- Animated: Full Three.js KTX2 viewer (only when tiles exist) -->
-            <TileLinearViewer
-                v-if="app.previewMode === 'animated' && hasTiles"
-                :ktx2BlobURLs="app.ktx2BlobURLs"
-                :outputMode="app.outputMode"
-            />
-            <!-- Static: Tile snapshot thumbnails (progressively updated during encoding) -->
+            <!-- Static tile preview (progressively updated during encoding) -->
             <TilePreview
-                v-else-if="app.previewMode === 'static'"
+                v-if="hasTiles"
                 :tilePlan="app.tilePlan"
             />
-            <!-- Disabled / animated-but-no-tiles-yet -->
+            <!-- No tiles yet — show processing spinner -->
             <div
                 v-else
                 class="preview-disabled-placeholder"
             >
-                <template v-if="app.previewMode === 'disabled'">
-                    <span class="material-symbols-outlined">visibility_off</span>
-                    <span>Preview disabled</span>
-                </template>
-                <template v-else>
-                    <ProgressSpinner
-                        style="width: 50px; height: 50px"
-                        strokeWidth="4"
-                    />
-                    <p>Processing video...</p>
-                </template>
+                <ProgressSpinner
+                    style="width: 50px; height: 50px"
+                    strokeWidth="4"
+                />
+                <p>Processing video...</p>
             </div>
         </div>
     </div>
@@ -251,33 +215,6 @@
 
     .results-placeholder a:hover {
         color: #2563eb;
-    }
-
-    .preview-toggle {
-        padding: 0.75rem;
-        border: 1px solid var(--border-primary);
-        border-radius: 0.5rem;
-        background: var(--bg-secondary);
-    }
-
-    .preview-toggle-label {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 500;
-        color: var(--text-secondary);
-    }
-
-    .preview-select {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .preview-toggle-hint {
-        margin: 0.35rem 0 0 0;
-        font-size: 0.75rem;
-        color: var(--text-tertiary);
-        line-height: 1.3;
     }
 
     .preview-disabled-placeholder {

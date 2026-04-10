@@ -83,7 +83,7 @@
 
     // Whether to show the progress overlay
     const showProgress = computed(() => {
-        return app.previewMode === 'static' && Object.keys(app.status).length > 0;
+        return Object.keys(app.status).length > 0;
     });
 
     /** @type {TileSnapshotPreview|null} */
@@ -121,19 +121,10 @@
         }
     }
 
-    // Watch for processing start: store tilePlan gets populated and mode is static
+    // Watch for processing start: store tilePlan gets populated
     watch(() => app.tilePlan?.tiles?.length, (len) => {
-        if (len > 0 && app.previewMode === 'static') {
+        if (len > 0) {
             initSnapshot();
-        }
-    });
-
-    // Watch for mode switch mid-processing
-    watch(() => app.previewMode, (mode) => {
-        if (mode === 'static' && app.tilePlan?.tiles?.length) {
-            initSnapshot();
-        } else if (mode !== 'static') {
-            disposeSnapshot();
         }
     });
 

@@ -1,11 +1,12 @@
 <script setup>
-    import { ref, computed, onMounted, watch } from 'vue';
+    import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { fetchTextures, fetchTextureWithTiles } from '../../services/textureService';
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { fetchDriveFile } from '../../modules/viewer/auth.js';
+    import TileLinearViewer from '../slyce/TileLinearViewer.vue';
 
     const props = defineProps({
         visible: {
@@ -228,7 +229,9 @@
 
     function handleKeydown(event) {
         if (event.key === 'Escape') {
-            if (textureToEdit.value) {
+            if (previewTexture.value) {
+                closePreview();
+            } else if (textureToEdit.value) {
                 cancelEdit();
             } else if (textureToCopy.value) {
                 cancelCopy();
@@ -585,6 +588,69 @@
         if (!timestamp) return 'Unknown';
         return new Date(timestamp).toLocaleDateString();
     }
+
+    // ── Animated Preview ──
+    const previewTexture = ref(null);      // texture being previewed
+    const previewBlobURLs = ref({});       // tileNumber → blob URL
+    const previewLoading = ref(false);
+    const previewError = ref(null);
+
+    async function openPreview(texture, event) {
+        event.stopPropagation();
+        previewTexture.value = texture;
+        previewBlobURLs.value = {};
+        previewLoading.value = true;
+        previewError.value = null;
+
+        try {
+            if (isLocalTexture(texture)) {
+                // Local: read tiles from IndexedDB
+                const tiles = await getLocalTiles(texture.id);
+                const urls = {};
+                for (const tile of tiles) {
+                    urls[tile.tile_index] = URL.createObjectURL(tile.blob);
+                }
+                previewBlobURLs.value = urls;
+            } else {
+                // Remote: fetch tile metadata, then download KTX2 data
+                const textureSet = await fetchTextureWithTiles(texture.id);
+                const tiles = textureSet.tiles || [];
+                for (const tile of tiles) {
+                    const index = tile.tileIndex ?? tile.index ?? tile.tile_index;
+                    let blob;
+                    if (tile.driveFileId) {
+                        blob = await fetchDriveFile(tile.driveFileId);
+                    } else if (tile.url) {
+                        const resp = await fetch(tile.url);
+                        if (!resp.ok) throw new Error(`Failed to fetch tile ${index}`);
+                        blob = await resp.blob();
+                    } else {
+                        continue;
+                    }
+                    // Update reactively so TileLinearViewer can load tiles incrementally
+                    previewBlobURLs.value = { ...previewBlobURLs.value, [index]: URL.createObjectURL(blob) };
+                }
+            }
+        } catch (err) {
+            console.error('[TextureBrowser] Preview failed:', err);
+            previewError.value = err.message;
+        } finally {
+            previewLoading.value = false;
+        }
+    }
+
+    function closePreview() {
+        // Revoke all blob URLs
+        Object.values(previewBlobURLs.value).forEach(url => URL.revokeObjectURL(url));
+        previewBlobURLs.value = {};
+        previewTexture.value = null;
+        previewError.value = null;
+    }
+
+    onBeforeUnmount(() => {
+        // Clean up preview blob URLs if component unmounts
+        Object.values(previewBlobURLs.value).forEach(url => URL.revokeObjectURL(url));
+    });
 </script>
 
 <template>
@@ -819,6 +885,14 @@
 
                             <!-- Action buttons (inline in info area) -->
                             <div class="texture-card-actions">
+                                <!-- Preview button -->
+                                <button
+                                    class="action-button preview-button"
+                                    title="Preview animation"
+                                    @click="openPreview(texture, $event)"
+                                >
+                                    <span class="material-symbols-outlined">play_circle</span>
+                                </button>
                                 <!-- Edit button (owner or admin) -->
                                 <button
                                     v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
@@ -1018,6 +1092,47 @@
                         >
                             {{ isEditing ? 'Saving...' : 'Save' }}
                         </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- Animated preview fullscreen overlay -->
+        <Teleport to="body">
+            <div
+                v-if="previewTexture"
+                class="preview-overlay"
+                @click.self="closePreview"
+                @keydown.escape="closePreview"
+                tabindex="-1"
+            >
+                <div class="preview-overlay-header">
+                    <h3>{{ previewTexture.name }}</h3>
+                    <button
+                        class="preview-close-button"
+                        @click="closePreview"
+                        title="Close preview"
+                    >
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="preview-overlay-body">
+                    <TileLinearViewer
+                        v-if="Object.keys(previewBlobURLs).length > 0"
+                        :ktx2BlobURLs="previewBlobURLs"
+                        outputMode="rows"
+                    />
+                    <div
+                        v-else-if="previewLoading"
+                        class="preview-overlay-loading"
+                    >
+                        Loading tiles...
+                    </div>
+                    <div
+                        v-else-if="previewError"
+                        class="preview-overlay-error"
+                    >
+                        Failed to load preview: {{ previewError }}
                     </div>
                 </div>
             </div>
@@ -1749,5 +1864,80 @@
     .slide-up-leave-to {
         transform: translateY(100%);
         opacity: 0;
+    }
+
+    /* Preview button */
+    .preview-button {
+        color: #64b5f6;
+    }
+
+    .preview-button:hover {
+        color: #90caf9;
+    }
+
+    /* Animated preview fullscreen overlay */
+    .preview-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.95);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .preview-overlay-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #333;
+        flex: none;
+    }
+
+    .preview-overlay-header h3 {
+        margin: 0;
+        color: #fff;
+        font-size: 1.1rem;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .preview-close-button {
+        background: none;
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #ccc;
+        cursor: pointer;
+        padding: 4px 8px;
+        display: flex;
+        align-items: center;
+        transition: background 0.2s, color 0.2s;
+    }
+
+    .preview-close-button:hover {
+        background: #333;
+        color: #fff;
+    }
+
+    .preview-overlay-body {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+        padding: 1rem;
+    }
+
+    .preview-overlay-loading,
+    .preview-overlay-error {
+        color: #999;
+        font-size: 14px;
+        text-align: center;
+    }
+
+    .preview-overlay-error {
+        color: #ef5350;
     }
 </style>

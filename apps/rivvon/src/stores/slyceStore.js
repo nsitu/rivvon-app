@@ -17,9 +17,7 @@ export const useSlyceStore = defineStore('slyce', {
         samplingMode: 'rows',       // rows, columns
         outputMode: 'rows',         // rows, columns
         tileMode: 'tile',           // tile, full
-        tileProportion: 'square',       // square, landscape, portrait
-        prioritize: 'powersOfTwo',         // quantity, quality, powersOfTwo
-        potResolution: 512,             // 128, 256, 512, 1024
+        potResolution: 512,             // 32, 64, 128, 256, 512, 1024
         downsampleStrategy: 'upfront', // perSample, upfront
         readerIsFinished: false,
         fileInfo: null,
@@ -64,12 +62,6 @@ export const useSlyceStore = defineStore('slyce', {
 
         // Resource management — when true, fully dispose viewer GPU context during processing
         freeGpuResources: false,
-
-        // Preview mode: 'disabled' | 'static' | 'animated'
-        // 'static'   — lightweight tile snapshot thumbnails (low overhead)
-        // 'animated'  — full Three.js TileLinearRenderer
-        // 'disabled'  — no preview, maximum resources for encoding
-        previewMode: 'static',
 
         // Reference to active TileSnapshotPreview instance (set by TilePreview.vue)
         tileSnapshotPreview: null,
@@ -193,7 +185,6 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropHeight = null;
             this.thumbnailBlob = null;
             this.resetLocalSaveState();
-            this.previewMode = 'static';
             // Dispose snapshot preview (revokes blob URLs) before clearing
             if (this.tileSnapshotPreview) {
                 this.tileSnapshotPreview.dispose();

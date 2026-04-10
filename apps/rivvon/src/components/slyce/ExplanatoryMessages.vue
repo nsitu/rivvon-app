@@ -76,9 +76,9 @@
                     <div class="flex items-center gap-1 cursor-default">
                         <span class="material-symbols-outlined">filter_alt</span>
                         <span>Using frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString()
-                            }}</span>
+                        }}</span>
                         <span>({{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString()
-                            }})</span>
+                        }})</span>
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
@@ -105,7 +105,7 @@
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left">
-                        {{ plan.length }} {{ app.tileProportion }} {{ plan.length == 1 ? 'tile' : 'tiles' }} at full
+                        {{ plan.length }} square {{ plan.length == 1 ? 'tile' : 'tiles' }} at full
                         resolution
                         ({{ plan.width }}x{{ plan.height }}) {{ plan.length == 1 ? 'takes' : 'take' }} up {{
                             app.frameCount -

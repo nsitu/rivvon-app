@@ -263,7 +263,7 @@ const processVideo = async (settings) => {
         onItemProcessed({ builderKey, builder }) {
             // Snapshot the tile's layer 0 canvas for the static preview.
             // Must be AFTER processFrame so the canvas has the latest pixels.
-            if (app.previewMode === 'static' && app.tileSnapshotPreview) {
+            if (app.tileSnapshotPreview) {
                 try {
                     const layerCanvas = builder.getCurrentPreviewCanvas();
                     if (layerCanvas) {
@@ -299,7 +299,7 @@ const processVideo = async (settings) => {
                 if (abortSignal.aborted) return;
 
                 // Bake the live preview canvas to a static blob URL
-                if (app.previewMode === 'static' && app.tileSnapshotPreview) {
+                if (app.tileSnapshotPreview) {
                     try {
                         await app.tileSnapshotPreview.bake(tileId);
                     } catch (e) {
