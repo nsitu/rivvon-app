@@ -19,14 +19,14 @@ loadMaterialSymbols([
     'step_over', 'close_fullscreen', 'open_in_full', 'warning',
     'video_file', 'frame_source', 'barcode', 'timer', 'speed',
     'calculate', 'view_compact', 'rotate_right', 'equalizer',
-    'arrow_range', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
+    'arrow_range', 'resize', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
     'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'arrow_forward', 'video_camera_back_add','arrow_back_ios','check','done_outline','visibility','hard_drive','cloud_upload','folder_zip','menu','block','animation',
     'polyline','file_export','image','airwave','videocam','content_copy','delete','edit','instant_mix','visibility_off',
     'cancel','restart_alt','center_focus_strong','theaters','stop','delete_sweep','close','mood','progress_activity',
     'genetics','rounded_corner','face','3d_rotation','open_with',
     'checklist','check_box','check_box_outline_blank','monitoring',
     'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule','directions_walk',
-    'play_circle','download_done','line_curve'
+    'play_circle','download_done','line_curve','crop_free'
 ]);
 
 // Import utilities

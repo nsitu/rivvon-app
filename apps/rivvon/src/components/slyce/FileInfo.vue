@@ -17,7 +17,7 @@
     import VideoControls from './VideoControls.vue';
     import CropOverlay from './CropOverlay.vue';
     import SamplingOverlay from './SamplingOverlay.vue';
-    import FrameRangeSelector from './FrameRangeSelector.vue';
+
 
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
@@ -26,6 +26,8 @@
 
     const videoPlayerRef = ref(null);
     const videoWithCropRef = ref(null);
+
+    defineExpose({ videoPlayerRef });
     const videoDimensions = ref({ displayWidth: 0, displayHeight: 0 });
 
     // Update dimensions when video loads or resizes
@@ -104,12 +106,6 @@
 
         <!-- Custom controls always shown -->
         <VideoControls
-            v-if="app.fileURL"
-            :videoRef="videoPlayerRef"
-        />
-
-        <!-- Frame range selector -->
-        <FrameRangeSelector
             v-if="app.fileURL"
             :videoRef="videoPlayerRef"
         />

@@ -12,11 +12,11 @@ export const useSlyceStore = defineStore('slyce', {
         frameStart: 1,       // Start frame of range (1-indexed)
         frameEnd: 0,         // End frame of range (0 = unset; defaults to frameCount)
         frameNumber: 0,
-        crossSectionCount: 30,
+        crossSectionCount: 60,
         crossSectionType: 'waves', // planes, waves
         samplingSide: 'long',       // long, short — resolved to rows/columns via samplingAxis getter
         // tileMode removed — always 'tile' by convention (full-size mode unused)
-        potResolution: 512,             // 32, 64, 128, 256, 512, 1024
+        potResolution: 256,             // 32, 64, 128, 256, 512, 1024
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,

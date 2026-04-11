@@ -64,14 +64,9 @@
 
         <div class="tile-labels">
             <div class="flex items-center">
-                <span class="small-icon material-symbols-outlined">arrow_range</span>
+                <span class="small-icon material-symbols-outlined">crop_free</span>
                 <span>{{ width }}</span>
-                <span style="font-variant: small-caps;">px</span>
-            </div>
-            <div class="flex items-center">
-                <span class="small-icon flipped-icon material-symbols-outlined">arrow_range</span>
-                <span> {{ height }} </span>
-                <span style="font-variant: small-caps;">px</span>
+                <span style="font-variant: small-caps;">px</span><sup>2</sup>
             </div>
             <div class="flex items-center">
                 <span style="font-variant: small-caps;">f</span>

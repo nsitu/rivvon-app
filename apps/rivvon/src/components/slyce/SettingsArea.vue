@@ -24,6 +24,7 @@
     })
 
     import FileInfo from './FileInfo.vue';
+    import FrameRangeSelector from './FrameRangeSelector.vue';
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
@@ -31,7 +32,8 @@
     import InputGroup from 'primevue/inputgroup';
     import InputGroupAddon from 'primevue/inputgroupaddon';
 
-
+    import ProgressSpinner from 'primevue/progressspinner';
+    import ToggleSwitch from 'primevue/toggleswitch';
 
     // Watch for changes in samplingSide and adjust samplePixelCount accordingly
     watchEffect(() => {
@@ -78,18 +80,12 @@
     // Determine if video displays as portrait (height > width after rotation)
     const isPortraitVideo = computed(() => {
         if (!app.fileInfo?.width || !app.fileInfo?.height) return false;
-        // Normalize rotation to 0-359 range (handles negative values like -90)
         const rotation = ((app.fileInfo.rotation || 0) % 360 + 360) % 360;
         const isRotated90or270 = rotation === 90 || rotation === 270;
-        // After rotation, dimensions are swapped
         const effectiveWidth = isRotated90or270 ? app.fileInfo.height : app.fileInfo.width;
         const effectiveHeight = isRotated90or270 ? app.fileInfo.width : app.fileInfo.height;
         return effectiveHeight > effectiveWidth;
     });
-
-    import RadioButton from 'primevue/radiobutton';
-    import ProgressSpinner from 'primevue/progressspinner';
-    import ToggleSwitch from 'primevue/toggleswitch';
 
     // Loading state - show spinner until metadata is ready
     const isLoading = computed(() => {
@@ -113,8 +109,21 @@
         ];
     });
 
+    const fileInfoRef = ref(null);
 
+    // Trimmed vs full length — explicit flag so the dropdown stays on "trimmed"
+    // even before the user changes the frame range
+    const isTrimmed = ref(
+        app.frameStart > 1 || (app.frameEnd > 0 && app.frameEnd < app.frameCount)
+    );
 
+    function setTrimmed(val) {
+        isTrimmed.value = val;
+        if (!val) {
+            app.frameStart = 1;
+            app.frameEnd = app.frameCount;
+        }
+    }
 
 
 
@@ -137,6 +146,7 @@
         class="three-column-layout"
     >
         <FileInfo
+            ref="fileInfoRef"
             class="file-info-column"
             :class="isPortraitVideo ? 'file-info-narrow' : 'file-info-wide'"
         ></FileInfo>
@@ -145,272 +155,136 @@
             id="settings"
             class="settings-column"
         >
-            <h3 class="text-xl">Area of Interest</h3>
-
-
-            <div class="flex w-full segmented-control">
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-left"
-                    for="fullFrame"
-                    :class="(!app.cropMode) ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.cropMode"
-                            inputId="fullFrame"
-                            name="cropMode"
-                            :value="false"
-                        />
-                        <span>Entire Video Frame</span>
-
-                    </div>
-                    <small>Sample the full dimensions of the original video</small>
-                </label>
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-right"
-                    for="regionOfInterest"
-                    :class="(app.cropMode) ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.cropMode"
-                            inputId="regionOfInterest"
-                            name="cropMode"
-                            :value="true"
-                        />
-                        <span>Region of Interest</span>
-
-                    </div>
-                    <small>Sample a cropped rectangular area</small>
-                </label>
-            </div>
-
-
-            <div
-                v-if="app.cropMode"
-                class="input-row"
-            >
-                <span>Crop to</span>
-                <InputNumber
-                    v-model="app.cropWidth"
-                    :min="1"
-                    :max="app.fileInfo?.width"
-                    :disabled="!app.fileInfo?.width"
-                    class="crop-input"
-                />
-                <span>×</span>
-                <InputNumber
-                    v-model="app.cropHeight"
-                    :min="1"
-                    :max="app.fileInfo?.height"
-                    :disabled="!app.fileInfo?.height"
-                    class="crop-input"
-                />
-                <span>at offset</span>
-                <InputGroup
-                    :class="{ 'disabled-group': app.cropWidth >= app.fileInfo?.width }"
-                    style="display: inline-flex;
-    position: relative;
-    width: auto;"
-                >
-                    <InputGroupAddon>x</InputGroupAddon>
-                    <InputNumber
-                        v-model="app.cropX"
-                        :min="0"
-                        :max="Math.max(0, (app.fileInfo?.width || 0) - (app.cropWidth || 0))"
-                        :disabled="!app.fileInfo?.width || app.cropWidth >= app.fileInfo?.width"
-                        class="crop-input"
-                    />
-
-                </InputGroup>
-
-
-
-
-                <span> and</span>
-
-                <InputGroup
-                    :class="{ 'disabled-group': app.cropHeight >= app.fileInfo?.height }"
-                    style="display: inline-flex;
-    position: relative;
-    width: auto;"
-                >
-                    <InputGroupAddon>y</InputGroupAddon>
-                    <InputNumber
-                        v-model="app.cropY"
-                        :min="0"
-                        :max="Math.max(0, (app.fileInfo?.height || 0) - (app.cropHeight || 0))"
-                        :disabled="!app.fileInfo?.height || app.cropHeight >= app.fileInfo?.height"
-                        class="crop-input"
-                    />
-                </InputGroup>
-            </div>
-
-            <h3 class="text-xl">Cross Section Type</h3>
-
-            <div class="flex w-full segmented-control">
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-left"
-                    for="planes"
-                    :class="(app.crossSectionType === 'planes') ? 'activeLabel' : ''"
-                >
-
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.crossSectionType"
-                            inputId="planes"
-                            name="crossSectionType"
-                            value="planes"
-                        />
-                        <span>Planes</span>
-                        <svg
-                            class="ml-auto"
-                            xmlns="http://www.w3.org/2000/svg"
-                            version="1.1"
-                            viewBox="0 0 100 30"
-                        >
-                            <line
-                                x1="0"
-                                y1="2.3"
-                                x2="100"
-                                y2="2.3"
-                            />
-                            <line
-                                x1="0"
-                                y1="5.1"
-                                x2="100"
-                                y2="5.1"
-                            />
-                            <line
-                                x1="0"
-                                y1="20.7"
-                                x2="100"
-                                y2="20.7"
-                            />
-                            <line
-                                x1="0"
-                                y1="15"
-                                x2="100"
-                                y2="15"
-                            />
-                            <line
-                                x1="0"
-                                y1="27.7"
-                                x2="100"
-                                y2="27.7"
-                            />
-                            <line
-                                x1="0"
-                                y1="24.9"
-                                x2="100"
-                                y2="24.9"
-                            />
-                            <line
-                                x1="0"
-                                y1="9.3"
-                                x2="100"
-                                y2="9.3"
-                            />
-                        </svg>
-                    </div>
-                    <small>Sample an eased distribution of planes</small>
-                </label>
-                <label
-                    class="flex flex-col grow items-start gap-2 segment-right"
-                    for="waves"
-                    :class="(app.crossSectionType === 'waves') ? 'activeLabel' : ''"
-                >
-                    <div class="flex items-center gap-2 w-full">
-                        <RadioButton
-                            v-model="app.crossSectionType"
-                            inputId="waves"
-                            name="crossSectionType"
-                            value="waves"
-                        />
-
-                        <span>Waves</span>
-                        <svg
-                            viewBox="0 0 100 30"
-                            class="ml-auto"
-                        >
-                            <path
-                                d="M0,0c9.1,0,17.1,7.5,25,15,8,7.5,15.9,15,25,15s17.1-7.5,25-15c8-7.5,15.9-15,25-15" />
-                            <path d="M0,15c7.9,7.5,15.9,15,25,15s17.1-7.5,25-15C58,7.5,65.9,0,75,0s17.1,7.5,25,15" />
-                            <path
-                                d="M0,30c9.1,0,17.1-7.5,25-15C33,7.5,40.9,0,50,0s17.1,7.5,25,15c8,7.5,15.9,15,25,15" />
-                            <path d="M0,15C8,7.5,15.9,0,25,0s17.1,7.5,25,15c8,7.5,15.9,15,25,15s17.1-7.5,25-15" />
-                        </svg>
-                    </div>
-                    <small>Sample a linear distribution of wave forms</small>
-                </label>
-            </div>
-
-            <h3 class="text-xl">Sampling</h3>
-
-            <div class="input-row">
+            <p class="settings-paragraph">
                 <span>Sample</span>
-                <InputNumber
+                <Select
                     v-model="app.crossSectionCount"
-                    placeholder="60"
-                    :min="1"
-                    :max="240"
-                >
-                </InputNumber>
+                    :options="[30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240]"
+                    class="inline-select"
+                />
                 <span>arrays of</span>
                 <Select
                     v-model="app.samplingSide"
                     :options="sideOptions"
                     optionValue="value"
                     optionLabel="name"
+                    class="inline-select"
                 />
-                <span>pixels from frames</span>
-                <InputNumber
-                    v-model="app.frameStart"
-                    :min="1"
-                    :max="app.frameEnd || app.frameCount"
-                    :disabled="!app.frameCount"
-                    class="frames-input"
-                ></InputNumber>
-                <span>to</span>
-                <InputNumber
-                    v-model="app.frameEnd"
-                    :min="app.frameStart || 1"
-                    :max="app.frameCount"
-                    :disabled="!app.frameCount"
-                    class="frames-input"
-                ></InputNumber>
-            </div>
-            <div class="input-row">
-                <span>Make square tiles with</span>
+                <span>pixels.</span>
+            </p>
+
+            <p class="settings-paragraph">
+                <ToggleSwitch
+                    :modelValue="app.crossSectionType === 'waves'"
+                    @update:modelValue="val => app.crossSectionType = val ? 'waves' : 'planes'"
+                />
+                <span>Use dynamic cross section.</span>
+            </p>
+
+            <p class="settings-paragraph">
+                <ToggleSwitch
+                    :modelValue="isTrimmed"
+                    @update:modelValue="setTrimmed"
+                />
+                <template v-if="!isTrimmed">
+                    <span>Trim video.</span>
+                </template>
+                <template v-else>
+                    <span>Trim from frame</span>
+                    <InputNumber
+                        v-model="app.frameStart"
+                        :min="1"
+                        :max="app.frameEnd || app.frameCount"
+                        :disabled="!app.frameCount"
+                        class="inline-number frames-input"
+                    />
+                    <span>to</span>
+                    <InputNumber
+                        v-model="app.frameEnd"
+                        :min="app.frameStart || 1"
+                        :max="app.frameCount"
+                        :disabled="!app.frameCount"
+                        class="inline-number frames-input"
+                    />
+                </template>
+            </p>
+
+            <FrameRangeSelector
+                v-if="isTrimmed"
+                :videoRef="fileInfoRef?.videoPlayerRef"
+            />
+
+            <p class="settings-paragraph">
+                <ToggleSwitch v-model="app.cropMode" />
+                <template v-if="!app.cropMode">
+                    <span>Crop video.</span>
+                </template>
+                <template v-else>
+                    <span>Crop to</span>
+                    <InputNumber
+                        v-model="app.cropWidth"
+                        :min="1"
+                        :max="app.fileInfo?.width"
+                        :disabled="!app.fileInfo?.width"
+                        class="inline-number crop-input"
+                    />
+                    <span>×</span>
+                    <InputNumber
+                        v-model="app.cropHeight"
+                        :min="1"
+                        :max="app.fileInfo?.height"
+                        :disabled="!app.fileInfo?.height"
+                        class="inline-number crop-input"
+                    />
+                    <span>at offset</span>
+                    <InputGroup
+                        :class="{ 'disabled-group': app.cropWidth >= app.fileInfo?.width }"
+                        class="inline-input-group"
+                    >
+                        <InputGroupAddon>x</InputGroupAddon>
+                        <InputNumber
+                            v-model="app.cropX"
+                            :min="0"
+                            :max="Math.max(0, (app.fileInfo?.width || 0) - (app.cropWidth || 0))"
+                            :disabled="!app.fileInfo?.width || app.cropWidth >= app.fileInfo?.width"
+                            class="crop-input"
+                        />
+                    </InputGroup>
+                    <span>and</span>
+                    <InputGroup
+                        :class="{ 'disabled-group': app.cropHeight >= app.fileInfo?.height }"
+                        class="inline-input-group"
+                    >
+                        <InputGroupAddon>y</InputGroupAddon>
+                        <InputNumber
+                            v-model="app.cropY"
+                            :min="0"
+                            :max="Math.max(0, (app.fileInfo?.height || 0) - (app.cropHeight || 0))"
+                            :disabled="!app.fileInfo?.height || app.cropHeight >= app.fileInfo?.height"
+                            class="crop-input"
+                        />
+                    </InputGroup>
+                </template>
+            </p>
+
+            <p class="settings-paragraph">
+                <span>Output tiles with</span>
                 <Select
                     v-model="app.potResolution"
-                    :options="[{
-                        name: '32px',
-                        value: 32
-                    }, {
-                        name: '64px',
-                        value: 64
-                    }, {
-                        name: '128px',
-                        value: 128
-                    }, {
-                        name: '256px',
-                        value: 256
-                    }, {
-                        name: '512px',
-                        value: 512
-                    }, {
-                        name: '1024px',
-                        value: 1024
-                    }]"
+                    :options="[
+                        { name: '32', value: 32 },
+                        { name: '64', value: 64 },
+                        { name: '128', value: 128 },
+                        { name: '256', value: 256 },
+                        { name: '512', value: 512 },
+                        { name: '1024', value: 1024 },
+                    ]"
                     optionValue="value"
                     optionLabel="name"
+                    class="inline-select"
                 />
-                <span>resolution</span>
-            </div>
-
-
-
+                <span>pixels square.</span>
+            </p>
         </div>
 
         <div class="tiles-column">
@@ -591,7 +465,7 @@
     .settings-column {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0;
         align-items: flex-start;
         width: 100%;
         min-width: 0;
@@ -603,7 +477,65 @@
         }
     }
 
-    /* Tiles column - fixed width based on tile container */
+    /* Sentence-based settings paragraph */
+    .settings-paragraph {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        color: var(--text-secondary, #ccc);
+        margin: 0.5rem 0;
+        padding: 0.1rem 0;
+    }
+
+
+    .settings-paragraph.conditional {
+        padding-left: 1.25rem;
+        border-left: 2px solid var(--border-muted, #333);
+    }
+
+
+    .settings-paragraph>span {
+
+        white-space: nowrap;
+    }
+
+    /* Inline PrimeVue overrides */
+    .inline-select {
+        display: inline-flex;
+    }
+
+    .inline-number {
+        display: inline-flex;
+    }
+
+    .inline-input-group {
+        display: inline-flex;
+        position: relative;
+        width: auto;
+    }
+
+    :deep(.inline-select .p-select) {
+        min-width: 0;
+    }
+
+    :deep(.inline-number .p-inputnumber-input) {
+        width: 4rem;
+    }
+
+    :deep(.frames-input .p-inputnumber-input) {
+        width: 5.5rem;
+    }
+
+    :deep(.crop-input .p-inputnumber-input) {
+        width: 5rem;
+    }
+
+    .disabled-group {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
     .tiles-column {
         display: flex;
         flex-direction: column;
@@ -619,16 +551,6 @@
         }
     }
 
-    /* Input row - wraps on mobile */
-    .input-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        align-items: center;
-        justify-content: flex-start;
-        width: 100%;
-    }
-
     /* Process button */
     .process-button {
         width: 100%;
@@ -641,60 +563,6 @@
         }
     }
 
-    span.sample-pixel-count {
-        font-variant: small-caps;
-        color: #10b981;
-        border: 1px solid #10b981;
-        border-radius: 0.25rem;
-        padding: 0.25rem 0.5rem;
-    }
-
-
-
-    .segmented-control label {
-        box-shadow: rgba(0, 30, 43, 0.3) 0px 4px 10px -4px;
-        padding: 1.5rem;
-        border-radius: 1rem;
-        cursor: pointer;
-        outline: 2px solid var(--border-muted);
-        background-color: var(--bg-card);
-        color: var(--text-primary);
-    }
-
-    .segmented-control label span {
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .segmented-control label small {
-        color: var(--text-tertiary);
-    }
-
-    .segmented-control label:hover {
-        outline: 2px solid lightgreen;
-    }
-
-    .segmented-control label.activeLabel {
-        outline: 2px solid #10b981;
-    }
-
-    .segmented-control label svg {
-        background: var(--bg-muted-alt);
-        width: 6rem;
-        margin-left: auto;
-    }
-
-    .segmented-control label.activeLabel svg {
-        background: #10b981;
-    }
-
-    .segmented-control label svg line,
-    .segmented-control label svg path {
-        fill: none;
-        stroke: #fff;
-        stroke-miterlimit: 10;
-    }
-
     :deep(.p-inputnumber-input) {
         width: 4rem;
     }
@@ -705,63 +573,6 @@
 
     :deep(.crop-input .p-inputnumber-input) {
         width: 5rem;
-    }
-
-    .disabled-group {
-        opacity: 0.5;
-        pointer-events: none;
-    }
-
-    /* Segmented control styling - mobile first (stacked) */
-    .segmented-control {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    @media (min-width: 640px) {
-        .segmented-control {
-            flex-direction: row;
-            gap: 0;
-        }
-    }
-
-    .segmented-control label {
-        box-shadow: none;
-        outline: 2px solid var(--border-muted);
-        max-width: 100%;
-        margin: 0 0.25rem;
-        background-color: var(--bg-card);
-    }
-
-    @media (min-width: 640px) {
-        .segmented-control label {
-            max-width: 50%;
-            margin: 0;
-        }
-    }
-
-    .segmented-control label.segment-left {
-        border-radius: 1rem;
-    }
-
-    .segmented-control label.segment-right {
-        border-radius: 1rem;
-    }
-
-    @media (min-width: 640px) {
-        .segmented-control label.segment-left {
-            border-radius: 1rem 0 0 1rem;
-        }
-
-        .segmented-control label.segment-right {
-            border-radius: 0 1rem 1rem 0;
-        }
-    }
-
-    .segmented-control label.activeLabel {
-        outline: 2px solid #10b981;
-        background-color: var(--accent-green-light);
-        z-index: 1;
     }
 
     .settings-placeholder {
