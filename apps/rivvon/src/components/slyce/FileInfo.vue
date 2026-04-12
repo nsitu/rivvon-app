@@ -269,7 +269,7 @@
     /* Responsive table - stacked on mobile */
     @media (max-width: 639px) {
         .video-with-crop {
-            --video-preview-max-height: 60vh;
+            --video-preview-max-height: 50vh;
         }
 
         /* .file-info-table tbody,
