@@ -97,6 +97,7 @@
         <p class="source-drop-hint">Drag and drop a video anywhere on this screen to jump straight into the file
             workflow.</p>
 
+
         <input
             ref="fileInput"
             type="file"
@@ -216,6 +217,12 @@
         margin: 0;
         color: rgba(232, 238, 248, 0.52);
         font-size: 0.88rem;
+    }
+
+    @media (pointer: coarse) {
+        .source-drop-hint {
+            display: none;
+        }
     }
 
     @media (max-width: 720px) {

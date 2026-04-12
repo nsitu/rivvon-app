@@ -181,6 +181,9 @@
         emit('apply-realtime-texture');
     }
 
+    const stepLabels = { '1': 'Start', '2': 'Config', '3': 'Process', '4': 'Done' };
+    const currentStepLabel = computed(() => stepLabels[stepperValue.value] || '');
+
     function isStepActive(value) {
         return Number(value) <= Number(stepperValue.value);
     }
@@ -375,6 +378,7 @@
                             </div>
                         </Step>
                     </StepList>
+                    <div class="mobile-step-label">{{ currentStepLabel }}</div>
                     <StepPanels>
                         <StepPanel value="1">
                             <UploadArea
@@ -566,16 +570,34 @@
         min-width: 2rem;
     }
 
+    .mobile-step-label {
+        display: none;
+    }
+
     @media (max-width: 720px) {
         .slyce-content :deep(.p-steplist) {
             width: 100%;
-            overflow-x: auto;
-            justify-content: flex-start;
-            padding-bottom: 1.25rem;
+            justify-content: center;
+            padding-bottom: 0.5rem;
         }
 
         .step-item {
             flex: 0 0 auto;
+        }
+
+        .step-label {
+            display: none;
+        }
+
+        .mobile-step-label {
+            display: block;
+            text-align: center;
+            color: var(--texture-creator-step-title-active);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding-bottom: 0.75rem;
         }
     }
 </style>

@@ -95,7 +95,7 @@ const processVideo = async (settings) => {
     // Suspend the viewer to free GPU/CPU resources for encoding
     const viewerStore = useViewerStore();
     const slyceStore = useSlyceStore();
-    viewerStore.suspendViewer(slyceStore.freeGpuResources);
+    viewerStore.suspendViewer(true);
 
     // Create new abort controller for this processing run
     abortController = new AbortController();

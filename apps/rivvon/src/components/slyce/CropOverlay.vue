@@ -12,6 +12,14 @@
         containerHeight: {
             type: Number,
             required: true
+        },
+        offsetX: {
+            type: Number,
+            default: 0
+        },
+        offsetY: {
+            type: Number,
+            default: 0
         }
     });
 
@@ -38,6 +46,8 @@
     // Drag state
     const isDragging = ref(false);
     const dragMode = ref(null); // 'move', 'n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'
+    const activePointerId = ref(null);
+    const activeTouchId = ref(null);
     const dragStart = ref({ x: 0, y: 0 });
     const dragInitial = ref({ cropX: 0, cropY: 0, cropWidth: 0, cropHeight: 0 });
 
@@ -114,11 +124,10 @@
         }
     };
 
-    // Drag handlers
-    const startDrag = (mode, event) => {
+    function beginDrag(mode, clientX, clientY) {
         isDragging.value = true;
         dragMode.value = mode;
-        dragStart.value = { x: event.clientX, y: event.clientY };
+        dragStart.value = { x: clientX, y: clientY };
         dragInitial.value = {
             cropX: displayCropX.value,
             cropY: displayCropY.value,
@@ -126,18 +135,12 @@
             cropHeight: displayCropHeight.value
         };
 
-        // Prevent text selection during drag
         document.body.style.userSelect = 'none';
+    }
 
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', stopDrag);
-    };
-
-    const onDrag = (event) => {
-        if (!isDragging.value) return;
-
-        const deltaX = event.clientX - dragStart.value.x;
-        const deltaY = event.clientY - dragStart.value.y;
+    function computeDragResult(clientX, clientY) {
+        const deltaX = clientX - dragStart.value.x;
+        const deltaY = clientY - dragStart.value.y;
 
         // Convert screen delta to video pixel delta (using effective dimensions)
         const videoDeltaX = Math.round(deltaX / scaleX.value);
@@ -182,22 +185,129 @@
             }
         }
 
-        // Convert display coordinates back to original and store
-        setOriginalFromDisplay(newX, newY, newWidth, newHeight);
+        return {
+            deltaX,
+            deltaY,
+            newX,
+            newY,
+            newWidth,
+            newHeight,
+            movedX: newX !== initial.cropX || newWidth !== initial.cropWidth,
+            movedY: newY !== initial.cropY || newHeight !== initial.cropHeight,
+        };
+    }
+
+    function applyDragResult(result) {
+        setOriginalFromDisplay(result.newX, result.newY, result.newWidth, result.newHeight);
+    }
+
+    function cleanupDragListeners() {
+        document.removeEventListener('pointermove', onPointerDrag);
+        document.removeEventListener('pointerup', stopPointerDrag);
+        document.removeEventListener('pointercancel', stopPointerDrag);
+        document.removeEventListener('touchmove', onTouchDrag);
+        document.removeEventListener('touchend', stopTouchDrag);
+        document.removeEventListener('touchcancel', stopTouchDrag);
+
+        document.body.style.userSelect = '';
+    }
+
+    // Drag handlers
+    const startPointerDrag = (mode, event) => {
+        if (event.pointerType === 'touch') return;
+
+        event.preventDefault();
+        if (activePointerId.value !== null || activeTouchId.value !== null) return;
+
+        activePointerId.value = event.pointerId;
+        beginDrag(mode, event.clientX, event.clientY);
+
+        if (event.currentTarget?.setPointerCapture) {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        }
+
+        document.addEventListener('pointermove', onDrag);
+        document.addEventListener('pointerup', stopPointerDrag);
+        document.addEventListener('pointercancel', stopPointerDrag);
     };
 
-    const stopDrag = () => {
+    const startTouchDrag = (mode, event) => {
+        if (activeTouchId.value !== null || activePointerId.value !== null) return;
+
+        const touch = event.changedTouches?.[0];
+        if (!touch) return;
+
+        if (mode !== 'move') {
+            event.preventDefault();
+        }
+
+        activeTouchId.value = touch.identifier;
+        beginDrag(mode, touch.clientX, touch.clientY);
+
+        document.addEventListener('touchmove', onTouchDrag, { passive: false });
+        document.addEventListener('touchend', stopTouchDrag);
+        document.addEventListener('touchcancel', stopTouchDrag);
+    };
+
+    const onPointerDrag = (event) => {
+        if (!isDragging.value || event.pointerId !== activePointerId.value) return;
+
+        event.preventDefault();
+        applyDragResult(computeDragResult(event.clientX, event.clientY));
+    };
+
+    const onTouchDrag = (event) => {
+        if (!isDragging.value || activeTouchId.value === null) return;
+
+        const touch = Array.from(event.changedTouches || []).find((item) => item.identifier === activeTouchId.value)
+            || Array.from(event.touches || []).find((item) => item.identifier === activeTouchId.value);
+
+        if (!touch) return;
+
+        const result = computeDragResult(touch.clientX, touch.clientY);
+        const totalMotion = Math.abs(result.deltaX) + Math.abs(result.deltaY);
+
+        if (totalMotion < 2) return;
+
+        if (dragMode.value === 'move') {
+            const dominantAxis = Math.abs(result.deltaY) >= Math.abs(result.deltaX) ? 'y' : 'x';
+            const movedInDominantAxis = dominantAxis === 'y' ? result.movedY : result.movedX;
+
+            if (!movedInDominantAxis) {
+                stopTouchDrag();
+                return;
+            }
+        }
+
+        event.preventDefault();
+        applyDragResult(result);
+    };
+
+    const stopPointerDrag = (event) => {
+        if (event && event.pointerId !== activePointerId.value) return;
+
         isDragging.value = false;
         dragMode.value = null;
-        document.body.style.userSelect = '';
-        document.removeEventListener('mousemove', onDrag);
-        document.removeEventListener('mouseup', stopDrag);
+        activePointerId.value = null;
+        cleanupDragListeners();
+    };
+
+    const stopTouchDrag = (event) => {
+        if (event && activeTouchId.value !== null) {
+            const endedTouch = Array.from(event.changedTouches || []).find((item) => item.identifier === activeTouchId.value);
+            if (!endedTouch) return;
+        }
+
+        isDragging.value = false;
+        dragMode.value = null;
+        activeTouchId.value = null;
+        cleanupDragListeners();
     };
 
     onUnmounted(() => {
-        document.body.style.userSelect = '';
-        document.removeEventListener('mousemove', onDrag);
-        document.removeEventListener('mouseup', stopDrag);
+        activePointerId.value = null;
+        activeTouchId.value = null;
+        cleanupDragListeners();
     });
 </script>
 
@@ -205,6 +315,8 @@
     <div
         class="crop-overlay-container"
         :style="{
+            left: `${props.offsetX}px`,
+            top: `${props.offsetY}px`,
             width: `${props.containerWidth}px`,
             height: `${props.containerHeight}px`
         }"
@@ -218,40 +330,49 @@
                 width: `${scaledCropWidth}px`,
                 height: `${scaledCropHeight}px`
             }"
-            @mousedown="startDrag('move', $event)"
+            @pointerdown="startPointerDrag('move', $event)"
+            @touchstart.stop="startTouchDrag('move', $event)"
         >
             <!-- Resize handles -->
             <div
                 class="handle handle-nw"
-                @mousedown.stop="startDrag('nw', $event)"
+                @pointerdown.stop="startPointerDrag('nw', $event)"
+                @touchstart.stop="startTouchDrag('nw', $event)"
             />
             <div
                 class="handle handle-ne"
-                @mousedown.stop="startDrag('ne', $event)"
+                @pointerdown.stop="startPointerDrag('ne', $event)"
+                @touchstart.stop="startTouchDrag('ne', $event)"
             />
             <div
                 class="handle handle-sw"
-                @mousedown.stop="startDrag('sw', $event)"
+                @pointerdown.stop="startPointerDrag('sw', $event)"
+                @touchstart.stop="startTouchDrag('sw', $event)"
             />
             <div
                 class="handle handle-se"
-                @mousedown.stop="startDrag('se', $event)"
+                @pointerdown.stop="startPointerDrag('se', $event)"
+                @touchstart.stop="startTouchDrag('se', $event)"
             />
             <div
                 class="handle handle-n"
-                @mousedown.stop="startDrag('n', $event)"
+                @pointerdown.stop="startPointerDrag('n', $event)"
+                @touchstart.stop="startTouchDrag('n', $event)"
             />
             <div
                 class="handle handle-s"
-                @mousedown.stop="startDrag('s', $event)"
+                @pointerdown.stop="startPointerDrag('s', $event)"
+                @touchstart.stop="startTouchDrag('s', $event)"
             />
             <div
                 class="handle handle-e"
-                @mousedown.stop="startDrag('e', $event)"
+                @pointerdown.stop="startPointerDrag('e', $event)"
+                @touchstart.stop="startTouchDrag('e', $event)"
             />
             <div
                 class="handle handle-w"
-                @mousedown.stop="startDrag('w', $event)"
+                @pointerdown.stop="startPointerDrag('w', $event)"
+                @touchstart.stop="startTouchDrag('w', $event)"
             />
 
             <!-- Dimension label -->
@@ -265,62 +386,71 @@
 <style scoped>
     .crop-overlay-container {
         position: absolute;
-        top: 0;
-        left: 0;
         pointer-events: none;
+        overflow: visible;
+        z-index: 2;
     }
 
     .crop-overlay {
         position: absolute;
-        border: 2px dashed #10b981;
+        --crop-border-width: 2px;
+        --crop-handle-size: 1rem;
+        border: var(--crop-border-width) dashed #10b981;
         cursor: move;
         box-sizing: border-box;
         pointer-events: auto;
+        z-index: 2;
     }
 
     .handle {
         position: absolute;
-        width: 10px;
-        height: 10px;
-        background: #10b981;
-        border: 1px solid #fff;
+        width: var(--crop-handle-size);
+        height: var(--crop-handle-size);
+        /* background: #10b981;
+        border: 1px solid #fff; */
+        background: #ffffff;
+        border: 3px solid #10b981;
+
         border-radius: 2px;
+        box-sizing: border-box;
         pointer-events: auto;
+        touch-action: none;
+        z-index: 1;
     }
 
     .handle-nw {
-        top: -5px;
-        left: -5px;
+        top: calc(var(--crop-border-width) * -1);
+        left: calc(var(--crop-border-width) * -1);
         cursor: nw-resize;
     }
 
     .handle-ne {
-        top: -5px;
-        right: -5px;
+        top: calc(var(--crop-border-width) * -1);
+        right: calc(var(--crop-border-width) * -1);
         cursor: ne-resize;
     }
 
     .handle-sw {
-        bottom: -5px;
-        left: -5px;
+        bottom: calc(var(--crop-border-width) * -1);
+        left: calc(var(--crop-border-width) * -1);
         cursor: sw-resize;
     }
 
     .handle-se {
-        bottom: -5px;
-        right: -5px;
+        bottom: calc(var(--crop-border-width) * -1);
+        right: calc(var(--crop-border-width) * -1);
         cursor: se-resize;
     }
 
     .handle-n {
-        top: -5px;
+        top: calc(var(--crop-border-width) * -1);
         left: 50%;
         transform: translateX(-50%);
         cursor: n-resize;
     }
 
     .handle-s {
-        bottom: -5px;
+        bottom: calc(var(--crop-border-width) * -1);
         left: 50%;
         transform: translateX(-50%);
         cursor: s-resize;
@@ -328,21 +458,21 @@
 
     .handle-e {
         top: 50%;
-        right: -5px;
+        right: calc(var(--crop-border-width) * -1);
         transform: translateY(-50%);
         cursor: e-resize;
     }
 
     .handle-w {
         top: 50%;
-        left: -5px;
+        left: calc(var(--crop-border-width) * -1);
         transform: translateY(-50%);
         cursor: w-resize;
     }
 
     .crop-dimensions {
         position: absolute;
-        top: 8px;
+        top: 1rem;
         left: 50%;
         transform: translateX(-50%);
         background: rgba(16, 185, 129, 0.9);

@@ -1,31 +1,100 @@
 <template>
     <div class="tile-preview">
-        <!-- Tiles displayed horizontally with flow arrows between them -->
+        <h3 class="text-xl mb-3">Summary of Tiles to be Created</h3>
         <div
             v-if="tiles?.length"
-            class="tile-container-rows"
+            class="tile-preview-row"
         >
-            <template
-                v-for="(tile, index) in tiles"
-                :key="`row-${tile.start}`"
-            >
-                <Tile
-                    :start="tile.start"
-                    :end="tile.end"
-                    :width="width"
-                    :height="height"
-                    :tileIndex="index"
-                    :previewUrl="previewUrls[index]"
-                />
-                <!-- Arrow between tiles (not after the last one) -->
-                <img
-                    v-if="index < tiles.length - 1"
-                    src="/row-flow.svg"
-                    alt=""
-                    class="row-flow-arrow"
-                    aria-hidden="true"
-                />
-            </template>
+
+            <div class="tile-preview-notes">
+                <p class="note-line">
+                    <span class="material-symbols-outlined note-icon">grid_view</span>
+                    {{ tiles.length }} tile{{ tiles.length !== 1 ? 's' : '' }}
+                </p>
+                <p class="note-line">
+                    <span class="material-symbols-outlined note-icon">aspect_ratio</span>
+                    {{ width }}×{{ height }}px per tile
+                </p>
+                <p
+                    v-if="app.crossSectionCount"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">layers</span>
+                    {{ app.crossSectionCount }} layers per tile
+                </p>
+                <p
+                    v-if="props.tilePlan.skipping"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">step_over</span>
+                    Skip {{ props.tilePlan.skipping }} frames
+                </p>
+                <p
+                    v-if="props.tilePlan.isScaled && props.tilePlan.scaleTo !== props.tilePlan.scaleFrom"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">{{ props.tilePlan.scaleTo <
+                        props.tilePlan.scaleFrom
+                        ? 'close_fullscreen'
+                        : 'open_in_full'
+                            }}</span
+                        >
+                            Scale {{ props.tilePlan.scaleFrom }}px → {{ props.tilePlan.scaleTo }}px
+                </p>
+                <p
+                    v-if="props.tilePlan.rotate"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">rotate_90_degrees_cw</span>
+                    Rotating {{ props.tilePlan.rotate }}°
+                </p>
+                <p
+                    v-if="app.framesToSample > 0 && app.framesToSample < app.frameCount"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">content_cut</span>
+                    Frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString() }}
+                </p>
+                <p class="note-line">
+                    <span class="material-symbols-outlined note-icon">tag</span>
+                    {{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString() }} frames
+                </p>
+                <p
+                    v-if="app.cropMode"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">crop</span>
+                    {{ app.cropWidth }}×{{ app.cropHeight }}px region
+                </p>
+                <template v-if="props.tilePlan.notices?.length">
+                    <p
+                        v-for="(notice, i) in props.tilePlan.notices"
+                        :key="i"
+                        class="note-line note-warning"
+                    >
+                        <span class="material-symbols-outlined note-icon">warning</span>
+                        {{ notice }}
+                    </p>
+                </template>
+            </div>
+            <!-- Tiles displayed vertically -->
+            <div class="tile-column-slot">
+                <div class="tile-container-cols">
+                    <template
+                        v-for="(tile, index) in tiles"
+                        :key="`col-${tile.start}`"
+                    >
+                        <Tile
+                            :start="tile.start"
+                            :end="tile.end"
+                            :width="width"
+                            :height="height"
+                            :tileIndex="index"
+                            :previewUrl="previewUrls[index]"
+                        />
+                    </template>
+                </div>
+            </div>
         </div>
 
         <!-- Progress info (only during processing) -->
@@ -119,58 +188,90 @@
     .tile-preview {
         position: relative;
         width: 100%;
+        --tile-column-width: 10rem;
     }
 
-    /* Tiles displayed horizontally with flow arrows */
-    .tile-container-rows {
+    .tile-preview-row {
         display: flex;
         flex-direction: row;
-        align-items: center;
-        gap: 0.15rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding-bottom: 0.5rem;
+        align-items: flex-start;
+        gap: 1rem;
+        position: relative;
+    }
+
+    .tile-column-slot {
+        position: relative;
+        flex: 0 0 var(--tile-column-width);
+        width: var(--tile-column-width);
+        align-self: stretch;
+    }
+
+    /* Tiles displayed vertically — absolutely positioned inside a reserved slot */
+    .tile-container-cols {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: end;
+        gap: 0.5rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 0.5rem;
         width: 100%;
-        max-width: calc(120px * 2.5 + 32px);
-        scroll-snap-type: x mandatory;
+        scrollbar-gutter: stable;
+        scroll-snap-type: y mandatory;
     }
 
-    @media (min-width: 640px) {
-        .tile-container-rows {
-            max-width: calc(120px * 3.5 + 32px);
-        }
-    }
-
-    .tile-container-rows> :deep(.tile) {
+    .tile-container-cols> :deep(.tile) {
         flex-shrink: 0;
         scroll-snap-align: start;
     }
 
-    /* Arrow graphic between tiles in rows mode */
-    .row-flow-arrow {
-        flex-shrink: 0;
-        height: 120px;
-        width: auto;
-        opacity: 0.5;
-    }
-
     /* Custom scrollbar styling */
-    .tile-container-rows::-webkit-scrollbar {
-        height: 8px;
+    .tile-container-cols::-webkit-scrollbar {
+        width: 8px;
     }
 
-    .tile-container-rows::-webkit-scrollbar-track {
+    .tile-container-cols::-webkit-scrollbar-track {
         background: #f1f1f1;
         border-radius: 4px;
     }
 
-    .tile-container-rows::-webkit-scrollbar-thumb {
+    .tile-container-cols::-webkit-scrollbar-thumb {
         background: #10b981;
         border-radius: 4px;
     }
 
-    .tile-container-rows::-webkit-scrollbar-thumb:hover {
+    .tile-container-cols::-webkit-scrollbar-thumb:hover {
         background: #059669;
+    }
+
+    .tile-preview-notes {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        align-self: flex-start;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .note-line {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.6);
+        line-height: 1.4;
+        margin: 0;
+    }
+
+    .note-icon {
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .note-warning {
+        color: rgba(255, 180, 80, 0.7);
     }
 
     /* Progress info */

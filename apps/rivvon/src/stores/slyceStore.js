@@ -61,7 +61,7 @@ export const useSlyceStore = defineStore('slyce', {
         ...createLocalSaveState(),
 
         // Resource management — when true, fully dispose viewer GPU context during processing
-        freeGpuResources: false,
+        freeGpuResources: true,
 
         // Reference to active TileSnapshotPreview instance (set by TilePreview.vue)
         tileSnapshotPreview: null,

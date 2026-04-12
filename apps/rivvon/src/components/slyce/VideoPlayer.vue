@@ -158,7 +158,16 @@
         pause: handlePause,
         getVideoDimensions: () => {
             const el = videoElement.value;
-            if (!el) return { displayWidth: 0, displayHeight: 0, videoWidth: 0, videoHeight: 0 };
+            if (!el) {
+                return {
+                    displayWidth: 0,
+                    displayHeight: 0,
+                    videoWidth: 0,
+                    videoHeight: 0,
+                    left: 0,
+                    top: 0
+                };
+            }
 
             // Use getBoundingClientRect for accurate screen dimensions
             // This correctly handles rotation metadata applied by the browser
@@ -167,6 +176,8 @@
             return {
                 displayWidth: rect.width,
                 displayHeight: rect.height,
+                left: rect.left,
+                top: rect.top,
                 videoWidth: el.videoWidth || 0,
                 videoHeight: el.videoHeight || 0
             };

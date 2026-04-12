@@ -7,6 +7,8 @@
     const props = defineProps({
         containerWidth: { type: Number, required: true },
         containerHeight: { type: Number, required: true },
+        offsetX: { type: Number, default: 0 },
+        offsetY: { type: Number, default: 0 },
         videoPlayer: { type: Object, default: null },
     });
 
@@ -142,9 +144,11 @@
         const count = app.crossSectionCount || 0;
         if (count <= 0) return;
 
+        const isWaves = app.crossSectionType !== 'planes';
+
         // Compute normalized positions (0–1)
         let positions;
-        if (app.crossSectionType === 'planes') {
+        if (!isWaves) {
             positions = computePlanesPositions(count);
         } else {
             const videoEl = props.videoPlayer?.videoElement;
@@ -155,24 +159,50 @@
         const region = lineRegion.value;
         const horizontal = isHorizontal.value;
 
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 1;
-        ctx.beginPath();
 
-        for (let i = 0; i < positions.length; i++) {
-            const frac = positions[i];
-            if (horizontal) {
-                const y = region.y + frac * region.h;
-                ctx.moveTo(region.x, y);
-                ctx.lineTo(region.x + region.w, y);
-            } else {
-                const x = region.x + frac * region.w;
-                ctx.moveTo(x, region.y);
-                ctx.lineTo(x, region.y + region.h);
+        if (isWaves) {
+            // White → light-green gradient across cross-sections (first to last)
+            for (let i = 0; i < positions.length; i++) {
+                const frac = positions[i];
+                const t = count > 1 ? i / (count - 1) : 0;
+                const r = Math.round(255 - t * 111); // 255 → 144
+                const g = Math.round(255 - t * 17);  // 255 → 238
+                const b = Math.round(255 - t * 111); // 255 → 144
+                ctx.strokeStyle = `rgba(${r},${g},${b},0.8)`;
+                ctx.beginPath();
+                if (horizontal) {
+                    const y = region.y + frac * region.h;
+                    ctx.moveTo(region.x, y);
+                    ctx.lineTo(region.x + region.w, y);
+                } else {
+                    const x = region.x + frac * region.w;
+                    ctx.moveTo(x, region.y);
+                    ctx.lineTo(x, region.y + region.h);
+                }
+                ctx.stroke();
+            }
+        } else {
+            // Planes: shimmer white lines with cycling opacity
+            const now = performance.now() / 1000;
+            for (let i = 0; i < positions.length; i++) {
+                const frac = positions[i];
+                const phase = (i / count) * Math.PI * 2;
+                const opacity = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(now * 2 + phase));
+                ctx.strokeStyle = `rgba(255,255,255,${opacity.toFixed(3)})`;
+                ctx.beginPath();
+                if (horizontal) {
+                    const y = region.y + frac * region.h;
+                    ctx.moveTo(region.x, y);
+                    ctx.lineTo(region.x + region.w, y);
+                } else {
+                    const x = region.x + frac * region.w;
+                    ctx.moveTo(x, region.y);
+                    ctx.lineTo(x, region.y + region.h);
+                }
+                ctx.stroke();
             }
         }
-
-        ctx.stroke();
     }
 
     // --- Animation loop ---
@@ -197,6 +227,8 @@
         ref="canvasRef"
         class="sampling-overlay"
         :style="{
+            left: `${offsetX}px`,
+            top: `${offsetY}px`,
             width: `${containerWidth}px`,
             height: `${containerHeight}px`
         }"
@@ -206,8 +238,7 @@
 <style scoped>
     .sampling-overlay {
         position: absolute;
-        top: 0;
-        left: 0;
         pointer-events: none;
+        z-index: 1;
     }
 </style>

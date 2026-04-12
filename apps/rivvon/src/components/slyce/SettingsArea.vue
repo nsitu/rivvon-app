@@ -13,7 +13,6 @@
     import { processVideo } from '../../modules/slyce/videoProcessor';
 
     import TilePreview from './TilePreview.vue';
-    import ExplanatoryMessages from './ExplanatoryMessages.vue';
 
 
     // when a file is uploaded get the metadata (skip if file is null/undefined)
@@ -24,10 +23,10 @@
     })
 
     import FileInfo from './FileInfo.vue';
-    import FrameRangeSelector from './FrameRangeSelector.vue';
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import Slider from 'primevue/slider';
 
     import InputGroup from 'primevue/inputgroup';
     import InputGroupAddon from 'primevue/inputgroupaddon';
@@ -104,9 +103,14 @@
         const longPx = Math.max(perceivedW, perceivedH);
         const shortPx = Math.min(perceivedW, perceivedH);
         return [
-            { name: `${longPx}`, value: 'long' },
-            { name: `${shortPx}`, value: 'short' },
+            { name: 'long', value: 'long', px: longPx },
+            { name: 'short', value: 'short', px: shortPx },
         ];
+    });
+
+    const selectedSidePx = computed(() => {
+        const opt = sideOptions.value.find(o => o.value === app.samplingSide);
+        return opt ? opt.px : '';
     });
 
     const fileInfoRef = ref(null);
@@ -124,6 +128,14 @@
             app.frameEnd = app.frameCount;
         }
     }
+
+    const frameRange = computed({
+        get: () => [app.frameStart || 1, app.frameEnd || app.frameCount || 1],
+        set: (val) => {
+            app.frameStart = val[0];
+            app.frameEnd = val[1];
+        }
+    });
 
 
 
@@ -156,13 +168,7 @@
             class="settings-column"
         >
             <p class="settings-paragraph">
-                <span>Sample</span>
-                <Select
-                    v-model="app.crossSectionCount"
-                    :options="[30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240]"
-                    class="inline-select"
-                />
-                <span>arrays of</span>
+                <span>Sample from the</span>
                 <Select
                     v-model="app.samplingSide"
                     :options="sideOptions"
@@ -170,15 +176,25 @@
                     optionLabel="name"
                     class="inline-select"
                 />
-                <span>pixels.</span>
+                <span>side<template v-if="selectedSidePx"> ({{ selectedSidePx }}px)</template>.</span>
             </p>
+            <p class="settings-paragraph">
+                <span>Make</span>
+                <Select
+                    v-model="app.crossSectionCount"
+                    :options="[30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240]"
+                    class="inline-select"
+                />
+                <span>distinct cross sections.</span>
+            </p>
+
 
             <p class="settings-paragraph">
                 <ToggleSwitch
                     :modelValue="app.crossSectionType === 'waves'"
                     @update:modelValue="val => app.crossSectionType = val ? 'waves' : 'planes'"
                 />
-                <span>Use dynamic cross section.</span>
+                <span>Use dynamic sampling</span>
             </p>
 
             <p class="settings-paragraph">
@@ -190,28 +206,18 @@
                     <span>Trim video.</span>
                 </template>
                 <template v-else>
-                    <span>Trim from frame</span>
-                    <InputNumber
-                        v-model="app.frameStart"
-                        :min="1"
-                        :max="app.frameEnd || app.frameCount"
-                        :disabled="!app.frameCount"
-                        class="inline-number frames-input"
-                    />
-                    <span>to</span>
-                    <InputNumber
-                        v-model="app.frameEnd"
-                        :min="app.frameStart || 1"
-                        :max="app.frameCount"
-                        :disabled="!app.frameCount"
-                        class="inline-number frames-input"
-                    />
+                    <span>Trim frames {{ frameRange[0] }}–{{ frameRange[1] }} of {{ app.frameCount }}.</span>
                 </template>
             </p>
 
-            <FrameRangeSelector
+            <Slider
                 v-if="isTrimmed"
-                :videoRef="fileInfoRef?.videoPlayerRef"
+                v-model="frameRange"
+                range
+                :min="1"
+                :max="app.frameCount || 1"
+                :step="1"
+                class="trim-slider"
             />
 
             <p class="settings-paragraph">
@@ -236,35 +242,41 @@
                         :disabled="!app.fileInfo?.height"
                         class="inline-number crop-input"
                     />
-                    <span>at offset</span>
-                    <InputGroup
-                        :class="{ 'disabled-group': app.cropWidth >= app.fileInfo?.width }"
-                        class="inline-input-group"
-                    >
-                        <InputGroupAddon>x</InputGroupAddon>
-                        <InputNumber
-                            v-model="app.cropX"
-                            :min="0"
-                            :max="Math.max(0, (app.fileInfo?.width || 0) - (app.cropWidth || 0))"
-                            :disabled="!app.fileInfo?.width || app.cropWidth >= app.fileInfo?.width"
-                            class="crop-input"
-                        />
-                    </InputGroup>
-                    <span>and</span>
-                    <InputGroup
-                        :class="{ 'disabled-group': app.cropHeight >= app.fileInfo?.height }"
-                        class="inline-input-group"
-                    >
-                        <InputGroupAddon>y</InputGroupAddon>
-                        <InputNumber
-                            v-model="app.cropY"
-                            :min="0"
-                            :max="Math.max(0, (app.fileInfo?.height || 0) - (app.cropHeight || 0))"
-                            :disabled="!app.fileInfo?.height || app.cropHeight >= app.fileInfo?.height"
-                            class="crop-input"
-                        />
-                    </InputGroup>
+                    <span>pixels.</span>
                 </template>
+            </p>
+            <p
+                v-if="app.cropMode"
+                class="settings-paragraph subordinate"
+            >
+                <span>Offset by</span>
+                <InputGroup
+                    :class="{ 'disabled-group': app.cropWidth >= app.fileInfo?.width }"
+                    class="inline-input-group"
+                >
+                    <InputGroupAddon>x</InputGroupAddon>
+                    <InputNumber
+                        v-model="app.cropX"
+                        :min="0"
+                        :max="Math.max(0, (app.fileInfo?.width || 0) - (app.cropWidth || 0))"
+                        :disabled="!app.fileInfo?.width || app.cropWidth >= app.fileInfo?.width"
+                        class="crop-input"
+                    />
+                </InputGroup>
+                <span>,</span>
+                <InputGroup
+                    :class="{ 'disabled-group': app.cropHeight >= app.fileInfo?.height }"
+                    class="inline-input-group"
+                >
+                    <InputGroupAddon>y</InputGroupAddon>
+                    <InputNumber
+                        v-model="app.cropY"
+                        :min="0"
+                        :max="Math.max(0, (app.fileInfo?.height || 0) - (app.cropHeight || 0))"
+                        :disabled="!app.fileInfo?.height || app.cropHeight >= app.fileInfo?.height"
+                        class="crop-input"
+                    />
+                </InputGroup>
             </p>
 
             <p class="settings-paragraph">
@@ -289,35 +301,12 @@
 
         <div class="tiles-column">
 
-
-            <h3 class="text-xl">Processing Plan</h3>
-
-            <ExplanatoryMessages
-                style="max-width: 31.5rem;"
-                :plan="tilePlan"
-            ></ExplanatoryMessages>
-
-
-            <h3 class="text-xl">Tile Preview</h3>
-
             <TilePreview
                 v-if="tilePlan?.tiles?.length"
                 :tilePlan="tilePlan"
             />
 
 
-
-            <h3 class="text-xl">Are you ready?</h3>
-            <div class="gpu-toggle">
-                <label class="gpu-toggle-label">
-                    <ToggleSwitch v-model="app.freeGpuResources" />
-                    <span>Optimize GPU Resources</span>
-                </label>
-                <p class="gpu-toggle-hint">
-                    Release viewer GPU context while encoding.
-
-                </p>
-            </div>
             <div class="action-buttons">
                 <Button
                     type="button"
@@ -494,6 +483,12 @@
         border-left: 2px solid var(--border-muted, #333);
     }
 
+    .settings-paragraph.subordinate {
+        margin-top: 0;
+        padding-left: 1.25rem;
+        border-left: 2px solid rgba(255, 255, 255, 0.12);
+    }
+
 
     .settings-paragraph>span {
 
@@ -515,6 +510,10 @@
         width: auto;
     }
 
+    :deep(.inline-input-group .p-inputgroupaddon) {
+        min-width: unset;
+    }
+
     :deep(.inline-select .p-select) {
         min-width: 0;
     }
@@ -534,6 +533,20 @@
     .disabled-group {
         opacity: 0.5;
         pointer-events: none;
+    }
+
+    .trim-slider {
+        width: calc(100% - 1.5rem);
+        margin: 0.75rem 0.75rem 1rem;
+    }
+
+    :deep(.trim-slider .p-slider-handle) {
+        background: var(--p-primary-color, #10b981) !important;
+        border-color: var(--p-primary-color, #10b981) !important;
+    }
+
+    :deep(.trim-slider .p-slider-handle::before) {
+        background: var(--p-primary-color, #10b981) !important;
     }
 
     .tiles-column {

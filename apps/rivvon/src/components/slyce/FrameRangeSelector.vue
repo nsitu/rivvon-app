@@ -4,10 +4,6 @@
 
     const app = useSlyceStore();
 
-    const props = defineProps({
-        videoRef: { type: Object, default: null },
-    });
-
     const trackRef = ref(null);
 
     // --- Helpers ---
@@ -15,31 +11,7 @@
     const startFrac = computed(() => ((app.frameStart || 1) - 1) / totalFrames.value);
     const endFrac = computed(() => (app.frameEnd || totalFrames.value) / totalFrames.value);
 
-    // Current playback position as fraction
-    const getVideoPlayer = () => {
-        const vRef = props.videoRef;
-        if (!vRef) return null;
-        if (vRef.__v_isRef || '_value' in vRef) return vRef.value || null;
-        return vRef;
-    };
 
-    const playheadFrac = computed(() => {
-        const vp = getVideoPlayer();
-        if (!vp) return 0;
-        const ct = vp.getCurrentTime?.() ?? 0;
-        const dur = vp.getDuration?.() ?? 1;
-        return dur > 0 ? ct / dur : 0;
-    });
-
-    // Poll playhead (piggyback on rAF for smooth updates)
-    const playheadPos = ref(0);
-    let rafId = null;
-    function updatePlayhead() {
-        playheadPos.value = playheadFrac.value;
-        rafId = requestAnimationFrame(updatePlayhead);
-    }
-    updatePlayhead();
-    onUnmounted(() => { if (rafId != null) cancelAnimationFrame(rafId); });
 
     // --- Drag logic ---
     const dragging = ref(null); // 'start' | 'end' | null
@@ -110,12 +82,6 @@
                 :style="{ left: `${startFrac * 100}%`, width: `${(endFrac - startFrac) * 100}%` }"
             />
 
-            <!-- Playhead -->
-            <div
-                class="range-playhead"
-                :style="{ left: `${playheadPos * 100}%` }"
-            />
-
             <!-- Start handle (triangle pointing right) -->
             <div
                 class="range-handle range-handle-start"
@@ -180,16 +146,6 @@
         border-bottom: 2px solid #10b981;
         box-sizing: border-box;
         pointer-events: none;
-    }
-
-    .range-playhead {
-        position: absolute;
-        top: 0;
-        width: 1px;
-        height: 100%;
-        background: #fff;
-        pointer-events: none;
-        z-index: 2;
     }
 
     .range-handle {

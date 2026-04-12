@@ -28,15 +28,21 @@
     const videoWithCropRef = ref(null);
 
     defineExpose({ videoPlayerRef });
-    const videoDimensions = ref({ displayWidth: 0, displayHeight: 0 });
+    const videoDimensions = ref({ displayWidth: 0, displayHeight: 0, offsetX: 0, offsetY: 0 });
 
     // Update dimensions when video loads or resizes
     let resizeObserver = null;
 
     const updateDimensions = () => {
-        if (videoPlayerRef.value) {
+        if (videoPlayerRef.value && videoWithCropRef.value) {
             const dims = videoPlayerRef.value.getVideoDimensions();
-            videoDimensions.value = dims;
+            const wrapperRect = videoWithCropRef.value.getBoundingClientRect();
+
+            videoDimensions.value = {
+                ...dims,
+                offsetX: Math.max(0, dims.left - wrapperRect.left),
+                offsetY: Math.max(0, dims.top - wrapperRect.top),
+            };
         }
     };
 
@@ -93,6 +99,8 @@
                 v-if="videoDimensions.displayWidth > 0"
                 :containerWidth="videoDimensions.displayWidth"
                 :containerHeight="videoDimensions.displayHeight"
+                :offsetX="videoDimensions.offsetX"
+                :offsetY="videoDimensions.offsetY"
                 :videoPlayer="videoPlayerRef"
             />
 
@@ -101,6 +109,8 @@
                 v-if="app.cropMode && videoDimensions.displayWidth > 0"
                 :containerWidth="videoDimensions.displayWidth"
                 :containerHeight="videoDimensions.displayHeight"
+                :offsetX="videoDimensions.offsetX"
+                :offsetY="videoDimensions.offsetY"
             />
         </div>
 
@@ -193,7 +203,6 @@
         align-items: flex-start;
         width: 100%;
         min-width: 0;
-        overflow: hidden;
     }
 
     .video-with-crop {
@@ -206,7 +215,6 @@
 
     .file-info-accordion {
         width: 100%;
-        margin-top: 0.5rem;
     }
 
     .accordion-header-text {
@@ -225,7 +233,6 @@
     .file-info-table {
         width: 100%;
         font-size: 0.75rem;
-        table-layout: fixed;
     }
 
     @media (min-width: 640px) {
