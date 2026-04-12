@@ -209,13 +209,19 @@
 <style scoped>
     video {
         max-width: 100%;
-        max-height: 80vh;
+        max-height: var(--video-preview-max-height, 80vh);
         object-fit: contain;
+        width: auto;
+        height: auto;
+        display: block;
     }
 
     .video-container {
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
+        max-height: var(--video-preview-max-height, 80vh);
+        width: 100%;
     }
 </style>
