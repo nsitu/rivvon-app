@@ -1,12 +1,11 @@
 <script setup>
-    import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+    import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useViewerStore } from '../stores/viewerStore';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
-    import { fetchTextureSet } from '../services/textureService';
     import { useLocalStorage } from '../services/localStorage.js';
     import * as THREE from 'three';
 
@@ -15,20 +14,19 @@
     import BottomToolbar from '../components/viewer/BottomToolbar.vue';
     import CountdownNumbers from '../components/viewer/CountdownNumbers.vue';
     import CountdownProgressBar from '../components/viewer/CountdownProgressBar.vue';
-    import TextInputPanel from '../components/viewer/TextInputPanel.vue';
-    import EmojiPickerPanel from '../components/viewer/EmojiPickerPanel.vue';
-    import TextureBrowser from '../components/viewer/TextureBrowser.vue';
-    import TextureCreator from '../components/viewer/TextureCreator.vue';
+    const TextInputPanel = defineAsyncComponent(() => import('../components/viewer/TextInputPanel.vue'));
+    const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
+    const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
+    const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
     import BetaModal from '../components/viewer/BetaModal.vue';
-    import ExportVideoDialog from '../components/viewer/ExportVideoDialog.vue';
+    const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
-    import DrawCanvas from '../components/viewer/DrawCanvas.vue';
-    import WalkCanvas from '../components/viewer/WalkCanvas.vue';
+    const DrawCanvas = defineAsyncComponent(() => import('../components/viewer/DrawCanvas.vue'));
+    const WalkCanvas = defineAsyncComponent(() => import('../components/viewer/WalkCanvas.vue'));
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
     import ViewerTechnicalOverlay from '../components/viewer/ViewerTechnicalOverlay.vue';
     import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
-    import RealtimeSampler from '../components/slyce/RealtimeSampler.vue';
-    import { useRealtimeSlyce } from '../composables/slyce/useRealtimeSlyce.js';
+    const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
     const { isAuthenticated } = useGoogleAuth();
@@ -36,7 +34,49 @@
     const router = useRouter();
 
     // Realtime webcam mode
-    const realtime = useRealtimeSlyce();
+    const realtimeInstance = shallowRef(null);
+    let realtimeLoaderPromise = null;
+
+    async function ensureRealtime() {
+        if (realtimeInstance.value) {
+            return realtimeInstance.value;
+        }
+
+        if (!realtimeLoaderPromise) {
+            realtimeLoaderPromise = import('../composables/slyce/useRealtimeSlyce.js')
+                .then(({ useRealtimeSlyce }) => {
+                    const instance = useRealtimeSlyce();
+                    realtimeInstance.value = instance;
+                    return instance;
+                })
+                .finally(() => {
+                    realtimeLoaderPromise = null;
+                });
+        }
+
+        return realtimeLoaderPromise;
+    }
+
+    const realtime = {
+        isCameraActive: computed(() => realtimeInstance.value?.isCameraActive?.value ?? false),
+        isCapturing: computed(() => realtimeInstance.value?.isCapturing?.value ?? false),
+        startCamera: async (...args) => (await ensureRealtime()).startCamera(...args),
+        applyToViewer: async (...args) => (await ensureRealtime()).applyToViewer(...args),
+        stopCamera: (...args) => realtimeInstance.value?.stopCamera?.(...args),
+        stopRealtime: (...args) => realtimeInstance.value?.stopRealtime?.(...args),
+    };
+
+    let textureServicePromise = null;
+
+    async function fetchTextureSetById(textureId) {
+        if (!textureServicePromise) {
+            textureServicePromise = import('../services/textureService.js');
+        }
+
+        const { fetchTextureSet } = await textureServicePromise;
+        return fetchTextureSet(textureId);
+    }
+
     const returnToCreateTextureOnRealtimeClose = ref(false);
 
     function openCreateTextureMode() {
@@ -724,7 +764,7 @@
                         if (!textureSet) throw new Error(`Local texture not found: ${sel.name}`);
                         return { textureSet, source: 'local', getTiles };
                     } else {
-                        const textureSet = await fetchTextureSet(sel.id);
+                        const textureSet = await fetchTextureSetById(sel.id);
                         if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
                             throw new Error(`No tiles found for: ${sel.name}`);
                         }
@@ -799,7 +839,7 @@
             }
 
             // Fetch full texture set with tile URLs
-            const textureSet = await fetchTextureSet(texture.id);
+            const textureSet = await fetchTextureSetById(texture.id);
 
             if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
                 throw new Error('No tiles found in texture set');

@@ -1,5 +1,4 @@
 import { initThreeWebGL } from './threeSetup-webgl.js';
-import { initThreeWebGPU } from './threeSetup-webgpu.js';
 
 /**
  * Factory function to initialize Three.js with appropriate renderer
@@ -11,6 +10,7 @@ export async function initThree(rendererType = 'webgl') {
 
     try {
         if (rendererType === 'webgpu') {
+            const { initThreeWebGPU } = await import('./threeSetup-webgpu.js');
             return await initThreeWebGPU();
         } else {
             // WebGL is synchronous but we return it wrapped for consistent API

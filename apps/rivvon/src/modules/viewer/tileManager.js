@@ -1,10 +1,33 @@
 import * as THREE from 'three';
-import * as THREE_WEBGPU from 'three/webgpu';
 import { acquireKTX2Loader, releaseKTX2Loader } from '../slyce/sharedKTX2Loader.js';
-import JSZip from 'jszip';
 
-// TSL imports for WebGPU materials
-import { texture, uniform, uv, float, vec2 } from 'three/tsl';
+let jsZipModulePromise = null;
+let webgpuModulePromise = null;
+let tslModulePromise = null;
+
+async function loadJSZipModule() {
+    if (!jsZipModulePromise) {
+        jsZipModulePromise = import('jszip').then(module => module.default);
+    }
+
+    return jsZipModulePromise;
+}
+
+async function loadWebGPUModule() {
+    if (!webgpuModulePromise) {
+        webgpuModulePromise = import('three/webgpu');
+    }
+
+    return webgpuModulePromise;
+}
+
+async function loadTSLModule() {
+    if (!tslModulePromise) {
+        tslModulePromise = import('three/tsl');
+    }
+
+    return tslModulePromise;
+}
 
 // Default texture ID from CDN (used when no source specified)
 export const DEFAULT_TEXTURE_ID = 'wv-ywyV14qYSbrzgYga4l';
@@ -86,6 +109,7 @@ export class TileManager {
         this.currentTextureSet = null;
 
         this._ktx2Loader = null;
+        this._webgpuDeps = null;
 
         // Per-frame callback
         this._onTick = null;
@@ -231,6 +255,7 @@ export class TileManager {
             const arrayBuffer = await response.arrayBuffer();
             console.log(`[TileManager] Zip file fetched, size: ${arrayBuffer.byteLength} bytes`);
 
+            const JSZip = await loadJSZipModule();
             const zip = new JSZip();
             const zipData = await zip.loadAsync(arrayBuffer);
 
@@ -304,6 +329,10 @@ export class TileManager {
             }
         }
 
+        if (this.rendererType === 'webgpu') {
+            await this.#ensureWebGPUMaterialDeps();
+        }
+
         try {
             // Use the shared KTX2Loader (ref-counted singleton)
             if (this.renderer) {
@@ -320,6 +349,34 @@ export class TileManager {
             console.error('[TileManager] Failed to initialize KTX2Loader:', err);
             return false;
         }
+    }
+
+    async #ensureWebGPUMaterialDeps() {
+        if (this.rendererType !== 'webgpu') {
+            return null;
+        }
+
+        if (!this._webgpuDeps) {
+            const [threeWebGPU, threeTSL] = await Promise.all([
+                loadWebGPUModule(),
+                loadTSLModule(),
+            ]);
+
+            this._webgpuDeps = {
+                threeWebGPU,
+                threeTSL,
+            };
+        }
+
+        return this._webgpuDeps;
+    }
+
+    #getWebGPUMaterialDeps() {
+        if (!this._webgpuDeps) {
+            throw new Error('WebGPU material dependencies not initialized');
+        }
+
+        return this._webgpuDeps;
     }
 
     #createArrayMaterial(arrayTexture) {
@@ -426,6 +483,9 @@ export class TileManager {
      * @returns {THREE_WEBGPU.NodeMaterial} Dual-texture material
      */
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext) {
+        const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
+        const { NodeMaterial } = threeWebGPU;
+        const { texture, uniform, uv, float, vec2 } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
 
         // Create uniforms
@@ -464,7 +524,7 @@ export class TileManager {
         const useNext = shiftedU.greaterThanEqual(1.0);
         const finalColor = useNext.select(colorNext, colorCurrent);
 
-        const material = new THREE_WEBGPU.NodeMaterial();
+        const material = new NodeMaterial();
         material.colorNode = finalColor;
         material.transparent = false;
         material.depthWrite = true;
@@ -580,6 +640,9 @@ export class TileManager {
     }
 
     #createArrayMaterialWebGPU(arrayTexture) {
+        const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
+        const { NodeMaterial } = threeWebGPU;
+        const { texture, uniform, uv, float, vec2 } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
 
         // Simple fallback path: use a non-array texture in a MeshBasicMaterial
@@ -635,7 +698,7 @@ export class TileManager {
         );
 
         // Create NodeMaterial with texture array sampling using .depth()
-        const material = new THREE_WEBGPU.NodeMaterial();
+        const material = new NodeMaterial();
         material.colorNode = texture(arrayTexture, finalUV).depth(layerUniform);
         material.transparent = false;
         material.depthWrite = true;

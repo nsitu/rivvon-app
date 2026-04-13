@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed, onBeforeUnmount, watch } from 'vue';
+    import { ref, computed, onBeforeUnmount, watch, defineAsyncComponent } from 'vue';
     import { read } from 'ktx-parse';
     import { useViewerStore } from '../../stores/viewerStore';
     import { fetchTextures, fetchTextureWithTiles } from '../../services/textureService';
@@ -8,7 +8,7 @@
     import { useLocalStorage } from '../../services/localStorage.js';
     import { fetchDriveFile } from '../../modules/viewer/auth.js';
     import Button from 'primevue/button';
-    import TileLinearViewer from '../slyce/TileLinearViewer.vue';
+    const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
 
     const props = defineProps({
         visible: {
@@ -1160,7 +1160,7 @@
                             (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
-                        }}%
+                    }}%
                         scale)</span>
                 </div>
                 <Button
