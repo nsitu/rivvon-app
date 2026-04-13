@@ -40,7 +40,9 @@ export async function fetchTextureSet(textureSetId) {
         credentials: 'include' // Include cookies for auth
     });
     if (!response.ok) {
-        throw new Error(`Failed to fetch texture set: ${response.statusText}`);
+        const requestError = new Error(`Failed to fetch texture set (${response.status})`);
+        requestError.status = response.status;
+        throw requestError;
     }
 
     return await response.json();

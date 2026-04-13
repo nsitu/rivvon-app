@@ -274,11 +274,15 @@
         }
     }
 
+    function isTextureRepairableCandidate(texture) {
+        return !texture?.status || texture.status === 'complete';
+    }
+
     async function collectCloudRepairCandidates(force = false) {
         const candidates = new Map();
 
         const addCandidate = (texture, forceEligible = false) => {
-            if (!texture || (!force && hasCheckedCloudTileResolution(texture.id))) return;
+            if (!texture || !isTextureRepairableCandidate(texture) || (!force && hasCheckedCloudTileResolution(texture.id))) return;
             if (!forceEligible && !isAdmin.value && !isOwner(texture)) return;
 
             candidates.set(texture.id, texture);
@@ -338,6 +342,10 @@
         return err?.status === 400 && err?.message === 'No fields to update';
     }
 
+    function isMissingTextureSetError(err) {
+        return err?.status === 404;
+    }
+
     async function repairCloudTextureResolutions({ force = false } = {}) {
         if (!isAuthenticated.value || isRepairingCloudMetadata.value) {
             return;
@@ -385,15 +393,21 @@
 
                     markCloudTileResolutionChecked(texture.id, detectedResolution);
                 } catch (err) {
-                    stats.failed += 1;
-
                     if (isTileResolutionUpdateUnsupportedError(err)) {
+                        stats.failed += 1;
                         cloudRepairUpdateUnsupported = true;
                         cloudRepairLastSummary.value = 'Cloud metadata repair needs the updated API deployed. The live server is still rejecting tileResolution updates.';
                         console.warn('[TextureBrowser] Cloud tile-resolution repair blocked by outdated API deployment:', err);
                         break;
                     }
 
+                    if (isMissingTextureSetError(err)) {
+                        markCloudTileResolutionChecked(texture.id, 'unavailable');
+                        console.warn(`[TextureBrowser] Cloud tile-resolution repair skipping unavailable texture ${texture.id}.`);
+                        continue;
+                    }
+
+                    stats.failed += 1;
                     console.warn(`[TextureBrowser] Cloud tile-resolution repair skipped for ${texture.id}:`, err);
                 } finally {
                     stats.processed += 1;
