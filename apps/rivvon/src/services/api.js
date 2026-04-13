@@ -360,8 +360,12 @@ export function useRivvonAPI() {
      * Get current user's texture sets (authenticated)
      * GET /my-textures
      */
-    async function getMyTextures() {
-        const response = await authFetch(`${API_BASE_URL}/my-textures`)
+    async function getMyTextures({ limit = 50, offset = 0 } = {}) {
+        const params = new URLSearchParams({
+            limit: String(limit),
+            offset: String(offset),
+        })
+        const response = await authFetch(`${API_BASE_URL}/my-textures?${params.toString()}`)
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Failed to fetch your textures' }))
@@ -389,7 +393,7 @@ export function useRivvonAPI() {
     }
 
     /**
-     * Update texture set metadata (name, description, isPublic)
+     * Update texture set metadata (name, description, isPublic, tileResolution)
      * PATCH /texture-set/:id
      */
     async function updateTextureSet(textureSetId, updates) {
@@ -403,7 +407,10 @@ export function useRivvonAPI() {
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Failed to update texture set' }))
-            throw new Error(error.error || 'Failed to update texture set')
+            const requestError = new Error(error.error || 'Failed to update texture set')
+            requestError.status = response.status
+            requestError.payload = error
+            throw requestError
         }
 
         return response.json()

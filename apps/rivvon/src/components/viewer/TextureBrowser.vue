@@ -1,5 +1,6 @@
 <script setup>
     import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+    import { read } from 'ktx-parse';
     import { useViewerStore } from '../../stores/viewerStore';
     import { fetchTextures, fetchTextureWithTiles } from '../../services/textureService';
     import { useRivvonAPI } from '../../services/api.js';
@@ -24,11 +25,13 @@
 
     // Multi-select state
     const MAX_MULTI_SELECT = 4;
+    const CLOUD_TILE_RESOLUTION_REPAIR_KEY = 'rivvon.cloud-tile-resolution-repair.v1';
+    const CLOUD_REPAIR_PAGE_SIZE = 100;
     const multiSelectMode = ref(false);
     const selectedTextures = ref(new Map()); // id -> { texture, isLocal }
 
     const app = useViewerStore();
-    const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
+    const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet, getMyTextures } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
     const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTextureSet: getLocalTextureSet, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
@@ -40,6 +43,12 @@
     const error = ref(null);
     const hasLoaded = ref(false);
     const activeTab = ref(props.initialTab);
+    const isRepairingCloudMetadata = ref(false);
+    const cloudRepairStats = ref({ total: 0, processed: 0, fixed: 0, failed: 0 });
+    const cloudRepairLastSummary = ref('');
+
+    let cloudTileResolutionRepairState = loadCloudTileResolutionRepairState();
+    let cloudRepairUpdateUnsupported = false;
 
     // Delete state
     const textureToDelete = ref(null);
@@ -119,6 +128,20 @@
         }
     });
 
+    const cloudRepairStatusText = computed(() => {
+        const { total, processed, fixed, failed } = cloudRepairStats.value;
+
+        if (isRepairingCloudMetadata.value) {
+            if (total === 0) {
+                return 'Scanning cloud textures for metadata mismatches...';
+            }
+
+            return `Repairing cloud metadata ${processed}/${total} checked, ${fixed} fixed${failed ? `, ${failed} failed` : ''}`;
+        }
+
+        return cloudRepairLastSummary.value;
+    });
+
     // Check if current user owns a texture (using google_id for cross-environment reliability)
     function isOwner(texture) {
         return user.value && texture.owner_google_id === user.value.googleId;
@@ -138,6 +161,260 @@
             activeTab.value = props.initialTab;
         }
     }, { immediate: true });
+
+    watch(isAuthenticated, (authenticated) => {
+        if (authenticated && props.visible && hasLoaded.value) {
+            void repairCloudTextureResolutions();
+        }
+    });
+
+    function loadCloudTileResolutionRepairState() {
+        if (typeof window === 'undefined') return {};
+
+        try {
+            const stored = window.localStorage.getItem(CLOUD_TILE_RESOLUTION_REPAIR_KEY);
+            return stored ? JSON.parse(stored) : {};
+        } catch (err) {
+            console.warn('[TextureBrowser] Failed to load cloud repair state:', err);
+            return {};
+        }
+    }
+
+    function persistCloudTileResolutionRepairState() {
+        if (typeof window === 'undefined') return;
+
+        try {
+            window.localStorage.setItem(
+                CLOUD_TILE_RESOLUTION_REPAIR_KEY,
+                JSON.stringify(cloudTileResolutionRepairState)
+            );
+        } catch (err) {
+            console.warn('[TextureBrowser] Failed to persist cloud repair state:', err);
+        }
+    }
+
+    function hasCheckedCloudTileResolution(textureId) {
+        return Boolean(cloudTileResolutionRepairState[textureId]);
+    }
+
+    function markCloudTileResolutionChecked(textureId, tileResolution) {
+        cloudTileResolutionRepairState = {
+            ...cloudTileResolutionRepairState,
+            [textureId]: tileResolution ?? true
+        };
+        persistCloudTileResolutionRepairState();
+    }
+
+    function clearCloudTileResolutionRepairState() {
+        cloudTileResolutionRepairState = {};
+
+        if (typeof window === 'undefined') return;
+
+        try {
+            window.localStorage.removeItem(CLOUD_TILE_RESOLUTION_REPAIR_KEY);
+        } catch (err) {
+            console.warn('[TextureBrowser] Failed to clear cloud repair state:', err);
+        }
+    }
+
+    function detectTileResolutionFromArrayBuffer(arrayBuffer) {
+        const container = read(new Uint8Array(arrayBuffer));
+        const width = Number(container?.pixelWidth);
+        const height = Number(container?.pixelHeight);
+
+        if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+            return null;
+        }
+
+        return Math.max(width, height);
+    }
+
+    async function detectTileResolutionFromBlob(blob) {
+        if (!blob) return null;
+        return detectTileResolutionFromArrayBuffer(await blob.arrayBuffer());
+    }
+
+    async function fetchTileArrayBuffer(tile) {
+        if (tile.driveFileId) {
+            return fetchDriveFile(tile.driveFileId);
+        }
+
+        if (tile.url && tile.url.includes('drive.google.com')) {
+            const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
+            if (!fileIdMatch) {
+                throw new Error('Invalid Google Drive URL format');
+            }
+            return fetchDriveFile(fileIdMatch[1]);
+        }
+
+        if (!tile.url) {
+            return null;
+        }
+
+        const response = await fetch(tile.url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch tile ${tile.tileIndex ?? tile.index ?? tile.tile_index ?? 'unknown'}`);
+        }
+
+        return response.arrayBuffer();
+    }
+
+    function applyCloudTileResolution(textureId, tileResolution) {
+        textures.value = textures.value.map(texture => (
+            texture.id === textureId
+                ? { ...texture, tile_resolution: tileResolution }
+                : texture
+        ));
+
+        if (previewTexture.value?.id === textureId) {
+            previewTexture.value = {
+                ...previewTexture.value,
+                tile_resolution: tileResolution
+            };
+        }
+    }
+
+    async function collectCloudRepairCandidates(force = false) {
+        const candidates = new Map();
+
+        const addCandidate = (texture, forceEligible = false) => {
+            if (!texture || (!force && hasCheckedCloudTileResolution(texture.id))) return;
+            if (!forceEligible && !isAdmin.value && !isOwner(texture)) return;
+
+            candidates.set(texture.id, texture);
+        };
+
+        textures.value.forEach(texture => addCandidate(texture));
+
+        if (textures.value.length === CLOUD_REPAIR_PAGE_SIZE) {
+            for (let offset = CLOUD_REPAIR_PAGE_SIZE; ; offset += CLOUD_REPAIR_PAGE_SIZE) {
+                const result = await fetchTextures({ limit: CLOUD_REPAIR_PAGE_SIZE, offset });
+                const batch = result.textures || [];
+
+                batch.forEach(texture => addCandidate(texture));
+
+                if (batch.length < CLOUD_REPAIR_PAGE_SIZE) {
+                    break;
+                }
+            }
+        }
+
+        if (isAuthenticated.value) {
+            for (let offset = 0; ; offset += CLOUD_REPAIR_PAGE_SIZE) {
+                const result = await getMyTextures({ limit: CLOUD_REPAIR_PAGE_SIZE, offset });
+                const batch = result.textures || [];
+
+                batch.forEach(texture => addCandidate({
+                    ...texture,
+                    owner_google_id: texture.owner_google_id ?? user.value?.googleId
+                }, true));
+
+                if (batch.length < CLOUD_REPAIR_PAGE_SIZE) {
+                    break;
+                }
+            }
+        }
+
+        return Array.from(candidates.values());
+    }
+
+    async function detectCloudTextureResolution(textureId) {
+        const textureSet = await fetchTextureWithTiles(textureId);
+        const firstTile = textureSet.tiles?.[0];
+
+        if (!firstTile) {
+            return null;
+        }
+
+        const arrayBuffer = await fetchTileArrayBuffer(firstTile);
+        if (!arrayBuffer) {
+            return null;
+        }
+
+        return detectTileResolutionFromArrayBuffer(arrayBuffer);
+    }
+
+    function isTileResolutionUpdateUnsupportedError(err) {
+        return err?.status === 400 && err?.message === 'No fields to update';
+    }
+
+    async function repairCloudTextureResolutions({ force = false } = {}) {
+        if (!isAuthenticated.value || isRepairingCloudMetadata.value) {
+            return;
+        }
+
+        if (cloudRepairUpdateUnsupported && !force) {
+            return;
+        }
+
+        if (force) {
+            clearCloudTileResolutionRepairState();
+            cloudRepairUpdateUnsupported = false;
+        }
+
+        isRepairingCloudMetadata.value = true;
+        cloudRepairStats.value = { total: 0, processed: 0, fixed: 0, failed: 0 };
+        if (force) {
+            cloudRepairLastSummary.value = 'Starting manual cloud metadata repair...';
+        }
+
+        try {
+            const candidates = await collectCloudRepairCandidates(force);
+            const stats = { total: candidates.length, processed: 0, fixed: 0, failed: 0 };
+            cloudRepairStats.value = { ...stats };
+
+            if (candidates.length === 0) {
+                cloudRepairLastSummary.value = force
+                    ? 'No cloud textures needed rechecking.'
+                    : 'Cloud metadata already checked on this device.';
+                return;
+            }
+
+            for (const texture of candidates) {
+                try {
+                    const detectedResolution = await detectCloudTextureResolution(texture.id);
+                    if (!detectedResolution) {
+                        continue;
+                    }
+
+                    if (texture.tile_resolution !== detectedResolution) {
+                        await updateTextureSet(texture.id, { tileResolution: detectedResolution });
+                        applyCloudTileResolution(texture.id, detectedResolution);
+                        stats.fixed += 1;
+                    }
+
+                    markCloudTileResolutionChecked(texture.id, detectedResolution);
+                } catch (err) {
+                    stats.failed += 1;
+
+                    if (isTileResolutionUpdateUnsupportedError(err)) {
+                        cloudRepairUpdateUnsupported = true;
+                        cloudRepairLastSummary.value = 'Cloud metadata repair needs the updated API deployed. The live server is still rejecting tileResolution updates.';
+                        console.warn('[TextureBrowser] Cloud tile-resolution repair blocked by outdated API deployment:', err);
+                        break;
+                    }
+
+                    console.warn(`[TextureBrowser] Cloud tile-resolution repair skipped for ${texture.id}:`, err);
+                } finally {
+                    stats.processed += 1;
+                    cloudRepairStats.value = { ...stats };
+                }
+            }
+
+            if (!cloudRepairUpdateUnsupported) {
+                cloudRepairLastSummary.value = `Cloud metadata repair finished: ${stats.processed}/${stats.total} checked, ${stats.fixed} fixed${stats.failed ? `, ${stats.failed} failed` : ''}`;
+            }
+        } catch (err) {
+            console.warn('[TextureBrowser] Cloud tile-resolution repair failed:', err);
+            cloudRepairLastSummary.value = 'Cloud metadata repair failed. Check the console for details.';
+        } finally {
+            isRepairingCloudMetadata.value = false;
+        }
+    }
+
+    async function startCloudMetadataRepair() {
+        await repairCloudTextureResolutions({ force: true });
+    }
 
     async function loadTextures() {
         isLoading.value = true;
@@ -161,6 +438,10 @@
             localTextures.value = localResult || [];
             cachedCloudIds.value = cachedIds;
             hasLoaded.value = true;
+
+            if (isAuthenticated.value) {
+                void repairCloudTextureResolutions();
+            }
         } catch (err) {
             console.error('[TextureBrowser] Failed to load textures:', err);
             error.value = err.message;
@@ -404,6 +685,7 @@
             const texture = textureToCopy.value;
             const destination = copyDestination.value;
             const isLocal = isLocalTexture(texture);
+            let detectedTileResolution = null;
 
             // 1. Fetch tiles from source
             let tiles = [];
@@ -417,6 +699,10 @@
                     index: t.tile_index,
                     blob: t.blob
                 }));
+
+                if (localTiles[0]?.blob) {
+                    detectedTileResolution = await detectTileResolutionFromBlob(localTiles[0].blob);
+                }
 
                 // Convert thumbnail data URL to blob if available
                 if (texture.thumbnail_data_url) {
@@ -454,6 +740,10 @@
                         blob = await response.blob();
                     }
 
+                    if (!detectedTileResolution) {
+                        detectedTileResolution = await detectTileResolutionFromBlob(blob);
+                    }
+
                     tiles.push({
                         index: tile.tileIndex,
                         blob
@@ -476,7 +766,7 @@
                 name: texture.name + ' (copy)',
                 description: texture.description || `Copied on ${new Date().toLocaleDateString()}`,
                 isPublic: texture.is_public !== false,
-                tileResolution: texture.tile_resolution,
+                tileResolution: detectedTileResolution ?? texture.tile_resolution,
                 layerCount: texture.layer_count,
                 crossSectionType: texture.cross_section_type || 'waves',
                 sourceMetadata: texture.source_metadata || {
@@ -851,6 +1141,25 @@
                             Cached
                         </button>
                     </div>
+
+                    <div
+                        v-if="isAuthenticated && isAdmin"
+                        class="texture-browser-tools"
+                    >
+                        <button
+                            class="tab-button repair-button"
+                            :disabled="isRepairingCloudMetadata || isLoading"
+                            @click="startCloudMetadataRepair"
+                        >
+                            {{ isRepairingCloudMetadata ? 'Repairing...' : 'Repair Cloud Metadata' }}
+                        </button>
+                        <span
+                            v-if="cloudRepairStatusText"
+                            class="cloud-repair-status"
+                        >
+                            {{ cloudRepairStatusText }}
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Loading state -->
@@ -1132,7 +1441,7 @@
                             (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
-                        }}%
+                    }}%
                         scale)</span>
                 </div>
                 <Button
@@ -1395,6 +1704,23 @@
             justify-content: space-between;
             align-items: center;
         }
+    }
+
+    .texture-browser-tools {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .repair-button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+    }
+
+    .cloud-repair-status {
+        color: #aaa;
+        font-size: 12px;
     }
 
     .texture-browser-header h2 {

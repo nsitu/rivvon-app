@@ -4,6 +4,7 @@ import { uploadRoutes } from './routes/upload';
 import { textureRoutes } from './routes/textures';
 import { authRoutes } from './routes/auth';
 import { verifySession } from './middleware/session';
+import { isAdminUser } from './utils/user';
 
 type Bindings = {
     DB: D1Database;
@@ -61,27 +62,42 @@ app.get('/', (c) => c.json({ status: 'ok', service: 'rivvon-api' }));
 // Mount auth routes (Google OAuth)
 app.route('/api/auth', authRoutes);
 
-// Get textures owned by current user (authenticated via session cookie)
+// Get textures owned by current user, or all textures for admins (authenticated via session cookie)
 app.get('/my-textures', verifySession, async (c) => {
     const auth = c.get('auth');
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
 
-    const results = await c.env.DB.prepare(`
+    const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
+
+    const baseQuery = `
         SELECT 
-            id, name, description, thumbnail_url,
-            tile_resolution, tile_count, layer_count,
-            cross_section_type, storage_provider, status, is_public,
-            created_at, updated_at
-        FROM texture_sets
-        WHERE owner_id = ?
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-    `).bind(auth.userId, limit, offset).all();
+            ts.id, ts.name, ts.description, ts.thumbnail_url,
+            ts.tile_resolution, ts.tile_count, ts.layer_count,
+            ts.cross_section_type, ts.storage_provider, ts.status, ts.is_public,
+            ts.created_at, ts.updated_at,
+            u.google_id as owner_google_id
+        FROM texture_sets ts
+        LEFT JOIN users u ON ts.owner_id = u.id
+    `;
+
+    const results = isAdmin
+        ? await c.env.DB.prepare(`
+            ${baseQuery}
+            ORDER BY ts.created_at DESC
+            LIMIT ? OFFSET ?
+        `).bind(limit, offset).all()
+        : await c.env.DB.prepare(`
+            ${baseQuery}
+            WHERE ts.owner_id = ?
+            ORDER BY ts.created_at DESC
+            LIMIT ? OFFSET ?
+        `).bind(auth.userId, limit, offset).all();
 
     return c.json({
         textures: results.results,
         pagination: { limit, offset },
+        scope: isAdmin ? 'admin-all' : 'owner',
     });
 });
 

@@ -10,13 +10,17 @@
  *   - tiles: KTX2 binary blobs indexed by (texture_set_id, tile_index)
  */
 
+import { read } from 'ktx-parse';
+
 const DB_NAME = 'rivvon-textures';
 const DB_VERSION = 1;
 const STORE_TEXTURE_SETS = 'texture-sets';
 const STORE_TILES = 'tiles';
 const TILE_MIME_TYPE = 'image/ktx2';
+const TILE_RESOLUTION_REPAIR_KEY = 'rivvon.texture-resolution-repair.v1';
 
 let dbInstance = null;
+let tileResolutionRepairPromise = null;
 
 /**
  * Generate a unique ID for texture sets
@@ -75,6 +79,139 @@ function normalizeTileRecord(tile) {
         blob: createTileBlob(tile),
         file_size: getTileByteLength(tile)
     };
+}
+
+function hasCompletedTileResolutionRepair() {
+    try {
+        return globalThis.localStorage?.getItem(TILE_RESOLUTION_REPAIR_KEY) === 'done';
+    } catch {
+        return false;
+    }
+}
+
+function markTileResolutionRepairComplete() {
+    try {
+        globalThis.localStorage?.setItem(TILE_RESOLUTION_REPAIR_KEY, 'done');
+    } catch {
+        // Ignore browser storage restrictions and allow a future retry.
+    }
+}
+
+async function getAllTextureSetRecords() {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
+        const store = transaction.objectStore(STORE_TEXTURE_SETS);
+        const request = store.getAll();
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+    });
+}
+
+async function getTextureSetRecord(id) {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
+        const store = transaction.objectStore(STORE_TEXTURE_SETS);
+        const request = store.get(id);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result || null);
+    });
+}
+
+async function putTextureSetRecord(textureSet) {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readwrite');
+
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => resolve();
+
+        transaction.objectStore(STORE_TEXTURE_SETS).put(textureSet);
+    });
+}
+
+async function getRepairCandidateTile(textureSetId) {
+    const firstTile = await getTile(textureSetId, 0);
+    if (firstTile?.blob) {
+        return firstTile;
+    }
+
+    const tiles = await getTiles(textureSetId);
+    return tiles.find(tile => tile?.blob) || null;
+}
+
+async function detectTileResolutionFromKtx2(tile) {
+    const blob = tile?.blob instanceof Blob ? tile.blob : createTileBlob(tile);
+    if (!blob) {
+        return null;
+    }
+
+    const container = read(new Uint8Array(await blob.arrayBuffer()));
+    const width = Number(container?.pixelWidth);
+    const height = Number(container?.pixelHeight);
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+        return null;
+    }
+
+    if (width !== height) {
+        console.warn(`[LocalStorage] Non-square KTX2 tile detected (${width}x${height}); using max dimension for repair.`);
+    }
+
+    return Math.max(width, height);
+}
+
+async function repairTextureSetResolutionsOnce() {
+    if (hasCompletedTileResolutionRepair()) {
+        return;
+    }
+
+    if (tileResolutionRepairPromise) {
+        return tileResolutionRepairPromise;
+    }
+
+    tileResolutionRepairPromise = (async () => {
+        const textureSets = await getAllTextureSetRecords();
+        let repairedCount = 0;
+
+        for (const textureSet of textureSets) {
+            try {
+                const tile = await getRepairCandidateTile(textureSet.id);
+                if (!tile) {
+                    continue;
+                }
+
+                const detectedResolution = await detectTileResolutionFromKtx2(tile);
+                if (!detectedResolution || textureSet.tile_resolution === detectedResolution) {
+                    continue;
+                }
+
+                await putTextureSetRecord({
+                    ...textureSet,
+                    tile_resolution: detectedResolution
+                });
+                repairedCount++;
+            } catch (error) {
+                console.warn(`[LocalStorage] Failed to repair tile resolution for ${textureSet.id}:`, error);
+            }
+        }
+
+        markTileResolutionRepairComplete();
+        console.log(`[LocalStorage] Texture resolution repair complete (${repairedCount} updated)`);
+    })()
+        .catch(error => {
+            console.warn('[LocalStorage] Texture resolution repair failed:', error);
+        })
+        .finally(() => {
+            tileResolutionRepairPromise = null;
+        });
+
+    return tileResolutionRepairPromise;
 }
 
 /**
@@ -240,6 +377,7 @@ async function saveTextureSet({
  * @returns {Promise<Array>} Array of texture set metadata
  */
 async function getAllTextureSets() {
+    await repairTextureSetResolutionsOnce();
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
@@ -280,16 +418,8 @@ async function getAllTextureSets() {
  * @returns {Promise<Object|null>} Texture set metadata or null
  */
 async function getTextureSet(id) {
-    const db = await openDatabase();
-
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
-        const store = transaction.objectStore(STORE_TEXTURE_SETS);
-        const request = store.get(id);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result || null);
-    });
+    await repairTextureSetResolutionsOnce();
+    return getTextureSetRecord(id);
 }
 
 /**
@@ -377,10 +507,8 @@ async function deleteTextureSet(id) {
  * @returns {Promise<void>}
  */
 async function updateTextureSet(id, updates) {
-    const db = await openDatabase();
-
     // Get existing texture set
-    const existing = await getTextureSet(id);
+    const existing = await getTextureSetRecord(id);
     if (!existing) {
         throw new Error('Texture set not found');
     }
@@ -388,18 +516,8 @@ async function updateTextureSet(id, updates) {
     // Merge updates
     const updated = { ...existing, ...updates };
 
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_TEXTURE_SETS], 'readwrite');
-
-        transaction.onerror = () => reject(transaction.error);
-        transaction.oncomplete = () => {
-            console.log(`[LocalStorage] Updated texture set: ${id}`);
-            resolve();
-        };
-
-        const store = transaction.objectStore(STORE_TEXTURE_SETS);
-        store.put(updated);
-    });
+    await putTextureSetRecord(updated);
+    console.log(`[LocalStorage] Updated texture set: ${id}`);
 }
 
 /**

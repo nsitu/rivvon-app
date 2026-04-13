@@ -43,6 +43,7 @@ export function buildFileTextureSaveSource(app, overrides = {}) {
         fileInfo: app.fileInfo,
         framesToSample: app.framesToSample,
         frameCount: app.frameCount,
+        tileResolution: app.potResolution,
         potResolution: app.potResolution,
         crossSectionCount: app.crossSectionCount,
         crossSectionType: app.crossSectionType,
@@ -72,7 +73,7 @@ export async function saveProcessedTextureSetLocally(controller, source = {}) {
         const savedId = await saveTextureSet({
             name: textureName,
             tileCount: source.tileCount ?? Object.keys(blobs).length,
-            tileResolution: source.tileResolution ?? 512,
+            tileResolution: source.tileResolution ?? source.potResolution ?? 512,
             layerCount: source.layerCount ?? 60,
             crossSectionType: source.crossSectionType ?? 'planes',
             sourceMetadata: source.sourceMetadata ?? buildDefaultSourceMetadata(source, effectiveFrameCount),

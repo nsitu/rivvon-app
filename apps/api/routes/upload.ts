@@ -478,6 +478,7 @@ uploadRoutes.patch('/:id', async (c) => {
   const body = await c.req.json();
 
   const { name, description, isPublic } = body;
+  const tileResolution = body.tileResolution ?? body.tile_resolution;
 
   // Check if user is admin
   const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
@@ -512,6 +513,16 @@ uploadRoutes.patch('/:id', async (c) => {
   if (isPublic !== undefined) {
     updates.push('is_public = ?');
     values.push(isPublic ? 1 : 0);
+  }
+
+  if (tileResolution !== undefined) {
+    const parsedTileResolution = Number(tileResolution);
+    if (!Number.isInteger(parsedTileResolution) || parsedTileResolution <= 0) {
+      return c.json({ error: 'tileResolution must be a positive integer' }, 400);
+    }
+
+    updates.push('tile_resolution = ?');
+    values.push(parsedTileResolution);
   }
 
   if (updates.length === 0) {
