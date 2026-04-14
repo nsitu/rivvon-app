@@ -1,5 +1,12 @@
 import * as THREE from 'three';
 import { CatmullRomCurve3 } from 'three';
+import {
+    DEFAULT_CAP_STYLE,
+    CAP_STYLE_ROUNDED,
+    getCapProfile,
+    normalizeCapStyle,
+    sampleCapIntervals,
+} from './capProfiles.js';
 
 export class Ribbon {
     constructor(scene) {
@@ -30,11 +37,12 @@ export class Ribbon {
         this.helixMeshSegmentsB = []; // Second strand meshes
         this._segmentCacheB = [];     // Cache for strand B animation
 
-        // Cached geometry data for efficient wave animation updates
-        // Each entry contains: { basePositions, normals, binormals, tangents, arcLengths, width }
+        // Cached geometry data for efficient wave animation updates.
+        // Each entry contains per-vertex frame data and a normalized across-width offset.
         this._segmentCache = [];
 
-        // Rounded caps: taper ribbon width to zero at endpoints
+        // End-cap style controls how ribbon width tapers at the endpoints.
+        this.capStyle = DEFAULT_CAP_STYLE;
         this.roundedCaps = false;
     }
 
@@ -86,7 +94,7 @@ export class Ribbon {
 
     /**
      * Set helix mode parameters
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle }
      * @returns {Ribbon} this for chaining
      */
     setHelixOptions(options = {}) {
@@ -94,7 +102,13 @@ export class Ribbon {
         if (options.helixRadius !== undefined) this.helixRadius = options.helixRadius;
         if (options.helixPitch !== undefined) this.helixPitch = options.helixPitch;
         if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
-        if (options.roundedCaps !== undefined) this.roundedCaps = options.roundedCaps;
+        if (options.capStyle !== undefined || options.roundedCaps !== undefined) {
+            this.capStyle = normalizeCapStyle(
+                options.capStyle,
+                options.roundedCaps !== undefined ? options.roundedCaps : this.roundedCaps
+            );
+            this.roundedCaps = this.capStyle === CAP_STYLE_ROUNDED;
+        }
         return this;
     }
 
@@ -170,113 +184,45 @@ export class Ribbon {
         const curve = this.createCurveFromPoints(points);
         // console.log('[Ribbon] Curve created from points');
 
-        // Calculate initial reference normal for consistency
-        const initialTangent = curve.getTangent(0).normalize();
-        const up = new THREE.Vector3(0, 1, 0);
-        let referenceNormal = up.cross(initialTangent).normalize();
-
-        // If tangent is parallel to up vector, use a different reference
-        if (referenceNormal.length() < 0.1) {
-            const right = new THREE.Vector3(1, 0, 0);
-            referenceNormal = right.cross(initialTangent).normalize();
-        }
-
-        // Pre-calculate all normals (and binormals for helix mode) for the entire path
-        // using Rotation Minimizing Frames (Double Reflection method, Wang et al. 2008).
-        // This eliminates accumulated twist error from the old lerp approach, which caused
-        // visible stepping at segment boundaries in helix mode.
-
-        // Scale subdivision density with helix pitch — more turns need more points
-        const basePointsPerSegment = 50;
-        const pointsPerSegment = this.helixMode
-            ? Math.max(basePointsPerSegment, Math.ceil(basePointsPerSegment * (1 + this.helixPitch / 4)))
-            : basePointsPerSegment;
-
-        // When rounded caps are active, increase vertex density in the first
-        // and last segments so the circular taper profile is smooth.
-        const capDensityMultiplier = 3;
-        const segPointCounts = [];          // per-segment vertex counts
-        const segStartIndices = [];         // cumulative start index into normalCache
-        let accumIdx = 0;
-        for (let s = 0; s < segmentCount; s++) {
-            const isCapSegment = this.roundedCaps && (s === 0 || s === segmentCount - 1);
-            const pts = isCapSegment ? pointsPerSegment * capDensityMultiplier : pointsPerSegment;
-            segPointCounts.push(pts);
-            segStartIndices.push(accumIdx);
-            accumIdx += pts;
-        }
-        const totalPoints = accumIdx + 1;   // +1 for the final endpoint
-
-        const normalCache = [];
-        let prevNormal = referenceNormal.clone();
-        let prevTangent = initialTangent.clone();
-
-        for (let i = 0; i < totalPoints; i++) {
-            const t = i / (totalPoints - 1);
-            const tangent = curve.getTangent(t).normalize();
-
-            let normal;
-            if (i === 0) {
-                normal = prevNormal.clone();
-            } else {
-                // Double Reflection RMF (Wang et al. 2008)
-                // Produces twist-free frames without the accumulated error of lerp smoothing
-
-                // Step 1: reflect prevNormal across the bisector plane of prevTangent and tangent
-                const v1 = new THREE.Vector3().subVectors(tangent, prevTangent);
-                const c1 = v1.dot(v1);
-
-                if (c1 < 1e-10) {
-                    // Tangent barely changed — carry forward previous normal
-                    normal = prevNormal.clone();
-                } else {
-                    const rL = prevNormal.clone().addScaledVector(v1, (-2 / c1) * v1.dot(prevNormal));
-                    const tL = prevTangent.clone().addScaledVector(v1, (-2 / c1) * v1.dot(prevTangent));
-
-                    // Step 2: reflect across the plane perpendicular to the new tangent
-                    const v2 = new THREE.Vector3().subVectors(tangent, tL);
-                    const c2 = v2.dot(v2);
-
-                    if (c2 < 1e-10) {
-                        normal = rL;
-                    } else {
-                        normal = rL.addScaledVector(v2, (-2 / c2) * v2.dot(rL));
-                    }
-                }
-
-                normal.normalize();
-            }
-
-            // Compute binormal (perpendicular to both tangent and normal)
-            const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
-
-            normalCache.push({ normal: normal.clone(), binormal: binormal.clone() });
-            prevNormal = normal;
-            prevTangent = tangent.clone();
-        }
-
-        // console.log('[Ribbon] Normal cache computed', { totalPoints });
+        const pointsPerSegment = this._getBasePointsPerSegment();
+        const frameSamples = this.createFrameSamples(
+            curve,
+            Math.max(2, segmentCount * pointsPerSegment + 1)
+        );
 
         // Build each segment using the pre-calculated normals
         for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
             const startT = segIdx / segmentCount;
             const endT = (segIdx + 1) / segmentCount;
-            const startPointIdx = segStartIndices[segIdx];
-            const segPts = segPointCounts[segIdx];
+            const isProfileCapSegment = segmentCount > 1 && (segIdx === 0 || segIdx === segmentCount - 1);
+            const capSide = segIdx === 0 ? 'start' : 'end';
 
             // Strand A (or Standard Ribbon in non-helix mode)
-            const segmentMesh = this.createRibbonSegmentWithCache(
-                curve,
-                startT,
-                endT,
-                width,
-                time,
-                segIdx,
-                normalCache,
-                startPointIdx,
-                segPts,
-                0 // strandOffset = 0 for strand A
-            );
+            const segmentMesh = isProfileCapSegment
+                ? this.createProfileRibbonSegmentWithCache(
+                    curve,
+                    startT,
+                    endT,
+                    width,
+                    time,
+                    segIdx,
+                    frameSamples,
+                    capSide,
+                    0
+                )
+                : this.createStripRibbonSegmentWithCache(
+                    curve,
+                    startT,
+                    endT,
+                    width,
+                    time,
+                    segIdx,
+                    frameSamples,
+                    pointsPerSegment,
+                    0,
+                    null,
+                    segmentCount === 1 ? (localT) => this._getSingleSegmentCapWidthScale(localT) : null
+                );
 
             if (segmentMesh) {
                 this.meshSegments.push(segmentMesh);
@@ -286,19 +232,32 @@ export class Ribbon {
             // Strand B (helix mode only — offset by π)
             if (this.helixMode) {
                 const strandBTileManager = this.tileManagerB || this.tileManager;
-                const segmentMeshB = this.createRibbonSegmentWithCache(
-                    curve,
-                    startT,
-                    endT,
-                    width,
-                    time,
-                    segIdx,
-                    normalCache,
-                    startPointIdx,
-                    segPts,
-                    Math.PI, // strandOffset = π for strand B
-                    strandBTileManager // use strand B's TileManager
-                );
+                const segmentMeshB = isProfileCapSegment
+                    ? this.createProfileRibbonSegmentWithCache(
+                        curve,
+                        startT,
+                        endT,
+                        width,
+                        time,
+                        segIdx,
+                        frameSamples,
+                        capSide,
+                        Math.PI,
+                        strandBTileManager
+                    )
+                    : this.createStripRibbonSegmentWithCache(
+                        curve,
+                        startT,
+                        endT,
+                        width,
+                        time,
+                        segIdx,
+                        frameSamples,
+                        pointsPerSegment,
+                        Math.PI,
+                        strandBTileManager,
+                        segmentCount === 1 ? (localT) => this._getSingleSegmentCapWidthScale(localT) : null
+                    );
 
                 if (segmentMeshB) {
                     this.helixMeshSegmentsB.push(segmentMeshB);
@@ -374,107 +333,268 @@ export class Ribbon {
         return curve;
     }
 
-    createRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, normalCache, startPointIdx, pointsPerSegment, strandOffset = 0, overrideTileManager = null) {
+    _getBasePointsPerSegment() {
+        const basePointsPerSegment = 50;
+        return this.helixMode
+            ? Math.max(basePointsPerSegment, Math.ceil(basePointsPerSegment * (1 + this.helixPitch / 4)))
+            : basePointsPerSegment;
+    }
+
+    createFrameSamples(curve, sampleCount) {
+        const initialTangent = curve.getTangent(0).normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        let referenceNormal = up.cross(initialTangent).normalize();
+
+        if (referenceNormal.length() < 0.1) {
+            const right = new THREE.Vector3(1, 0, 0);
+            referenceNormal = right.cross(initialTangent).normalize();
+        }
+
+        const frameSamples = [];
+        let prevNormal = referenceNormal.clone();
+        let prevTangent = initialTangent.clone();
+
+        for (let i = 0; i < sampleCount; i++) {
+            const t = i / (sampleCount - 1);
+            const tangent = curve.getTangent(t).normalize();
+
+            let normal;
+            if (i === 0) {
+                normal = prevNormal.clone();
+            } else {
+                const v1 = new THREE.Vector3().subVectors(tangent, prevTangent);
+                const c1 = v1.dot(v1);
+
+                if (c1 < 1e-10) {
+                    normal = prevNormal.clone();
+                } else {
+                    const reflectedNormal = prevNormal.clone().addScaledVector(v1, (-2 / c1) * v1.dot(prevNormal));
+                    const reflectedTangent = prevTangent.clone().addScaledVector(v1, (-2 / c1) * v1.dot(prevTangent));
+                    const v2 = new THREE.Vector3().subVectors(tangent, reflectedTangent);
+                    const c2 = v2.dot(v2);
+
+                    normal = c2 < 1e-10
+                        ? reflectedNormal
+                        : reflectedNormal.addScaledVector(v2, (-2 / c2) * v2.dot(reflectedNormal));
+                }
+
+                normal.normalize();
+            }
+
+            const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
+
+            frameSamples.push({
+                normal: normal.clone(),
+                binormal: binormal.clone(),
+            });
+
+            prevNormal = normal;
+            prevTangent = tangent.clone();
+        }
+
+        return frameSamples;
+    }
+
+    _sampleFrame(curve, frameSamples, globalT) {
+        const clampedT = Math.max(0, Math.min(1, globalT));
+        const scaledIndex = clampedT * (frameSamples.length - 1);
+        const lowerIndex = Math.floor(scaledIndex);
+        const upperIndex = Math.min(frameSamples.length - 1, lowerIndex + 1);
+        const alpha = scaledIndex - lowerIndex;
+        const tangent = curve.getTangent(clampedT).normalize();
+        const normal = frameSamples[lowerIndex].normal.clone()
+            .lerp(frameSamples[upperIndex].normal, alpha)
+            .normalize();
+        const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
+        normal.crossVectors(binormal, tangent).normalize();
+
+        return {
+            point: curve.getPoint(clampedT),
+            tangent,
+            normal,
+            binormal,
+            arcLength: clampedT * this.pathLength,
+            globalT: clampedT,
+        };
+    }
+
+    _createAnimationScratch() {
+        return {
+            animatedNormal: new THREE.Vector3(),
+            helixCenter: new THREE.Vector3(),
+            radialDir: new THREE.Vector3(),
+            acrossDir: new THREE.Vector3(),
+        };
+    }
+
+    _setAnimatedVertexPosition(target, frame, width, acrossValue, widthScale, time, strandOffset = 0, scratch) {
+        const scaledAcross = acrossValue * widthScale;
+
+        if (this.helixMode) {
+            const helixAngle = frame.globalT * this.helixPitch * Math.PI * 2 + strandOffset;
+            const wavePhase = Math.sin(
+                frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+            ) * this.waveAmplitude;
+            const animatedAngle = helixAngle + wavePhase;
+            const cosA = Math.cos(animatedAngle);
+            const sinA = Math.sin(animatedAngle);
+            const helixRadius = this.helixRadius * width;
+            const strandWidth = this.helixStrandWidth * width;
+
+            scratch.helixCenter.copy(frame.point)
+                .addScaledVector(frame.normal, cosA * helixRadius)
+                .addScaledVector(frame.binormal, sinA * helixRadius);
+
+            scratch.radialDir.copy(scratch.helixCenter).sub(frame.point).normalize();
+            scratch.acrossDir.crossVectors(frame.tangent, scratch.radialDir).normalize();
+
+            target.copy(scratch.helixCenter).addScaledVector(scratch.acrossDir, scaledAcross * strandWidth);
+            return target;
+        }
+
+        const phase = Math.sin(
+            frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+        ) * this.waveAmplitude;
+
+        scratch.animatedNormal.copy(frame.normal);
+        scratch.animatedNormal.applyAxisAngle(frame.tangent, phase);
+        target.copy(frame.point).addScaledVector(scratch.animatedNormal, scaledAcross * width);
+        return target;
+    }
+
+    _createSegmentMesh(geometry, segmentIndex, overrideTileManager = null) {
+        let material = null;
+        const textureIndex = segmentIndex + this.segmentOffset;
+        const activeTileManager = overrideTileManager || this.tileManager;
+
+        if (activeTileManager && typeof activeTileManager.getMaterial === 'function') {
+            material = activeTileManager.getMaterial(textureIndex) || null;
+        }
+
+        if (!material) {
+            const tileTexture = activeTileManager.getTile(textureIndex);
+            material = new THREE.MeshBasicMaterial({
+                map: tileTexture,
+                side: THREE.DoubleSide
+            });
+        }
+
+        return new THREE.Mesh(geometry, material);
+    }
+
+    _getSingleSegmentCapWidthScale(localT) {
+        const mirroredT = Math.min(localT, 1 - localT) * 2;
+
+        if (this.capStyle === 'pointed') {
+            return Math.max(0, Math.min(1, mirroredT));
+        }
+
+        if (this.capStyle === 'rounded') {
+            return Math.sqrt(Math.max(0, 1 - (1 - mirroredT) * (1 - mirroredT)));
+        }
+
+        return 1;
+    }
+
+    _splitIntervalToMatch(interval, targetIntervals) {
+        if (targetIntervals.length !== 2) {
+            return [interval.slice()];
+        }
+
+        const split = Math.max(
+            interval[0],
+            Math.min(interval[1], (targetIntervals[0][1] + targetIntervals[1][0]) / 2)
+        );
+
+        return [
+            [interval[0], split],
+            [split, interval[1]],
+        ];
+    }
+
+    _pairCapIntervals(leftIntervals, rightIntervals) {
+        if (!leftIntervals.length || !rightIntervals.length) {
+            return [];
+        }
+
+        let normalizedLeft = leftIntervals.map(([start, end]) => [start, end]);
+        let normalizedRight = rightIntervals.map(([start, end]) => [start, end]);
+
+        if (normalizedLeft.length !== normalizedRight.length) {
+            if (normalizedLeft.length === 1 && normalizedRight.length === 2) {
+                normalizedLeft = this._splitIntervalToMatch(normalizedLeft[0], normalizedRight);
+            } else if (normalizedLeft.length === 2 && normalizedRight.length === 1) {
+                normalizedRight = this._splitIntervalToMatch(normalizedRight[0], normalizedLeft);
+            } else {
+                return [];
+            }
+        }
+
+        return normalizedLeft.map((interval, index) => ({
+            left: interval,
+            right: normalizedRight[index],
+        }));
+    }
+
+    _getCapSlices(profile, capSide, sliceCount) {
+        const slices = [];
+
+        for (let index = 0; index <= sliceCount; index++) {
+            const segmentLocalT = index / sliceCount;
+            const profileU = capSide === 'start' ? segmentLocalT : 1 - segmentLocalT;
+            slices.push({
+                segmentLocalT,
+                profileU,
+                intervals: sampleCapIntervals(profile, profileU),
+            });
+        }
+
+        return slices;
+    }
+
+    createStripRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, overrideTileManager = null, widthScaleFn = null) {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
         const indices = [];
 
-        // Cache arrays for efficient animation updates
-        const basePositions = [];  // Center points along the curve (spine points)
-        const normals = [];        // Pre-rotated base normals
-        const binormals = [];      // Binormals for helix perpendicular plane
-        const tangents = [];       // Tangent vectors for axis rotation
-        const arcLengths = [];     // Arc length at each point
-        const globalTs = [];       // Global t values for helix angle computation
-
-        const isHelix = this.helixMode;
-        const helixRadius = this.helixRadius * width;  // Scale radius relative to ribbon width
-        const helixPitch = this.helixPitch;
-        const strandWidth = isHelix ? this.helixStrandWidth * width : width;
+        const basePositions = [];
+        const normals = [];
+        const binormals = [];
+        const tangents = [];
+        const arcLengths = [];
+        const globalTs = [];
+        const acrossValues = [];
+        const widthScales = [];
+        const scratch = this._createAnimationScratch();
+        const left = new THREE.Vector3();
+        const right = new THREE.Vector3();
 
         for (let i = 0; i <= pointsPerSegment; i++) {
             const localT = i / pointsPerSegment;
             const globalT = startT + (endT - startT) * localT;
-            const point = curve.getPoint(globalT);
-            const tangent = curve.getTangent(globalT).normalize();
+            const frame = this._sampleFrame(curve, frameSamples, globalT);
+            const widthScale = widthScaleFn
+                ? Math.max(0, Math.min(1, widthScaleFn(localT, globalT)))
+                : 1;
 
-            // Get the pre-calculated normal and binormal from cache
-            const cacheIdx = startPointIdx + i;
-            const cachedFrame = normalCache[cacheIdx];
-            const normal = cachedFrame.normal.clone();
-            const binormal = cachedFrame.binormal.clone();
-
-            // Calculate arc length at this point for wave animation
-            const arcLength = globalT * this.pathLength;
-
-            // Store base geometry for animation cache
-            basePositions.push(point.clone());
-            normals.push(normal.clone());
-            binormals.push(binormal.clone());
-            tangents.push(tangent.clone());
-            arcLengths.push(arcLength);
-            globalTs.push(globalT);
-
-            // ── Rounded cap taper: smoothly narrow width near ribbon endpoints ──
-            const capTaper = this._getCapTaper(globalT, isHelix ? strandWidth : width);
-
-            let left, right;
-
-            if (isHelix) {
-                // ── Helix mode: displace vertices helically around the spine ──
-                // Helix angle based on position along the full path + strand offset
-                const helixAngle = globalT * helixPitch * Math.PI * 2 + strandOffset;
-
-                // Wave animation modulates the helix angle for a spinning/undulating effect
-                const wavePhase = Math.sin(
-                    arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-                ) * this.waveAmplitude;
-                const animatedAngle = helixAngle + wavePhase;
-
-                // Compute helix center: offset from spine along normal/binormal plane
-                const cosA = Math.cos(animatedAngle);
-                const sinA = Math.sin(animatedAngle);
-                const helixCenter = point.clone()
-                    .addScaledVector(normal, cosA * helixRadius)
-                    .addScaledVector(binormal, sinA * helixRadius);
-
-                // Radial direction (outward from spine) for ribbon width
-                const radialDir = helixCenter.clone().sub(point).normalize();
-
-                // Across direction — perpendicular to both tangent and radial — for ribbon strip width
-                const acrossDir = new THREE.Vector3().crossVectors(tangent, radialDir).normalize();
-
-                const hw = strandWidth / 2 * capTaper;
-                left = helixCenter.clone().addScaledVector(acrossDir, -hw);
-                right = helixCenter.clone().addScaledVector(acrossDir, hw);
-            } else {
-                // ── Standard Ribbon mode (original behavior) ──
-                const phase = Math.sin(
-                    arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-                ) * this.waveAmplitude;
-
-                const animatedNormal = normal.clone();
-                animatedNormal.applyAxisAngle(tangent, phase);
-
-                const hw = width / 2 * capTaper;
-                left = point.clone().addScaledVector(animatedNormal, -hw);
-                right = point.clone().addScaledVector(animatedNormal, hw);
-            }
+            this._setAnimatedVertexPosition(left, frame, width, -0.5, widthScale, time, strandOffset, scratch);
+            this._setAnimatedVertexPosition(right, frame, width, 0.5, widthScale, time, strandOffset, scratch);
 
             positions.push(left.x, left.y, left.z);
             positions.push(right.x, right.y, right.z);
+            uvs.push(localT, 0);
+            uvs.push(localT, 1);
 
-            // UV mapping — when caps taper the width, crop the texture to show
-            // only the visible center portion rather than compressing it
-            if (this.roundedCaps && capTaper < 1) {
-                const vMin = (1 - capTaper) / 2;
-                const vMax = 1 - vMin;
-                uvs.push(localT, vMin);  // left edge
-                uvs.push(localT, vMax);  // right edge
-            } else {
-                uvs.push(localT, 0);  // left edge
-                uvs.push(localT, 1);  // right edge
+            for (const acrossValue of [-0.5, 0.5]) {
+                basePositions.push(frame.point.clone());
+                normals.push(frame.normal.clone());
+                binormals.push(frame.binormal.clone());
+                tangents.push(frame.tangent.clone());
+                arcLengths.push(frame.arcLength);
+                globalTs.push(frame.globalT);
+                acrossValues.push(acrossValue);
+                widthScales.push(widthScale);
             }
 
             if (i < pointsPerSegment) {
@@ -484,9 +604,7 @@ export class Ribbon {
             }
         }
 
-        // Store cache for this segment
-        // For helix mode strand B, store in _segmentCacheB
-        const cacheTarget = (isHelix && strandOffset > 0) ? this._segmentCacheB : this._segmentCache;
+        const cacheTarget = (this.helixMode && strandOffset > 0) ? this._segmentCacheB : this._segmentCache;
         cacheTarget[segmentIndex] = {
             basePositions,
             normals,
@@ -494,6 +612,8 @@ export class Ribbon {
             tangents,
             arcLengths,
             globalTs,
+            acrossValues,
+            widthScales,
             width,
             strandOffset
         };
@@ -503,31 +623,94 @@ export class Ribbon {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // Prefer KTX2 array material if available; fallback to JPG texture
-        let material = null;
-        const textureIndex = segmentIndex + this.segmentOffset; // Apply offset for RibbonSeries
-        const activeTileManager = overrideTileManager || this.tileManager;
-        if (activeTileManager && typeof activeTileManager.getMaterial === 'function') {
-            material = activeTileManager.getMaterial(textureIndex) || null;
-            // console.log('[Ribbon] Segment', segmentIndex, 'material from tileManager:', !!material);
+        return this._createSegmentMesh(geometry, segmentIndex, overrideTileManager);
+    }
+
+    createProfileRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, capSide, strandOffset = 0, overrideTileManager = null) {
+        const profile = getCapProfile(this.capStyle, this.roundedCaps);
+        if (!profile?.vertices?.length || !profile?.indices?.length) {
+            return null;
         }
 
-        if (!material) {
-            const tileTexture = activeTileManager.getTile(textureIndex);
-            material = new THREE.MeshBasicMaterial({
-                map: tileTexture,
-                side: THREE.DoubleSide
-            });
-            // console.log('[Ribbon] Segment', segmentIndex, 'using fallback JPG material');
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const uvs = [];
+        const indices = [];
+        const basePositions = [];
+        const normals = [];
+        const binormals = [];
+        const tangents = [];
+        const arcLengths = [];
+        const globalTs = [];
+        const acrossValues = [];
+        const widthScales = [];
+        const scratch = this._createAnimationScratch();
+        const vertexPosition = new THREE.Vector3();
+        const sliceCount = Math.max(this._getBasePointsPerSegment(), 32);
+        const slices = this._getCapSlices(profile, capSide, sliceCount);
+
+        for (let sliceIndex = 0; sliceIndex < slices.length - 1; sliceIndex++) {
+            const leftSlice = slices[sliceIndex];
+            const rightSlice = slices[sliceIndex + 1];
+            const intervalPairs = this._pairCapIntervals(leftSlice.intervals, rightSlice.intervals);
+
+            for (const pair of intervalPairs) {
+                const quadVertices = [
+                    { localT: leftSlice.segmentLocalT, v: pair.left[0] },
+                    { localT: leftSlice.segmentLocalT, v: pair.left[1] },
+                    { localT: rightSlice.segmentLocalT, v: pair.right[0] },
+                    { localT: rightSlice.segmentLocalT, v: pair.right[1] },
+                ];
+                const baseIndex = positions.length / 3;
+
+                for (const vertex of quadVertices) {
+                    const globalT = startT + (endT - startT) * vertex.localT;
+                    const frame = this._sampleFrame(curve, frameSamples, globalT);
+                    const acrossValue = Math.max(-0.5, Math.min(0.5, vertex.v - 0.5));
+
+                    this._setAnimatedVertexPosition(vertexPosition, frame, width, acrossValue, 1, time, strandOffset, scratch);
+
+                    positions.push(vertexPosition.x, vertexPosition.y, vertexPosition.z);
+                    uvs.push(vertex.localT, Math.max(0, Math.min(1, vertex.v)));
+                    basePositions.push(frame.point.clone());
+                    normals.push(frame.normal.clone());
+                    binormals.push(frame.binormal.clone());
+                    tangents.push(frame.tangent.clone());
+                    arcLengths.push(frame.arcLength);
+                    globalTs.push(frame.globalT);
+                    acrossValues.push(acrossValue);
+                    widthScales.push(1);
+                }
+
+                indices.push(baseIndex, baseIndex + 1, baseIndex + 2);
+                indices.push(baseIndex + 1, baseIndex + 3, baseIndex + 2);
+            }
         }
 
-        const mesh = new THREE.Mesh(geometry, material);
-        // console.log('[Ribbon] Segment', segmentIndex, 'mesh created', {
-        //     positions: positions.length / 3,
-        //     indices: indices.length
-        // });
+        if (positions.length === 0) {
+            return null;
+        }
 
-        return mesh;
+        const cacheTarget = (this.helixMode && strandOffset > 0) ? this._segmentCacheB : this._segmentCache;
+        cacheTarget[segmentIndex] = {
+            basePositions,
+            normals,
+            binormals,
+            tangents,
+            arcLengths,
+            globalTs,
+            acrossValues,
+            widthScales,
+            width,
+            strandOffset
+        };
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        return this._createSegmentMesh(geometry, segmentIndex, overrideTileManager);
     }
 
     /**
@@ -568,16 +751,8 @@ export class Ribbon {
      * @param {number} time - Current animation time
      */
     _updateStrandAnimation(meshes, cache, time) {
-        // Reusable vectors to avoid GC pressure
-        const animatedNormal = new THREE.Vector3();
-        const left = new THREE.Vector3();
-        const right = new THREE.Vector3();
-        const helixCenter = new THREE.Vector3();
-        const radialDir = new THREE.Vector3();
-        const acrossDir = new THREE.Vector3();
-
-        const isHelix = this.helixMode;
-        const helixPitch = this.helixPitch;
+        const vertexPosition = new THREE.Vector3();
+        const scratch = this._createAnimationScratch();
 
         for (let segIdx = 0; segIdx < meshes.length; segIdx++) {
             const mesh = meshes[segIdx];
@@ -587,66 +762,44 @@ export class Ribbon {
 
             const positionAttr = mesh.geometry.attributes.position;
             const positions = positionAttr.array;
-            const { basePositions, normals, binormals, tangents, arcLengths, globalTs, width, strandOffset } = segCache;
-
-            const helixRadius = this.helixRadius * width;
-            const strandWidth = isHelix ? this.helixStrandWidth * width : width;
+            const {
+                basePositions,
+                normals,
+                binormals,
+                tangents,
+                arcLengths,
+                globalTs,
+                acrossValues,
+                widthScales,
+                width,
+                strandOffset
+            } = segCache;
 
             for (let i = 0; i < basePositions.length; i++) {
-                const point = basePositions[i];
-                const normal = normals[i];
-                const tangent = tangents[i];
-                const arcLength = arcLengths[i];
-                const globalT = globalTs[i];
+                const frame = {
+                    point: basePositions[i],
+                    normal: normals[i],
+                    binormal: binormals[i],
+                    tangent: tangents[i],
+                    arcLength: arcLengths[i],
+                    globalT: globalTs[i],
+                };
 
-                // Rounded cap width taper
-                const capTaper = this._getCapTaper(globalT, strandWidth);
+                this._setAnimatedVertexPosition(
+                    vertexPosition,
+                    frame,
+                    width,
+                    acrossValues[i],
+                    widthScales[i],
+                    time,
+                    strandOffset,
+                    scratch
+                );
 
-                if (isHelix) {
-                    const binormal = binormals[i];
-
-                    // Helix angle + wave modulation
-                    const helixAngle = globalT * helixPitch * Math.PI * 2 + (strandOffset || 0);
-                    const wavePhase = Math.sin(
-                        arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-                    ) * this.waveAmplitude;
-                    const animatedAngle = helixAngle + wavePhase;
-
-                    const cosA = Math.cos(animatedAngle);
-                    const sinA = Math.sin(animatedAngle);
-
-                    helixCenter.copy(point)
-                        .addScaledVector(normal, cosA * helixRadius)
-                        .addScaledVector(binormal, sinA * helixRadius);
-
-                    radialDir.copy(helixCenter).sub(point).normalize();
-                    acrossDir.crossVectors(tangent, radialDir).normalize();
-
-                    const hwH = strandWidth / 2 * capTaper;
-                    left.copy(helixCenter).addScaledVector(acrossDir, -hwH);
-                    right.copy(helixCenter).addScaledVector(acrossDir, hwH);
-                } else {
-                    // Standard Ribbon mode (original behavior)
-                    const phase = Math.sin(
-                        arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-                    ) * this.waveAmplitude;
-
-                    animatedNormal.copy(normal);
-                    animatedNormal.applyAxisAngle(tangent, phase);
-
-                    const hwF = width / 2 * capTaper;
-                    left.copy(point).addScaledVector(animatedNormal, -hwF);
-                    right.copy(point).addScaledVector(animatedNormal, hwF);
-                }
-
-                // Update position buffer (2 vertices per point: left, right)
-                const idx = i * 6; // 2 vertices * 3 components
-                positions[idx] = left.x;
-                positions[idx + 1] = left.y;
-                positions[idx + 2] = left.z;
-                positions[idx + 3] = right.x;
-                positions[idx + 4] = right.y;
-                positions[idx + 5] = right.z;
+                const idx = i * 3;
+                positions[idx] = vertexPosition.x;
+                positions[idx + 1] = vertexPosition.y;
+                positions[idx + 2] = vertexPosition.z;
             }
 
             // Flag buffer as needing GPU upload
@@ -655,45 +808,6 @@ export class Ribbon {
             // Recompute vertex normals for correct lighting
             mesh.geometry.computeVertexNormals();
         }
-    }
-
-    /**
-     * Compute width multiplier for rounded caps.
-     *
-     * Returns 1.0 for most of the ribbon.  Near the start (globalT ≈ 0)
-     * or end (globalT ≈ 1) it returns a value in [0, 1] that follows
-     * the equation of a circle: √(1 − (1−t)²), so the ribbon's left
-     * and right edges trace a true semicircular arc when viewed from above.
-     *
-     * The taper zone is `halfWidth` of arc length from each end,
-     * matching the semicircle's radius to the ribbon's half-width.
-     *
-     * @param {number} globalT - 0..1 position along the full path
-     * @param {number} ribbonWidth - ribbon width (or strandWidth in helix)
-     * @returns {number} 0..1 scale factor
-     */
-    _getCapTaper(globalT, ribbonWidth) {
-        if (!this.roundedCaps || this.pathLength <= 0) return 1;
-
-        const halfWidth = ribbonWidth / 2;
-        const taperLen = halfWidth;                       // arc-length of taper zone
-        const taperT   = taperLen / this.pathLength;      // same, as fraction of path
-
-        // Clamp so the two taper zones never overlap (very short ribbons)
-        const safeT = Math.min(taperT, 0.5);
-
-        if (globalT < safeT) {
-            // Start taper: 0 → 1 over [0, safeT]
-            // Circle profile: sqrt(1 - (1-t)²) = sqrt(2t - t²)
-            const t = globalT / safeT;
-            return Math.sqrt(1 - (1 - t) * (1 - t));
-        }
-        if (globalT > 1 - safeT) {
-            // End taper: 1 → 0 over [1-safeT, 1]
-            const t = (1 - globalT) / safeT;
-            return Math.sqrt(1 - (1 - t) * (1 - t));
-        }
-        return 1;
     }
 
     cleanupOldMesh() {

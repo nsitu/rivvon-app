@@ -2,6 +2,7 @@
 // Pinia store for rivvon viewer state
 
 import { defineStore } from 'pinia';
+import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfiles.js';
 
 export const useViewerStore = defineStore('viewer', {
     state: () => ({
@@ -40,7 +41,8 @@ export const useViewerStore = defineStore('viewer', {
         helixStrandWidth: 0.3, // Width of each helical ribbon strip (fraction of original width)
 
         // Geometry options
-        roundedCaps: true, // Apply rounded semicircular caps to ribbon ends
+        capStyle: CAP_STYLE_ROUNDED,
+        roundedCaps: true, // Legacy alias for capStyle === 'rounded'
         
         // Texture state
         currentTextureId: null,
@@ -362,8 +364,14 @@ export const useViewerStore = defineStore('viewer', {
             }
         },
 
+        setCapStyle(style) {
+            const nextStyle = normalizeCapStyle(style, this.roundedCaps);
+            this.capStyle = nextStyle;
+            this.roundedCaps = nextStyle === CAP_STYLE_ROUNDED;
+        },
+
         setRoundedCaps(enabled) {
-            this.roundedCaps = !!enabled;
+            this.setCapStyle(enabled ? CAP_STYLE_ROUNDED : 'square');
         },
 
     },
@@ -380,7 +388,8 @@ export const useViewerStore = defineStore('viewer', {
             helixRadius: state.helixRadius,
             helixPitch: state.helixPitch,
             helixStrandWidth: state.helixStrandWidth,
-            roundedCaps: state.roundedCaps,
+            capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
+            roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,
         }),
     }
 });

@@ -4,6 +4,7 @@
 
 import { Box3, Group, Vector3 } from 'three';
 import { Ribbon } from './ribbon.js';
+import { DEFAULT_CAP_STYLE } from './capProfiles.js';
 
 export class RibbonSeries {
     /**
@@ -41,12 +42,13 @@ export class RibbonSeries {
             helixRadius: 0.4,
             helixPitch: 4,
             helixStrandWidth: 0.3,
+            capStyle: DEFAULT_CAP_STYLE,
         };
     }
 
     /**
      * Set helix mode parameters, forwarded to all child ribbons
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle }
      * @returns {RibbonSeries} this for chaining
      */
     setHelixOptions(options = {}) {

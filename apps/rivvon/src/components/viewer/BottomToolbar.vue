@@ -49,6 +49,8 @@
 
     const capOptions = [
         { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
+        { label: 'Pointed Caps', value: 'pointed', icon: 'change_history' },
+        { label: 'Swallowtail Caps', value: 'swallowtail', icon: 'content_cut' },
         { label: 'Square Caps', value: 'square', icon: 'crop' }
     ];
 
@@ -80,10 +82,10 @@
     });
 
     const selectedCapOption = computed({
-        get: () => capOptions.find((option) => option.value === (app.roundedCaps ? 'rounded' : 'square')) ?? capOptions[0],
+        get: () => capOptions.find((option) => option.value === app.capStyle) ?? capOptions[0],
         set: (option) => {
             if (!option?.value) return;
-            app.setRoundedCaps(option.value === 'rounded');
+            app.setCapStyle(option.value);
         }
     });
 
