@@ -40,6 +40,7 @@ export function useTextureLoader(ctx, deps = {}) {
             renderer: ctx.renderer.value,
             rendererType: ctx.app.rendererType,
             rotate90: true,
+            repeatMode: ctx.app.textureRepeatMode,
             webgpuMaterialMode: 'node'
         });
         await ctx.tileManager.value.loadAllTiles();
@@ -158,6 +159,7 @@ export function useTextureLoader(ctx, deps = {}) {
                         renderer: ctx.renderer.value,
                         rendererType: ctx.app.rendererType,
                         rotate90: true,
+                        repeatMode: ctx.app.textureRepeatMode,
                         webgpuMaterialMode: 'node'
                     });
 

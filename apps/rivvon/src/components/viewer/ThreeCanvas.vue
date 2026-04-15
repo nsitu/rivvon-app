@@ -42,6 +42,7 @@
         loadTexturesFromLocal,
         loadMultipleTextures,
         setFlowState,
+        setTextureRepeatMode,
         setHelixMode,
         exportImage,
         exportVideo,
@@ -144,6 +145,10 @@
         setFlowState(state);
     });
 
+    watch(() => app.textureRepeatMode, (mode) => {
+        setTextureRepeatMode(mode);
+    });
+
     // Watch for helix mode/option changes and rebuild ribbons
     watch(() => app.helixOptions, (options) => {
         setHelixMode(options);
@@ -170,6 +175,7 @@
         loadTexturesFromLocal,
         loadMultipleTextures,
         setFlowState,
+        setTextureRepeatMode,
         setHelixMode,
         exportImage,
         exportVideo,

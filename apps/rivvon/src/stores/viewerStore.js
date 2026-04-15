@@ -45,6 +45,7 @@ export const useViewerStore = defineStore('viewer', {
         roundedCaps: true, // Legacy alias for capStyle === 'rounded'
         
         // Texture state
+        textureRepeatMode: 'mirrorBounce', // 'wrap' | 'mirrorBounce'
         currentTextureId: null,
         thumbnailUrl: null,
         activeTextureIds: [],      // Array of texture IDs when multi-texture is active
@@ -259,6 +260,10 @@ export const useViewerStore = defineStore('viewer', {
         
         setThumbnailUrl(url) {
             this.thumbnailUrl = url;
+        },
+
+        setTextureRepeatMode(mode) {
+            this.textureRepeatMode = mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
         },
 
         setActiveTextures(ids) {

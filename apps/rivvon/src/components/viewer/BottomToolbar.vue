@@ -42,6 +42,11 @@
         { label: 'Backward', value: 'backward', icon: 'arrow_back' }
     ];
 
+    const repeatOptions = [
+        { label: 'Wrap Tiles', value: 'wrap', icon: 'repeat' },
+        { label: 'Mirror Bounce', value: 'mirrorBounce', icon: 'swap_horiz' }
+    ];
+
     const geometryOptions = [
         { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
@@ -65,11 +70,24 @@
         app.hideToolsPanel();
     }
 
+    function setTextureRepeatMode(mode) {
+        app.setTextureRepeatMode(mode);
+        app.hideToolsPanel();
+    }
+
     const selectedFlowOption = computed({
         get: () => flowOptions.find((option) => option.value === app.flowState) ?? flowOptions[0],
         set: (option) => {
             if (!option?.value) return;
             setFlowState(option.value);
+        }
+    });
+
+    const selectedRepeatOption = computed({
+        get: () => repeatOptions.find((option) => option.value === app.textureRepeatMode) ?? repeatOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            setTextureRepeatMode(option.value);
         }
     });
 
@@ -449,6 +467,39 @@
                             <Select
                                 v-model="selectedFlowOption"
                                 :options="flowOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tools-section">
+                    <div class="tools-section-label">Texture Layout</div>
+                    <div class="tools-section-items">
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedRepeatOption"
+                                :options="repeatOptions"
                                 option-label="label"
                                 class="tools-select"
                             >

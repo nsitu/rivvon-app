@@ -137,6 +137,7 @@ export function useThreeSetup() {
                 renderer: result.renderer,
                 rendererType: result.rendererType,
                 rotate90: true,
+                repeatMode: app.textureRepeatMode,
                 webgpuMaterialMode: 'node'
             });
             await tileManager.value.loadAllTiles();
@@ -328,6 +329,7 @@ export function useThreeSetup() {
         loadTexturesFromLocal: textures.loadTexturesFromLocal,
         loadMultipleTextures: textures.loadMultipleTextures,
         setFlowState: ribbons.setFlowState,
+        setTextureRepeatMode: ribbons.setTextureRepeatMode,
         setHelixMode: ribbons.setHelixMode,
         exportImage: exporter.exportImage,
         exportVideo: exporter.exportVideo,

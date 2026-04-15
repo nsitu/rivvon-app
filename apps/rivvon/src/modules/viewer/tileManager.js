@@ -32,6 +32,15 @@ async function loadTSLModule() {
 // Default texture ID from CDN (used when no source specified)
 export const DEFAULT_TEXTURE_ID = 'wv-ywyV14qYSbrzgYga4l';
 
+function positiveModulo(value, modulus) {
+    if (modulus <= 0) return 0;
+    return ((value % modulus) + modulus) % modulus;
+}
+
+function normalizeRepeatMode(mode) {
+    return mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
+}
+
 export class TileManager {
     constructor(options = {}) {
         const {
@@ -40,6 +49,7 @@ export class TileManager {
             rendererType = 'webgl',
             tileCount = 32,
             rotate90 = false,
+            repeatMode = 'mirrorBounce',
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -58,6 +68,7 @@ export class TileManager {
 
         // KTX2 path
         this.materials = [];
+        this.mirroredMaterials = new Map();
         this.arrayTextures = []; // Raw array textures for dual-texture flow materials
 
         // Check if source is a zip file
@@ -90,6 +101,7 @@ export class TileManager {
         this.fps = 30; // fixed cadence
         this.lastFrameTime = 0;
         this.rotate90 = !!rotate90;
+        this.repeatMode = normalizeRepeatMode(repeatMode);
 
         // Flow animation state (continuous dual-texture approach)
         // flowOffset: 0.0 to 1.0 representing progress sliding to next tile
@@ -379,11 +391,45 @@ export class TileManager {
         return this._webgpuDeps;
     }
 
-    #createArrayMaterial(arrayTexture) {
+    #forEachStaticMaterial(visitor) {
+        this.materials.forEach(material => {
+            if (material) visitor(material);
+        });
+        this.mirroredMaterials.forEach(material => {
+            if (material) visitor(material);
+        });
+    }
+
+    #resolveRepeatSample(effectiveIndex) {
+        if (this.tileCount <= 0) {
+            return { isGap: false, tileIndex: 0, mirrorX: false, cycleIndex: 0 };
+        }
+
+        if (this.repeatMode !== 'mirrorBounce') {
+            const tileIndex = positiveModulo(effectiveIndex, this.tileCount);
+            return { isGap: false, tileIndex, mirrorX: false, cycleIndex: tileIndex };
+        }
+
+        const cycleLength = this.getEffectiveTileCount();
+        const cycleIndex = positiveModulo(effectiveIndex, cycleLength);
+
+        if (cycleIndex < this.tileCount) {
+            return { isGap: false, tileIndex: cycleIndex, mirrorX: false, cycleIndex };
+        }
+
+        return {
+            isGap: false,
+            tileIndex: cycleLength - 1 - cycleIndex,
+            mirrorX: true,
+            cycleIndex,
+        };
+    }
+
+    #createArrayMaterial(arrayTexture, options = {}) {
         if (this.rendererType === 'webgpu') {
-            return this.#createArrayMaterialWebGPU(arrayTexture);
+            return this.#createArrayMaterialWebGPU(arrayTexture, options);
         } else {
-            return this.#createArrayMaterialWebGL(arrayTexture);
+            return this.#createArrayMaterialWebGL(arrayTexture, options);
         }
     }
 
@@ -394,8 +440,10 @@ export class TileManager {
      * @param {THREE.DataArrayTexture} textureNext - Next tile's array texture
      * @returns {THREE.ShaderMaterial} Dual-texture material
      */
-    #createDualTextureMaterialWebGL(textureCurrent, textureNext) {
+    #createDualTextureMaterialWebGL(textureCurrent, textureNext, options = {}) {
         const layerCount = textureCurrent.image?.depth || 1;
+        const mirrorCurrent = options.mirrorCurrent ? 1 : 0;
+        const mirrorNext = options.mirrorNext ? 1 : 0;
 
         const material = new THREE.ShaderMaterial({
             glslVersion: THREE.GLSL3,
@@ -405,6 +453,8 @@ export class TileManager {
                 uLayer: this.sharedLayerUniform,
                 uLayerCount: { value: layerCount },
                 uRotate90: this.sharedRotateUniform,
+                uMirrorCurrent: { value: mirrorCurrent },
+                uMirrorNext: { value: mirrorNext },
                 uFlowOffset: this.sharedFlowOffsetUniform,
             },
             vertexShader: /* glsl */`
@@ -422,11 +472,23 @@ export class TileManager {
                 uniform sampler2DArray uTexArrayNext;
                 uniform int uLayer;
                 uniform int uRotate90;
+                uniform int uMirrorCurrent;
+                uniform int uMirrorNext;
                 uniform float uFlowOffset;
                 out vec4 outColor;
                 void main() {
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
+
+                    vec2 currentDerivUV = vec2(
+                        (uMirrorCurrent == 1) ? (1.0 - shiftedU) : shiftedU,
+                        vUv.y
+                    );
+                    vec2 nextBaseUV = vec2(shiftedU - 1.0, vUv.y);
+                    vec2 nextDerivUV = vec2(
+                        (uMirrorNext == 1) ? (1.0 - nextBaseUV.x) : nextBaseUV.x,
+                        nextBaseUV.y
+                    );
                     
                     // Compute derivatives from the CONTINUOUS shifted UV before
                     // branching, so the GPU gets correct mip-level selection across
@@ -434,11 +496,19 @@ export class TileManager {
                     // fragments in different branches produce a ~1.0 UV jump that
                     // selects a very high (blurry) mip level, causing a visible
                     // dotted-line seam on mobile GPUs (iPad WebGL).
-                    vec2 uvForDeriv = vec2(shiftedU, vUv.y);
-                    vec2 uvR_d = (uRotate90 == 1) ? vec2(uvForDeriv.y, 1.0 - uvForDeriv.x) : uvForDeriv;
-                    vec2 flipped_d = vec2(uvR_d.x, 1.0 - uvR_d.y);
-                    vec2 dPdx = dFdx(flipped_d);
-                    vec2 dPdy = dFdy(flipped_d);
+                    vec2 uvCurrentRot_d = (uRotate90 == 1)
+                        ? vec2(currentDerivUV.y, 1.0 - currentDerivUV.x)
+                        : currentDerivUV;
+                    vec2 flippedCurrent_d = vec2(uvCurrentRot_d.x, 1.0 - uvCurrentRot_d.y);
+                    vec2 dPdxCurrent = dFdx(flippedCurrent_d);
+                    vec2 dPdyCurrent = dFdy(flippedCurrent_d);
+
+                    vec2 uvNextRot_d = (uRotate90 == 1)
+                        ? vec2(nextDerivUV.y, 1.0 - nextDerivUV.x)
+                        : nextDerivUV;
+                    vec2 flippedNext_d = vec2(uvNextRot_d.x, 1.0 - uvNextRot_d.y);
+                    vec2 dPdxNext = dFdx(flippedNext_d);
+                    vec2 dPdyNext = dFdy(flippedNext_d);
                     
                     vec2 sampleUV;
                     vec4 texColor;
@@ -446,19 +516,21 @@ export class TileManager {
                     if (shiftedU >= 1.0) {
                         // This region shows the NEXT tile
                         sampleUV = vec2(shiftedU - 1.0, vUv.y);
+                        sampleUV.x = (uMirrorNext == 1) ? (1.0 - sampleUV.x) : sampleUV.x;
                         // Optionally rotate by 90 degrees (clockwise)
                         vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
                         // Flip V to match texture orientation
                         vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                        texColor = textureGrad(uTexArrayNext, vec3(flippedUv, float(uLayer)), dPdx, dPdy);
+                        texColor = textureGrad(uTexArrayNext, vec3(flippedUv, float(uLayer)), dPdxNext, dPdyNext);
                     } else {
                         // This region shows the CURRENT tile
                         sampleUV = vec2(shiftedU, vUv.y);
+                        sampleUV.x = (uMirrorCurrent == 1) ? (1.0 - sampleUV.x) : sampleUV.x;
                         // Optionally rotate by 90 degrees (clockwise)
                         vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
                         // Flip V to match texture orientation
                         vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                        texColor = textureGrad(uTexArrayCurrent, vec3(flippedUv, float(uLayer)), dPdx, dPdy);
+                        texColor = textureGrad(uTexArrayCurrent, vec3(flippedUv, float(uLayer)), dPdxCurrent, dPdyCurrent);
                     }
                     
                     outColor = texColor;
@@ -482,7 +554,7 @@ export class TileManager {
      * @param {THREE.DataArrayTexture} textureNext - Next tile's array texture
      * @returns {THREE_WEBGPU.NodeMaterial} Dual-texture material
      */
-    #createDualTextureMaterialWebGPU(textureCurrent, textureNext) {
+    #createDualTextureMaterialWebGPU(textureCurrent, textureNext, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
         const { texture, uniform, uv, float, vec2 } = threeTSL;
@@ -491,16 +563,25 @@ export class TileManager {
         // Create uniforms
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
+        const mirrorCurrentUniform = uniform(options.mirrorCurrent ? 1 : 0);
+        const mirrorNextUniform = uniform(options.mirrorNext ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
 
         const baseUV = uv();
         
         // Apply flow offset
         const shiftedU = baseUV.x.add(flowOffsetUniform);
+        const nextShiftedU = shiftedU.sub(1.0);
         
         // Create two UV sets
-        const uvCurrent = vec2(shiftedU, baseUV.y);
-        const uvNext = vec2(shiftedU.sub(1.0), baseUV.y);
+        const uvCurrent = vec2(
+            mirrorCurrentUniform.equal(1).select(float(1).sub(shiftedU), shiftedU),
+            baseUV.y
+        );
+        const uvNext = vec2(
+            mirrorNextUniform.equal(1).select(float(1).sub(nextShiftedU), nextShiftedU),
+            baseUV.y
+        );
         
         // Apply rotation and flip for current
         const rotatedCurrent = rotateUniform.equal(1).select(
@@ -550,10 +631,12 @@ export class TileManager {
             return this.getMaterial(segmentIndex);
         }
 
-        const wrapCount = this.tileCount;
         const basePos = segmentIndex + this.tileFlowOffset;
-        const currentTileIdx = ((basePos % wrapCount) + wrapCount) % wrapCount;
-        const nextTileIdx = (currentTileIdx + 1) % wrapCount;
+        const currentSample = this.resolveSegmentToTile(basePos);
+        const nextSample = this.resolveSegmentToTile(basePos + 1);
+
+        const currentTileIdx = currentSample.tileIndex;
+        const nextTileIdx = nextSample.tileIndex;
 
         const textureCurrent = this.arrayTextures[currentTileIdx];
         const textureNext = this.arrayTextures[nextTileIdx];
@@ -565,9 +648,15 @@ export class TileManager {
 
         let material;
         if (this.rendererType === 'webgpu') {
-            material = this.#createDualTextureMaterialWebGPU(textureCurrent, textureNext);
+            material = this.#createDualTextureMaterialWebGPU(textureCurrent, textureNext, {
+                mirrorCurrent: currentSample.mirrorX,
+                mirrorNext: nextSample.mirrorX,
+            });
         } else {
-            material = this.#createDualTextureMaterialWebGL(textureCurrent, textureNext);
+            material = this.#createDualTextureMaterialWebGL(textureCurrent, textureNext, {
+                mirrorCurrent: currentSample.mirrorX,
+                mirrorNext: nextSample.mirrorX,
+            });
         }
 
         // Track this material for uniform updates
@@ -595,8 +684,9 @@ export class TileManager {
         this.flowMaterials = [];
     }
 
-    #createArrayMaterialWebGL(arrayTexture) {
+    #createArrayMaterialWebGL(arrayTexture, options = {}) {
         const layerCount = arrayTexture.image?.depth || 1;
+        const mirrorX = options.mirrorX ? 1 : 0;
 
         const material = new THREE.ShaderMaterial({
             glslVersion: THREE.GLSL3,
@@ -604,7 +694,8 @@ export class TileManager {
                 uTexArray: { value: arrayTexture },
                 uLayer: this.sharedLayerUniform,
                 uLayerCount: { value: layerCount },
-                uRotate90: this.sharedRotateUniform
+                uRotate90: this.sharedRotateUniform,
+                uMirrorX: { value: mirrorX }
             },
             vertexShader: /* glsl */`
                 out vec2 vUv;
@@ -620,10 +711,12 @@ export class TileManager {
                 uniform sampler2DArray uTexArray;
                 uniform int uLayer;
                 uniform int uRotate90;
+                uniform int uMirrorX;
                 out vec4 outColor;
                 void main() {
+                    vec2 sampleUV = vec2((uMirrorX == 1) ? (1.0 - vUv.x) : vUv.x, vUv.y);
                     // Optionally rotate by 90 degrees (clockwise)
-                    vec2 uvR = (uRotate90 == 1) ? vec2(vUv.y, 1.0 - vUv.x) : vUv;
+                    vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
                     
                     // Flip V to match texture orientation
                     vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
@@ -639,7 +732,7 @@ export class TileManager {
         return material;
     }
 
-    #createArrayMaterialWebGPU(arrayTexture) {
+    #createArrayMaterialWebGPU(arrayTexture, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
         const { texture, uniform, uv, float, vec2 } = threeTSL;
@@ -677,18 +770,23 @@ export class TileManager {
         // Create uniforms for layer and rotation
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
+        const mirrorUniform = uniform(options.mirrorX ? 1 : 0);
 
         // Get base UV coordinates
         const baseUV = uv();
+        const sampleUV = vec2(
+            mirrorUniform.equal(1).select(float(1).sub(baseUV.x), baseUV.x),
+            baseUV.y
+        );
 
         // Step 1: Optionally rotate by 90 degrees clockwise
         // Rotation: (x, y) → (y, 1 - x)
         // Using TSL's select() for conditional: condition.select(valueIfTrue, valueIfFalse)
         const rotatedUV = rotateUniform.equal(1).select(
             // If rotate is enabled: create vec2(y, 1-x)
-            vec2(baseUV.y, float(1).sub(baseUV.x)),
+            vec2(sampleUV.y, float(1).sub(sampleUV.x)),
             // If rotate is disabled: keep original UV
-            baseUV
+            sampleUV
         );
 
         // Step 2: Flip V coordinate to match texture orientation
@@ -707,6 +805,7 @@ export class TileManager {
         // Store references to uniforms for updates
         material._layerUniform = layerUniform;
         material._rotateUniform = rotateUniform;
+        material._mirrorUniform = mirrorUniform;
 
         console.log('[TileManager] WebGPU material created:', {
             layerCount,
@@ -893,7 +992,9 @@ export class TileManager {
     }
 
     getTile(index) {
-        const tile = this.tiles[index % this.tileCount];
+        if (this.tileCount <= 0) return undefined;
+        const sample = this.resolveSegmentToTile(index);
+        const tile = this.tiles[positiveModulo(sample.tileIndex, this.tileCount)];
         // console.log('[TileManager] getTile', index, {
         //     tileExists: !!tile,
         //     totalTiles: this.tiles.length
@@ -903,14 +1004,33 @@ export class TileManager {
 
     getMaterial(index) {
         if (!this.isKTX2) return undefined;
-        return this.materials[index % this.tileCount];
+        const sample = this.resolveSegmentToTile(index);
+        const baseMaterial = this.materials[sample.tileIndex];
+
+        if (!sample.mirrorX || !baseMaterial) {
+            return baseMaterial;
+        }
+
+        let mirroredMaterial = this.mirroredMaterials.get(sample.tileIndex);
+        if (!mirroredMaterial) {
+            const arrayTexture = this.arrayTextures[sample.tileIndex];
+            if (!arrayTexture) {
+                return baseMaterial;
+            }
+
+            mirroredMaterial = this.#createArrayMaterial(arrayTexture, { mirrorX: true });
+            this.mirroredMaterials.set(sample.tileIndex, mirroredMaterial);
+        }
+
+        return mirroredMaterial;
     }
 
     /**
      * Return the tile count used for material wrapping.
      */
     getEffectiveTileCount() {
-        return this.tileCount;
+        if (this.tileCount <= 0) return 0;
+        return this.repeatMode === 'mirrorBounce' ? this.tileCount * 2 : this.tileCount;
     }
 
     getTileSequence(startIndex, count) {
@@ -924,11 +1044,10 @@ export class TileManager {
     /**
      * Resolve an effective segment index to a tile index.
      * @param {number} effectiveIndex - segmentIndex + tileFlowOffset
-     * @returns {{ isGap: boolean, tileIndex: number }}
+     * @returns {{ isGap: boolean, tileIndex: number, mirrorX: boolean, cycleIndex: number }}
      */
     resolveSegmentToTile(effectiveIndex) {
-        const tileCount = this.tileCount;
-        return { isGap: false, tileIndex: ((effectiveIndex % tileCount) + tileCount) % tileCount };
+        return this.#resolveRepeatSample(effectiveIndex);
     }
 
     /**
@@ -1066,7 +1185,7 @@ export class TileManager {
             // For WebGPU, also update TSL uniform nodes on BOTH regular and flow materials
             if (this.rendererType === 'webgpu') {
                 // Update regular materials
-                this.materials.forEach(material => {
+                this.#forEachStaticMaterial(material => {
                     if (material?._layerUniform) {
                         material._layerUniform.value = clamped;
                     }
@@ -1096,12 +1215,40 @@ export class TileManager {
 
         // For WebGPU, also update TSL uniform nodes
         if (this.rendererType === 'webgpu') {
-            this.materials.forEach(material => {
+            this.#forEachStaticMaterial(material => {
                 if (material._rotateUniform) {
                     material._rotateUniform.value = this.rotate90 ? 1 : 0;
                 }
             });
         }
+    }
+
+    /**
+     * Set the tile repeat mode.
+     * @param {string} mode - 'wrap' | 'mirrorBounce'
+     * @returns {boolean} Whether the mode changed
+     */
+    setRepeatMode(mode) {
+        const nextMode = normalizeRepeatMode(mode);
+        if (nextMode === this.repeatMode) {
+            return false;
+        }
+
+        const nextCycleLength = Math.max(1, nextMode === 'mirrorBounce' ? this.tileCount * 2 : this.tileCount);
+        this.repeatMode = nextMode;
+        this.tileFlowOffset = positiveModulo(this.tileFlowOffset, nextCycleLength);
+        this._lastCheckedTileOffset = this.tileFlowOffset;
+
+        console.log(`[TileManager] Repeat mode set to ${this.repeatMode}`);
+        return true;
+    }
+
+    /**
+     * Get the current tile repeat mode.
+     * @returns {string} 'wrap' | 'mirrorBounce'
+     */
+    getRepeatMode() {
+        return this.repeatMode;
     }
 
     /**
@@ -1146,7 +1293,8 @@ export class TileManager {
      */
     wrapFlowOffset(wholeTiles) {
         // Update tile base offset with wrapping
-        this.tileFlowOffset = (this.tileFlowOffset + wholeTiles + this.tileCount) % this.tileCount;
+        const cycleLength = Math.max(1, this.getEffectiveTileCount());
+        this.tileFlowOffset = positiveModulo(this.tileFlowOffset + wholeTiles, cycleLength);
         
         // Wrap flowOffset to [0, 1) range
         this.flowOffset -= wholeTiles;
@@ -1225,7 +1373,7 @@ export class TileManager {
 
         // Sync WebGPU TSL uniforms
         if (this.rendererType === 'webgpu') {
-            this.materials.forEach(m => { if (m._layerUniform) m._layerUniform.value = 0; });
+            this.#forEachStaticMaterial(m => { if (m._layerUniform) m._layerUniform.value = 0; });
             for (const m of this.flowMaterials) {
                 if (m._layerUniform) m._layerUniform.value = 0;
                 if (m._flowOffsetUniform) m._flowOffsetUniform.value = 0;
@@ -1288,7 +1436,7 @@ export class TileManager {
         this.sharedLayerUniform.value = clamped | 0;
 
         if (this.rendererType === 'webgpu') {
-            this.materials.forEach(m => { if (m._layerUniform) m._layerUniform.value = clamped; });
+            this.#forEachStaticMaterial(m => { if (m._layerUniform) m._layerUniform.value = clamped; });
             for (const m of this.flowMaterials) {
                 if (m._layerUniform) m._layerUniform.value = clamped;
             }
@@ -1312,9 +1460,14 @@ export class TileManager {
         let loopDuration = undulationPeriod;
 
         // If flow is enabled, also incorporate the tile flow cycle:
-        // time for flow to traverse all tiles = tileCount / |flowSpeed|
+        // time for flow to traverse the full repeat cycle = cycleLength / |flowSpeed|
         if (this.flowEnabled && this.flowSpeed !== 0) {
-            const flowCycle = this.tileCount / Math.abs(this.flowSpeed);
+            const effectiveTileCount = this.getEffectiveTileCount();
+            if (effectiveTileCount <= 0) {
+                return loopDuration;
+            }
+
+            const flowCycle = effectiveTileCount / Math.abs(this.flowSpeed);
             // Simple LCM via stepping: find the first time ≥ loopDuration
             // that is also a multiple of flowCycle (to nearest frame)
             const fps = this.fps || 30;
@@ -1517,6 +1670,11 @@ export class TileManager {
         });
         this.materials = [];
 
+        this.mirroredMaterials.forEach(material => {
+            material?.dispose?.();
+        });
+        this.mirroredMaterials.clear();
+
         // Also dispose tiles (for JPG mode)
         this.tiles.forEach(texture => {
             if (texture && texture.dispose) {
@@ -1560,6 +1718,11 @@ export class TileManager {
             if (t?.dispose) t.dispose();
         });
         this.arrayTextures = [];
+
+        this.mirroredMaterials.forEach(material => {
+            material?.dispose?.();
+        });
+        this.mirroredMaterials.clear();
 
         // Dispose flow materials
         this.flowMaterials.forEach(m => {

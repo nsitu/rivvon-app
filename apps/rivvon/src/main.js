@@ -26,7 +26,8 @@ loadMaterialSymbols([
     'genetics','rounded_corner','change_history','face','3d_rotation','open_with',
     'checklist','check_box','check_box_outline_blank','monitoring',
     'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule','directions_walk',
-    'play_circle','download_done','line_curve','crop_free','layers','content_cut','tag','aspect_ratio'
+    'play_circle','download_done','line_curve','crop_free','layers','content_cut','tag','aspect_ratio',
+    'repeat','swap_horiz'
 ]);
 
 // Import utilities

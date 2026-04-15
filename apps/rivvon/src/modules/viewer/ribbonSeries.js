@@ -346,7 +346,7 @@ export class RibbonSeries {
                 const { mesh, baseIndex, tileManager: entryTm } = entry;
                 const tm = entryTm || this.tileManager;
                 
-                // Create new material for this segment (gap-aware)
+                // Create a new material for this segment with the updated tile pair
                 const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true);
                 
                 if (newMaterial) {

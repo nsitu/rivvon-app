@@ -209,6 +209,23 @@ export function useRibbonBuilder(ctx) {
     }
 
     /**
+     * Set texture repeat mode.
+     * @param {string} mode - 'wrap' | 'mirrorBounce'
+     */
+    function setTextureRepeatMode(mode) {
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        for (const tm of targets) {
+            tm.setRepeatMode?.(mode);
+        }
+
+        ctx.app.setTextureRepeatMode(mode);
+
+        if (ctx.ribbonSeries.value) {
+            ctx.ribbonSeries.value.initFlowMaterials();
+        }
+    }
+
+    /**
      * Apply helix mode options and rebuild ribbons
      * Called when helix toggle or parameters change in the store
      * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
@@ -233,6 +250,7 @@ export function useRibbonBuilder(ctx) {
         createRibbonFromDrawing,
         rebuildRibbonsWithNewTextures,
         setFlowState,
+        setTextureRepeatMode,
         setHelixMode
     };
 }
