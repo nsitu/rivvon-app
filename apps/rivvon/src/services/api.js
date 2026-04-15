@@ -134,6 +134,7 @@ export function useRivvonAPI() {
      * @param {Object} options - Upload options
      * @param {string} options.name - Texture set name
      * @param {string} options.description - Optional description
+    * @param {string | null} options.parentTextureSetId - Optional family root/original texture set ID for derived variants
      * @param {number} options.tileResolution - Tile resolution (256, 512, 1024, etc.)
      * @param {number} options.layerCount - Layers per tile
      * @param {string} options.crossSectionType - 'planes' or 'waves'
@@ -153,6 +154,7 @@ export function useRivvonAPI() {
             name,
             description,
             isPublic = true,
+            parentTextureSetId = null,
             tileResolution,
             layerCount,
             crossSectionType,
@@ -173,7 +175,7 @@ export function useRivvonAPI() {
 
         // 3. Create texture set in API (with google-drive storage provider)
         if (onProgress) onProgress('creating', 'Creating texture set...')
-        const { textureSetId, storageProvider } = await createTextureSet({
+        const createPayload = {
             name,
             description,
             isPublic,
@@ -183,7 +185,11 @@ export function useRivvonAPI() {
             crossSectionType,
             sourceMetadata,
             storageProvider: 'google-drive',
-        })
+        }
+        if (parentTextureSetId) {
+            createPayload.parentTextureSetId = parentTextureSetId
+        }
+        const { textureSetId, storageProvider } = await createTextureSet(createPayload)
 
         // 4. Upload each tile to Google Drive and register with API
         const uploadedTiles = []
@@ -293,6 +299,7 @@ export function useRivvonAPI() {
             name,
             description,
             isPublic = true,
+            parentTextureSetId = null,
             tileResolution,
             layerCount,
             crossSectionType,
@@ -304,7 +311,7 @@ export function useRivvonAPI() {
 
         // 1. Create texture set in API with R2 storage provider
         if (onProgress) onProgress('creating', 'Creating texture set (R2)...')
-        const { textureSetId, tiles: preallocatedTiles } = await createTextureSet({
+        const createPayload = {
             name,
             description,
             isPublic,
@@ -314,7 +321,11 @@ export function useRivvonAPI() {
             crossSectionType,
             sourceMetadata,
             storageProvider: 'r2',
-        })
+        }
+        if (parentTextureSetId) {
+            createPayload.parentTextureSetId = parentTextureSetId
+        }
+        const { textureSetId, tiles: preallocatedTiles } = await createTextureSet(createPayload)
 
         // 2. Upload each tile directly to R2 via API
         const uploadedTiles = []

@@ -29,7 +29,8 @@ uploadRoutes.post('/', async (c) => {
     crossSectionType,
     sourceMetadata,
     userProfile,
-    storageProvider = 'google-drive', // Default to Google Drive for new uploads
+    parentTextureSetId,
+    storageProvider: requestedStorageProvider,
   } = body;
 
   // Sync user info if provided
@@ -37,51 +38,153 @@ uploadRoutes.post('/', async (c) => {
     await syncUser(c.env.DB, auth.userId, userProfile);
   }
 
+  let normalizedName = typeof name === 'string' ? name.trim() : '';
+  let normalizedDescription = typeof description === 'string' ? description : null;
+  const normalizedTileResolution = Number(tileResolution);
+  let normalizedTileCount = Number(tileCount);
+  let normalizedLayerCount = Number(layerCount);
+  let normalizedCrossSectionType = typeof crossSectionType === 'string' ? crossSectionType : null;
+  let normalizedSourceMetadata = sourceMetadata || null;
+  let normalizedStorageProvider = requestedStorageProvider || 'google-drive';
+  let normalizedParentTextureSetId: string | null = null;
+  let normalizedThumbnailUrl: string | null = null;
+
+  if (parentTextureSetId !== undefined && parentTextureSetId !== null) {
+    if (typeof parentTextureSetId !== 'string' || !parentTextureSetId.trim()) {
+      return c.json({ error: 'parentTextureSetId must be a non-empty string when provided' }, 400);
+    }
+
+    const requestedParentTextureSet = await c.env.DB.prepare(`
+      SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
+    `).bind(parentTextureSetId.trim(), auth.userId).first() as any;
+
+    if (!requestedParentTextureSet) {
+      return c.json({ error: 'Parent texture set not found' }, 404);
+    }
+
+    const rootTextureSetId = requestedParentTextureSet.parent_texture_set_id || requestedParentTextureSet.id;
+    const familyRootTextureSet = rootTextureSetId === requestedParentTextureSet.id
+      ? requestedParentTextureSet
+      : await c.env.DB.prepare(`
+        SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
+      `).bind(rootTextureSetId, auth.userId).first() as any;
+
+    if (!familyRootTextureSet) {
+      return c.json({ error: 'Family root texture set not found' }, 404);
+    }
+
+    const rootStorageProvider = familyRootTextureSet.storage_provider || 'google-drive';
+    normalizedStorageProvider = requestedStorageProvider || rootStorageProvider;
+
+    if (normalizedStorageProvider !== rootStorageProvider) {
+      return c.json({
+        error: `Derived variants must use the same storage provider as the family root (${rootStorageProvider})`
+      }, 400);
+    }
+
+    if (!Number.isInteger(normalizedTileCount)) {
+      normalizedTileCount = Number(familyRootTextureSet.tile_count);
+    }
+
+    if (!Number.isInteger(normalizedLayerCount)) {
+      normalizedLayerCount = Number(familyRootTextureSet.layer_count);
+    }
+
+    const rootTileCount = Number(familyRootTextureSet.tile_count);
+    const rootLayerCount = Number(familyRootTextureSet.layer_count);
+    const rootTileResolution = Number(familyRootTextureSet.tile_resolution);
+
+    if (normalizedTileCount !== rootTileCount) {
+      return c.json({ error: 'Derived variants must preserve the family root tileCount' }, 400);
+    }
+
+    if (normalizedLayerCount !== rootLayerCount) {
+      return c.json({ error: 'Derived variants must preserve the family root layerCount' }, 400);
+    }
+
+    if (Number.isInteger(rootTileResolution) && normalizedTileResolution >= rootTileResolution) {
+      return c.json({ error: 'Derived variants must use a tileResolution smaller than the family root' }, 400);
+    }
+
+    if (
+      normalizedCrossSectionType
+      && familyRootTextureSet.cross_section_type
+      && normalizedCrossSectionType !== familyRootTextureSet.cross_section_type
+    ) {
+      return c.json({ error: 'Derived variants must preserve the family root crossSectionType' }, 400);
+    }
+
+    normalizedParentTextureSetId = familyRootTextureSet.id;
+    normalizedName = familyRootTextureSet.name;
+    normalizedDescription = familyRootTextureSet.description || null;
+    normalizedCrossSectionType = familyRootTextureSet.cross_section_type || normalizedCrossSectionType;
+    normalizedThumbnailUrl = familyRootTextureSet.thumbnail_url || null;
+    normalizedSourceMetadata = {
+      filename: familyRootTextureSet.source_filename || null,
+      width: familyRootTextureSet.source_width ?? null,
+      height: familyRootTextureSet.source_height ?? null,
+      duration: familyRootTextureSet.source_duration ?? null,
+      sourceFrameCount: familyRootTextureSet.source_frame_count ?? null,
+      sampledFrameCount: familyRootTextureSet.sampled_frame_count ?? null,
+    };
+  }
+
   // Validate required fields
-  if (!name || !tileResolution || !tileCount || !layerCount) {
-    return c.json({ error: 'Missing required fields' }, 400);
+  if (
+    !normalizedName
+    || !Number.isInteger(normalizedTileResolution)
+    || normalizedTileResolution <= 0
+    || !Number.isInteger(normalizedTileCount)
+    || normalizedTileCount <= 0
+    || !Number.isInteger(normalizedLayerCount)
+    || normalizedLayerCount <= 0
+  ) {
+    return c.json({ error: 'Missing or invalid required fields' }, 400);
   }
 
   // Validate storage provider
-  if (!['r2', 'google-drive'].includes(storageProvider)) {
+  if (!['r2', 'google-drive'].includes(normalizedStorageProvider)) {
     return c.json({ error: 'Invalid storage provider. Must be "r2" or "google-drive"' }, 400);
   }
 
   const textureSetId = nanoid();
 
-  // Insert texture set record with storage provider
+  // Insert texture set record with storage provider.
+  // Derived variants point to the root/original texture set ID via parent_texture_set_id.
   await c.env.DB.prepare(`
     INSERT INTO texture_sets (
-      id, owner_id, name, description, 
+      id, owner_id, parent_texture_set_id, name, description, thumbnail_url,
       tile_resolution, tile_count, layer_count, cross_section_type,
       source_filename, source_width, source_height, 
       source_duration, source_frame_count, sampled_frame_count,
       storage_provider, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
   `).bind(
     textureSetId,
     auth.userId,
-    name,
-    description || null,
-    tileResolution,
-    tileCount,
-    layerCount,
-    crossSectionType || null,
-    sourceMetadata?.filename || null,
-    sourceMetadata?.width || null,
-    sourceMetadata?.height || null,
-    sourceMetadata?.duration || null,
-    sourceMetadata?.sourceFrameCount || null,
-    sourceMetadata?.sampledFrameCount || null,
-    storageProvider,
+    normalizedParentTextureSetId,
+    normalizedName,
+    normalizedDescription,
+    normalizedThumbnailUrl,
+    normalizedTileResolution,
+    normalizedTileCount,
+    normalizedLayerCount,
+    normalizedCrossSectionType || null,
+    normalizedSourceMetadata?.filename || null,
+    normalizedSourceMetadata?.width || null,
+    normalizedSourceMetadata?.height || null,
+    normalizedSourceMetadata?.duration || null,
+    normalizedSourceMetadata?.sourceFrameCount || null,
+    normalizedSourceMetadata?.sampledFrameCount || null,
+    normalizedStorageProvider,
   ).run();
 
   // For R2 storage, pre-create tile records with R2 keys
   // For Google Drive, tiles will be registered via /tile/:index/metadata after upload
   const uploadUrls = [];
 
-  if (storageProvider === 'r2') {
-    for (let i = 0; i < tileCount; i++) {
+  if (normalizedStorageProvider === 'r2') {
+    for (let i = 0; i < normalizedTileCount; i++) {
       const tileId = nanoid();
       const r2Key = `textures/${textureSetId}/${i}.ktx2`;
       const publicUrl = `https://cdn.rivvon.ca/${r2Key}`;
@@ -109,9 +212,10 @@ uploadRoutes.post('/', async (c) => {
 
   return c.json({
     textureSetId,
-    storageProvider,
+    parentTextureSetId: normalizedParentTextureSetId,
+    storageProvider: normalizedStorageProvider,
     uploadUrls, // Empty for Google Drive
-    message: storageProvider === 'r2'
+    message: normalizedStorageProvider === 'r2'
       ? 'Upload URLs generated. Upload files then call /complete'
       : 'Texture set created. Upload tiles to Google Drive, register with /tile/:index/metadata, then call /complete',
   });
@@ -428,38 +532,46 @@ uploadRoutes.delete('/:id', async (c) => {
     return c.json({ error: 'Texture set not found or not authorized' }, 404);
   }
 
-  // Get all tiles to delete from R2
-  const tiles = await c.env.DB.prepare(`
-    SELECT r2_key FROM texture_tiles WHERE texture_set_id = ?
-  `).bind(textureSetId).all();
+  // If deleting a root texture set, delete the full family payload from storage first.
+  const familyTextureSets = textureSet.parent_texture_set_id
+    ? [textureSet]
+    : ((await c.env.DB.prepare(`
+      SELECT id, thumbnail_url FROM texture_sets WHERE id = ? OR parent_texture_set_id = ?
+    `).bind(textureSetId, textureSetId).all()).results as any[]);
 
-  // Collect all R2 keys to delete
-  const r2KeysToDelete: string[] = [];
+  const familyTextureSetIds = familyTextureSets.map((record) => record.id as string);
+  const placeholders = familyTextureSetIds.map(() => '?').join(', ');
+  const tiles = familyTextureSetIds.length === 0
+    ? { results: [] as any[] }
+    : await c.env.DB.prepare(`
+      SELECT r2_key FROM texture_tiles WHERE texture_set_id IN (${placeholders})
+    `).bind(...familyTextureSetIds).all();
 
-  // Add tile keys
-  for (const tile of tiles.results) {
-    r2KeysToDelete.push(tile.r2_key as string);
+  // Collect all R2 keys to delete.
+  const r2KeysToDelete = new Set<string>();
+
+  for (const tile of tiles.results as any[]) {
+    if (tile.r2_key) {
+      r2KeysToDelete.add(tile.r2_key);
+    }
   }
 
-  // Add thumbnail if exists
-  if (textureSet.thumbnail_url) {
-    // Extract R2 key from thumbnail URL (e.g., "https://cdn.rivvon.ca/thumbnails/abc.jpg" -> "thumbnails/abc.jpg")
-    const thumbnailUrl = textureSet.thumbnail_url as string;
+  for (const familyTextureSet of familyTextureSets) {
+    if (!familyTextureSet.thumbnail_url) {
+      continue;
+    }
+
+    const thumbnailUrl = familyTextureSet.thumbnail_url as string;
     const thumbnailKey = thumbnailUrl.replace('https://cdn.rivvon.ca/', '');
-    r2KeysToDelete.push(thumbnailKey);
+    r2KeysToDelete.add(thumbnailKey);
   }
 
   // Delete all files from R2
-  if (r2KeysToDelete.length > 0) {
-    await c.env.BUCKET.delete(r2KeysToDelete);
+  if (r2KeysToDelete.size > 0) {
+    await c.env.BUCKET.delete(Array.from(r2KeysToDelete));
   }
 
-  // Delete texture_tiles records
-  await c.env.DB.prepare(`
-    DELETE FROM texture_tiles WHERE texture_set_id = ?
-  `).bind(textureSetId).run();
-
-  // Delete texture_set record
+  // Delete texture_set record. Child variants cascade from the self-reference on parent_texture_set_id.
   await c.env.DB.prepare(`
     DELETE FROM texture_sets WHERE id = ?
   `).bind(textureSetId).run();
@@ -467,7 +579,8 @@ uploadRoutes.delete('/:id', async (c) => {
   return c.json({
     success: true,
     message: 'Texture set deleted',
-    deletedFiles: r2KeysToDelete.length
+    deletedFiles: r2KeysToDelete.size,
+    deletedTextureSets: familyTextureSetIds.length
   });
 });
 

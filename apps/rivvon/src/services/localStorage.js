@@ -172,6 +172,8 @@ async function calculateTextureSetSize(textureSetId) {
  * @param {Object} params.sourceMetadata - Original video metadata
  * @param {string} params.thumbnailDataUrl - Base64 data URL for thumbnail
  * @param {Object} params.ktx2Blobs - Map of tile index to Blob
+ * @param {Object|null} params.derivedFrom - Optional immediate parent reference for derived variants
+ * @param {Object|null} params.variantInfo - Optional derived-variant metadata
  * @param {Function} params.onProgress - Progress callback (current, total)
  * @returns {Promise<string>} The saved texture set ID
  */
@@ -184,6 +186,8 @@ async function saveTextureSet({
     sourceMetadata,
     thumbnailDataUrl,
     ktx2Blobs,
+    derivedFrom = null,
+    variantInfo = null,
     onProgress
 }) {
     const tileEntries = await Promise.all(
@@ -215,7 +219,9 @@ async function saveTextureSet({
         cross_section_type: crossSectionType,
         source_metadata: sourceMetadata,
         total_size: totalSize,
-        thumbnail_data_url: thumbnailDataUrl
+        thumbnail_data_url: thumbnailDataUrl,
+        derived_from: derivedFrom,
+        variant_info: variantInfo
     };
 
     // Use a transaction for atomic writes

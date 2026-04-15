@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS texture_sets (
     id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL,              -- User ID (references users.id)
+    parent_texture_set_id TEXT,          -- Family root/original texture set ID for derived variants
     name TEXT NOT NULL,
     description TEXT,
     thumbnail_url TEXT,                   -- R2 public URL for preview (always R2)
@@ -45,7 +46,8 @@ CREATE TABLE IF NOT EXISTS texture_sets (
     status TEXT DEFAULT 'pending',        -- pending, uploading, complete, error
     is_public INTEGER DEFAULT 0,          -- Whether publicly listed
     
-    FOREIGN KEY (owner_id) REFERENCES users(id)
+    FOREIGN KEY (owner_id) REFERENCES users(id),
+    FOREIGN KEY (parent_texture_set_id) REFERENCES texture_sets(id) ON DELETE CASCADE
 );
 
 -- Individual texture tiles
@@ -67,5 +69,6 @@ CREATE TABLE IF NOT EXISTS texture_tiles (
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
 CREATE INDEX IF NOT EXISTS idx_texture_sets_owner ON texture_sets(owner_id);
+CREATE INDEX IF NOT EXISTS idx_texture_sets_parent ON texture_sets(parent_texture_set_id);
 CREATE INDEX IF NOT EXISTS idx_texture_sets_public ON texture_sets(is_public);
 CREATE INDEX IF NOT EXISTS idx_texture_tiles_set ON texture_tiles(texture_set_id);

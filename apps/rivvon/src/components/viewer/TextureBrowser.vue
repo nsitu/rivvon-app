@@ -31,7 +31,7 @@
     const app = useViewerStore();
     const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
-    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
+    const { saveTextureSet: saveLocalTextureSet, getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
     // State
     const textures = ref([]);
@@ -56,6 +56,16 @@
     const showCopyMenu = ref(null); // texture id to show copy menu for
     const copyMenuPosition = ref({ top: 0, left: 0 }); // position for teleported menu
     const copyMenuTexture = ref(null); // texture object for menu
+
+    // Derived variant state
+    const textureToDerive = ref(null);
+    const deriveTargetResolution = ref(null);
+    const isDeriving = ref(false);
+    const deriveProgress = ref('');
+    const deriveError = ref(null);
+    const deriveResult = ref(null);
+    const deriveSavedTextureId = ref(null);
+    let deriveModulePromise = null;
 
     // Edit state
     const textureToEdit = ref(null);
@@ -155,6 +165,292 @@
     async function detectTileResolutionFromBlob(blob) {
         if (!blob) return null;
         return detectTileResolutionFromArrayBuffer(await blob.arrayBuffer());
+    }
+
+    function getTileIndex(tile) {
+        return tile?.tileIndex ?? tile?.index ?? tile?.tile_index ?? 0;
+    }
+
+    function sortTilesByIndex(tiles = []) {
+        return [...tiles].sort((a, b) => getTileIndex(a) - getTileIndex(b));
+    }
+
+    function getTargetResolutionOptions(texture) {
+        const sourceResolution = Number(texture?.tile_resolution);
+
+        if (!Number.isInteger(sourceResolution) || sourceResolution <= 16) {
+            return [];
+        }
+
+        const options = [];
+        let current = sourceResolution / 2;
+
+        while (Number.isInteger(current) && current >= 16) {
+            options.push(current);
+            current /= 2;
+        }
+
+        return options;
+    }
+
+    function canDeriveVariant(texture) {
+        return getTargetResolutionOptions(texture).length > 0;
+    }
+
+    function loadDeriveModule() {
+        if (!deriveModulePromise) {
+            deriveModulePromise = import('../../modules/slyce/ktx2RoundtripVariant.js');
+        }
+
+        return deriveModulePromise;
+    }
+
+    function formatDurationMs(value) {
+        if (!Number.isFinite(value)) {
+            return 'n/a';
+        }
+
+        return `${Math.round(value)} ms`;
+    }
+
+    async function blobToDataUrl(blob) {
+        if (!blob) {
+            return null;
+        }
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(reader.error);
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    function buildDerivedTextureName(texture, targetResolution) {
+        const baseName = (texture?.name || 'Texture')
+            .replace(/\s+\(\d+px\)$/i, '')
+            .trim();
+
+        return `${baseName} (${targetResolution}px)`;
+    }
+
+    function buildDerivedVariantLineage(texture, targetResolution) {
+        const rootTextureSetId = texture?.variant_info?.root_texture_set_id
+            || texture?.variant_info?.family_id
+            || texture?.derived_from?.root_texture_set_id
+            || texture?.id;
+        const storageProvider = isLocalTexture(texture)
+            ? 'local'
+            : (texture?.storage_provider || 'r2');
+
+        return {
+            derivedFrom: {
+                texture_set_id: texture?.id,
+                root_texture_set_id: rootTextureSetId,
+                storage_provider: storageProvider,
+                name: texture?.name,
+                tile_resolution: texture?.tile_resolution
+            },
+            variantInfo: {
+                family_id: rootTextureSetId,
+                root_texture_set_id: rootTextureSetId,
+                parent_texture_set_id: texture?.id,
+                source_resolution: texture?.tile_resolution,
+                target_resolution: targetResolution,
+                generated_at: Date.now(),
+                method: 'local-browser-roundtrip-v1'
+            }
+        };
+    }
+
+    function buildTextureSourceMetadata(texture, textureSetData = null) {
+        return textureSetData?.source_metadata
+            || texture?.source_metadata
+            || {
+            filename: texture?.name,
+            sourceFrameCount: texture?.source_frame_count,
+            sampledFrameCount: texture?.sampled_frame_count
+        };
+    }
+
+    function isDerivedLocalVariant(texture) {
+        return Boolean(texture?.variant_info?.target_resolution && texture?.derived_from);
+    }
+
+    function formatDerivedLineage(texture) {
+        if (!isDerivedLocalVariant(texture)) {
+            return null;
+        }
+
+        const sourceResolution = texture.variant_info?.source_resolution
+            || texture.derived_from?.tile_resolution;
+        const targetResolution = texture.variant_info?.target_resolution
+            || texture.tile_resolution;
+        const parentName = texture.derived_from?.name;
+        const resolutionText = sourceResolution
+            ? `${sourceResolution}px -> ${targetResolution}px`
+            : `${targetResolution}px variant`;
+
+        return parentName
+            ? `${resolutionText} from ${parentName}`
+            : resolutionText;
+    }
+
+    async function resolveTextureThumbnailDataUrl(texture) {
+        if (isLocalTexture(texture) && texture?.thumbnail_data_url) {
+            return texture.thumbnail_data_url;
+        }
+
+        if (!texture?.thumbnail_url) {
+            return null;
+        }
+
+        try {
+            const response = await fetch(texture.thumbnail_url);
+            if (!response.ok) {
+                return null;
+            }
+
+            return await blobToDataUrl(await response.blob());
+        } catch (error) {
+            console.warn('[TextureBrowser] Failed to load thumbnail for derived variant:', error);
+            return null;
+        }
+    }
+
+    function formatDeriveProgress(stage) {
+        switch (stage?.stage) {
+            case 'prepare-source':
+                return 'Preparing source texture...';
+            case 'tile-start':
+                return `Processing tile ${stage.tileNumber}/${stage.tileCount}...`;
+            case 'tile-progress':
+                switch (stage.nestedStage) {
+                    case 'decode-layer':
+                        return `Tile ${stage.tileNumber}/${stage.tileCount}: decoding layer ${stage.layerIndex + 1}/${stage.layerCount}...`;
+                    case 'layer-complete':
+                        return `Tile ${stage.tileNumber}/${stage.tileCount}: downscaled layer ${stage.layerIndex + 1}/${stage.layerCount}...`;
+                    case 'encode':
+                        return `Tile ${stage.tileNumber}/${stage.tileCount}: re-encoding ${stage.layerCount} layers at ${deriveTargetResolution.value}px...`;
+                    case 'encode-progress':
+                        return `Tile ${stage.tileNumber}/${stage.tileCount}: encoding layer ${stage.completed}/${stage.total}...`;
+                    default:
+                        return `Tile ${stage.tileNumber}/${stage.tileCount}: processing...`;
+                }
+            case 'tile-complete':
+                return `Finished tile ${stage.tileNumber}/${stage.tileCount}.`;
+            case 'save-local':
+                return `Saving derived tiles locally (${stage.completed}/${stage.total})...`;
+            case 'complete':
+                return `Saved ${stage.tileCount} derived tiles locally.`;
+            default:
+                return 'Creating lower-resolution local variant...';
+        }
+    }
+
+    async function downloadCloudTileBlob(tile) {
+        if (tile.driveFileId) {
+            const arrayBuffer = await fetchDriveFile(tile.driveFileId);
+            return new Blob([arrayBuffer], { type: 'image/ktx2' });
+        }
+
+        if (tile.url && tile.url.includes('drive.google.com')) {
+            const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
+            if (!fileIdMatch) {
+                throw new Error('Invalid Google Drive URL format');
+            }
+
+            const arrayBuffer = await fetchDriveFile(fileIdMatch[1]);
+            return new Blob([arrayBuffer], { type: 'image/ktx2' });
+        }
+
+        if (tile.url) {
+            const response = await fetch(tile.url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch tile ${getTileIndex(tile)}`);
+            }
+
+            return response.blob();
+        }
+
+        throw new Error('Tile is missing a retrievable source');
+    }
+
+    async function fetchTextureSourceBundle(texture, onProgress) {
+        if (isLocalTexture(texture)) {
+            onProgress?.('Loading source tiles from local storage...');
+            const localTiles = sortTilesByIndex(await getLocalTiles(texture.id));
+
+            if (localTiles.length === 0) {
+                throw new Error('No local tiles found for this texture');
+            }
+
+            return {
+                sourceTextureSet: texture,
+                tileEntries: localTiles.map((tile) => ({
+                    index: getTileIndex(tile),
+                    blob: tile.blob,
+                    label: `${texture.name} tile ${getTileIndex(tile)}`
+                })),
+                thumbnailDataUrl: texture.thumbnail_data_url || null,
+                fetchedFrom: 'local',
+                downloadedSourceBlobs: null
+            };
+        }
+
+        onProgress?.('Fetching source texture metadata...');
+        const sourceTextureSet = await fetchTextureWithTiles(texture.id);
+
+        if (cachedCloudIds.value.has(texture.id)) {
+            onProgress?.('Loading source tiles from local cache...');
+            const cachedLocalId = await getCachedLocalId(texture.id);
+            if (cachedLocalId) {
+                const cachedTiles = sortTilesByIndex(await getLocalTiles(cachedLocalId));
+
+                if (cachedTiles.length > 0) {
+                    return {
+                        sourceTextureSet,
+                        tileEntries: cachedTiles.map((tile) => ({
+                            index: getTileIndex(tile),
+                            blob: tile.blob,
+                            label: `${texture.name} tile ${getTileIndex(tile)}`
+                        })),
+                        thumbnailDataUrl: await resolveTextureThumbnailDataUrl(texture),
+                        fetchedFrom: 'cached',
+                        downloadedSourceBlobs: null
+                    };
+                }
+            }
+        }
+
+        const remoteTiles = sortTilesByIndex(sourceTextureSet.tiles || []);
+        if (remoteTiles.length === 0) {
+            throw new Error('No cloud tiles found for this texture');
+        }
+
+        const downloadedSourceBlobs = {};
+        const tileEntries = [];
+
+        for (let tileOffset = 0; tileOffset < remoteTiles.length; tileOffset++) {
+            const tile = remoteTiles[tileOffset];
+            const tileIndex = getTileIndex(tile);
+            onProgress?.(`Downloading tile ${tileOffset + 1}/${remoteTiles.length}...`);
+            const blob = await downloadCloudTileBlob(tile);
+            downloadedSourceBlobs[tileIndex] = blob;
+            tileEntries.push({
+                index: tileIndex,
+                blob,
+                label: `${texture.name} tile ${tileIndex}`
+            });
+        }
+
+        return {
+            sourceTextureSet,
+            tileEntries,
+            thumbnailDataUrl: await resolveTextureThumbnailDataUrl(texture),
+            fetchedFrom: 'cloud',
+            downloadedSourceBlobs
+        };
     }
 
     async function loadTextures() {
@@ -263,6 +559,8 @@
         if (event.key === 'Escape') {
             if (previewTexture.value) {
                 closePreview();
+            } else if (textureToDerive.value && !isDeriving.value) {
+                cancelDeriveVariant();
             } else if (textureToEdit.value) {
                 cancelEdit();
             } else if (textureToCopy.value) {
@@ -550,6 +848,115 @@
         copyError.value = null;
     }
 
+    function clearDeriveResult() {
+        deriveSavedTextureId.value = null;
+        deriveResult.value = null;
+    }
+
+    function startDeriveVariant(texture, event) {
+        event.stopPropagation();
+
+        clearDeriveResult();
+        textureToDerive.value = texture;
+        deriveTargetResolution.value = getTargetResolutionOptions(texture)[0] ?? null;
+        deriveProgress.value = '';
+        deriveError.value = null;
+    }
+
+    async function performDeriveVariant() {
+        if (!textureToDerive.value || !deriveTargetResolution.value || isDeriving.value) {
+            return;
+        }
+
+        clearDeriveResult();
+        isDeriving.value = true;
+        deriveProgress.value = 'Preparing source texture...';
+        deriveError.value = null;
+
+        try {
+            const { deriveKtx2TextureSet } = await loadDeriveModule();
+            const sourceBundle = await fetchTextureSourceBundle(textureToDerive.value, (message) => {
+                deriveProgress.value = message;
+            });
+            const lineage = buildDerivedVariantLineage(textureToDerive.value, Number(deriveTargetResolution.value));
+            const variantName = buildDerivedTextureName(textureToDerive.value, Number(deriveTargetResolution.value));
+
+            const result = await deriveKtx2TextureSet({
+                sourceTiles: sourceBundle.tileEntries,
+                targetResolution: Number(deriveTargetResolution.value),
+                onProgress: (stage) => {
+                    deriveProgress.value = formatDeriveProgress(stage);
+                }
+            });
+
+            const savedTextureId = await saveLocalTextureSet({
+                name: variantName,
+                tileCount: result.output.tileCount,
+                tileResolution: result.output.pixelWidth,
+                layerCount: result.output.layerCount,
+                crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
+                    || textureToDerive.value.cross_section_type
+                    || 'waves',
+                sourceMetadata: buildTextureSourceMetadata(textureToDerive.value, sourceBundle.sourceTextureSet),
+                thumbnailDataUrl: sourceBundle.thumbnailDataUrl,
+                ktx2Blobs: result.outputBlobs,
+                derivedFrom: lineage.derivedFrom,
+                variantInfo: lineage.variantInfo,
+                onProgress: (completed, total) => {
+                    deriveProgress.value = formatDeriveProgress({ stage: 'save-local', completed, total });
+                }
+            });
+
+            if (!isLocalTexture(textureToDerive.value) && sourceBundle.downloadedSourceBlobs) {
+                cacheCloudTextureFromBlobs(textureToDerive.value, sourceBundle.sourceTextureSet, sourceBundle.downloadedSourceBlobs);
+            }
+
+            deriveSavedTextureId.value = savedTextureId;
+            activeTab.value = 'local';
+            await loadTextures();
+
+            deriveResult.value = {
+                source: result.source,
+                output: result.output,
+                timings: result.timings,
+                encodeConfig: result.encodeConfig,
+                validation: result.validation,
+                sourceFetchOrigin: sourceBundle.fetchedFrom,
+                savedTextureId,
+                savedTextureName: variantName,
+                rootTextureSetId: lineage.variantInfo.root_texture_set_id
+            };
+
+            deriveProgress.value = `Saved local variant "${variantName}" with ${result.output.tileCount} tiles.`;
+        } catch (err) {
+            console.error('[TextureBrowser] Local variant derivation failed:', err);
+            deriveError.value = err.message || 'Variant derivation failed';
+        } finally {
+            isDeriving.value = false;
+        }
+    }
+
+    function applyDerivedLocalVariant() {
+        const savedTexture = derivedSavedTexture.value;
+        if (!savedTexture) {
+            return;
+        }
+
+        selectLocalTexture(savedTexture);
+    }
+
+    function cancelDeriveVariant() {
+        if (isDeriving.value) {
+            return;
+        }
+
+        clearDeriveResult();
+        textureToDerive.value = null;
+        deriveTargetResolution.value = null;
+        deriveProgress.value = '';
+        deriveError.value = null;
+    }
+
     // Edit functionality
     function startEdit(texture, event) {
         event.stopPropagation();
@@ -646,6 +1053,21 @@
     const previewLoading = ref(false);
     const previewError = ref(null);
     const previewViewerRef = ref(null);
+    const previewCanApply = computed(() => Boolean(previewTexture.value));
+    const derivedSavedTexture = computed(() => {
+        if (!deriveSavedTextureId.value) {
+            return null;
+        }
+
+        return localTextures.value.find((texture) => texture.id === deriveSavedTextureId.value) || null;
+    });
+    const deriveTargetOptions = computed(() => {
+        if (!textureToDerive.value) {
+            return [];
+        }
+
+        return getTargetResolutionOptions(textureToDerive.value);
+    });
 
     /**
      * Pre-calculate the expected canvas width for the preview panel.
@@ -807,9 +1229,17 @@
         }
     });
 
+    watch(deriveTargetResolution, (nextValue, previousValue) => {
+        if (nextValue !== previousValue && deriveResult.value) {
+            clearDeriveResult();
+            deriveProgress.value = '';
+        }
+    });
+
     onBeforeUnmount(() => {
         // Clean up preview blob URLs if component unmounts
         Object.values(previewBlobURLs.value).forEach(url => URL.revokeObjectURL(url));
+        clearDeriveResult();
     });
 </script>
 
@@ -1035,10 +1465,18 @@
                                 <span>{{ texture.tile_resolution }}px</span>
                                 <span>{{ texture.cross_section_type || 'waves' }}</span>
                                 <span>{{ texture.layer_count }} layers</span>
+                                <span v-if="isDerivedLocalVariant(texture)">derived</span>
                                 <span v-if="formatSize(texture.total_size_bytes)">
                                     {{ formatSize(texture.total_size_bytes) }}
                                 </span>
                             </div>
+
+                            <p
+                                v-if="isDerivedLocalVariant(texture)"
+                                class="texture-card-lineage"
+                            >
+                                {{ formatDerivedLineage(texture) }}
+                            </p>
 
                             <!-- Frame info / Created date -->
                             <p
@@ -1096,6 +1534,14 @@
                                     @click="toggleCopyMenu(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">content_copy</span>
+                                </button>
+                                <button
+                                    v-if="canDeriveVariant(texture)"
+                                    class="action-button derive-button"
+                                    title="Create lower-resolution local variant"
+                                    @click="startDeriveVariant(texture, $event)"
+                                >
+                                    <span class="material-symbols-outlined">resize</span>
                                 </button>
                                 <!-- Delete button (owner, admin, or local) -->
                                 <button
@@ -1160,10 +1606,11 @@
                             (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
-                    }}%
+                        }}%
                         scale)</span>
                 </div>
                 <Button
+                    v-if="previewCanApply"
                     type="button"
                     class="preview-apply-button"
                     severity="info"
@@ -1268,6 +1715,151 @@
                             :disabled="isCopying"
                         >
                             {{ isCopying ? 'Copying...' : 'Copy' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- Local variant modal -->
+        <Teleport to="body">
+            <div
+                v-if="textureToDerive"
+                class="delete-modal-overlay derive-modal-overlay"
+                @click.self="cancelDeriveVariant"
+            >
+                <div class="delete-modal derive-modal">
+                    <h3>Create Local Variant</h3>
+                    <p>
+                        Generate a lower-resolution local variant of
+                        <strong>{{ textureToDerive.name }}</strong>.
+                    </p>
+                    <p class="derive-helper">
+                        This runs the full browser roundtrip across every tile, reuses one shared encoder pool, and
+                        saves the
+                        derived texture to <strong>My Local</strong> with lineage back to the source texture.
+                    </p>
+
+                    <div class="derive-field">
+                        <label
+                            for="derive-target-resolution"
+                            class="derive-label"
+                        >Target resolution</label>
+                        <select
+                            id="derive-target-resolution"
+                            v-model.number="deriveTargetResolution"
+                            class="derive-select"
+                            :disabled="isDeriving || deriveTargetOptions.length === 0"
+                        >
+                            <option
+                                v-for="resolution in deriveTargetOptions"
+                                :key="resolution"
+                                :value="resolution"
+                            >
+                                {{ resolution }} px
+                            </option>
+                        </select>
+                    </div>
+
+                    <p
+                        v-if="deriveTargetOptions.length === 0"
+                        class="derive-note"
+                    >
+                        No lower power-of-two target resolutions are available for this texture.
+                    </p>
+
+                    <p
+                        v-if="deriveProgress"
+                        class="copy-progress derive-progress"
+                    >
+                        {{ deriveProgress }}
+                    </p>
+                    <p
+                        v-if="deriveError"
+                        class="copy-error"
+                    >
+                        Error: {{ deriveError }}
+                    </p>
+
+                    <div
+                        v-if="deriveResult"
+                        class="derive-result"
+                    >
+                        <div class="derive-result-row">
+                            <span>Saved variant</span>
+                            <strong>{{ deriveResult.savedTextureName }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Source tiles</span>
+                            <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin }})</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Base level</span>
+                            <strong>{{ deriveResult.source.width }}px → {{ deriveResult.output.pixelWidth }}px</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Layer count</span>
+                            <strong>{{ deriveResult.output.layerCount }} / {{ deriveResult.source.layerCount }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Mip levels</span>
+                            <strong>{{ deriveResult.output.levelCount }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Output size</span>
+                            <strong>{{ formatSize(deriveResult.output.totalByteLength) ||
+                                (deriveResult.output.totalByteLength +
+                                    ' bytes') }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Total time</span>
+                            <strong>{{ formatDurationMs(deriveResult.timings.totalDurationMs) }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Encode time</span>
+                            <strong>{{ formatDurationMs(deriveResult.timings.encodeDurationMs) }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Encoder workers</span>
+                            <strong>{{ deriveResult.encodeConfig?.workerCount ?? 'n/a' }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Lineage root</span>
+                            <strong>{{ deriveResult.rootTextureSetId }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Validation</span>
+                            <strong
+                                :class="deriveResult.validation.viewerCompatibleShape ? 'derive-status-ok' : 'derive-status-bad'"
+                            >
+                                {{ deriveResult.validation.viewerCompatibleShape ? 'Viewer-compatible' : 'Validation
+                                failed' }}
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="delete-modal-actions derive-modal-actions">
+                        <button
+                            class="cancel-button"
+                            @click="cancelDeriveVariant"
+                            :disabled="isDeriving"
+                        >
+                            {{ deriveResult ? 'Close' : 'Cancel' }}
+                        </button>
+                        <button
+                            v-if="deriveResult && derivedSavedTexture"
+                            class="confirm-edit-button"
+                            @click="applyDerivedLocalVariant"
+                            :disabled="isDeriving"
+                        >
+                            Apply Variant
+                        </button>
+                        <button
+                            class="confirm-copy-button derive-run-button"
+                            @click="performDeriveVariant"
+                            :disabled="isDeriving || !deriveTargetResolution || deriveTargetOptions.length === 0"
+                        >
+                            {{ isDeriving ? 'Running...' : (deriveResult ? 'Recreate Variant' : 'Create Variant') }}
                         </button>
                     </div>
                 </div>
@@ -1630,6 +2222,13 @@
         overflow: hidden;
     }
 
+    .texture-card-lineage {
+        margin: 8px 0 0 0;
+        color: #fbbf24;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
     .texture-card-frames {
         margin: 6px 0 0 0;
         color: #666;
@@ -1855,6 +2454,15 @@
         transform: scale(1.1);
     }
 
+    .action-button.derive-button {
+        background: rgba(245, 158, 11, 0.9);
+    }
+
+    .action-button.derive-button:hover {
+        background: #f59e0b;
+        transform: scale(1.1);
+    }
+
     .action-button.delete-button:hover {
         background: #dc2626;
         transform: scale(1.1);
@@ -1955,6 +2563,92 @@
     .confirm-copy-button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+    }
+
+    .derive-modal {
+        max-width: 460px;
+    }
+
+    .derive-helper,
+    .derive-note {
+        color: #9ca3af;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .derive-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 16px;
+    }
+
+    .derive-label {
+        color: #d1d5db;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .derive-select {
+        width: 100%;
+        padding: 10px 12px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s ease;
+    }
+
+    .derive-select:focus {
+        border-color: #f59e0b;
+    }
+
+    .derive-result {
+        margin-top: 16px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .derive-result-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        color: #d1d5db;
+        font-size: 13px;
+    }
+
+    .derive-result-row span {
+        color: #9ca3af;
+    }
+
+    .derive-result-row strong {
+        color: #fff;
+        text-align: right;
+        word-break: break-word;
+    }
+
+    .derive-status-ok {
+        color: #4ade80 !important;
+    }
+
+    .derive-status-bad {
+        color: #f87171 !important;
+    }
+
+    .derive-modal-actions {
+        flex-wrap: wrap;
+    }
+
+    .derive-run-button {
+        min-width: 120px;
     }
 
     /* Edit modal styles */
