@@ -4,18 +4,18 @@ This plan is now post-feasibility. Browser-side local variant derivation is work
 
 **Status Summary**
 
-- Complete: Phase 0.
+- Complete: Phases 0, 1, 2, 3, and 5.
 - Partial: Phases 4, 6, 7, 8, and 13.
-- Pending: Phases 1, 2, 3, 5, 9, 10, 11, 12, and 14.
+- Pending: Phases 9, 10, 11, 12, and 14.
 
 **Phases**
 
 1. Phase 0 — Worker-based KTX2 derivation foundation `[Complete]`: the worker-based roundtrip succeeded and is now real code, not a spike. `ktx2 array texture -> per-layer rgba -> downscale each layer -> re-encode each layer -> reassemble KTX2 array texture` works in-browser with `basis_transcoder.*`, the transcode worker, the shared encode worker pool, and the KTX2 assembler. Verified outcomes so far: representative-tile validation at 1024 -> 512, full-set local derivation at 1024 -> 256 across 3 tiles, preserved layer count/order/mips, viewer-compatible output, and materially better encode time with the shared adaptive worker policy. Do not spend more time on a GPU fallback unless a new format limitation appears.
-2. Phase 1 — Family data model `[Pending]`: add nullable `parent_texture_set_id` to `texture_sets` in D1, index it, and reference `texture_sets(id)` with cascade delete. Semantics remain: `NULL` means family root/original; every derived variant points to the root/original, not another child. Keep `tile_resolution` as the child resolution and copy root metadata onto children for compatibility.
-3. Phase 2 — API creation flow `[Pending]`: extend `POST /texture-set` to accept optional `parentTextureSetId` so root and child variants share the same upload/complete pipeline. Do not add a separate variant route unless the create flow becomes too awkward.
-4. Phase 3 — API read flow `[Pending]`: update `GET /textures` to return root textures only plus additive family summary fields such as `root_texture_id`, `available_resolutions`, and `variant_summaries`. Keep `GET /textures/:id` returning the exact concrete root/variant row and tiles for the requested ID so RibbonView can load a resolved child variant directly.
+2. Phase 1 — Family data model `[Complete]`: `parent_texture_set_id` now exists in D1 schema and migration form, is indexed, and is treated as a root/original pointer for derived variants.
+3. Phase 2 — API creation flow `[Complete]`: `POST /texture-set` now accepts optional `parentTextureSetId`, normalizes children back to the family root, enforces family compatibility constraints, and reuses the existing upload/complete pipeline.
+4. Phase 3 — API read flow `[Complete]`: `GET /textures` now returns root textures only with additive family summary fields such as `root_texture_id`, `available_resolutions`, and `variant_summaries`. `GET /textures/:id` still returns the exact concrete root/variant row and tiles for the requested ID, with additive family summary metadata attached.
 5. Phase 4 — Local storage model `[Partial]`: IndexedDB texture-set records already persist `derived_from` and `variant_info` with lineage metadata and work without a schema migration. Remaining work is to normalize local records onto the same explicit family model as cloud data, likely by adding `parent_texture_set_id` and root-family helpers once family grouping is introduced.
-6. Phase 5 — Shared family resolver `[Pending]`: introduce a small shared resolver/helper that groups flat records into families and selects the active concrete variant from a family. Resolution rule stays: choose the highest available resolution less than or equal to the user’s preferred max; if none exist below the cap, choose the smallest available resolution above it.
+6. Phase 5 — Shared family resolver `[Complete]`: a shared resolver/helper now groups flat records into families, normalizes `variant_summaries`, and selects the active concrete variant from a family using the desired rule: highest available resolution less than or equal to the preferred max, otherwise the smallest resolution above it.
 7. Phase 6 — Shared derivation pipeline `[Partial]`: a non-reactive derivation module and decode worker already exist and can derive a full texture set from fetched cloud tiles or local blobs, reuse one shared encode worker pool across all tiles, report progress, and return a payload ready for local save. Remaining work is cancellation, upload-time reuse, and cloud upload orchestration against the eventual family model.
 8. Phase 7 — Browser UX refactor `[Partial]`: TextureBrowser already supports “Create Local Variant”, saves the result to My Local, shows derived lineage on local cards, and can apply the saved variant immediately. Remaining work is the actual family UX: one card per family, resolution badge rows, active-resolution indication under the global cap, and only offering missing lower POT targets beneath the family root.
 9. Phase 8 — Selection and preview behavior `[Partial]`: the viewer path already loads concrete variant IDs cleanly, which is compatible with the target end state. Remaining work is to make browser selection, preview, and multi-select family-aware through the shared resolver rather than a flat texture list.
@@ -32,8 +32,10 @@ This plan is now post-feasibility. Browser-side local variant derivation is work
 - `d:/rivvon-app/apps/api/db/migrations/` — add a migration for the family relationship.
 - `d:/rivvon-app/apps/api/routes/upload.ts` — extend create flow to accept `parentTextureSetId`; keep upload/complete behavior compatible.
 - `d:/rivvon-app/apps/api/routes/textures.ts` — return root-only family summaries in list responses and additive family metadata in detail responses.
+- `d:/rivvon-app/apps/api/utils/textureFamilies.ts` — shared API-side family aggregation and summary decoration used by list/detail routes.
 - `d:/rivvon-app/apps/rivvon/src/services/localStorage.js` — current local lineage persistence lives here; extend it to explicit local family fields when shared family grouping lands.
 - `d:/rivvon-app/apps/rivvon/src/services/textureService.js` — consume family summary fields and any new list/detail response shape.
+- `d:/rivvon-app/apps/rivvon/src/modules/shared/textureFamilyResolver.js` — shared frontend family grouping and variant resolution helper.
 - `d:/rivvon-app/apps/rivvon/src/services/api.js` — pass `parentTextureSetId` when creating child variants and orchestrate family uploads/copies.
 - `d:/rivvon-app/apps/rivvon/src/components/viewer/TextureBrowser.vue` — current local variant creation and lineage UI live here; remaining work is family cards, resolution badges, and family-aware copy/delete/edit flows.
 - `d:/rivvon-app/apps/rivvon/src/views/RibbonView.vue` — keep loading resolved concrete variant IDs while remaining agnostic to family grouping.
@@ -53,7 +55,7 @@ This plan is now post-feasibility. Browser-side local variant derivation is work
 
 1. Complete: validate the worker decode path on a representative multi-layer tile and confirm timings, preserved layers, mip behavior, and viewer compatibility. This is done.
 2. Complete: derive a full local variant from a cloud texture and confirm it saves locally, carries lineage metadata, and applies cleanly through the viewer. This is done for a 3-tile 1024 -> 256 set.
-3. Pending: once the family model exists, create a local root texture plus multiple local variants and verify each child stores the explicit root relationship field expected by the shared family resolver.
+3. Pending: create a local root texture plus multiple local variants and verify each child stores the explicit root relationship field expected by the shared family resolver.
 4. Pending: upload a root + variants family to Google Drive and to R2; verify the browser shows one family card with all resolutions.
 5. Pending: change the global preferred max resolution between 256 and 512 and confirm browser selection, preview, and RibbonView load the expected concrete variant IDs.
 6. Pending: copy a local family to cloud and verify all child variants are copied and linked to the new cloud root.

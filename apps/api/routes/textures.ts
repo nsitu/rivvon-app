@@ -1,5 +1,6 @@
 // src/routes/textures.ts
 import { Hono } from 'hono';
+import { buildTextureFamilySummaries, decorateTextureFamilyRoot, getRootTextureId } from '../utils/textureFamilies';
 
 type Bindings = {
     DB: D1Database;
@@ -15,10 +16,10 @@ textureRoutes.get('/', async (c) => {
 
     const results = await c.env.DB.prepare(`
     SELECT 
-      ts.id, ts.name, ts.description, ts.thumbnail_url,
+    ts.id, ts.parent_texture_set_id, ts.name, ts.description, ts.thumbnail_url,
       ts.tile_resolution, ts.tile_count, ts.layer_count,
-      ts.cross_section_type, ts.source_frame_count, ts.sampled_frame_count, ts.created_at,
-      ts.storage_provider,
+    ts.cross_section_type, ts.source_frame_count, ts.sampled_frame_count, ts.created_at, ts.updated_at,
+    ts.storage_provider, ts.status,
       u.id as owner_id,
       u.google_id as owner_google_id,
       u.name as owner_name,
@@ -28,12 +29,14 @@ textureRoutes.get('/', async (c) => {
     LEFT JOIN users u ON ts.owner_id = u.id
     WHERE ts.status = 'complete' AND ts.is_public = 1
     ORDER BY ts.created_at DESC
-    LIMIT ? OFFSET ?
-  `).bind(limit, offset).all();
+    `).all();
+
+        const families = buildTextureFamilySummaries(results.results as any[]);
+        const pagedFamilies = families.slice(offset, offset + limit).map((family) => decorateTextureFamilyRoot(family));
 
     return c.json({
-        textures: results.results,
-        pagination: { limit, offset },
+                textures: pagedFamilies,
+                pagination: { limit, offset, total: families.length },
     });
 });
 
@@ -44,6 +47,7 @@ textureRoutes.get('/:id', async (c) => {
     const textureSet = await c.env.DB.prepare(`
     SELECT 
       ts.*,
+            (SELECT COALESCE(SUM(file_size), 0) FROM texture_tiles WHERE texture_set_id = ts.id) as total_size_bytes,
       u.id as owner_id,
       u.google_id as owner_google_id,
       u.name as owner_name,
@@ -56,6 +60,19 @@ textureRoutes.get('/:id', async (c) => {
     if (!textureSet) {
         return c.json({ error: 'Texture set not found' }, 404);
     }
+
+        const rootTextureId = getRootTextureId(textureSet);
+        const familyResults = await c.env.DB.prepare(`
+        SELECT
+            ts.id, ts.parent_texture_set_id, ts.tile_resolution, ts.storage_provider,
+            ts.status, ts.created_at, ts.updated_at,
+            (SELECT COALESCE(SUM(file_size), 0) FROM texture_tiles WHERE texture_set_id = ts.id) as total_size_bytes
+        FROM texture_sets ts
+        WHERE (ts.id = ? OR ts.parent_texture_set_id = ?) AND ts.status = 'complete'
+        ORDER BY ts.created_at DESC
+    `).bind(rootTextureId, rootTextureId).all();
+        const familySummaries = buildTextureFamilySummaries(familyResults.results as any[]);
+        const currentFamily = familySummaries.find((family) => family.rootTextureId === rootTextureId);
 
     const tiles = await c.env.DB.prepare(`
     SELECT tile_index, r2_key, drive_file_id, public_url, file_size 
@@ -96,6 +113,9 @@ textureRoutes.get('/:id', async (c) => {
 
     return c.json({
         ...textureSet,
+        root_texture_id: rootTextureId,
+        available_resolutions: currentFamily?.availableResolutions || [Number(textureSet.tile_resolution)].filter(Number.isFinite),
+        variant_summaries: currentFamily?.variantSummaries || [],
         tiles: tileUrls,
     });
 });
@@ -108,9 +128,9 @@ textureRoutes.get('/:setId/tile/:index', async (c) => {
     const tile = await c.env.DB.prepare(`
     SELECT r2_key FROM texture_tiles 
     WHERE texture_set_id = ? AND tile_index = ?
-  `).bind(setId, tileIndex).first();
+    `).bind(setId, tileIndex).first() as { r2_key?: string | null } | null;
 
-    if (!tile) {
+        if (!tile?.r2_key) {
         return c.json({ error: 'Tile not found' }, 404);
     }
 

@@ -1061,6 +1061,14 @@
 
         return localTextures.value.find((texture) => texture.id === deriveSavedTextureId.value) || null;
     });
+    const deriveValidationStatus = computed(() => {
+        const viewerCompatible = Boolean(deriveResult.value?.validation?.viewerCompatibleShape);
+
+        return {
+            className: viewerCompatible ? 'derive-status-ok' : 'derive-status-bad',
+            label: viewerCompatible ? 'Viewer-compatible' : 'Validation failed'
+        };
+    });
     const deriveTargetOptions = computed(() => {
         if (!textureToDerive.value) {
             return [];
@@ -1829,12 +1837,8 @@
                         </div>
                         <div class="derive-result-row">
                             <span>Validation</span>
-                            <strong
-                                :class="deriveResult.validation.viewerCompatibleShape ? 'derive-status-ok' : 'derive-status-bad'"
-                            >
-                                {{ deriveResult.validation.viewerCompatibleShape ? 'Viewer-compatible' : 'Validation
-                                failed' }}
-                            </strong>
+                            <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
+                                }}</strong>
                         </div>
                     </div>
 

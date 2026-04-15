@@ -1,6 +1,15 @@
 // src/services/textureService.js
 // Service for fetching textures from the Rivvon API
 
+import {
+    buildTextureVariantSummary,
+    getTextureAvailableResolutions,
+    getTextureRootId,
+    groupTextureRecordsIntoFamilies,
+    normalizeTextureVariantSummaries,
+    resolveFamilyVariant,
+} from '../modules/shared/textureFamilyResolver.js';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 
 /**
@@ -8,9 +17,10 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
  * @param {Object} options - Query options
  * @param {number} options.limit - Max results (default 50)
  * @param {number} options.offset - Pagination offset (default 0)
- * @returns {Promise<{textures: Array, pagination: Object}>}
+ * @param {number | null} options.preferredMaxResolution - Optional cap for resolver output
+ * @returns {Promise<{textures: Array, families: Array, pagination: Object}>}
  */
-export async function fetchTextures({ limit = 50, offset = 0 } = {}) {
+export async function fetchTextures({ limit = 50, offset = 0, preferredMaxResolution = null } = {}) {
     const url = `${API_BASE}/textures?limit=${limit}&offset=${offset}`;
     console.log('[TextureService] Fetching textures from:', url);
 
@@ -25,8 +35,21 @@ export async function fetchTextures({ limit = 50, offset = 0 } = {}) {
 
     const data = await response.json();
     console.log('[TextureService] Response data:', data);
-    return data;
+    return {
+        ...data,
+        textures: data.textures || [],
+        families: groupTextureRecordsIntoFamilies(data.textures || [], { preferredMaxResolution }),
+    };
 }
+
+export {
+    buildTextureVariantSummary,
+    getTextureAvailableResolutions,
+    getTextureRootId,
+    groupTextureRecordsIntoFamilies,
+    normalizeTextureVariantSummaries,
+    resolveFamilyVariant,
+};
 
 /**
  * Fetch a single texture set with tile URLs

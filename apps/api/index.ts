@@ -3,8 +3,9 @@ import { Hono } from 'hono';
 import { uploadRoutes } from './routes/upload';
 import { textureRoutes } from './routes/textures';
 import { authRoutes } from './routes/auth';
-import { verifySession } from './middleware/session';
+import { verifySession, type SessionAuthContext } from './middleware/session';
 import { isAdminUser } from './utils/user';
+import { buildTextureFamilySummaries, decorateTextureFamilyRoot } from './utils/textureFamilies';
 
 type Bindings = {
     DB: D1Database;
@@ -63,8 +64,8 @@ app.get('/', (c) => c.json({ status: 'ok', service: 'rivvon-api' }));
 app.route('/api/auth', authRoutes);
 
 // Get textures owned by current user, or all textures for admins (authenticated via session cookie)
-app.get('/my-textures', verifySession, async (c) => {
-    const auth = c.get('auth');
+app.get('/my-textures', verifySession as any, async (c) => {
+    const auth = (c as any).get('auth') as SessionAuthContext;
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
 
@@ -72,11 +73,12 @@ app.get('/my-textures', verifySession, async (c) => {
 
     const baseQuery = `
         SELECT 
-            ts.id, ts.name, ts.description, ts.thumbnail_url,
+            ts.id, ts.parent_texture_set_id, ts.name, ts.description, ts.thumbnail_url,
             ts.tile_resolution, ts.tile_count, ts.layer_count,
             ts.cross_section_type, ts.storage_provider, ts.status, ts.is_public,
             ts.created_at, ts.updated_at,
-            u.google_id as owner_google_id
+            u.google_id as owner_google_id,
+            (SELECT COALESCE(SUM(file_size), 0) FROM texture_tiles WHERE texture_set_id = ts.id) as total_size_bytes
         FROM texture_sets ts
         LEFT JOIN users u ON ts.owner_id = u.id
     `;
@@ -85,18 +87,19 @@ app.get('/my-textures', verifySession, async (c) => {
         ? await c.env.DB.prepare(`
             ${baseQuery}
             ORDER BY ts.created_at DESC
-            LIMIT ? OFFSET ?
-        `).bind(limit, offset).all()
+        `).all()
         : await c.env.DB.prepare(`
             ${baseQuery}
             WHERE ts.owner_id = ?
             ORDER BY ts.created_at DESC
-            LIMIT ? OFFSET ?
-        `).bind(auth.userId, limit, offset).all();
+        `).bind(auth.userId).all();
+
+    const families = buildTextureFamilySummaries(results.results as any[]);
+    const pagedFamilies = families.slice(offset, offset + limit).map((family) => decorateTextureFamilyRoot(family));
 
     return c.json({
-        textures: results.results,
-        pagination: { limit, offset },
+        textures: pagedFamilies,
+        pagination: { limit, offset, total: families.length },
         scope: isAdmin ? 'admin-all' : 'owner',
     });
 });
