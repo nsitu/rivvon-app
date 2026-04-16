@@ -245,6 +245,7 @@
     import { buildFileTextureSaveSource, saveProcessedTextureSetLocally } from '../../modules/slyce/localTexturePersistence.js';
     import {
         assessTextureVariantDerivationWorkload,
+        getTextureVariantTargetResolutionOptions,
         normalizeTextureVariantTargetResolutions,
     } from '../../modules/slyce/textureFamilyPlanning.js';
 
@@ -287,21 +288,10 @@
         return publishDestinationOptions.value.find((option) => option.value === app.publishDestination)?.label || 'Google Drive';
     });
     const autoDeriveResolutionOptions = computed(() => {
-        const maxResolution = Number(app.potResolution) || 0;
-        const options = [];
-
-        for (let resolution = Math.floor(maxResolution / 2); resolution >= 16; resolution = Math.floor(resolution / 2)) {
-            if ((resolution & (resolution - 1)) !== 0) {
-                continue;
-            }
-
-            options.push({
-                label: `${resolution}px`,
-                value: resolution,
-            });
-        }
-
-        return options;
+        return getTextureVariantTargetResolutionOptions(app.potResolution).map((resolution) => ({
+            label: `${resolution}px`,
+            value: resolution,
+        }));
     });
     const autoDeriveAssessment = computed(() => {
         const selectedResolutions = normalizeTextureVariantTargetResolutions(app.potResolution, app.autoDeriveResolutions);
@@ -420,9 +410,38 @@
     });
     const showPublishActions = computed(() => publishState.value === 'error' || publishState.value === 'success');
 
+    function getDefaultAutoDeriveResolutions(resolution = app.potResolution) {
+        return getTextureVariantTargetResolutionOptions(resolution);
+    }
+
+    function syncAutoDeriveResolutionSelection({ forceAll = false } = {}) {
+        const availableResolutions = getDefaultAutoDeriveResolutions(app.potResolution);
+        const normalizedSelected = normalizeTextureVariantTargetResolutions(app.potResolution, app.autoDeriveResolutions);
+
+        if (forceAll || normalizedSelected.length === 0) {
+            app.autoDeriveResolutions = [...availableResolutions];
+            return;
+        }
+
+        app.autoDeriveResolutions = normalizedSelected.filter((resolution) => availableResolutions.includes(resolution));
+    }
+
     watch(() => app.potResolution, (newResolution) => {
-        app.autoDeriveResolutions = normalizeTextureVariantTargetResolutions(newResolution, app.autoDeriveResolutions);
+        const availableResolutions = getDefaultAutoDeriveResolutions(newResolution);
+        const normalizedSelected = normalizeTextureVariantTargetResolutions(newResolution, app.autoDeriveResolutions);
+
+        app.autoDeriveResolutions = normalizedSelected.length > 0
+            ? normalizedSelected.filter((resolution) => availableResolutions.includes(resolution))
+            : [...availableResolutions];
     }, { immediate: true });
+
+    watch(() => app.savedLocalTextureId, (nextId, previousId) => {
+        if (!nextId || nextId === previousId) {
+            return;
+        }
+
+        syncAutoDeriveResolutionSelection({ forceAll: true });
+    });
 
     watch(publishDestinationOptions, (options) => {
         if (!options.length) {

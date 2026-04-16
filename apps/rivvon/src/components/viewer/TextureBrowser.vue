@@ -7,7 +7,9 @@
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { fetchDriveFile } from '../../modules/viewer/auth.js';
+    import { getTextureVariantTargetResolutionOptions } from '../../modules/slyce/textureFamilyPlanning.js';
     import Button from 'primevue/button';
+    import MultiSelect from 'primevue/multiselect';
     const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
 
     const props = defineProps({
@@ -27,6 +29,7 @@
     const MAX_MULTI_SELECT = 4;
     const multiSelectMode = ref(false);
     const selectedTextures = ref(new Map()); // id -> { texture, isLocal }
+    const selectedFamilyVariantIds = ref(new Map()); // cardId -> selected variant id
 
     const app = useViewerStore();
     const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
@@ -63,7 +66,7 @@
 
     // Derived variant state
     const textureToDerive = ref(null);
-    const deriveTargetResolution = ref(null);
+    const deriveTargetResolutions = ref([]);
     const isDeriving = ref(false);
     const deriveProgress = ref('');
     const deriveError = ref(null);
@@ -130,12 +133,14 @@
         const activeResolution = Number(resolvedSummary?.resolution ?? resolvedTexture?.tile_resolution ?? rootResolution) || null;
         const familyRootId = family.rootTextureId || baseTexture?.root_texture_id || baseTexture?.id || resolvedTexture?.id || null;
         const cardId = `${baseTexture?.isLocal ? 'local' : 'cloud'}:${familyRootId || baseTexture?.id || resolvedTexture?.id || 'unknown'}`;
+        const defaultVariantId = resolvedSummary?.id || resolvedTexture?.id || rootTexture?.id || null;
 
         return {
             ...baseTexture,
             id: cardId,
             cardId,
             familyCard: true,
+            defaultVariantId,
             rootTextureId: familyRootId,
             rootTexture: rootTexture || resolvedTexture || null,
             resolvedTexture: resolvedTexture || rootTexture || null,
@@ -243,7 +248,7 @@
     }
 
     function getFamilySelectionTexture(texture) {
-        return texture?.resolvedTexture || texture;
+        return getSelectedFamilyVariantEntry(texture)?.sourceTexture || texture?.resolvedTexture || texture;
     }
 
     function getFamilyActionTexture(texture) {
@@ -329,6 +334,128 @@
                 };
             })
             .sort(compareFamilyVariantEntries);
+    }
+
+    function getDefaultFamilyVariantId(texture, entries = null) {
+        const variantEntries = Array.isArray(entries) && entries.length > 0
+            ? entries
+            : getFamilyVariantEntries(texture);
+        const candidateIds = [
+            texture?.defaultVariantId,
+            texture?.resolvedTexture?.id,
+            texture?.rootTextureId,
+            getFamilyRootTexture(texture)?.id,
+            texture?.id,
+        ].filter(Boolean);
+
+        for (const candidateId of candidateIds) {
+            const matchedEntry = variantEntries.find((entry) => String(entry.id) === String(candidateId));
+            if (matchedEntry) {
+                return matchedEntry.id;
+            }
+        }
+
+        return variantEntries[0]?.id || null;
+    }
+
+    function getSelectedFamilyVariantId(texture) {
+        const variantEntries = getFamilyVariantEntries(texture);
+        if (variantEntries.length === 0) {
+            return null;
+        }
+
+        const configuredVariantId = selectedFamilyVariantIds.value.get(getCardSelectionKey(texture));
+        if (configuredVariantId) {
+            const matchedEntry = variantEntries.find((entry) => String(entry.id) === String(configuredVariantId));
+            if (matchedEntry) {
+                return matchedEntry.id;
+            }
+        }
+
+        return getDefaultFamilyVariantId(texture, variantEntries);
+    }
+
+    function getSelectedFamilyVariantEntry(texture) {
+        const variantEntries = getFamilyVariantEntries(texture);
+        if (variantEntries.length === 0) {
+            return null;
+        }
+
+        const selectedVariantId = getSelectedFamilyVariantId(texture);
+        return variantEntries.find((entry) => String(entry.id) === String(selectedVariantId)) || variantEntries[0] || null;
+    }
+
+    function syncSelectedTextureVariant(texture) {
+        const selectionKey = getCardSelectionKey(texture);
+        if (!selectedTextures.value.has(selectionKey)) {
+            return;
+        }
+
+        const map = new Map(selectedTextures.value);
+        map.set(selectionKey, {
+            texture: getFamilySelectionTexture(texture),
+            isLocal: isLocalTexture(texture)
+        });
+        selectedTextures.value = map;
+    }
+
+    function setSelectedFamilyVariantId(texture, variantId) {
+        const variantEntries = getFamilyVariantEntries(texture);
+        const matchedEntry = variantEntries.find((entry) => String(entry.id) === String(variantId));
+        const nextVariantId = matchedEntry?.id || getDefaultFamilyVariantId(texture, variantEntries);
+        const map = new Map(selectedFamilyVariantIds.value);
+
+        if (nextVariantId) {
+            map.set(getCardSelectionKey(texture), nextVariantId);
+        } else {
+            map.delete(getCardSelectionKey(texture));
+        }
+
+        selectedFamilyVariantIds.value = map;
+        syncSelectedTextureVariant(texture);
+    }
+
+    function handleFamilyVariantChange(texture, event) {
+        event?.stopPropagation?.();
+        setSelectedFamilyVariantId(texture, event?.target?.value);
+    }
+
+    function getFamilyVariantSizeBytes(entry) {
+        return Number(
+            entry?.summary?.total_size_bytes
+            ?? entry?.summary?.size_bytes
+            ?? entry?.sourceTexture?.total_size_bytes
+            ?? entry?.sourceTexture?.total_size
+            ?? 0
+        ) || 0;
+    }
+
+    function formatVariantSize(bytes) {
+        if (!bytes) {
+            return null;
+        }
+
+        if (bytes < 1024 * 1024) {
+            return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+        }
+
+        return formatSize(bytes);
+    }
+
+    function formatFamilyVariantOptionLabel(entry) {
+        const resolutionLabel = Number.isInteger(entry?.resolution) && entry.resolution > 0
+            ? `${entry.resolution}px`
+            : (entry?.isRoot ? 'Root' : 'Variant');
+        const sizeLabel = formatVariantSize(getFamilyVariantSizeBytes(entry));
+
+        return sizeLabel ? `${resolutionLabel} (${sizeLabel})` : resolutionLabel;
+    }
+
+    function getFamilyVariantOptions(texture) {
+        return getFamilyVariantEntries(texture).map((entry) => ({
+            id: entry.id,
+            label: formatFamilyVariantOptionLabel(entry),
+        }));
     }
 
     function getFamilyCopyEntries(texture, { variantIds = null } = {}) {
@@ -503,24 +630,11 @@
             ?? texture?.tile_resolution
         );
 
-        if (!Number.isInteger(sourceResolution) || sourceResolution <= 16) {
-            return [];
-        }
-
         const existingResolutions = new Set(getFamilyAvailableResolutions(texture));
         existingResolutions.add(sourceResolution);
 
-        const options = [];
-        let current = sourceResolution / 2;
-
-        while (Number.isInteger(current) && current >= 16) {
-            if (!existingResolutions.has(current)) {
-                options.push(current);
-            }
-            current /= 2;
-        }
-
-        return options;
+        return getTextureVariantTargetResolutionOptions(sourceResolution)
+            .filter((resolution) => !existingResolutions.has(resolution));
     }
 
     function canDeriveVariant(texture) {
@@ -647,29 +761,29 @@
         switch (stage?.stage) {
             case 'prepare-source':
                 return 'Preparing source texture...';
-            case 'tile-start':
-                return `Processing tile ${stage.tileNumber}/${stage.tileCount}...`;
-            case 'tile-progress':
+            case 'variant-start':
+                return `Preparing ${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount})...`;
+            case 'variant-progress':
                 switch (stage.nestedStage) {
                     case 'decode-layer':
-                        return `Tile ${stage.tileNumber}/${stage.tileCount}: decoding layer ${stage.layerIndex + 1}/${stage.layerCount}...`;
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): decoding layer ${stage.layerIndex + 1}/${stage.layerCount} for tile ${stage.tileNumber}/${stage.tileCount}...`;
                     case 'layer-complete':
-                        return `Tile ${stage.tileNumber}/${stage.tileCount}: downscaled layer ${stage.layerIndex + 1}/${stage.layerCount}...`;
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): downscaled layer ${stage.layerIndex + 1}/${stage.layerCount} for tile ${stage.tileNumber}/${stage.tileCount}...`;
                     case 'encode':
-                        return `Tile ${stage.tileNumber}/${stage.tileCount}: re-encoding ${stage.layerCount} layers at ${deriveTargetResolution.value}px...`;
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): re-encoding ${stage.layerCount} layers for tile ${stage.tileNumber}/${stage.tileCount}...`;
                     case 'encode-progress':
-                        return `Tile ${stage.tileNumber}/${stage.tileCount}: encoding layer ${stage.completed}/${stage.total}...`;
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): encoding layer ${stage.completed}/${stage.total} for tile ${stage.tileNumber}/${stage.tileCount}...`;
+                    case 'tile-start':
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): processing tile ${stage.tileNumber}/${stage.tileCount}...`;
+                    case 'tile-complete':
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): finished tile ${stage.tileNumber}/${stage.tileCount}.`;
                     default:
-                        return `Tile ${stage.tileNumber}/${stage.tileCount}: processing...`;
+                        return `${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}): processing...`;
                 }
-            case 'tile-complete':
-                return `Finished tile ${stage.tileNumber}/${stage.tileCount}.`;
-            case 'save-local':
-                return `Saving derived tiles locally (${stage.completed}/${stage.total})...`;
-            case 'complete':
-                return `Saved ${stage.tileCount} derived tiles locally.`;
+            case 'variant-complete':
+                return `Prepared ${stage.targetResolution}px variant (${stage.variantNumber}/${stage.variantCount}).`;
             default:
-                return 'Creating lower-resolution local variant...';
+                return 'Creating lower-resolution published variants...';
         }
     }
 
@@ -820,6 +934,22 @@
         close();
     }
 
+    function applyTextureSelection(texture, event) {
+        event?.stopPropagation?.();
+        const selectionTexture = getFamilySelectionTexture(texture);
+
+        if (!selectionTexture) {
+            return;
+        }
+
+        if (isLocalTexture(selectionTexture)) {
+            selectLocalTexture(selectionTexture);
+            return;
+        }
+
+        selectTexture(selectionTexture);
+    }
+
     // Multi-select helpers
     function toggleMultiSelectMode() {
         multiSelectMode.value = !multiSelectMode.value;
@@ -852,14 +982,6 @@
     function handleCardClick(texture, event) {
         if (multiSelectMode.value) {
             toggleTextureSelection(texture, event);
-        } else {
-            const selectionTexture = getFamilySelectionTexture(texture);
-
-            if (isLocalTexture(texture)) {
-                selectLocalTexture(selectionTexture);
-            } else {
-                selectTexture(selectionTexture);
-            }
         }
     }
 
@@ -884,6 +1006,7 @@
     function close() {
         multiSelectMode.value = false;
         selectedTextures.value = new Map();
+        selectedFamilyVariantIds.value = new Map();
         emit('close');
         app.hideTextureBrowser();
     }
@@ -1307,13 +1430,13 @@
 
         clearDeriveResult();
         textureToDerive.value = texture;
-        deriveTargetResolution.value = getTargetResolutionOptions(texture)[0] ?? null;
+        deriveTargetResolutions.value = getTargetResolutionOptions(texture);
         deriveProgress.value = '';
         deriveError.value = null;
     }
 
     async function performDeriveVariant() {
-        if (!textureToDerive.value || !deriveTargetResolution.value || isDeriving.value) {
+        if (!textureToDerive.value || deriveTargetResolutions.value.length === 0 || isDeriving.value) {
             return;
         }
 
@@ -1332,46 +1455,24 @@
                 throw new Error('Only the owner or an admin can publish a new family variant');
             }
 
-            const { deriveKtx2TextureSet } = await loadDeriveModule();
+            const { deriveKtx2TextureFamily } = await loadDeriveModule();
             const sourceBundle = await fetchTextureSourceBundle(sourceTexture, (message) => {
                 deriveProgress.value = message;
             });
-            const targetResolution = Number(deriveTargetResolution.value);
+            const targetResolutions = deriveTargetResolutions.value
+                .map((value) => Number(value))
+                .filter((value) => Number.isInteger(value) && value > 0);
             const variantName = buildPublishedVariantName(sourceTexture);
-            const variantInfo = buildPublishedVariantInfo(sourceTexture, targetResolution);
             const destination = sourceTexture.storage_provider === 'r2' ? 'r2' : 'google-drive';
             const publishLabel = destination === 'r2' ? 'R2' : 'Google Drive';
             const uploadVariant = destination === 'r2' ? uploadTextureSetToR2 : uploadTextureSet;
 
-            const result = await deriveKtx2TextureSet({
+            const familyResult = await deriveKtx2TextureFamily({
                 sourceTiles: sourceBundle.tileEntries,
-                targetResolution,
+                sourceResolution: Number(sourceTexture.tile_resolution ?? sourceBundle.sourceTextureSet?.tile_resolution) || null,
+                targetResolutions,
                 onProgress: (stage) => {
                     deriveProgress.value = formatDeriveProgress(stage);
-                }
-            });
-
-            deriveProgress.value = `Uploading ${targetResolution}px variant to ${publishLabel}...`;
-            const publishedVariant = await uploadVariant({
-                name: variantName,
-                tileCount: result.output.tileCount,
-                tileResolution: result.output.pixelWidth,
-                layerCount: result.output.layerCount,
-                description: '',
-                parentTextureSetId: sourceTexture.id,
-                crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
-                    || sourceTexture.cross_section_type
-                    || 'waves',
-                sourceMetadata: buildTextureSourceMetadata(sourceTexture, sourceBundle.sourceTextureSet),
-                tiles: Object.entries(result.outputBlobs)
-                    .map(([tileIndex, blob]) => ({
-                        index: Number(tileIndex),
-                        blob,
-                    }))
-                    .sort((left, right) => left.index - right.index),
-                thumbnailBlob: null,
-                onProgress: (_step, detail) => {
-                    deriveProgress.value = detail || `Uploading ${targetResolution}px variant to ${publishLabel}...`;
                 }
             });
 
@@ -1379,41 +1480,89 @@
                 cacheCloudTextureFromBlobs(sourceTexture, sourceBundle.sourceTextureSet, sourceBundle.downloadedSourceBlobs);
             }
 
-            await cacheCloudTexture({
-                cloudTextureId: publishedVariant.textureSetId,
-                name: variantName,
-                tileCount: result.output.tileCount,
-                tileResolution: result.output.pixelWidth,
-                layerCount: result.output.layerCount,
-                crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
-                    || sourceTexture.cross_section_type
-                    || 'waves',
-                sourceMetadata: buildTextureSourceMetadata(sourceTexture, sourceBundle.sourceTextureSet),
-                thumbnailDataUrl: null,
-                ktx2Blobs: result.outputBlobs,
-                rootTextureSetId: sourceTexture.id,
-                parentTextureSetId: sourceTexture.id,
-                variantInfo,
-            });
+            const publishedVariants = [];
+
+            for (let variantIndex = 0; variantIndex < familyResult.variants.length; variantIndex++) {
+                const variant = familyResult.variants[variantIndex];
+                const targetResolution = Number(variant.targetResolution);
+                const variantInfo = buildPublishedVariantInfo(sourceTexture, targetResolution);
+
+                deriveProgress.value = `Uploading ${targetResolution}px variant (${variantIndex + 1}/${familyResult.variants.length}) to ${publishLabel}...`;
+                const publishedVariant = await uploadVariant({
+                    name: variantName,
+                    tileCount: variant.result.output.tileCount,
+                    tileResolution: variant.result.output.pixelWidth,
+                    layerCount: variant.result.output.layerCount,
+                    description: '',
+                    parentTextureSetId: sourceTexture.id,
+                    crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
+                        || sourceTexture.cross_section_type
+                        || 'waves',
+                    sourceMetadata: buildTextureSourceMetadata(sourceTexture, sourceBundle.sourceTextureSet),
+                    tiles: Object.entries(variant.result.outputBlobs)
+                        .map(([tileIndex, blob]) => ({
+                            index: Number(tileIndex),
+                            blob,
+                        }))
+                        .sort((left, right) => left.index - right.index),
+                    thumbnailBlob: null,
+                    onProgress: (_step, detail) => {
+                        deriveProgress.value = detail || `Uploading ${targetResolution}px variant (${variantIndex + 1}/${familyResult.variants.length}) to ${publishLabel}...`;
+                    }
+                });
+
+                await cacheCloudTexture({
+                    cloudTextureId: publishedVariant.textureSetId,
+                    name: variantName,
+                    tileCount: variant.result.output.tileCount,
+                    tileResolution: variant.result.output.pixelWidth,
+                    layerCount: variant.result.output.layerCount,
+                    crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
+                        || sourceTexture.cross_section_type
+                        || 'waves',
+                    sourceMetadata: buildTextureSourceMetadata(sourceTexture, sourceBundle.sourceTextureSet),
+                    thumbnailDataUrl: null,
+                    ktx2Blobs: variant.result.outputBlobs,
+                    rootTextureSetId: sourceTexture.id,
+                    parentTextureSetId: sourceTexture.id,
+                    variantInfo,
+                });
+
+                publishedVariants.push({
+                    resolution: variant.result.output.pixelWidth,
+                    textureSetId: publishedVariant.textureSetId,
+                    output: variant.result.output,
+                    timings: variant.result.timings,
+                    encodeConfig: variant.result.encodeConfig,
+                    validation: variant.result.validation,
+                });
+            }
 
             activeTab.value = 'my-cloud';
             await loadTextures();
 
             deriveResult.value = {
-                source: result.source,
-                output: result.output,
-                timings: result.timings,
-                encodeConfig: result.encodeConfig,
-                validation: result.validation,
+                source: familyResult.variants[0]?.result?.source || null,
+                output: {
+                    totalByteLength: publishedVariants.reduce((total, variant) => total + (variant.output?.totalByteLength || 0), 0),
+                },
+                timings: {
+                    totalDurationMs: familyResult.timings.totalDurationMs,
+                    encodeDurationMs: publishedVariants.reduce((total, variant) => total + (variant.timings?.encodeDurationMs || 0), 0),
+                },
+                encodeConfig: publishedVariants[0]?.encodeConfig || null,
+                validation: {
+                    viewerCompatibleShape: publishedVariants.every((variant) => variant.validation?.viewerCompatibleShape),
+                },
                 sourceFetchOrigin: sourceBundle.fetchedFrom,
                 savedTextureName: variantName,
                 rootTextureSetId: sourceTexture.id,
-                publishedTextureSetId: publishedVariant.textureSetId,
                 publishedDestination: publishLabel,
-                publishedResolution: targetResolution,
+                publishedVariants,
+                publishedResolutions: publishedVariants.map((variant) => variant.resolution),
             };
 
-            deriveProgress.value = `Published ${targetResolution}px variant to ${publishLabel}.`;
+            deriveProgress.value = `Published ${publishedVariants.map((variant) => `${variant.resolution}px`).join(', ')} to ${publishLabel}.`;
         } catch (err) {
             console.error('[TextureBrowser] Cloud variant derivation failed:', err);
             deriveError.value = err.message || 'Variant derivation failed';
@@ -1429,7 +1578,7 @@
 
         clearDeriveResult();
         textureToDerive.value = null;
-        deriveTargetResolution.value = null;
+        deriveTargetResolutions.value = [];
         deriveProgress.value = '';
         deriveError.value = null;
     }
@@ -1520,30 +1669,6 @@
         return new Date(timestamp).toLocaleDateString();
     }
 
-    function formatFamilyRootResolution(texture) {
-        const resolution = Number(texture?.rootResolution ?? texture?.tile_resolution);
-        return Number.isInteger(resolution) && resolution > 0 ? `${resolution}px root` : null;
-    }
-
-    function formatFamilyResolutionPreference(texture) {
-        const activeResolution = Number(texture?.activeResolution ?? getFamilySelectionTexture(texture)?.tile_resolution);
-        const preferredResolution = Number(app.preferredTextureMaxResolution);
-
-        if (!Number.isInteger(activeResolution) || activeResolution <= 0) {
-            return null;
-        }
-
-        if (!Number.isInteger(preferredResolution) || preferredResolution <= 0) {
-            return `Active ${activeResolution}px`;
-        }
-
-        if (activeResolution <= preferredResolution) {
-            return `Active ${activeResolution}px under the ${preferredResolution}px cap`;
-        }
-
-        return `Active ${activeResolution}px above the ${preferredResolution}px cap`;
-    }
-
     // ── Animated Preview ──
     const previewTexture = ref(null);      // texture being previewed
     const previewBlobURLs = ref({});       // tileNumber → blob URL
@@ -1564,7 +1689,31 @@
             return [];
         }
 
-        return getTargetResolutionOptions(textureToDerive.value);
+        return getTargetResolutionOptions(textureToDerive.value).map((resolution) => ({
+            label: `${resolution} px`,
+            value: resolution,
+        }));
+    });
+    const deriveModalTitle = computed(() => deriveTargetResolutions.value.length > 1
+        ? 'Publish Lower-Resolution Variants'
+        : 'Publish Lower-Resolution Variant');
+    const deriveSelectionSummary = computed(() => {
+        if (deriveTargetResolutions.value.length === 0) {
+            return 'Choose one or more lower power-of-two resolutions to publish into the existing cloud family.';
+        }
+
+        return `Publish ${deriveTargetResolutions.value.map((resolution) => `${resolution}px`).join(', ')} into the existing cloud family.`;
+    });
+    const derivePrimaryActionLabel = computed(() => {
+        if (isDeriving.value) {
+            return 'Running...';
+        }
+
+        if (deriveResult.value) {
+            return deriveTargetResolutions.value.length > 1 ? 'Recreate & Publish Variants' : 'Recreate & Publish Variant';
+        }
+
+        return deriveTargetResolutions.value.length > 1 ? 'Publish Variants' : 'Publish Variant';
     });
     const isEditingFamilyName = computed(() => editVariantCount.value > 1);
     const copyTotalVariantCount = computed(() => getFamilyVariantCount(textureToCopy.value));
@@ -1793,7 +1942,7 @@
         }
     });
 
-    watch(deriveTargetResolution, (nextValue, previousValue) => {
+    watch(() => deriveTargetResolutions.value.join(','), (nextValue, previousValue) => {
         if (nextValue !== previousValue && deriveResult.value) {
             clearDeriveResult();
             deriveProgress.value = '';
@@ -1935,14 +2084,15 @@
                         :key="texture.id"
                         class="texture-card"
                         :class="{
+                            'is-multi-selectable': multiSelectMode,
                             'local-texture-card': isLocalTexture(texture),
                             'selected-card': multiSelectMode && isTextureSelected(texture)
                         }"
-                        role="button"
-                        tabindex="0"
+                        :role="multiSelectMode ? 'button' : undefined"
+                        :tabindex="multiSelectMode ? 0 : undefined"
                         @click="handleCardClick(texture, $event)"
-                        @keydown.enter="handleCardClick(texture, $event)"
-                        @keydown.space.prevent="handleCardClick(texture, $event)"
+                        @keydown.enter="multiSelectMode ? handleCardClick(texture, $event) : null"
+                        @keydown.space.prevent="multiSelectMode ? handleCardClick(texture, $event) : null"
                     >
                         <!-- Multi-select checkbox overlay (top-left of thumbnail) -->
                         <div
@@ -2029,38 +2179,40 @@
                             <!-- Meta info -->
                             <div class="texture-card-meta">
                                 <span>{{ texture.tile_count }} tiles</span>
-                                <span v-if="formatFamilyRootResolution(texture)">{{ formatFamilyRootResolution(texture)
-                                }}</span>
                                 <span>{{ texture.cross_section_type || 'waves' }}</span>
                                 <span>{{ texture.layer_count }} layers</span>
-                                <span v-if="texture.availableResolutions?.length > 1">{{
-                                    texture.availableResolutions.length }}
-                                    resolutions</span>
-                                <span v-if="formatSize(texture.total_size_bytes)">
-                                    {{ formatSize(texture.total_size_bytes) }}
-                                </span>
                             </div>
 
                             <div
-                                v-if="texture.availableResolutions?.length > 0"
-                                class="texture-card-resolutions"
+                                v-if="getFamilyVariantOptions(texture).length > 0"
+                                class="texture-card-variant-controls"
+                                @click.stop
                             >
-                                <span
-                                    v-for="resolution in texture.availableResolutions"
-                                    :key="resolution"
-                                    class="texture-resolution-badge"
-                                    :class="{ active: resolution === texture.activeResolution }"
+                                <select
+                                    class="texture-variant-select"
+                                    :value="getSelectedFamilyVariantId(texture)"
+                                    aria-label="Choose texture resolution"
+                                    @change="handleFamilyVariantChange(texture, $event)"
+                                    @click.stop
                                 >
-                                    {{ resolution }}px
-                                </span>
-                            </div>
+                                    <option
+                                        v-for="option in getFamilyVariantOptions(texture)"
+                                        :key="option.id"
+                                        :value="option.id"
+                                    >
+                                        {{ option.label }}
+                                    </option>
+                                </select>
 
-                            <p
-                                v-if="formatFamilyResolutionPreference(texture)"
-                                class="texture-card-resolution-status"
-                            >
-                                {{ formatFamilyResolutionPreference(texture) }}
-                            </p>
+                                <button
+                                    v-if="!multiSelectMode"
+                                    type="button"
+                                    class="texture-apply-button"
+                                    @click="applyTextureSelection(texture, $event)"
+                                >
+                                    Apply
+                                </button>
+                            </div>
 
                             <!-- Frame info / Created date -->
                             <p
@@ -2122,7 +2274,7 @@
                                 <button
                                     v-if="canDeriveVariant(texture)"
                                     class="action-button derive-button"
-                                    title="Create lower-resolution local variant"
+                                    title="Publish lower-resolution variants"
                                     @click="startDeriveVariant(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">resize</span>
@@ -2199,7 +2351,7 @@
                     class="preview-apply-button"
                     severity="info"
                     title="Apply texture to ribbon"
-                    @click="handleCardClick(previewTexture)"
+                    @click="applyTextureSelection(previewTexture)"
                 >
                     <span class="material-symbols-outlined">check</span>
                     Apply
@@ -2316,7 +2468,7 @@
             </div>
         </Teleport>
 
-        <!-- Local variant modal -->
+        <!-- Publish variant modal -->
         <Teleport to="body">
             <div
                 v-if="textureToDerive"
@@ -2324,36 +2476,41 @@
                 @click.self="cancelDeriveVariant"
             >
                 <div class="delete-modal derive-modal">
-                    <h3>Publish Lower-Resolution Variant</h3>
+                    <h3>{{ deriveModalTitle }}</h3>
                     <p>
-                        Generate and publish a lower-resolution variant of
+                        Generate and publish one or more lower-resolution variants of
                         <strong>{{ textureToDerive.name }}</strong>.
                     </p>
                     <p class="derive-helper">
                         This runs the full browser roundtrip across every tile, reuses one shared encoder pool, and
-                        uploads the derived texture into the existing cloud family instead of creating a separate local draft.
+                        uploads the derived textures into the existing cloud family instead of creating separate local
+                        drafts.
                     </p>
 
                     <div class="derive-field">
                         <label
-                            for="derive-target-resolution"
+                            for="derive-target-resolutions"
                             class="derive-label"
-                        >Target resolution</label>
-                        <select
-                            id="derive-target-resolution"
-                            v-model.number="deriveTargetResolution"
-                            class="derive-select"
+                        >Target resolutions</label>
+                        <MultiSelect
+                            id="derive-target-resolutions"
+                            v-model="deriveTargetResolutions"
+                            :options="deriveTargetOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            display="chip"
+                            appendTo="self"
+                            overlayClass="derive-multiselect-panel"
+                            placeholder="Choose one or more resolutions"
+                            selectedItemsLabel="{0} resolutions"
+                            class="derive-multiselect"
                             :disabled="isDeriving || deriveTargetOptions.length === 0"
-                        >
-                            <option
-                                v-for="resolution in deriveTargetOptions"
-                                :key="resolution"
-                                :value="resolution"
-                            >
-                                {{ resolution }} px
-                            </option>
-                        </select>
+                        />
                     </div>
+
+                    <p class="derive-note">
+                        {{ deriveSelectionSummary }}
+                    </p>
 
                     <p
                         v-if="deriveTargetOptions.length === 0"
@@ -2384,6 +2541,12 @@
                             <strong>{{ deriveResult.savedTextureName }}</strong>
                         </div>
                         <div class="derive-result-row">
+                            <span>Published resolutions</span>
+                            <strong>
+                                {{deriveResult.publishedResolutions.map((res) => `${res}px`).join(', ')}}
+                            </strong>
+                        </div>
+                        <div class="derive-result-row">
                             <span>Destination</span>
                             <strong>{{ deriveResult.publishedDestination }}</strong>
                         </div>
@@ -2392,19 +2555,11 @@
                             <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin }})</strong>
                         </div>
                         <div class="derive-result-row">
-                            <span>Base level</span>
-                            <strong>{{ deriveResult.source.width }}px → {{ deriveResult.output.pixelWidth }}px</strong>
-                        </div>
-                        <div class="derive-result-row">
                             <span>Layer count</span>
-                            <strong>{{ deriveResult.output.layerCount }} / {{ deriveResult.source.layerCount }}</strong>
+                            <strong>{{ deriveResult.source.layerCount }}</strong>
                         </div>
                         <div class="derive-result-row">
-                            <span>Mip levels</span>
-                            <strong>{{ deriveResult.output.levelCount }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Output size</span>
+                            <span>Combined output size</span>
                             <strong>{{ formatSize(deriveResult.output.totalByteLength) ||
                                 (deriveResult.output.totalByteLength +
                                     ' bytes') }}</strong>
@@ -2426,8 +2581,16 @@
                             <strong>{{ deriveResult.rootTextureSetId }}</strong>
                         </div>
                         <div class="derive-result-row">
-                            <span>Published variant ID</span>
-                            <strong>{{ deriveResult.publishedTextureSetId }}</strong>
+                            <span>Published variants</span>
+                            <strong>{{ deriveResult.publishedVariants.length }}</strong>
+                        </div>
+                        <div
+                            v-for="variant in deriveResult.publishedVariants"
+                            :key="variant.textureSetId"
+                            class="derive-result-row"
+                        >
+                            <span>{{ variant.resolution }}px ID</span>
+                            <strong>{{ variant.textureSetId }}</strong>
                         </div>
                         <div class="derive-result-row">
                             <span>Validation</span>
@@ -2447,9 +2610,9 @@
                         <button
                             class="confirm-copy-button derive-run-button"
                             @click="performDeriveVariant"
-                            :disabled="isDeriving || !deriveTargetResolution || deriveTargetOptions.length === 0"
+                            :disabled="isDeriving || deriveTargetResolutions.length === 0 || deriveTargetOptions.length === 0"
                         >
-                            {{ isDeriving ? 'Running...' : (deriveResult ? 'Recreate & Publish' : 'Publish Variant') }}
+                            {{ derivePrimaryActionLabel }}
                         </button>
                     </div>
                 </div>
@@ -2674,15 +2837,23 @@
         background: #252525;
         border-radius: 0;
         overflow: hidden;
-        cursor: pointer;
+        cursor: default;
         transition: all 0.2s;
         border: 2px solid transparent;
+    }
+
+    .texture-card.is-multi-selectable {
+        cursor: pointer;
     }
 
     .texture-card:hover {
         border-color: #4caf50;
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .texture-card:not(.is-multi-selectable):hover {
+        transform: none;
     }
 
     .texture-card:focus {
@@ -2801,6 +2972,50 @@
         font-size: 11px;
         padding: 3px 8px;
         border-radius: 0;
+    }
+
+    .texture-card-variant-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+    }
+
+    .texture-variant-select {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 10px;
+        background: #1f1f1f;
+        border: 1px solid #4b5563;
+        color: #f8fafc;
+        font-size: 12px;
+        border-radius: 6px;
+        outline: none;
+    }
+
+    .texture-variant-select:focus {
+        border-color: #60a5fa;
+    }
+
+    .texture-apply-button {
+        border: none;
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: #60a5fa;
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .texture-apply-button:hover {
+        background: #93c5fd;
+    }
+
+    .texture-apply-button:active {
+        transform: translateY(1px);
     }
 
     .texture-card-desc {
@@ -3211,20 +3426,12 @@
         font-weight: 600;
     }
 
-    .derive-select {
+    .derive-multiselect {
         width: 100%;
-        padding: 10px 12px;
-        background: #333;
-        border: 1px solid #555;
-        border-radius: 6px;
-        color: #fff;
-        font-size: 14px;
-        outline: none;
-        transition: border-color 0.2s ease;
     }
 
-    .derive-select:focus {
-        border-color: #f59e0b;
+    .derive-multiselect-panel {
+        z-index: 1;
     }
 
     .derive-result {

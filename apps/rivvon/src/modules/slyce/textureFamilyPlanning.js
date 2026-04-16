@@ -1,6 +1,9 @@
 import { estimateAvailableMemory } from '../../utils/memory-utils.js';
 
-export const MIN_VARIANT_RESOLUTION = 16;
+// 64px, 32px, and 16px can be re-enabled by lowering this floor if a future flow
+// really needs them, but right now they have diminishing returns for the extra
+// derive/upload work they add.
+export const MIN_VARIANT_RESOLUTION = 128;
 export const BYTES_PER_PIXEL_RGBA = 4;
 const MEMORY_GUARD_FRACTION = 0.75;
 
@@ -25,6 +28,30 @@ export function normalizeTextureVariantTargetResolutions(sourceResolution = null
     }
 
     return Array.from(uniqueTargets).sort((left, right) => right - left);
+}
+
+export function getTextureVariantTargetResolutionOptions(sourceResolution = null) {
+    const normalizedSourceResolution = Number(sourceResolution);
+
+    if (!Number.isInteger(normalizedSourceResolution) || normalizedSourceResolution <= MIN_VARIANT_RESOLUTION) {
+        return [];
+    }
+
+    const availableTargets = [];
+
+    for (
+        let resolution = Math.floor(normalizedSourceResolution / 2);
+        resolution >= MIN_VARIANT_RESOLUTION;
+        resolution = Math.floor(resolution / 2)
+    ) {
+        if (!isPowerOfTwo(resolution)) {
+            continue;
+        }
+
+        availableTargets.push(resolution);
+    }
+
+    return normalizeTextureVariantTargetResolutions(normalizedSourceResolution, availableTargets);
 }
 
 export function assessTextureVariantDerivationWorkload({
