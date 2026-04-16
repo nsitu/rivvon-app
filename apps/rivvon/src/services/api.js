@@ -127,6 +127,15 @@ export function useRivvonAPI() {
         return response.json()
     }
 
+    function formatUploadProgressDetail(progressLabelPrefix, detail) {
+        const normalizedPrefix = typeof progressLabelPrefix === 'string' ? progressLabelPrefix.trim() : ''
+        if (!normalizedPrefix || !detail) {
+            return detail
+        }
+
+        return `${normalizedPrefix}: ${detail}`
+    }
+
     /**
      * Complete texture set upload workflow using Google Drive
      * Creates set, uploads all tiles to Drive, marks complete
@@ -148,6 +157,7 @@ export function useRivvonAPI() {
      * @param {Array<{index: number, blob: Blob}>} options.tiles - Array of tile data
      * @param {Blob} options.thumbnailBlob - Optional thumbnail image blob
      * @param {Function} options.onProgress - Progress callback (step, detail)
+     * @param {string} [options.progressLabelPrefix] - Optional label prefix for progress details
      */
     async function uploadTextureSet(options) {
         const {
@@ -162,10 +172,11 @@ export function useRivvonAPI() {
             tiles,
             thumbnailBlob,
             onProgress,
+            progressLabelPrefix = '',
         } = options
 
         // 1. Ensure Slyce folder exists in Google Drive
-        if (onProgress) onProgress('preparing', 'Setting up Google Drive folder...')
+        if (onProgress) onProgress('preparing', formatUploadProgressDetail(progressLabelPrefix, 'Setting up Google Drive folder...'))
         const slyceFolderId = await ensureSlyceFolder()
 
         // 2. Create a subfolder for this texture set
@@ -174,7 +185,7 @@ export function useRivvonAPI() {
         const textureSetFolderId = await createTextureSetFolder(slyceFolderId, folderName)
 
         // 3. Create texture set in API (with google-drive storage provider)
-        if (onProgress) onProgress('creating', 'Creating texture set...')
+        if (onProgress) onProgress('creating', formatUploadProgressDetail(progressLabelPrefix, 'Creating texture set...'))
         const createPayload = {
             name,
             description,
@@ -203,21 +214,21 @@ export function useRivvonAPI() {
                 tile.blob,
                 (progress) => {
                     if (onProgress) {
-                        onProgress('tile', `Uploading tile ${i + 1}/${tiles.length} (${progress}%)...`)
+                        onProgress('tile', formatUploadProgressDetail(progressLabelPrefix, `Uploading tile ${i + 1}/${tiles.length} (${progress}%)...`))
                     }
                 }
             )
             uploadedTiles.push(result)
 
             if (onProgress) {
-                onProgress('tile', `Uploaded tile ${i + 1}/${tiles.length}`)
+                onProgress('tile', formatUploadProgressDetail(progressLabelPrefix, `Uploaded tile ${i + 1}/${tiles.length}`))
             }
         }
 
         // 5. Upload thumbnail to R2 (not Google Drive - R2 is faster for CDN)
         let thumbnailUrl = null
         if (thumbnailBlob) {
-            if (onProgress) onProgress('thumbnail', 'Uploading thumbnail...')
+            if (onProgress) onProgress('thumbnail', formatUploadProgressDetail(progressLabelPrefix, 'Uploading thumbnail...'))
             try {
                 const result = await uploadThumbnail(textureSetId, thumbnailBlob)
                 thumbnailUrl = result.thumbnailUrl
@@ -227,7 +238,7 @@ export function useRivvonAPI() {
         }
 
         // 6. Mark as complete
-        if (onProgress) onProgress('completing', 'Finalizing...')
+        if (onProgress) onProgress('completing', formatUploadProgressDetail(progressLabelPrefix, 'Finalizing...'))
         await completeTextureSet(textureSetId)
 
         // 7. Return texture set info with Google Drive URLs
@@ -307,10 +318,11 @@ export function useRivvonAPI() {
             tiles,
             thumbnailBlob,
             onProgress,
+            progressLabelPrefix = '',
         } = options
 
         // 1. Create texture set in API with R2 storage provider
-        if (onProgress) onProgress('creating', 'Creating texture set (R2)...')
+        if (onProgress) onProgress('creating', formatUploadProgressDetail(progressLabelPrefix, 'Creating texture set (R2)...'))
         const createPayload = {
             name,
             description,
@@ -332,7 +344,7 @@ export function useRivvonAPI() {
         for (let i = 0; i < tiles.length; i++) {
             const tile = tiles[i]
             if (onProgress) {
-                onProgress('tile', `Uploading tile ${i + 1}/${tiles.length} to R2...`)
+                onProgress('tile', formatUploadProgressDetail(progressLabelPrefix, `Uploading tile ${i + 1}/${tiles.length} to R2...`))
             }
 
             const result = await uploadTile(textureSetId, tile.index, tile.blob)
@@ -342,7 +354,7 @@ export function useRivvonAPI() {
         // 3. Upload thumbnail to R2
         let thumbnailUrl = null
         if (thumbnailBlob) {
-            if (onProgress) onProgress('thumbnail', 'Uploading thumbnail...')
+            if (onProgress) onProgress('thumbnail', formatUploadProgressDetail(progressLabelPrefix, 'Uploading thumbnail...'))
             try {
                 const result = await uploadThumbnail(textureSetId, thumbnailBlob)
                 thumbnailUrl = result.thumbnailUrl
@@ -352,7 +364,7 @@ export function useRivvonAPI() {
         }
 
         // 4. Mark as complete
-        if (onProgress) onProgress('completing', 'Finalizing...')
+        if (onProgress) onProgress('completing', formatUploadProgressDetail(progressLabelPrefix, 'Finalizing...'))
         await completeTextureSet(textureSetId)
 
         // 5. Return texture set info with R2 CDN URLs

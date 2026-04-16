@@ -707,6 +707,7 @@
                 parentTextureSetId: rootTextureSetId,
                 tileResolution: variant.result.output.pixelWidth,
                 layerCount: variant.result.output.layerCount,
+                progressLabelPrefix: `${variant.targetResolution}px variant`,
                 crossSectionType: sourceBundle.crossSectionType,
                 sourceMetadata: sourceBundle.sourceMetadata,
                 tiles: buildUploadTilesFromBlobs(variant.result.outputBlobs),

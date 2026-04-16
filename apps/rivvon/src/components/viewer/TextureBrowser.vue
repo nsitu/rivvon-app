@@ -1495,6 +1495,7 @@
                     layerCount: variant.result.output.layerCount,
                     description: '',
                     parentTextureSetId: sourceTexture.id,
+                    progressLabelPrefix: `${targetResolution}px variant`,
                     crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
                         || sourceTexture.cross_section_type
                         || 'waves',
@@ -2481,7 +2482,16 @@
                 @click.self="cancelDeriveVariant"
             >
                 <div class="delete-modal derive-modal">
-                    <h3>{{ deriveModalTitle }}</h3>
+                    <div class="derive-modal-header">
+                        <div
+                            v-if="hasDeriveCompleted"
+                            class="derive-success-indicator"
+                            aria-hidden="true"
+                        >
+                            <span class="derive-success-check">✓</span>
+                        </div>
+                        <h3>{{ deriveModalTitle }}</h3>
+                    </div>
                     <p>
                         <template v-if="hasDeriveCompleted">
                             Published lower-resolution variant{{ deriveResult?.publishedVariants?.length > 1 ? 's' : ''
@@ -2492,22 +2502,6 @@
                         </template>
                         <strong>{{ textureToDerive.name }}</strong>.
                     </p>
-                    <p
-                        v-if="!hasDeriveCompleted"
-                        class="derive-helper"
-                    >
-                        This runs the full browser roundtrip across every tile, reuses one shared encoder pool, and
-                        uploads the derived textures into the existing cloud family instead of creating separate local
-                        drafts.
-                    </p>
-                    <p
-                        v-else
-                        class="derive-helper"
-                    >
-                        The selected variants have already been uploaded into the existing cloud family and are now
-                        available as published textures.
-                    </p>
-
                     <div
                         v-if="!hasDeriveCompleted"
                         class="derive-field"
@@ -2559,72 +2553,76 @@
                         Error: {{ deriveError }}
                     </p>
 
-                    <div
+                    <details
                         v-if="deriveResult"
-                        class="derive-result"
+                        class="derive-result-details"
                     >
-                        <div class="derive-result-row">
-                            <span>Published family</span>
-                            <strong>{{ deriveResult.savedTextureName }}</strong>
+                        <summary class="derive-result-summary">Details</summary>
+                        <div class="derive-result">
+                            <div class="derive-result-row">
+                                <span>Published family</span>
+                                <strong>{{ deriveResult.savedTextureName }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Published resolutions</span>
+                                <strong>
+                                    {{deriveResult.publishedResolutions.map((res) => `${res}px`).join(', ')}}
+                                </strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Destination</span>
+                                <strong>{{ deriveResult.publishedDestination }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Source tiles</span>
+                                <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
+                                }})</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Layer count</span>
+                                <strong>{{ deriveResult.source.layerCount }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Combined output size</span>
+                                <strong>{{ formatSize(deriveResult.output.totalByteLength) ||
+                                    (deriveResult.output.totalByteLength +
+                                        ' bytes') }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Total time</span>
+                                <strong>{{ formatDurationMs(deriveResult.timings.totalDurationMs) }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Encode time</span>
+                                <strong>{{ formatDurationMs(deriveResult.timings.encodeDurationMs) }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Encoder workers</span>
+                                <strong>{{ deriveResult.encodeConfig?.workerCount ?? 'n/a' }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Lineage root</span>
+                                <strong>{{ deriveResult.rootTextureSetId }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Published variants</span>
+                                <strong>{{ deriveResult.publishedVariants.length }}</strong>
+                            </div>
+                            <div
+                                v-for="variant in deriveResult.publishedVariants"
+                                :key="variant.textureSetId"
+                                class="derive-result-row"
+                            >
+                                <span>{{ variant.resolution }}px ID</span>
+                                <strong>{{ variant.textureSetId }}</strong>
+                            </div>
+                            <div class="derive-result-row">
+                                <span>Validation</span>
+                                <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
+                                }}</strong>
+                            </div>
                         </div>
-                        <div class="derive-result-row">
-                            <span>Published resolutions</span>
-                            <strong>
-                                {{deriveResult.publishedResolutions.map((res) => `${res}px`).join(', ')}}
-                            </strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Destination</span>
-                            <strong>{{ deriveResult.publishedDestination }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Source tiles</span>
-                            <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin }})</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Layer count</span>
-                            <strong>{{ deriveResult.source.layerCount }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Combined output size</span>
-                            <strong>{{ formatSize(deriveResult.output.totalByteLength) ||
-                                (deriveResult.output.totalByteLength +
-                                    ' bytes') }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Total time</span>
-                            <strong>{{ formatDurationMs(deriveResult.timings.totalDurationMs) }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Encode time</span>
-                            <strong>{{ formatDurationMs(deriveResult.timings.encodeDurationMs) }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Encoder workers</span>
-                            <strong>{{ deriveResult.encodeConfig?.workerCount ?? 'n/a' }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Lineage root</span>
-                            <strong>{{ deriveResult.rootTextureSetId }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Published variants</span>
-                            <strong>{{ deriveResult.publishedVariants.length }}</strong>
-                        </div>
-                        <div
-                            v-for="variant in deriveResult.publishedVariants"
-                            :key="variant.textureSetId"
-                            class="derive-result-row"
-                        >
-                            <span>{{ variant.resolution }}px ID</span>
-                            <strong>{{ variant.textureSetId }}</strong>
-                        </div>
-                        <div class="derive-result-row">
-                            <span>Validation</span>
-                            <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                            }}</strong>
-                        </div>
-                    </div>
+                    </details>
 
                     <div class="delete-modal-actions derive-modal-actions">
                         <button
@@ -3434,6 +3432,36 @@
         max-width: 460px;
     }
 
+    .derive-modal-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .derive-modal-header h3 {
+        margin: 0;
+    }
+
+    .derive-success-indicator {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        background: #16a34a;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+    }
+
+    .derive-success-check {
+        color: #f0fdf4;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
     .derive-helper,
     .derive-note {
         color: #9ca3af;
@@ -3462,12 +3490,43 @@
         z-index: 1;
     }
 
-    .derive-result {
+    .derive-result-details {
         margin-top: 16px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.04);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 6px;
+        background: rgba(255, 255, 255, 0.02);
+        overflow: hidden;
+    }
+
+    .derive-result-summary {
+        cursor: pointer;
+        padding: 12px;
+        color: #d1d5db;
+        font-size: 13px;
+        font-weight: 600;
+        list-style: none;
+        user-select: none;
+    }
+
+    .derive-result-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .derive-result-summary::before {
+        content: '▸';
+        display: inline-block;
+        margin-right: 8px;
+        color: #9ca3af;
+        transition: transform 0.2s ease;
+    }
+
+    .derive-result-details[open] .derive-result-summary::before {
+        transform: rotate(90deg);
+    }
+
+    .derive-result {
+        padding: 0 12px 12px;
+        background: rgba(255, 255, 255, 0.04);
         display: flex;
         flex-direction: column;
         gap: 10px;
