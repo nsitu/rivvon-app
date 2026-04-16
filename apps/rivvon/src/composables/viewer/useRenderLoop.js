@@ -208,7 +208,11 @@ export function useRenderLoop(ctx, deps = {}) {
             
             // Render scene
             if (ctx.renderer.value && ctx.scene.value && ctx.camera.value) {
-                ctx.renderer.value.render(ctx.scene.value, ctx.camera.value);
+                if (deps.renderScene) {
+                    deps.renderScene();
+                } else {
+                    ctx.renderer.value.render(ctx.scene.value, ctx.camera.value);
+                }
             }
         }
         

@@ -11,6 +11,7 @@ import { TileManager } from '../../modules/viewer/tileManager';
 import { useCinematicCamera } from './useCinematicCamera';
 import { useHeadTracking } from './useHeadTracking';
 import { useMouseTilt } from './useMouseTilt';
+import { useRenderFilter } from './useRenderFilter';
 import { useRenderLoop } from './useRenderLoop';
 import { useSceneBackground } from './useSceneBackground';
 import { useRibbonBuilder } from './useRibbonBuilder';
@@ -74,6 +75,7 @@ export function useThreeSetup() {
 
     const mouseTilt = useMouseTilt(ctx);
     ctx.mouseTilt = mouseTilt;
+    const renderFilter = useRenderFilter(ctx);
 
     // ── Sub-composables ────────────────────────────────────────────────
     //
@@ -95,7 +97,8 @@ export function useThreeSetup() {
 
     const exporter = useSceneExport(ctx, {
         pauseRenderLoop: renderLoop.pauseRenderLoop,
-        resumeRenderLoop: renderLoop.resumeRenderLoop
+        resumeRenderLoop: renderLoop.resumeRenderLoop,
+        renderScene: renderFilter.renderScene,
     });
 
     // ── Initialization ─────────────────────────────────────────────────
@@ -118,6 +121,7 @@ export function useThreeSetup() {
             resetCamera.value = result.resetCamera;
             headTracking.attach(result.camera, result.controls);
             mouseTilt.attach(result.camera, result.controls);
+            await renderFilter.initRenderFilter(result.rendererType);
             
             // Store context in app store for access by other components
             app.setThreeContext({
@@ -189,6 +193,7 @@ export function useThreeSetup() {
         headTracking.detach({ releaseDetector: false });
         mouseTilt.deactivate({ restoreBaseline: false });
         cinematicCamera.dispose();
+        renderFilter.disposeRenderFilter();
 
         background.disposeBackground();
         if (ribbon.value) { ribbon.value.dispose(); ribbon.value = null; }
@@ -229,6 +234,7 @@ export function useThreeSetup() {
 
     // Wire the circular dependency: render loop recovery needs teardownViewer
     renderLoopDeps.teardownViewer = teardownViewer;
+    renderLoopDeps.renderScene = renderFilter.renderScene;
 
     // ── Cleanup on unmount ─────────────────────────────────────────────
 
@@ -239,6 +245,7 @@ export function useThreeSetup() {
         renderLoop.stopRenderLoop();
         headTracking.detach({ releaseDetector: true });
         cinematicCamera.dispose();
+        renderFilter.disposeRenderFilter();
         
         background.disposeBackground();
         if (ribbon.value) {

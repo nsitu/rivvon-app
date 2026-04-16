@@ -6,6 +6,7 @@ import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfi
 
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
+const VIEWER_FILTER_MODES = ['none', 'blackAndWhite'];
 
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -20,6 +21,12 @@ function normalizePreferredTextureMaxResolution(value) {
     return PREFERRED_TEXTURE_RESOLUTION_VALUES.includes(parsed)
         ? parsed
         : getDefaultPreferredTextureMaxResolution();
+}
+
+function normalizeViewerFilterMode(value) {
+    return VIEWER_FILTER_MODES.includes(value)
+        ? value
+        : 'none';
 }
 
 function readViewerPreferences() {
@@ -97,6 +104,7 @@ export const useViewerStore = defineStore('viewer', {
         preferredTextureMaxResolution: normalizePreferredTextureMaxResolution(
             readViewerPreferences().preferredTextureMaxResolution
         ),
+        renderFilterMode: normalizeViewerFilterMode(readViewerPreferences().renderFilterMode),
         currentTextureId: null,
         thumbnailUrl: null,
         activeTextureIds: [],      // Array of texture IDs when multi-texture is active
@@ -321,6 +329,12 @@ export const useViewerStore = defineStore('viewer', {
             const nextResolution = normalizePreferredTextureMaxResolution(resolution);
             this.preferredTextureMaxResolution = nextResolution;
             writeViewerPreferences({ preferredTextureMaxResolution: nextResolution });
+        },
+
+        setRenderFilterMode(mode) {
+            const nextMode = normalizeViewerFilterMode(mode);
+            this.renderFilterMode = nextMode;
+            writeViewerPreferences({ renderFilterMode: nextMode });
         },
 
         setActiveTextures(ids) {

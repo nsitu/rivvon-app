@@ -38,6 +38,15 @@ function alignDurations(cinematicDuration, textureDuration, fps) {
  */
 export function useSceneExport(ctx, deps = {}) {
 
+    function renderScene() {
+        if (deps.renderScene) {
+            deps.renderScene();
+            return;
+        }
+
+        ctx.renderer.value.render(ctx.scene.value, ctx.camera.value);
+    }
+
     /**
      * Export the current scene as a PNG image
      * @param {string} filename - Optional filename (default: 'rivvon-export.png')
@@ -50,9 +59,8 @@ export function useSceneExport(ctx, deps = {}) {
 
         try {
             // Force a render to ensure the latest frame is captured
-            ctx.renderer.value.render(ctx.scene.value, ctx.camera.value);
+            renderScene();
 
-            // Get the canvas data URL
             const canvas = ctx.renderer.value.domElement;
             const dataURL = canvas.toDataURL('image/png');
 
@@ -200,7 +208,7 @@ export function useSceneExport(ctx, deps = {}) {
         }
 
         // 4. Render
-        ctx.renderer.value.render(ctx.scene.value, ctx.camera.value);
+        renderScene();
     }
 
     /**
@@ -350,7 +358,9 @@ export function useSceneExport(ctx, deps = {}) {
             };
             const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
 
-            const videoSource = new MB.CanvasSource(ctx.renderer.value.domElement, {
+            const canvas = ctx.renderer.value.domElement;
+
+            const videoSource = new MB.CanvasSource(canvas, {
                 codec,
                 bitrate
             });

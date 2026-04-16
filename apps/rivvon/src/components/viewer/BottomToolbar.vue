@@ -53,6 +53,11 @@
         { label: '1024 px', value: 1024, icon: 'aspect_ratio' }
     ];
 
+    const filterOptions = [
+        { label: 'None', value: 'none', icon: 'block' },
+        { label: 'Black and White', value: 'blackAndWhite', icon: 'filter_alt' }
+    ];
+
     const geometryOptions = [
         { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
@@ -103,6 +108,14 @@
         set: (option) => {
             if (!option?.value) return;
             app.setPreferredTextureMaxResolution(option.value);
+        }
+    });
+
+    const selectedFilterOption = computed({
+        get: () => filterOptions.find((option) => option.value === app.renderFilterMode) ?? filterOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setRenderFilterMode(option.value);
         }
     });
 
@@ -542,12 +555,45 @@
                 </div>
 
                 <div class="tools-section">
-                    <div class="tools-section-label">Texture Resolution</div>
+                    <div class="tools-section-label">Preferred Texture Size</div>
                     <div class="tools-section-items">
                         <div class="tools-select-wrap">
                             <Select
                                 v-model="selectedPreferredTextureResolutionOption"
                                 :options="preferredTextureResolutionOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tools-section">
+                    <div class="tools-section-label">Filter</div>
+                    <div class="tools-section-items">
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedFilterOption"
+                                :options="filterOptions"
                                 option-label="label"
                                 class="tools-select"
                             >

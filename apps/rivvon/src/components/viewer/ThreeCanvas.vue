@@ -73,6 +73,8 @@
                 renderer.value.domElement.style.top = '0';
                 renderer.value.domElement.style.left = '0';
                 renderer.value.domElement.style.zIndex = '0';
+                renderer.value.domElement.style.filter = 'none';
+                renderer.value.domElement.style.webkitFilter = 'none';
             }
 
             // Restart render loop
@@ -109,6 +111,8 @@
                 renderer.value.domElement.style.top = '0';
                 renderer.value.domElement.style.left = '0';
                 renderer.value.domElement.style.zIndex = '0';
+                renderer.value.domElement.style.filter = 'none';
+                renderer.value.domElement.style.webkitFilter = 'none';
             }
 
             // Start render loop with custom callback
