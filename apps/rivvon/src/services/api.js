@@ -367,6 +367,103 @@ export function useRivvonAPI() {
         }
     }
 
+    function sortFamilyVariants(variants = []) {
+        return [...variants].sort((left, right) => {
+            const leftResolution = Number(left?.tileResolution) || 0
+            const rightResolution = Number(right?.tileResolution) || 0
+            return rightResolution - leftResolution
+        })
+    }
+
+    async function uploadTextureFamilyWithUploader(uploadMember, {
+        root,
+        variants = [],
+        onProgress,
+    }) {
+        if (!root) {
+            throw new Error('A family root texture is required for upload')
+        }
+
+        const orderedVariants = sortFamilyVariants(variants)
+        const memberCount = orderedVariants.length + 1
+        let rootResult = null
+        const uploadedVariants = []
+
+        try {
+            onProgress?.('family', `Uploading root texture 1/${memberCount}...`, {
+                memberIndex: 0,
+                memberCount,
+                kind: 'root',
+                tileResolution: root.tileResolution,
+            })
+
+            rootResult = await uploadMember({
+                ...root,
+                parentTextureSetId: null,
+                onProgress: (step, detail) => {
+                    onProgress?.(step, detail, {
+                        memberIndex: 0,
+                        memberCount,
+                        kind: 'root',
+                        tileResolution: root.tileResolution,
+                    })
+                },
+            })
+
+            for (let index = 0; index < orderedVariants.length; index++) {
+                const variant = orderedVariants[index]
+                const memberIndex = index + 1
+
+                onProgress?.('family', `Uploading ${variant.tileResolution}px variant ${memberIndex + 1}/${memberCount}...`, {
+                    memberIndex,
+                    memberCount,
+                    kind: 'variant',
+                    tileResolution: variant.tileResolution,
+                })
+
+                const uploadedVariant = await uploadMember({
+                    ...variant,
+                    parentTextureSetId: rootResult.textureSetId,
+                    onProgress: (step, detail) => {
+                        onProgress?.(step, detail, {
+                            memberIndex,
+                            memberCount,
+                            kind: 'variant',
+                            tileResolution: variant.tileResolution,
+                        })
+                    },
+                })
+
+                uploadedVariants.push(uploadedVariant)
+            }
+        } catch (error) {
+            error.familyRootTextureSetId = rootResult?.textureSetId || null
+            error.uploadedRoot = rootResult
+            error.uploadedVariants = uploadedVariants
+            throw error
+        }
+
+        onProgress?.('family-complete', `Uploaded ${memberCount} texture family member${memberCount === 1 ? '' : 's'}.`, {
+            memberCount,
+            rootTextureSetId: rootResult.textureSetId,
+        })
+
+        return {
+            root: rootResult,
+            variants: uploadedVariants,
+            rootTextureSetId: rootResult.textureSetId,
+            textureSetIds: [rootResult.textureSetId, ...uploadedVariants.map((variant) => variant.textureSetId)],
+        }
+    }
+
+    async function uploadTextureFamily(options) {
+        return uploadTextureFamilyWithUploader(uploadTextureSet, options)
+    }
+
+    async function uploadTextureFamilyToR2(options) {
+        return uploadTextureFamilyWithUploader(uploadTextureSetToR2, options)
+    }
+
     /**
      * Get current user's texture sets (authenticated)
      * GET /my-textures
@@ -435,7 +532,9 @@ export function useRivvonAPI() {
         completeTextureSet,
         uploadThumbnail,
         uploadTextureSet,
+        uploadTextureFamily,
         uploadTextureSetToR2,
+        uploadTextureFamilyToR2,
         listTextures,
         getTexture,
         getMyTextures,

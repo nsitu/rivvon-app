@@ -8,7 +8,6 @@ import { KTX2WorkerPool } from './ktx2-worker-pool.js';
 import { getSharedBackgroundEncodeConfig } from './encodingPolicy.js';
 import { runSamplingPipeline } from './samplingPipeline.js';
 import { VideoFileFrameSource } from './samplingSources.js';
-import { buildFileTextureSaveSource, saveProcessedTextureSetLocally } from './localTexturePersistence.js';
 
 // Singleton worker pool for KTX2 encoding (reused across all tiles)
 let ktx2WorkerPool = null;
@@ -119,10 +118,12 @@ const processVideo = async (settings) => {
 
     const app = useSlyceStore()  // Pinia store 
     const localSave = app.getLocalSaveController();
+    const publish = app.getPublishController();
 
     // Store tilePlan so TilePreview and other consumers can access it
     app.set('tilePlan', tilePlan);
     localSave.resetLocalSaveState();
+    publish.resetPublishState();
     app.set('thumbnailBlob', null);
 
     // go to the processing tab.
@@ -368,17 +369,6 @@ const processVideo = async (settings) => {
                     cleanupKTX2Workers();
                     const viewerStore = useViewerStore();
                     viewerStore.resumeViewer();
-                    void saveProcessedTextureSetLocally(localSave, buildFileTextureSaveSource(app, {
-                        ktx2Blobs: encodedTileBlobs,
-                        effectiveFrameCount,
-                        sourceMetadata: {
-                            filename: app.fileInfo?.name,
-                            width: app.fileInfo?.width,
-                            height: app.fileInfo?.height,
-                            duration: app.fileInfo?.duration,
-                            frame_count: effectiveFrameCount,
-                        },
-                    }));
                 }
             } finally {
                 releaseTileEncodeSlot();

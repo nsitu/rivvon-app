@@ -4,6 +4,7 @@
 import { defineStore } from 'pinia';
 import { abortProcessing } from '../modules/slyce/videoProcessor';
 import { createLocalSaveState, createObjectLocalSaveController } from '../modules/slyce/localSaveController.js';
+import { createPublishState, createObjectPublishController } from '../modules/slyce/publishController.js';
 
 export const useSlyceStore = defineStore('slyce', {
     state: () => ({
@@ -17,6 +18,9 @@ export const useSlyceStore = defineStore('slyce', {
         samplingSide: 'long',       // long, short — resolved to rows/columns via samplingAxis getter
         // tileMode removed — always 'tile' by convention (full-size mode unused)
         potResolution: 256,             // 32, 64, 128, 256, 512, 1024
+        autoDeriveResolutions: [],      // optional lower-resolution family variants to auto-generate after root encode
+        uploadToCloud: false,
+        publishDestination: 'google-drive',
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
@@ -59,6 +63,9 @@ export const useSlyceStore = defineStore('slyce', {
 
         // File-mode local persistence state
         ...createLocalSaveState(),
+
+        // File-mode cloud publication state
+        ...createPublishState(),
 
         // Resource management — when true, fully dispose viewer GPU context during processing
         freeGpuResources: true,
@@ -107,11 +114,20 @@ export const useSlyceStore = defineStore('slyce', {
         getLocalSaveController() {
             return createObjectLocalSaveController(this);
         },
+        getPublishController() {
+            return createObjectPublishController(this);
+        },
         resetLocalSaveState() {
             return this.getLocalSaveController().resetLocalSaveState();
         },
+        resetPublishState() {
+            return this.getPublishController().resetPublishState();
+        },
         beginLocalSave() {
             return this.getLocalSaveController().beginLocalSave();
+        },
+        cancelLocalSave() {
+            return this.getLocalSaveController().cancelLocalSave();
         },
         // Partial reset - clears processing results but keeps video and settings
         resetProcessing() {
@@ -135,6 +151,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.ktx2BlobURLs = {};
             this.thumbnailBlob = null;
             this.resetLocalSaveState();
+            this.resetPublishState();
             this.ktx2Playback = {
                 currentLayer: 0,
                 layerCount: 0,
@@ -159,6 +176,9 @@ export const useSlyceStore = defineStore('slyce', {
             this.frameEnd = 0;
             this.frameNumber = 0;
             this.readerIsFinished = false;
+            this.autoDeriveResolutions = [];
+            this.uploadToCloud = false;
+            this.publishDestination = 'google-drive';
             this.fileInfo = null;
             this.file = null;
             this.fileURL = null;
@@ -185,6 +205,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropHeight = null;
             this.thumbnailBlob = null;
             this.resetLocalSaveState();
+            this.resetPublishState();
             // Dispose snapshot preview (revokes blob URLs) before clearing
             if (this.tileSnapshotPreview) {
                 this.tileSnapshotPreview.dispose();

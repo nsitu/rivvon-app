@@ -40,7 +40,10 @@ export function buildTextureVariantSummary(texture = {}) {
         status: texture?.status || 'complete',
         created_at: Number(texture?.created_at) || null,
         updated_at: Number(texture?.updated_at) || null,
-        is_root: Boolean(texture?.id && texture?.id === rootTextureId)
+        is_root: Boolean(
+            texture?.id && texture?.id === rootTextureId
+            || (texture?.cached_from && texture.cached_from === rootTextureId)
+        )
     };
 }
 
@@ -152,7 +155,7 @@ export function groupTextureRecordsIntoFamilies(records = [], { preferredMaxReso
 
         existingFamily.records.push(record);
 
-        if (!existingFamily.root && record?.id === rootTextureId) {
+        if (!existingFamily.root && (record?.id === rootTextureId || record?.cached_from === rootTextureId)) {
             existingFamily.root = record;
         }
 

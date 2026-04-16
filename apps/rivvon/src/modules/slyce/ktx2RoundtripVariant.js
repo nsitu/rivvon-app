@@ -2,8 +2,17 @@ import { read } from 'ktx-parse';
 import { KTX2Assembler } from './ktx2-assembler.js';
 import { KTX2WorkerPool } from './ktx2-worker-pool.js';
 import { getSharedBackgroundEncodeConfig } from './encodingPolicy.js';
+import {
+    assessTextureVariantDerivationWorkload,
+    normalizeTextureVariantTargetResolutions,
+} from './textureFamilyPlanning.js';
+export {
+    assessTextureVariantDerivationWorkload,
+    normalizeTextureVariantTargetResolutions,
+} from './textureFamilyPlanning.js';
 
 const DEFAULT_SAMPLE_SOURCE = '/tiles-ktx2-waves/0.ktx2';
+const MEMORY_GUARD_FRACTION = 0.75;
 
 function generateJobId() {
     return `texture_variant_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -21,9 +30,21 @@ function getHeapStats() {
     };
 }
 
-async function loadSourceBuffer(source) {
+function createAbortError(message = 'Texture variant derivation was cancelled') {
+    const error = new Error(message);
+    error.name = 'AbortError';
+    return error;
+}
+
+function throwIfAborted(signal, message) {
+    if (signal?.aborted) {
+        throw createAbortError(message);
+    }
+}
+
+async function loadSourceBuffer(source, signal = null) {
     if (typeof source === 'string') {
-        const response = await fetch(source);
+        const response = await fetch(source, { signal });
         if (!response.ok) {
             throw new Error(`Failed to fetch source texture: ${response.status} ${response.statusText}`);
         }
@@ -279,9 +300,11 @@ async function deriveKtx2Tile({
     keepOutputBlobUrl = true,
     decodeWorker = null,
     encodeWorkerPool = null,
-    encodeConfig = null
+    encodeConfig = null,
+    signal = null,
 } = {}) {
-    const sourceLoad = await loadSourceBuffer(source);
+    throwIfAborted(signal, 'Variant derivation cancelled before loading the source texture');
+    const sourceLoad = await loadSourceBuffer(source, signal);
     const sourceByteLength = sourceLoad.buffer.byteLength;
     const sourceHeapBefore = getHeapStats();
     const jobId = generateJobId();
@@ -296,10 +319,12 @@ async function deriveKtx2Tile({
     let outputBlobUrl = null;
 
     try {
+        throwIfAborted(signal, 'Variant derivation cancelled before opening the source texture');
         onProgress?.({ stage: 'open', label: sourceLoad.label });
         const openStart = performance.now();
         const sourceMeta = await localDecodeWorker.openFile(jobId, sourceLoad.buffer);
         const openDurationMs = performance.now() - openStart;
+        throwIfAborted(signal, 'Variant derivation cancelled after opening the source texture');
 
         const targetMeta = deriveTargetDimensions(sourceMeta.width, sourceMeta.height, targetResolution);
         const downscaler = createRgbaDownscaler(
@@ -316,6 +341,7 @@ async function deriveKtx2Tile({
         let peakDecodedBytes = 0;
 
         for (let layerIndex = 0; layerIndex < sourceMeta.layerCount; layerIndex++) {
+            throwIfAborted(signal, `Variant derivation cancelled before decoding layer ${layerIndex + 1}`);
             onProgress?.({
                 stage: 'decode-layer',
                 layerIndex,
@@ -325,11 +351,13 @@ async function deriveKtx2Tile({
             const decodeStart = performance.now();
             const decodedLayer = await localDecodeWorker.decodeLayer(jobId, layerIndex, 0);
             const decodeDurationMs = performance.now() - decodeStart;
+            throwIfAborted(signal, `Variant derivation cancelled after decoding layer ${layerIndex + 1}`);
             const decodedRgba = new Uint8Array(decodedLayer.buffer);
 
             const scaleStart = performance.now();
             const scaledRgba = downscaler.downscale(decodedRgba);
             const scaleDurationMs = performance.now() - scaleStart;
+            throwIfAborted(signal, `Variant derivation cancelled after downscaling layer ${layerIndex + 1}`);
 
             totalDecodedBytes += decodedLayer.rgbaByteLength;
             totalScaledBytes += scaledRgba.byteLength;
@@ -368,6 +396,7 @@ async function deriveKtx2Tile({
             workerReason: resolvedEncodeConfig.reason
         });
 
+        throwIfAborted(signal, 'Variant derivation cancelled before encoding');
         const encodeStart = performance.now();
         outputBuffer = await KTX2Assembler.encodeParallelWithPool(
             localEncodeWorkerPool,
@@ -381,6 +410,7 @@ async function deriveKtx2Tile({
             }
         );
         const encodeDurationMs = performance.now() - encodeStart;
+        throwIfAborted(signal, 'Variant derivation cancelled after encoding');
 
         const outputMeta = inspectKtx2Buffer(outputBuffer);
         const phaseDurationMs = performance.now() - phaseStart;
@@ -459,14 +489,16 @@ export async function runKtx2RoundtripDerivation({
     targetResolution = 256,
     workerCount = null,
     onProgress = null,
-    keepOutputBlobUrl = true
+    keepOutputBlobUrl = true,
+    signal = null,
 } = {}) {
     return deriveKtx2Tile({
         source,
         targetResolution,
         workerCount,
         onProgress,
-        keepOutputBlobUrl
+        keepOutputBlobUrl,
+        signal,
     });
 }
 
@@ -474,13 +506,16 @@ export async function deriveKtx2TextureSet({
     sourceTiles = [],
     targetResolution = 256,
     workerCount = null,
-    onProgress = null
+    onProgress = null,
+    signal = null,
 } = {}) {
     const normalizedTiles = normalizeSourceTiles(sourceTiles);
 
     if (normalizedTiles.length === 0) {
         throw new Error('No source tiles were provided for local derivation');
     }
+
+    throwIfAborted(signal, 'Texture-set derivation cancelled before processing tiles');
 
     const encodeConfig = resolveEncodeWorkerConfig(workerCount);
     const decodeWorker = new Ktx2TranscodeWorkerClient();
@@ -497,6 +532,7 @@ export async function deriveKtx2TextureSet({
         const derivedTiles = [];
 
         for (let tileOffset = 0; tileOffset < normalizedTiles.length; tileOffset++) {
+            throwIfAborted(signal, `Texture-set derivation cancelled before tile ${tileOffset + 1}`);
             const tile = normalizedTiles[tileOffset];
             const tileNumber = tileOffset + 1;
 
@@ -525,8 +561,10 @@ export async function deriveKtx2TextureSet({
                 keepOutputBlobUrl: false,
                 decodeWorker,
                 encodeWorkerPool,
-                encodeConfig
+                encodeConfig,
+                signal,
             });
+            throwIfAborted(signal, `Texture-set derivation cancelled after tile ${tileNumber}`);
 
             totalSourceByteLength += tileResult.source.sourceByteLength;
             totalOutputByteLength += tileResult.output.byteLength;
@@ -617,6 +655,87 @@ export async function deriveKtx2TextureSet({
         decodeWorker.terminate();
         encodeWorkerPool.terminate();
     }
+}
+
+export async function deriveKtx2TextureFamily({
+    sourceTiles = [],
+    sourceResolution = null,
+    targetResolutions = [],
+    workerCount = null,
+    onProgress = null,
+    signal = null,
+} = {}) {
+    const normalizedTiles = normalizeSourceTiles(sourceTiles);
+    const normalizedTargets = normalizeTextureVariantTargetResolutions(sourceResolution, targetResolutions);
+
+    if (normalizedTiles.length === 0) {
+        throw new Error('No source tiles were provided for family derivation');
+    }
+
+    if (normalizedTargets.length === 0) {
+        return {
+            targetResolutions: [],
+            variants: [],
+            timings: { totalDurationMs: 0 },
+        };
+    }
+
+    const phaseStart = performance.now();
+    const variants = [];
+
+    for (let variantIndex = 0; variantIndex < normalizedTargets.length; variantIndex++) {
+        const targetResolution = normalizedTargets[variantIndex];
+        throwIfAborted(signal, `Texture family derivation cancelled before ${targetResolution}px`);
+
+        onProgress?.({
+            stage: 'variant-start',
+            variantIndex,
+            variantNumber: variantIndex + 1,
+            variantCount: normalizedTargets.length,
+            targetResolution,
+        });
+
+        const variantResult = await deriveKtx2TextureSet({
+            sourceTiles: normalizedTiles,
+            targetResolution,
+            workerCount,
+            signal,
+            onProgress: (stage) => {
+                onProgress?.({
+                    ...stage,
+                    stage: 'variant-progress',
+                    variantIndex,
+                    variantNumber: variantIndex + 1,
+                    variantCount: normalizedTargets.length,
+                    targetResolution,
+                    tileStage: stage?.stage,
+                    nestedStage: stage?.nestedStage || stage?.stage,
+                });
+            },
+        });
+
+        variants.push({
+            targetResolution,
+            result: variantResult,
+        });
+
+        onProgress?.({
+            stage: 'variant-complete',
+            variantIndex,
+            variantNumber: variantIndex + 1,
+            variantCount: normalizedTargets.length,
+            targetResolution,
+            totalDurationMs: variantResult.timings.totalDurationMs,
+        });
+    }
+
+    return {
+        targetResolutions: normalizedTargets,
+        variants,
+        timings: {
+            totalDurationMs: performance.now() - phaseStart,
+        },
+    };
 }
 
 export async function runSampleKtx2RoundtripDerivation(options = {}) {

@@ -10,8 +10,14 @@
  *   - tiles: KTX2 binary blobs indexed by (texture_set_id, tile_index)
  */
 
+import {
+    getTextureAvailableResolutions,
+    getTextureRootId,
+    normalizeTextureVariantSummaries,
+} from '../modules/shared/textureFamilyResolver.js';
+
 const DB_NAME = 'rivvon-textures';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_TEXTURE_SETS = 'texture-sets';
 const STORE_TILES = 'tiles';
 const TILE_MIME_TYPE = 'image/ktx2';
@@ -77,6 +83,124 @@ function normalizeTileRecord(tile) {
     };
 }
 
+function normalizeTimestamp(value, fallback = Date.now()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function buildExplicitFamilyFields(textureSet = {}) {
+    const currentId = textureSet?.id || null;
+    let rootTextureId = getTextureRootId(textureSet) || currentId;
+    if (
+        textureSet?.cached_from
+        && (!textureSet?.root_texture_id || textureSet.root_texture_id === currentId)
+        && !textureSet?.variant_info?.root_texture_set_id
+        && !textureSet?.derived_from?.root_texture_set_id
+    ) {
+        rootTextureId = textureSet.cached_from;
+    }
+    const explicitParentTextureSetId = textureSet?.parent_texture_set_id
+        || textureSet?.variant_info?.parent_texture_set_id
+        || textureSet?.derived_from?.texture_set_id
+        || textureSet?.derived_from?.root_texture_set_id
+        || (rootTextureId && currentId && rootTextureId !== currentId ? rootTextureId : null)
+        || null;
+
+    return {
+        rootTextureId,
+        parentTextureSetId: explicitParentTextureSetId,
+    };
+}
+
+function normalizeTextureSetRecord(textureSet = {}) {
+    if (!textureSet?.id) {
+        return textureSet;
+    }
+
+    const createdAt = normalizeTimestamp(textureSet.created_at);
+    const updatedAt = normalizeTimestamp(textureSet.updated_at, createdAt);
+    const { rootTextureId, parentTextureSetId } = buildExplicitFamilyFields(textureSet);
+    const normalizedVariantInfo = textureSet.variant_info
+        ? {
+            ...textureSet.variant_info,
+            family_id: textureSet.variant_info.family_id || rootTextureId,
+            root_texture_set_id: textureSet.variant_info.root_texture_set_id || rootTextureId,
+            parent_texture_set_id: textureSet.variant_info.parent_texture_set_id || parentTextureSetId,
+        }
+        : null;
+    const normalizedDerivedFrom = textureSet.derived_from
+        ? {
+            ...textureSet.derived_from,
+            root_texture_set_id: textureSet.derived_from.root_texture_set_id || rootTextureId,
+        }
+        : null;
+    const normalizedRecord = {
+        ...textureSet,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        storage_provider: textureSet.storage_provider || 'local',
+        status: textureSet.status || 'complete',
+        root_texture_id: rootTextureId,
+        parent_texture_set_id: parentTextureSetId,
+        variant_info: normalizedVariantInfo,
+        derived_from: normalizedDerivedFrom,
+        total_size_bytes: Number(textureSet.total_size_bytes ?? textureSet.total_size ?? 0) || 0,
+        total_size: Number(textureSet.total_size_bytes ?? textureSet.total_size ?? 0) || 0,
+    };
+    const variantSummaries = normalizeTextureVariantSummaries({
+        ...normalizedRecord,
+        variant_summaries: Array.isArray(textureSet.variant_summaries)
+            ? textureSet.variant_summaries
+            : normalizedRecord.variant_summaries,
+    });
+
+    return {
+        ...normalizedRecord,
+        variant_summaries: variantSummaries,
+        available_resolutions: getTextureAvailableResolutions({
+            ...normalizedRecord,
+            variant_summaries: variantSummaries,
+            available_resolutions: textureSet.available_resolutions,
+        }),
+    };
+}
+
+function hasTextureSetNormalizationChanges(original = {}, normalized = {}) {
+    const keysToCompare = [
+        'created_at',
+        'updated_at',
+        'storage_provider',
+        'status',
+        'root_texture_id',
+        'parent_texture_set_id',
+        'total_size',
+        'total_size_bytes',
+        'variant_info',
+        'derived_from',
+        'variant_summaries',
+        'available_resolutions',
+    ];
+
+    return keysToCompare.some((key) => JSON.stringify(original?.[key] ?? null) !== JSON.stringify(normalized?.[key] ?? null));
+}
+
+function migrateTextureSetStore(textureSetStore) {
+    const cursorRequest = textureSetStore.openCursor();
+    cursorRequest.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (!cursor) {
+            return;
+        }
+
+        const normalizedRecord = normalizeTextureSetRecord(cursor.value);
+        if (hasTextureSetNormalizationChanges(cursor.value, normalizedRecord)) {
+            cursor.update(normalizedRecord);
+        }
+
+        cursor.continue();
+    };
+}
+
 async function getTextureSetRecord(id) {
     const db = await openDatabase();
 
@@ -86,7 +210,7 @@ async function getTextureSetRecord(id) {
         const request = store.get(id);
 
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result || null);
+        request.onsuccess = () => resolve(request.result ? normalizeTextureSetRecord(request.result) : null);
     });
 }
 
@@ -130,12 +254,31 @@ async function openDatabase() {
             console.log('[LocalStorage] Upgrading database schema...');
 
             // Create texture-sets store
+            let textureSetStore;
             if (!db.objectStoreNames.contains(STORE_TEXTURE_SETS)) {
-                const textureSetStore = db.createObjectStore(STORE_TEXTURE_SETS, { keyPath: 'id' });
-                textureSetStore.createIndex('created_at', 'created_at', { unique: false });
-                textureSetStore.createIndex('name', 'name', { unique: false });
+                textureSetStore = db.createObjectStore(STORE_TEXTURE_SETS, { keyPath: 'id' });
                 console.log('[LocalStorage] Created texture-sets store');
+            } else {
+                textureSetStore = event.target.transaction.objectStore(STORE_TEXTURE_SETS);
             }
+
+            if (!textureSetStore.indexNames.contains('created_at')) {
+                textureSetStore.createIndex('created_at', 'created_at', { unique: false });
+            }
+            if (!textureSetStore.indexNames.contains('name')) {
+                textureSetStore.createIndex('name', 'name', { unique: false });
+            }
+            if (!textureSetStore.indexNames.contains('root_texture_id')) {
+                textureSetStore.createIndex('root_texture_id', 'root_texture_id', { unique: false });
+            }
+            if (!textureSetStore.indexNames.contains('parent_texture_set_id')) {
+                textureSetStore.createIndex('parent_texture_set_id', 'parent_texture_set_id', { unique: false });
+            }
+            if (!textureSetStore.indexNames.contains('cached_from')) {
+                textureSetStore.createIndex('cached_from', 'cached_from', { unique: false });
+            }
+
+            migrateTextureSetStore(textureSetStore);
 
             // Create tiles store with compound key
             if (!db.objectStoreNames.contains(STORE_TILES)) {
@@ -188,6 +331,10 @@ async function saveTextureSet({
     ktx2Blobs,
     derivedFrom = null,
     variantInfo = null,
+    parentTextureSetId = null,
+    rootTextureSetId = null,
+    storageProvider = 'local',
+    cachedFrom = null,
     onProgress
 }) {
     const tileEntries = await Promise.all(
@@ -209,20 +356,34 @@ async function saveTextureSet({
     const totalSize = tileEntries.reduce((sum, entry) => sum + entry.fileSize, 0);
 
     // Create texture set metadata
-    const textureSet = {
+    const textureSet = normalizeTextureSetRecord({
         id,
         name,
         created_at: createdAt,
+        updated_at: createdAt,
         tile_count: tileCount,
         tile_resolution: tileResolution,
         layer_count: layerCount,
         cross_section_type: crossSectionType,
         source_metadata: sourceMetadata,
         total_size: totalSize,
+        total_size_bytes: totalSize,
         thumbnail_data_url: thumbnailDataUrl,
         derived_from: derivedFrom,
         variant_info: variantInfo
-    };
+            ? {
+                ...variantInfo,
+                root_texture_set_id: variantInfo.root_texture_set_id || rootTextureSetId || id,
+                family_id: variantInfo.family_id || rootTextureSetId || id,
+                parent_texture_set_id: variantInfo.parent_texture_set_id || parentTextureSetId,
+            }
+            : null,
+        root_texture_id: rootTextureSetId || id,
+        parent_texture_set_id: parentTextureSetId,
+        storage_provider: storageProvider,
+        status: 'complete',
+        cached_from: cachedFrom,
+    });
 
     // Use a transaction for atomic writes
     return new Promise((resolve, reject) => {
@@ -282,18 +443,19 @@ async function getAllTextureSets() {
         request.onerror = () => reject(request.error);
         request.onsuccess = async () => {
             const withSize = await Promise.all(request.result.map(async (textureSet) => {
-                const existingSize = textureSet.total_size_bytes ?? textureSet.total_size;
+                const normalizedRecord = normalizeTextureSetRecord(textureSet);
+                const existingSize = normalizedRecord.total_size_bytes ?? normalizedRecord.total_size;
                 if (typeof existingSize === 'number' && existingSize > 0) {
                     return {
-                        ...textureSet,
+                        ...normalizedRecord,
                         total_size: existingSize,
                         total_size_bytes: existingSize
                     };
                 }
 
-                const calculatedSize = await calculateTextureSetSize(textureSet.id);
+                const calculatedSize = await calculateTextureSetSize(normalizedRecord.id);
                 return {
-                    ...textureSet,
+                    ...normalizedRecord,
                     total_size: calculatedSize,
                     total_size_bytes: calculatedSize
                 };
@@ -312,7 +474,36 @@ async function getAllTextureSets() {
  * @returns {Promise<Object|null>} Texture set metadata or null
  */
 async function getTextureSet(id) {
-    return getTextureSetRecord(id);
+    const textureSet = await getTextureSetRecord(id);
+    return textureSet ? normalizeTextureSetRecord(textureSet) : null;
+}
+
+/**
+ * Get all local family members for a texture set or root ID.
+ * @param {string} textureSetId - Texture set ID or root texture set ID
+ * @returns {Promise<Array>} Local family members sorted by root first, then resolution desc
+ */
+async function getTextureFamilyMembers(textureSetId) {
+    if (!textureSetId) {
+        return [];
+    }
+
+    const textureSets = await getAllTextureSets();
+    const matchingTexture = textureSets.find((textureSet) => textureSet.id === textureSetId);
+    const rootTextureId = matchingTexture?.root_texture_id || matchingTexture?.id || textureSetId;
+
+    return textureSets
+        .filter((textureSet) => !textureSet.cached_from && (textureSet.root_texture_id || textureSet.id) === rootTextureId)
+        .sort((left, right) => {
+            const leftIsRoot = left.id === rootTextureId;
+            const rightIsRoot = right.id === rootTextureId;
+
+            if (leftIsRoot !== rightIsRoot) {
+                return leftIsRoot ? -1 : 1;
+            }
+
+            return (Number(right.tile_resolution) || 0) - (Number(left.tile_resolution) || 0);
+        });
 }
 
 /**
@@ -407,7 +598,11 @@ async function updateTextureSet(id, updates) {
     }
 
     // Merge updates
-    const updated = { ...existing, ...updates };
+    const updated = normalizeTextureSetRecord({
+        ...existing,
+        ...updates,
+        updated_at: Date.now(),
+    });
 
     await putTextureSetRecord(updated);
     console.log(`[LocalStorage] Updated texture set: ${id}`);
@@ -536,7 +731,12 @@ async function cacheCloudTexture({
     crossSectionType,
     sourceMetadata,
     thumbnailDataUrl,
-    ktx2Blobs
+    ktx2Blobs,
+    rootTextureSetId = null,
+    parentTextureSetId = null,
+    variantInfo = null,
+    variantSummaries = null,
+    availableResolutions = null,
 }) {
     // Check if already cached
     const existing = await getCachedLocalId(cloudTextureId);
@@ -561,19 +761,27 @@ async function cacheCloudTexture({
     const createdAt = Date.now();
     const totalSize = tileEntries.reduce((sum, entry) => sum + entry.fileSize, 0);
 
-    const textureSet = {
+    const textureSet = normalizeTextureSetRecord({
         id,
         name,
         created_at: createdAt,
+        updated_at: createdAt,
         tile_count: tileCount,
         tile_resolution: tileResolution,
         layer_count: layerCount,
         cross_section_type: crossSectionType,
         source_metadata: sourceMetadata,
         total_size: totalSize,
+        total_size_bytes: totalSize,
         thumbnail_data_url: thumbnailDataUrl,
-        cached_from: cloudTextureId
-    };
+        cached_from: cloudTextureId,
+        root_texture_id: rootTextureSetId || cloudTextureId,
+        parent_texture_set_id: parentTextureSetId,
+        variant_info: variantInfo,
+        variant_summaries: variantSummaries,
+        available_resolutions: availableResolutions,
+        status: 'complete',
+    });
 
     return new Promise((resolve, reject) => {
         const transaction = db.transaction([STORE_TEXTURE_SETS, STORE_TILES], 'readwrite');
@@ -596,6 +804,55 @@ async function cacheCloudTexture({
             });
         }
     });
+}
+
+async function promoteTextureSetToCachedCloudTexture(localTextureSetId, {
+    cloudTextureId,
+    name = null,
+    rootTextureSetId = null,
+    parentTextureSetId = null,
+    variantInfo = null,
+    variantSummaries = null,
+    availableResolutions = null,
+    sourceMetadata = null,
+    thumbnailDataUrl = null,
+}) {
+    if (!localTextureSetId) {
+        throw new Error('A local texture set ID is required for cache promotion');
+    }
+
+    if (!cloudTextureId) {
+        throw new Error('A cloud texture set ID is required for cache promotion');
+    }
+
+    const existingTextureSet = await getTextureSetRecord(localTextureSetId);
+    if (!existingTextureSet) {
+        throw new Error(`Local texture set not found: ${localTextureSetId}`);
+    }
+
+    const conflictingCacheId = await getCachedLocalId(cloudTextureId);
+    if (conflictingCacheId && conflictingCacheId !== localTextureSetId) {
+        await deleteTextureSet(conflictingCacheId);
+    }
+
+    const promotedTextureSet = normalizeTextureSetRecord({
+        ...existingTextureSet,
+        name: name || existingTextureSet.name,
+        updated_at: Date.now(),
+        cached_from: cloudTextureId,
+        root_texture_id: rootTextureSetId || cloudTextureId,
+        parent_texture_set_id: parentTextureSetId,
+        source_metadata: sourceMetadata || existingTextureSet.source_metadata,
+        thumbnail_data_url: thumbnailDataUrl || existingTextureSet.thumbnail_data_url,
+        variant_info: variantInfo,
+        variant_summaries: variantSummaries,
+        available_resolutions: availableResolutions,
+        status: 'complete',
+    });
+
+    await putTextureSetRecord(promotedTextureSet);
+    console.log(`[LocalStorage] Promoted local texture ${localTextureSetId} to cache for cloud texture ${cloudTextureId}`);
+    return promotedTextureSet.id;
 }
 
 /**
@@ -662,6 +919,7 @@ export function useLocalStorage() {
         saveTextureSet,
         getAllTextureSets,
         getTextureSet,
+        getTextureFamilyMembers,
         getTiles,
         getTile,
         deleteTextureSet,
@@ -670,6 +928,7 @@ export function useLocalStorage() {
         exportTextureSetAsZip,
         downloadTextureSetAsZip,
         cacheCloudTexture,
+        promoteTextureSetToCachedCloudTexture,
         getCachedLocalId,
         getCachedCloudIds,
         evictCachedTexture
@@ -681,6 +940,7 @@ export {
     saveTextureSet,
     getAllTextureSets,
     getTextureSet,
+    getTextureFamilyMembers,
     getTiles,
     getTile,
     deleteTextureSet,
@@ -689,6 +949,7 @@ export {
     exportTextureSetAsZip,
     downloadTextureSetAsZip,
     cacheCloudTexture,
+    promoteTextureSetToCachedCloudTexture,
     getCachedLocalId,
     getCachedCloudIds,
     evictCachedTexture

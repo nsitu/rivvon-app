@@ -592,13 +592,14 @@ uploadRoutes.patch('/:id', async (c) => {
 
   const { name, description, isPublic } = body;
   const tileResolution = body.tileResolution ?? body.tile_resolution;
+  const normalizedName = typeof name === 'string' ? name.trim() : name;
 
   // Check if user is admin
   const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
 
   // Verify ownership or admin status
   const textureSet = await c.env.DB.prepare(`
-    SELECT owner_id FROM texture_sets WHERE id = ?
+    SELECT owner_id, parent_texture_set_id FROM texture_sets WHERE id = ?
   `).bind(textureSetId).first();
 
   if (!textureSet) {
@@ -612,10 +613,15 @@ uploadRoutes.patch('/:id', async (c) => {
   // Build dynamic update query based on provided fields
   const updates: string[] = [];
   const values: any[] = [];
+  const updatedAt = Math.floor(Date.now() / 1000);
 
   if (name !== undefined) {
+    if (typeof normalizedName !== 'string' || !normalizedName) {
+      return c.json({ error: 'name must be a non-empty string' }, 400);
+    }
+
     updates.push('name = ?');
-    values.push(name);
+    values.push(normalizedName);
   }
 
   if (description !== undefined) {
@@ -644,7 +650,7 @@ uploadRoutes.patch('/:id', async (c) => {
 
   // Add updated_at timestamp
   updates.push('updated_at = ?');
-  values.push(Math.floor(Date.now() / 1000));
+  values.push(updatedAt);
 
   // Add textureSetId for WHERE clause
   values.push(textureSetId);
@@ -652,6 +658,16 @@ uploadRoutes.patch('/:id', async (c) => {
   await c.env.DB.prepare(`
     UPDATE texture_sets SET ${updates.join(', ')} WHERE id = ?
   `).bind(...values).run();
+
+  if (name !== undefined) {
+    const familyRootTextureSetId = textureSet.parent_texture_set_id || textureSetId;
+
+    await c.env.DB.prepare(`
+      UPDATE texture_sets
+      SET name = ?, updated_at = ?
+      WHERE id = ? OR parent_texture_set_id = ?
+    `).bind(normalizedName, updatedAt, familyRootTextureSetId, familyRootTextureSetId).run();
+  }
 
   return c.json({
     success: true,

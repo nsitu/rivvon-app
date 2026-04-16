@@ -47,6 +47,12 @@
         { label: 'Mirror Bounce', value: 'mirrorBounce', icon: 'swap_horiz' }
     ];
 
+    const preferredTextureResolutionOptions = [
+        { label: '256 px', value: 256, icon: 'aspect_ratio' },
+        { label: '512 px', value: 512, icon: 'aspect_ratio' },
+        { label: '1024 px', value: 1024, icon: 'aspect_ratio' }
+    ];
+
     const geometryOptions = [
         { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
@@ -88,6 +94,15 @@
         set: (option) => {
             if (!option?.value) return;
             setTextureRepeatMode(option.value);
+        }
+    });
+
+    const selectedPreferredTextureResolutionOption = computed({
+        get: () => preferredTextureResolutionOptions.find((option) => option.value === app.preferredTextureMaxResolution)
+            ?? preferredTextureResolutionOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setPreferredTextureMaxResolution(option.value);
         }
     });
 
@@ -526,6 +541,39 @@
                     </div>
                 </div>
 
+                <div class="tools-section">
+                    <div class="tools-section-label">Texture Resolution</div>
+                    <div class="tools-section-items">
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedPreferredTextureResolutionOption"
+                                :options="preferredTextureResolutionOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Geometry section -->
                 <div class="tools-section">
                     <div class="tools-section-label">Geometry</div>
@@ -565,7 +613,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -577,7 +625,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -589,7 +637,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -689,7 +737,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>

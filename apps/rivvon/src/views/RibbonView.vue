@@ -938,7 +938,12 @@
                 crossSectionType: textureSet.cross_section_type ?? texture.cross_section_type ?? 'waves',
                 sourceMetadata: textureSet.source_metadata ?? texture.source_metadata,
                 thumbnailDataUrl,
-                ktx2Blobs
+                ktx2Blobs,
+                rootTextureSetId: textureSet.root_texture_id || texture.root_texture_id || texture.id,
+                parentTextureSetId: textureSet.parent_texture_set_id || texture.parent_texture_set_id || null,
+                variantInfo: textureSet.variant_info || texture.variant_info || null,
+                variantSummaries: textureSet.variant_summaries || texture.variant_summaries || null,
+                availableResolutions: textureSet.available_resolutions || texture.available_resolutions || null,
             });
 
             console.log(`[RibbonView] Cached texture ${texture.id} locally`);

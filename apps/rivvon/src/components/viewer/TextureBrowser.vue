@@ -2,7 +2,7 @@
     import { ref, computed, onBeforeUnmount, watch, defineAsyncComponent } from 'vue';
     import { read } from 'ktx-parse';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { fetchTextures, fetchTextureWithTiles } from '../../services/textureService';
+    import { fetchTextures, fetchTextureWithTiles, groupTextureRecordsIntoFamilies } from '../../services/textureService';
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
@@ -17,7 +17,7 @@
         },
         initialTab: {
             type: String,
-            default: 'all' // 'all' or 'mine'
+            default: 'all' // 'all', 'local', 'my-cloud', 'public', or 'cached'
         }
     });
 
@@ -31,7 +31,7 @@
     const app = useViewerStore();
     const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
-    const { saveTextureSet: saveLocalTextureSet, getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
+    const { getAllTextureSets: getLocalTextures, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, promoteTextureSetToCachedCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
     // State
     const textures = ref([]);
@@ -44,6 +44,8 @@
 
     // Delete state
     const textureToDelete = ref(null);
+    const deleteTextureIds = ref([]);
+    const deleteVariantCount = ref(1);
     const deletingId = ref(null);
     const isLocalDelete = ref(false);
 
@@ -53,6 +55,8 @@
     const isCopying = ref(false);
     const copyProgress = ref('');
     const copyError = ref(null);
+    const copyRetryTargetRootId = ref(null);
+    const copyPendingVariantIds = ref([]);
     const showCopyMenu = ref(null); // texture id to show copy menu for
     const copyMenuPosition = ref({ top: 0, left: 0 }); // position for teleported menu
     const copyMenuTexture = ref(null); // texture object for menu
@@ -64,7 +68,6 @@
     const deriveProgress = ref('');
     const deriveError = ref(null);
     const deriveResult = ref(null);
-    const deriveSavedTextureId = ref(null);
     let deriveModulePromise = null;
 
     // Edit state
@@ -72,59 +75,150 @@
     const editName = ref('');
     const isEditing = ref(false);
     const editError = ref(null);
+    const editTextureIds = ref([]);
+    const editVariantCount = ref(1);
 
-    // Combined textures for display (adds isLocal flag to distinguish)
-    const displayTextures = computed(() => {
-        const tab = activeTab.value;
-        const cachedIds = cachedCloudIds.value;
+    function buildResolvedTextureRecord(rootTexture, resolvedSummary, fallbackRecord = null) {
+        const baseTexture = fallbackRecord || rootTexture || null;
+        if (!baseTexture && !resolvedSummary) {
+            return null;
+        }
 
-        // Map local textures with isLocal flag (exclude cache entries for the local tab)
+        const resolvedResolution = Number(
+            resolvedSummary?.resolution
+            ?? resolvedSummary?.tile_resolution
+            ?? baseTexture?.tile_resolution
+        ) || null;
+        const resolvedByteSize = Number(
+            resolvedSummary?.total_size_bytes
+            ?? resolvedSummary?.size_bytes
+            ?? baseTexture?.total_size_bytes
+            ?? baseTexture?.total_size
+            ?? 0
+        ) || 0;
+
+        return {
+            ...(baseTexture || {}),
+            id: resolvedSummary?.id || baseTexture?.id || null,
+            root_texture_id: resolvedSummary?.root_texture_id || baseTexture?.root_texture_id || rootTexture?.id || baseTexture?.id || null,
+            parent_texture_set_id: resolvedSummary?.parent_texture_set_id || baseTexture?.parent_texture_set_id || null,
+            tile_resolution: resolvedResolution || baseTexture?.tile_resolution || null,
+            total_size: resolvedByteSize || baseTexture?.total_size || 0,
+            total_size_bytes: resolvedByteSize || baseTexture?.total_size_bytes || baseTexture?.total_size || 0,
+            storage_provider: resolvedSummary?.storage_provider || baseTexture?.storage_provider || (baseTexture?.isLocal ? 'local' : 'r2'),
+            status: resolvedSummary?.status || baseTexture?.status || 'complete',
+            created_at: Number(resolvedSummary?.created_at ?? baseTexture?.created_at ?? 0) || 0,
+            updated_at: Number(resolvedSummary?.updated_at ?? baseTexture?.updated_at ?? 0) || 0,
+        };
+    }
+
+    function buildFamilyCard(family, cachedIds = new Set()) {
+        const rootTexture = family.root || family.records?.[0] || null;
+        const resolvedSummary = family.resolvedVariantSummary || null;
+        const resolvedTexture = buildResolvedTextureRecord(rootTexture, resolvedSummary, family.resolvedVariantRecord);
+        const baseTexture = rootTexture || resolvedTexture || {};
+        const availableResolutions = Array.isArray(family.availableResolutions) && family.availableResolutions.length > 0
+            ? family.availableResolutions
+            : [Number(rootTexture?.tile_resolution ?? resolvedTexture?.tile_resolution)].filter((resolution) => Number.isInteger(resolution) && resolution > 0);
+        const familyMemberIds = Array.isArray(family.records)
+            ? family.records.map((record) => record?.id).filter(Boolean)
+            : [];
+        const cachedFamily = Array.isArray(family.variantSummaries)
+            ? family.variantSummaries.some((summary) => cachedIds.has(summary.id)) || familyMemberIds.some((id) => cachedIds.has(id))
+            : familyMemberIds.some((id) => cachedIds.has(id));
+        const rootResolution = Number(rootTexture?.tile_resolution ?? availableResolutions[0] ?? resolvedTexture?.tile_resolution) || null;
+        const activeResolution = Number(resolvedSummary?.resolution ?? resolvedTexture?.tile_resolution ?? rootResolution) || null;
+        const familyRootId = family.rootTextureId || baseTexture?.root_texture_id || baseTexture?.id || resolvedTexture?.id || null;
+        const cardId = `${baseTexture?.isLocal ? 'local' : 'cloud'}:${familyRootId || baseTexture?.id || resolvedTexture?.id || 'unknown'}`;
+
+        return {
+            ...baseTexture,
+            id: cardId,
+            cardId,
+            familyCard: true,
+            rootTextureId: familyRootId,
+            rootTexture: rootTexture || resolvedTexture || null,
+            resolvedTexture: resolvedTexture || rootTexture || null,
+            familyMembers: family.records || [],
+            availableResolutions,
+            variantSummaries: family.variantSummaries || [],
+            rootResolution,
+            activeResolution,
+            isLocal: Boolean(baseTexture?.isLocal),
+            isCached: cachedFamily,
+            hasDerivedVariants: availableResolutions.length > 1,
+            thumbnail_url: baseTexture?.thumbnail_url || baseTexture?.thumbnail_data_url || resolvedTexture?.thumbnail_url || resolvedTexture?.thumbnail_data_url || null,
+            total_size_bytes: Number(resolvedTexture?.total_size_bytes ?? baseTexture?.total_size_bytes ?? baseTexture?.total_size ?? 0) || 0,
+            tile_count: Number(resolvedTexture?.tile_count ?? baseTexture?.tile_count ?? 0) || 0,
+            layer_count: Number(baseTexture?.layer_count ?? resolvedTexture?.layer_count ?? 0) || 0,
+            cross_section_type: baseTexture?.cross_section_type || resolvedTexture?.cross_section_type || 'waves',
+            storage_provider: resolvedTexture?.storage_provider || baseTexture?.storage_provider || (baseTexture?.isLocal ? 'local' : 'r2'),
+            created_at: Number(baseTexture?.created_at ?? resolvedTexture?.created_at ?? 0) || 0,
+        };
+    }
+
+    const localTextureCards = computed(() => {
+        const anchoredCachedCloudIds = new Set(
+            localTextures.value
+                .filter((texture) => !texture.cached_from)
+                .map((texture) => texture.root_texture_id)
+                .filter(Boolean)
+        );
         const localMapped = localTextures.value
-            .filter(t => !t.cached_from) // hide cache entries from "My Local"
-            .map(t => ({
-                ...t,
+            .filter((texture) => !texture.cached_from || anchoredCachedCloudIds.has(texture.cached_from))
+            .map((texture) => ({
+                ...texture,
                 isLocal: true,
-                thumbnail_url: t.thumbnail_data_url, // normalize field name
-                total_size_bytes: t.total_size_bytes ?? t.total_size // normalize size field name
+                thumbnail_url: texture.thumbnail_data_url,
+                total_size_bytes: texture.total_size_bytes ?? texture.total_size,
             }));
 
-        // Map cloud textures with isLocal flag + isCached indicator
-        // Filter out Google Drive textures for unauthenticated users (they require auth to access)
+        return groupTextureRecordsIntoFamilies(localMapped, {
+            preferredMaxResolution: app.preferredTextureMaxResolution,
+        }).map((family) => buildFamilyCard(family));
+    });
+
+    const cloudTextureCards = computed(() => {
+        const cachedIds = cachedCloudIds.value;
         const cloudMapped = textures.value
-            .filter(t => {
-                const provider = t.storage_provider || 'r2';
-                // If not authenticated, only show R2/Cloudflare textures (not Google Drive)
+            .filter((texture) => {
+                const provider = texture.storage_provider || 'r2';
                 if (!isAuthenticated.value && provider === 'google-drive') {
                     return false;
                 }
                 return true;
             })
-            .map(t => ({
-                ...t,
+            .map((texture) => ({
+                ...texture,
                 isLocal: false,
-                isCached: cachedIds.has(t.id)
+                isCached: cachedIds.has(texture.id),
             }));
+
+        return groupTextureRecordsIntoFamilies(cloudMapped, {
+            preferredMaxResolution: app.preferredTextureMaxResolution,
+        }).map((family) => buildFamilyCard(family, cachedIds));
+    });
+
+    const displayTextures = computed(() => {
+        const tab = activeTab.value;
+        const localCards = localTextureCards.value;
+        const cloudCards = cloudTextureCards.value;
 
         switch (tab) {
             case 'local':
-                // My Local: only user-created local textures (not caches)
-                return localMapped;
+                return localCards;
             case 'cached':
-                // Cached: cloud textures that have a local cache
-                return cloudMapped.filter(t => t.isCached);
+                return cloudCards.filter((texture) => texture.isCached);
             case 'my-cloud':
-                // My Cloud: user's own cloud textures
                 if (!user.value) return [];
-                return cloudMapped.filter(t => t.owner_google_id === user.value.googleId);
+                return cloudCards.filter((texture) => texture.owner_google_id === user.value.googleId);
             case 'public':
-                // Public: all cloud textures (stored on Cloudflare)
-                return cloudMapped;
+                return cloudCards;
             case 'all':
             default:
-                // All: combine local + cloud, sorted by date (newest first)
-                return [...localMapped, ...cloudMapped].sort((a, b) => {
-                    const dateA = a.created_at || 0;
-                    const dateB = b.created_at || 0;
+                return [...localCards, ...cloudCards].sort((left, right) => {
+                    const dateA = left.created_at || 0;
+                    const dateB = right.created_at || 0;
                     return dateB - dateA;
                 });
         }
@@ -138,6 +232,232 @@
     // Check if texture is local
     function isLocalTexture(texture) {
         return texture.isLocal === true;
+    }
+
+    function getCardSelectionKey(texture) {
+        return texture?.cardId || texture?.rootTextureId || texture?.id;
+    }
+
+    function getFamilyRootTexture(texture) {
+        return texture?.rootTexture || texture;
+    }
+
+    function getFamilySelectionTexture(texture) {
+        return texture?.resolvedTexture || texture;
+    }
+
+    function getFamilyActionTexture(texture) {
+        return getFamilyRootTexture(texture);
+    }
+
+    function getFamilyMemberIds(texture) {
+        const familyIds = Array.isArray(texture?.familyMembers)
+            ? texture.familyMembers.map((member) => member?.id).filter(Boolean)
+            : [];
+
+        if (familyIds.length > 0) {
+            return familyIds;
+        }
+
+        return [getFamilyActionTexture(texture)?.id].filter(Boolean);
+    }
+
+    function getFamilyAvailableResolutions(texture) {
+        if (Array.isArray(texture?.availableResolutions) && texture.availableResolutions.length > 0) {
+            return texture.availableResolutions
+                .map((resolution) => Number(resolution))
+                .filter((resolution) => Number.isInteger(resolution) && resolution > 0);
+        }
+
+        const tileResolution = Number(texture?.tile_resolution ?? texture?.variant_info?.target_resolution);
+        return Number.isInteger(tileResolution) && tileResolution > 0 ? [tileResolution] : [];
+    }
+
+    function compareFamilyVariantEntries(left, right) {
+        const resolutionDelta = (right?.resolution || 0) - (left?.resolution || 0);
+        if (resolutionDelta !== 0) {
+            return resolutionDelta;
+        }
+
+        if (left?.isRoot !== right?.isRoot) {
+            return left?.isRoot ? -1 : 1;
+        }
+
+        return String(left?.id || '').localeCompare(String(right?.id || ''));
+    }
+
+    function getFamilyVariantEntries(texture, { variantIds = null } = {}) {
+        if (!texture) {
+            return [];
+        }
+
+        const rootTexture = getFamilyRootTexture(texture);
+        const fallbackTexture = getFamilyActionTexture(texture) || texture;
+        const familyMembers = Array.isArray(texture?.familyMembers)
+            ? texture.familyMembers.filter(Boolean)
+            : [];
+        const recordsById = new Map(familyMembers.map((member) => [member.id, member]));
+        const fallbackResolution = Number(fallbackTexture?.tile_resolution) || null;
+        const rawVariantSummaries = Array.isArray(texture?.variantSummaries) && texture.variantSummaries.length > 0
+            ? texture.variantSummaries.filter((summary) => summary?.id)
+            : (fallbackTexture?.id
+                ? [{
+                    id: fallbackTexture.id,
+                    resolution: fallbackResolution,
+                    tile_resolution: fallbackResolution,
+                    is_root: true,
+                }]
+                : []);
+        const allowedVariantIds = Array.isArray(variantIds) && variantIds.length > 0
+            ? new Set(variantIds.filter(Boolean))
+            : null;
+
+        return rawVariantSummaries
+            .filter((summary) => !allowedVariantIds || allowedVariantIds.has(summary.id))
+            .map((summary) => {
+                const sourceTexture = recordsById.get(summary.id)
+                    || (fallbackTexture?.id === summary.id ? fallbackTexture : null)
+                    || buildResolvedTextureRecord(rootTexture, summary, recordsById.get(summary.id) || null);
+                const resolution = Number(summary?.resolution ?? summary?.tile_resolution ?? sourceTexture?.tile_resolution) || null;
+
+                return {
+                    id: summary.id,
+                    summary,
+                    resolution,
+                    isRoot: Boolean(summary?.is_root || summary?.id === texture?.rootTextureId),
+                    sourceTexture,
+                };
+            })
+            .sort(compareFamilyVariantEntries);
+    }
+
+    function getFamilyCopyEntries(texture, { variantIds = null } = {}) {
+        const variantEntries = getFamilyVariantEntries(texture, { variantIds });
+
+        if (variantEntries.length <= 1 || (Array.isArray(variantIds) && variantIds.length > 0)) {
+            return variantEntries;
+        }
+
+        const rootTextureId = texture?.rootTextureId || getFamilyActionTexture(texture)?.id || null;
+        const rootEntry = variantEntries.find((entry) => entry?.id === rootTextureId || entry?.isRoot);
+
+        if (!rootEntry) {
+            return variantEntries;
+        }
+
+        return [
+            rootEntry,
+            ...variantEntries.filter((entry) => entry.id !== rootEntry.id),
+        ];
+    }
+
+    function getFamilyVariantCount(texture, { variantIds = null } = {}) {
+        const variantEntries = getFamilyVariantEntries(texture, { variantIds });
+        if (variantEntries.length > 0) {
+            return variantEntries.length;
+        }
+
+        const availableResolutionCount = getFamilyAvailableResolutions(texture).length;
+        if (availableResolutionCount > 0) {
+            return availableResolutionCount;
+        }
+
+        return texture?.id ? 1 : 0;
+    }
+
+    function normalizeTextureFamilyName(name, { stripResolutionSuffix = false } = {}) {
+        const trimmedName = typeof name === 'string' ? name.trim() : '';
+        if (!trimmedName) {
+            return '';
+        }
+
+        if (!stripResolutionSuffix) {
+            return trimmedName;
+        }
+
+        return trimmedName.replace(/\s+\(\d+px\)$/i, '').trim();
+    }
+
+    function getTextureFamilyDisplayName(texture) {
+        const rawName = getFamilyActionTexture(texture)?.name || texture?.name || 'Texture';
+        const stripResolutionSuffix = getFamilyVariantCount(texture) > 1;
+        return normalizeTextureFamilyName(rawName, { stripResolutionSuffix }) || rawName || 'Texture';
+    }
+
+    function buildCopiedTextureName(texture) {
+        return `${getTextureFamilyDisplayName(texture)} (copy)`;
+    }
+
+    function formatCopyVariantLabel(entry) {
+        if (Number.isInteger(entry?.resolution) && entry.resolution > 0) {
+            return `${entry.resolution}px`;
+        }
+
+        return entry?.isRoot ? 'root' : 'variant';
+    }
+
+    function buildCopyProgressPrefix(entry, index, total) {
+        if (total <= 1) {
+            return 'Texture';
+        }
+
+        return `Variant ${index + 1}/${total} (${formatCopyVariantLabel(entry)})`;
+    }
+
+    function getCopyDestinationLabel(destination) {
+        return destination === 'google-drive' ? 'Google Drive' : 'Cloudflare R2';
+    }
+
+    async function resolveTextureThumbnailBlob(texture, thumbnailDataUrl = null) {
+        if (thumbnailDataUrl) {
+            try {
+                const response = await fetch(thumbnailDataUrl);
+                if (response.ok) {
+                    return await response.blob();
+                }
+            } catch (error) {
+                console.warn('[TextureBrowser] Failed to resolve copied thumbnail from data URL:', error);
+            }
+        }
+
+        if (isLocalTexture(texture) && texture?.thumbnail_data_url) {
+            try {
+                const response = await fetch(texture.thumbnail_data_url);
+                if (response.ok) {
+                    return await response.blob();
+                }
+            } catch (error) {
+                console.warn('[TextureBrowser] Failed to load local thumbnail for copy:', error);
+            }
+        }
+
+        if (!texture?.thumbnail_url) {
+            return null;
+        }
+
+        try {
+            const response = await fetch(texture.thumbnail_url);
+            if (!response.ok) {
+                return null;
+            }
+
+            return await response.blob();
+        } catch (error) {
+            console.warn('[TextureBrowser] Failed to fetch thumbnail for copy:', error);
+            return null;
+        }
+    }
+
+    function resetCopyRetryState() {
+        copyRetryTargetRootId.value = null;
+        copyPendingVariantIds.value = [];
+    }
+
+    function buildTileBlobMap(tileEntries = []) {
+        return tileEntries.reduce((map, tileEntry) => {
+            map[tileEntry.index] = tileEntry.blob;
+            return map;
+        }, {});
     }
 
     // Load textures when component mounts or visibility changes
@@ -176,17 +496,27 @@
     }
 
     function getTargetResolutionOptions(texture) {
-        const sourceResolution = Number(texture?.tile_resolution);
+        const sourceTexture = getFamilyRootTexture(texture);
+        const sourceResolution = Number(
+            sourceTexture?.tile_resolution
+            ?? texture?.rootResolution
+            ?? texture?.tile_resolution
+        );
 
         if (!Number.isInteger(sourceResolution) || sourceResolution <= 16) {
             return [];
         }
 
+        const existingResolutions = new Set(getFamilyAvailableResolutions(texture));
+        existingResolutions.add(sourceResolution);
+
         const options = [];
         let current = sourceResolution / 2;
 
         while (Number.isInteger(current) && current >= 16) {
-            options.push(current);
+            if (!existingResolutions.has(current)) {
+                options.push(current);
+            }
             current /= 2;
         }
 
@@ -194,6 +524,15 @@
     }
 
     function canDeriveVariant(texture) {
+        const sourceTexture = getFamilyRootTexture(texture);
+        if (!sourceTexture || isLocalTexture(sourceTexture)) {
+            return false;
+        }
+
+        if (!isOwner(sourceTexture) && !isAdmin.value) {
+            return false;
+        }
+
         return getTargetResolutionOptions(texture).length > 0;
     }
 
@@ -226,40 +565,26 @@
         });
     }
 
-    function buildDerivedTextureName(texture, targetResolution) {
-        const baseName = (texture?.name || 'Texture')
+    function buildPublishedVariantName(texture) {
+        return (texture?.name || 'Texture')
             .replace(/\s+\(\d+px\)$/i, '')
             .trim();
-
-        return `${baseName} (${targetResolution}px)`;
     }
 
-    function buildDerivedVariantLineage(texture, targetResolution) {
+    function buildPublishedVariantInfo(texture, targetResolution) {
         const rootTextureSetId = texture?.variant_info?.root_texture_set_id
             || texture?.variant_info?.family_id
             || texture?.derived_from?.root_texture_set_id
             || texture?.id;
-        const storageProvider = isLocalTexture(texture)
-            ? 'local'
-            : (texture?.storage_provider || 'r2');
 
         return {
-            derivedFrom: {
-                texture_set_id: texture?.id,
-                root_texture_set_id: rootTextureSetId,
-                storage_provider: storageProvider,
-                name: texture?.name,
-                tile_resolution: texture?.tile_resolution
-            },
-            variantInfo: {
-                family_id: rootTextureSetId,
-                root_texture_set_id: rootTextureSetId,
-                parent_texture_set_id: texture?.id,
-                source_resolution: texture?.tile_resolution,
-                target_resolution: targetResolution,
-                generated_at: Date.now(),
-                method: 'local-browser-roundtrip-v1'
-            }
+            family_id: rootTextureSetId,
+            root_texture_set_id: rootTextureSetId,
+            parent_texture_set_id: rootTextureSetId,
+            source_resolution: texture?.tile_resolution,
+            target_resolution: targetResolution,
+            generated_at: Date.now(),
+            method: 'cloud-browser-roundtrip-v1'
         };
     }
 
@@ -504,29 +829,36 @@
     }
 
     function isTextureSelected(texture) {
-        return selectedTextures.value.has(texture.id);
+        return selectedTextures.value.has(getCardSelectionKey(texture));
     }
 
     function toggleTextureSelection(texture, event) {
-        event.stopPropagation();
+        event?.stopPropagation?.();
         const map = new Map(selectedTextures.value);
-        if (map.has(texture.id)) {
-            map.delete(texture.id);
+        const selectionKey = getCardSelectionKey(texture);
+
+        if (map.has(selectionKey)) {
+            map.delete(selectionKey);
         } else {
             if (map.size >= MAX_MULTI_SELECT) return; // cap reached
-            map.set(texture.id, { texture, isLocal: isLocalTexture(texture) });
+            map.set(selectionKey, {
+                texture: getFamilySelectionTexture(texture),
+                isLocal: isLocalTexture(texture)
+            });
         }
         selectedTextures.value = map;
     }
 
-    function handleCardClick(texture) {
+    function handleCardClick(texture, event) {
         if (multiSelectMode.value) {
             toggleTextureSelection(texture, event);
         } else {
+            const selectionTexture = getFamilySelectionTexture(texture);
+
             if (isLocalTexture(texture)) {
-                selectLocalTexture(texture);
+                selectLocalTexture(selectionTexture);
             } else {
-                selectTexture(texture);
+                selectTexture(selectionTexture);
             }
         }
     }
@@ -547,12 +879,20 @@
 
     const multiSelectCount = computed(() => selectedTextures.value.size);
     const isMaxSelected = computed(() => selectedTextures.value.size >= MAX_MULTI_SELECT);
+    const isDeletingFamily = computed(() => deleteVariantCount.value > 1);
 
     function close() {
         multiSelectMode.value = false;
         selectedTextures.value = new Map();
         emit('close');
         app.hideTextureBrowser();
+    }
+
+    function cancelDelete() {
+        textureToDelete.value = null;
+        deleteTextureIds.value = [];
+        deleteVariantCount.value = 1;
+        isLocalDelete.value = false;
     }
 
     function handleKeydown(event) {
@@ -566,7 +906,7 @@
             } else if (textureToCopy.value) {
                 cancelCopy();
             } else if (textureToDelete.value) {
-                textureToDelete.value = null;
+                cancelDelete();
             } else if (showCopyMenu.value) {
                 showCopyMenu.value = null;
             } else {
@@ -598,7 +938,11 @@
     // Delete functionality
     function confirmDelete(texture, event) {
         event.stopPropagation(); // Prevent card click
-        textureToDelete.value = texture;
+        textureToDelete.value = getFamilyActionTexture(texture);
+        deleteTextureIds.value = getFamilyMemberIds(texture);
+        deleteVariantCount.value = Array.isArray(texture?.availableResolutions) && texture.availableResolutions.length > 0
+            ? texture.availableResolutions.length
+            : deleteTextureIds.value.length;
         isLocalDelete.value = isLocalTexture(texture);
     }
 
@@ -609,27 +953,35 @@
         try {
             if (isLocalDelete.value) {
                 // Delete from IndexedDB
-                await deleteLocalTextureSet(textureToDelete.value.id);
-                localTextures.value = localTextures.value.filter(t => t.id !== textureToDelete.value.id);
+                for (const textureId of deleteTextureIds.value) {
+                    await deleteLocalTextureSet(textureId);
+                }
+                localTextures.value = localTextures.value.filter((texture) => !deleteTextureIds.value.includes(texture.id));
             } else {
                 // Delete from cloud
                 await deleteTextureSet(textureToDelete.value.id);
-                textures.value = textures.value.filter(t => t.id !== textureToDelete.value.id);
+                textures.value = textures.value.filter((texture) => texture.id !== textureToDelete.value.id);
             }
-            textureToDelete.value = null;
+            cancelDelete();
         } catch (err) {
             console.error('[TextureBrowser] Failed to delete texture:', err);
             error.value = 'Failed to delete: ' + err.message;
         } finally {
             deletingId.value = null;
-            isLocalDelete.value = false;
         }
     }
 
     async function evictCache(texture, event) {
         event.stopPropagation();
         try {
-            await evictCachedTexture(texture.id);
+            const cachedVariantIds = Array.from(new Set(
+                (Array.isArray(texture?.variantSummaries) && texture.variantSummaries.length > 0
+                    ? texture.variantSummaries.map((summary) => summary.id)
+                    : [texture.id]
+                ).filter(Boolean)
+            ));
+
+            await Promise.all(cachedVariantIds.map((textureId) => evictCachedTexture(textureId)));
             cachedCloudIds.value = await getCachedCloudIds();
         } catch (err) {
             console.error('[TextureBrowser] Failed to evict cache:', err);
@@ -639,7 +991,12 @@
     // Copy functionality
     function toggleCopyMenu(texture, event) {
         event.stopPropagation();
-        if (showCopyMenu.value === texture.id) {
+        const actionTexture = getFamilyActionTexture(texture);
+        if (!actionTexture?.id) {
+            return;
+        }
+
+        if (showCopyMenu.value === actionTexture.id) {
             showCopyMenu.value = null;
             copyMenuTexture.value = null;
         } else {
@@ -650,13 +1007,18 @@
                 top: rect.bottom + 4,
                 left: rect.left // align left edge with button
             };
-            showCopyMenu.value = texture.id;
+            showCopyMenu.value = actionTexture.id;
             copyMenuTexture.value = texture;
         }
     }
 
     function closeCopyMenu() {
         showCopyMenu.value = null;
+        copyMenuTexture.value = null;
+    }
+
+    function canCopyTexture(texture) {
+        return getCopyDestinations(texture).length > 0;
     }
 
     /**
@@ -704,9 +1066,12 @@
 
     async function startCopy(texture, destination, event) {
         event.stopPropagation();
-        showCopyMenu.value = null;
+        closeCopyMenu();
         textureToCopy.value = texture;
         copyDestination.value = destination;
+        copyProgress.value = '';
+        copyError.value = null;
+        resetCopyRetryState();
     }
 
     async function performCopy() {
@@ -719,119 +1084,203 @@
         try {
             const texture = textureToCopy.value;
             const destination = copyDestination.value;
-            const isLocal = isLocalTexture(texture);
-            let detectedTileResolution = null;
+            const pendingVariantIds = copyPendingVariantIds.value.length > 0
+                ? [...copyPendingVariantIds.value]
+                : null;
+            const isRetryAttempt = Boolean(copyRetryTargetRootId.value && pendingVariantIds?.length);
+            const attemptEntries = getFamilyCopyEntries(texture, { variantIds: pendingVariantIds });
 
-            // 1. Fetch tiles from source
-            let tiles = [];
-            let thumbnailBlob = null;
+            if (attemptEntries.length === 0) {
+                throw new Error('No variants available to copy');
+            }
 
-            if (isLocal) {
-                // Fetch from IndexedDB
-                copyProgress.value = 'Loading tiles from local storage...';
-                const localTiles = await getLocalTiles(texture.id);
-                tiles = localTiles.map(t => ({
-                    index: t.tile_index,
-                    blob: t.blob
-                }));
+            const totalFamilyVariants = getFamilyVariantCount(texture);
+            const sourceRootTexture = getFamilyActionTexture(texture) || attemptEntries[0]?.sourceTexture || texture;
+            const copiedTextureName = buildCopiedTextureName(texture);
+            const copiedDescription = sourceRootTexture?.description || `Copied on ${new Date().toLocaleDateString()}`;
+            const copiedIsPublic = sourceRootTexture?.is_public !== false;
+            const successfulEntries = [];
+            const failedEntries = [];
+            let destinationRootId = copyRetryTargetRootId.value || null;
 
-                if (localTiles[0]?.blob) {
-                    detectedTileResolution = await detectTileResolutionFromBlob(localTiles[0].blob);
-                }
+            for (let entryIndex = 0; entryIndex < attemptEntries.length; entryIndex++) {
+                const entry = attemptEntries[entryIndex];
+                const sourceTexture = entry.sourceTexture || sourceRootTexture;
+                const progressPrefix = buildCopyProgressPrefix(entry, entryIndex, attemptEntries.length);
+                const isRootUpload = !destinationRootId;
 
-                // Convert thumbnail data URL to blob if available
-                if (texture.thumbnail_data_url) {
-                    const response = await fetch(texture.thumbnail_data_url);
-                    thumbnailBlob = await response.blob();
-                }
-            } else {
-                // Fetch from cloud (Google Drive or R2)
-                copyProgress.value = 'Fetching tiles from cloud...';
-                const textureData = await fetchTextureWithTiles(texture.id);
-                const isGoogleDrive = texture.storage_provider === 'google-drive';
+                try {
+                    const sourceBundle = await fetchTextureSourceBundle(sourceTexture, (message) => {
+                        copyProgress.value = `${progressPrefix}: ${message}`;
+                    });
+                    let detectedTileResolution = Number(
+                        sourceBundle?.sourceTextureSet?.tile_resolution
+                        ?? sourceTexture?.tile_resolution
+                        ?? entry?.resolution
+                    ) || null;
 
-                // Download each tile as blob
-                for (let i = 0; i < textureData.tiles.length; i++) {
-                    copyProgress.value = `Downloading tile ${i + 1}/${textureData.tiles.length}...`;
-                    const tile = textureData.tiles[i];
-                    let blob;
+                    if (!detectedTileResolution && sourceBundle.tileEntries[0]?.blob) {
+                        detectedTileResolution = await detectTileResolutionFromBlob(sourceBundle.tileEntries[0].blob);
+                    }
 
-                    if (isGoogleDrive && tile.driveFileId) {
-                        // Use Google Drive API with OAuth token (CORS-safe)
-                        const arrayBuffer = await fetchDriveFile(tile.driveFileId);
-                        blob = new Blob([arrayBuffer], { type: 'image/ktx2' });
-                    } else if (tile.url && tile.url.includes('drive.google.com')) {
-                        // Parse Drive file ID from URL and use API
-                        const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
-                        if (fileIdMatch) {
-                            const arrayBuffer = await fetchDriveFile(fileIdMatch[1]);
-                            blob = new Blob([arrayBuffer], { type: 'image/ktx2' });
-                        } else {
-                            throw new Error('Invalid Google Drive URL format');
+                    const thumbnailBlob = isRootUpload
+                        ? await resolveTextureThumbnailBlob(sourceTexture, sourceBundle.thumbnailDataUrl)
+                        : null;
+                    const uploadOptions = {
+                        name: copiedTextureName,
+                        description: copiedDescription,
+                        isPublic: copiedIsPublic,
+                        parentTextureSetId: isRootUpload ? null : destinationRootId,
+                        tileResolution: detectedTileResolution ?? entry?.resolution ?? sourceTexture?.tile_resolution,
+                        layerCount: Number(
+                            sourceBundle?.sourceTextureSet?.layer_count
+                            ?? sourceTexture?.layer_count
+                            ?? sourceRootTexture?.layer_count
+                        ) || 1,
+                        crossSectionType: sourceBundle?.sourceTextureSet?.cross_section_type
+                            || sourceTexture?.cross_section_type
+                            || sourceRootTexture?.cross_section_type
+                            || 'waves',
+                        sourceMetadata: buildTextureSourceMetadata(sourceRootTexture, sourceBundle.sourceTextureSet),
+                        tiles: sourceBundle.tileEntries.map((tileEntry) => ({
+                            index: tileEntry.index,
+                            blob: tileEntry.blob,
+                        })),
+                        thumbnailBlob,
+                        onProgress: (_step, detail) => {
+                            copyProgress.value = `${progressPrefix}: ${detail}`;
                         }
-                    } else {
-                        // Direct URL (R2/CDN) - simple fetch
-                        const response = await fetch(tile.url);
-                        blob = await response.blob();
+                    };
+
+                    const result = destination === 'google-drive'
+                        ? await uploadTextureSet(uploadOptions)
+                        : await uploadTextureSetToR2(uploadOptions);
+
+                    if (isRootUpload) {
+                        destinationRootId = result.textureSetId;
                     }
 
-                    if (!detectedTileResolution) {
-                        detectedTileResolution = await detectTileResolutionFromBlob(blob);
-                    }
+                    successfulEntries.push({
+                        ...entry,
+                        sourceTexture,
+                        sourceTextureSet: sourceBundle.sourceTextureSet,
+                        sourceBlobs: buildTileBlobMap(sourceBundle.tileEntries),
+                        destinationTextureSetId: result.textureSetId,
+                    });
+                } catch (err) {
+                    console.error('[TextureBrowser] Copy variant failed:', {
+                        variantId: entry.id,
+                        resolution: entry.resolution,
+                        error: err,
+                    });
+                    failedEntries.push({ entry, error: err });
 
-                    tiles.push({
-                        index: tile.tileIndex,
-                        blob
+                    if (isRootUpload) {
+                        break;
+                    }
+                }
+            }
+
+            if (!failedEntries.length && isLocalTexture(sourceRootTexture) && destinationRootId) {
+                const successfulResolutions = successfulEntries
+                    .map((entry) => Number(entry?.resolution ?? entry?.sourceTexture?.tile_resolution))
+                    .filter((resolution) => Number.isInteger(resolution) && resolution > 0)
+                    .sort((left, right) => right - left);
+                const variantSummaries = successfulEntries.map((entry) => ({
+                    id: entry.destinationTextureSetId,
+                    root_texture_id: destinationRootId,
+                    parent_texture_set_id: entry.isRoot ? null : destinationRootId,
+                    resolution: Number(entry?.resolution ?? entry?.sourceTexture?.tile_resolution) || null,
+                    tile_resolution: Number(entry?.resolution ?? entry?.sourceTexture?.tile_resolution) || null,
+                    storage_provider: destination,
+                    status: 'complete',
+                    created_at: Date.now(),
+                    updated_at: Date.now(),
+                    is_root: Boolean(entry.isRoot),
+                }));
+                const rootSummary = variantSummaries.find((summary) => summary.is_root) || null;
+
+                if (rootSummary) {
+                    await promoteTextureSetToCachedCloudTexture(sourceRootTexture.id, {
+                        cloudTextureId: destinationRootId,
+                        name: copiedTextureName,
+                        rootTextureSetId: destinationRootId,
+                        parentTextureSetId: null,
+                        sourceMetadata: sourceRootTexture.source_metadata,
+                        thumbnailDataUrl: sourceRootTexture.thumbnail_data_url || null,
+                        variantSummaries,
+                        availableResolutions: successfulResolutions,
                     });
                 }
 
-                // Download thumbnail if available
-                if (texture.thumbnail_url) {
-                    try {
-                        const response = await fetch(texture.thumbnail_url);
-                        thumbnailBlob = await response.blob();
-                    } catch (e) {
-                        console.warn('Failed to fetch thumbnail:', e);
-                    }
+                for (const entry of successfulEntries.filter((candidate) => !candidate.isRoot)) {
+                    const resolution = Number(entry?.resolution ?? entry?.sourceTexture?.tile_resolution) || null;
+                    await cacheCloudTexture({
+                        cloudTextureId: entry.destinationTextureSetId,
+                        name: copiedTextureName,
+                        tileCount: Object.keys(entry.sourceBlobs || {}).length,
+                        tileResolution: resolution,
+                        layerCount: Number(
+                            entry?.sourceTextureSet?.layer_count
+                            ?? entry?.sourceTexture?.layer_count
+                            ?? sourceRootTexture?.layer_count
+                        ) || 1,
+                        crossSectionType: entry?.sourceTextureSet?.cross_section_type
+                            || entry?.sourceTexture?.cross_section_type
+                            || sourceRootTexture?.cross_section_type
+                            || 'waves',
+                        sourceMetadata: buildTextureSourceMetadata(sourceRootTexture, entry.sourceTextureSet),
+                        thumbnailDataUrl: null,
+                        ktx2Blobs: entry.sourceBlobs,
+                        rootTextureSetId: destinationRootId,
+                        parentTextureSetId: destinationRootId,
+                        variantInfo: {
+                            family_id: destinationRootId,
+                            root_texture_set_id: destinationRootId,
+                            parent_texture_set_id: destinationRootId,
+                            source_resolution: sourceRootTexture?.tile_resolution,
+                            target_resolution: resolution,
+                            generated_at: Date.now(),
+                            method: 'browser-copy-cloud-cache-v1',
+                        },
+                    });
+
+                    await deleteLocalTextureSet(entry.sourceTexture.id);
                 }
+
+                cachedCloudIds.value = await getCachedCloudIds();
             }
 
-            // 2. Upload to destination
-            const uploadOptions = {
-                name: texture.name + ' (copy)',
-                description: texture.description || `Copied on ${new Date().toLocaleDateString()}`,
-                isPublic: texture.is_public !== false,
-                tileResolution: detectedTileResolution ?? texture.tile_resolution,
-                layerCount: texture.layer_count,
-                crossSectionType: texture.cross_section_type || 'waves',
-                sourceMetadata: texture.source_metadata || {
-                    filename: texture.name,
-                    sourceFrameCount: texture.source_frame_count,
-                    sampledFrameCount: texture.sampled_frame_count
-                },
-                tiles,
-                thumbnailBlob,
-                onProgress: (step, detail) => {
-                    copyProgress.value = detail;
-                }
-            };
-
-            if (destination === 'google-drive') {
-                copyProgress.value = 'Uploading to Google Drive...';
-                await uploadTextureSet(uploadOptions);
-            } else if (destination === 'r2') {
-                copyProgress.value = 'Uploading to Cloudflare R2...';
-                await uploadTextureSetToR2(uploadOptions);
-            }
-
-            // 3. Refresh textures list
             copyProgress.value = 'Refreshing...';
             await loadTextures();
 
-            // Close modal
-            textureToCopy.value = null;
-            copyDestination.value = null;
-            copyProgress.value = '';
+            if (failedEntries.length > 0) {
+                if (destinationRootId) {
+                    copyRetryTargetRootId.value = destinationRootId;
+                    copyPendingVariantIds.value = failedEntries
+                        .map(({ entry }) => entry?.id)
+                        .filter(Boolean);
+                }
+
+                const failedLabels = failedEntries
+                    .map(({ entry }) => formatCopyVariantLabel(entry))
+                    .join(', ');
+
+                if (copyRetryTargetRootId.value && copyPendingVariantIds.value.length > 0) {
+                    const copiedVariantCount = totalFamilyVariants - copyPendingVariantIds.value.length;
+                    copyProgress.value = isRetryAttempt
+                        ? `Retried ${successfulEntries.length} variant${successfulEntries.length === 1 ? '' : 's'} on ${getCopyDestinationLabel(destination)}.`
+                        : `Copied ${copiedVariantCount} of ${totalFamilyVariants} variants to ${getCopyDestinationLabel(destination)}.`;
+                    copyError.value = `Missing variants: ${failedLabels}. Successful copies were kept. Press Copy again to retry the missing variants.`;
+                } else {
+                    copyProgress.value = '';
+                    copyError.value = failedEntries[0]?.error?.message || `Copy failed for ${failedLabels}.`;
+                }
+
+                return;
+            }
+
+            cancelCopy();
 
         } catch (err) {
             console.error('[TextureBrowser] Copy failed:', err);
@@ -846,10 +1295,10 @@
         copyDestination.value = null;
         copyProgress.value = '';
         copyError.value = null;
+        resetCopyRetryState();
     }
 
     function clearDeriveResult() {
-        deriveSavedTextureId.value = null;
         deriveResult.value = null;
     }
 
@@ -874,45 +1323,80 @@
         deriveError.value = null;
 
         try {
+            const sourceTexture = getFamilyRootTexture(textureToDerive.value);
+            if (!sourceTexture || isLocalTexture(sourceTexture)) {
+                throw new Error('Only published cloud textures can receive derived variants');
+            }
+
+            if (!isOwner(sourceTexture) && !isAdmin.value) {
+                throw new Error('Only the owner or an admin can publish a new family variant');
+            }
+
             const { deriveKtx2TextureSet } = await loadDeriveModule();
-            const sourceBundle = await fetchTextureSourceBundle(textureToDerive.value, (message) => {
+            const sourceBundle = await fetchTextureSourceBundle(sourceTexture, (message) => {
                 deriveProgress.value = message;
             });
-            const lineage = buildDerivedVariantLineage(textureToDerive.value, Number(deriveTargetResolution.value));
-            const variantName = buildDerivedTextureName(textureToDerive.value, Number(deriveTargetResolution.value));
+            const targetResolution = Number(deriveTargetResolution.value);
+            const variantName = buildPublishedVariantName(sourceTexture);
+            const variantInfo = buildPublishedVariantInfo(sourceTexture, targetResolution);
+            const destination = sourceTexture.storage_provider === 'r2' ? 'r2' : 'google-drive';
+            const publishLabel = destination === 'r2' ? 'R2' : 'Google Drive';
+            const uploadVariant = destination === 'r2' ? uploadTextureSetToR2 : uploadTextureSet;
 
             const result = await deriveKtx2TextureSet({
                 sourceTiles: sourceBundle.tileEntries,
-                targetResolution: Number(deriveTargetResolution.value),
+                targetResolution,
                 onProgress: (stage) => {
                     deriveProgress.value = formatDeriveProgress(stage);
                 }
             });
 
-            const savedTextureId = await saveLocalTextureSet({
+            deriveProgress.value = `Uploading ${targetResolution}px variant to ${publishLabel}...`;
+            const publishedVariant = await uploadVariant({
+                name: variantName,
+                tileCount: result.output.tileCount,
+                tileResolution: result.output.pixelWidth,
+                layerCount: result.output.layerCount,
+                description: '',
+                parentTextureSetId: sourceTexture.id,
+                crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
+                    || sourceTexture.cross_section_type
+                    || 'waves',
+                sourceMetadata: buildTextureSourceMetadata(sourceTexture, sourceBundle.sourceTextureSet),
+                tiles: Object.entries(result.outputBlobs)
+                    .map(([tileIndex, blob]) => ({
+                        index: Number(tileIndex),
+                        blob,
+                    }))
+                    .sort((left, right) => left.index - right.index),
+                thumbnailBlob: null,
+                onProgress: (_step, detail) => {
+                    deriveProgress.value = detail || `Uploading ${targetResolution}px variant to ${publishLabel}...`;
+                }
+            });
+
+            if (!isLocalTexture(textureToDerive.value) && sourceBundle.downloadedSourceBlobs) {
+                cacheCloudTextureFromBlobs(sourceTexture, sourceBundle.sourceTextureSet, sourceBundle.downloadedSourceBlobs);
+            }
+
+            await cacheCloudTexture({
+                cloudTextureId: publishedVariant.textureSetId,
                 name: variantName,
                 tileCount: result.output.tileCount,
                 tileResolution: result.output.pixelWidth,
                 layerCount: result.output.layerCount,
                 crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
-                    || textureToDerive.value.cross_section_type
+                    || sourceTexture.cross_section_type
                     || 'waves',
-                sourceMetadata: buildTextureSourceMetadata(textureToDerive.value, sourceBundle.sourceTextureSet),
-                thumbnailDataUrl: sourceBundle.thumbnailDataUrl,
+                sourceMetadata: buildTextureSourceMetadata(sourceTexture, sourceBundle.sourceTextureSet),
+                thumbnailDataUrl: null,
                 ktx2Blobs: result.outputBlobs,
-                derivedFrom: lineage.derivedFrom,
-                variantInfo: lineage.variantInfo,
-                onProgress: (completed, total) => {
-                    deriveProgress.value = formatDeriveProgress({ stage: 'save-local', completed, total });
-                }
+                rootTextureSetId: sourceTexture.id,
+                parentTextureSetId: sourceTexture.id,
+                variantInfo,
             });
 
-            if (!isLocalTexture(textureToDerive.value) && sourceBundle.downloadedSourceBlobs) {
-                cacheCloudTextureFromBlobs(textureToDerive.value, sourceBundle.sourceTextureSet, sourceBundle.downloadedSourceBlobs);
-            }
-
-            deriveSavedTextureId.value = savedTextureId;
-            activeTab.value = 'local';
+            activeTab.value = 'my-cloud';
             await loadTextures();
 
             deriveResult.value = {
@@ -922,27 +1406,20 @@
                 encodeConfig: result.encodeConfig,
                 validation: result.validation,
                 sourceFetchOrigin: sourceBundle.fetchedFrom,
-                savedTextureId,
                 savedTextureName: variantName,
-                rootTextureSetId: lineage.variantInfo.root_texture_set_id
+                rootTextureSetId: sourceTexture.id,
+                publishedTextureSetId: publishedVariant.textureSetId,
+                publishedDestination: publishLabel,
+                publishedResolution: targetResolution,
             };
 
-            deriveProgress.value = `Saved local variant "${variantName}" with ${result.output.tileCount} tiles.`;
+            deriveProgress.value = `Published ${targetResolution}px variant to ${publishLabel}.`;
         } catch (err) {
-            console.error('[TextureBrowser] Local variant derivation failed:', err);
+            console.error('[TextureBrowser] Cloud variant derivation failed:', err);
             deriveError.value = err.message || 'Variant derivation failed';
         } finally {
             isDeriving.value = false;
         }
-    }
-
-    function applyDerivedLocalVariant() {
-        const savedTexture = derivedSavedTexture.value;
-        if (!savedTexture) {
-            return;
-        }
-
-        selectLocalTexture(savedTexture);
     }
 
     function cancelDeriveVariant() {
@@ -960,9 +1437,12 @@
     // Edit functionality
     function startEdit(texture, event) {
         event.stopPropagation();
-        textureToEdit.value = texture;
-        editName.value = texture.name || '';
+        const actionTexture = getFamilyActionTexture(texture);
+        textureToEdit.value = actionTexture;
+        editName.value = getTextureFamilyDisplayName(texture);
         editError.value = null;
+        editTextureIds.value = getFamilyMemberIds(texture);
+        editVariantCount.value = getFamilyVariantCount(texture);
     }
 
     async function performEdit() {
@@ -980,26 +1460,17 @@
             const isLocal = isLocalTexture(texture);
 
             if (isLocal) {
-                // Update in IndexedDB
-                await updateLocalTextureSet(texture.id, { name: newName });
-                // Update local ref
-                const idx = localTextures.value.findIndex(t => t.id === texture.id);
-                if (idx !== -1) {
-                    localTextures.value[idx].name = newName;
-                }
+                const targetIds = editTextureIds.value.length > 0
+                    ? [...new Set(editTextureIds.value)]
+                    : [texture.id];
+
+                await Promise.all(targetIds.map((textureId) => updateLocalTextureSet(textureId, { name: newName })));
             } else {
-                // Update in cloud
                 await updateTextureSet(texture.id, { name: newName });
-                // Update local ref
-                const idx = textures.value.findIndex(t => t.id === texture.id);
-                if (idx !== -1) {
-                    textures.value[idx].name = newName;
-                }
             }
 
-            // Close modal
-            textureToEdit.value = null;
-            editName.value = '';
+            await loadTextures();
+            cancelEdit();
         } catch (err) {
             console.error('[TextureBrowser] Edit failed:', err);
             editError.value = err.message || 'Failed to update';
@@ -1012,6 +1483,8 @@
         textureToEdit.value = null;
         editName.value = '';
         editError.value = null;
+        editTextureIds.value = [];
+        editVariantCount.value = 1;
     }
 
     function formatSize(bytes) {
@@ -1047,6 +1520,30 @@
         return new Date(timestamp).toLocaleDateString();
     }
 
+    function formatFamilyRootResolution(texture) {
+        const resolution = Number(texture?.rootResolution ?? texture?.tile_resolution);
+        return Number.isInteger(resolution) && resolution > 0 ? `${resolution}px root` : null;
+    }
+
+    function formatFamilyResolutionPreference(texture) {
+        const activeResolution = Number(texture?.activeResolution ?? getFamilySelectionTexture(texture)?.tile_resolution);
+        const preferredResolution = Number(app.preferredTextureMaxResolution);
+
+        if (!Number.isInteger(activeResolution) || activeResolution <= 0) {
+            return null;
+        }
+
+        if (!Number.isInteger(preferredResolution) || preferredResolution <= 0) {
+            return `Active ${activeResolution}px`;
+        }
+
+        if (activeResolution <= preferredResolution) {
+            return `Active ${activeResolution}px under the ${preferredResolution}px cap`;
+        }
+
+        return `Active ${activeResolution}px above the ${preferredResolution}px cap`;
+    }
+
     // ── Animated Preview ──
     const previewTexture = ref(null);      // texture being previewed
     const previewBlobURLs = ref({});       // tileNumber → blob URL
@@ -1054,13 +1551,6 @@
     const previewError = ref(null);
     const previewViewerRef = ref(null);
     const previewCanApply = computed(() => Boolean(previewTexture.value));
-    const derivedSavedTexture = computed(() => {
-        if (!deriveSavedTextureId.value) {
-            return null;
-        }
-
-        return localTextures.value.find((texture) => texture.id === deriveSavedTextureId.value) || null;
-    });
     const deriveValidationStatus = computed(() => {
         const viewerCompatible = Boolean(deriveResult.value?.validation?.viewerCompatibleShape);
 
@@ -1075,6 +1565,67 @@
         }
 
         return getTargetResolutionOptions(textureToDerive.value);
+    });
+    const isEditingFamilyName = computed(() => editVariantCount.value > 1);
+    const copyTotalVariantCount = computed(() => getFamilyVariantCount(textureToCopy.value));
+    const isCopyRetryPending = computed(() => Boolean(copyRetryTargetRootId.value) && copyPendingVariantIds.value.length > 0);
+    const copyAttemptVariantCount = computed(() => {
+        if (!textureToCopy.value) {
+            return 0;
+        }
+
+        return isCopyRetryPending.value
+            ? getFamilyVariantCount(textureToCopy.value, { variantIds: copyPendingVariantIds.value })
+            : copyTotalVariantCount.value;
+    });
+    const isCopyingFamily = computed(() => copyTotalVariantCount.value > 1);
+    const copyDestinationLabel = computed(() => getCopyDestinationLabel(copyDestination.value));
+    const copyTextureDisplayName = computed(() => {
+        return textureToCopy.value ? getTextureFamilyDisplayName(textureToCopy.value) : 'Texture';
+    });
+    const copyModalTitle = computed(() => {
+        return isCopyingFamily.value ? 'Copy Texture Family' : 'Copy Texture';
+    });
+    const copyModalMessage = computed(() => {
+        if (!textureToCopy.value || !copyDestination.value) {
+            return '';
+        }
+
+        if (isCopyRetryPending.value) {
+            const pendingCount = copyAttemptVariantCount.value;
+            return `Retry the ${pendingCount} missing variant${pendingCount === 1 ? '' : 's'} for "${copyTextureDisplayName.value}" on ${copyDestinationLabel.value}?`;
+        }
+
+        if (isCopyingFamily.value) {
+            return `Copy "${copyTextureDisplayName.value}" with all ${copyTotalVariantCount.value} resolutions to ${copyDestinationLabel.value}?`;
+        }
+
+        return `Copy "${copyTextureDisplayName.value}" to ${copyDestinationLabel.value}?`;
+    });
+    const copyModalHelper = computed(() => {
+        if (isCopyRetryPending.value) {
+            return 'Only the missing variants will be retried. Successful copies remain in the destination.';
+        }
+
+        if (isCopyingFamily.value) {
+            return 'The canonical source root uploads first, then the remaining variants follow in descending resolution order.';
+        }
+
+        return null;
+    });
+    const copyPrimaryActionLabel = computed(() => {
+        if (isCopying.value) {
+            return 'Copying...';
+        }
+
+        if (isCopyRetryPending.value) {
+            return 'Retry Missing Variants';
+        }
+
+        return isCopyingFamily.value ? 'Copy Family' : 'Copy';
+    });
+    const editModalTitle = computed(() => {
+        return isEditingFamilyName.value ? 'Edit Family Name' : 'Edit Texture Name';
     });
 
     /**
@@ -1205,7 +1756,12 @@
                 crossSectionType: textureSet.cross_section_type ?? texture.cross_section_type ?? 'waves',
                 sourceMetadata: textureSet.source_metadata ?? texture.source_metadata,
                 thumbnailDataUrl,
-                ktx2Blobs: blobs
+                ktx2Blobs: blobs,
+                rootTextureSetId: textureSet.root_texture_id || texture.root_texture_id || texture.id,
+                parentTextureSetId: textureSet.parent_texture_set_id || texture.parent_texture_set_id || null,
+                variantInfo: textureSet.variant_info || texture.variant_info || null,
+                variantSummaries: textureSet.variant_summaries || texture.variant_summaries || null,
+                availableResolutions: textureSet.available_resolutions || texture.available_resolutions || null,
             });
 
             // Update cache status reactively
@@ -1293,27 +1849,27 @@
                             :class="['tab-button', { active: activeTab === 'local' }]"
                             @click="activeTab = 'local'"
                         >
-                            My Local
+                            Drafts
                         </button>
                         <button
                             v-if="isAuthenticated"
                             :class="['tab-button', { active: activeTab === 'my-cloud' }]"
                             @click="activeTab = 'my-cloud'"
                         >
-                            My Cloud
+                            My Published
                         </button>
                         <button
                             :class="['tab-button', { active: activeTab === 'public' }]"
                             @click="activeTab = 'public'"
                         >
-                            Public
+                            Published
                         </button>
                         <button
                             v-if="cachedCloudIds.size > 0"
                             :class="['tab-button', { active: activeTab === 'cached' }]"
                             @click="activeTab = 'cached'"
                         >
-                            Cached
+                            Cloud Cache
                         </button>
                     </div>
 
@@ -1345,24 +1901,27 @@
                     class="texture-browser-empty"
                 >
                     <template v-if="activeTab === 'local'">
-                        No local textures saved yet.
+                        No draft textures yet.
                         <a
                             href="/slyce"
                             class="slyce-link"
                         >Create one in Create Texture</a>
                     </template>
                     <template v-else-if="activeTab === 'my-cloud'">
-                        You haven't uploaded any textures to the cloud yet.
+                        You haven't published any textures yet.
                         <a
                             href="/slyce"
                             class="slyce-link"
                         >Create one in Create Texture</a>
                     </template>
                     <template v-else-if="activeTab === 'cached'">
-                        No cached textures yet. Preview or apply a cloud texture to cache it locally.
+                        No cached cloud textures yet. Preview or apply a published texture to cache it locally.
+                    </template>
+                    <template v-else-if="activeTab === 'public'">
+                        No published textures available yet.
                     </template>
                     <template v-else>
-                        No textures available yet.
+                        No draft or published textures available yet.
                     </template>
                 </div>
 
@@ -1381,9 +1940,9 @@
                         }"
                         role="button"
                         tabindex="0"
-                        @click="handleCardClick(texture)"
-                        @keydown.enter="handleCardClick(texture)"
-                        @keydown.space.prevent="handleCardClick(texture)"
+                        @click="handleCardClick(texture, $event)"
+                        @keydown.enter="handleCardClick(texture, $event)"
+                        @keydown.space.prevent="handleCardClick(texture, $event)"
                     >
                         <!-- Multi-select checkbox overlay (top-left of thumbnail) -->
                         <div
@@ -1470,20 +2029,37 @@
                             <!-- Meta info -->
                             <div class="texture-card-meta">
                                 <span>{{ texture.tile_count }} tiles</span>
-                                <span>{{ texture.tile_resolution }}px</span>
+                                <span v-if="formatFamilyRootResolution(texture)">{{ formatFamilyRootResolution(texture)
+                                }}</span>
                                 <span>{{ texture.cross_section_type || 'waves' }}</span>
                                 <span>{{ texture.layer_count }} layers</span>
-                                <span v-if="isDerivedLocalVariant(texture)">derived</span>
+                                <span v-if="texture.availableResolutions?.length > 1">{{
+                                    texture.availableResolutions.length }}
+                                    resolutions</span>
                                 <span v-if="formatSize(texture.total_size_bytes)">
                                     {{ formatSize(texture.total_size_bytes) }}
                                 </span>
                             </div>
 
-                            <p
-                                v-if="isDerivedLocalVariant(texture)"
-                                class="texture-card-lineage"
+                            <div
+                                v-if="texture.availableResolutions?.length > 0"
+                                class="texture-card-resolutions"
                             >
-                                {{ formatDerivedLineage(texture) }}
+                                <span
+                                    v-for="resolution in texture.availableResolutions"
+                                    :key="resolution"
+                                    class="texture-resolution-badge"
+                                    :class="{ active: resolution === texture.activeResolution }"
+                                >
+                                    {{ resolution }}px
+                                </span>
+                            </div>
+
+                            <p
+                                v-if="formatFamilyResolutionPreference(texture)"
+                                class="texture-card-resolution-status"
+                            >
+                                {{ formatFamilyResolutionPreference(texture) }}
                             </p>
 
                             <!-- Frame info / Created date -->
@@ -1521,13 +2097,13 @@
                                 <button
                                     class="action-button preview-button"
                                     title="Preview animation"
-                                    @click="openPreview(texture, $event)"
+                                    @click="openPreview(getFamilySelectionTexture(texture), $event)"
                                 >
                                     <span class="material-symbols-outlined">play_circle</span>
                                 </button>
                                 <!-- Edit button (owner or admin) -->
                                 <button
-                                    v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
+                                    v-if="isLocalTexture(texture) || isOwner(getFamilyActionTexture(texture)) || isAdmin"
                                     class="action-button edit-button"
                                     title="Edit name"
                                     @click="startEdit(texture, $event)"
@@ -1536,7 +2112,7 @@
                                 </button>
                                 <!-- Copy button -->
                                 <button
-                                    v-if="getCopyDestinations(texture).length > 0"
+                                    v-if="canCopyTexture(texture)"
                                     class="action-button copy-button"
                                     title="Copy to another storage"
                                     @click="toggleCopyMenu(texture, $event)"
@@ -1553,7 +2129,7 @@
                                 </button>
                                 <!-- Delete button (owner, admin, or local) -->
                                 <button
-                                    v-if="isLocalTexture(texture) || isOwner(texture) || isAdmin"
+                                    v-if="isLocalTexture(texture) || isOwner(getFamilyActionTexture(texture)) || isAdmin"
                                     class="action-button delete-button"
                                     title="Delete texture"
                                     @click="confirmDelete(texture, $event)"
@@ -1653,21 +2229,29 @@
             <div
                 v-if="textureToDelete"
                 class="delete-modal-overlay"
-                @click.self="textureToDelete = null; isLocalDelete = false"
+                @click.self="cancelDelete"
             >
                 <div class="delete-modal">
-                    <h3>Delete {{ isLocalDelete ? 'Local' : 'Cloud' }} Texture</h3>
-                    <p>Are you sure you want to delete "<strong>{{ textureToDelete.name }}</strong>"?</p>
+                    <h3>Delete {{ isLocalDelete ? 'Local' : 'Cloud' }} {{ isDeletingFamily ? 'Family' : 'Texture' }}
+                    </h3>
+                    <p>
+                        Are you sure you want to delete "<strong>{{ textureToDelete.name }}</strong>"{{
+                            isDeletingFamily ? ' and its linked variants' : '' }}?
+                    </p>
                     <p class="delete-warning">
                         {{ isLocalDelete ?
-                            'This will remove the texture from your browser storage.' :
-                            'This action cannot be undone.'
+                            (isDeletingFamily
+                                ? 'This will remove every local resolution in this family from your browser storage.'
+                                : 'This will remove the texture from your browser storage.') :
+                            (isDeletingFamily
+                                ? 'This will delete the root and all linked variants.'
+                                : 'This action cannot be undone.')
                         }}
                     </p>
                     <div class="delete-modal-actions">
                         <button
                             class="cancel-button"
-                            @click="textureToDelete = null; isLocalDelete = false"
+                            @click="cancelDelete"
                             :disabled="deletingId"
                         >
                             Cancel
@@ -1692,10 +2276,13 @@
                 @click.self="cancelCopy"
             >
                 <div class="delete-modal copy-modal">
-                    <h3>Copy Texture</h3>
-                    <p>
-                        Copy "<strong>{{ textureToCopy.name }}</strong>" to
-                        <strong>{{ copyDestination === 'google-drive' ? 'Google Drive' : 'Cloudflare R2' }}</strong>?
+                    <h3>{{ copyModalTitle }}</h3>
+                    <p>{{ copyModalMessage }}</p>
+                    <p
+                        v-if="copyModalHelper"
+                        class="copy-helper"
+                    >
+                        {{ copyModalHelper }}
                     </p>
                     <p
                         v-if="copyProgress"
@@ -1722,7 +2309,7 @@
                             @click="performCopy"
                             :disabled="isCopying"
                         >
-                            {{ isCopying ? 'Copying...' : 'Copy' }}
+                            {{ copyPrimaryActionLabel }}
                         </button>
                     </div>
                 </div>
@@ -1737,15 +2324,14 @@
                 @click.self="cancelDeriveVariant"
             >
                 <div class="delete-modal derive-modal">
-                    <h3>Create Local Variant</h3>
+                    <h3>Publish Lower-Resolution Variant</h3>
                     <p>
-                        Generate a lower-resolution local variant of
+                        Generate and publish a lower-resolution variant of
                         <strong>{{ textureToDerive.name }}</strong>.
                     </p>
                     <p class="derive-helper">
                         This runs the full browser roundtrip across every tile, reuses one shared encoder pool, and
-                        saves the
-                        derived texture to <strong>My Local</strong> with lineage back to the source texture.
+                        uploads the derived texture into the existing cloud family instead of creating a separate local draft.
                     </p>
 
                     <div class="derive-field">
@@ -1794,8 +2380,12 @@
                         class="derive-result"
                     >
                         <div class="derive-result-row">
-                            <span>Saved variant</span>
+                            <span>Published family</span>
                             <strong>{{ deriveResult.savedTextureName }}</strong>
+                        </div>
+                        <div class="derive-result-row">
+                            <span>Destination</span>
+                            <strong>{{ deriveResult.publishedDestination }}</strong>
                         </div>
                         <div class="derive-result-row">
                             <span>Source tiles</span>
@@ -1836,6 +2426,10 @@
                             <strong>{{ deriveResult.rootTextureSetId }}</strong>
                         </div>
                         <div class="derive-result-row">
+                            <span>Published variant ID</span>
+                            <strong>{{ deriveResult.publishedTextureSetId }}</strong>
+                        </div>
+                        <div class="derive-result-row">
                             <span>Validation</span>
                             <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
                                 }}</strong>
@@ -1851,19 +2445,11 @@
                             {{ deriveResult ? 'Close' : 'Cancel' }}
                         </button>
                         <button
-                            v-if="deriveResult && derivedSavedTexture"
-                            class="confirm-edit-button"
-                            @click="applyDerivedLocalVariant"
-                            :disabled="isDeriving"
-                        >
-                            Apply Variant
-                        </button>
-                        <button
                             class="confirm-copy-button derive-run-button"
                             @click="performDeriveVariant"
                             :disabled="isDeriving || !deriveTargetResolution || deriveTargetOptions.length === 0"
                         >
-                            {{ isDeriving ? 'Running...' : (deriveResult ? 'Recreate Variant' : 'Create Variant') }}
+                            {{ isDeriving ? 'Running...' : (deriveResult ? 'Recreate & Publish' : 'Publish Variant') }}
                         </button>
                     </div>
                 </div>
@@ -1903,7 +2489,10 @@
                 @click.self="cancelEdit"
             >
                 <div class="delete-modal edit-modal">
-                    <h3>Edit Texture Name</h3>
+                    <h3>{{ editModalTitle }}</h3>
+                    <p v-if="isEditingFamilyName">
+                        This renames the root and every linked variant in the family.
+                    </p>
                     <div class="edit-input-container">
                         <input
                             v-model="editName"
@@ -2229,6 +2818,35 @@
     .texture-card-lineage {
         margin: 8px 0 0 0;
         color: #fbbf24;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .texture-card-resolutions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .texture-resolution-badge {
+        background: #333;
+        color: #cbd5e1;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+    }
+
+    .texture-resolution-badge.active {
+        background: rgba(76, 175, 80, 0.14);
+        border-color: rgba(76, 175, 80, 0.45);
+        color: #86efac;
+    }
+
+    .texture-card-resolution-status {
+        margin: 8px 0 0 0;
+        color: #93c5fd;
         font-size: 11px;
         line-height: 1.4;
     }

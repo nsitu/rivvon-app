@@ -1,8 +1,10 @@
 <script setup>
 
-    import { watch, watchEffect, ref, onMounted, computed } from 'vue';
+    import { watch, watchEffect, ref, computed } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     const app = useSlyceStore()  // Pinia store
+    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
+    const { isAuthenticated, isAdmin } = useGoogleAuth();
 
     const emit = defineEmits(['back']);
 
@@ -33,6 +35,11 @@
 
     import ProgressSpinner from 'primevue/progressspinner';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import MultiSelect from 'primevue/multiselect';
+    import {
+        assessTextureVariantDerivationWorkload,
+        normalizeTextureVariantTargetResolutions,
+    } from '../../modules/slyce/textureFamilyPlanning.js';
 
     // Watch for changes in samplingSide and adjust samplePixelCount accordingly
     watchEffect(() => {
@@ -111,6 +118,130 @@
     const selectedSidePx = computed(() => {
         const opt = sideOptions.value.find(o => o.value === app.samplingSide);
         return opt ? opt.px : '';
+    });
+
+    const autoDeriveResolutionOptions = computed(() => {
+        const maxResolution = Number(app.potResolution) || 0;
+        const options = [];
+
+        for (let resolution = Math.floor(maxResolution / 2); resolution >= 16; resolution = Math.floor(resolution / 2)) {
+            if ((resolution & (resolution - 1)) !== 0) {
+                continue;
+            }
+
+            options.push({
+                label: `${resolution}px`,
+                value: resolution,
+            });
+        }
+
+        return options;
+    });
+
+    const publishDestinationOptions = computed(() => {
+        if (!isAuthenticated.value) {
+            return [];
+        }
+
+        const options = [
+            {
+                label: 'Google Drive',
+                value: 'google-drive',
+            },
+        ];
+
+        if (isAdmin.value) {
+            options.push({
+                label: 'Cloudflare R2',
+                value: 'r2',
+            });
+        }
+
+        return options;
+    });
+
+    const canPublishToCloud = computed(() => Boolean(isAuthenticated.value));
+    const publishDestinationLabel = computed(() => {
+        return publishDestinationOptions.value.find((option) => option.value === app.publishDestination)?.label || 'Google Drive';
+    });
+
+    const autoDeriveAssessment = computed(() => {
+        if (!app.uploadToCloud) {
+            return {
+                severity: 'ok',
+                message: '',
+                selectedResolutions: [],
+            };
+        }
+
+        const selectedResolutions = normalizeTextureVariantTargetResolutions(app.potResolution, app.autoDeriveResolutions);
+        const tileCount = tilePlan.value?.tiles?.length ?? 0;
+        const layerCount = Number(app.crossSectionCount) || 0;
+
+        if (!selectedResolutions.length || !app.potResolution || !layerCount) {
+            return {
+                severity: 'ok',
+                message: '',
+                selectedResolutions,
+            };
+        }
+
+        const assessment = assessTextureVariantDerivationWorkload({
+            tileCount,
+            tileResolution: app.potResolution,
+            layerCount,
+            targetResolutions: selectedResolutions,
+        });
+
+        return {
+            severity: assessment.severity,
+            message: assessment.message,
+            selectedResolutions,
+        };
+    });
+
+    const autoDeriveSummary = computed(() => {
+        if (!app.uploadToCloud) {
+            return 'Only the root texture will be saved as a local draft.';
+        }
+
+        if (!autoDeriveAssessment.value.selectedResolutions.length) {
+            return 'The root texture will be published, with no extra cloud variants queued.';
+        }
+
+        return `The root texture will be published first, then ${autoDeriveAssessment.value.selectedResolutions.map(value => `${value}px`).join(', ')} variants will be derived and uploaded to the same cloud family.`;
+    });
+
+    const processButtonLabel = computed(() => {
+        return app.uploadToCloud ? 'Process & Publish' : 'Process Draft';
+    });
+
+    watch(() => app.potResolution, (newResolution) => {
+        app.autoDeriveResolutions = normalizeTextureVariantTargetResolutions(newResolution, app.autoDeriveResolutions);
+    }, { immediate: true });
+
+    watch(canPublishToCloud, (allowed) => {
+        if (!allowed) {
+            app.uploadToCloud = false;
+            app.publishDestination = 'google-drive';
+        }
+    }, { immediate: true });
+
+    watch(publishDestinationOptions, (options) => {
+        if (!options.length) {
+            return;
+        }
+
+        const isCurrentDestinationAvailable = options.some((option) => option.value === app.publishDestination);
+        if (!isCurrentDestinationAvailable) {
+            app.publishDestination = options[0].value;
+        }
+    }, { immediate: true });
+
+    watch(() => app.uploadToCloud, (isEnabled) => {
+        if (!isEnabled) {
+            app.autoDeriveResolutions = [];
+        }
     });
 
     const fileInfoRef = ref(null);
@@ -297,6 +428,69 @@
                 />
                 <span>pixels square.</span>
             </p>
+
+            <p class="settings-paragraph">
+                <ToggleSwitch
+                    v-model="app.uploadToCloud"
+                    :disabled="!canPublishToCloud"
+                />
+                <template v-if="app.uploadToCloud">
+                    <span>Upload the root texture to</span>
+                    <Select
+                        v-if="publishDestinationOptions.length > 1"
+                        v-model="app.publishDestination"
+                        :options="publishDestinationOptions"
+                        optionValue="value"
+                        optionLabel="label"
+                        class="inline-select"
+                    />
+                    <span v-else>{{ publishDestinationLabel }}</span>
+                    <span>after encoding.</span>
+                </template>
+                <template v-else>
+                    <span>Keep the result as a local draft.</span>
+                </template>
+            </p>
+
+            <p
+                v-if="!canPublishToCloud"
+                class="settings-paragraph subordinate"
+            >
+                Sign in to publish textures and derive cloud variants.
+            </p>
+
+            <p
+                v-if="app.uploadToCloud"
+                class="settings-paragraph"
+            >
+                <span>Also derive</span>
+                <MultiSelect
+                    v-model="app.autoDeriveResolutions"
+                    :options="autoDeriveResolutionOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    display="chip"
+                    placeholder="none"
+                    selectedItemsLabel="{0} variants"
+                    class="inline-select inline-multiselect"
+                />
+                <span>after the root texture is published.</span>
+            </p>
+
+            <p class="settings-paragraph subordinate">
+                <span>{{ autoDeriveSummary }}</span>
+            </p>
+
+            <p
+                v-if="app.uploadToCloud && autoDeriveAssessment.message"
+                class="settings-paragraph subordinate derive-notice"
+                :class="{
+                    'derive-warning': autoDeriveAssessment.severity === 'warning',
+                    'derive-danger': autoDeriveAssessment.severity === 'danger'
+                }"
+            >
+                {{ autoDeriveAssessment.message }}
+            </p>
         </div>
 
         <div class="tiles-column">
@@ -322,7 +516,7 @@
                     id="process-button"
                     type="button"
                     class="process-button"
-                    label="Process"
+                    :label="processButtonLabel"
                     @click="processVideo({
                         file: app.file,
                         tilePlan: tilePlan,
@@ -358,6 +552,22 @@
         gap: 1.5rem;
         max-width: 100%;
         overflow: hidden;
+    }
+
+    .inline-multiselect {
+        min-width: 11rem;
+    }
+
+    .derive-notice {
+        margin-top: -0.5rem;
+    }
+
+    .derive-warning {
+        color: #b76e00;
+    }
+
+    .derive-danger {
+        color: #c62828;
     }
 
     /* Medium screens: file-info and settings side by side, tiles below */

@@ -4,6 +4,54 @@
 import { defineStore } from 'pinia';
 import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfiles.js';
 
+const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
+const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
+
+function getDefaultPreferredTextureMaxResolution() {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+        return window.matchMedia('(pointer: coarse)').matches ? 256 : 512;
+    }
+
+    return 512;
+}
+
+function normalizePreferredTextureMaxResolution(value) {
+    const parsed = Number(value);
+    return PREFERRED_TEXTURE_RESOLUTION_VALUES.includes(parsed)
+        ? parsed
+        : getDefaultPreferredTextureMaxResolution();
+}
+
+function readViewerPreferences() {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return {};
+    }
+
+    try {
+        const raw = window.localStorage.getItem(VIEWER_PREFERENCES_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch (error) {
+        console.warn('[ViewerStore] Failed to read viewer preferences:', error);
+        return {};
+    }
+}
+
+function writeViewerPreferences(patch) {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return;
+    }
+
+    try {
+        const current = readViewerPreferences();
+        window.localStorage.setItem(VIEWER_PREFERENCES_STORAGE_KEY, JSON.stringify({
+            ...current,
+            ...patch,
+        }));
+    } catch (error) {
+        console.warn('[ViewerStore] Failed to persist viewer preferences:', error);
+    }
+}
+
 export const useViewerStore = defineStore('viewer', {
     state: () => ({
         // Renderer state
@@ -46,6 +94,9 @@ export const useViewerStore = defineStore('viewer', {
         
         // Texture state
         textureRepeatMode: 'mirrorBounce', // 'wrap' | 'mirrorBounce'
+        preferredTextureMaxResolution: normalizePreferredTextureMaxResolution(
+            readViewerPreferences().preferredTextureMaxResolution
+        ),
         currentTextureId: null,
         thumbnailUrl: null,
         activeTextureIds: [],      // Array of texture IDs when multi-texture is active
@@ -264,6 +315,12 @@ export const useViewerStore = defineStore('viewer', {
 
         setTextureRepeatMode(mode) {
             this.textureRepeatMode = mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
+        },
+
+        setPreferredTextureMaxResolution(resolution) {
+            const nextResolution = normalizePreferredTextureMaxResolution(resolution);
+            this.preferredTextureMaxResolution = nextResolution;
+            writeViewerPreferences({ preferredTextureMaxResolution: nextResolution });
         },
 
         setActiveTextures(ids) {

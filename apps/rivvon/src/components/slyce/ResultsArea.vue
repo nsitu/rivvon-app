@@ -18,6 +18,7 @@
 
     // Active = processing OR has results (keeps components alive across the transition)
     const isActive = computed(() => isProcessing.value || hasTiles.value);
+    const isFinalizingOutput = computed(() => app.isSavingLocally || app.isPublishingToCloud);
 
     // Abort processing and go back to settings
     function handleAbort() {
@@ -29,6 +30,10 @@
 
     // Reset app and return to upload screen
     function handleReset() {
+        if (isFinalizingOutput.value) {
+            return;
+        }
+
         if (confirm('Are you sure you want to start over? All current results will be cleared.')) {
             app.reset();
             emit('reset');
@@ -37,6 +42,10 @@
 
     // Go back to settings
     function handleBack() {
+        if (isFinalizingOutput.value) {
+            return;
+        }
+
         emit('back');
     }
 </script>
@@ -67,6 +76,7 @@
                     class="action-button action-back"
                     severity="secondary"
                     variant="outlined"
+                    :disabled="isFinalizingOutput"
                 >
                     <span class="material-symbols-outlined">arrow_back</span>
                     Back
@@ -91,6 +101,7 @@
                     class="action-button action-reset"
                     severity="secondary"
                     variant="outlined"
+                    :disabled="isFinalizingOutput"
                 >
                     <span class="material-symbols-outlined">restart_alt</span>
                     Start Over
