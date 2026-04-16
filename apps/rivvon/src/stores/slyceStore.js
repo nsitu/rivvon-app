@@ -19,7 +19,6 @@ export const useSlyceStore = defineStore('slyce', {
         // tileMode removed — always 'tile' by convention (full-size mode unused)
         potResolution: 256,             // 32, 64, 128, 256, 512, 1024
         autoDeriveResolutions: [],      // optional lower-resolution family variants to auto-generate after root encode
-        uploadToCloud: false,
         publishDestination: 'google-drive',
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
@@ -177,7 +176,6 @@ export const useSlyceStore = defineStore('slyce', {
             this.frameNumber = 0;
             this.readerIsFinished = false;
             this.autoDeriveResolutions = [];
-            this.uploadToCloud = false;
             this.publishDestination = 'google-drive';
             this.fileInfo = null;
             this.file = null;

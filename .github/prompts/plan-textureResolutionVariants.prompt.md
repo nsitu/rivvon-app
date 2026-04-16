@@ -13,7 +13,7 @@ The clarified product scope is narrower than the implementation direction above.
    - local drafts / unpublished roots
    - published cloud families
      and not for mixed-storage families where the root is published but the derived child exists only locally.
-5. Creation-time derived-resolution settings remain valid only when the user is also choosing to publish. In practice, an `Upload to Cloud` toggle should gate the derived-resolution options, because selecting derivations now implies `encode root -> upload root -> derive child variants -> upload child variants` as one publish workflow.
+5. Derived-resolution settings remain valid only when the user is also choosing to publish, but that choice should be deferred until after encoding completes. In practice, the publish destination and derived-resolution options should live in the post-encode results UI rather than `SettingsArea`, because selecting derivations implies `encode root draft -> upload root -> derive child variants -> upload child variants` as one publish workflow.
 6. The Texture Browser tab names should reflect these lifecycle states directly. In practice, `Drafts` and `Cloud Cache` are clearer than generic labels like `Local` and `Cached`.
 
 This means some of the recently implemented local-family behavior is broader than the intended v1 scope. It still works as plumbing, but it should now be treated as superseded by a cloud-canonical derivation model rather than as the target UX.
@@ -63,7 +63,7 @@ For variants created during a publish flow, the same principle applies: once a d
 **Implications For The Active UX**
 
 1. Derive from Texture Browser should target published cloud roots/families first. The result of a successful derive action is a new cloud child variant, not a durable local texture card.
-2. File-mode Slyce should separate `save locally` from `publish`. If `Upload to Cloud` is off, the output is just a root draft. If `Upload to Cloud` is on, derived-resolution controls appear and the workflow becomes one publish transaction: upload root first, then derive and upload selected variants.
+2. File-mode Slyce should separate `encode draft` from `publish`. The encode step always produces a root draft first. Publish destination and derived-resolution controls should appear only after encoding completes, and the publish workflow then becomes one transaction: upload root first, then derive and upload any selected variants.
 3. The current `Upload Saved Family` post-processing panel is broader than the intended model. The preferred flow is to decide publish intent up front, not to save a local family and then optionally upload it later.
 4. Local cache of cloud roots remains useful as an implementation detail for browser derivation and preview performance, but cache entries should not be treated as equivalent to published variants in the user mental model.
 5. Partial failure handling should now be phrased as `published root with missing requested variants`, not `local family partially saved`.

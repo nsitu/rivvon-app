@@ -124,6 +124,8 @@ const processVideo = async (settings) => {
     app.set('tilePlan', tilePlan);
     localSave.resetLocalSaveState();
     publish.resetPublishState();
+    app.set('autoDeriveResolutions', []);
+    app.set('publishDestination', 'google-drive');
     app.set('thumbnailBlob', null);
 
     // go to the processing tab.

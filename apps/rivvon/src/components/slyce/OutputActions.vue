@@ -1,160 +1,240 @@
 <template>
     <div class="output-actions-stack">
-        <template v-if="!app.uploadToCloud">
-            <LocalSaveStatus
-                :is-saving-locally="app.isSavingLocally"
-                :save-local-progress="app.saveLocalProgress"
-                :save-local-error="app.saveLocalError"
-                :saved-local-texture-id="app.savedLocalTextureId"
-                saving-detail="The finished root texture is being persisted to browser storage as a draft."
-                success-title="Saved draft locally."
-                success-detail="Apply the draft now or open the browser to manage it later."
-                :show-pending="true"
-                @retry="retrySaveLocally"
-            >
-                <template #success-actions>
-                    <Button
-                        type="button"
-                        @click="applyTexture"
-                        class="apply-texture-btn"
-                        severity="success"
-                    >
-                        <span class="material-symbols-outlined">check</span>
-                        Apply Draft
-                    </Button>
-
-                    <Button
-                        type="button"
-                        @click="openTextureBrowser"
-                        class="view-local-btn"
-                        severity="secondary"
-                        variant="outlined"
-                    >
-                        <span class="material-symbols-outlined">folder</span>
-                        Drafts
-                    </Button>
-                </template>
-            </LocalSaveStatus>
-
-            <p
-                v-if="app.saveLocalNotice"
-                class="local-save-note"
-            >
-                {{ app.saveLocalNotice }}
-            </p>
-        </template>
-
-        <template v-else>
-            <section
-                class="publish-status"
-                :class="`is-${publishState}`"
-            >
-                <div class="publish-icon-wrap">
-                    <svg
-                        v-if="publishState === 'publishing'"
-                        class="publish-spinner"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                    >
-                        <circle
-                            class="spinner-track"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            stroke-width="4"
-                        ></circle>
-                        <path
-                            class="spinner-head"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v8H4z"
-                        ></path>
-                    </svg>
-
-                    <span
-                        v-else-if="publishState === 'error'"
-                        class="material-symbols-outlined publish-icon error"
-                    >error</span>
-
-                    <span
-                        v-else-if="publishState === 'success'"
-                        class="material-symbols-outlined publish-icon success"
-                    >cloud_done</span>
-
-                    <span
-                        v-else
-                        class="material-symbols-outlined publish-icon pending"
-                    >schedule</span>
-                </div>
-
-                <div class="publish-copy">
-                    <p class="publish-title">{{ publishTitle }}</p>
-                    <p class="publish-detail">{{ publishDetail }}</p>
-                </div>
-
-                <div
-                    v-if="showPublishActions"
-                    class="publish-actions"
+        <LocalSaveStatus
+            :is-saving-locally="app.isSavingLocally"
+            :save-local-progress="app.saveLocalProgress"
+            :save-local-error="app.saveLocalError"
+            :saved-local-texture-id="app.savedLocalTextureId"
+            saving-detail="The finished root texture is being persisted to browser storage as a draft."
+            :success-title="localSaveSuccessTitle"
+            :success-detail="localSaveSuccessDetail"
+            :show-pending="true"
+            @retry="retrySaveLocally"
+        >
+            <template #success-actions>
+                <Button
+                    v-if="showDraftApplyAction"
+                    type="button"
+                    @click="applyTexture"
+                    class="apply-texture-btn"
+                    severity="success"
                 >
-                    <Button
-                        v-if="publishState === 'error' && !isAuthenticated"
-                        type="button"
-                        severity="secondary"
-                        variant="outlined"
-                        @click="login"
-                    >
-                        <span class="material-symbols-outlined">login</span>
-                        Sign In
-                    </Button>
+                    <span class="material-symbols-outlined">check</span>
+                    Apply Draft
+                </Button>
 
-                    <Button
-                        v-if="publishState === 'error'"
-                        type="button"
-                        @click="retryPublishFamily"
-                    >
-                        <span class="material-symbols-outlined">refresh</span>
-                        Retry Publish
-                    </Button>
+                <Button
+                    type="button"
+                    @click="openTextureBrowser"
+                    class="view-local-btn"
+                    severity="secondary"
+                    variant="outlined"
+                >
+                    <span class="material-symbols-outlined">folder</span>
+                    {{ browserButtonLabel }}
+                </Button>
+            </template>
+        </LocalSaveStatus>
 
-                    <Button
-                        v-if="publishState === 'success'"
-                        type="button"
-                        @click="applyTexture"
-                        class="apply-texture-btn"
-                        severity="success"
-                    >
-                        <span class="material-symbols-outlined">check</span>
-                        Apply Published
-                    </Button>
+        <p
+            v-if="app.saveLocalNotice"
+            class="local-save-note"
+        >
+            {{ app.saveLocalNotice }}
+        </p>
 
+        <section
+            v-if="canShowPublishPanel"
+            class="publish-config-panel"
+        >
+            <div class="publish-panel-header">
+                <h4>Publish Draft</h4>
+                <p>Publish the saved draft now, and optionally derive lower-resolution cloud variants as part of the
+                    same
+                    publish workflow.</p>
+            </div>
+
+            <div
+                v-if="!isAuthenticated"
+                class="publish-panel-login"
+            >
+                <p>Sign in to choose a destination and publish this draft.</p>
+                <Button
+                    type="button"
+                    @click="login"
+                >
+                    <span class="material-symbols-outlined">login</span>
+                    Sign In
+                </Button>
+            </div>
+
+            <div
+                v-else
+                class="publish-panel-body"
+            >
+                <p class="publish-config-row">
+                    <span>Upload the root texture to</span>
+                    <Select
+                        v-if="publishDestinationOptions.length > 1"
+                        v-model="app.publishDestination"
+                        :options="publishDestinationOptions"
+                        optionValue="value"
+                        optionLabel="label"
+                        class="publish-inline-select"
+                    />
+                    <span v-else>{{ publishDestinationLabel }}</span>
+                    <span>after encoding.</span>
+                </p>
+
+                <p class="publish-config-row">
+                    <span>Also derive</span>
+                    <MultiSelect
+                        v-model="app.autoDeriveResolutions"
+                        :options="autoDeriveResolutionOptions"
+                        optionLabel="label"
+                        optionValue="value"
+                        display="chip"
+                        placeholder="none"
+                        selectedItemsLabel="{0} variants"
+                        class="publish-inline-select publish-inline-multiselect"
+                    />
+                    <span>after the root texture is published.</span>
+                </p>
+
+                <p class="publish-config-row subordinate">
+                    <span>{{ autoDeriveSummary }}</span>
+                </p>
+
+                <p
+                    v-if="autoDeriveAssessment.message"
+                    class="publish-config-row subordinate derive-notice"
+                    :class="{
+                        'derive-warning': autoDeriveAssessment.severity === 'warning',
+                        'derive-danger': autoDeriveAssessment.severity === 'danger'
+                    }"
+                >
+                    {{ autoDeriveAssessment.message }}
+                </p>
+
+                <div class="publish-panel-actions">
                     <Button
-                        v-if="publishState === 'success' || app.publishLocalDraftId"
                         type="button"
-                        @click="openTextureBrowser"
-                        class="view-local-btn"
-                        severity="secondary"
-                        variant="outlined"
+                        :disabled="!canStartPublish"
+                        @click="startPublishFamily"
                     >
-                        <span class="material-symbols-outlined">folder</span>
-                        {{ publishBrowserLabel }}
+                        <span class="material-symbols-outlined">cloud_upload</span>
+                        {{ publishButtonLabel }}
                     </Button>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <p
-                v-if="app.publishNotice"
-                class="publish-note"
+        <section
+            v-if="showPublishStatus"
+            class="publish-status"
+            :class="`is-${publishState}`"
+        >
+            <div class="publish-icon-wrap">
+                <svg
+                    v-if="publishState === 'publishing'"
+                    class="publish-spinner"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                >
+                    <circle
+                        class="spinner-track"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                    ></circle>
+                    <path
+                        class="spinner-head"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                    ></path>
+                </svg>
+
+                <span
+                    v-else-if="publishState === 'error'"
+                    class="material-symbols-outlined publish-icon error"
+                >error</span>
+
+                <span
+                    v-else
+                    class="material-symbols-outlined publish-icon success"
+                >cloud_done</span>
+            </div>
+
+            <div class="publish-copy">
+                <p class="publish-title">{{ publishTitle }}</p>
+                <p class="publish-detail">{{ publishDetail }}</p>
+            </div>
+
+            <div
+                v-if="showPublishActions"
+                class="publish-actions"
             >
-                {{ app.publishNotice }}
-            </p>
-        </template>
+                <Button
+                    v-if="publishState === 'error' && !isAuthenticated"
+                    type="button"
+                    severity="secondary"
+                    variant="outlined"
+                    @click="login"
+                >
+                    <span class="material-symbols-outlined">login</span>
+                    Sign In
+                </Button>
+
+                <Button
+                    v-if="publishState === 'error'"
+                    type="button"
+                    @click="retryPublishFamily"
+                >
+                    <span class="material-symbols-outlined">refresh</span>
+                    Retry Publish
+                </Button>
+
+                <Button
+                    v-if="publishState === 'success'"
+                    type="button"
+                    @click="applyTexture"
+                    class="apply-texture-btn"
+                    severity="success"
+                >
+                    <span class="material-symbols-outlined">check</span>
+                    Apply Published
+                </Button>
+
+                <Button
+                    type="button"
+                    @click="openTextureBrowser"
+                    class="view-local-btn"
+                    severity="secondary"
+                    variant="outlined"
+                >
+                    <span class="material-symbols-outlined">folder</span>
+                    {{ app.publishedCloudRootId ? 'My Published' : 'Drafts' }}
+                </Button>
+            </div>
+        </section>
+
+        <p
+            v-if="app.publishNotice"
+            class="publish-note"
+        >
+            {{ app.publishNotice }}
+        </p>
     </div>
 </template>
 
 <script setup>
-    import { computed, onMounted } from 'vue';
+    import { computed, onMounted, watch } from 'vue';
     import Button from 'primevue/button';
+    import Select from 'primevue/select';
+    import MultiSelect from 'primevue/multiselect';
     import LocalSaveStatus from './LocalSaveStatus.vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -163,13 +243,16 @@
     import { useRivvonAPI } from '../../services/api.js';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { buildFileTextureSaveSource, saveProcessedTextureSetLocally } from '../../modules/slyce/localTexturePersistence.js';
-    import { normalizeTextureVariantTargetResolutions } from '../../modules/slyce/textureFamilyPlanning.js';
+    import {
+        assessTextureVariantDerivationWorkload,
+        normalizeTextureVariantTargetResolutions,
+    } from '../../modules/slyce/textureFamilyPlanning.js';
 
     const app = useSlyceStore();
     const viewerStore = useViewerStore();
     const router = useRouter();
     const route = useRoute();
-    const { isAuthenticated, login } = useGoogleAuth();
+    const { isAuthenticated, isAdmin, login } = useGoogleAuth();
     const { uploadTextureSet, uploadTextureSetToR2 } = useRivvonAPI();
     const {
         saveTextureSet,
@@ -179,7 +262,106 @@
 
     const emit = defineEmits(['apply-texture']);
 
-    const publishDestinationLabel = computed(() => app.publishDestination === 'r2' ? 'R2' : 'Google Drive');
+    const publishDestinationOptions = computed(() => {
+        if (!isAuthenticated.value) {
+            return [];
+        }
+
+        const options = [
+            {
+                label: 'Google Drive',
+                value: 'google-drive',
+            },
+        ];
+
+        if (isAdmin.value) {
+            options.push({
+                label: 'Cloudflare R2',
+                value: 'r2',
+            });
+        }
+
+        return options;
+    });
+    const publishDestinationLabel = computed(() => {
+        return publishDestinationOptions.value.find((option) => option.value === app.publishDestination)?.label || 'Google Drive';
+    });
+    const autoDeriveResolutionOptions = computed(() => {
+        const maxResolution = Number(app.potResolution) || 0;
+        const options = [];
+
+        for (let resolution = Math.floor(maxResolution / 2); resolution >= 16; resolution = Math.floor(resolution / 2)) {
+            if ((resolution & (resolution - 1)) !== 0) {
+                continue;
+            }
+
+            options.push({
+                label: `${resolution}px`,
+                value: resolution,
+            });
+        }
+
+        return options;
+    });
+    const autoDeriveAssessment = computed(() => {
+        const selectedResolutions = normalizeTextureVariantTargetResolutions(app.potResolution, app.autoDeriveResolutions);
+        const tileCount = app.tilePlan?.tiles?.length ?? Object.keys(app.ktx2BlobURLs || {}).length;
+        const layerCount = Number(app.crossSectionCount) || 0;
+
+        if (!selectedResolutions.length || !app.potResolution || !layerCount) {
+            return {
+                severity: 'ok',
+                message: '',
+                selectedResolutions,
+                effectiveResolutions: selectedResolutions,
+            };
+        }
+
+        const assessment = assessTextureVariantDerivationWorkload({
+            tileCount,
+            tileResolution: app.potResolution,
+            layerCount,
+            targetResolutions: selectedResolutions,
+        });
+
+        return {
+            severity: assessment.severity,
+            message: assessment.message,
+            selectedResolutions,
+            effectiveResolutions: assessment.severity === 'danger' ? [] : selectedResolutions,
+        };
+    });
+    const autoDeriveSummary = computed(() => {
+        if (!autoDeriveAssessment.value.selectedResolutions.length) {
+            return 'If you publish now, only the root draft will be uploaded.';
+        }
+
+        if (autoDeriveAssessment.value.severity === 'danger') {
+            return 'The root texture will be published first. The selected derived variants will be skipped for this run.';
+        }
+
+        return `The root texture will be published first, then ${autoDeriveAssessment.value.selectedResolutions.map((value) => `${value}px`).join(', ')} variants will be derived and uploaded to the same cloud family.`;
+    });
+    const localSaveSuccessTitle = computed(() => {
+        return app.publishedCloudRootId ? 'Local cache ready.' : 'Saved draft locally.';
+    });
+    const localSaveSuccessDetail = computed(() => {
+        return app.publishedCloudRootId
+            ? 'The published root is cached locally for immediate use.'
+            : 'Apply the draft now or open the browser to manage it later.';
+    });
+    const browserButtonLabel = computed(() => app.publishedCloudRootId ? 'My Published' : 'Drafts');
+    const showDraftApplyAction = computed(() => !app.publishedCloudRootId);
+    const canShowPublishPanel = computed(() => {
+        return Boolean(app.savedLocalTextureId)
+            && !app.isSavingLocally
+            && !app.isPublishingToCloud
+            && !app.publishedCloudRootId;
+    });
+    const canStartPublish = computed(() => Boolean(isAuthenticated.value && app.savedLocalTextureId && !app.isPublishingToCloud));
+    const publishButtonLabel = computed(() => {
+        return autoDeriveAssessment.value.selectedResolutions.length > 0 ? 'Publish Root + Variants' : 'Publish Draft';
+    });
     const publishedFamilyCount = computed(() => {
         if (Array.isArray(app.publishedCloudTextureFamilyIds) && app.publishedCloudTextureFamilyIds.length > 0) {
             return app.publishedCloudTextureFamilyIds.length;
@@ -194,6 +376,7 @@
 
         return app.publishPendingResolutions.map((resolution) => `${resolution}px`).join(', ');
     });
+    const showPublishStatus = computed(() => Boolean(app.isPublishingToCloud || app.publishError || app.publishedCloudRootId));
     const publishState = computed(() => {
         if (app.isPublishingToCloud) {
             return 'publishing';
@@ -203,11 +386,7 @@
             return 'error';
         }
 
-        if (app.publishedCloudRootId) {
-            return 'success';
-        }
-
-        return 'pending';
+        return 'success';
     });
     const publishTitle = computed(() => {
         switch (publishState.value) {
@@ -215,10 +394,8 @@
                 return app.publishProgress || `Publishing to ${publishDestinationLabel.value}...`;
             case 'error':
                 return `Cloud publish failed: ${app.publishError}`;
-            case 'success':
-                return `Published to ${publishDestinationLabel.value}.`;
             default:
-                return `Preparing cloud publish for ${publishDestinationLabel.value}...`;
+                return `Published to ${publishDestinationLabel.value}.`;
         }
     });
     const publishDetail = computed(() => {
@@ -233,18 +410,31 @@
                 }
 
                 return 'The root draft was retained locally so you can retry publishing or manage it from Drafts.';
-            case 'success': {
+            default: {
                 const memberCount = publishedFamilyCount.value;
                 return memberCount > 1
                     ? `Published ${memberCount} family members and cached the published root locally for immediate use.`
                     : 'Published the root texture and cached it locally for immediate use.';
             }
-            default:
-                return 'The encoded root texture is ready for upload.';
         }
     });
     const showPublishActions = computed(() => publishState.value === 'error' || publishState.value === 'success');
-    const publishBrowserLabel = computed(() => app.publishedCloudRootId ? 'My Published' : 'Drafts');
+
+    watch(() => app.potResolution, (newResolution) => {
+        app.autoDeriveResolutions = normalizeTextureVariantTargetResolutions(newResolution, app.autoDeriveResolutions);
+    }, { immediate: true });
+
+    watch(publishDestinationOptions, (options) => {
+        if (!options.length) {
+            app.publishDestination = 'google-drive';
+            return;
+        }
+
+        const isCurrentDestinationAvailable = options.some((option) => option.value === app.publishDestination);
+        if (!isCurrentDestinationAvailable) {
+            app.publishDestination = options[0].value;
+        }
+    }, { immediate: true });
 
     function getDefaultTextureName(fileInfo) {
         return fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture';
@@ -355,6 +545,10 @@
         return 'Preparing cloud variants...';
     }
 
+    function getEffectivePublishResolutions() {
+        return [...autoDeriveAssessment.value.effectiveResolutions];
+    }
+
     async function buildSourceBundle() {
         const source = buildFileTextureSaveSource(app);
         const effectiveFrameCount = getEffectiveFrameCount(source);
@@ -383,11 +577,6 @@
     function setPublishRunningState(destination) {
         const controller = app.getPublishController();
 
-        if (!app.publishError && !app.publishLocalDraftId && !app.publishedCloudRootId) {
-            controller.beginPublish(destination);
-            return controller;
-        }
-
         controller.set('isPublishingToCloud', true);
         controller.set('publishProgress', '');
         controller.set('publishError', null);
@@ -397,8 +586,10 @@
     }
 
     async function ensureLocalRootDraft(sourceBundle) {
-        if (app.publishLocalDraftId) {
-            return app.publishLocalDraftId;
+        const existingDraftId = app.publishLocalDraftId || app.savedLocalTextureId;
+        if (existingDraftId) {
+            app.getPublishController().set('publishLocalDraftId', existingDraftId);
+            return existingDraftId;
         }
 
         const draftTextureId = await saveTextureSet({
@@ -461,7 +652,7 @@
         const controller = app.getPublishController();
         const targetResolutions = app.publishPendingResolutions.length > 0
             ? [...app.publishPendingResolutions]
-            : normalizeTextureVariantTargetResolutions(sourceBundle.tileResolution, app.autoDeriveResolutions);
+            : getEffectivePublishResolutions();
 
         if (targetResolutions.length === 0) {
             controller.set('publishPendingResolutions', []);
@@ -545,7 +736,7 @@
     }
 
     async function startPublishFamily() {
-        if (app.isPublishingToCloud) {
+        if (app.isPublishingToCloud || !app.savedLocalTextureId) {
             return;
         }
 
@@ -561,6 +752,12 @@
         try {
             const sourceBundle = await buildSourceBundle();
             const uploader = getPublishUploader(destination);
+            const selectedResolutions = getEffectivePublishResolutions();
+
+            if (autoDeriveAssessment.value.severity === 'danger' && autoDeriveAssessment.value.selectedResolutions.length > 0) {
+                controller.set('publishNotice', `${autoDeriveAssessment.value.message} Publishing the root only for this run.`);
+            }
+
             const rootTextureSetId = await publishRootTexture(sourceBundle, uploader, destination);
             const uploadedVariantSummaries = await publishDerivedVariants(sourceBundle, uploader, rootTextureSetId);
             const allVariantSummaries = [
@@ -579,7 +776,7 @@
                     variantSummaries: allVariantSummaries,
                     availableResolutions: [
                         sourceBundle.tileResolution,
-                        ...normalizeTextureVariantTargetResolutions(sourceBundle.tileResolution, app.autoDeriveResolutions),
+                        ...selectedResolutions,
                     ].sort((left, right) => right - left),
                 });
             }
@@ -587,20 +784,20 @@
             controller.set('publishPendingResolutions', []);
             controller.set('publishError', null);
             const publishedMemberCount = publishedFamilyCount.value || 1;
-            controller.set(
-                'publishNotice',
-                publishedMemberCount > 1
-                    ? `Published ${publishedMemberCount} family members to ${publishDestinationLabel.value}.`
-                    : `Published the root texture to ${publishDestinationLabel.value}.`
-            );
+
+            if (autoDeriveAssessment.value.severity !== 'danger' || autoDeriveAssessment.value.selectedResolutions.length === 0) {
+                controller.set(
+                    'publishNotice',
+                    publishedMemberCount > 1
+                        ? `Published ${publishedMemberCount} family members to ${publishDestinationLabel.value}.`
+                        : `Published the root texture to ${publishDestinationLabel.value}.`
+                );
+            }
         } catch (error) {
             console.error('[OutputActions] Cloud publish failed:', error);
 
             if (!app.publishedCloudRootId) {
-                controller.set(
-                    'publishPendingResolutions',
-                    normalizeTextureVariantTargetResolutions(app.potResolution, app.autoDeriveResolutions)
-                );
+                controller.set('publishPendingResolutions', getEffectivePublishResolutions());
                 controller.set('publishNotice', 'The root draft was saved locally so you can retry publishing or manage it from Drafts.');
             } else if (!app.publishNotice) {
                 controller.set(
@@ -619,11 +816,7 @@
     }
 
     function applyTexture() {
-        if (app.uploadToCloud) {
-            if (!app.publishedCloudRootId) {
-                return;
-            }
-
+        if (app.publishedCloudRootId) {
             emit('apply-texture', {
                 id: app.publishedCloudRootId,
                 name: getDefaultTextureName(app.fileInfo),
@@ -655,22 +848,11 @@
 
     function openTextureBrowser() {
         viewerStore.hideSlyce();
-
-        const targetTab = app.uploadToCloud
-            ? (app.publishedCloudRootId ? 'my-cloud' : 'local')
-            : 'local';
-
+        const targetTab = app.publishedCloudRootId ? 'my-cloud' : 'local';
         router.push({ path: route.path, query: { ...route.query, textures: targetTab } });
     }
 
     onMounted(() => {
-        if (app.uploadToCloud) {
-            if (!app.isPublishingToCloud && !app.publishedCloudRootId && !app.publishError) {
-                void startPublishFamily();
-            }
-            return;
-        }
-
         if (!app.isSavingLocally && !app.savedLocalTextureId && !app.saveLocalError) {
             void retrySaveLocally();
         }
@@ -697,15 +879,95 @@
     .local-save-note,
     .publish-note,
     .publish-title,
-    .publish-detail {
+    .publish-detail,
+    .publish-panel-header p,
+    .publish-panel-login p {
         margin: 0;
         line-height: 1.45;
     }
 
     .local-save-note,
-    .publish-note {
+    .publish-note,
+    .publish-panel-header p,
+    .publish-panel-login p {
         font-size: 0.95rem;
+    }
+
+    .local-save-note,
+    .publish-note {
         color: #8a5a00;
+    }
+
+    .publish-config-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        padding: 1rem;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        border-radius: 0.9rem;
+        background: rgba(248, 250, 252, 0.85);
+        color: #0f172a;
+    }
+
+    .publish-panel-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .publish-panel-header h4 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .publish-panel-login,
+    .publish-panel-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .publish-config-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0;
+        color: #334155;
+    }
+
+    .publish-config-row.subordinate {
+        margin-top: -0.15rem;
+        padding-left: 1rem;
+        border-left: 2px solid rgba(15, 23, 42, 0.12);
+        color: #475569;
+    }
+
+    .publish-inline-select {
+        display: inline-flex;
+    }
+
+    .publish-inline-multiselect {
+        min-width: 11rem;
+    }
+
+    .publish-panel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .derive-notice {
+        margin-top: -0.25rem;
+    }
+
+    .derive-warning {
+        color: #b76e00;
+    }
+
+    .derive-danger {
+        color: #c62828;
     }
 
     .publish-status {
