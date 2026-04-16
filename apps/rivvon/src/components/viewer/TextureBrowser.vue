@@ -1684,6 +1684,7 @@
             label: viewerCompatible ? 'Viewer-compatible' : 'Validation failed'
         };
     });
+    const hasDeriveCompleted = computed(() => Boolean(deriveResult.value));
     const deriveTargetOptions = computed(() => {
         if (!textureToDerive.value) {
             return [];
@@ -1694,9 +1695,17 @@
             value: resolution,
         }));
     });
-    const deriveModalTitle = computed(() => deriveTargetResolutions.value.length > 1
-        ? 'Publish Lower-Resolution Variants'
-        : 'Publish Lower-Resolution Variant');
+    const deriveModalTitle = computed(() => {
+        if (hasDeriveCompleted.value) {
+            return deriveResult.value?.publishedVariants?.length > 1
+                ? 'Variants Published'
+                : 'Variant Published';
+        }
+
+        return deriveTargetResolutions.value.length > 1
+            ? 'Publish Lower-Resolution Variants'
+            : 'Publish Lower-Resolution Variant';
+    });
     const deriveSelectionSummary = computed(() => {
         if (deriveTargetResolutions.value.length === 0) {
             return 'Choose one or more lower power-of-two resolutions to publish into the existing cloud family.';
@@ -1706,11 +1715,7 @@
     });
     const derivePrimaryActionLabel = computed(() => {
         if (isDeriving.value) {
-            return 'Running...';
-        }
-
-        if (deriveResult.value) {
-            return deriveTargetResolutions.value.length > 1 ? 'Recreate & Publish Variants' : 'Recreate & Publish Variant';
+            return 'Publishing...';
         }
 
         return deriveTargetResolutions.value.length > 1 ? 'Publish Variants' : 'Publish Variant';
@@ -2342,7 +2347,7 @@
                             (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
-                    }}%
+                        }}%
                         scale)</span>
                 </div>
                 <Button
@@ -2478,16 +2483,35 @@
                 <div class="delete-modal derive-modal">
                     <h3>{{ deriveModalTitle }}</h3>
                     <p>
-                        Generate and publish one or more lower-resolution variants of
+                        <template v-if="hasDeriveCompleted">
+                            Published lower-resolution variant{{ deriveResult?.publishedVariants?.length > 1 ? 's' : ''
+                            }} of
+                        </template>
+                        <template v-else>
+                            Generate and publish one or more lower-resolution variants of
+                        </template>
                         <strong>{{ textureToDerive.name }}</strong>.
                     </p>
-                    <p class="derive-helper">
+                    <p
+                        v-if="!hasDeriveCompleted"
+                        class="derive-helper"
+                    >
                         This runs the full browser roundtrip across every tile, reuses one shared encoder pool, and
                         uploads the derived textures into the existing cloud family instead of creating separate local
                         drafts.
                     </p>
+                    <p
+                        v-else
+                        class="derive-helper"
+                    >
+                        The selected variants have already been uploaded into the existing cloud family and are now
+                        available as published textures.
+                    </p>
 
-                    <div class="derive-field">
+                    <div
+                        v-if="!hasDeriveCompleted"
+                        class="derive-field"
+                    >
                         <label
                             for="derive-target-resolutions"
                             class="derive-label"
@@ -2508,12 +2532,15 @@
                         />
                     </div>
 
-                    <p class="derive-note">
+                    <p
+                        v-if="!hasDeriveCompleted"
+                        class="derive-note"
+                    >
                         {{ deriveSelectionSummary }}
                     </p>
 
                     <p
-                        v-if="deriveTargetOptions.length === 0"
+                        v-if="!hasDeriveCompleted && deriveTargetOptions.length === 0"
                         class="derive-note"
                     >
                         No lower power-of-two target resolutions are available for this texture.
@@ -2595,7 +2622,7 @@
                         <div class="derive-result-row">
                             <span>Validation</span>
                             <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                }}</strong>
+                            }}</strong>
                         </div>
                     </div>
 
@@ -2605,9 +2632,10 @@
                             @click="cancelDeriveVariant"
                             :disabled="isDeriving"
                         >
-                            {{ deriveResult ? 'Close' : 'Cancel' }}
+                            {{ hasDeriveCompleted ? 'Done' : 'Cancel' }}
                         </button>
                         <button
+                            v-if="!hasDeriveCompleted"
                             class="confirm-copy-button derive-run-button"
                             @click="performDeriveVariant"
                             :disabled="isDeriving || deriveTargetResolutions.length === 0 || deriveTargetOptions.length === 0"
