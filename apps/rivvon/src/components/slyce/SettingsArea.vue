@@ -1,6 +1,6 @@
 <script setup>
 
-    import { watch, watchEffect, ref, computed } from 'vue';
+    import { watch, watchEffect, ref, computed, onMounted, onUnmounted } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     const app = useSlyceStore()  // Pinia store
 
@@ -114,6 +114,120 @@
     });
 
     const fileInfoRef = ref(null);
+    const activeTrimHandle = ref(null);
+
+    function unwrapMaybeRef(value) {
+        return value && typeof value === 'object' && 'value' in value ? value.value : value;
+    }
+
+    function getVideoPlayerInstance() {
+        return unwrapMaybeRef(fileInfoRef.value?.videoPlayerRef) || null;
+    }
+
+    function getPreviewFrameRate() {
+        const frameRate = app.fileInfo?.r_frame_rate;
+
+        if (typeof frameRate === 'string' && frameRate.includes('/')) {
+            const [num, den] = frameRate.split('/').map(Number);
+            if (Number.isFinite(num) && Number.isFinite(den) && den > 0) {
+                return num / den;
+            }
+        }
+
+        const numericFrameRate = Number(frameRate);
+        if (Number.isFinite(numericFrameRate) && numericFrameRate > 0) {
+            return numericFrameRate;
+        }
+
+        const duration = Number(app.fileInfo?.duration);
+        const totalFrames = Number(app.frameCount || app.fileInfo?.nb_frames);
+        if (Number.isFinite(duration) && duration > 0 && Number.isFinite(totalFrames) && totalFrames > 0) {
+            return totalFrames / duration;
+        }
+
+        return 30;
+    }
+
+    function frameToPreviewTime(frameNumber) {
+        const fps = getPreviewFrameRate();
+        const totalFrames = app.frameCount || app.fileInfo?.nb_frames || frameNumber;
+        const resolvedFrame = Math.max(1, Math.min(Math.round(frameNumber), totalFrames));
+        const previewTime = Math.max(0, (resolvedFrame - 1) / fps);
+        const maxDuration = getVideoPlayerInstance()?.getDuration?.() || Number(app.fileInfo?.duration) || 0;
+
+        if (maxDuration <= 0) {
+            return previewTime;
+        }
+
+        return Math.min(previewTime, Math.max(0, maxDuration - (1 / fps)));
+    }
+
+    function seekPreviewToFrame(frameNumber) {
+        const videoPlayer = getVideoPlayerInstance();
+        if (!videoPlayer) return;
+
+        videoPlayer.pause?.();
+        videoPlayer.seek?.(frameToPreviewTime(frameNumber));
+    }
+
+    function resolvePreviewFrame(newRange, previousRange) {
+        const [newStart, newEnd] = newRange;
+        const [previousStart, previousEnd] = previousRange;
+        const changedStart = newStart !== previousStart;
+        const changedEnd = newEnd !== previousEnd;
+
+        if (!changedStart && !changedEnd) {
+            return null;
+        }
+
+        if (changedStart && !changedEnd) {
+            return newStart;
+        }
+
+        if (changedEnd && !changedStart) {
+            return newEnd;
+        }
+
+        if (activeTrimHandle.value === 'min') {
+            return newStart;
+        }
+
+        if (activeTrimHandle.value === 'max') {
+            return newEnd;
+        }
+
+        return Math.abs(newStart - previousStart) >= Math.abs(newEnd - previousEnd)
+            ? newStart
+            : newEnd;
+    }
+
+    function updateActiveTrimHandle(event) {
+        const sliderRoot = event.currentTarget;
+        const handle = event.target?.closest?.('.p-slider-handle');
+
+        if (!sliderRoot || !handle || typeof sliderRoot.querySelectorAll !== 'function') {
+            activeTrimHandle.value = null;
+            return;
+        }
+
+        const handles = Array.from(sliderRoot.querySelectorAll('.p-slider-handle'));
+        const handleIndex = handles.indexOf(handle);
+        activeTrimHandle.value = handleIndex === 0 ? 'min' : handleIndex === 1 ? 'max' : null;
+    }
+
+    function clearActiveTrimHandle() {
+        activeTrimHandle.value = null;
+    }
+
+    onMounted(() => {
+        window.addEventListener('pointerup', clearActiveTrimHandle);
+        window.addEventListener('pointercancel', clearActiveTrimHandle);
+    });
+
+    onUnmounted(() => {
+        window.removeEventListener('pointerup', clearActiveTrimHandle);
+        window.removeEventListener('pointercancel', clearActiveTrimHandle);
+    });
 
     // Trimmed vs full length — explicit flag so the dropdown stays on "trimmed"
     // even before the user changes the frame range
@@ -132,8 +246,14 @@
     const frameRange = computed({
         get: () => [app.frameStart || 1, app.frameEnd || app.frameCount || 1],
         set: (val) => {
+            const previousRange = [app.frameStart || 1, app.frameEnd || app.frameCount || 1];
             app.frameStart = val[0];
             app.frameEnd = val[1];
+
+            const previewFrame = resolvePreviewFrame(val, previousRange);
+            if (previewFrame !== null) {
+                seekPreviewToFrame(previewFrame);
+            }
         }
     });
 
@@ -218,6 +338,8 @@
                 :max="app.frameCount || 1"
                 :step="1"
                 class="trim-slider"
+                @pointerdown.capture="updateActiveTrimHandle"
+                @focusin.capture="updateActiveTrimHandle"
             />
 
             <p class="settings-paragraph">

@@ -1,5 +1,5 @@
 import { MathUtils } from 'three';
-import { onUnmounted, shallowRef, watch } from 'vue';
+import { onUnmounted, ref, shallowRef, watch } from 'vue';
 import { HeadTrackingStreamManager } from '../../modules/viewer/headTracking/headTrackingStreamManager';
 import {
     FaceLandmarkerDetector,
@@ -92,6 +92,7 @@ export function useHeadTracking(ctx) {
     const detector = shallowRef(null);
     const poseEstimator = shallowRef(new HeadPoseEstimator());
     const cameraController = shallowRef(new HeadTrackingCameraController());
+    const cameraActive = ref(false);
 
     let neutralPose = null;
     let neutralScale = null;
@@ -261,6 +262,7 @@ export function useHeadTracking(ctx) {
 
     function stopTracking({ restoreBaseline = true, preserveFeedback = false, releaseDetector = false } = {}) {
         activationToken += 1;
+        cameraActive.value = false;
         streamManager.value?.stop();
         resetCalibrationState();
 
@@ -323,8 +325,10 @@ export function useHeadTracking(ctx) {
                 }
 
                 await ensureStreamManager().start();
+                cameraActive.value = true;
                 if (token !== activationToken || !isSelected()) {
                     streamManager.value?.stop();
+                    cameraActive.value = false;
                     return false;
                 }
 
@@ -475,6 +479,7 @@ export function useHeadTracking(ctx) {
     function getDebugSnapshot() {
         return {
             selected: isSelected(),
+            cameraActive: cameraActive.value,
             supported: ctx.app.headTrackingSupported,
             active: ctx.app.headTrackingActive,
             calibrating: ctx.app.headTrackingCalibrating,
@@ -503,6 +508,7 @@ export function useHeadTracking(ctx) {
         }
 
         activationToken += 1;
+        cameraActive.value = false;
         streamManager.value?.stop();
         pausedForVisibility = true;
         setRuntimeState({
@@ -527,6 +533,7 @@ export function useHeadTracking(ctx) {
 
     function detach({ releaseDetector = false } = {}) {
         activationToken += 1;
+        cameraActive.value = false;
         streamManager.value?.stop();
         resetCalibrationState();
 
@@ -583,12 +590,17 @@ export function useHeadTracking(ctx) {
     }, { immediate: true });
 
     onUnmounted(() => {
+        cameraActive.value = false;
         streamManager.value?.dispose?.();
         detector.value?.dispose?.();
         detector.value = null;
         streamManager.value = null;
         cameraController.value.detach();
     });
+
+    function hasActiveCamera() {
+        return cameraActive.value;
+    }
 
     return {
         attach,
@@ -600,6 +612,7 @@ export function useHeadTracking(ctx) {
         resumeFromVisibility,
         exitToOrbit,
         getDebugSnapshot,
+        hasActiveCamera,
         cameraController,
     };
 }

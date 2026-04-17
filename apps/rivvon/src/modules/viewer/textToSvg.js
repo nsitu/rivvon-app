@@ -51,32 +51,42 @@ export function parseFont(element, size = 24) {
     return result;
 }
 
+function normalizeInputText(inputText, multiline = false) {
+    const normalizedText = String(inputText ?? '').replace(/\r\n?/g, '\n');
+    return multiline ? normalizedText : normalizedText.replace(/\n+/g, ' ');
+}
+
+function getFontLineSize(fontData) {
+    const glyph = Object.values(fontData).find(item => item && Number.isFinite(item.height));
+    return glyph?.height || 24;
+}
+
 /**
  * Measure line widths for text
  * @param {string} inputText - Text to measure
  * @param {Object} fontData - Parsed font data
  * @param {number} charSpacing - Character spacing
- * @returns {{lineWidths: number[], maxLineWidth: number}}
+ * @param {Object} opts - Layout options
+ * @returns {{lines: string[], lineWidths: number[], maxLineWidth: number}}
  */
-export function measureLineWidths(inputText, fontData, charSpacing = 0) {
-    const lineWidths = [];
-    let width = 0;
-    const chars = Array.from(inputText || '');
-    chars.forEach((ch, idx) => {
-        if (ch === '\n') {
-            lineWidths.push(width);
-            width = 0;
-            return;
-        }
-        const g = fontData[ch];
-        if (!g) return;
-        width += g.width + charSpacing;
-        if (idx + 1 === chars.length) {
-            lineWidths.push(width);
-        }
+export function measureLineWidths(inputText, fontData, charSpacing = 0, opts = {}) {
+    const layoutText = normalizeInputText(inputText, opts.multiline);
+    const lines = opts.multiline ? layoutText.split('\n') : [layoutText];
+
+    const lineWidths = lines.map((line) => {
+        let width = 0;
+
+        Array.from(line).forEach((character) => {
+            const glyph = fontData[character];
+            if (!glyph) return;
+            width += glyph.width + charSpacing;
+        });
+
+        return width;
     });
+
     const maxLineWidth = lineWidths.length ? Math.max(...lineWidths) : 0;
-    return { lineWidths, maxLineWidth };
+    return { lines, lineWidths, maxLineWidth };
 }
 
 /**
@@ -87,16 +97,16 @@ export function measureLineWidths(inputText, fontData, charSpacing = 0) {
  * @returns {Array<{d: string}>} Array of path data objects
  */
 export function createTextPaths(inputText, fontData, opts) {
-    const { alignment = 'left', charSpacing = 0, lineHeight = 1 } = opts || {};
+    const {
+        alignment = 'left',
+        charSpacing = 0,
+        lineHeight = 1,
+        multiline = false
+    } = opts || {};
     const paths = [];
 
-    const { lineWidths, maxLineWidth } = measureLineWidths(inputText, fontData, charSpacing);
-
-    let originX = 0;
-    let originY = 0;
-    let lineIndex = 0;
-
-    const characters = Array.from(inputText || '');
+    const { lines, lineWidths } = measureLineWidths(inputText, fontData, charSpacing, { multiline });
+    const lineSize = getFontLineSize(fontData);
 
     const alignOffsetForLine = (i) => {
         if (alignment === 'center') return -(lineWidths[i] || 0) / 2;
@@ -104,27 +114,24 @@ export function createTextPaths(inputText, fontData, opts) {
         return 0;
     };
 
-    characters.forEach((character) => {
-        if (character === '\n') {
-            lineIndex += 1;
-            originX = 0;
-            // assume consistent size across glyphs
-            const anyKey = Object.keys(fontData).find(k => fontData[k] && fontData[k].height);
-            const lineSize = anyKey ? fontData[anyKey].height : 24;
-            originY += lineSize * lineHeight;
-            return;
-        }
-        const glyph = fontData[character];
-        if (!glyph) return;
-        if (glyph.d) {
-            const characterX = originX + alignOffsetForLine(lineIndex);
-            const d = new SvgPath(glyph.d)
-                .translate(characterX, originY)
-                .rel()
-                .toString();
-            paths.push({ d });
-        }
-        originX += glyph.width + charSpacing;
+    lines.forEach((line, lineIndex) => {
+        let originX = alignOffsetForLine(lineIndex);
+        const originY = lineIndex * lineSize * lineHeight;
+
+        Array.from(line).forEach((character) => {
+            const glyph = fontData[character];
+            if (!glyph) return;
+
+            if (glyph.d) {
+                const d = new SvgPath(glyph.d)
+                    .translate(originX, originY)
+                    .rel()
+                    .toString();
+                paths.push({ d });
+            }
+
+            originX += glyph.width + charSpacing;
+        });
     });
 
     return paths;
@@ -211,10 +218,13 @@ export class TextToSvg {
             return [];
         }
 
+        const multiline = options.multiline || false;
+
         return createTextPaths(text, fontData, {
             alignment: options.alignment || 'left',
             charSpacing: options.charSpacing || 0,
-            lineHeight: options.lineHeight || 1.2
+            lineHeight: options.lineHeight || (multiline ? 1.1 : 1.2),
+            multiline
         });
     }
 

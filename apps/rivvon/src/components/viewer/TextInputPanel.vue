@@ -1,6 +1,9 @@
 <script setup>
-    import { ref, watch, onMounted } from 'vue';
+    import { computed, onMounted, ref, watch } from 'vue';
     import Button from 'primevue/button';
+    import Slider from 'primevue/slider';
+    import Textarea from 'primevue/textarea';
+    import ToggleSwitch from 'primevue/toggleswitch';
     import { useTextToSvg } from '../../composables/viewer/useTextToSvg';
 
     const props = defineProps({
@@ -13,6 +16,8 @@
     const emit = defineEmits(['update:visible', 'generate']);
 
     const textInput = ref('');
+    const isMultiline = ref(false);
+    const lineHeightPercent = ref(110);
     const {
         fonts,
         selectedFont,
@@ -23,6 +28,20 @@
         setFont
     } = useTextToSvg();
 
+    const canGenerate = computed(() => textInput.value.trim().length > 0);
+
+    function collapseLineBreaks(value) {
+        return String(value ?? '')
+            .replace(/\r\n?/g, '\n')
+            .replace(/\n+/g, ' ');
+    }
+
+    watch(isMultiline, (multiline, previousValue) => {
+        if (!multiline && previousValue) {
+            textInput.value = collapseLineBreaks(textInput.value);
+        }
+    });
+
     onMounted(async () => {
         await init();
     });
@@ -32,12 +51,15 @@
     }
 
     async function generate() {
-        if (!textInput.value.trim()) {
+        if (!canGenerate.value) {
             return;
         }
 
         try {
-            const points = await textToPoints(textInput.value);
+            const points = await textToPoints(textInput.value, {
+                multiline: isMultiline.value,
+                lineHeight: lineHeightPercent.value / 100
+            });
             emit('generate', points);
             close();
         } catch (e) {
@@ -47,6 +69,13 @@
 
     function handleFontChange(event) {
         setFont(event.target.value);
+    }
+
+    function handleTextareaKeydown(event) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            event.preventDefault();
+            generate();
+        }
     }
 </script>
 
@@ -60,8 +89,25 @@
 
                 <div class="text-form">
                     <div class="form-group">
-                        <label for="textInputField">Enter text:</label>
+                        <div class="toggle-row">
+                            <label for="multilineToggle">Multiline layout</label>
+                            <div class="toggle-control">
+                                <ToggleSwitch
+                                    inputId="multilineToggle"
+                                    v-model="isMultiline"
+                                />
+                                <span class="toggle-copy">{{ isMultiline ? 'On' : 'Off' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="field-label-row">
+                            <label for="textInputField">Enter text:</label>
+                            <span class="field-mode">{{ isMultiline ? 'Multiline' : 'Single line' }}</span>
+                        </div>
                         <input
+                            v-if="!isMultiline"
                             id="textInputField"
                             v-model="textInput"
                             type="text"
@@ -69,6 +115,42 @@
                             class="text-field"
                             @keyup.enter="generate"
                         />
+                        <Textarea
+                            v-else
+                            id="textInputField"
+                            v-model="textInput"
+                            rows="5"
+                            cols="30"
+                            autoResize
+                            placeholder="Type multiple lines here..."
+                            class="text-field text-area-field"
+                            @keydown="handleTextareaKeydown"
+                        />
+                        <p class="input-hint">
+                            {{ isMultiline ?
+                                'Line breaks are preserved. Use Ctrl+Enter or Cmd+Enter to generate.' :
+                                'Press Enter to generate.'
+                            }}
+                        </p>
+                    </div>
+
+                    <div
+                        v-if="isMultiline"
+                        class="form-group"
+                    >
+                        <div class="field-label-row">
+                            <label for="lineHeightSlider">Line height</label>
+                            <span class="field-mode">{{ lineHeightPercent }}%</span>
+                        </div>
+                        <Slider
+                            id="lineHeightSlider"
+                            v-model="lineHeightPercent"
+                            :min="30"
+                            :max="160"
+                            :step="5"
+                            class="line-height-slider"
+                        />
+                        <p class="input-hint">100% uses the font's base line height.</p>
                     </div>
 
                     <div class="form-group">
@@ -98,7 +180,7 @@
                         type="button"
                         class="text-submit-btn"
                         size="large"
-                        :disabled="!textInput.trim() || isLoading"
+                        :disabled="!canGenerate || isLoading"
                         @click="generate"
                     >
                         <span class="material-symbols-outlined">check</span>
@@ -173,6 +255,31 @@
         font-size: 0.875rem;
     }
 
+    .field-label-row,
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .field-mode,
+    .toggle-copy,
+    .input-hint {
+        color: #9ca3af;
+        font-size: 0.8125rem;
+    }
+
+    .toggle-control {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .line-height-slider {
+        margin: 0.5rem 0 0.25rem;
+    }
+
     .text-field,
     .font-select {
         width: 100%;
@@ -182,6 +289,11 @@
         color: white;
         border: 1px solid #374151;
         font-size: 1rem;
+    }
+
+    .text-area-field {
+        min-height: 7.5rem;
+        resize: vertical;
     }
 
     .text-field:focus,

@@ -66,6 +66,31 @@
         stopRealtime: (...args) => realtimeInstance.value?.stopRealtime?.(...args),
     };
 
+    const headTrackingCameraActive = computed(() => threeCanvasRef.value?.headTracking?.hasActiveCamera?.() ?? false);
+    const cameraIndicatorMode = computed(() => {
+        if (realtime.isCapturing.value || realtime.isCameraActive.value) {
+            return 'realtime';
+        }
+
+        if (headTrackingCameraActive.value) {
+            return 'headTracking';
+        }
+
+        return null;
+    });
+    const isCameraIndicatorVisible = computed(() => cameraIndicatorMode.value !== null);
+    const cameraDismissLabel = computed(() => {
+        if (cameraIndicatorMode.value === 'realtime') {
+            return 'Turn off the realtime camera';
+        }
+
+        if (cameraIndicatorMode.value === 'headTracking') {
+            return 'Turn off head tracking';
+        }
+
+        return 'Turn off camera';
+    });
+
     let textureServicePromise = null;
 
     async function fetchTextureSetById(textureId) {
@@ -216,6 +241,21 @@
 
         if (shouldReturnToCreateTexture) {
             app.showSlyce();
+        }
+    }
+
+    function handleTurnOffCamera() {
+        if (realtime.isCapturing.value) {
+            realtime.stopRealtime();
+        }
+
+        if (realtime.isCameraActive.value) {
+            realtime.stopCamera();
+            return;
+        }
+
+        if (headTrackingCameraActive.value || app.viewerControlMode === 'headTracking') {
+            forceOrbitControls({ clearFeedback: true });
         }
     }
 
@@ -992,7 +1032,12 @@
         <RendererIndicator />
 
         <!-- Header with logo and auth -->
-        <AppHeader @close-realtime-mode="handleRealtimeClose" />
+        <AppHeader
+            :camera-active="isCameraIndicatorVisible"
+            :camera-dismiss-label="cameraDismissLabel"
+            @close-realtime-mode="handleRealtimeClose"
+            @turn-off-camera="handleTurnOffCamera"
+        />
 
         <!-- Three.js canvas -->
         <ThreeCanvas
