@@ -666,6 +666,7 @@
                 duration: settings.duration,
                 cameraMovement: settings.cameraMovement,
                 quality: settings.quality,
+                logoOverlayEnabled: settings.logoOverlayEnabled,
                 filename,
                 signal: exportAbortController.value.signal,
                 onProgress: (progress) => {

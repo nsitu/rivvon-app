@@ -6,33 +6,14 @@
 // (the same controller used by the head-tracking modality).
 
 import { watch } from 'vue';
-import { HeadTrackingCameraController } from '../../modules/viewer/headTracking/headTrackingCameraController';
-
-// Maximum tilt angles (radians) at the screen edges
-const MAX_YAW   = Math.PI / 6;   // ±30°
-const MAX_PITCH = Math.PI / 8;   // ±22.5°
-
-// Smoothing: lerp factor per frame at 60 fps (0 = no smoothing, 1 = frozen)
-const LERP      = 0.1;
+import {
+    createMouseTiltController,
+    getMouseTiltAnglesFromNormalizedPosition,
+    MOUSE_TILT_LERP,
+} from '../../modules/viewer/mouseTiltMotion';
 
 export function useMouseTilt(ctx) {
-    const cameraController = new HeadTrackingCameraController({
-        // Disable dead zones — mouse is precise
-        yawDeadZone:        0,
-        pitchDeadZone:      0,
-        rollDeadZone:       0,
-        positionDeadZoneX:  0,
-        positionDeadZoneY:  0,
-        // Only use yaw/pitch; disable roll and dolly for mouse mode
-        ribbonYawGain:      1,
-        ribbonPitchGain:    1,
-        ribbonRollGain:     0,
-        ribbonTranslateXGain: 0,
-        ribbonTranslateYGain: 0,
-        dollyGain:          0,
-        minDollyFactor:     1,
-        maxDollyFactor:     1,
-    });
+    const cameraController = createMouseTiltController();
 
     // Normalised mouse coordinates in [-1, 1], updated on every mousemove
     let rawX = 0;
@@ -97,11 +78,10 @@ export function useMouseTilt(ctx) {
     function tick() {
         if (!isActive || !cameraController.isActive) return;
 
-        smoothX += (rawX - smoothX) * LERP;
-        smoothY += (rawY - smoothY) * LERP;
+        smoothX += (rawX - smoothX) * MOUSE_TILT_LERP;
+        smoothY += (rawY - smoothY) * MOUSE_TILT_LERP;
 
-        const yaw   = -smoothX * MAX_YAW;
-        const pitch =  smoothY * MAX_PITCH;
+        const { yaw, pitch } = getMouseTiltAnglesFromNormalizedPosition(smoothX, smoothY);
 
         cameraController.apply({ yaw, pitch });
     }

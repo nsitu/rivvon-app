@@ -1,6 +1,9 @@
 // src/composables/viewer/useSceneExport.js
 // Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
 
+import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
+import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
+
 /**
  * Align cinematic camera duration with texture loop duration.
  * Returns a duration >= cinematicDuration that is a near-integer multiple
@@ -226,7 +229,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
-     * @param {string} options.cameraMovement - 'none' | 'cinematic'
+    * @param {string} options.cameraMovement - 'none' | 'cinematic' | 'circularTilt'
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
@@ -242,7 +245,8 @@ export function useSceneExport(ctx, deps = {}) {
             onStatus = null,
             signal = null,
             cameraMovement = 'none',
-            quality = 'high'
+            quality = 'high',
+            logoOverlayEnabled = true,
         } = options;
 
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value || !ctx.tileManager.value) {
@@ -293,6 +297,7 @@ export function useSceneExport(ctx, deps = {}) {
         const savedPixelRatio = ctx.renderer.value.getPixelRatio();
         const savedCameraPos = ctx.camera.value.position.clone();
         const savedCameraQuat = ctx.camera.value.quaternion.clone();
+        const savedControlsTarget = ctx.controls.value?.target?.clone() ?? null;
 
         // --- Cinematic camera setup for export ---
         let cinematicReady = false;
@@ -314,6 +319,9 @@ export function useSceneExport(ctx, deps = {}) {
             }
         }
 
+        let circularTiltController = null;
+        let circularTiltReady = false;
+
         // Compute total frames (after cinematic setup which may have updated exportDuration)
         const totalFrames = Math.ceil(exportDuration * fps);
 
@@ -332,6 +340,17 @@ export function useSceneExport(ctx, deps = {}) {
 
             // Disable orbit control damping during export
             if (ctx.controls.value) ctx.controls.value.enabled = false;
+
+            if (cameraMovement === 'circularTilt') {
+                circularTiltController = createMouseTiltController();
+                circularTiltController.attach(ctx.camera.value, ctx.controls.value);
+                circularTiltController.setRibbonSeries(ctx.ribbonSeries.value);
+                circularTiltReady = circularTiltController.activate(savedControlsTarget);
+
+                if (!circularTiltReady) {
+                    console.warn('[ThreeSetup] Circular tilt export requested but no camera baseline could be captured — camera will stay fixed');
+                }
+            }
 
             // --- Reset animation to t=0 (all TileManagers) ---
             if (ctx.tileManagers.value && ctx.tileManagers.value.length > 1) {
@@ -358,9 +377,24 @@ export function useSceneExport(ctx, deps = {}) {
             };
             const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
 
-            const canvas = ctx.renderer.value.domElement;
+            const renderCanvas = ctx.renderer.value.domElement;
+            let exportCanvas = renderCanvas;
+            let exportCanvasContext = null;
+            let exportLogoAsset = null;
 
-            const videoSource = new MB.CanvasSource(canvas, {
+            if (logoOverlayEnabled) {
+                exportLogoAsset = await loadExportLogoAsset();
+                exportCanvas = document.createElement('canvas');
+                exportCanvas.width = width;
+                exportCanvas.height = height;
+                exportCanvasContext = exportCanvas.getContext('2d', { alpha: true });
+
+                if (!exportCanvasContext) {
+                    throw new Error('Failed to create export overlay compositor.');
+                }
+            }
+
+            const videoSource = new MB.CanvasSource(exportCanvas, {
                 codec,
                 bitrate
             });
@@ -386,8 +420,25 @@ export function useSceneExport(ctx, deps = {}) {
                     ctx.cinematicCamera.getInstance().updateAtTime(t);
                 }
 
+                if (circularTiltReady) {
+                    const motionProgress = totalFrames <= 1 ? 0 : frame / (totalFrames - 1);
+                    circularTiltController.apply(getCircularTiltAnglesAtProgress(motionProgress));
+                }
+
                 // Render this frame at the exact synthetic time
                 renderFrameAtTime(t, deltaSec);
+
+                if (exportCanvasContext && exportLogoAsset) {
+                    exportCanvasContext.clearRect(0, 0, width, height);
+                    exportCanvasContext.drawImage(renderCanvas, 0, 0, width, height);
+                    drawExportLogoOverlay(
+                        exportCanvasContext,
+                        exportLogoAsset.image,
+                        width,
+                        height,
+                        exportLogoAsset.aspectRatio
+                    );
+                }
 
                 // Feed the rendered frame to mediabunny
                 await videoSource.add(t, deltaSec);
@@ -418,6 +469,8 @@ export function useSceneExport(ctx, deps = {}) {
 
             return blob;
         } finally {
+            circularTiltController?.deactivate({ restoreBaseline: true });
+
             // --- Restore renderer state ---
             ctx.renderer.value.setPixelRatio(savedPixelRatio);
             ctx.renderer.value.setSize(
@@ -432,6 +485,10 @@ export function useSceneExport(ctx, deps = {}) {
             // Restore camera position and orientation
             ctx.camera.value.position.copy(savedCameraPos);
             ctx.camera.value.quaternion.copy(savedCameraQuat);
+            if (ctx.controls.value && savedControlsTarget) {
+                ctx.controls.value.target.copy(savedControlsTarget);
+                ctx.controls.value.update();
+            }
 
             // Reset animation state back so live view starts clean (all TileManagers)
             if (ctx.tileManagers.value && ctx.tileManagers.value.length > 1) {

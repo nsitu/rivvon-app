@@ -1,8 +1,10 @@
 <script setup>
-    import { ref, computed, watch, onMounted } from 'vue';
+    import { ref, computed } from 'vue';
     import Dialog from 'primevue/dialog';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import ToggleSwitch from 'primevue/toggleswitch';
+    import { EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
@@ -21,12 +23,14 @@
     const fps = ref(30);
     const cameraMovement = ref('none');
     const quality = ref('high');
+    const logoOverlayEnabled = ref(true);
 
     const cameraMovementOptions = computed(() => {
         const hasROIs = props.exportInfo?.hasROIs ?? false;
         return [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
             { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
+            { label: 'Circular Tilt', value: 'circularTilt', description: 'Mouse Tilt-style artwork motion that completes one full 360° cycle over the export' },
         ];
     });
 
@@ -103,6 +107,15 @@
         return props.exportInfo?.seamlessLoopDuration ?? 3.0;
     });
 
+    const logoOverlayLayout = computed(() => {
+        return getExportLogoOverlayLayout(resolvedWidth.value, resolvedHeight.value);
+    });
+
+    const logoOverlaySummary = computed(() => {
+        const { width, height } = logoOverlayLayout.value;
+        return `${Math.round(width)}×${Math.round(height)} px · ${Math.round(EXPORT_LOGO_AREA_RATIO * 100)}% frame area`;
+    });
+
     const resolvedDuration = computed(() => {
         if (durationMode.value === 'auto') {
             if (cameraMovement.value === 'cinematic') {
@@ -112,6 +125,16 @@
             return seamlessLoopDuration.value;
         }
         return customDuration.value;
+    });
+
+    const durationSummaryLabel = computed(() => {
+        if (cameraMovement.value === 'cinematic') {
+            return 'Cinematic camera loop — smooth slow-crawl through ROIs';
+        }
+        if (cameraMovement.value === 'circularTilt') {
+            return 'One full 360° Mouse Tilt-style artwork rotation';
+        }
+        return 'Seamless loop — all animations return to start';
     });
 
     const totalFrames = computed(() => {
@@ -150,6 +173,7 @@
             duration: resolvedDuration.value,
             cameraMovement: cameraMovement.value,
             quality: quality.value,
+            logoOverlayEnabled: logoOverlayEnabled.value,
         });
     }
 
@@ -251,9 +275,7 @@
                 <div>
                     <div class="info-value">{{ resolvedDuration.toFixed(2) }}s</div>
                     <div class="info-label">
-                        {{ cameraMovement === 'cinematic'
-                            ? 'Cinematic camera loop — smooth slow-crawl through ROIs'
-                            : 'Seamless loop — all animations return to start' }}
+                        {{ durationSummaryLabel }}
                     </div>
                 </div>
             </div>
@@ -309,6 +331,24 @@
                     v-if="cameraMovementDescription"
                 >
                     {{ cameraMovementDescription }}
+                </div>
+            </div>
+
+            <div class="form-field">
+                <div class="toggle-row">
+                    <div class="toggle-text">
+                        <label for="logoOverlayToggle">Logo Overlay</label>
+                        <div class="field-description">
+                            Bottom-right Rivvon logo baked into each frame. {{ logoOverlaySummary }}.
+                        </div>
+                    </div>
+                    <div class="toggle-control">
+                        <ToggleSwitch
+                            inputId="logoOverlayToggle"
+                            v-model="logoOverlayEnabled"
+                        />
+                        <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
+                    </div>
                 </div>
             </div>
 
@@ -422,6 +462,33 @@
         font-size: 0.78rem;
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.5));
         margin-top: 0.375rem;
+    }
+
+    .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .toggle-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .toggle-control {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        padding-top: 0.1rem;
+    }
+
+    .toggle-copy {
+        min-width: 1.8rem;
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.6));
+        text-align: right;
     }
 
     .summary-row {
