@@ -17,6 +17,10 @@
 
     const fileInput = ref(null);
 
+    function getDefaultTextureName(file) {
+        return file?.name?.replace(/\.[^.]+$/, '') || 'texture';
+    }
+
     function handleFileCardAction() {
         if (props.canResumeFileFlow) {
             emit('resume-file-flow');
@@ -32,6 +36,8 @@
         if (files && files.length > 0) {
             app.set('file', files[0])
             app.set('fileURL', URL.createObjectURL(files[0]))
+            app.set('textureName', getDefaultTextureName(files[0]))
+            app.set('textureDescription', '')
             emit('next');
         }
     };

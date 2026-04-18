@@ -308,6 +308,7 @@ async function calculateTextureSetSize(textureSetId) {
  * 
  * @param {Object} params
  * @param {string} params.name - Texture name
+ * @param {string} params.description - Optional texture description / caption
  * @param {number} params.tileCount - Number of tiles
  * @param {number} params.tileResolution - Resolution of each tile (e.g., 512, 1024)
  * @param {number} params.layerCount - Layers per tile
@@ -322,6 +323,7 @@ async function calculateTextureSetSize(textureSetId) {
  */
 async function saveTextureSet({
     name,
+    description = '',
     tileCount,
     tileResolution,
     layerCount,
@@ -359,6 +361,7 @@ async function saveTextureSet({
     const textureSet = normalizeTextureSetRecord({
         id,
         name,
+        description: typeof description === 'string' ? description : '',
         created_at: createdAt,
         updated_at: createdAt,
         tile_count: tileCount,
@@ -725,6 +728,7 @@ async function downloadTextureSetAsZip(textureSetId) {
 async function cacheCloudTexture({
     cloudTextureId,
     name,
+    description = '',
     tileCount,
     tileResolution,
     layerCount,
@@ -764,6 +768,7 @@ async function cacheCloudTexture({
     const textureSet = normalizeTextureSetRecord({
         id,
         name,
+        description: typeof description === 'string' ? description : '',
         created_at: createdAt,
         updated_at: createdAt,
         tile_count: tileCount,
@@ -809,6 +814,7 @@ async function cacheCloudTexture({
 async function promoteTextureSetToCachedCloudTexture(localTextureSetId, {
     cloudTextureId,
     name = null,
+    description = undefined,
     rootTextureSetId = null,
     parentTextureSetId = null,
     variantInfo = null,
@@ -838,6 +844,7 @@ async function promoteTextureSetToCachedCloudTexture(localTextureSetId, {
     const promotedTextureSet = normalizeTextureSetRecord({
         ...existingTextureSet,
         name: name || existingTextureSet.name,
+        description: description !== undefined ? description : existingTextureSet.description,
         updated_at: Date.now(),
         cached_from: cloudTextureId,
         root_texture_id: rootTextureSetId || cloudTextureId,

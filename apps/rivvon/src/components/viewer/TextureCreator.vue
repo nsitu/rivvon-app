@@ -260,6 +260,8 @@
             cameraStep.value = '1';
             slyce.set('file', file);
             slyce.set('fileURL', URL.createObjectURL(file));
+            slyce.set('textureName', file.name.replace(/\.[^.]+$/, '') || 'texture');
+            slyce.set('textureDescription', '');
             slyce.set('currentStep', '2');
         }
     }

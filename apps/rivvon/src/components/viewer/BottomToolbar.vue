@@ -189,7 +189,8 @@
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
-        technicalOverlay: { type: Boolean, default: false }
+        technicalOverlay: { type: Boolean, default: false },
+        textureMetadataOverlay: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -211,7 +212,8 @@
         'cinematic-capture',
         'cinematic-toggle',
         'cinematic-clear',
-        'technical-overlay-toggle'
+        'technical-overlay-toggle',
+        'texture-metadata-overlay-toggle'
     ]);
 
     function handleCinematicCapture() {
@@ -659,7 +661,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -671,7 +673,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -683,7 +685,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -783,7 +785,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -804,8 +806,17 @@
                 </div>
 
                 <div class="tools-section">
-                    <div class="tools-section-label">Diagnostics</div>
+                    <div class="tools-section-label">Overlays</div>
                     <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            :class="{ selected: props.textureMetadataOverlay }"
+                            @click="emit('texture-metadata-overlay-toggle')"
+                        >
+                            <span class="material-symbols-outlined">subtitles</span>
+                            <span>Texture Metadata</span>
+                            <span class="tools-hint">M</span>
+                        </button>
                         <button
                             class="tools-option"
                             :class="{ selected: props.technicalOverlay }"

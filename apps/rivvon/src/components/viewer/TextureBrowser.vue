@@ -76,6 +76,7 @@
     // Edit state
     const textureToEdit = ref(null);
     const editName = ref('');
+    const editDescription = ref('');
     const isEditing = ref(false);
     const editError = ref(null);
     const editTextureIds = ref([]);
@@ -1327,6 +1328,7 @@
                     await promoteTextureSetToCachedCloudTexture(sourceRootTexture.id, {
                         cloudTextureId: destinationRootId,
                         name: copiedTextureName,
+                        description: copiedDescription,
                         rootTextureSetId: destinationRootId,
                         parentTextureSetId: null,
                         sourceMetadata: sourceRootTexture.source_metadata,
@@ -1341,6 +1343,7 @@
                     await cacheCloudTexture({
                         cloudTextureId: entry.destinationTextureSetId,
                         name: copiedTextureName,
+                        description: copiedDescription,
                         tileCount: Object.keys(entry.sourceBlobs || {}).length,
                         tileResolution: resolution,
                         layerCount: Number(
@@ -1493,7 +1496,7 @@
                     tileCount: variant.result.output.tileCount,
                     tileResolution: variant.result.output.pixelWidth,
                     layerCount: variant.result.output.layerCount,
-                    description: '',
+                    description: sourceTexture.description || null,
                     parentTextureSetId: sourceTexture.id,
                     progressLabelPrefix: `${targetResolution}px variant`,
                     crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
@@ -1515,6 +1518,7 @@
                 await cacheCloudTexture({
                     cloudTextureId: publishedVariant.textureSetId,
                     name: variantName,
+                    description: sourceTexture.description || '',
                     tileCount: variant.result.output.tileCount,
                     tileResolution: variant.result.output.pixelWidth,
                     layerCount: variant.result.output.layerCount,
@@ -1590,6 +1594,7 @@
         const actionTexture = getFamilyActionTexture(texture);
         textureToEdit.value = actionTexture;
         editName.value = getTextureFamilyDisplayName(texture);
+        editDescription.value = actionTexture?.description || '';
         editError.value = null;
         editTextureIds.value = getFamilyMemberIds(texture);
         editVariantCount.value = getFamilyVariantCount(texture);
@@ -1607,6 +1612,7 @@
         try {
             const texture = textureToEdit.value;
             const newName = editName.value.trim();
+            const newDescription = editDescription.value.trim();
             const isLocal = isLocalTexture(texture);
 
             if (isLocal) {
@@ -1614,9 +1620,42 @@
                     ? [...new Set(editTextureIds.value)]
                     : [texture.id];
 
-                await Promise.all(targetIds.map((textureId) => updateLocalTextureSet(textureId, { name: newName })));
+                await Promise.all(targetIds.map((textureId) => updateLocalTextureSet(textureId, {
+                    name: newName,
+                    description: newDescription,
+                })));
             } else {
-                await updateTextureSet(texture.id, { name: newName });
+                await updateTextureSet(texture.id, {
+                    name: newName,
+                    description: newDescription || null,
+                });
+
+                const targetIds = editTextureIds.value.length > 0
+                    ? [...new Set(editTextureIds.value)]
+                    : [texture.id];
+                await Promise.all(targetIds.map(async (cloudTextureId) => {
+                    const cachedLocalId = await getCachedLocalId(cloudTextureId);
+                    if (!cachedLocalId) {
+                        return;
+                    }
+
+                    await updateLocalTextureSet(cachedLocalId, {
+                        name: newName,
+                        description: newDescription,
+                    });
+                }));
+            }
+
+            const activeTextureId = app.currentTextureId;
+            const editedFamilyIds = editTextureIds.value.length > 0
+                ? editTextureIds.value
+                : [texture.id];
+            if (activeTextureId && editedFamilyIds.includes(activeTextureId)) {
+                app.setCurrentTextureMetadata({
+                    id: activeTextureId,
+                    name: newName,
+                    description: newDescription,
+                });
             }
 
             await loadTextures();
@@ -1632,6 +1671,7 @@
     function cancelEdit() {
         textureToEdit.value = null;
         editName.value = '';
+        editDescription.value = '';
         editError.value = null;
         editTextureIds.value = [];
         editVariantCount.value = 1;
@@ -1780,7 +1820,7 @@
         return isCopyingFamily.value ? 'Copy Family' : 'Copy';
     });
     const editModalTitle = computed(() => {
-        return isEditingFamilyName.value ? 'Edit Family Name' : 'Edit Texture Name';
+        return isEditingFamilyName.value ? 'Edit Family Metadata' : 'Edit Texture Metadata';
     });
 
     /**
@@ -1905,6 +1945,7 @@
             await cacheCloudTexture({
                 cloudTextureId: texture.id,
                 name: texture.name,
+                description: textureSet.description ?? texture.description ?? '',
                 tileCount: textureSet.tile_count ?? Object.keys(blobs).length,
                 tileResolution: textureSet.tile_resolution ?? texture.tile_resolution,
                 layerCount: textureSet.layer_count ?? texture.layer_count,
@@ -2241,9 +2282,9 @@
                                 Sampled from {{ texture.source_frame_count }} source frames
                             </p>
 
-                            <!-- Description (cloud textures only) -->
+                            <!-- Description / caption -->
                             <p
-                                v-if="!isLocalTexture(texture) && texture.description"
+                                v-if="texture.description"
                                 class="texture-card-desc"
                             >
                                 {{ texture.description }}
@@ -2263,7 +2304,7 @@
                                 <button
                                     v-if="isLocalTexture(texture) || isOwner(getFamilyActionTexture(texture)) || isAdmin"
                                     class="action-button edit-button"
-                                    title="Edit name"
+                                    title="Edit metadata"
                                     @click="startEdit(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">edit</span>
@@ -2348,7 +2389,7 @@
                             (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
-                        }}%
+                    }}%
                         scale)</span>
                 </div>
                 <Button
@@ -2576,7 +2617,7 @@
                             <div class="derive-result-row">
                                 <span>Source tiles</span>
                                 <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
-                                }})</strong>
+                                    }})</strong>
                             </div>
                             <div class="derive-result-row">
                                 <span>Layer count</span>
@@ -2619,7 +2660,7 @@
                             <div class="derive-result-row">
                                 <span>Validation</span>
                                 <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                }}</strong>
+                                    }}</strong>
                             </div>
                         </div>
                     </details>
@@ -2670,7 +2711,7 @@
             </div>
         </Teleport>
 
-        <!-- Edit name modal -->
+        <!-- Edit metadata modal -->
         <Teleport to="body">
             <div
                 v-if="textureToEdit"
@@ -2680,18 +2721,38 @@
                 <div class="delete-modal edit-modal">
                     <h3>{{ editModalTitle }}</h3>
                     <p v-if="isEditingFamilyName">
-                        This renames the root and every linked variant in the family.
+                        This updates the title and caption for the root and every linked variant in the family.
                     </p>
                     <div class="edit-input-container">
+                        <label
+                            class="edit-field-label"
+                            for="editTextureName"
+                        >Title</label>
                         <input
                             v-model="editName"
+                            id="editTextureName"
                             type="text"
                             class="edit-name-input"
-                            placeholder="Texture name"
+                            placeholder="Texture title"
                             @keydown.enter="performEdit"
                             @keydown.escape="cancelEdit"
                             autofocus
                         />
+                    </div>
+                    <div class="edit-input-container">
+                        <label
+                            class="edit-field-label"
+                            for="editTextureDescription"
+                        >Description / caption</label>
+                        <textarea
+                            v-model="editDescription"
+                            id="editTextureDescription"
+                            rows="4"
+                            class="edit-description-input"
+                            placeholder="Optional caption shown when the viewer overlay is enabled"
+                            @keydown.escape="cancelEdit"
+                        ></textarea>
+                        <p class="edit-field-hint">Optional. This text can be surfaced as a viewer overlay.</p>
                     </div>
                     <p
                         v-if="editError"
@@ -3573,14 +3634,26 @@
     }
 
     .edit-modal {
-        max-width: 400px;
+        max-width: 480px;
     }
 
     .edit-input-container {
-        margin: 16px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 16px 0 0;
     }
 
-    .edit-name-input {
+    .edit-field-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #cbd5e1;
+    }
+
+    .edit-name-input,
+    .edit-description-input {
         width: 100%;
         padding: 10px 12px;
         background: #333;
@@ -3592,12 +3665,27 @@
         transition: border-color 0.2s ease;
     }
 
-    .edit-name-input:focus {
+    .edit-description-input {
+        min-height: 96px;
+        resize: vertical;
+        line-height: 1.5;
+    }
+
+    .edit-name-input:focus,
+    .edit-description-input:focus {
         border-color: #22c55e;
     }
 
-    .edit-name-input::placeholder {
+    .edit-name-input::placeholder,
+    .edit-description-input::placeholder {
         color: #888;
+    }
+
+    .edit-field-hint {
+        margin: 0;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.45;
     }
 
     .edit-error {

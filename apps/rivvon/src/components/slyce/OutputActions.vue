@@ -1,5 +1,42 @@
 <template>
     <div class="output-actions-stack">
+        <section class="texture-metadata-panel">
+            <div class="texture-metadata-header">
+                <h4>Texture Metadata</h4>
+                <p>Set the title and optional caption for this texture. The caption can be surfaced later as a viewer
+                    overlay.</p>
+            </div>
+
+            <label class="metadata-field">
+                <span class="metadata-label">Title</span>
+                <input
+                    v-model="textureNameInput"
+                    type="text"
+                    class="metadata-text-input"
+                    placeholder="Texture title"
+                    :disabled="metadataInputsDisabled"
+                    maxlength="120"
+                />
+            </label>
+
+            <label class="metadata-field">
+                <span class="metadata-label">Description / caption</span>
+                <textarea
+                    v-model="textureDescriptionInput"
+                    rows="4"
+                    class="metadata-textarea"
+                    placeholder="Optional context or caption for the viewer overlay"
+                    :disabled="metadataInputsDisabled"
+                    maxlength="500"
+                ></textarea>
+            </label>
+
+            <p
+                v-if="app.publishedCloudRootId"
+                class="metadata-hint"
+            >Published metadata can still be edited later from My Published.</p>
+        </section>
+
         <LocalSaveStatus
             :is-saving-locally="app.isSavingLocally"
             :save-local-progress="app.saveLocalProgress"
@@ -231,7 +268,7 @@
 </template>
 
 <script setup>
-    import { computed, onMounted, watch } from 'vue';
+    import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import MultiSelect from 'primevue/multiselect';
@@ -259,6 +296,7 @@
         saveTextureSet,
         cacheCloudTexture,
         promoteTextureSetToCachedCloudTexture,
+        updateTextureSet: updateLocalTextureSet,
     } = useLocalStorage();
 
     const emit = defineEmits(['apply-texture']);
@@ -366,6 +404,19 @@
 
         return app.publishPendingResolutions.map((resolution) => `${resolution}px`).join(', ');
     });
+    const textureNameInput = computed({
+        get: () => app.textureName || '',
+        set: (value) => {
+            app.set('textureName', value ?? '');
+        },
+    });
+    const textureDescriptionInput = computed({
+        get: () => app.textureDescription || '',
+        set: (value) => {
+            app.set('textureDescription', value ?? '');
+        },
+    });
+    const metadataInputsDisabled = computed(() => app.isPublishingToCloud || Boolean(app.publishedCloudRootId));
     const showPublishStatus = computed(() => Boolean(app.isPublishingToCloud || app.publishError || app.publishedCloudRootId));
     const publishState = computed(() => {
         if (app.isPublishingToCloud) {
@@ -457,6 +508,75 @@
 
     function getDefaultTextureName(fileInfo) {
         return fileInfo?.name?.replace(/\.[^.]+$/, '') || 'texture';
+    }
+
+    function normalizeTextureName(value) {
+        const trimmed = typeof value === 'string' ? value.trim() : '';
+        return trimmed || getDefaultTextureName(app.fileInfo);
+    }
+
+    function normalizeTextureDescription(value, { allowNull = false } = {}) {
+        const trimmed = typeof value === 'string' ? value.trim() : '';
+        return allowNull ? (trimmed || null) : trimmed;
+    }
+
+    function ensureMetadataDefaults() {
+        if (!app.textureName) {
+            app.set('textureName', getDefaultTextureName(app.fileInfo));
+        }
+
+        if (typeof app.textureDescription !== 'string') {
+            app.set('textureDescription', '');
+        }
+    }
+
+    function getCurrentTextureName() {
+        return normalizeTextureName(app.textureName);
+    }
+
+    function getCurrentTextureDescription(options = {}) {
+        return normalizeTextureDescription(app.textureDescription, options);
+    }
+
+    function buildMetadataOverrides() {
+        return {
+            textureName: getCurrentTextureName(),
+            description: getCurrentTextureDescription(),
+        };
+    }
+
+    let metadataSyncTimer = null;
+
+    async function syncLocalDraftMetadata() {
+        const targetIds = [...new Set([
+            app.savedLocalTextureId,
+            app.publishLocalDraftId,
+            ...(Array.isArray(app.savedLocalTextureFamilyIds) ? app.savedLocalTextureFamilyIds : []),
+        ].filter(Boolean))];
+
+        if (!targetIds.length || app.publishedCloudRootId) {
+            return;
+        }
+
+        const updates = {
+            name: getCurrentTextureName(),
+            description: getCurrentTextureDescription(),
+        };
+
+        await Promise.all(targetIds.map((textureId) => updateLocalTextureSet(textureId, updates)));
+    }
+
+    function scheduleLocalDraftMetadataSync() {
+        if (metadataSyncTimer) {
+            clearTimeout(metadataSyncTimer);
+        }
+
+        metadataSyncTimer = setTimeout(() => {
+            metadataSyncTimer = null;
+            void syncLocalDraftMetadata().catch((error) => {
+                console.warn('[OutputActions] Failed to sync local draft metadata:', error);
+            });
+        }, 250);
     }
 
     async function blobToDataUrl(blob) {
@@ -569,15 +689,17 @@
     }
 
     async function buildSourceBundle() {
-        const source = buildFileTextureSaveSource(app);
+        const source = buildFileTextureSaveSource(app, buildMetadataOverrides());
         const effectiveFrameCount = getEffectiveFrameCount(source);
         const ktx2Blobs = await collectKtx2BlobsFromUrls(source.ktx2BlobURLs);
         const thumbnailBlob = source.thumbnailBlob || null;
         const thumbnailDataUrl = await blobToDataUrl(thumbnailBlob);
-        const textureName = getDefaultTextureName(source.fileInfo);
+        const textureName = normalizeTextureName(source.textureName);
+        const description = normalizeTextureDescription(source.description);
 
         return {
             textureName,
+            description,
             tileCount: Object.keys(ktx2Blobs).length,
             tileResolution: Number(source.tileResolution ?? source.potResolution ?? 512) || 512,
             layerCount: Number(source.crossSectionCount ?? 60) || 60,
@@ -613,6 +735,7 @@
 
         const draftTextureId = await saveTextureSet({
             name: sourceBundle.textureName,
+            description: sourceBundle.description,
             tileCount: sourceBundle.tileCount,
             tileResolution: sourceBundle.tileResolution,
             layerCount: sourceBundle.layerCount,
@@ -637,7 +760,7 @@
 
         const rootResult = await uploader({
             name: sourceBundle.textureName,
-            description: '',
+            description: sourceBundle.description || null,
             tileResolution: sourceBundle.tileResolution,
             layerCount: sourceBundle.layerCount,
             crossSectionType: sourceBundle.crossSectionType,
@@ -655,6 +778,7 @@
         await promoteTextureSetToCachedCloudTexture(localDraftId, {
             cloudTextureId: rootResult.textureSetId,
             name: sourceBundle.textureName,
+            description: sourceBundle.description,
             rootTextureSetId: rootResult.textureSetId,
             parentTextureSetId: null,
             sourceMetadata: sourceBundle.sourceMetadata,
@@ -703,7 +827,7 @@
 
             const uploadedVariant = await uploader({
                 name: sourceBundle.textureName,
-                description: '',
+                description: sourceBundle.description || null,
                 parentTextureSetId: rootTextureSetId,
                 tileResolution: variant.result.output.pixelWidth,
                 layerCount: variant.result.output.layerCount,
@@ -725,6 +849,7 @@
             await cacheCloudTexture({
                 cloudTextureId: uploadedVariant.textureSetId,
                 name: sourceBundle.textureName,
+                description: sourceBundle.description,
                 tileCount: variant.result.output.tileCount,
                 tileResolution: variant.result.output.pixelWidth,
                 layerCount: variant.result.output.layerCount,
@@ -770,6 +895,7 @@
         const controller = setPublishRunningState(destination);
 
         try {
+            await syncLocalDraftMetadata();
             const sourceBundle = await buildSourceBundle();
             const uploader = getPublishUploader(destination);
             const selectedResolutions = getEffectivePublishResolutions();
@@ -789,6 +915,7 @@
                 await promoteTextureSetToCachedCloudTexture(app.publishLocalDraftId, {
                     cloudTextureId: rootTextureSetId,
                     name: sourceBundle.textureName,
+                    description: sourceBundle.description,
                     rootTextureSetId,
                     parentTextureSetId: null,
                     sourceMetadata: sourceBundle.sourceMetadata,
@@ -835,11 +962,11 @@
         }
     }
 
-    function applyTexture() {
+    async function applyTexture() {
         if (app.publishedCloudRootId) {
             emit('apply-texture', {
                 id: app.publishedCloudRootId,
-                name: getDefaultTextureName(app.fileInfo),
+                name: getCurrentTextureName(),
                 source: 'cloud',
                 isLocal: false,
             });
@@ -850,31 +977,79 @@
             return;
         }
 
+        await syncLocalDraftMetadata();
+
         emit('apply-texture', {
             id: app.savedLocalTextureId,
-            name: getDefaultTextureName(app.fileInfo),
+            name: getCurrentTextureName(),
             source: 'local',
             isLocal: true,
         });
     }
 
     async function retrySaveLocally() {
-        await saveProcessedTextureSetLocally(app.getLocalSaveController(), buildFileTextureSaveSource(app));
+        await saveProcessedTextureSetLocally(app.getLocalSaveController(), buildFileTextureSaveSource(app, buildMetadataOverrides()));
     }
 
     async function retryPublishFamily() {
         await startPublishFamily();
     }
 
-    function openTextureBrowser() {
+    async function openTextureBrowser() {
+        await syncLocalDraftMetadata();
         viewerStore.hideSlyce();
         const targetTab = app.publishedCloudRootId ? 'my-cloud' : 'local';
         router.push({ path: route.path, query: { ...route.query, textures: targetTab } });
     }
 
+    watch(() => app.fileInfo?.name, (nextName, previousName) => {
+        if (!nextName) {
+            return;
+        }
+
+        const previousDefault = previousName ? previousName.replace(/\.[^.]+$/, '') : 'texture';
+        if (!app.textureName || app.textureName === previousDefault) {
+            app.set('textureName', getDefaultTextureName({ name: nextName }));
+        }
+
+        if (typeof app.textureDescription !== 'string') {
+            app.set('textureDescription', '');
+        }
+    }, { immediate: true });
+
+    watch(() => [
+        app.textureName,
+        app.textureDescription,
+        app.savedLocalTextureId,
+        app.publishLocalDraftId,
+        Array.isArray(app.savedLocalTextureFamilyIds) ? app.savedLocalTextureFamilyIds.join(',') : '',
+        app.isSavingLocally,
+        app.publishedCloudRootId,
+    ], () => {
+        ensureMetadataDefaults();
+
+        if (app.isSavingLocally || app.publishedCloudRootId) {
+            return;
+        }
+
+        if (!app.savedLocalTextureId && !app.publishLocalDraftId) {
+            return;
+        }
+
+        scheduleLocalDraftMetadataSync();
+    });
+
     onMounted(() => {
+        ensureMetadataDefaults();
+
         if (!app.isSavingLocally && !app.savedLocalTextureId && !app.saveLocalError) {
             void retrySaveLocally();
+        }
+    });
+
+    onBeforeUnmount(() => {
+        if (metadataSyncTimer) {
+            clearTimeout(metadataSyncTimer);
         }
     });
 </script>
@@ -884,6 +1059,92 @@
         display: flex;
         flex-direction: column;
         gap: 0.9rem;
+    }
+
+    .texture-metadata-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 0.9rem;
+        background: rgba(15, 23, 42, 0.32);
+        color: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(12px);
+    }
+
+    .texture-metadata-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .texture-metadata-header h4,
+    .texture-metadata-header p,
+    .metadata-hint {
+        margin: 0;
+    }
+
+    .texture-metadata-header h4 {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .texture-metadata-header p,
+    .metadata-hint {
+        color: rgba(226, 232, 240, 0.82);
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .metadata-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .metadata-label {
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.74);
+    }
+
+    .metadata-text-input,
+    .metadata-textarea {
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 0.75rem;
+        background: rgba(15, 23, 42, 0.55);
+        color: rgba(255, 255, 255, 0.96);
+        font: inherit;
+        padding: 0.8rem 0.9rem;
+        transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .metadata-text-input:focus,
+    .metadata-textarea:focus {
+        outline: none;
+        border-color: rgba(96, 165, 250, 0.75);
+        background: rgba(15, 23, 42, 0.72);
+    }
+
+    .metadata-text-input:disabled,
+    .metadata-textarea:disabled {
+        opacity: 0.68;
+        cursor: not-allowed;
+    }
+
+    .metadata-text-input::placeholder,
+    .metadata-textarea::placeholder {
+        color: rgba(148, 163, 184, 0.74);
+    }
+
+    .metadata-textarea {
+        min-height: 6.5rem;
+        resize: vertical;
+        line-height: 1.5;
     }
 
     .apply-texture-btn,

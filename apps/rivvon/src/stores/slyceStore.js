@@ -24,6 +24,8 @@ export const useSlyceStore = defineStore('slyce', {
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
         fileInfo: null,
+        textureName: '',
+        textureDescription: '',
         samplePixelCount: 0, /** equals width or height depending on samplingSide */
         messages: [],
         status: {},
@@ -178,6 +180,8 @@ export const useSlyceStore = defineStore('slyce', {
             this.autoDeriveResolutions = [];
             this.publishDestination = 'google-drive';
             this.fileInfo = null;
+            this.textureName = '';
+            this.textureDescription = '';
             this.file = null;
             this.fileURL = null;
             this.samplePixelCount = 0;

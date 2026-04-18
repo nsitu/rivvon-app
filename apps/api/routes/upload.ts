@@ -659,14 +659,29 @@ uploadRoutes.patch('/:id', async (c) => {
     UPDATE texture_sets SET ${updates.join(', ')} WHERE id = ?
   `).bind(...values).run();
 
-  if (name !== undefined) {
+  if (name !== undefined || description !== undefined) {
     const familyRootTextureSetId = textureSet.parent_texture_set_id || textureSetId;
+    const familyUpdates: string[] = [];
+    const familyValues: any[] = [];
+
+    if (name !== undefined) {
+      familyUpdates.push('name = ?');
+      familyValues.push(normalizedName);
+    }
+
+    if (description !== undefined) {
+      familyUpdates.push('description = ?');
+      familyValues.push(description);
+    }
+
+    familyUpdates.push('updated_at = ?');
+    familyValues.push(updatedAt);
 
     await c.env.DB.prepare(`
       UPDATE texture_sets
-      SET name = ?, updated_at = ?
+      SET ${familyUpdates.join(', ')}
       WHERE id = ? OR parent_texture_set_id = ?
-    `).bind(normalizedName, updatedAt, familyRootTextureSetId, familyRootTextureSetId).run();
+    `).bind(...familyValues, familyRootTextureSetId, familyRootTextureSetId).run();
   }
 
   return c.json({

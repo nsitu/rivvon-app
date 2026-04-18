@@ -29,6 +29,10 @@ function normalizeViewerFilterMode(value) {
         : 'none';
 }
 
+function normalizeViewerBooleanPreference(value, fallback = false) {
+    return typeof value === 'boolean' ? value : fallback;
+}
+
 function readViewerPreferences() {
     if (typeof window === 'undefined' || !window.localStorage) {
         return {};
@@ -106,9 +110,15 @@ export const useViewerStore = defineStore('viewer', {
         ),
         renderFilterMode: normalizeViewerFilterMode(readViewerPreferences().renderFilterMode),
         currentTextureId: null,
+        currentTextureName: '',
+        currentTextureDescription: '',
         thumbnailUrl: null,
         activeTextureIds: [],      // Array of texture IDs when multi-texture is active
         multiTextureActive: false, // True when multiple textures are loaded simultaneously
+        showTextureMetadataOverlay: normalizeViewerBooleanPreference(
+            readViewerPreferences().showTextureMetadataOverlay,
+            false
+        ),
 
         // Text to SVG
         textPanelVisible: false,
@@ -321,6 +331,18 @@ export const useViewerStore = defineStore('viewer', {
             this.thumbnailUrl = url;
         },
 
+        setCurrentTextureMetadata({ id = null, name = '', description = '' } = {}) {
+            this.currentTextureId = id;
+            this.currentTextureName = typeof name === 'string' ? name : '';
+            this.currentTextureDescription = typeof description === 'string' ? description : '';
+        },
+
+        clearCurrentTextureMetadata() {
+            this.currentTextureId = null;
+            this.currentTextureName = '';
+            this.currentTextureDescription = '';
+        },
+
         setTextureRepeatMode(mode) {
             this.textureRepeatMode = mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
         },
@@ -335,6 +357,12 @@ export const useViewerStore = defineStore('viewer', {
             const nextMode = normalizeViewerFilterMode(mode);
             this.renderFilterMode = nextMode;
             writeViewerPreferences({ renderFilterMode: nextMode });
+        },
+
+        setShowTextureMetadataOverlay(enabled) {
+            const nextValue = !!enabled;
+            this.showTextureMetadataOverlay = nextValue;
+            writeViewerPreferences({ showTextureMetadataOverlay: nextValue });
         },
 
         setActiveTextures(ids) {

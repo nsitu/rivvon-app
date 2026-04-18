@@ -26,6 +26,7 @@
     import RendererIndicator from '../components/viewer/RendererIndicator.vue';
     import ViewerTechnicalOverlay from '../components/viewer/ViewerTechnicalOverlay.vue';
     import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
+    import TextureMetadataOverlay from '../components/viewer/TextureMetadataOverlay.vue';
     const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
@@ -268,6 +269,32 @@
     // Local state
     const isReady = ref(false);
     const showTechnicalOverlay = ref(false);
+    const showTextureMetadataOverlay = computed(() => (
+        app.showTextureMetadataOverlay
+        && !app.multiTextureActive
+        && Boolean(app.currentTextureName || app.currentTextureDescription)
+    ));
+
+    function setCurrentTextureMetadata(metadata = null) {
+        if (!metadata) {
+            app.clearActiveTextures();
+            app.clearCurrentTextureMetadata();
+            return;
+        }
+
+        const textureId = metadata.id ?? null;
+        if (textureId) {
+            app.setActiveTextures([textureId]);
+        } else {
+            app.clearActiveTextures();
+        }
+
+        app.setCurrentTextureMetadata({
+            id: textureId,
+            name: metadata.name ?? '',
+            description: metadata.description ?? '',
+        });
+    }
 
     // ─── Cinematic camera keyboard bindings ────────────────────────
     function handleCinematicKeydown(e) {
@@ -297,6 +324,10 @@
             case 'd': {
                 // Toggle the active contextual debug overlay
                 showTechnicalOverlay.value = !showTechnicalOverlay.value;
+                break;
+            }
+            case 'm': {
+                app.setShowTextureMetadataOverlay(!app.showTextureMetadataOverlay);
                 break;
             }
         }
@@ -445,6 +476,8 @@
                 console.log('[RibbonView] First path sample:', normalizedPaths[0]?.slice(0, 3));
 
                 await threeCanvasRef.value.createRibbonSeries(normalizedPaths);
+                setCurrentTextureMetadata(null);
+                app.setThumbnailUrl(null);
                 console.log('[RibbonView] Default ribbon created with', paths.length, 'paths');
             } else {
                 console.warn('[RibbonView] No paths extracted from SVG');
@@ -462,6 +495,20 @@
             loadingProgress.value = 'Loading texture...';
             console.log('[RibbonView] Loading texture:', textureId);
             await threeCanvasRef.value.loadTextures(textureId);
+
+            try {
+                const textureSet = await fetchTextureSetById(textureId);
+                if (textureSet?.thumbnail_url) {
+                    app.setThumbnailUrl(textureSet.thumbnail_url);
+                }
+                setCurrentTextureMetadata({
+                    id: textureId,
+                    name: textureSet?.name || '',
+                    description: textureSet?.description || '',
+                });
+            } catch (metadataError) {
+                console.warn('[RibbonView] Loaded texture but failed to resolve metadata:', metadataError);
+            }
         } catch (error) {
             console.error('[RibbonView] Failed to load texture:', error);
         }
@@ -606,6 +653,7 @@
         } else if (fileName.endsWith('.zip')) {
             // Handle ZIP texture pack
             await threeCanvasRef.value?.loadTextures(file);
+            setCurrentTextureMetadata(null);
         }
 
         // Reset file input
@@ -770,6 +818,12 @@
                 app.setThumbnailUrl(textureSet.thumbnail_data_url);
             }
 
+            setCurrentTextureMetadata({
+                id: textureSet.id,
+                name: textureSet.name || '',
+                description: textureSet.description || '',
+            });
+
             console.log('[RibbonView] Local texture loaded successfully');
         } catch (error) {
             console.error('[RibbonView] Failed to load local texture:', error);
@@ -820,6 +874,7 @@
             if (success) {
                 // Update store with active texture IDs
                 app.setActiveTextures(selections.map(s => s.id));
+                app.clearCurrentTextureMetadata();
 
                 // Use first texture's thumbnail for background
                 const firstSel = selections[0];
@@ -871,6 +926,11 @@
                         if (texture.thumbnail_url) {
                             app.setThumbnailUrl(texture.thumbnail_url);
                         }
+                        setCurrentTextureMetadata({
+                            id: texture.id,
+                            name: cachedTextureSet.name || texture.name || '',
+                            description: cachedTextureSet.description || texture.description || '',
+                        });
                         console.log('[RibbonView] Loaded from cache successfully');
                         return;
                     }
@@ -915,6 +975,12 @@
             if (texture.thumbnail_url) {
                 app.setThumbnailUrl(texture.thumbnail_url);
             }
+
+            setCurrentTextureMetadata({
+                id: texture.id,
+                name: textureSet.name || texture.name || '',
+                description: textureSet.description || texture.description || '',
+            });
 
             // Cache the downloaded tiles in background
             cacheRemoteTextureInBackground(texture, textureSet);
@@ -973,6 +1039,7 @@
             await cacheCloudTexture({
                 cloudTextureId: texture.id,
                 name: texture.name,
+                description: textureSet.description ?? texture.description ?? '',
                 tileCount: textureSet.tile_count ?? Object.keys(ktx2Blobs).length,
                 tileResolution: textureSet.tile_resolution ?? texture.tile_resolution,
                 layerCount: textureSet.layer_count ?? texture.layer_count,
@@ -1070,6 +1137,7 @@
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :technical-overlay="showTechnicalOverlay"
+            :texture-metadata-overlay="app.showTextureMetadataOverlay"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
             @enter-slyce-mode="openCreateTextureMode"
@@ -1089,6 +1157,13 @@
             @cinematic-toggle="handleCinematicToggle"
             @cinematic-clear="handleCinematicClear"
             @technical-overlay-toggle="showTechnicalOverlay = !showTechnicalOverlay"
+            @texture-metadata-overlay-toggle="app.setShowTextureMetadataOverlay(!app.showTextureMetadataOverlay)"
+        />
+
+        <TextureMetadataOverlay
+            :visible="showTextureMetadataOverlay"
+            :title="app.currentTextureName"
+            :description="app.currentTextureDescription"
         />
 
         <!-- Hidden file input -->

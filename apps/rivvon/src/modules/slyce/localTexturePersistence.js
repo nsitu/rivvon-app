@@ -132,6 +132,8 @@ export function buildFileTextureSaveSource(app, overrides = {}) {
     return {
         ktx2BlobURLs: app.ktx2BlobURLs,
         fileInfo: app.fileInfo,
+        textureName: app.textureName,
+        description: app.textureDescription,
         framesToSample: app.framesToSample,
         frameCount: app.frameCount,
         tileResolution: app.potResolution,
@@ -178,6 +180,7 @@ export async function saveProcessedTextureFamilyLocally(controller, source = {})
 
         savedRootId = await saveTextureSet({
             name: plan.textureName,
+            description: typeof source.description === 'string' ? source.description : '',
             tileCount: plan.tileCount,
             tileResolution: plan.tileResolution,
             layerCount: plan.layerCount,
@@ -218,6 +221,7 @@ export async function saveProcessedTextureFamilyLocally(controller, source = {})
                 controller.set('saveLocalProgress', `Saving ${variantName} (${variantIndex + 1}/${familyResult.variants.length})...`);
                 const savedVariantId = await saveTextureSet({
                     name: variantName,
+                    description: typeof source.description === 'string' ? source.description : '',
                     tileCount: variant.result.output.tileCount,
                     tileResolution: variant.result.output.pixelWidth,
                     layerCount: variant.result.output.layerCount,
