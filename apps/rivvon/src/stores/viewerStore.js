@@ -102,6 +102,7 @@ export const useViewerStore = defineStore('viewer', {
         // Geometry options
         capStyle: CAP_STYLE_ROUNDED,
         roundedCaps: true, // Legacy alias for capStyle === 'rounded'
+        cornerNarrowingEnabled: false,
         
         // Texture state
         textureRepeatMode: 'mirrorBounce', // 'wrap' | 'mirrorBounce'
@@ -478,6 +479,10 @@ export const useViewerStore = defineStore('viewer', {
             this.setCapStyle(enabled ? CAP_STYLE_ROUNDED : 'square');
         },
 
+        setCornerNarrowingEnabled(enabled) {
+            this.cornerNarrowingEnabled = !!enabled;
+        },
+
     },
     
     getters: {
@@ -494,6 +499,7 @@ export const useViewerStore = defineStore('viewer', {
             helixStrandWidth: state.helixStrandWidth,
             capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,
+            cornerNarrowingEnabled: state.cornerNarrowingEnabled,
         }),
     }
 });

@@ -81,6 +81,14 @@ This 1:1 segment-to-tile mapping is the core constraint that ties geometry to te
 
 The first and last segments can use SVG-driven cap profiles instead of the standard strip geometry. Current cap styles are square, rounded, pointed, and swallowtail. Profile caps still preserve the same per-segment U mapping.
 
+### Adaptive Corner Narrowing
+
+Flat ribbons can now optionally narrow their body width around higher-curvature regions without changing cusp splitting. This is an experimental geometry feature intended to reduce the crunchy, self-intersecting look that can still happen at corners which fall just below the cusp threshold.
+
+The important implementation detail is that the body is narrowed by retaining a smaller centered `V` interval from the tile, not by squeezing the full tile width into a thinner strip. That keeps the effect subtractive and mask-like, which matches the cap-profile approach more closely than a simple width scale would.
+
+See `adaptive-corner-narrowing.md` for the full implementation note, current scope, and rollout constraints.
+
 ### Cap Profile Strategy
 
 Cap profiles are not applied by directly projecting the triangulated SVG mesh onto the ribbon. That would preserve the 2D silhouette in parameter space, but it would let individual triangles shortcut across the ribbon's curvature and produce the wrong 3D surface on bends.

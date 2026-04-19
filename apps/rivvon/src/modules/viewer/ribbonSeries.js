@@ -43,12 +43,13 @@ export class RibbonSeries {
             helixPitch: 4,
             helixStrandWidth: 0.3,
             capStyle: DEFAULT_CAP_STYLE,
+            cornerNarrowingEnabled: false,
         };
     }
 
     /**
      * Set helix mode parameters, forwarded to all child ribbons
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle, cornerNarrowingEnabled }
      * @returns {RibbonSeries} this for chaining
      */
     setHelixOptions(options = {}) {

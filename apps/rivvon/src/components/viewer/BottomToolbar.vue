@@ -661,7 +661,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -673,7 +673,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -685,7 +685,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -724,6 +724,16 @@
                                 </template>
                             </Select>
                         </div>
+
+                        <button
+                            class="tools-option"
+                            :class="{ selected: app.cornerNarrowingEnabled }"
+                            @click="app.setCornerNarrowingEnabled(!app.cornerNarrowingEnabled)"
+                        >
+                            <span class="material-symbols-outlined">line_curve</span>
+                            <span>Adaptive Corner Narrowing</span>
+                            <span class="tools-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP' }}</span>
+                        </button>
 
                     </div>
                 </div>
@@ -785,7 +795,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>

@@ -8,6 +8,43 @@ import {
     sampleCapIntervals,
 } from './capProfiles.js';
 
+const CURVATURE_LOOKAHEAD_SAMPLES = 4;
+const CURVATURE_SMOOTHING_RADIUS = 4;
+const CURVATURE_NARROWING_START_ANGLE = 0.2;
+const CURVATURE_NARROWING_FULL_ANGLE = 0.95;
+const CURVATURE_NARROWING_MIN_WIDTH = 0.45;
+
+function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+}
+
+function smoothstep(edge0, edge1, value) {
+    if (edge1 <= edge0) {
+        return value >= edge1 ? 1 : 0;
+    }
+
+    const t = clamp01((value - edge0) / (edge1 - edge0));
+    return t * t * (3 - 2 * t);
+}
+
+function angleBetweenVectors(a, b) {
+    return Math.acos(Math.max(-1, Math.min(1, a.dot(b))));
+}
+
+function averageSampleWindow(values, index, radius) {
+    const start = Math.max(0, index - radius);
+    const end = Math.min(values.length - 1, index + radius);
+    let total = 0;
+    let count = 0;
+
+    for (let i = start; i <= end; i++) {
+        total += values[i];
+        count += 1;
+    }
+
+    return count > 0 ? total / count : 0;
+}
+
 export class Ribbon {
     constructor(scene) {
         this.scene = scene;
@@ -44,6 +81,7 @@ export class Ribbon {
         // End-cap style controls how ribbon width tapers at the endpoints.
         this.capStyle = DEFAULT_CAP_STYLE;
         this.roundedCaps = false;
+        this.cornerNarrowingEnabled = false;
     }
 
     setTileManager(tileManager) {
@@ -94,7 +132,7 @@ export class Ribbon {
 
     /**
      * Set helix mode parameters
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle, cornerNarrowingEnabled }
      * @returns {Ribbon} this for chaining
      */
     setHelixOptions(options = {}) {
@@ -102,6 +140,7 @@ export class Ribbon {
         if (options.helixRadius !== undefined) this.helixRadius = options.helixRadius;
         if (options.helixPitch !== undefined) this.helixPitch = options.helixPitch;
         if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
+        if (options.cornerNarrowingEnabled !== undefined) this.cornerNarrowingEnabled = !!options.cornerNarrowingEnabled;
         if (options.capStyle !== undefined || options.roundedCaps !== undefined) {
             this.capStyle = normalizeCapStyle(
                 options.capStyle,
@@ -189,6 +228,13 @@ export class Ribbon {
             curve,
             Math.max(2, segmentCount * pointsPerSegment + 1)
         );
+        const useCornerNarrowing = this.cornerNarrowingEnabled && !this.helixMode;
+        const cornerIntervalFn = useCornerNarrowing
+            ? (localT, globalT, frame) => this._getCurvatureRetainedInterval(
+                frame.curvature,
+                segmentCount === 1 ? this._getSingleSegmentCapWidthScale(localT) : 1
+            )
+            : null;
 
         // Build each segment using the pre-calculated normals
         for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
@@ -210,6 +256,19 @@ export class Ribbon {
                     capSide,
                     0
                 )
+                : useCornerNarrowing
+                    ? this.createMaskedRibbonSegmentWithCache(
+                        curve,
+                        startT,
+                        endT,
+                        width,
+                        time,
+                        segIdx,
+                        frameSamples,
+                        pointsPerSegment,
+                        cornerIntervalFn,
+                        0
+                    )
                 : this.createStripRibbonSegmentWithCache(
                     curve,
                     startT,
@@ -341,7 +400,29 @@ export class Ribbon {
     }
 
     createFrameSamples(curve, sampleCount) {
-        const initialTangent = curve.getTangent(0).normalize();
+        const tangents = [];
+
+        for (let i = 0; i < sampleCount; i++) {
+            const t = i / (sampleCount - 1);
+            tangents.push(curve.getTangent(t).normalize());
+        }
+
+        const rawCurvatures = tangents.map((_, index) => {
+            const leftIndex = Math.max(0, index - CURVATURE_LOOKAHEAD_SAMPLES);
+            const rightIndex = Math.min(sampleCount - 1, index + CURVATURE_LOOKAHEAD_SAMPLES);
+
+            if (leftIndex === rightIndex) {
+                return 0;
+            }
+
+            return angleBetweenVectors(tangents[leftIndex], tangents[rightIndex]);
+        });
+
+        const smoothedCurvatures = rawCurvatures.map((_, index) => (
+            averageSampleWindow(rawCurvatures, index, CURVATURE_SMOOTHING_RADIUS)
+        ));
+
+        const initialTangent = tangents[0].clone();
         const up = new THREE.Vector3(0, 1, 0);
         let referenceNormal = up.cross(initialTangent).normalize();
 
@@ -355,8 +436,7 @@ export class Ribbon {
         let prevTangent = initialTangent.clone();
 
         for (let i = 0; i < sampleCount; i++) {
-            const t = i / (sampleCount - 1);
-            const tangent = curve.getTangent(t).normalize();
+            const tangent = tangents[i].clone();
 
             let normal;
             if (i === 0) {
@@ -386,6 +466,7 @@ export class Ribbon {
             frameSamples.push({
                 normal: normal.clone(),
                 binormal: binormal.clone(),
+                curvature: smoothedCurvatures[i] || 0,
             });
 
             prevNormal = normal;
@@ -415,6 +496,11 @@ export class Ribbon {
             binormal,
             arcLength: clampedT * this.pathLength,
             globalT: clampedT,
+            curvature: THREE.MathUtils.lerp(
+                frameSamples[lowerIndex].curvature || 0,
+                frameSamples[upperIndex].curvature || 0,
+                alpha
+            ),
         };
     }
 
@@ -494,6 +580,20 @@ export class Ribbon {
         }
 
         return 1;
+    }
+
+    _getCurvatureRetainedInterval(curvature = 0, maxWidthScale = 1) {
+        const clampedMaxWidthScale = clamp01(maxWidthScale);
+        const narrowing = smoothstep(
+            CURVATURE_NARROWING_START_ANGLE,
+            CURVATURE_NARROWING_FULL_ANGLE,
+            curvature
+        );
+        const curvatureWidth = 1 - narrowing * (1 - CURVATURE_NARROWING_MIN_WIDTH);
+        const retainedWidth = clamp01(Math.min(clampedMaxWidthScale, curvatureWidth));
+        const halfWidth = retainedWidth * 0.5;
+
+        return [0.5 - halfWidth, 0.5 + halfWidth];
     }
 
     _splitIntervalToMatch(interval, targetIntervals) {
@@ -654,6 +754,84 @@ export class Ribbon {
                 globalTs.push(frame.globalT);
                 acrossValues.push(acrossValue);
                 widthScales.push(widthScale);
+            }
+
+            if (i < pointsPerSegment) {
+                const base = i * 2;
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 1, base + 3, base + 2);
+            }
+        }
+
+        const cacheTarget = (this.helixMode && strandOffset > 0) ? this._segmentCacheB : this._segmentCache;
+        cacheTarget[segmentIndex] = {
+            basePositions,
+            normals,
+            binormals,
+            tangents,
+            arcLengths,
+            globalTs,
+            acrossValues,
+            widthScales,
+            width,
+            strandOffset
+        };
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        return this._createSegmentMesh(geometry, segmentIndex, overrideTileManager);
+    }
+
+    createMaskedRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, intervalFn, strandOffset = 0, overrideTileManager = null) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const uvs = [];
+        const indices = [];
+
+        const basePositions = [];
+        const normals = [];
+        const binormals = [];
+        const tangents = [];
+        const arcLengths = [];
+        const globalTs = [];
+        const acrossValues = [];
+        const widthScales = [];
+        const scratch = this._createAnimationScratch();
+        const left = new THREE.Vector3();
+        const right = new THREE.Vector3();
+
+        for (let i = 0; i <= pointsPerSegment; i++) {
+            const localT = i / pointsPerSegment;
+            const globalT = startT + (endT - startT) * localT;
+            const frame = this._sampleFrame(curve, frameSamples, globalT);
+            const [rawVStart, rawVEnd] = intervalFn
+                ? intervalFn(localT, globalT, frame)
+                : [0, 1];
+            const vStart = clamp01(Math.min(rawVStart, rawVEnd));
+            const vEnd = clamp01(Math.max(rawVStart, rawVEnd));
+            const acrossStart = vStart - 0.5;
+            const acrossEnd = vEnd - 0.5;
+
+            this._setAnimatedVertexPosition(left, frame, width, acrossStart, 1, time, strandOffset, scratch);
+            this._setAnimatedVertexPosition(right, frame, width, acrossEnd, 1, time, strandOffset, scratch);
+
+            positions.push(left.x, left.y, left.z);
+            positions.push(right.x, right.y, right.z);
+            uvs.push(localT, vStart);
+            uvs.push(localT, vEnd);
+
+            for (const acrossValue of [acrossStart, acrossEnd]) {
+                basePositions.push(frame.point.clone());
+                normals.push(frame.normal.clone());
+                binormals.push(frame.binormal.clone());
+                tangents.push(frame.tangent.clone());
+                arcLengths.push(frame.arcLength);
+                globalTs.push(frame.globalT);
+                acrossValues.push(acrossValue);
+                widthScales.push(1);
             }
 
             if (i < pointsPerSegment) {
