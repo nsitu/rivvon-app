@@ -106,6 +106,8 @@ const saveLocalProgress = localSave.saveLocalProgress;
 const saveLocalError = localSave.saveLocalError;
 const savedLocalTextureId = localSave.savedLocalTextureId;
 const isEncodeThrottleEnabled = ref(true);
+const captureName = ref('');
+const captureDescription = ref('');
 
 // Unified tile grid: encoding + completed tiles in display order
 // Each entry: { id, canvas, status: 'encoding'|'completed', layer, layerTotal }
@@ -150,6 +152,19 @@ let currentThumbnailBlob = null;
 let activeEncodeCount = 0;
 const encodeWaiters = [];
 const workerPoolUsage = new Map();
+
+function normalizeCaptureName(value, fallback = 'realtime-texture') {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    return trimmed || fallback;
+}
+
+function normalizeCaptureDescription(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function createDefaultCaptureName() {
+    return `realtime-${new Date().toISOString().replace(/[.:]/g, '-')}`;
+}
 
 export function useRealtimeSlyce() {
 
@@ -206,7 +221,7 @@ export function useRealtimeSlyce() {
         const trackSettings = cameraStream.value?.getVideoTracks?.()[0]?.getSettings?.() ?? {};
         const effectiveFps = cameraFrameRate.value || fps.value || 30;
         return {
-            filename: currentCaptureName,
+            filename: normalizeCaptureName(captureName.value, currentCaptureName || 'realtime-texture'),
             width: trackSettings.width ?? null,
             height: trackSettings.height ?? null,
             duration: globalFrameIndex.value > 0 ? globalFrameIndex.value / effectiveFps : 0,
@@ -231,7 +246,8 @@ export function useRealtimeSlyce() {
             localSave.controller,
             {
                 ktx2Blobs: snapshotKtx2BlobsFromBuffers(),
-                textureName: currentCaptureName,
+                textureName: normalizeCaptureName(captureName.value, currentCaptureName || 'realtime-texture'),
+                description: normalizeCaptureDescription(captureDescription.value),
                 effectiveFrameCount: globalFrameIndex.value,
                 tileCount: completedKtx2Buffers.value.length,
                 tileResolution: potResolution.value,
@@ -521,7 +537,9 @@ export function useRealtimeSlyce() {
         // will silently discard their results instead of touching current state.
         captureGeneration++;
         autoSaveRequestedGeneration = 0;
-        currentCaptureName = `realtime-${new Date().toISOString().replace(/[.:]/g, '-')}`;
+        currentCaptureName = createDefaultCaptureName();
+        captureName.value = currentCaptureName;
+        captureDescription.value = '';
         // Kill any orphaned worker pool from a previous session
         if (workerPool) {
             workerPool.terminate();
@@ -888,6 +906,11 @@ export function useRealtimeSlyce() {
         const expectedTileCount = crossSectionType.value === 'waves'
             ? targetTileCount.value
             : maxTiles.value;
+        const appliedMetadata = {
+            id: savedLocalTextureId.value || null,
+            name: normalizeCaptureName(captureName.value, currentCaptureName || 'realtime-texture'),
+            description: normalizeCaptureDescription(captureDescription.value),
+        };
         if (buffers.length === 0) {
             console.warn('[RealtimeSlyce] No KTX2 buffers to apply');
             return;
@@ -929,6 +952,8 @@ export function useRealtimeSlyce() {
         gridTiles.value = [];
         completedTileIds.length = 0;
         completedTiles.value = 0;
+
+        return appliedMetadata;
     }
 
     /**
@@ -939,6 +964,9 @@ export function useRealtimeSlyce() {
         gridTiles.value = [];
         completedTileIds.length = 0;
         completedTiles.value = 0;
+        currentCaptureName = '';
+        captureName.value = '';
+        captureDescription.value = '';
         currentThumbnailBlob = null;
         autoSaveRequestedGeneration = 0;
         localSave.resetLocalSaveState();
@@ -1038,6 +1066,8 @@ export function useRealtimeSlyce() {
         saveLocalProgress,
         saveLocalError,
         savedLocalTextureId,
+        captureName,
+        captureDescription,
 
         // Methods
         startCamera,

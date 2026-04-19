@@ -176,9 +176,9 @@
         emit('close');
     }
 
-    function handleRealtimeApply() {
+    function handleRealtimeApply(payload) {
         suppressRealtimeAutoStart.value = true;
-        emit('apply-realtime-texture');
+        emit('apply-realtime-texture', payload);
     }
 
     const stepLabels = { '1': 'Start', '2': 'Config', '3': 'Process', '4': 'Done' };

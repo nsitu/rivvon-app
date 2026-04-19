@@ -194,7 +194,7 @@
         app.showRealtimeSampler();
     }
 
-    async function applyRealtimeResultsToViewer() {
+    async function applyRealtimeResultsToViewer(metadata = null) {
         if (!threeCanvasRef.value) return false;
 
         // Once realtime output is being applied, the capture device is no longer
@@ -203,7 +203,7 @@
 
         threeCanvasRef.value.clearMultiTextureState?.();
 
-        await realtime.applyToViewer(
+        const appliedMetadata = await realtime.applyToViewer(
             threeCanvasRef.value.tileManager,
             threeCanvasRef.value.ribbonSeries,
             {
@@ -211,19 +211,24 @@
             }
         );
 
+        app.setThumbnailUrl(null);
+
+        const nextMetadata = metadata || appliedMetadata || null;
+        setCurrentTextureMetadata(nextMetadata);
+
         return true;
     }
 
-    async function handleRealtimeApply() {
-        const applied = await applyRealtimeResultsToViewer();
+    async function handleRealtimeApply(metadata = null) {
+        const applied = await applyRealtimeResultsToViewer(metadata);
         if (!applied) return;
 
         returnToCreateTextureOnRealtimeClose.value = false;
         app.hideRealtimeSampler();
     }
 
-    async function handleRealtimeApplyFromTextureCreator() {
-        const applied = await applyRealtimeResultsToViewer();
+    async function handleRealtimeApplyFromTextureCreator(metadata = null) {
+        const applied = await applyRealtimeResultsToViewer(metadata);
         if (!applied) return;
 
         app.hideSlyce();

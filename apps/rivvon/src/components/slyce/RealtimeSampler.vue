@@ -4,6 +4,7 @@
     import Button from 'primevue/button';
     import LocalSaveStatus from './LocalSaveStatus.vue';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
+    import { useLocalStorage } from '../../services/localStorage.js';
 
     const props = defineProps({
         active: {
@@ -27,6 +28,7 @@
     const emit = defineEmits(['close', 'apply', 'start-capture']);
 
     const realtime = useRealtimeSlyce();
+    const { updateTextureSet: updateLocalTextureSet } = useLocalStorage();
     const router = useRouter();
     const route = useRoute();
     const CANVAS_2D_CTX_CACHE_KEY = '__rivvonRealtime2dCtx';
@@ -185,6 +187,20 @@
         syncVideoPreview();
     });
 
+    const captureNameInput = computed({
+        get: () => realtime.captureName.value || '',
+        set: (value) => {
+            realtime.captureName.value = value ?? '';
+        },
+    });
+
+    const captureDescriptionInput = computed({
+        get: () => realtime.captureDescription.value || '',
+        set: (value) => {
+            realtime.captureDescription.value = value ?? '';
+        },
+    });
+
     // Can apply if there are completed KTX2 buffers, not capturing, and no tiles still encoding
     const canApply = computed(() =>
         !realtime.isCapturing.value
@@ -242,6 +258,50 @@
 
     const showDoneSummary = computed(() => isFinishedPhase.value && canApply.value);
 
+    function normalizeCaptureName(value) {
+        const trimmed = typeof value === 'string' ? value.trim() : '';
+        return trimmed || 'realtime-texture';
+    }
+
+    function normalizeCaptureDescription(value) {
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
+    function getCurrentCaptureMetadata() {
+        return {
+            id: realtime.savedLocalTextureId.value || null,
+            name: normalizeCaptureName(realtime.captureName.value),
+            description: normalizeCaptureDescription(realtime.captureDescription.value),
+        };
+    }
+
+    let metadataSyncTimer = null;
+
+    async function syncSavedTextureMetadata() {
+        if (!realtime.savedLocalTextureId.value) {
+            return;
+        }
+
+        const metadata = getCurrentCaptureMetadata();
+        await updateLocalTextureSet(realtime.savedLocalTextureId.value, {
+            name: metadata.name,
+            description: metadata.description,
+        });
+    }
+
+    function scheduleSavedTextureMetadataSync() {
+        if (metadataSyncTimer) {
+            clearTimeout(metadataSyncTimer);
+        }
+
+        metadataSyncTimer = setTimeout(() => {
+            metadataSyncTimer = null;
+            void syncSavedTextureMetadata().catch((error) => {
+                console.warn('[RealtimeSampler] Failed to sync saved texture metadata:', error);
+            });
+        }, 250);
+    }
+
     const showLocalSaveStatus = computed(() =>
         !isFinishedPhase.value && props.workflowPhase !== 'setup' && !realtime.isCapturing.value && (
             realtime.isSavingLocally.value
@@ -269,6 +329,19 @@
     ], () => {
         syncVideoPreview();
     }, { flush: 'post' });
+
+    watch(() => [
+        realtime.captureName.value,
+        realtime.captureDescription.value,
+        realtime.savedLocalTextureId.value,
+        realtime.isSavingLocally.value,
+    ], () => {
+        if (realtime.isSavingLocally.value || !realtime.savedLocalTextureId.value) {
+            return;
+        }
+
+        scheduleSavedTextureMetadataSync();
+    });
 
     watch(() => props.workflowPhase, async (phase) => {
         if (!props.embedded) return;
@@ -412,8 +485,9 @@
         realtime.stopRealtime();
     }
 
-    function handleApply() {
-        emit('apply');
+    async function handleApply() {
+        await syncSavedTextureMetadata();
+        emit('apply', getCurrentCaptureMetadata());
     }
 
     function handleDiscard() {
@@ -424,13 +498,17 @@
         realtime.persistResultsLocally(true);
     }
 
-    function handleOpenTextureLibrary() {
+    async function handleOpenTextureLibrary() {
+        await syncSavedTextureMetadata();
         router.push({ path: route.path, query: { ...route.query, textures: 'local' } });
         emit('close');
     }
 
     // Cleanup on unmount
     onUnmounted(() => {
+        if (metadataSyncTimer) {
+            clearTimeout(metadataSyncTimer);
+        }
         detachVideoPreview();
         stopDrawLoop();
         if (realtime.isCapturing.value) {
@@ -473,6 +551,39 @@
                 >
                     {{ perfSummary }}
                 </div>
+
+                <section
+                    v-if="canApply"
+                    class="texture-metadata-panel"
+                >
+                    <div class="texture-metadata-header">
+                        <h3>Texture Metadata</h3>
+                        <p>Set the title and optional caption for this capture before applying it or reopening it from
+                            the library.</p>
+                    </div>
+
+                    <label class="metadata-field">
+                        <span class="metadata-label">Title</span>
+                        <input
+                            v-model="captureNameInput"
+                            type="text"
+                            class="metadata-text-input"
+                            placeholder="Texture title"
+                            maxlength="120"
+                        />
+                    </label>
+
+                    <label class="metadata-field">
+                        <span class="metadata-label">Description / caption</span>
+                        <textarea
+                            v-model="captureDescriptionInput"
+                            rows="4"
+                            class="metadata-textarea"
+                            placeholder="Optional caption shown when the viewer overlay is enabled"
+                            maxlength="500"
+                        ></textarea>
+                    </label>
+                </section>
 
                 <div
                     v-if="showDoneSummary"
@@ -971,6 +1082,85 @@
         font-variant-numeric: tabular-nums;
         color: rgba(255, 255, 255, 0.6);
         font-size: 12px;
+    }
+
+    .texture-metadata-panel {
+        width: min(100%, 38rem);
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        padding: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 1rem;
+        background: rgba(15, 23, 42, 0.34);
+        color: rgba(248, 250, 252, 0.96);
+        backdrop-filter: blur(14px);
+    }
+
+    .texture-metadata-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .texture-metadata-header h3,
+    .texture-metadata-header p {
+        margin: 0;
+    }
+
+    .texture-metadata-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .texture-metadata-header p {
+        color: rgba(226, 232, 240, 0.8);
+        line-height: 1.5;
+        font-size: 0.95rem;
+    }
+
+    .metadata-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .metadata-label {
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.72);
+    }
+
+    .metadata-text-input,
+    .metadata-textarea {
+        width: 100%;
+        padding: 0.8rem 0.9rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        background: rgba(15, 23, 42, 0.55);
+        color: rgba(255, 255, 255, 0.96);
+        font: inherit;
+        transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .metadata-text-input:focus,
+    .metadata-textarea:focus {
+        outline: none;
+        border-color: rgba(96, 165, 250, 0.78);
+        background: rgba(15, 23, 42, 0.72);
+    }
+
+    .metadata-text-input::placeholder,
+    .metadata-textarea::placeholder {
+        color: rgba(148, 163, 184, 0.74);
+    }
+
+    .metadata-textarea {
+        min-height: 6.5rem;
+        resize: vertical;
+        line-height: 1.5;
     }
 
     .done-summary {
