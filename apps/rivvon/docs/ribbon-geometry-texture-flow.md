@@ -81,6 +81,47 @@ This 1:1 segment-to-tile mapping is the core constraint that ties geometry to te
 
 The first and last segments can use SVG-driven cap profiles instead of the standard strip geometry. Current cap styles are square, rounded, pointed, and swallowtail. Profile caps still preserve the same per-segment U mapping.
 
+### Cap Profile Strategy
+
+Cap profiles are not applied by directly projecting the triangulated SVG mesh onto the ribbon. That would preserve the 2D silhouette in parameter space, but it would let individual triangles shortcut across the ribbon's curvature and produce the wrong 3D surface on bends.
+
+Instead, profile caps stay on the same strip-based construction model as the rest of the ribbon:
+
+```
+sample curve frames along segment U
+        |
+        v
+slice the normalized SVG profile at those U values
+        |
+        v
+turn each filled interval into a curved quad strip
+        |
+        v
+map those quads through the ribbon frame sampler
+```
+
+This is the important invariant for future work: **caps must remain strip-based so they respect ribbon curvature**.
+
+### Strip Boundary Alignment
+
+Uniform strip density by itself is not enough for sharp caps. If a swallowtail tip, cusp, or shoulder falls between sampled U values, the strip solver approximates it with a beveled transition even when the source SVG is correct.
+
+To avoid that, Rivvon aligns cap strips to the profile's real feature boundaries:
+
+- Start with the normal per-segment strip grid.
+- Inject additional slice positions from the normalized SVG vertex `u` coordinates.
+- Sample profile intervals exactly at those aligned slice positions.
+- If a feature collapses to a single point at a slice, preserve it with a degenerate interval instead of dropping it.
+
+This keeps the cap on curved strips while ensuring important features land on actual strip boundaries. For swallowtail, that means the outer tips and inner notch can remain sharp instead of being rounded off by an arbitrary grid.
+
+### Regression Guardrails
+
+- Do not replace strip-based cap generation with direct SVG triangle warping unless ribbon curvature is handled explicitly.
+- When adding a new cap shape, think in terms of feature-aligned slice placement, not only higher slice counts.
+- If a cap looks softened, first check whether the important SVG vertices are represented in the slice positions before increasing strip density.
+- Preserve the existing U contract: full SVG width maps to the full end-segment length, full SVG height maps to the ribbon width, and the SVG right edge remains the join edge.
+
 ---
 
 ## 2. Multi-Ribbon Indexing

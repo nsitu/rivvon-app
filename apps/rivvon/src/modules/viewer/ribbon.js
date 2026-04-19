@@ -536,20 +536,79 @@ export class Ribbon {
         }));
     }
 
-    _getCapSlices(profile, capSide, sliceCount) {
-        const slices = [];
+    _getCapSliceLocalTs(profile, capSide, sliceCount) {
+        const localTs = [];
 
         for (let index = 0; index <= sliceCount; index++) {
-            const segmentLocalT = index / sliceCount;
-            const profileU = capSide === 'start' ? segmentLocalT : 1 - segmentLocalT;
-            slices.push({
-                segmentLocalT,
-                profileU,
-                intervals: sampleCapIntervals(profile, profileU),
-            });
+            localTs.push(index / sliceCount);
         }
 
-        return slices;
+        // Force strip boundaries through the profile's authored feature positions.
+        // Increasing uniform density alone still bevels tips/cusps if they land between slices.
+        for (const vertex of profile.vertices || []) {
+            const clampedU = Math.max(0, Math.min(1, vertex.u));
+            localTs.push(capSide === 'start' ? clampedU : 1 - clampedU);
+        }
+
+        localTs.sort((left, right) => left - right);
+
+        const deduped = [];
+        const epsilon = 1e-5;
+
+        for (const localT of localTs) {
+            const clampedLocalT = Math.max(0, Math.min(1, localT));
+            if (!deduped.length || Math.abs(clampedLocalT - deduped[deduped.length - 1]) > epsilon) {
+                deduped.push(clampedLocalT);
+            } else {
+                deduped[deduped.length - 1] = clampedLocalT;
+            }
+        }
+
+        return deduped;
+    }
+
+    _sampleCapIntervalsWithVertexFallback(profile, profileU) {
+        const intervals = sampleCapIntervals(profile, profileU);
+        if (intervals.length > 0) {
+            return intervals;
+        }
+
+        // Some aligned slices land exactly on a tip/cusp where the filled region has zero width.
+        // Preserve that feature as a degenerate interval so the strip solver does not erase it.
+        const matchingVertices = [];
+        const epsilon = 1e-5;
+
+        for (const vertex of profile.vertices || []) {
+            if (Math.abs(vertex.u - profileU) <= epsilon) {
+                matchingVertices.push(Math.max(0, Math.min(1, vertex.v)));
+            }
+        }
+
+        if (matchingVertices.length === 0) {
+            return [];
+        }
+
+        matchingVertices.sort((left, right) => left - right);
+
+        const degenerateIntervals = [];
+        for (const value of matchingVertices) {
+            if (!degenerateIntervals.length || Math.abs(value - degenerateIntervals[degenerateIntervals.length - 1][0]) > epsilon) {
+                degenerateIntervals.push([value, value]);
+            }
+        }
+
+        return degenerateIntervals;
+    }
+
+    _getCapSlices(profile, capSide, sliceCount) {
+        return this._getCapSliceLocalTs(profile, capSide, sliceCount).map((segmentLocalT) => {
+            const profileU = capSide === 'start' ? segmentLocalT : 1 - segmentLocalT;
+            return {
+                segmentLocalT,
+                profileU,
+                intervals: this._sampleCapIntervalsWithVertexFallback(profile, profileU),
+            };
+        });
     }
 
     createStripRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, overrideTileManager = null, widthScaleFn = null) {
