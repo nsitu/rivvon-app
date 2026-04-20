@@ -170,6 +170,41 @@
         'is-success': app.headTrackingActive && !app.headTrackingCalibrating,
     }));
 
+    const screenWakeLockHint = computed(() => {
+        if (app.screenWakeLockSupported === false) return 'N/A';
+        if (!app.screenWakeLockEnabled) return 'Off';
+        return app.screenWakeLockActive ? 'Active' : 'Auto';
+    });
+
+    const screenWakeLockStatusMessage = computed(() => {
+        if (app.screenWakeLockSupported === false) {
+            return 'This browser cannot keep the screen awake automatically.';
+        }
+
+        if (app.screenWakeLockErrorMessage) {
+            return app.screenWakeLockErrorMessage;
+        }
+
+        if (app.screenWakeLockActive) {
+            return 'Active. Rivvon is keeping the screen awake during the current drawing or processing task.';
+        }
+
+        if (app.screenWakeLockEnabled) {
+            return 'Enabled. Rivvon will request a wake lock during drawing, walking, and texture processing.';
+        }
+
+        return 'Disabled. Your device can dim or lock normally.';
+    });
+
+    const screenWakeLockMessageClass = computed(() => ({
+        'is-error': app.screenWakeLockSupported === false || !!app.screenWakeLockErrorMessage,
+    }));
+
+    function handleScreenWakeLockToggle() {
+        if (app.screenWakeLockSupported === false) return;
+        app.setScreenWakeLockEnabled(!app.screenWakeLockEnabled);
+    }
+
     function handleImport(type) {
         app.hideToolsPanel();
         emit('import-file', type);
@@ -661,7 +696,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -673,7 +708,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -685,7 +720,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
+                                        }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -795,7 +830,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
+                                }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -836,6 +871,28 @@
                             <span>Technical Overlay</span>
                             <span class="tools-hint">D</span>
                         </button>
+                    </div>
+                </div>
+
+                <div class="tools-section">
+                    <div class="tools-section-label">Screen</div>
+                    <div class="tools-section-items">
+                        <button
+                            class="tools-option"
+                            :class="{ selected: app.screenWakeLockEnabled && app.screenWakeLockSupported !== false }"
+                            :disabled="app.screenWakeLockSupported === false"
+                            @click="handleScreenWakeLockToggle"
+                        >
+                            <span class="material-symbols-outlined">schedule</span>
+                            <span>Keep Screen Awake</span>
+                            <span class="tools-hint">{{ screenWakeLockHint }}</span>
+                        </button>
+                        <div
+                            class="tools-section-message"
+                            :class="screenWakeLockMessageClass"
+                        >
+                            {{ screenWakeLockStatusMessage }}
+                        </div>
                     </div>
                 </div>
 
@@ -1246,6 +1303,17 @@
         border-radius: 10px;
         min-width: 1.2rem;
         text-align: center;
+    }
+
+    .tools-section-message {
+        padding: 0 1rem 0.85rem;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.62);
+    }
+
+    .tools-section-message.is-error {
+        color: rgba(248, 113, 113, 0.92);
     }
 
     .tools-user {

@@ -3,6 +3,7 @@
     import { useRoute, useRouter } from 'vue-router';
     import { useViewerStore } from '../stores/viewerStore';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
+    import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
@@ -33,6 +34,8 @@
     const { isAuthenticated } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
+
+    useScreenWakeLock();
 
     // Realtime webcam mode
     const realtimeInstance = shallowRef(null);

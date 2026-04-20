@@ -88,6 +88,13 @@ export const useViewerStore = defineStore('viewer', {
         headTrackingErrorMessage: '',
         headTrackingSuspendedReason: null,
         headTrackingRecenterToken: 0,
+        screenWakeLockEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().screenWakeLockEnabled,
+            true
+        ),
+        screenWakeLockSupported: null,
+        screenWakeLockActive: false,
+        screenWakeLockErrorMessage: '',
         
         // Ribbon/3D state
         flowState: 'forward', // 'off' | 'forward' | 'backward'
@@ -232,6 +239,31 @@ export const useViewerStore = defineStore('viewer', {
 
         requestHeadTrackingRecenter() {
             this.headTrackingRecenterToken += 1;
+        },
+
+        setScreenWakeLockEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.screenWakeLockEnabled = nextValue;
+            this.screenWakeLockErrorMessage = '';
+            writeViewerPreferences({ screenWakeLockEnabled: nextValue });
+        },
+
+        setScreenWakeLockSupported(supported) {
+            this.screenWakeLockSupported = supported == null ? null : !!supported;
+
+            if (supported === false) {
+                this.screenWakeLockActive = false;
+            }
+        },
+
+        setScreenWakeLockRuntimeState(payload = {}) {
+            if ('active' in payload) {
+                this.screenWakeLockActive = !!payload.active;
+            }
+
+            if ('errorMessage' in payload) {
+                this.screenWakeLockErrorMessage = payload.errorMessage ?? '';
+            }
         },
         
         cycleFlowState() {
