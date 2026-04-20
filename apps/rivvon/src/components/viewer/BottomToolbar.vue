@@ -176,29 +176,30 @@
         return app.screenWakeLockActive ? 'Active' : 'Auto';
     });
 
-    const screenWakeLockStatusMessage = computed(() => {
-        if (app.screenWakeLockSupported === false) {
-            return 'This browser cannot keep the screen awake automatically.';
-        }
+    const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
-        if (app.screenWakeLockErrorMessage) {
-            return app.screenWakeLockErrorMessage;
-        }
+    function formatBuildTimestamp(value) {
+        if (!value) return 'Unavailable';
 
-        if (app.screenWakeLockActive) {
-            return 'Active. Rivvon is keeping the screen awake during the current drawing or processing task.';
-        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return value;
 
-        if (app.screenWakeLockEnabled) {
-            return 'Enabled. Rivvon will request a wake lock during drawing, walking, and texture processing.';
-        }
+        return new Intl.DateTimeFormat(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'medium',
+        }).format(parsed);
+    }
 
-        return 'Disabled. Your device can dim or lock normally.';
+    const buildTimestampDisplay = computed(() => formatBuildTimestamp(buildTimestampRaw));
+
+    const buildTimestampUtc = computed(() => {
+        if (!buildTimestampRaw) return '';
+
+        const parsed = new Date(buildTimestampRaw);
+        if (Number.isNaN(parsed.getTime())) return buildTimestampRaw;
+
+        return parsed.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
     });
-
-    const screenWakeLockMessageClass = computed(() => ({
-        'is-error': app.screenWakeLockSupported === false || !!app.screenWakeLockErrorMessage,
-    }));
 
     function handleScreenWakeLockToggle() {
         if (app.screenWakeLockSupported === false) return;
@@ -887,18 +888,12 @@
                             <span>Keep Screen Awake</span>
                             <span class="tools-hint">{{ screenWakeLockHint }}</span>
                         </button>
-                        <div
-                            class="tools-section-message"
-                            :class="screenWakeLockMessageClass"
-                        >
-                            {{ screenWakeLockStatusMessage }}
-                        </div>
                     </div>
                 </div>
 
                 <!-- Display & Account section -->
                 <div class="tools-section">
-                    <div class="tools-section-label">Account</div>
+                    <div class="tools-section-label">Display &amp; Account</div>
                     <div class="tools-section-items">
                         <button
                             class="tools-option"
@@ -907,6 +902,16 @@
                             <span class="material-symbols-outlined">info</span>
                             <span>About Rivvon</span>
                         </button>
+                        <div class="tools-meta-card">
+                            <div class="tools-meta-row">
+                                <span class="material-symbols-outlined tools-meta-icon">schedule</span>
+                                <div class="tools-meta-copy">
+                                    <div class="tools-meta-label">Build Timestamp</div>
+                                    <div class="tools-meta-value">{{ buildTimestampDisplay }}</div>
+                                    <div class="tools-meta-subtle">{{ buildTimestampUtc }}</div>
+                                </div>
+                            </div>
+                        </div>
                         <button
                             v-if="isAuthenticated"
                             class="tools-option tools-user"
@@ -1305,15 +1310,53 @@
         text-align: center;
     }
 
-    .tools-section-message {
-        padding: 0 1rem 0.85rem;
-        font-size: 0.82rem;
-        line-height: 1.45;
-        color: rgba(255, 255, 255, 0.62);
+    .tools-meta-card {
+        margin: 0 0.5rem 0.5rem;
+        padding: 0.85rem 0.95rem;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .tools-section-message.is-error {
-        color: rgba(248, 113, 113, 0.92);
+    .tools-meta-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .tools-meta-icon {
+        font-size: 1.2rem;
+        opacity: 0.85;
+        padding-top: 0.15rem;
+    }
+
+    .tools-meta-copy {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .tools-meta-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .tools-meta-value {
+        margin-top: 0.35rem;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.86);
+    }
+
+    .tools-meta-subtle {
+        margin-top: 0.25rem;
+        font-size: 0.72rem;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.52);
+        font-family: monospace;
+        word-break: break-word;
     }
 
     .tools-user {

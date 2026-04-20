@@ -10,9 +10,13 @@ import { resolve } from 'path';
 const TASKS_VISION_VERSION = '0.10.34';
 const TASKS_VISION_WASM_SOURCE = normalizePath(resolve(__dirname, 'node_modules/@mediapipe/tasks-vision/wasm/*'));
 const TASKS_VISION_WASM_DEST = `vendor/mediapipe/tasks-vision/${TASKS_VISION_VERSION}/wasm`;
+const BUILD_TIMESTAMP = new Date().toISOString();
 
 export default defineConfig({
     base: '/',
+    define: {
+        'import.meta.env.VITE_BUILD_TIMESTAMP': JSON.stringify(BUILD_TIMESTAMP),
+    },
     build: {
         target: 'esnext',
         outDir: 'dist',
