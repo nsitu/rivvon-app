@@ -107,10 +107,28 @@
     }
 
     const returnToCreateTextureOnRealtimeClose = ref(false);
+    const textureCreatorLaunchSource = ref(null);
 
     function openCreateTextureMode() {
         returnToCreateTextureOnRealtimeClose.value = false;
+        textureCreatorLaunchSource.value = null;
         app.showSlyce();
+    }
+
+    function openCreateTextureFileMode() {
+        returnToCreateTextureOnRealtimeClose.value = false;
+        textureCreatorLaunchSource.value = 'file';
+        app.showSlyce();
+    }
+
+    async function openCreateTextureCameraMode() {
+        textureCreatorLaunchSource.value = null;
+        await enterRealtimeMode();
+    }
+
+    function closeCreateTextureMode() {
+        textureCreatorLaunchSource.value = null;
+        app.hideSlyce();
     }
 
     function forceOrbitControls(options = {}) {
@@ -234,7 +252,7 @@
         const applied = await applyRealtimeResultsToViewer(metadata);
         if (!applied) return;
 
-        app.hideSlyce();
+        closeCreateTextureMode();
     }
 
     function handleRealtimeClose(options = {}) {
@@ -1084,7 +1102,7 @@
         console.log('[RibbonView] Applying created texture:', texture);
 
         // Close the Slyce panel
-        app.hideSlyce();
+        closeCreateTextureMode();
 
         if (texture?.source === 'local' || texture?.isLocal) {
             await handleLocalTextureSelect(texture);
@@ -1148,7 +1166,8 @@
             :texture-metadata-overlay="app.showTextureMetadataOverlay"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
-            @enter-slyce-mode="openCreateTextureMode"
+            @open-texture-file="openCreateTextureFileMode"
+            @open-texture-camera="openCreateTextureCameraMode"
             @close-realtime-mode="handleRealtimeClose"
             @viewer-control-mode-change="handleViewerControlModeChange"
             @recenter-head-tracking="handleHeadTrackingRecenter"
@@ -1206,7 +1225,8 @@
         <TextureCreator
             v-if="app.textureCreatorVisible"
             :active="app.textureCreatorVisible"
-            @close="app.hideSlyce"
+            :launch-source="textureCreatorLaunchSource"
+            @close="closeCreateTextureMode"
             @apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
             @apply-texture="handleApplyCreatedTexture"
         />

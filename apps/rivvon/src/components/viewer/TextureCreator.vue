@@ -1,5 +1,5 @@
 <script setup>
-    import { computed, nextTick, ref } from 'vue';
+    import { computed, nextTick, ref, watch } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
@@ -18,6 +18,10 @@
         active: {
             type: Boolean,
             default: false
+        },
+        launchSource: {
+            type: String,
+            default: null
         }
     });
 
@@ -265,6 +269,28 @@
             slyce.set('currentStep', '2');
         }
     }
+
+    function applyLaunchSource(source) {
+        if (!props.active || !source) return;
+
+        if (source === 'file' && selectedSource.value !== 'file') {
+            selectFileMode();
+            return;
+        }
+
+        if (source === 'camera' && selectedSource.value !== 'camera') {
+            selectWebcamMode();
+        }
+    }
+
+    watch(() => props.launchSource, (source) => {
+        applyLaunchSource(source);
+    }, { immediate: true });
+
+    watch(() => props.active, (active) => {
+        if (!active) return;
+        applyLaunchSource(props.launchSource);
+    });
 </script>
 
 <template>

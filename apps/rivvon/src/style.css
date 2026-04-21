@@ -192,6 +192,7 @@ body:not(:has(.viewer-mode)) {
     @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
     background: rgba(0, 0, 0, 0.5);
     opacity: 0.92;
+    padding: 2rem;
 }
 
 .viewer-mode .bottom-toolbar button:hover {

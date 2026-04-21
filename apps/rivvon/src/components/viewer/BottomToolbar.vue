@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed } from 'vue';
     import Select from 'primevue/select';
+    import SpeedDial from 'primevue/speeddial';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -35,6 +36,16 @@
 
     // Helper to conditionally return tooltip text (null disables tooltip)
     const tip = (text) => isTouchDevice.value ? null : text;
+
+    const activeLauncher = ref(null);
+
+    function closeLaunchers() {
+        activeLauncher.value = null;
+    }
+
+    function toggleLauncher(name) {
+        activeLauncher.value = activeLauncher.value === name ? null : name;
+    }
 
     const flowOptions = [
         { label: 'Oscillate', value: 'off', icon: 'airwave' },
@@ -235,8 +246,9 @@
         'toggle-flow',
         'open-text-panel',
         'open-emoji-picker',
+        'open-texture-file',
+        'open-texture-camera',
         'open-texture-browser',
-        'enter-slyce-mode',
         'close-realtime-mode',
         'import-file',
         'export-image',
@@ -275,6 +287,8 @@
      * If Slyce is visible and processing, confirm before cancelling and closing.
      */
     function handleBack() {
+        closeLaunchers();
+
         if (app.isWalkMode) {
             app.setWalkMode(false);
         } else if (app.isDrawingMode) {
@@ -307,6 +321,19 @@
     const hasActiveContext = computed(() =>
         app.isDrawingMode || app.isWalkMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
+
+    const drawGroupActive = computed(() => (
+        app.isDrawingMode
+        || app.isWalkMode
+        || app.textPanelVisible
+        || app.emojiPickerVisible
+    ));
+
+    const textureGroupActive = computed(() => (
+        app.textureCreatorVisible
+        || app.textureBrowserVisible
+        || app.realtimeSamplerVisible
+    ));
 
     const showFinishCaptureButton = computed(() => {
         if (app.isWalkMode) {
@@ -377,8 +404,96 @@
 
     function activateContext(action) {
         if (!closeActiveContext()) return;
+        closeLaunchers();
         action();
     }
+
+    const drawLauncherItems = computed(() => ([
+        {
+            label: 'Gesture',
+            icon: 'draw',
+            active: app.isDrawingMode,
+            command: () => {
+                if (app.isDrawingMode) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('enter-draw-mode'));
+            }
+        },
+        {
+            label: 'Walk',
+            icon: 'directions_walk',
+            active: app.isWalkMode,
+            command: () => {
+                if (app.isWalkMode) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('enter-walk-mode'));
+            }
+        },
+        {
+            label: 'Write',
+            icon: 'text_fields',
+            active: app.textPanelVisible,
+            command: () => {
+                if (app.textPanelVisible) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('open-text-panel'));
+            }
+        },
+        {
+            label: 'Emote',
+            icon: 'mood',
+            active: app.emojiPickerVisible,
+            command: () => {
+                if (app.emojiPickerVisible) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('open-emoji-picker'));
+            }
+        }
+    ]));
+
+    const textureLauncherItems = computed(() => ([
+        {
+            label: 'From File',
+            icon: 'video_file',
+            active: app.textureCreatorVisible,
+            command: () => {
+                activateContext(() => emit('open-texture-file'));
+            }
+        },
+        {
+            label: 'From Camera',
+            icon: 'camera_video',
+            active: app.realtimeSamplerVisible,
+            command: () => {
+                activateContext(() => emit('open-texture-camera'));
+            }
+        },
+        {
+            label: 'Browse',
+            icon: 'grid_view',
+            active: app.textureBrowserVisible,
+            command: () => {
+                if (app.textureBrowserVisible) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('open-texture-browser'));
+            }
+        }
+    ]));
 </script>
 
 <template>
@@ -386,61 +501,83 @@
         class="bottom-toolbar"
         :class="{ hidden: app.isFullscreen }"
     >
-        <!-- Draw mode button -->
-        <button
-            v-tooltip.top="tip('Draw')"
-            :class="{ active: app.isDrawingMode }"
-            @click="app.isDrawingMode ? handleBack() : activateContext(() => emit('enter-draw-mode'))"
-        >
-            <span class="material-symbols-outlined">draw</span>
-        </button>
+        <div class="toolbar-launcher">
+            <SpeedDial
+                :model="drawLauncherItems"
+                direction="up"
+                :transitionDelay="70"
+                :visible="activeLauncher === 'draw'"
+                :hideOnClickOutside="true"
+                @hide="activeLauncher === 'draw' ? closeLaunchers() : null"
+            >
+                <template #button="{ visible }">
+                    <button
+                        v-tooltip.top="tip('Draw')"
+                        type="button"
+                        class="toolbar-main-button"
+                        :class="{ active: drawGroupActive || visible }"
+                        :aria-expanded="visible"
+                        aria-label="Draw actions"
+                        @click="toggleLauncher('draw')"
+                    >
+                        <span class="material-symbols-outlined">draw</span>
+                    </button>
+                </template>
 
-        <button
-            v-tooltip.top="tip('Walk')"
-            :class="{ active: app.isWalkMode }"
-            @click="app.isWalkMode ? handleBack() : activateContext(() => emit('enter-walk-mode'))"
-        >
-            <span class="material-symbols-outlined">directions_walk</span>
-        </button>
+                <template #item="{ item, toggleCallback }">
+                    <button
+                        type="button"
+                        class="launcher-item-button"
+                        :class="{ active: item.active }"
+                        @click="toggleCallback"
+                    >
+                        <span class="material-symbols-outlined launcher-item-icon">{{ item.icon }}</span>
+                        <span class="launcher-item-label">{{ item.label }}</span>
+                    </button>
+                </template>
+            </SpeedDial>
+        </div>
 
-        <!-- Create texture tool -->
-        <button
-            v-tooltip.top="tip('Create Texture')"
-            :class="{ active: app.textureCreatorVisible || app.realtimeSamplerVisible }"
-            @click="(app.textureCreatorVisible || app.realtimeSamplerVisible) ? handleBack() : activateContext(() => emit('enter-slyce-mode'))"
-        >
-            <span class="material-symbols-outlined">video_camera_back_add</span>
-        </button>
+        <div class="toolbar-launcher">
+            <SpeedDial
+                :model="textureLauncherItems"
+                direction="up"
+                :transitionDelay="70"
+                :visible="activeLauncher === 'texture'"
+                :hideOnClickOutside="true"
+                @hide="activeLauncher === 'texture' ? closeLaunchers() : null"
+            >
+                <template #button="{ visible }">
+                    <button
+                        v-tooltip.top="tip('Texture')"
+                        type="button"
+                        class="toolbar-main-button"
+                        :class="{ active: textureGroupActive || visible }"
+                        :aria-expanded="visible"
+                        aria-label="Texture actions"
+                        @click="toggleLauncher('texture')"
+                    >
+                        <span class="material-symbols-outlined">texture</span>
+                    </button>
+                </template>
 
-        <!-- Text to SVG -->
-        <button
-            v-tooltip.top="tip('Text')"
-            :class="{ active: app.textPanelVisible }"
-            @click="app.textPanelVisible ? handleBack() : activateContext(() => emit('open-text-panel'))"
-        >
-            <span class="material-symbols-outlined">text_fields</span>
-        </button>
-
-        <!-- Emoji picker -->
-        <button
-            v-tooltip.top="tip('Emoji')"
-            :class="{ active: app.emojiPickerVisible }"
-            @click="app.emojiPickerVisible ? handleBack() : activateContext(() => emit('open-emoji-picker'))"
-        >
-            <span class="material-symbols-outlined">mood</span>
-        </button>
-
-        <!-- Browse textures -->
-        <button
-            v-tooltip.top="tip('Textures')"
-            :class="{ active: app.textureBrowserVisible }"
-            @click="app.textureBrowserVisible ? handleBack() : activateContext(() => emit('open-texture-browser'))"
-        >
-            <span class="material-symbols-outlined">grid_view</span>
-        </button>
+                <template #item="{ item, toggleCallback }">
+                    <button
+                        type="button"
+                        class="launcher-item-button"
+                        :class="{ active: item.active }"
+                        @click="toggleCallback"
+                    >
+                        <span class="material-symbols-outlined launcher-item-icon">{{ item.icon }}</span>
+                        <span class="launcher-item-label">{{ item.label }}</span>
+                    </button>
+                </template>
+            </SpeedDial>
+        </div>
 
         <!-- Tools panel toggle -->
         <button
+            class="toolbar-utility-button"
             v-tooltip.top="tip('Tools')"
             :class="{ active: app.toolsPanelVisible || (!hasActiveContext && app.flowState !== 'off') }"
             @click="app.toolsPanelVisible ? handleBack() : activateContext(() => app.showToolsPanel())"
@@ -451,7 +588,7 @@
         <!-- Finish capture button (draw or walk mode) -->
         <button
             v-if="showFinishCaptureButton"
-            class="finish-drawing-btn"
+            class="toolbar-utility-button finish-drawing-btn"
             v-tooltip.top="finishCaptureTooltip"
             @click="handleFinishCapture"
         >
@@ -845,7 +982,8 @@
                             <span
                                 v-if="props.cinematicRoiCount > 0"
                                 class="tools-badge"
-                            >{{ props.cinematicRoiCount }}</span>
+                            >{{ props.cinematicRoiCount
+                            }}</span>
                             <span class="tools-hint">X</span>
                         </button>
                     </div>
@@ -1020,7 +1158,16 @@
         pointer-events: none;
     }
 
-    .bottom-toolbar button {
+    .toolbar-launcher {
+        position: relative;
+        pointer-events: auto;
+        display: flex;
+        align-items: flex-end;
+    }
+
+    .toolbar-main-button,
+    .toolbar-utility-button,
+    .finish-drawing-btn {
         padding: 2rem 1rem;
         font-size: 1.1em;
         color: #fff;
@@ -1036,19 +1183,96 @@
         pointer-events: auto;
     }
 
-    .bottom-toolbar button:hover {
+    .toolbar-main-button:hover,
+    .toolbar-utility-button:hover {
         background: rgba(0, 0, 0, 0.25);
     }
 
-    .bottom-toolbar button.active {
+    .toolbar-main-button.active,
+    .toolbar-utility-button.active {
         background: rgba(255, 255, 255, 0.08);
         box-shadow: inset 0 -3px 0 0 rgba(255, 255, 255, 0.7);
     }
 
+    .toolbar-launcher :deep(.p-speeddial) {
+        --p-speeddial-gap: 1px;
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        pointer-events: auto;
+    }
+
+    .toolbar-launcher :deep(.p-speeddial-list) {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 1px);
+        transform: translateX(-50%);
+        width: max-content;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        align-items: center;
+    }
+
+    .toolbar-launcher :deep(.p-speeddial-item) {
+        margin: 0;
+    }
+
+    .launcher-item-button {
+        width: 5.6rem;
+        min-height: 4.75rem;
+        padding: 0.8rem 0.65rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        /* border-radius: 12px; */
+        background: rgba(10, 10, 10, 0.92);
+        color: rgba(255, 255, 255, 0.92);
+        cursor: pointer;
+        pointer-events: auto;
+        backdrop-filter: blur(10px);
+    }
+
+    .launcher-item-button:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .launcher-item-button.active {
+        color: var(--p-primary-color, #10b981);
+        border-color: color-mix(in srgb, var(--p-primary-color, #10b981) 42%, transparent);
+        background: color-mix(in srgb, var(--p-primary-color, #10b981) 12%, rgba(10, 10, 10, 0.92));
+    }
+
+    .launcher-item-icon {
+        font-size: 1.35rem;
+        opacity: 0.9;
+    }
+
+    .launcher-item-label {
+        font-size: 0.72rem;
+        line-height: 1.2;
+        text-align: center;
+    }
+
     /* Mobile: buttons expand to fill available space */
     @media (max-width: 768px) {
-        .bottom-toolbar button {
+
+        .toolbar-launcher,
+        .toolbar-utility-button,
+        .finish-drawing-btn {
             flex-grow: 1;
+        }
+
+        .toolbar-launcher :deep(.p-speeddial) {
+            width: 100%;
+        }
+
+        .toolbar-main-button {
+            width: 100%;
         }
     }
 
