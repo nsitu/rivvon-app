@@ -127,7 +127,7 @@
 
     const durationSummaryLabel = computed(() => {
         if (cameraMovement.value === 'cinematic') {
-            return 'Cinematic camera loop — smooth slow-crawl through ROIs';
+            return 'Auto-aligns the cinematic camera path to the texture loop for a cleaner seam';
         }
         if (cameraMovement.value === 'circularTilt') {
             return 'One full 360° Mouse Tilt-style artwork rotation';
@@ -167,7 +167,7 @@
             height: resolvedHeight.value,
             fps: fps.value,
             format: format.value,
-            duration: resolvedDuration.value,
+            duration: durationMode.value === 'auto' ? null : resolvedDuration.value,
             cameraMovement: cameraMovement.value,
             quality: quality.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
@@ -287,6 +287,10 @@
                                 suffix=" s"
                                 class="w-full"
                             />
+                            <div class="field-description">
+                                Custom durations are not guaranteed to loop cleanly. Use One full cycle for loopable
+                                exports.
+                            </div>
                         </div>
 
                         <div class="form-field">

@@ -518,7 +518,7 @@
             }
         },
         {
-            label: 'Emote',
+            label: 'Emoji',
             icon: 'mood',
             active: app.emojiPickerVisible,
             command: () => {
@@ -531,7 +531,7 @@
             }
         },
         {
-            label: 'Import Shapes',
+            label: 'Import SVG',
             icon: 'polyline',
             command: () => {
                 handleImport('svg');
