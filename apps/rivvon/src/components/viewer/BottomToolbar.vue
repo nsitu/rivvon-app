@@ -2,6 +2,7 @@
     import { ref, computed } from 'vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
+    import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -207,11 +208,6 @@
 
     const buildTimestampDisplay = computed(() => formatBuildTimestamp(buildTimestampRaw));
 
-    function handleScreenWakeLockToggle() {
-        if (app.screenWakeLockSupported === false) return;
-        app.setScreenWakeLockEnabled(!app.screenWakeLockEnabled);
-    }
-
     function handleImport(type) {
         closeLaunchers();
         app.hideToolsPanel();
@@ -266,6 +262,37 @@
         'close-export-video',
         'toolbar-overlay-change'
     ]);
+
+    const cornerNarrowingModel = computed({
+        get: () => app.cornerNarrowingEnabled,
+        set: (value) => {
+            app.setCornerNarrowingEnabled(!!value);
+        }
+    });
+
+    const textureMetadataOverlayModel = computed({
+        get: () => props.textureMetadataOverlay,
+        set: (value) => {
+            if (value === props.textureMetadataOverlay) return;
+            emit('texture-metadata-overlay-toggle');
+        }
+    });
+
+    const technicalOverlayModel = computed({
+        get: () => props.technicalOverlay,
+        set: (value) => {
+            if (value === props.technicalOverlay) return;
+            emit('technical-overlay-toggle');
+        }
+    });
+
+    const screenWakeLockModel = computed({
+        get: () => (app.screenWakeLockSupported === false ? false : app.screenWakeLockEnabled),
+        set: (value) => {
+            if (app.screenWakeLockSupported === false) return;
+            app.setScreenWakeLockEnabled(!!value);
+        }
+    });
 
     function handleCinematicCapture() {
         app.hideToolsPanel();
@@ -896,7 +923,7 @@
                         <div class="tools-section-items">
                             <div class="tools-slider">
                                 <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                                }}x</span></label>
+                                        }}x</span></label>
                                 <input
                                     type="range"
                                     min="0.4"
@@ -941,7 +968,7 @@
                             <template v-if="app.helixEnabled">
                                 <div class="tools-slider">
                                     <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                    }}</span></label>
+                                            }}</span></label>
                                     <input
                                         type="range"
                                         min="0.1"
@@ -953,7 +980,7 @@
                                 </div>
                                 <div class="tools-slider">
                                     <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                    }}</span></label>
+                                            }}</span></label>
                                     <input
                                         type="range"
                                         min="1"
@@ -1006,15 +1033,23 @@
                                 </Select>
                             </div>
 
-                            <button
-                                class="tools-option"
-                                :class="{ selected: app.cornerNarrowingEnabled }"
-                                @click="app.setCornerNarrowingEnabled(!app.cornerNarrowingEnabled)"
-                            >
-                                <span class="material-symbols-outlined">line_curve</span>
-                                <span>Adaptive Corner Narrowing</span>
-                                <span class="tools-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP' }}</span>
-                            </button>
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="cornerNarrowingToggle"
+                                >
+                                    <span class="material-symbols-outlined">line_curve</span>
+                                    <span>Adaptive Corner Narrowing</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP'
+                                        }}</span>
+                                    <ToggleSwitch
+                                        inputId="cornerNarrowingToggle"
+                                        v-model="cornerNarrowingModel"
+                                    />
+                                </div>
+                            </div>
 
                         </div>
                     </div>
@@ -1037,7 +1072,7 @@
                                 @click="handleCinematicToggle"
                             >
                                 <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                                    }}</span>
                                 <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                                 <span class="tools-hint">P</span>
                             </button>
@@ -1052,7 +1087,7 @@
                                     v-if="props.cinematicRoiCount > 0"
                                     class="tools-badge"
                                 >{{ props.cinematicRoiCount
-                                }}</span>
+                                    }}</span>
                                 <span class="tools-hint">X</span>
                             </button>
                         </div>
@@ -1061,40 +1096,64 @@
                     <div class="tools-section">
                         <div class="tools-section-label">Overlays</div>
                         <div class="tools-section-items">
-                            <button
-                                class="tools-option"
-                                :class="{ selected: props.textureMetadataOverlay }"
-                                @click="emit('texture-metadata-overlay-toggle')"
-                            >
-                                <span class="material-symbols-outlined">subtitles</span>
-                                <span>Texture Metadata</span>
-                                <span class="tools-hint">M</span>
-                            </button>
-                            <button
-                                class="tools-option"
-                                :class="{ selected: props.technicalOverlay }"
-                                @click="emit('technical-overlay-toggle')"
-                            >
-                                <span class="material-symbols-outlined">monitoring</span>
-                                <span>Technical Overlay</span>
-                                <span class="tools-hint">D</span>
-                            </button>
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="textureMetadataToggle"
+                                >
+                                    <span class="material-symbols-outlined">subtitles</span>
+                                    <span>Texture Metadata</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">M</span>
+                                    <ToggleSwitch
+                                        inputId="textureMetadataToggle"
+                                        v-model="textureMetadataOverlayModel"
+                                    />
+                                </div>
+                            </div>
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="technicalOverlayToggle"
+                                >
+                                    <span class="material-symbols-outlined">monitoring</span>
+                                    <span>Technical Overlay</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">D</span>
+                                    <ToggleSwitch
+                                        inputId="technicalOverlayToggle"
+                                        v-model="technicalOverlayModel"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="tools-section">
                         <div class="tools-section-label">Screen</div>
                         <div class="tools-section-items">
-                            <button
-                                class="tools-option"
-                                :class="{ selected: app.screenWakeLockEnabled && app.screenWakeLockSupported !== false }"
-                                :disabled="app.screenWakeLockSupported === false"
-                                @click="handleScreenWakeLockToggle"
+                            <div
+                                class="tools-toggle-row"
+                                :class="{ 'is-disabled': app.screenWakeLockSupported === false }"
                             >
-                                <span class="material-symbols-outlined">schedule</span>
-                                <span>Keep Screen Awake</span>
-                                <span class="tools-hint">{{ screenWakeLockHint }}</span>
-                            </button>
+                                <label
+                                    class="tools-toggle-main"
+                                    for="screenWakeLockToggle"
+                                >
+                                    <span class="material-symbols-outlined">schedule</span>
+                                    <span>Keep Screen Awake</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ screenWakeLockHint }}</span>
+                                    <ToggleSwitch
+                                        inputId="screenWakeLockToggle"
+                                        v-model="screenWakeLockModel"
+                                        :disabled="app.screenWakeLockSupported === false"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1306,7 +1365,7 @@
         background: rgba(0, 0, 0, 0.6);
         padding: 1.5rem 1.25rem;
         width: 100%;
-        max-width: 480px;
+        /* max-width: 480px; */
         margin: 0 auto;
         display: flex;
         flex-direction: column;
@@ -1415,7 +1474,7 @@
         height: 100%;
         min-height: 0;
         width: 100%;
-        max-width: 480px;
+        /* max-width: 480px; */
         margin: 0 auto;
     }
 
@@ -1455,6 +1514,7 @@
         display: flex;
         flex-direction: column;
         gap: 1.5rem;
+        min-height: 100%;
     }
 
     /* Desktop: width-driven multi-column layout with vertical scrolling preserved */
@@ -1630,6 +1690,49 @@
         color: var(--p-primary-color, #10b981);
         border: 1px solid color-mix(in srgb, var(--p-primary-color, #10b981) 42%, transparent);
         background: color-mix(in srgb, var(--p-primary-color, #10b981) 12%, transparent);
+    }
+
+    .tools-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.875rem 1rem;
+        color: var(--p-text-color, #fff);
+    }
+
+    .tools-toggle-row.is-disabled {
+        opacity: 0.35;
+    }
+
+    .tools-toggle-main {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        min-width: 0;
+        color: inherit;
+        cursor: pointer;
+    }
+
+    .tools-toggle-main .material-symbols-outlined {
+        font-size: 1.35rem;
+        opacity: 0.85;
+        flex-shrink: 0;
+    }
+
+    .tools-toggle-row.is-disabled .tools-toggle-main {
+        cursor: default;
+    }
+
+    .tools-toggle-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex-shrink: 0;
+    }
+
+    .tools-toggle-hint {
+        margin-left: 0;
     }
 
     .tools-option .material-symbols-outlined {
