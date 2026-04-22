@@ -12,9 +12,17 @@
             type: String,
             default: 'Turn off camera',
         },
+        panelTitle: {
+            type: String,
+            default: null,
+        },
+        toolbarOverlayTitle: {
+            type: String,
+            default: null,
+        },
     });
 
-    const emit = defineEmits(['close-realtime-mode', 'turn-off-camera']);
+    const emit = defineEmits(['close-realtime-mode', 'close-panel', 'close-toolbar-overlay', 'turn-off-camera']);
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
@@ -38,6 +46,8 @@
 
     // Compute which context is active (for header title + close button)
     const activeContext = computed(() => {
+        if (props.panelTitle) return props.panelTitle;
+        if (props.toolbarOverlayTitle) return props.toolbarOverlayTitle;
         if (app.isWalkMode) return 'Walk';
         if (app.isDrawingMode) return 'Draw';
         if (app.drawingBrowserVisible) return 'Drawings';
@@ -54,7 +64,11 @@
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
 
     function closeContext() {
-        if (app.isWalkMode) {
+        if (props.panelTitle) {
+            emit('close-panel');
+        } else if (props.toolbarOverlayTitle) {
+            emit('close-toolbar-overlay');
+        } else if (app.isWalkMode) {
             app.setWalkMode(false);
         } else if (app.isDrawingMode) {
             app.setDrawingMode(false);

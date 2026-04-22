@@ -1,7 +1,7 @@
 <script setup>
     import { ref, computed } from 'vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
-    import SpeedDial from 'primevue/speeddial';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -37,14 +37,18 @@
     // Helper to conditionally return tooltip text (null disables tooltip)
     const tip = (text) => isTouchDevice.value ? null : text;
 
-    const activeLauncher = ref(null);
-
     function closeLaunchers() {
-        activeLauncher.value = null;
+        emit('toolbar-overlay-change', null);
     }
 
     function toggleLauncher(name) {
-        activeLauncher.value = activeLauncher.value === name ? null : name;
+        const nextLauncher = props.activeToolbarOverlay === name ? null : name;
+
+        if (nextLauncher && !closeActiveContext()) {
+            return;
+        }
+
+        emit('toolbar-overlay-change', nextLauncher);
     }
 
     const flowOptions = [
@@ -209,16 +213,19 @@
     }
 
     function handleImport(type) {
+        closeLaunchers();
         app.hideToolsPanel();
         emit('import-file', type);
     }
 
     function handleExportImage() {
+        closeLaunchers();
         app.hideToolsPanel();
         emit('export-image');
     }
 
     function handleExportVideo() {
+        closeLaunchers();
         app.hideToolsPanel();
         emit('export-video');
     }
@@ -228,7 +235,9 @@
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
         technicalOverlay: { type: Boolean, default: false },
-        textureMetadataOverlay: { type: Boolean, default: false }
+        textureMetadataOverlay: { type: Boolean, default: false },
+        activeToolbarOverlay: { type: String, default: null },
+        exportVideoVisible: { type: Boolean, default: false }
     });
 
     const emit = defineEmits([
@@ -253,7 +262,9 @@
         'cinematic-toggle',
         'cinematic-clear',
         'technical-overlay-toggle',
-        'texture-metadata-overlay-toggle'
+        'texture-metadata-overlay-toggle',
+        'close-export-video',
+        'toolbar-overlay-change'
     ]);
 
     function handleCinematicCapture() {
@@ -304,6 +315,10 @@
             app.hideEmojiPicker();
         } else if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');
+        } else if (props.exportVideoVisible) {
+            emit('close-export-video');
+        } else if (props.activeToolbarOverlay) {
+            closeLaunchers();
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
         } else if (app.aboutPanelVisible) {
@@ -313,7 +328,7 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
+        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || !!props.activeToolbarOverlay || props.exportVideoVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
 
     const drawGroupActive = computed(() => (
@@ -397,6 +412,12 @@
         if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode', { suppressCreateTextureReturn: true });
         }
+        if (props.exportVideoVisible) {
+            emit('close-export-video');
+        }
+        if (props.activeToolbarOverlay) {
+            closeLaunchers();
+        }
         return true;
     }
 
@@ -405,6 +426,29 @@
         closeLaunchers();
         action();
     }
+
+    const activeLauncherItems = computed(() => {
+        if (props.activeToolbarOverlay === 'draw') {
+            return drawLauncherItems.value;
+        }
+
+        if (props.activeToolbarOverlay === 'texture') {
+            return textureLauncherItems.value;
+        }
+
+        if (props.activeToolbarOverlay === 'share') {
+            return shareLauncherItems.value;
+        }
+
+        return [];
+    });
+
+    const activeLauncherTitle = computed(() => {
+        if (props.activeToolbarOverlay === 'draw') return 'Draw';
+        if (props.activeToolbarOverlay === 'texture') return 'Texture';
+        if (props.activeToolbarOverlay === 'share') return 'Share';
+        return '';
+    });
 
     const drawLauncherItems = computed(() => ([
         {
@@ -460,6 +504,13 @@
             }
         },
         {
+            label: 'Import Shapes',
+            icon: 'polyline',
+            command: () => {
+                handleImport('svg');
+            }
+        },
+        {
             label: 'Browse',
             icon: 'grid_view',
             active: app.drawingBrowserVisible,
@@ -492,6 +543,13 @@
             }
         },
         {
+            label: 'Import Texture',
+            icon: 'folder_zip',
+            command: () => {
+                handleImport('zip');
+            }
+        },
+        {
             label: 'Browse',
             icon: 'grid_view',
             active: app.textureBrowserVisible,
@@ -505,6 +563,23 @@
             }
         }
     ]));
+
+    const shareLauncherItems = computed(() => ([
+        {
+            label: 'Export Image',
+            icon: 'image',
+            command: () => {
+                handleExportImage();
+            }
+        },
+        {
+            label: 'Export Video',
+            icon: 'videocam',
+            command: () => {
+                handleExportVideo();
+            }
+        }
+    ]));
 </script>
 
 <template>
@@ -513,88 +588,67 @@
         :class="{ hidden: app.isFullscreen }"
     >
         <div class="toolbar-launcher">
-            <SpeedDial
-                :model="drawLauncherItems"
-                direction="up"
-                :transitionDelay="70"
-                :visible="activeLauncher === 'draw'"
-                :hideOnClickOutside="true"
-                @hide="activeLauncher === 'draw' ? closeLaunchers() : null"
+            <button
+                type="button"
+                class="toolbar-main-button"
+                :class="{ active: drawGroupActive || props.activeToolbarOverlay === 'draw' }"
+                :aria-expanded="props.activeToolbarOverlay === 'draw'"
+                aria-label="Draw actions"
+                aria-haspopup="dialog"
+                @click="toggleLauncher('draw')"
             >
-                <template #button="{ visible }">
-                    <button
-                        v-tooltip.top="tip('Draw')"
-                        type="button"
-                        class="toolbar-main-button"
-                        :class="{ active: drawGroupActive || visible }"
-                        :aria-expanded="visible"
-                        aria-label="Draw actions"
-                        @click="toggleLauncher('draw')"
-                    >
-                        <span class="material-symbols-outlined">draw</span>
-                    </button>
-                </template>
-
-                <template #item="{ item, toggleCallback }">
-                    <button
-                        type="button"
-                        class="launcher-item-button"
-                        :class="{ active: item.active }"
-                        @click="toggleCallback"
-                    >
-                        <span class="material-symbols-outlined launcher-item-icon">{{ item.icon }}</span>
-                        <span class="launcher-item-label">{{ item.label }}</span>
-                    </button>
-                </template>
-            </SpeedDial>
+                <span class="toolbar-button-content">
+                    <span class="material-symbols-outlined toolbar-button-icon">draw</span>
+                    <span class="toolbar-button-label">Draw</span>
+                </span>
+            </button>
         </div>
 
         <div class="toolbar-launcher">
-            <SpeedDial
-                :model="textureLauncherItems"
-                direction="up"
-                :transitionDelay="70"
-                :visible="activeLauncher === 'texture'"
-                :hideOnClickOutside="true"
-                @hide="activeLauncher === 'texture' ? closeLaunchers() : null"
+            <button
+                type="button"
+                class="toolbar-main-button"
+                :class="{ active: textureGroupActive || props.activeToolbarOverlay === 'texture' }"
+                :aria-expanded="props.activeToolbarOverlay === 'texture'"
+                aria-label="Texture actions"
+                aria-haspopup="dialog"
+                @click="toggleLauncher('texture')"
             >
-                <template #button="{ visible }">
-                    <button
-                        v-tooltip.top="tip('Texture')"
-                        type="button"
-                        class="toolbar-main-button"
-                        :class="{ active: textureGroupActive || visible }"
-                        :aria-expanded="visible"
-                        aria-label="Texture actions"
-                        @click="toggleLauncher('texture')"
-                    >
-                        <span class="material-symbols-outlined">texture</span>
-                    </button>
-                </template>
-
-                <template #item="{ item, toggleCallback }">
-                    <button
-                        type="button"
-                        class="launcher-item-button"
-                        :class="{ active: item.active }"
-                        @click="toggleCallback"
-                    >
-                        <span class="material-symbols-outlined launcher-item-icon">{{ item.icon }}</span>
-                        <span class="launcher-item-label">{{ item.label }}</span>
-                    </button>
-                </template>
-            </SpeedDial>
+                <span class="toolbar-button-content">
+                    <span class="material-symbols-outlined toolbar-button-icon">texture</span>
+                    <span class="toolbar-button-label">Texture</span>
+                </span>
+            </button>
         </div>
 
         <!-- Tools panel toggle -->
         <button
             class="toolbar-utility-button"
-            v-tooltip.top="tip('Tools')"
-            :class="{ active: app.toolsPanelVisible || (!hasActiveContext && app.flowState !== 'off') }"
+            :class="{ active: app.toolsPanelVisible }"
             @click="app.toolsPanelVisible ? handleBack() : activateContext(() => app.showToolsPanel())"
         >
-            <span class="material-symbols-outlined">instant_mix</span>
+            <span class="toolbar-button-content">
+                <span class="material-symbols-outlined toolbar-button-icon">instant_mix</span>
+                <span class="toolbar-button-label">Tools</span>
+            </span>
         </button>
+
+        <div class="toolbar-launcher">
+            <button
+                type="button"
+                class="toolbar-main-button"
+                :class="{ active: props.activeToolbarOverlay === 'share' || props.exportVideoVisible }"
+                :aria-expanded="props.activeToolbarOverlay === 'share'"
+                aria-label="Share actions"
+                aria-haspopup="dialog"
+                @click="toggleLauncher('share')"
+            >
+                <span class="toolbar-button-content">
+                    <span class="material-symbols-outlined toolbar-button-icon">share</span>
+                    <span class="toolbar-button-label">Share</span>
+                </span>
+            </button>
+        </div>
 
         <!-- Finish capture button (draw or walk mode) -->
         <button
@@ -607,477 +661,470 @@
         </button>
     </div>
 
+    <div
+        class="launcher-panel"
+        :class="{ active: !!props.activeToolbarOverlay }"
+        role="dialog"
+        :aria-label="`${activeLauncherTitle} actions`"
+    >
+        <div class="launcher-panel-container">
+            <div class="launcher-panel-content">
+                <div class="tools-section">
+                    <div class="tools-section-label">Actions</div>
+                    <div class="tools-section-items">
+                        <button
+                            v-for="item in activeLauncherItems"
+                            :key="`${props.activeToolbarOverlay}-${item.label}`"
+                            type="button"
+                            class="tools-option launcher-menu-action"
+                            :class="{ selected: item.active }"
+                            role="menuitem"
+                            @click="item.command()"
+                        >
+                            <span class="material-symbols-outlined">{{ item.icon }}</span>
+                            <span>{{ item.label }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tools panel (full-screen overlay, like TextureBrowser) -->
     <div
         class="tools-panel"
         :class="{ active: app.toolsPanelVisible }"
     >
         <div class="tools-panel-container">
-            <div class="tools-panel-content">
-                <!-- Animation section -->
-                <div class="tools-section">
-                    <div class="tools-section-label">Viewer Controls</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedViewerControlOption"
-                                :options="viewerControlOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-
-                        <div
-                            v-if="showHeadTrackingTools"
-                            class="tools-status-card"
-                            :class="headTrackingStatusClass"
-                        >
-                            <div class="tools-status-row">
-                                <span class="material-symbols-outlined tools-status-icon">face</span>
-                                <div class="tools-status-copy">
-                                    <div class="tools-status-label-row">
-                                        <span class="tools-status-label-text">{{ headTrackingStatusLabel }}</span>
-                                        <button
-                                            v-if="app.viewerControlMode === 'headTracking'"
-                                            type="button"
-                                            class="tools-inline-action"
-                                            @click="emit('recenter-head-tracking')"
+            <ScrollPanel class="tools-panel-scrollpanel">
+                <div class="tools-panel-content">
+                    <!-- Animation section -->
+                    <div class="tools-section">
+                        <div class="tools-section-label">Viewer Controls</div>
+                        <div class="tools-section-items">
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedViewerControlOption"
+                                    :options="viewerControlOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
                                         >
-                                            <span class="material-symbols-outlined">center_focus_strong</span>
-                                            <span>Re-center</span>
-                                        </button>
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+
+                            <div
+                                v-if="showHeadTrackingTools"
+                                class="tools-status-card"
+                                :class="headTrackingStatusClass"
+                            >
+                                <div class="tools-status-row">
+                                    <span class="material-symbols-outlined tools-status-icon">face</span>
+                                    <div class="tools-status-copy">
+                                        <div class="tools-status-label-row">
+                                            <span class="tools-status-label-text">{{ headTrackingStatusLabel }}</span>
+                                            <button
+                                                v-if="app.viewerControlMode === 'headTracking'"
+                                                type="button"
+                                                class="tools-inline-action"
+                                                @click="emit('recenter-head-tracking')"
+                                            >
+                                                <span class="material-symbols-outlined">center_focus_strong</span>
+                                                <span>Re-center</span>
+                                            </button>
+                                        </div>
+                                        <div class="tools-status-message">{{ headTrackingDisplayMessage }}</div>
                                     </div>
-                                    <div class="tools-status-message">{{ headTrackingDisplayMessage }}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Animation section -->
-                <div class="tools-section">
-                    <div class="tools-section-label">Animation</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedFlowOption"
-                                :options="flowOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tools-section">
-                    <div class="tools-section-label">Texture Layout</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedRepeatOption"
-                                :options="repeatOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tools-section">
-                    <div class="tools-section-label">Preferred Texture Size</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedPreferredTextureResolutionOption"
-                                :options="preferredTextureResolutionOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tools-section">
-                    <div class="tools-section-label">Filter</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedFilterOption"
-                                :options="filterOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Geometry section -->
-                <div class="tools-section">
-                    <div class="tools-section-label">Geometry</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedGeometryOption"
-                                :options="geometryOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span
-                                            :class="slotProps.value.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
-                                        >{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span
-                                            :class="slotProps.option.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
-                                        >{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-                        <!-- Helix parameter sliders (visible when helix is active) -->
-                        <template v-if="app.helixEnabled">
-                            <div class="tools-slider">
-                                <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                }}</span></label>
-                                <input
-                                    type="range"
-                                    min="0.1"
-                                    max="1.5"
-                                    step="0.05"
-                                    :value="app.helixRadius"
-                                    @input="app.setHelixOption('helixRadius', parseFloat($event.target.value))"
-                                />
+                    <!-- Animation section -->
+                    <div class="tools-section">
+                        <div class="tools-section-label">Animation</div>
+                        <div class="tools-section-items">
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedFlowOption"
+                                    :options="flowOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
+                                        >
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
                             </div>
-                            <div class="tools-slider">
-                                <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                }}</span></label>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="12"
-                                    step="0.5"
-                                    :value="app.helixPitch"
-                                    @input="app.setHelixOption('helixPitch', parseFloat($event.target.value))"
-                                />
-                            </div>
-                            <div class="tools-slider">
-                                <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                }}</span></label>
-                                <input
-                                    type="range"
-                                    min="0.05"
-                                    max="0.8"
-                                    step="0.05"
-                                    :value="app.helixStrandWidth"
-                                    @input="app.setHelixOption('helixStrandWidth', parseFloat($event.target.value))"
-                                />
-                            </div>
-                        </template>
-                        <!-- Cap style (works for both Standard Ribbon and helix strands) -->
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedCapOption"
-                                :options="capOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
                         </div>
-
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.cornerNarrowingEnabled }"
-                            @click="app.setCornerNarrowingEnabled(!app.cornerNarrowingEnabled)"
-                        >
-                            <span class="material-symbols-outlined">line_curve</span>
-                            <span>Adaptive Corner Narrowing</span>
-                            <span class="tools-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP' }}</span>
-                        </button>
-
                     </div>
-                </div>
 
-                <!-- Import / Export section -->
-                <div class="tools-section">
-                    <div class="tools-section-label">Import / Export</div>
-                    <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            @click="handleImport('svg')"
-                        >
-                            <span class="material-symbols-outlined">polyline</span>
-                            <span>Import Shapes</span>
-                            <span class="tools-hint">.SVG</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            @click="handleImport('zip')"
-                        >
-                            <span class="material-symbols-outlined">folder_zip</span>
-                            <span>Import Texture</span>
-                            <span class="tools-hint">.ZIP</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            @click="handleExportImage"
-                        >
-                            <span class="material-symbols-outlined">image</span>
-                            <span>Export Image</span>
-                            <span class="tools-hint">.PNG</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            @click="handleExportVideo"
-                        >
-                            <span class="material-symbols-outlined">videocam</span>
-                            <span>Export Video</span>
-                            <span class="tools-hint">.MP4</span>
-                        </button>
+                    <div class="tools-section">
+                        <div class="tools-section-label">Texture Layout</div>
+                        <div class="tools-section-items">
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedRepeatOption"
+                                    :options="repeatOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
+                                        >
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Cinematic Camera section -->
-                <div class="tools-section">
-                    <div class="tools-section-label">Cinematic Camera</div>
-                    <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            :disabled="props.cinematicPlaying"
-                            @click="handleCinematicCapture"
-                        >
-                            <span class="material-symbols-outlined">center_focus_strong</span>
-                            <span>Capture View</span>
-                            <span class="tools-hint">C</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            @click="handleCinematicToggle"
-                        >
-                            <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                            }}</span>
-                            <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
-                            <span class="tools-hint">P</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            :disabled="props.cinematicPlaying || props.cinematicRoiCount === 0"
-                            @click="handleCinematicClear"
-                        >
-                            <span class="material-symbols-outlined">delete_sweep</span>
-                            <span>Clear Views</span>
-                            <span
-                                v-if="props.cinematicRoiCount > 0"
-                                class="tools-badge"
-                            >{{ props.cinematicRoiCount
+                    <div class="tools-section">
+                        <div class="tools-section-label">Preferred Texture Size</div>
+                        <div class="tools-section-items">
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedPreferredTextureResolutionOption"
+                                    :options="preferredTextureResolutionOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
+                                        >
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tools-section">
+                        <div class="tools-section-label">Filter</div>
+                        <div class="tools-section-items">
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedFilterOption"
+                                    :options="filterOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
+                                        >
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Geometry section -->
+                    <div class="tools-section">
+                        <div class="tools-section-label">Geometry</div>
+                        <div class="tools-section-items">
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedGeometryOption"
+                                    :options="geometryOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
+                                        >
+                                            <span
+                                                :class="slotProps.value.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
+                                            >{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span
+                                                :class="slotProps.option.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
+                                            >{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+                            <!-- Helix parameter sliders (visible when helix is active) -->
+                            <template v-if="app.helixEnabled">
+                                <div class="tools-slider">
+                                    <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
+                                    }}</span></label>
+                                    <input
+                                        type="range"
+                                        min="0.1"
+                                        max="1.5"
+                                        step="0.05"
+                                        :value="app.helixRadius"
+                                        @input="app.setHelixOption('helixRadius', parseFloat($event.target.value))"
+                                    />
+                                </div>
+                                <div class="tools-slider">
+                                    <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
+                                    }}</span></label>
+                                    <input
+                                        type="range"
+                                        min="1"
+                                        max="12"
+                                        step="0.5"
+                                        :value="app.helixPitch"
+                                        @input="app.setHelixOption('helixPitch', parseFloat($event.target.value))"
+                                    />
+                                </div>
+                                <div class="tools-slider">
+                                    <label>Strand Width <span class="tools-slider-value">{{
+                                        app.helixStrandWidth.toFixed(2)
+                                            }}</span></label>
+                                    <input
+                                        type="range"
+                                        min="0.05"
+                                        max="0.8"
+                                        step="0.05"
+                                        :value="app.helixStrandWidth"
+                                        @input="app.setHelixOption('helixStrandWidth', parseFloat($event.target.value))"
+                                    />
+                                </div>
+                            </template>
+                            <!-- Cap style (works for both Standard Ribbon and helix strands) -->
+                            <div class="tools-select-wrap">
+                                <Select
+                                    v-model="selectedCapOption"
+                                    :options="capOptions"
+                                    option-label="label"
+                                    class="tools-select"
+                                >
+                                    <template #value="slotProps">
+                                        <div
+                                            v-if="slotProps.value"
+                                            class="tools-select-row"
+                                        >
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.value.icon }}</span>
+                                            <span>{{ slotProps.value.label }}</span>
+                                        </div>
+                                        <span v-else>{{ slotProps.placeholder }}</span>
+                                    </template>
+                                    <template #option="slotProps">
+                                        <div class="tools-select-row">
+                                            <span class="material-symbols-outlined tools-select-icon">{{
+                                                slotProps.option.icon }}</span>
+                                            <span>{{ slotProps.option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+
+                            <button
+                                class="tools-option"
+                                :class="{ selected: app.cornerNarrowingEnabled }"
+                                @click="app.setCornerNarrowingEnabled(!app.cornerNarrowingEnabled)"
+                            >
+                                <span class="material-symbols-outlined">line_curve</span>
+                                <span>Adaptive Corner Narrowing</span>
+                                <span class="tools-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP' }}</span>
+                            </button>
+
+                        </div>
+                    </div>
+
+                    <!-- Cinematic Camera section -->
+                    <div class="tools-section">
+                        <div class="tools-section-label">Cinematic Camera</div>
+                        <div class="tools-section-items">
+                            <button
+                                class="tools-option"
+                                :disabled="props.cinematicPlaying"
+                                @click="handleCinematicCapture"
+                            >
+                                <span class="material-symbols-outlined">center_focus_strong</span>
+                                <span>Capture View</span>
+                                <span class="tools-hint">C</span>
+                            </button>
+                            <button
+                                class="tools-option"
+                                @click="handleCinematicToggle"
+                            >
+                                <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
                                 }}</span>
-                            <span class="tools-hint">X</span>
-                        </button>
+                                <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
+                                <span class="tools-hint">P</span>
+                            </button>
+                            <button
+                                class="tools-option"
+                                :disabled="props.cinematicPlaying || props.cinematicRoiCount === 0"
+                                @click="handleCinematicClear"
+                            >
+                                <span class="material-symbols-outlined">delete_sweep</span>
+                                <span>Clear Views</span>
+                                <span
+                                    v-if="props.cinematicRoiCount > 0"
+                                    class="tools-badge"
+                                >{{ props.cinematicRoiCount
+                                }}</span>
+                                <span class="tools-hint">X</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div class="tools-section">
-                    <div class="tools-section-label">Overlays</div>
-                    <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            :class="{ selected: props.textureMetadataOverlay }"
-                            @click="emit('texture-metadata-overlay-toggle')"
-                        >
-                            <span class="material-symbols-outlined">subtitles</span>
-                            <span>Texture Metadata</span>
-                            <span class="tools-hint">M</span>
-                        </button>
-                        <button
-                            class="tools-option"
-                            :class="{ selected: props.technicalOverlay }"
-                            @click="emit('technical-overlay-toggle')"
-                        >
-                            <span class="material-symbols-outlined">monitoring</span>
-                            <span>Technical Overlay</span>
-                            <span class="tools-hint">D</span>
-                        </button>
+                    <div class="tools-section">
+                        <div class="tools-section-label">Overlays</div>
+                        <div class="tools-section-items">
+                            <button
+                                class="tools-option"
+                                :class="{ selected: props.textureMetadataOverlay }"
+                                @click="emit('texture-metadata-overlay-toggle')"
+                            >
+                                <span class="material-symbols-outlined">subtitles</span>
+                                <span>Texture Metadata</span>
+                                <span class="tools-hint">M</span>
+                            </button>
+                            <button
+                                class="tools-option"
+                                :class="{ selected: props.technicalOverlay }"
+                                @click="emit('technical-overlay-toggle')"
+                            >
+                                <span class="material-symbols-outlined">monitoring</span>
+                                <span>Technical Overlay</span>
+                                <span class="tools-hint">D</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div class="tools-section">
-                    <div class="tools-section-label">Screen</div>
-                    <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            :class="{ selected: app.screenWakeLockEnabled && app.screenWakeLockSupported !== false }"
-                            :disabled="app.screenWakeLockSupported === false"
-                            @click="handleScreenWakeLockToggle"
-                        >
-                            <span class="material-symbols-outlined">schedule</span>
-                            <span>Keep Screen Awake</span>
-                            <span class="tools-hint">{{ screenWakeLockHint }}</span>
-                        </button>
+                    <div class="tools-section">
+                        <div class="tools-section-label">Screen</div>
+                        <div class="tools-section-items">
+                            <button
+                                class="tools-option"
+                                :class="{ selected: app.screenWakeLockEnabled && app.screenWakeLockSupported !== false }"
+                                :disabled="app.screenWakeLockSupported === false"
+                                @click="handleScreenWakeLockToggle"
+                            >
+                                <span class="material-symbols-outlined">schedule</span>
+                                <span>Keep Screen Awake</span>
+                                <span class="tools-hint">{{ screenWakeLockHint }}</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Display & Account section -->
-                <div class="tools-section">
-                    <div class="tools-section-label">Display &amp; Account</div>
-                    <div class="tools-section-items">
-                        <button
-                            class="tools-option"
-                            @click="handleAbout"
-                        >
-                            <span class="material-symbols-outlined">info</span>
-                            <span>About Rivvon</span>
-                        </button>
-                        <button
-                            v-if="isAuthenticated"
-                            class="tools-option tools-user"
-                            disabled
-                        >
-                            <span class="material-symbols-outlined">account_circle</span>
-                            <span>{{ user?.name || user?.email || 'User' }}</span>
-                        </button>
-                        <button
-                            v-if="isAuthenticated"
-                            class="tools-option"
-                            @click="handleLogout"
-                        >
-                            <span class="material-symbols-outlined">logout</span>
-                            <span>Sign Out</span>
-                        </button>
-                        <button
-                            v-if="!isAuthenticated"
-                            class="tools-option"
-                            @click="handleLoginClick"
-                        >
-                            <span class="material-symbols-outlined">login</span>
-                            <span>Sign In with Google</span>
-                        </button>
+                    <!-- Display & Account section -->
+                    <div class="tools-section">
+                        <div class="tools-section-label">Display &amp; Account</div>
+                        <div class="tools-section-items">
+                            <button
+                                class="tools-option"
+                                @click="handleAbout"
+                            >
+                                <span class="material-symbols-outlined">info</span>
+                                <span>About Rivvon</span>
+                            </button>
+                            <button
+                                v-if="isAuthenticated"
+                                class="tools-option tools-user"
+                                disabled
+                            >
+                                <span class="material-symbols-outlined">account_circle</span>
+                                <span>{{ user?.name || user?.email || 'User' }}</span>
+                            </button>
+                            <button
+                                v-if="isAuthenticated"
+                                class="tools-option"
+                                @click="handleLogout"
+                            >
+                                <span class="material-symbols-outlined">logout</span>
+                                <span>Sign Out</span>
+                            </button>
+                            <button
+                                v-if="!isAuthenticated"
+                                class="tools-option"
+                                @click="handleLoginClick"
+                            >
+                                <span class="material-symbols-outlined">login</span>
+                                <span>Sign In with Google</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </ScrollPanel>
         </div>
     </div>
 
@@ -1141,6 +1188,15 @@
 </template>
 
 <style scoped>
+
+    .bottom-toolbar,
+    .launcher-panel,
+    .tools-panel,
+    .about-panel {
+        --viewer-header-chrome-height: 5.5rem;
+        --viewer-bottom-chrome-height: 6.4rem;
+    }
+
     .bottom-toolbar {
         position: absolute;
         bottom: 0;
@@ -1148,6 +1204,8 @@
         right: 0;
         z-index: 10;
         display: flex;
+        height: var(--viewer-bottom-chrome-height);
+        min-height: var(--viewer-bottom-chrome-height);
         background: rgba(0, 0, 0, 0.5);
         justify-content: center;
         align-items: center;
@@ -1166,13 +1224,16 @@
         position: relative;
         pointer-events: auto;
         display: flex;
+        height: 100%;
         align-items: flex-end;
     }
 
     .toolbar-main-button,
     .toolbar-utility-button,
     .finish-drawing-btn {
-        padding: 2rem 1rem;
+        box-sizing: border-box;
+        height: 100%;
+        padding: 0 1rem;
         font-size: 1.1em;
         color: #fff;
         border: none;
@@ -1194,71 +1255,85 @@
 
     .toolbar-main-button.active,
     .toolbar-utility-button.active {
-        background: rgba(255, 255, 255, 0.08);
-        box-shadow: inset 0 -3px 0 0 rgba(255, 255, 255, 0.7);
+        background: rgba(0, 0, 0, 0.25);
+
     }
 
-    .toolbar-launcher :deep(.p-speeddial) {
-        --p-speeddial-gap: 1px;
-        position: relative;
-        display: flex;
-        align-items: flex-end;
-        pointer-events: auto;
-    }
-
-    .toolbar-launcher :deep(.p-speeddial-list) {
+    .launcher-panel {
         position: absolute;
-        left: 50%;
-        bottom: calc(100% + 1px);
-        transform: translateX(-50%);
-        width: max-content;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        align-items: center;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 5;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        display: flex;
+        flex-direction: column;
     }
 
-    .toolbar-launcher :deep(.p-speeddial-item) {
-        margin: 0;
+    .launcher-panel.active {
+        pointer-events: auto;
+        opacity: 1;
     }
 
-    .launcher-item-button {
-        width: 5.6rem;
-        min-height: 4.75rem;
-        padding: 0.8rem 0.65rem;
+    .launcher-panel-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        background: transparent;
+        padding-top: var(--viewer-header-chrome-height);
+        padding-bottom: var(--viewer-bottom-chrome-height);
+    }
+
+    .launcher-panel-content {
+        flex: 1;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 1.5rem 1.25rem;
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: end;
+        gap: 1.5rem;
+    }
+
+    @media (min-width: 769px) {
+        .launcher-panel-content {
+            max-width: none;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-content: center;
+            gap: 1.25rem 2rem;
+        }
+    }
+
+    .toolbar-button-content {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.4rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        /* border-radius: 12px; */
-        background: rgba(10, 10, 10, 0.92);
-        color: rgba(255, 255, 255, 0.92);
-        cursor: pointer;
+        gap: 0.22rem;
+        line-height: 1;
+    }
+
+    .toolbar-button-icon {
+        font-size: 1.45rem;
+        line-height: 1;
+    }
+
+    .launcher-menu-action {
+        width: 100%;
         pointer-events: auto;
-        backdrop-filter: blur(10px);
     }
 
-    .launcher-item-button:hover {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.18);
-    }
-
-    .launcher-item-button.active {
-        color: var(--p-primary-color, #10b981);
-        border-color: color-mix(in srgb, var(--p-primary-color, #10b981) 42%, transparent);
-        background: color-mix(in srgb, var(--p-primary-color, #10b981) 12%, rgba(10, 10, 10, 0.92));
-    }
-
-    .launcher-item-icon {
-        font-size: 1.35rem;
-        opacity: 0.9;
-    }
-
-    .launcher-item-label {
-        font-size: 0.72rem;
-        line-height: 1.2;
+    .toolbar-button-label {
+        font-size: 0.68rem;
+        line-height: 1.1;
         text-align: center;
     }
 
@@ -1271,8 +1346,8 @@
             flex-grow: 1;
         }
 
-        .toolbar-launcher :deep(.p-speeddial) {
-            width: 100%;
+        .toolbar-launcher {
+            justify-content: center;
         }
 
         .toolbar-main-button {
@@ -1314,34 +1389,79 @@
         display: flex;
         flex-direction: column;
         height: 100%;
+        min-height: 0;
         width: 100%;
-        background: #1a1a1a;
-        padding-top: 5.5rem;
-        /* Space for AppHeader */
-        padding-bottom: 5.5rem;
-        /* Space for BottomToolbar */
+        background: transparent;
+        padding-top: var(--viewer-header-chrome-height);
+        padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
-    .tools-panel-content {
+    .tools-panel-scrollpanel {
+        --p-scrollpanel-bar-size: 0.55rem;
+        --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
         flex: 1;
-        overflow-y: auto;
-        padding: 1.5rem 1.25rem;
+        height: 100%;
+        min-height: 0;
         width: 100%;
         max-width: 480px;
         margin: 0 auto;
+    }
+
+    @media (min-width: 769px) {
+        .tools-panel-scrollpanel {
+            max-width: none;
+        }
+    }
+
+    :deep(.tools-panel-scrollpanel .p-scrollpanel-content-container) {
+        height: 100%;
+        min-height: 0;
+    }
+
+    :deep(.tools-panel-scrollpanel .p-scrollpanel-content) {
+        height: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+        padding-bottom: 0px;
+    }
+
+    :deep(.tools-panel-scrollpanel .p-scrollpanel-bar) {
+        opacity: 0.55;
+    }
+
+    :deep(.tools-panel-scrollpanel:hover .p-scrollpanel-bar),
+    :deep(.tools-panel-scrollpanel:active .p-scrollpanel-bar),
+    :deep(.tools-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
+        opacity: 0.9;
+    }
+
+    .tools-panel-content {
+        box-sizing: border-box;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 1.5rem 1.25rem;
+        width: 100%;
         display: flex;
         flex-direction: column;
         gap: 1.5rem;
     }
 
-    /* Desktop: two-column flex wrap so sections flow without row-height mismatch */
+    /* Desktop: width-driven multi-column layout with vertical scrolling preserved */
     @media (min-width: 769px) {
         .tools-panel-content {
-            max-width: none;
-            flex-direction: column;
-            flex-wrap: wrap;
-            align-content: center;
-            gap: 1.25rem 2rem;
+            display: block;
+            column-width: 24rem;
+            column-gap: 2rem;
+            column-fill: balance;
+        }
+
+        .tools-section {
+            break-inside: avoid;
+            margin-bottom: 1.25rem;
+            page-break-inside: avoid;
+        }
+
+        .tools-section:last-child {
+            margin-bottom: 0;
         }
     }
 
@@ -1364,7 +1484,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.125rem;
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(0, 0, 0, 0.25);
         border-radius: 10px;
         padding: 0.25rem;
     }
@@ -1623,8 +1743,8 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: 5.5rem;
-        padding-bottom: 5.5rem;
+        padding-top: var(--viewer-header-chrome-height);
+        padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
     .about-panel-content {

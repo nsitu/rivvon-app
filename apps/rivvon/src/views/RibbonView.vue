@@ -101,6 +101,18 @@
         return 'Turn off camera';
     });
 
+    const activeToolbarOverlay = ref(null);
+
+    function handleToolbarOverlayChange(nextOverlay) {
+        activeToolbarOverlay.value = nextOverlay === 'draw' || nextOverlay === 'texture' || nextOverlay === 'share'
+            ? nextOverlay
+            : null;
+    }
+
+    function handleToolbarOverlayClose() {
+        activeToolbarOverlay.value = null;
+    }
+
     let textureServicePromise = null;
 
     async function fetchTextureSetById(textureId) {
@@ -860,6 +872,10 @@
         showExportDialog.value = true;
     }
 
+    function handleExportDialogClose() {
+        showExportDialog.value = false;
+    }
+
     // Called when user confirms export settings in the dialog
     async function handleExportConfirm(settings) {
         ensureOrbitControlsForInteraction(
@@ -1315,7 +1331,11 @@
         <AppHeader
             :camera-active="isCameraIndicatorVisible"
             :camera-dismiss-label="cameraDismissLabel"
+            :panel-title="showExportDialog ? 'Export Video' : null"
+            :toolbar-overlay-title="activeToolbarOverlay === 'draw' ? 'Draw' : activeToolbarOverlay === 'texture' ? 'Texture' : activeToolbarOverlay === 'share' ? 'Share' : null"
             @close-realtime-mode="handleRealtimeClose"
+            @close-panel="handleExportDialogClose"
+            @close-toolbar-overlay="handleToolbarOverlayClose"
             @turn-off-camera="handleTurnOffCamera"
         />
 
@@ -1350,6 +1370,8 @@
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :technical-overlay="showTechnicalOverlay"
             :texture-metadata-overlay="app.showTextureMetadataOverlay"
+            :active-toolbar-overlay="activeToolbarOverlay"
+            :export-video-visible="showExportDialog"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
             @open-drawing-browser="openDrawingBrowser"
@@ -1363,6 +1385,8 @@
             @open-emoji-picker="app.showEmojiPicker"
             @open-texture-browser="openTextureBrowser"
             @import-file="openFileImport"
+            @close-export-video="handleExportDialogClose"
+            @toolbar-overlay-change="handleToolbarOverlayChange"
             @export-image="handleExportImage"
             @export-video="handleExportVideo"
             @finish-drawing="finishDrawing"
@@ -1486,6 +1510,8 @@
     /* Re-enable pointer events only on specific interactive containers */
     .ribbon-view :deep(.app-header),
     .ribbon-view :deep(.bottom-toolbar),
+    .ribbon-view :deep(.export-video-panel.active),
+    .ribbon-view :deep(.launcher-panel.active),
     .ribbon-view :deep(.tools-panel.active),
     .ribbon-view :deep(.about-panel.active),
     .ribbon-view :deep(.text-input-panel.active),

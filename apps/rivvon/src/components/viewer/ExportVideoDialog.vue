@@ -1,6 +1,5 @@
 <script setup>
     import { ref, computed } from 'vue';
-    import Dialog from 'primevue/dialog';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -35,8 +34,8 @@
     });
 
     const cameraMovementDescription = computed(() => {
-        const opt = cameraMovementOptions.value.find(o => o.value === cameraMovement.value);
-        return opt?.description ?? '';
+        const option = cameraMovementOptions.value.find((entry) => entry.value === cameraMovement.value);
+        return option?.description ?? '';
     });
 
     // --- Preset options ---
@@ -70,8 +69,8 @@
     ];
 
     const qualityDescription = computed(() => {
-        const opt = qualityOptions.find(o => o.value === quality.value);
-        return opt?.description ?? '';
+        const option = qualityOptions.find((entry) => entry.value === quality.value);
+        return option?.description ?? '';
     });
 
     // --- Computed ---
@@ -119,7 +118,6 @@
     const resolvedDuration = computed(() => {
         if (durationMode.value === 'auto') {
             if (cameraMovement.value === 'cinematic') {
-                // Use the cinematic timeline duration
                 return props.exportInfo?.cinematicDuration || seamlessLoopDuration.value;
             }
             return seamlessLoopDuration.value;
@@ -142,7 +140,6 @@
     });
 
     const qualityBitrateEstimate = computed(() => {
-        // Rough bitrate estimates per quality level for size preview
         const map = {
             'very-low': 1_500_000,
             'low': 3_000_000,
@@ -183,215 +180,260 @@
 </script>
 
 <template>
-    <Dialog
-        :visible="visible"
-        @update:visible="handleClose"
-        header="Export Video"
-        modal
-        :closable="true"
-        :style="{ width: '28rem' }"
-        class="export-video-dialog"
+    <div
+        class="export-video-panel"
+        :class="{ active: visible }"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Export Video"
     >
-        <!-- WebCodecs warning -->
-        <div
-            v-if="!hasWebCodecs"
-            class="warning-banner"
-        >
-            <span class="material-symbols-outlined">warning</span>
-            <span>WebCodecs API not available. Use Chrome 94+ or Edge 94+.</span>
-        </div>
-
-        <div class="form-grid">
-            <!-- Resolution -->
-            <div class="form-field">
-                <label>Resolution</label>
-                <Select
-                    v-model="resolutionPreset"
-                    :options="resolutionOptions"
-                    option-label="label"
-                    option-value="value"
-                    class="w-full"
-                />
-            </div>
-
-            <!-- Custom dimensions (only shown when 'custom' selected) -->
-            <div
-                v-if="resolutionPreset === 'custom'"
-                class="form-field form-row"
-            >
-                <div class="flex-1">
-                    <label>Width</label>
-                    <InputNumber
-                        v-model="customWidth"
-                        :min="320"
-                        :max="7680"
-                        :step="2"
-                        class="w-full"
-                    />
-                </div>
-                <span class="dimension-x">×</span>
-                <div class="flex-1">
-                    <label>Height</label>
-                    <InputNumber
-                        v-model="customHeight"
-                        :min="240"
-                        :max="4320"
-                        :step="2"
-                        class="w-full"
-                    />
-                </div>
-            </div>
-
-            <!-- Format -->
-            <div class="form-field">
-                <label>Format</label>
-                <Select
-                    v-model="format"
-                    :options="formatOptions"
-                    option-label="label"
-                    option-value="value"
-                    class="w-full"
-                />
-            </div>
-
-            <!-- Duration -->
-            <div class="form-field">
-                <label>Duration</label>
-                <Select
-                    v-model="durationMode"
-                    :options="durationOptions"
-                    option-label="label"
-                    option-value="value"
-                    class="w-full"
-                />
-            </div>
-
-            <!-- Auto duration info -->
-            <div
-                v-if="durationMode === 'auto'"
-                class="info-box"
-            >
-                <span class="material-symbols-outlined">animation</span>
-                <div>
-                    <div class="info-value">{{ resolvedDuration.toFixed(2) }}s</div>
-                    <div class="info-label">
-                        {{ durationSummaryLabel }}
+        <div class="export-video-panel-container">
+            <div class="export-video-panel-content">
+                <div class="export-video-panel-body">
+                    <div
+                        v-if="!hasWebCodecs"
+                        class="warning-banner"
+                    >
+                        <span class="material-symbols-outlined">warning</span>
+                        <span>WebCodecs API not available. Use Chrome 94+ or Edge 94+.</span>
                     </div>
-                </div>
-            </div>
 
-            <!-- Custom duration input -->
-            <div
-                v-if="durationMode === 'custom'"
-                class="form-field"
-            >
-                <label>Seconds</label>
-                <InputNumber
-                    v-model="customDuration"
-                    :min="0.5"
-                    :max="120"
-                    :step="0.5"
-                    :min-fraction-digits="1"
-                    :max-fraction-digits="1"
-                    suffix=" s"
-                    class="w-full"
-                />
-            </div>
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label>Resolution</label>
+                            <Select
+                                v-model="resolutionPreset"
+                                :options="resolutionOptions"
+                                option-label="label"
+                                option-value="value"
+                                class="w-full"
+                            />
+                        </div>
 
-            <!-- Quality -->
-            <div class="form-field">
-                <label>Quality</label>
-                <Select
-                    v-model="quality"
-                    :options="qualityOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    class="w-full"
-                />
-                <div
-                    class="field-description"
-                    v-if="qualityDescription"
-                >
-                    {{ qualityDescription }}
-                </div>
-            </div>
+                        <div
+                            v-if="resolutionPreset === 'custom'"
+                            class="form-field form-row"
+                        >
+                            <div class="flex-1">
+                                <label>Width</label>
+                                <InputNumber
+                                    v-model="customWidth"
+                                    :min="320"
+                                    :max="7680"
+                                    :step="2"
+                                    class="w-full"
+                                />
+                            </div>
+                            <span class="dimension-x">×</span>
+                            <div class="flex-1">
+                                <label>Height</label>
+                                <InputNumber
+                                    v-model="customHeight"
+                                    :min="240"
+                                    :max="4320"
+                                    :step="2"
+                                    class="w-full"
+                                />
+                            </div>
+                        </div>
 
-            <!-- Camera movement -->
-            <div class="form-field">
-                <label>Camera Movement</label>
-                <Select
-                    v-model="cameraMovement"
-                    :options="cameraMovementOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    class="w-full"
-                />
-                <div
-                    class="field-description"
-                    v-if="cameraMovementDescription"
-                >
-                    {{ cameraMovementDescription }}
-                </div>
-            </div>
+                        <div class="form-field">
+                            <label>Format</label>
+                            <Select
+                                v-model="format"
+                                :options="formatOptions"
+                                option-label="label"
+                                option-value="value"
+                                class="w-full"
+                            />
+                        </div>
 
-            <div class="form-field">
-                <div class="toggle-row">
-                    <div class="toggle-text">
-                        <label for="logoOverlayToggle">Logo Overlay</label>
-                        <div class="field-description">
-                            Bottom-right Rivvon logo baked into each frame. {{ logoOverlaySummary }}.
+                        <div class="form-field">
+                            <label>Duration</label>
+                            <Select
+                                v-model="durationMode"
+                                :options="durationOptions"
+                                option-label="label"
+                                option-value="value"
+                                class="w-full"
+                            />
+                        </div>
+
+                        <div
+                            v-if="durationMode === 'auto'"
+                            class="info-box"
+                        >
+                            <span class="material-symbols-outlined">animation</span>
+                            <div>
+                                <div class="info-value">{{ resolvedDuration.toFixed(2) }}s</div>
+                                <div class="info-label">
+                                    {{ durationSummaryLabel }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="durationMode === 'custom'"
+                            class="form-field"
+                        >
+                            <label>Seconds</label>
+                            <InputNumber
+                                v-model="customDuration"
+                                :min="0.5"
+                                :max="120"
+                                :step="0.5"
+                                :min-fraction-digits="1"
+                                :max-fraction-digits="1"
+                                suffix=" s"
+                                class="w-full"
+                            />
+                        </div>
+
+                        <div class="form-field">
+                            <label>Quality</label>
+                            <Select
+                                v-model="quality"
+                                :options="qualityOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                class="w-full"
+                            />
+                            <div
+                                v-if="qualityDescription"
+                                class="field-description"
+                            >
+                                {{ qualityDescription }}
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <label>Camera Movement</label>
+                            <Select
+                                v-model="cameraMovement"
+                                :options="cameraMovementOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                class="w-full"
+                            />
+                            <div
+                                v-if="cameraMovementDescription"
+                                class="field-description"
+                            >
+                                {{ cameraMovementDescription }}
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <div class="toggle-row">
+                                <div class="toggle-text">
+                                    <label for="logoOverlayToggle">Logo Overlay</label>
+                                    <div class="field-description">
+                                        Bottom-right Rivvon logo baked into each frame. {{ logoOverlaySummary }}.
+                                    </div>
+                                </div>
+                                <div class="toggle-control">
+                                    <ToggleSwitch
+                                        inputId="logoOverlayToggle"
+                                        v-model="logoOverlayEnabled"
+                                    />
+                                    <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="summary-row">
+                            <div class="summary-item">
+                                <span class="summary-label">Frames</span>
+                                <span class="summary-value">{{ totalFrames }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Duration</span>
+                                <span class="summary-value">{{ resolvedDuration.toFixed(2) }}s</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Size</span>
+                                <span class="summary-value">{{ estimatedSize }}</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="toggle-control">
-                        <ToggleSwitch
-                            inputId="logoOverlayToggle"
-                            v-model="logoOverlayEnabled"
-                        />
-                        <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
-                    </div>
                 </div>
-            </div>
 
-            <!-- Summary -->
-            <div class="summary-row">
-                <div class="summary-item">
-                    <span class="summary-label">Frames</span>
-                    <span class="summary-value">{{ totalFrames }}</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Duration</span>
-                    <span class="summary-value">{{ resolvedDuration.toFixed(2) }}s</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Size</span>
-                    <span class="summary-value">{{ estimatedSize }}</span>
+                <div class="export-video-panel-footer dialog-footer">
+                    <button
+                        class="btn btn-secondary"
+                        @click="handleClose"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class="btn btn-primary"
+                        :disabled="!hasWebCodecs"
+                        @click="handleExport"
+                    >
+                        <span class="material-symbols-outlined">videocam</span>
+                        Export
+                    </button>
                 </div>
             </div>
         </div>
-
-        <!-- Footer buttons -->
-        <template #footer>
-            <div class="dialog-footer">
-                <button
-                    class="btn btn-secondary"
-                    @click="handleClose"
-                >
-                    Cancel
-                </button>
-                <button
-                    class="btn btn-primary"
-                    :disabled="!hasWebCodecs"
-                    @click="handleExport"
-                >
-                    <span class="material-symbols-outlined">videocam</span>
-                    Export
-                </button>
-            </div>
-        </template>
-    </Dialog>
+    </div>
 </template>
 
 <style scoped>
+    .export-video-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 5;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .export-video-panel.active {
+        pointer-events: auto;
+        opacity: 1;
+    }
+
+    .export-video-panel-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        padding-top: 5.5rem;
+        padding-bottom: 5.5rem;
+    }
+
+    .export-video-panel-content {
+        flex: 1;
+        width: 100%;
+        max-width: 32rem;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 1.5rem 1.25rem;
+        gap: 1rem;
+    }
+
+    .export-video-panel-body {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .export-video-panel-footer {
+        border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
+        padding-top: 1rem;
+    }
+
     .form-grid {
         display: flex;
         flex-direction: column;
@@ -437,7 +479,6 @@
         gap: 0.75rem;
         padding: 0.75rem 1rem;
         border-radius: 8px;
-        background: var(--p-primary-color, #6366f1);
         background: rgba(99, 102, 241, 0.12);
         border: 1px solid rgba(99, 102, 241, 0.25);
     }
@@ -522,7 +563,6 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.75rem 1rem;
-        margin-bottom: 1rem;
         border-radius: 8px;
         background: rgba(239, 68, 68, 0.15);
         border: 1px solid rgba(239, 68, 68, 0.3);

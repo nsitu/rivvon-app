@@ -190,17 +190,17 @@ body:not(:has(.viewer-mode)) {
 .viewer-mode .bottom-toolbar button {
     @apply px-4 py-3 text-lg text-white border-none cursor-pointer select-none;
     @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
-    background: rgba(0, 0, 0, 0.5);
+    background: transparent;
     opacity: 0.92;
     padding: 2rem;
 }
 
 .viewer-mode .bottom-toolbar button:hover {
-    @apply bg-black/70;
+    background: rgba(0, 0, 0, 0.25);
 }
 
 .viewer-mode .bottom-toolbar button:active {
-    @apply bg-black/80;
+    background: rgba(0, 0, 0, 0.35);
 }
 
 /* Renderer indicator (debug mode) */

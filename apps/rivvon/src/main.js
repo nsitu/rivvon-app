@@ -21,7 +21,7 @@ loadMaterialSymbols([
     'calculate', 'view_compact', 'rotate_right', 'equalizer',
     'arrow_range', 'resize', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
     'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'arrow_forward', 'video_camera_back_add','arrow_back_ios','check','done_outline','visibility','hard_drive','cloud_upload','folder_zip','menu','block','animation',
-    'polyline','file_export','image','airwave','videocam','content_copy','delete','edit','instant_mix','visibility_off',
+    'polyline','file_export','share','image','airwave','videocam','content_copy','delete','edit','instant_mix','visibility_off',
     'cancel','restart_alt','center_focus_strong','theaters','stop','delete_sweep','close','mood','progress_activity',
     'genetics','rounded_corner','change_history','face','3d_rotation','open_with',
     'checklist','check_box','check_box_outline_blank','monitoring',
