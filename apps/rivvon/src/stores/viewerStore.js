@@ -7,6 +7,8 @@ import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfi
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
 const VIEWER_FILTER_MODES = ['none', 'blackAndWhite'];
+const MIN_RIBBON_WIDTH_SCALE = 0.4;
+const MAX_RIBBON_WIDTH_SCALE = 2.5;
 
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -27,6 +29,16 @@ function normalizeViewerFilterMode(value) {
     return VIEWER_FILTER_MODES.includes(value)
         ? value
         : 'none';
+}
+
+function normalizeRibbonWidthScale(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return 1;
+    }
+
+    return Math.min(MAX_RIBBON_WIDTH_SCALE, Math.max(MIN_RIBBON_WIDTH_SCALE, parsed));
 }
 
 function normalizeViewerBooleanPreference(value, fallback = false) {
@@ -105,6 +117,7 @@ export const useViewerStore = defineStore('viewer', {
         helixRadius: 0.4,   // Distance each strand sits from the spine
         helixPitch: 4,      // Number of full turns along the ribbon length
         helixStrandWidth: 0.3, // Width of each helical ribbon strip (fraction of original width)
+        ribbonWidthScale: normalizeRibbonWidthScale(readViewerPreferences().ribbonWidthScale),
 
         // Geometry options
         capStyle: CAP_STYLE_ROUNDED,
@@ -512,6 +525,12 @@ export const useViewerStore = defineStore('viewer', {
             }
         },
 
+        setRibbonWidthScale(scale) {
+            const nextScale = normalizeRibbonWidthScale(scale);
+            this.ribbonWidthScale = nextScale;
+            writeViewerPreferences({ ribbonWidthScale: nextScale });
+        },
+
         setCapStyle(style) {
             const nextStyle = normalizeCapStyle(style, this.roundedCaps);
             this.capStyle = nextStyle;
@@ -540,6 +559,7 @@ export const useViewerStore = defineStore('viewer', {
             helixRadius: state.helixRadius,
             helixPitch: state.helixPitch,
             helixStrandWidth: state.helixStrandWidth,
+            ribbonWidthScale: state.ribbonWidthScale,
             capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,
             cornerNarrowingEnabled: state.cornerNarrowingEnabled,

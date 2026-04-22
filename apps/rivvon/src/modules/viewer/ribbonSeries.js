@@ -42,6 +42,7 @@ export class RibbonSeries {
             helixRadius: 0.4,
             helixPitch: 4,
             helixStrandWidth: 0.3,
+            ribbonWidthScale: 1,
             capStyle: DEFAULT_CAP_STYLE,
             cornerNarrowingEnabled: false,
         };
@@ -49,7 +50,7 @@ export class RibbonSeries {
 
     /**
      * Set helix mode parameters, forwarded to all child ribbons
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle, cornerNarrowingEnabled }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, ribbonWidthScale, capStyle, cornerNarrowingEnabled }
      * @returns {RibbonSeries} this for chaining
      */
     setHelixOptions(options = {}) {
@@ -131,6 +132,11 @@ export class RibbonSeries {
         this.lastWidth = width;
         this._updateTransformRoot(this.lastPathsPoints);
 
+        const ribbonWidthScale = Number.isFinite(this._helixOptions.ribbonWidthScale)
+            ? this._helixOptions.ribbonWidthScale
+            : 1;
+        const effectiveWidth = width * ribbonWidthScale;
+
         let segmentOffset = 0;  // Track cumulative segment count for texture continuity
         const N = this.tileManagers.length; // Number of available TileManagers
         let textureIndex = 0; // Running index for round-robin TileManager assignment
@@ -171,7 +177,7 @@ export class RibbonSeries {
             ribbon.setSegmentOffset(segmentOffset);
 
             // Build the ribbon
-            ribbon.buildFromPoints(points, width, time);
+            ribbon.buildFromPoints(points, effectiveWidth, time);
 
             // Update offset for next ribbon
             segmentOffset += ribbon.meshSegments.length;

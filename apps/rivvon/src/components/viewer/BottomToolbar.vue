@@ -894,6 +894,18 @@
                     <div class="tools-section">
                         <div class="tools-section-label">Geometry</div>
                         <div class="tools-section-items">
+                            <div class="tools-slider">
+                                <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
+                                }}x</span></label>
+                                <input
+                                    type="range"
+                                    min="0.4"
+                                    max="2.5"
+                                    step="0.05"
+                                    :value="app.ribbonWidthScale"
+                                    @input="app.setRibbonWidthScale(parseFloat($event.target.value))"
+                                />
+                            </div>
                             <div class="tools-select-wrap">
                                 <Select
                                     v-model="selectedGeometryOption"
