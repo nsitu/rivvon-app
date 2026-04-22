@@ -56,11 +56,21 @@
         }
 
         try {
+            const sourceText = textInput.value;
+            const selectedLineHeight = lineHeightPercent.value / 100;
             const points = await textToPoints(textInput.value, {
                 multiline: isMultiline.value,
-                lineHeight: lineHeightPercent.value / 100
+                lineHeight: selectedLineHeight
             });
-            emit('generate', points);
+            emit('generate', {
+                points,
+                source: {
+                    text: sourceText,
+                    font: selectedFont.value,
+                    multiline: isMultiline.value,
+                    lineHeight: selectedLineHeight,
+                }
+            });
             close();
         } catch (e) {
             console.error('[TextInputPanel] Generation failed:', e);

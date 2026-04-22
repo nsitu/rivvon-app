@@ -54,7 +54,13 @@
     async function handleEmojiClick(entry) {
         const points = await selectEmoji(entry.h);
         if (points && points.length > 0) {
-            emit('generate', points);
+            emit('generate', {
+                points,
+                source: {
+                    hexcode: entry.h,
+                    label: entry.n,
+                }
+            });
             close();
         }
     }

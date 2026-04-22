@@ -47,6 +47,25 @@ npm run dev
 npm run deploy
 ```
 
+## Database Migrations
+
+Current approach:
+
+- Migration files live in `db/migrations/`.
+- The repo has been applying D1 changes by executing specific SQL files directly against the remote database, for example:
+
+```bash
+npx wrangler d1 execute rivvon-textures --remote --file=./db/migrations/004_drawings.sql
+```
+
+- This is the safe operational path for the current database because earlier schema changes were applied manually and are not recorded in Cloudflare's `d1_migrations` tracking table.
+- Before running a new migration, verify the live schema and avoid replaying older migration files blindly.
+
+Future opportunity:
+
+- Reconcile the existing remote database with Wrangler's tracked migration system so future changes can use `wrangler d1 migrations list` and `wrangler d1 migrations apply` safely.
+- That follow-up should include backfilling or otherwise aligning `d1_migrations` with the schema that already exists in production.
+
 ## Configuration
 
 See `wrangler.toml` for Cloudflare configuration.

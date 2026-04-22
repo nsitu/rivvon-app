@@ -1,7 +1,9 @@
 // src/index.ts
 import { Hono } from 'hono';
 import { uploadRoutes } from './routes/upload';
+import { drawingUploadRoutes } from './routes/drawingUpload';
 import { textureRoutes } from './routes/textures';
+import { drawingRoutes } from './routes/drawings';
 import { authRoutes } from './routes/auth';
 import { verifySession, type SessionAuthContext } from './middleware/session';
 import { isAdminUser } from './utils/user';
@@ -108,6 +110,8 @@ app.get('/my-textures', verifySession as any, async (c) => {
 // /textures - public read-only endpoints
 // /texture-set - authenticated write operations
 app.route('/texture-set', uploadRoutes);
+app.route('/drawing', drawingUploadRoutes);
 app.route('/textures', textureRoutes);
+app.route('/drawings', drawingRoutes);
 
 export default app;

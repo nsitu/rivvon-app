@@ -9,7 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
  */
 export function useRivvonAPI() {
     const { isAuthenticated, user } = useGoogleAuth()
-    const { ensureSlyceFolder, createTextureSetFolder, uploadTile: uploadTileToDrive } = useGoogleDrive()
+    const { ensureSlyceFolder, createAssetFolder, createTextureSetFolder, uploadTile: uploadTileToDrive, uploadFile: uploadDriveFile } = useGoogleDrive()
 
     /**
      * Make an authenticated API request
@@ -127,6 +127,120 @@ export function useRivvonAPI() {
         return response.json()
     }
 
+    async function createDrawing(metadata, includeUserProfile = true) {
+        const payload = { ...metadata }
+        if (includeUserProfile && user.value) {
+            payload.userProfile = {
+                name: user.value.name,
+                email: user.value.email,
+                picture: user.value.picture,
+            }
+        }
+
+        const response = await authFetch(`${API_BASE_URL}/drawing`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to create drawing' }))
+            throw new Error(error.error || 'Failed to create drawing')
+        }
+
+        return response.json()
+    }
+
+    async function uploadDrawingPayload(drawingId, payloadJson) {
+        const response = await authFetch(`${API_BASE_URL}/drawing/${drawingId}/payload`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: payloadJson,
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to upload drawing payload' }))
+            throw new Error(error.error || 'Failed to upload drawing payload')
+        }
+
+        return response.json()
+    }
+
+    async function registerDrawingPayloadMetadata(drawingId, metadata) {
+        const response = await authFetch(`${API_BASE_URL}/drawing/${drawingId}/payload/metadata`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(metadata),
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to register drawing payload metadata' }))
+            throw new Error(error.error || 'Failed to register drawing payload metadata')
+        }
+
+        return response.json()
+    }
+
+    async function completeDrawing(drawingId) {
+        const response = await authFetch(`${API_BASE_URL}/drawing/${drawingId}/complete`, {
+            method: 'POST',
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to complete drawing upload' }))
+            throw new Error(error.error || 'Failed to complete drawing upload')
+        }
+
+        return response.json()
+    }
+
+    async function uploadDrawingThumbnail(drawingId, imageBlob) {
+        const contentType = imageBlob.type || 'image/jpeg'
+        const response = await authFetch(`${API_BASE_URL}/drawing/${drawingId}/thumbnail`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': contentType,
+            },
+            body: imageBlob,
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to upload drawing thumbnail' }))
+            throw new Error(error.error || 'Failed to upload drawing thumbnail')
+        }
+
+        return response.json()
+    }
+
+    function serializeDrawingPayload({ name, description = '', kind, paths, source = null } = {}) {
+        const normalizedPaths = Array.isArray(paths) ? paths : []
+        const pathCount = normalizedPaths.length
+        const pointCount = normalizedPaths.reduce((total, path) => total + (Array.isArray(path) ? path.length : 0), 0)
+        const payload = {
+            version: 1,
+            name,
+            description,
+            kind,
+            paths: normalizedPaths,
+            source,
+            pathCount,
+            pointCount,
+        }
+
+        return {
+            payload,
+            payloadJson: JSON.stringify(payload),
+            pathCount,
+            pointCount,
+        }
+    }
+
     function formatUploadProgressDetail(progressLabelPrefix, detail) {
         const normalizedPrefix = typeof progressLabelPrefix === 'string' ? progressLabelPrefix.trim() : ''
         if (!normalizedPrefix || !detail) {
@@ -134,6 +248,132 @@ export function useRivvonAPI() {
         }
 
         return `${normalizedPrefix}: ${detail}`
+    }
+
+    async function uploadDrawing(options) {
+        const {
+            name,
+            description = '',
+            kind,
+            paths,
+            source = null,
+            parentDrawingId = null,
+            thumbnailBlob = null,
+            onProgress,
+            progressLabelPrefix = '',
+        } = options
+
+        const { payload, payloadJson, pathCount, pointCount } = serializeDrawingPayload({
+            name,
+            description,
+            kind,
+            paths,
+            source,
+        })
+
+        if (onProgress) onProgress('preparing', formatUploadProgressDetail(progressLabelPrefix, 'Setting up Google Drive folder...'))
+        const slyceFolderId = await ensureSlyceFolder()
+
+        const timestamp = new Date().toISOString().slice(0, 10)
+        const folderName = `${name} (${timestamp})`
+        const drawingFolderId = await createAssetFolder(slyceFolderId, folderName)
+
+        if (onProgress) onProgress('creating', formatUploadProgressDetail(progressLabelPrefix, 'Creating drawing...'))
+        const { drawingId } = await createDrawing({
+            name,
+            description,
+            kind,
+            pathCount,
+            pointCount,
+            parentDrawingId,
+            storageProvider: 'google-drive',
+        })
+
+        if (onProgress) onProgress('payload', formatUploadProgressDetail(progressLabelPrefix, 'Uploading drawing payload...'))
+        const driveFile = await uploadDriveFile(drawingFolderId, 'drawing.json', new Blob([payloadJson], { type: 'application/json' }), {
+            contentType: 'application/json',
+        })
+
+        await registerDrawingPayloadMetadata(drawingId, {
+            driveFileId: driveFile.id,
+            fileSize: driveFile.size,
+            publicUrl: driveFile.publicUrl,
+            driveFolderId: drawingFolderId,
+            payloadJson,
+        })
+
+        let thumbnailUrl = null
+        if (thumbnailBlob) {
+            if (onProgress) onProgress('thumbnail', formatUploadProgressDetail(progressLabelPrefix, 'Uploading thumbnail...'))
+            const result = await uploadDrawingThumbnail(drawingId, thumbnailBlob)
+            thumbnailUrl = result.thumbnailUrl
+        }
+
+        if (onProgress) onProgress('completing', formatUploadProgressDetail(progressLabelPrefix, 'Finalizing...'))
+        await completeDrawing(drawingId)
+
+        return {
+            drawingId,
+            storageProvider: 'google-drive',
+            driveFolderId: drawingFolderId,
+            thumbnailUrl,
+            payload,
+            payloadUrl: driveFile.publicUrl,
+        }
+    }
+
+    async function uploadDrawingToR2(options) {
+        const {
+            name,
+            description = '',
+            kind,
+            paths,
+            source = null,
+            parentDrawingId = null,
+            thumbnailBlob = null,
+            onProgress,
+            progressLabelPrefix = '',
+        } = options
+
+        const { payload, payloadJson, pathCount, pointCount } = serializeDrawingPayload({
+            name,
+            description,
+            kind,
+            paths,
+            source,
+        })
+
+        if (onProgress) onProgress('creating', formatUploadProgressDetail(progressLabelPrefix, 'Creating drawing (R2)...'))
+        const { drawingId } = await createDrawing({
+            name,
+            description,
+            kind,
+            pathCount,
+            pointCount,
+            parentDrawingId,
+            storageProvider: 'r2',
+        })
+
+        if (onProgress) onProgress('payload', formatUploadProgressDetail(progressLabelPrefix, 'Uploading drawing payload to R2...'))
+        const payloadResult = await uploadDrawingPayload(drawingId, payloadJson)
+
+        let thumbnailUrl = null
+        if (thumbnailBlob) {
+            if (onProgress) onProgress('thumbnail', formatUploadProgressDetail(progressLabelPrefix, 'Uploading thumbnail...'))
+            const result = await uploadDrawingThumbnail(drawingId, thumbnailBlob)
+            thumbnailUrl = result.thumbnailUrl
+        }
+
+        if (onProgress) onProgress('completing', formatUploadProgressDetail(progressLabelPrefix, 'Finalizing...'))
+        await completeDrawing(drawingId)
+
+        return {
+            drawingId,
+            storageProvider: 'r2',
+            thumbnailUrl,
+            payload,
+            payloadUrl: payloadResult.payloadUrl || null,
+        }
     }
 
     /**
@@ -495,6 +735,32 @@ export function useRivvonAPI() {
         return response.json()
     }
 
+    async function getMyDrawings({ limit = 50, offset = 0 } = {}) {
+        const params = new URLSearchParams({
+            limit: String(limit),
+            offset: String(offset),
+        })
+        const response = await authFetch(`${API_BASE_URL}/drawings?${params.toString()}`)
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to fetch your drawings' }))
+            throw new Error(error.error || 'Failed to fetch your drawings')
+        }
+
+        return response.json()
+    }
+
+    async function getDrawing(drawingId) {
+        const response = await authFetch(`${API_BASE_URL}/drawings/${drawingId}`)
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to fetch drawing' }))
+            throw new Error(error.error || 'Failed to fetch drawing')
+        }
+
+        return response.json()
+    }
+
     /**
      * Delete a texture set (authenticated, owner only)
      * DELETE /texture-set/:id
@@ -536,21 +802,62 @@ export function useRivvonAPI() {
         return response.json()
     }
 
+    async function deleteDrawing(drawingId) {
+        const response = await authFetch(`${API_BASE_URL}/drawing/${drawingId}`, {
+            method: 'DELETE',
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to delete drawing' }))
+            throw new Error(error.error || 'Failed to delete drawing')
+        }
+
+        return response.json()
+    }
+
+    async function updateDrawing(drawingId, updates) {
+        const response = await authFetch(`${API_BASE_URL}/drawing/${drawingId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updates),
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Failed to update drawing' }))
+            throw new Error(error.error || 'Failed to update drawing')
+        }
+
+        return response.json()
+    }
+
     return {
         isAuthenticated,
         user,
         createTextureSet,
+        createDrawing,
         uploadTile,
+        uploadDrawingPayload,
+        registerDrawingPayloadMetadata,
         completeTextureSet,
+        completeDrawing,
         uploadThumbnail,
+        uploadDrawingThumbnail,
         uploadTextureSet,
+        uploadDrawing,
         uploadTextureFamily,
         uploadTextureSetToR2,
+        uploadDrawingToR2,
         uploadTextureFamilyToR2,
         listTextures,
         getTexture,
         getMyTextures,
+        getMyDrawings,
+        getDrawing,
         deleteTextureSet,
+        deleteDrawing,
         updateTextureSet,
+        updateDrawing,
     }
 }

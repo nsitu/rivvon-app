@@ -243,6 +243,7 @@
     const emit = defineEmits([
         'enter-draw-mode',
         'enter-walk-mode',
+        'open-drawing-browser',
         'toggle-flow',
         'open-text-panel',
         'open-emoji-picker',
@@ -293,6 +294,8 @@
             app.setWalkMode(false);
         } else if (app.isDrawingMode) {
             app.setDrawingMode(false);
+        } else if (app.drawingBrowserVisible) {
+            app.hideDrawingBrowser();
         } else if (app.textureCreatorVisible) {
             if (isSlyceProcessing.value) {
                 const confirmed = confirm(
@@ -319,12 +322,13 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.isWalkMode || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
+        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
 
     const drawGroupActive = computed(() => (
         app.isDrawingMode
         || app.isWalkMode
+        || app.drawingBrowserVisible
         || app.textPanelVisible
         || app.emojiPickerVisible
     ));
@@ -370,6 +374,9 @@
         }
         if (app.isDrawingMode) {
             app.setDrawingMode(false);
+        }
+        if (app.drawingBrowserVisible) {
+            app.hideDrawingBrowser();
         }
         if (app.textureCreatorVisible) {
             if (isSlyceProcessing.value) {
@@ -459,6 +466,19 @@
                 }
 
                 activateContext(() => emit('open-emoji-picker'));
+            }
+        },
+        {
+            label: 'Browse',
+            icon: 'grid_view',
+            active: app.drawingBrowserVisible,
+            command: () => {
+                if (app.drawingBrowserVisible) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('open-drawing-browser'));
             }
         }
     ]));
@@ -834,7 +854,7 @@
                         <template v-if="app.helixEnabled">
                             <div class="tools-slider">
                                 <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.1"
@@ -846,7 +866,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="1"
@@ -858,7 +878,7 @@
                             </div>
                             <div class="tools-slider">
                                 <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                        }}</span></label>
+                                }}</span></label>
                                 <input
                                     type="range"
                                     min="0.05"
@@ -968,7 +988,7 @@
                             @click="handleCinematicToggle"
                         >
                             <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                            }}</span>
                             <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                             <span class="tools-hint">P</span>
                         </button>
@@ -983,7 +1003,7 @@
                                 v-if="props.cinematicRoiCount > 0"
                                 class="tools-badge"
                             >{{ props.cinematicRoiCount
-                            }}</span>
+                                }}</span>
                             <span class="tools-hint">X</span>
                         </button>
                     </div>

@@ -40,6 +40,7 @@
     const activeContext = computed(() => {
         if (app.isWalkMode) return 'Walk';
         if (app.isDrawingMode) return 'Draw';
+        if (app.drawingBrowserVisible) return 'Drawings';
         if (app.textureCreatorVisible || app.realtimeSamplerVisible) return 'Create Texture';
         if (app.texturePreviewVisible) return 'Texture Preview';
         if (app.textureBrowserVisible) return 'Textures';
@@ -57,6 +58,8 @@
             app.setWalkMode(false);
         } else if (app.isDrawingMode) {
             app.setDrawingMode(false);
+        } else if (app.drawingBrowserVisible) {
+            app.hideDrawingBrowser();
         } else if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');
         } else if (app.textureCreatorVisible) {

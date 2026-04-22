@@ -5,8 +5,11 @@
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
+    import { createDefaultDrawingName, createDrawingDocument, inflateDrawingPaths } from '../modules/shared/drawingLibrary.js';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
+    import { useRivvonAPI } from '../services/api.js';
+    import { useDrawingStorage } from '../services/drawingStorage.js';
     import { useLocalStorage } from '../services/localStorage.js';
     import * as THREE from 'three';
 
@@ -17,6 +20,7 @@
     import CountdownProgressBar from '../components/viewer/CountdownProgressBar.vue';
     const TextInputPanel = defineAsyncComponent(() => import('../components/viewer/TextInputPanel.vue'));
     const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
+    const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
     import BetaModal from '../components/viewer/BetaModal.vue';
@@ -31,9 +35,11 @@
     const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
-    const { isAuthenticated } = useGoogleAuth();
+    const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
+    const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
+    const { uploadDrawing, uploadDrawingToR2 } = useRivvonAPI();
 
     useScreenWakeLock();
 
@@ -557,7 +563,191 @@
         app.setWalkMode(true);
     }
 
-    function handleCapturedPathComplete(strokesData, { flipY = true, mode = 'draw' } = {}) {
+    function getSavedDrawingName(kind, source = null) {
+        const fallbackName = createDefaultDrawingName(kind);
+
+        if (!source || typeof source !== 'object') {
+            return fallbackName;
+        }
+
+        if (kind === 'text') {
+            const text = typeof source.text === 'string'
+                ? source.text.trim().replace(/\s+/g, ' ')
+                : '';
+
+            if (text) {
+                return text.slice(0, 48);
+            }
+        }
+
+        if (kind === 'emoji') {
+            const label = typeof source.label === 'string' ? source.label.trim() : '';
+            if (label) {
+                return `Emoji: ${label}`;
+            }
+
+            const hexcode = typeof source.hexcode === 'string' ? source.hexcode.trim() : '';
+            if (hexcode) {
+                return `Emoji ${hexcode}`;
+            }
+        }
+
+        if (kind === 'svg') {
+            const fileName = typeof source.fileName === 'string'
+                ? source.fileName.trim().replace(/\.svg$/i, '')
+                : '';
+
+            if (fileName) {
+                return fileName;
+            }
+        }
+
+        if (kind === 'walk') {
+            const pointCount = Number(source.pointCount);
+            if (Number.isFinite(pointCount) && pointCount > 0) {
+                return `Walk ${pointCount} pts`;
+            }
+        }
+
+        if (kind === 'gesture') {
+            const strokeCount = Number(source.strokeCount);
+            if (Number.isFinite(strokeCount) && strokeCount > 1) {
+                return `Gesture ${strokeCount} strokes`;
+            }
+        }
+
+        return fallbackName;
+    }
+
+    async function applyDrawingPathsToViewer(paths) {
+        if (!threeCanvasRef.value || !Array.isArray(paths) || paths.length === 0) {
+            return false;
+        }
+
+        if (paths.length === 1) {
+            await threeCanvasRef.value.createRibbon(paths[0]);
+            return true;
+        }
+
+        await threeCanvasRef.value.createRibbonSeries(paths);
+        return true;
+    }
+
+    function getDrawingAutosaveTarget() {
+        if (!isAuthenticated.value) {
+            return 'local';
+        }
+
+        return isAdmin.value ? 'r2' : 'google-drive';
+    }
+
+    function buildDrawingDraft({ kind, paths, source = null, description = '' } = {}) {
+        return createDrawingDocument({
+            kind,
+            name: getSavedDrawingName(kind, source),
+            description,
+            paths,
+            source,
+            storageProvider: 'local',
+        });
+    }
+
+    async function dataUrlToBlob(dataUrl) {
+        if (!dataUrl) {
+            return null;
+        }
+
+        const response = await fetch(dataUrl);
+        return response.blob();
+    }
+
+    async function uploadDrawingToCloud(drawingDraft) {
+        if (!drawingDraft || getDrawingAutosaveTarget() === 'local') {
+            return null;
+        }
+
+        const thumbnailBlob = await dataUrlToBlob(drawingDraft.thumbnail_data_url);
+        const uploadOptions = {
+            name: drawingDraft.name,
+            description: drawingDraft.description,
+            kind: drawingDraft.kind,
+            paths: drawingDraft.paths,
+            source: drawingDraft.source,
+            thumbnailBlob,
+        };
+
+        if (getDrawingAutosaveTarget() === 'r2') {
+            return uploadDrawingToR2(uploadOptions);
+        }
+
+        return uploadDrawing(uploadOptions);
+    }
+
+    async function autosaveDrawingLocally(drawingDraft, { cachedFrom = null } = {}) {
+        if (!drawingDraft?.paths?.length) {
+            return null;
+        }
+
+        try {
+            const savedDrawing = await saveLocalDrawing({
+                ...drawingDraft,
+                storageProvider: 'local',
+                cachedFrom,
+            });
+
+            console.log('[RibbonView] Saved drawing locally:', savedDrawing.id, savedDrawing.name);
+            return savedDrawing;
+        } catch (error) {
+            console.error('[RibbonView] Failed to autosave drawing locally:', error);
+            return null;
+        }
+    }
+
+    async function createDrawingAndAutosave({ kind, paths, source = null, description = '' } = {}) {
+        const applied = await applyDrawingPathsToViewer(paths);
+        if (!applied) {
+            return null;
+        }
+
+        const drawingDraft = buildDrawingDraft({ kind, paths, source, description });
+        let cloudResult = null;
+
+        try {
+            cloudResult = await uploadDrawingToCloud(drawingDraft);
+            if (cloudResult?.drawingId) {
+                console.log('[RibbonView] Saved drawing to cloud:', cloudResult.drawingId, cloudResult.storageProvider);
+            }
+        } catch (error) {
+            console.error('[RibbonView] Failed to autosave drawing to cloud:', error);
+        }
+
+        return autosaveDrawingLocally(drawingDraft, {
+            cachedFrom: cloudResult?.drawingId || null,
+        });
+    }
+
+    function unpackGeneratedDrawingPayload(payload) {
+        if (Array.isArray(payload)) {
+            return {
+                paths: payload,
+                source: null,
+            };
+        }
+
+        if (Array.isArray(payload?.points)) {
+            return {
+                paths: payload.points,
+                source: payload.source ?? null,
+            };
+        }
+
+        return {
+            paths: [],
+            source: null,
+        };
+    }
+
+    async function handleCapturedPathComplete(strokesData, { flipY = true, mode = 'draw' } = {}) {
         if (!threeCanvasRef.value || !strokesData || strokesData.length === 0) return;
 
         if (mode === 'walk') {
@@ -585,39 +775,43 @@
 
         if (rawPathsPoints.length > 0) {
             const normalizedPaths = normalizePointsMultiPath(rawPathsPoints);
-            if (normalizedPaths.length === 1) {
-                threeCanvasRef.value.createRibbon(normalizedPaths[0]);
-            } else {
-                threeCanvasRef.value.createRibbonSeries(normalizedPaths);
-            }
+            await createDrawingAndAutosave({
+                kind: mode === 'walk' ? 'walk' : 'gesture',
+                paths: normalizedPaths,
+                source: {
+                    mode,
+                    strokeCount: strokes.length,
+                    pointCount: normalizedPaths.reduce((total, path) => total + path.length, 0),
+                },
+            });
         }
     }
 
-    function handleDrawingComplete(strokesData) {
-        handleCapturedPathComplete(strokesData, {
+    async function handleDrawingComplete(strokesData) {
+        await handleCapturedPathComplete(strokesData, {
             flipY: true,
             mode: 'draw'
         });
     }
 
-    function handleWalkComplete(strokesData) {
-        handleCapturedPathComplete(strokesData, {
+    async function handleWalkComplete(strokesData) {
+        await handleCapturedPathComplete(strokesData, {
             flipY: false,
             mode: 'walk'
         });
     }
 
-    function finishDrawing() {
+    async function finishDrawing() {
         if (drawCanvasRef.value) {
             const strokes = drawCanvasRef.value.finalizeDrawing();
-            handleDrawingComplete(strokes);
+            await handleDrawingComplete(strokes);
         }
     }
 
-    function finishWalk() {
+    async function finishWalk() {
         if (walkCanvasRef.value) {
             const strokes = walkCanvasRef.value.finalizeWalk();
-            handleWalkComplete(strokes);
+            await handleWalkComplete(strokes);
         }
     }
 
@@ -627,25 +821,27 @@
     }
 
     // Text to SVG handler
-    function handleTextGenerate(pointsArray) {
-        if (!threeCanvasRef.value || pointsArray.length === 0) return;
+    async function handleTextGenerate(payload) {
+        const { paths, source } = unpackGeneratedDrawingPayload(payload);
+        if (!threeCanvasRef.value || paths.length === 0) return;
 
-        if (pointsArray.length === 1) {
-            threeCanvasRef.value.createRibbon(pointsArray[0]);
-        } else {
-            threeCanvasRef.value.createRibbonSeries(pointsArray);
-        }
+        await createDrawingAndAutosave({
+            kind: 'text',
+            paths,
+            source,
+        });
     }
 
     // Emoji picker handler
-    function handleEmojiGenerate(pointsArray) {
-        if (!threeCanvasRef.value || pointsArray.length === 0) return;
+    async function handleEmojiGenerate(payload) {
+        const { paths, source } = unpackGeneratedDrawingPayload(payload);
+        if (!threeCanvasRef.value || paths.length === 0) return;
 
-        if (pointsArray.length === 1) {
-            threeCanvasRef.value.createRibbon(pointsArray[0]);
-        } else {
-            threeCanvasRef.value.createRibbonSeries(pointsArray);
-        }
+        await createDrawingAndAutosave({
+            kind: 'emoji',
+            paths,
+            source,
+        });
     }
 
     // File import handler
@@ -668,11 +864,13 @@
                 if (paths.length > 0) {
                     const splitPaths = splitAllPathsAtCusps3D(paths);
                     const normalizedPaths = normalizePointsMultiPath(splitPaths);
-                    if (normalizedPaths.length === 1) {
-                        threeCanvasRef.value?.createRibbon(normalizedPaths[0]);
-                    } else {
-                        threeCanvasRef.value?.createRibbonSeries(normalizedPaths);
-                    }
+                    await createDrawingAndAutosave({
+                        kind: 'svg',
+                        paths: normalizedPaths,
+                        source: {
+                            fileName: file.name,
+                        },
+                    });
                 }
             };
             reader.readAsText(file);
@@ -763,6 +961,23 @@
     // Texture browser handler
     function openTextureBrowser() {
         app.showTextureBrowser();
+    }
+
+    function openDrawingBrowser() {
+        app.showDrawingBrowser();
+    }
+
+    async function handleSavedDrawingSelect(drawing) {
+        const paths = inflateDrawingPaths(drawing?.paths);
+        if (!paths.length) {
+            return;
+        }
+
+        if (threeCanvasRef.value?.resetCamera) {
+            threeCanvasRef.value.resetCamera();
+        }
+
+        await applyDrawingPathsToViewer(paths);
     }
 
     // Track the initial tab for the texture browser
@@ -1166,6 +1381,7 @@
             :texture-metadata-overlay="app.showTextureMetadataOverlay"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
+            @open-drawing-browser="openDrawingBrowser"
             @open-texture-file="openCreateTextureFileMode"
             @open-texture-camera="openCreateTextureCameraMode"
             @close-realtime-mode="handleRealtimeClose"
@@ -1210,6 +1426,12 @@
         <EmojiPickerPanel
             v-model:visible="app.emojiPickerVisible"
             @generate="handleEmojiGenerate"
+        />
+        <DrawingBrowser
+            v-if="app.drawingBrowserVisible"
+            :visible="app.drawingBrowserVisible"
+            @close="app.hideDrawingBrowser"
+            @select="handleSavedDrawingSelect"
         />
         <TextureBrowser
             v-if="app.textureBrowserVisible"

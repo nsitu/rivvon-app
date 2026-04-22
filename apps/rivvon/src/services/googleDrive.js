@@ -130,7 +130,7 @@ export function useGoogleDrive() {
      * @param {string} textureSetName - Name for the subfolder
      * @returns {string} The created subfolder ID
      */
-    async function createTextureSetFolder(parentFolderId, textureSetName) {
+    async function createAssetFolder(parentFolderId, folderName) {
         const accessToken = await getAccessToken()
         if (!accessToken) {
             throw new Error('Not authenticated with Google Drive')
@@ -146,7 +146,7 @@ export function useGoogleDrive() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    name: textureSetName,
+                    name: folderName,
                     mimeType: 'application/vnd.google-apps.folder',
                     parents: [parentFolderId],
                 }),
@@ -162,6 +162,10 @@ export function useGoogleDrive() {
         return folder.id
     }
 
+    async function createTextureSetFolder(parentFolderId, textureSetName) {
+        return createAssetFolder(parentFolderId, textureSetName)
+    }
+
     /**
      * Upload a file to Google Drive using resumable upload
      * Supports progress tracking for large files
@@ -171,13 +175,21 @@ export function useGoogleDrive() {
      * @param {Function} onProgress - Progress callback (0-100)
      * @returns {{ id: string, size: number }} File info
      */
-    async function uploadFile(folderId, fileName, fileData, onProgress = null) {
+    async function uploadFile(folderId, fileName, fileData, options = null) {
         const accessToken = await getAccessToken()
         if (!accessToken) {
             throw new Error('Not authenticated with Google Drive')
         }
 
-        const blob = fileData instanceof Blob ? fileData : new Blob([fileData], { type: 'image/ktx2' })
+        const normalizedOptions = typeof options === 'function'
+            ? { onProgress: options }
+            : (options || {})
+        const onProgress = normalizedOptions.onProgress || null
+        const contentType = normalizedOptions.contentType
+            || (fileData instanceof Blob ? fileData.type : '')
+            || 'application/octet-stream'
+
+        const blob = fileData instanceof Blob ? fileData : new Blob([fileData], { type: contentType })
         const fileSize = blob.size
 
         // Step 1: Initialize resumable upload session
@@ -188,7 +200,7 @@ export function useGoogleDrive() {
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
-                    'X-Upload-Content-Type': 'image/ktx2',
+                    'X-Upload-Content-Type': contentType,
                     'X-Upload-Content-Length': fileSize.toString(),
                 },
                 body: JSON.stringify({
@@ -215,7 +227,7 @@ export function useGoogleDrive() {
             method: 'PUT',
             headers: {
                 'Content-Length': fileSize.toString(),
-                'Content-Type': 'image/ktx2',
+                'Content-Type': contentType,
             },
             body: blob,
         })
@@ -231,12 +243,15 @@ export function useGoogleDrive() {
 
         const file = await uploadResponse.json()
 
-        // Step 3: Make the file publicly accessible via link
-        await makeFilePublic(file.id)
+        if (normalizedOptions.makePublic !== false) {
+            // Step 3: Make the file publicly accessible via link
+            await makeFilePublic(file.id)
+        }
 
         return {
             id: file.id,
             size: fileSize,
+            publicUrl: `https://drive.google.com/uc?export=download&id=${file.id}`,
         }
     }
 
@@ -278,7 +293,10 @@ export function useGoogleDrive() {
     async function uploadTile(textureSetId, tileIndex, folderId, tileData, onProgress = null) {
         // Upload to Google Drive
         const fileName = `${tileIndex}.ktx2`
-        const fileInfo = await uploadFile(folderId, fileName, tileData, onProgress)
+        const fileInfo = await uploadFile(folderId, fileName, tileData, {
+            onProgress,
+            contentType: 'image/ktx2',
+        })
 
         // Register with API
         const response = await fetch(
@@ -313,7 +331,9 @@ export function useGoogleDrive() {
      * @returns {string} Public URL for the thumbnail
      */
     async function uploadThumbnail(folderId, thumbnailBlob) {
-        const fileInfo = await uploadFile(folderId, 'thumbnail.webp', thumbnailBlob)
+        const fileInfo = await uploadFile(folderId, 'thumbnail.webp', thumbnailBlob, {
+            contentType: thumbnailBlob?.type || 'image/webp',
+        })
         return `https://drive.google.com/uc?export=download&id=${fileInfo.id}`
     }
 
@@ -338,6 +358,7 @@ export function useGoogleDrive() {
 
     return {
         ensureSlyceFolder,
+        createAssetFolder,
         createTextureSetFolder,
         uploadFile,
         uploadTile,
