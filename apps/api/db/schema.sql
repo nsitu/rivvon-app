@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS drawings (
     id TEXT PRIMARY KEY,
     owner_id TEXT NOT NULL,
     parent_drawing_id TEXT,
+    root_drawing_id TEXT,
     name TEXT NOT NULL,
     description TEXT,
     kind TEXT NOT NULL,
@@ -108,4 +109,5 @@ CREATE TABLE IF NOT EXISTS drawings (
 
 CREATE INDEX IF NOT EXISTS idx_drawings_owner ON drawings(owner_id);
 CREATE INDEX IF NOT EXISTS idx_drawings_parent ON drawings(parent_drawing_id);
+CREATE INDEX IF NOT EXISTS idx_drawings_root ON drawings(root_drawing_id);
 CREATE INDEX IF NOT EXISTS idx_drawings_status ON drawings(status);

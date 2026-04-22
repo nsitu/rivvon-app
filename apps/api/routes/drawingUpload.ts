@@ -47,6 +47,10 @@ function normalizeHttpsUrl(url: unknown, fallback = '') {
   return normalized;
 }
 
+function normalizeOptionalId(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 export const drawingUploadRoutes = new Hono<{ Bindings: Bindings }>();
 
 drawingUploadRoutes.use('*', verifySession);
@@ -68,9 +72,8 @@ drawingUploadRoutes.post('/', async (c) => {
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Invalid drawing metadata' }, 400);
   }
-  const normalizedParentDrawingId = typeof body.parentDrawingId === 'string' && body.parentDrawingId.trim()
-    ? body.parentDrawingId.trim()
-    : null;
+  const normalizedParentDrawingId = normalizeOptionalId(body.parentDrawingId);
+  const normalizedRootDrawingId = normalizeOptionalId(body.rootDrawingId);
 
   if (!normalizedName) {
     return c.json({ error: 'name is required' }, 400);
@@ -92,17 +95,41 @@ drawingUploadRoutes.post('/', async (c) => {
     await syncUser(c.env.DB, auth.userId, body.userProfile);
   }
 
+  let parentDrawing: { id: string; root_drawing_id: string | null } | null = null;
+
   if (normalizedParentDrawingId) {
-    const parentDrawing = await c.env.DB.prepare(`
-      SELECT id FROM drawings WHERE id = ? AND owner_id = ?
+    parentDrawing = await c.env.DB.prepare(`
+      SELECT id, root_drawing_id FROM drawings WHERE id = ? AND owner_id = ?
     `).bind(normalizedParentDrawingId, auth.userId).first();
 
-    if (!parentDrawing) {
+    if (!parentDrawing?.id) {
       return c.json({ error: 'Parent drawing not found' }, 404);
     }
   }
 
+  if (normalizedRootDrawingId) {
+    const rootDrawing = await c.env.DB.prepare(`
+      SELECT id FROM drawings WHERE id = ? AND owner_id = ?
+    `).bind(normalizedRootDrawingId, auth.userId).first() as { id: string } | null;
+
+    if (!rootDrawing?.id) {
+      return c.json({ error: 'Root drawing not found' }, 404);
+    }
+  }
+
   const drawingId = nanoid();
+  const resolvedRootDrawingId = normalizedRootDrawingId
+    || parentDrawing?.root_drawing_id
+    || parentDrawing?.id
+    || drawingId;
+
+  if (normalizedRootDrawingId && parentDrawing) {
+    const expectedRootDrawingId = parentDrawing.root_drawing_id || parentDrawing.id;
+    if (normalizedRootDrawingId !== expectedRootDrawingId) {
+      return c.json({ error: 'rootDrawingId must match the parent drawing root' }, 400);
+    }
+  }
+
   const payloadR2Key = normalizedStorageProvider === 'r2'
     ? `drawings/${drawingId}/drawing.json`
     : null;
@@ -112,14 +139,15 @@ drawingUploadRoutes.post('/', async (c) => {
 
   await c.env.DB.prepare(`
     INSERT INTO drawings (
-      id, owner_id, parent_drawing_id, name, description, kind,
+      id, owner_id, parent_drawing_id, root_drawing_id, name, description, kind,
       path_count, point_count, payload_r2_key, payload_public_url,
       storage_provider, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
   `).bind(
     drawingId,
     auth.userId,
     normalizedParentDrawingId,
+    resolvedRootDrawingId,
     normalizedName,
     normalizedDescription,
     normalizedKind,
@@ -133,6 +161,7 @@ drawingUploadRoutes.post('/', async (c) => {
   return c.json({
     drawingId,
     parentDrawingId: normalizedParentDrawingId,
+    rootDrawingId: resolvedRootDrawingId,
     storageProvider: normalizedStorageProvider,
     payloadUrl: payloadPublicUrl,
     message: normalizedStorageProvider === 'r2'

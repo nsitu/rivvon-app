@@ -32,7 +32,7 @@ drawingRoutes.get('/', async (c) => {
 
   const baseQuery = `
     SELECT
-      d.id, d.parent_drawing_id, d.name, d.description, d.kind,
+      d.id, d.parent_drawing_id, d.root_drawing_id, d.name, d.description, d.kind,
       d.path_count, d.point_count, d.thumbnail_url,
       d.storage_provider, d.status, d.payload_public_url,
       d.created_at, d.updated_at,

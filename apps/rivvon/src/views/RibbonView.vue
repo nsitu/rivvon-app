@@ -638,7 +638,13 @@
             return 'local';
         }
 
-        return isAdmin.value ? 'r2' : 'google-drive';
+        if (!isAdmin.value) {
+            return 'google-drive';
+        }
+
+        return app.drawingAutosaveTarget === 'local' || app.drawingAutosaveTarget === 'r2'
+            ? app.drawingAutosaveTarget
+            : 'google-drive';
     }
 
     function buildDrawingDraft({ kind, paths, source = null, description = '' } = {}) {
@@ -662,7 +668,8 @@
     }
 
     async function uploadDrawingToCloud(drawingDraft) {
-        if (!drawingDraft || getDrawingAutosaveTarget() === 'local') {
+        const autosaveTarget = getDrawingAutosaveTarget();
+        if (!drawingDraft || autosaveTarget === 'local') {
             return null;
         }
 
@@ -676,7 +683,7 @@
             thumbnailBlob,
         };
 
-        if (getDrawingAutosaveTarget() === 'r2') {
+        if (autosaveTarget === 'r2') {
             return uploadDrawingToR2(uploadOptions);
         }
 

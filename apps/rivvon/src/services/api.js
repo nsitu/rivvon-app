@@ -258,6 +258,7 @@ export function useRivvonAPI() {
             paths,
             source = null,
             parentDrawingId = null,
+            rootDrawingId = null,
             thumbnailBlob = null,
             onProgress,
             progressLabelPrefix = '',
@@ -286,6 +287,7 @@ export function useRivvonAPI() {
             pathCount,
             pointCount,
             parentDrawingId,
+            rootDrawingId,
             storageProvider: 'google-drive',
         })
 
@@ -330,6 +332,7 @@ export function useRivvonAPI() {
             paths,
             source = null,
             parentDrawingId = null,
+            rootDrawingId = null,
             thumbnailBlob = null,
             onProgress,
             progressLabelPrefix = '',
@@ -351,6 +354,7 @@ export function useRivvonAPI() {
             pathCount,
             pointCount,
             parentDrawingId,
+            rootDrawingId,
             storageProvider: 'r2',
         })
 

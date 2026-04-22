@@ -8,7 +8,7 @@
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
-    const { user, isAuthenticated, login, logout } = useGoogleAuth();
+    const { user, isAdmin, isAuthenticated, login, logout } = useGoogleAuth();
 
     const showInfoDialog = ref(false);
 
@@ -69,6 +69,12 @@
         { label: 'Black and White', value: 'blackAndWhite', icon: 'filter_alt' }
     ];
 
+    const drawingAutosaveTargetOptions = [
+        { label: 'Local Only', value: 'local', icon: 'save' },
+        { label: 'Google Drive', value: 'google-drive', icon: 'cloud_upload' },
+        { label: 'Cloudflare R2', value: 'r2', icon: 'cloud' }
+    ];
+
     const geometryOptions = [
         { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
@@ -127,6 +133,15 @@
         set: (option) => {
             if (!option?.value) return;
             app.setRenderFilterMode(option.value);
+        }
+    });
+
+    const selectedDrawingAutosaveTargetOption = computed({
+        get: () => drawingAutosaveTargetOptions.find((option) => option.value === app.drawingAutosaveTarget)
+            ?? drawingAutosaveTargetOptions[1],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setDrawingAutosaveTarget(option.value);
         }
     });
 
@@ -811,6 +826,52 @@
                                     </div>
                                 </template>
                             </Select>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    v-if="isAdmin"
+                    class="tools-section"
+                >
+                    <div class="tools-section-label">Admin Drawing Saves</div>
+                    <div class="tools-section-items">
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedDrawingAutosaveTargetOption"
+                                :options="drawingAutosaveTargetOptions"
+                                option-label="label"
+                                class="tools-select"
+                            >
+                                <template #value="slotProps">
+                                    <div
+                                        v-if="slotProps.value"
+                                        class="tools-select-row"
+                                    >
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.value.icon }}</span>
+                                        <span>{{ slotProps.value.label }}</span>
+                                    </div>
+                                    <span v-else>{{ slotProps.placeholder }}</span>
+                                </template>
+                                <template #option="slotProps">
+                                    <div class="tools-select-row">
+                                        <span class="material-symbols-outlined tools-select-icon">{{
+                                            slotProps.option.icon }}</span>
+                                        <span>{{ slotProps.option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
+                        <div class="tools-meta-card">
+                            <div class="tools-meta-row">
+                                <span class="material-symbols-outlined tools-meta-icon">save</span>
+                                <div class="tools-meta-copy">
+                                    <div class="tools-meta-label">Autosave Target</div>
+                                    <div class="tools-meta-value">{{ selectedDrawingAutosaveTargetOption?.label || 'Google Drive' }}</div>
+                                    <div class="tools-meta-subtle">Guests always save locally. Signed-in non-admin users save to Google Drive by default. Admins can override drawing autosave here.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
