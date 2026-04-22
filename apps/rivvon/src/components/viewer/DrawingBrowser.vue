@@ -1,6 +1,5 @@
 <script setup>
     import { computed, ref, watch } from 'vue';
-    import Button from 'primevue/button';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { createDrawingThumbnailDataUrl } from '../../modules/shared/drawingLibrary.js';
     import { useRivvonAPI } from '../../services/api.js';
@@ -334,6 +333,54 @@
         return 'Local only';
     }
 
+    function getStorageInfo(drawing) {
+        if (drawing?.is_cloud) {
+            if (drawing.storage_provider === 'google-drive') {
+                return {
+                    icon: '/google-drive.svg',
+                    label: drawing.browser_origin === 'cloud-cached' ? 'Google Drive + local cache' : 'Google Drive',
+                    usesImage: true,
+                };
+            }
+
+            return {
+                icon: '/cloudflare.svg',
+                label: drawing.browser_origin === 'cloud-cached' ? 'Cloudflare R2 + local cache' : 'Cloudflare R2',
+                usesImage: true,
+            };
+        }
+
+        return {
+            icon: 'hard_drive',
+            label: drawing?.cached_from ? 'Local cached copy' : 'Stored locally in browser',
+            usesImage: false,
+        };
+    }
+
+    function hasLocalCacheBadge(drawing) {
+        return drawing?.browser_origin === 'cloud-cached' || drawing?.browser_origin === 'cached-local';
+    }
+
+    function getDrawingMetric(drawing) {
+        if (drawing?.kind === 'walk' && Number.isFinite(drawing?.point_count)) {
+            return `${drawing.point_count} points`;
+        }
+
+        if (Number.isFinite(drawing?.path_count)) {
+            return `${drawing.path_count} path${drawing.path_count === 1 ? '' : 's'}`;
+        }
+
+        return drawing?.is_cloud ? 'Cloud copy' : 'Local copy';
+    }
+
+    function getCopyActionIcon(destination) {
+        return destination === 'google-drive' ? '/google-drive.svg' : '/cloudflare.svg';
+    }
+
+    function getCopyActionTitle(action) {
+        return action?.destination === 'r2' ? 'Copy to Cloudflare R2' : 'Copy to Google Drive';
+    }
+
     function formatTimestamp(value) {
         if (!value) {
             return 'Unknown';
@@ -591,19 +638,23 @@
     >
         <div class="drawing-browser-container">
             <div class="drawing-browser-content">
-                <div class="drawing-browser-tabs">
-                    <button
-                        v-for="tab in drawingTabs"
-                        :key="tab.value"
-                        type="button"
-                        class="drawing-browser-tab"
-                        :class="{ active: activeTab === tab.value, disabled: tab.disabled }"
-                        :disabled="tab.disabled"
-                        @click="activeTab = tab.value"
-                    >
-                        <span>{{ tab.label }}</span>
-                        <span class="drawing-browser-tab-count">{{ tab.count }}</span>
-                    </button>
+                <div class="drawing-browser-header">
+                    <h2>Saved Drawings</h2>
+
+                    <div class="drawing-browser-tabs">
+                        <button
+                            v-for="tab in drawingTabs"
+                            :key="tab.value"
+                            type="button"
+                            class="drawing-browser-tab"
+                            :class="{ active: activeTab === tab.value, disabled: tab.disabled }"
+                            :disabled="tab.disabled"
+                            @click="activeTab = tab.value"
+                        >
+                            <span>{{ tab.label }}</span>
+                            <span class="drawing-browser-tab-count">{{ tab.count }}</span>
+                        </button>
+                    </div>
                 </div>
 
                 <p
@@ -627,78 +678,144 @@
                 >
                     <article
                         v-for="drawing in displayDrawings"
-                        :key="drawing.id"
+                        :key="getDrawingIdentity(drawing)"
                         class="drawing-card"
+                        :class="{ 'local-drawing-card': !drawing.is_cloud }"
                     >
-                        <button
-                            type="button"
-                            class="drawing-card-preview"
-                            @click="handleOpen(drawing)"
-                        >
-                            <img
-                                v-if="getDrawingThumbnailUrl(drawing)"
-                                :src="getDrawingThumbnailUrl(drawing)"
-                                :alt="drawing.name"
-                                class="drawing-card-image"
-                            />
-                            <div
-                                v-else
-                                class="drawing-card-placeholder"
-                            >No preview</div>
-                        </button>
+                        <div class="drawing-card-thumbnail">
+                            <button
+                                type="button"
+                                class="drawing-card-preview"
+                                :title="`Open ${drawing.name}`"
+                                @click="handleOpen(drawing)"
+                            >
+                                <img
+                                    v-if="getDrawingThumbnailUrl(drawing)"
+                                    :src="getDrawingThumbnailUrl(drawing)"
+                                    :alt="drawing.name"
+                                    class="drawing-card-image"
+                                />
+                                <div
+                                    v-else
+                                    class="drawing-card-placeholder"
+                                >No preview</div>
+                            </button>
 
-                        <div class="drawing-card-body">
-                            <div class="drawing-card-meta">
-                                <span class="drawing-card-kind">{{ getKindLabel(drawing.kind) }} · {{
-                                    getStorageLabel(drawing) }}</span>
-                                <span class="drawing-card-date">{{ formatTimestamp(drawing.updated_at) }}</span>
+                            <div
+                                class="storage-badge"
+                                :class="{ 'requires-auth': getStorageInfo(drawing).usesImage }"
+                                :title="getStorageInfo(drawing).label"
+                            >
+                                <img
+                                    v-if="getStorageInfo(drawing).usesImage"
+                                    :src="getStorageInfo(drawing).icon"
+                                    :alt="getStorageInfo(drawing).label"
+                                    class="storage-icon"
+                                />
+                                <span
+                                    v-else
+                                    class="material-symbols-outlined"
+                                >{{ getStorageInfo(drawing).icon }}</span>
                             </div>
 
-                            <h3 class="drawing-card-title">{{ drawing.name }}</h3>
-                            <p class="drawing-card-summary">{{ getDrawingSummary(drawing) }}</p>
+                            <div
+                                v-if="hasLocalCacheBadge(drawing)"
+                                class="storage-badge cached-badge"
+                                title="Cached locally"
+                            >
+                                <span class="material-symbols-outlined">download_done</span>
+                            </div>
+                        </div>
+
+                        <div class="drawing-card-info">
+                            <h3 class="drawing-card-name">{{ drawing.name }}</h3>
+
+                            <div
+                                v-if="drawing.is_cloud && drawing.owner_name"
+                                class="drawing-card-owner"
+                            >
+                                <img
+                                    v-if="drawing.owner_picture"
+                                    :src="drawing.owner_picture"
+                                    :alt="drawing.owner_name"
+                                    class="owner-avatar"
+                                    referrerpolicy="no-referrer"
+                                />
+                                <span
+                                    v-else
+                                    class="owner-avatar-placeholder"
+                                ></span>
+                                <span class="owner-name">{{ drawing.owner_name }}</span>
+                            </div>
+
+                            <div class="drawing-card-meta">
+                                <span>{{ getKindLabel(drawing.kind) }}</span>
+                                <span>{{ getDrawingMetric(drawing) }}</span>
+                                <span>{{ getStorageLabel(drawing) }}</span>
+                            </div>
+
+                            <p class="drawing-card-frames">Saved {{ formatTimestamp(drawing.updated_at) }}</p>
+
+                            <p class="drawing-card-desc">{{ getDrawingSummary(drawing) }}</p>
 
                             <div class="drawing-card-actions">
-                                <Button
+                                <button
                                     type="button"
-                                    size="small"
-                                    label="Open"
+                                    class="action-button open-button"
+                                    title="Open drawing"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleOpen(drawing)"
-                                />
-                                <Button
+                                >
+                                    <span class="material-symbols-outlined">visibility</span>
+                                </button>
+                                <button
                                     type="button"
-                                    size="small"
-                                    severity="secondary"
-                                    label="Edit"
+                                    class="action-button edit-button"
+                                    title="Edit metadata"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleEdit(drawing)"
-                                />
-                                <Button
+                                >
+                                    <span class="material-symbols-outlined">edit</span>
+                                </button>
+                                <button
                                     type="button"
-                                    size="small"
-                                    severity="secondary"
-                                    label="Copy Local"
+                                    class="action-button copy-button local-copy-button"
+                                    title="Copy to local storage"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDuplicateLocal(drawing)"
-                                />
-                                <Button
+                                >
+                                    <span class="material-symbols-outlined">content_copy</span>
+                                    <span class="action-provider-badge material-symbols-outlined">hard_drive</span>
+                                </button>
+                                <button
                                     v-for="action in getCloudCopyActions(drawing)"
-                                    :key="`${drawing.id}-${action.destination}`"
+                                    :key="`${getDrawingIdentity(drawing)}-${action.destination}`"
                                     type="button"
-                                    size="small"
-                                    severity="secondary"
-                                    :label="action.label"
+                                    class="action-button copy-button"
+                                    :class="{
+                                        'drive-copy-button': action.destination === 'google-drive',
+                                        'r2-copy-button': action.destination === 'r2'
+                                    }"
+                                    :title="getCopyActionTitle(action)"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDuplicateCloud(drawing, action.destination)"
-                                />
-                                <Button
+                                >
+                                    <span class="material-symbols-outlined">content_copy</span>
+                                    <img
+                                        :src="getCopyActionIcon(action.destination)"
+                                        :alt="getCopyActionTitle(action)"
+                                        class="action-provider-icon"
+                                    />
+                                </button>
+                                <button
                                     type="button"
-                                    size="small"
-                                    severity="danger"
-                                    label="Delete"
+                                    class="action-button delete-button"
+                                    title="Delete drawing"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDelete(drawing)"
-                                />
+                                >
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
                             </div>
                         </div>
                     </article>
@@ -746,30 +863,58 @@
         scrollbar-gutter: stable;
     }
 
-    .drawing-browser-tabs {
+    .drawing-browser-header {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
+        flex-direction: column;
+        gap: 1rem;
         margin-bottom: 1.5rem;
     }
 
+    .drawing-browser-header h2 {
+        margin: 0;
+        color: #fff;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    @media (min-width: 640px) {
+        .drawing-browser-header {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+    }
+
+    .drawing-browser-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
     .drawing-browser-tab {
+        background: transparent;
+        border: 1px solid #555;
+        border-radius: 8px;
+        color: #888;
+        font-size: 14px;
+        padding: 8px 16px;
+        cursor: pointer;
+        transition: all 0.2s;
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.04);
-        color: rgba(255, 255, 255, 0.82);
-        padding: 0.55rem 0.9rem;
-        cursor: pointer;
-        transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .drawing-browser-tab:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.05);
+        border-color: #888;
     }
 
     .drawing-browser-tab.active {
-        background: rgba(255, 255, 255, 0.14);
-        border-color: rgba(255, 255, 255, 0.28);
-        color: #fff;
+        color: #4caf50;
+        border-color: #4caf50;
+        background: rgba(76, 175, 80, 0.1);
     }
 
     .drawing-browser-tab.disabled {
@@ -784,126 +929,324 @@
         align-items: center;
         justify-content: center;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.1);
+        background: #333;
+        color: currentColor;
         font-size: 0.72rem;
         font-weight: 600;
     }
 
     .drawing-browser-error,
     .drawing-browser-empty {
+        text-align: center;
+        padding: 60px 20px;
+        color: #888;
         margin: 0;
-        padding: 1rem 1.15rem;
-        border-radius: 1rem;
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(255, 255, 255, 0.76);
     }
 
     .drawing-browser-error {
         margin-bottom: 1rem;
+        color: #ff6b6b;
     }
 
     .drawing-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
-        justify-content: start;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 20px;
     }
 
     .drawing-card {
+        position: relative;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
-        min-height: 100%;
-        border-radius: 0;
-        border: 2px solid transparent;
         background: #252525;
-        transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        border-radius: 0;
+        overflow: hidden;
+        cursor: default;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+
+    .drawing-card.local-drawing-card {
+        border-color: rgba(59, 130, 246, 0.3);
     }
 
     .drawing-card:hover {
-        border-color: rgba(255, 255, 255, 0.22);
+        border-color: #4caf50;
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .drawing-card.local-drawing-card:hover {
+        border-color: #3b82f6;
+    }
+
+    .drawing-card-thumbnail {
+        aspect-ratio: 16 / 9;
+        background: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
     }
 
     .drawing-card-preview {
+        width: 100%;
+        height: 100%;
         padding: 0;
         border: none;
         background: transparent;
         cursor: pointer;
     }
 
+    .drawing-card-preview:focus-visible {
+        outline: 2px solid #60a5fa;
+        outline-offset: -2px;
+    }
+
     .drawing-card-image,
     .drawing-card-placeholder {
         display: block;
         width: 100%;
+        height: 100%;
         aspect-ratio: 16 / 9;
         object-fit: cover;
         background: #333;
     }
 
     .drawing-card-placeholder {
-        display: grid;
-        place-items: center;
-        color: #777;
-        font-size: 0.85rem;
-    }
-
-    .drawing-card-body {
+        color: #666;
+        font-size: 14px;
+        text-align: center;
         display: flex;
-        flex: 1;
-        flex-direction: column;
-        gap: 0.65rem;
-        padding: 12px;
-        min-height: 0;
+        align-items: center;
+        justify-content: center;
     }
 
-    .drawing-card-meta {
+    .storage-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 4px;
+        border-radius: 4px;
         display: flex;
-        justify-content: space-between;
-        gap: 0.75rem;
-        font-size: 0.68rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.52);
+        align-items: center;
+        justify-content: center;
     }
 
-    .drawing-card-title {
-        margin: 0;
-        font-size: 0.95rem;
-        font-weight: 600;
+    .storage-badge .storage-icon {
+        width: 1.5rem;
+    }
+
+    .storage-badge.requires-auth .storage-icon {
+        opacity: 1;
+    }
+
+    .storage-badge.cached-badge {
+        top: 8px;
+        right: auto;
+        left: 8px;
+        background: rgba(76, 175, 80, 0.85);
         color: #fff;
+    }
+
+    .storage-badge.cached-badge .material-symbols-outlined {
+        font-size: 1rem;
+    }
+
+    .drawing-card-info {
+        padding: 12px;
+    }
+
+    .drawing-card-name {
+        margin: 0 0 8px 0;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    .drawing-card-summary {
-        margin: 0;
-        color: rgba(255, 255, 255, 0.72);
+    .drawing-card-owner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .drawing-card-owner .owner-avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 0;
+        object-fit: cover;
+        flex-shrink: 0;
+    }
+
+    .drawing-card-owner .owner-avatar-placeholder {
+        width: 20px;
+        height: 20px;
+        border-radius: 0;
+        background: #444;
+        flex-shrink: 0;
+    }
+
+    .drawing-card-owner .owner-name {
+        color: #aaa;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .drawing-card-meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .drawing-card-meta span {
+        background: #333;
+        color: #aaa;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 0;
+    }
+
+    .drawing-card-frames {
+        margin: 6px 0 0 0;
+        color: #666;
+        font-size: 11px;
+        font-style: italic;
+    }
+
+    .drawing-card-desc {
+        margin: 8px 0 0 0;
+        color: #888;
+        font-size: 12px;
         line-height: 1.45;
-        line-clamp: 2;
         display: -webkit-box;
         -webkit-line-clamp: 2;
+        line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        min-height: calc(1.45em * 2);
     }
 
     .drawing-card-actions {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin-top: auto;
+        gap: 6px;
+        margin-top: 8px;
     }
 
-    .drawing-card-actions :deep(.p-button) {
-        flex: 1 1 auto;
+    .action-button {
+        border: none;
+        border-radius: 4px;
+        padding: 4px;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        flex-shrink: 0;
+        position: relative;
     }
 
-    @media (min-width: 1280px) {
+    .drawing-card:hover .action-button {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .action-button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: auto;
+    }
+
+    .action-button .material-symbols-outlined {
+        font-size: 18px;
+        color: #fff;
+    }
+
+    .action-button.open-button {
+        background: rgba(100, 181, 246, 0.9);
+    }
+
+    .action-button.open-button:hover:not(:disabled) {
+        background: #90caf9;
+        transform: scale(1.1);
+    }
+
+    .action-button.edit-button {
+        background: rgba(34, 197, 94, 0.9);
+    }
+
+    .action-button.edit-button:hover:not(:disabled) {
+        background: #22c55e;
+        transform: scale(1.1);
+    }
+
+    .action-button.copy-button {
+        background: rgba(59, 130, 246, 0.9);
+    }
+
+    .action-button.copy-button:hover:not(:disabled) {
+        background: #3b82f6;
+        transform: scale(1.1);
+    }
+
+    .action-button.r2-copy-button {
+        background: rgba(249, 115, 22, 0.92);
+    }
+
+    .action-button.r2-copy-button:hover:not(:disabled) {
+        background: #f97316;
+    }
+
+    .action-button.delete-button {
+        background: rgba(220, 38, 38, 0.9);
+    }
+
+    .action-button.delete-button:hover:not(:disabled) {
+        background: #dc2626;
+        transform: scale(1.1);
+    }
+
+    .action-provider-icon,
+    .action-provider-badge {
+        position: absolute;
+        right: -3px;
+        bottom: -3px;
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .action-provider-badge.material-symbols-outlined {
+        font-size: 10px;
+        color: #e2e8f0;
+    }
+
+    @media (hover: none),
+    (max-width: 768px) {
+        .action-button {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    }
+
+    @media (min-width: 1024px) {
         .drawing-grid {
-            grid-template-columns: repeat(auto-fill, minmax(240px, 300px));
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
         }
     }
 
@@ -917,12 +1260,8 @@
             padding: 16px;
         }
 
-        .drawing-browser-tabs {
-            gap: 0.5rem;
-        }
-
         .drawing-browser-tab {
-            padding: 0.5rem 0.8rem;
+            padding: 8px 12px;
         }
 
         .drawing-grid {
