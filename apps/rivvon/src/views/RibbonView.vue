@@ -39,7 +39,7 @@
     const route = useRoute();
     const router = useRouter();
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
-    const { uploadDrawing, uploadDrawingToR2 } = useRivvonAPI();
+    const { uploadDrawing, uploadDrawingToR2, getDrawing } = useRivvonAPI();
 
     useScreenWakeLock();
 
@@ -967,8 +967,31 @@
         app.showDrawingBrowser();
     }
 
+    async function resolveSavedDrawingPaths(drawing) {
+        const localPaths = inflateDrawingPaths(drawing?.paths);
+        if (localPaths.length) {
+            return localPaths;
+        }
+
+        const cloudDrawingId = drawing?.cloud_id
+            || (drawing?.is_cloud ? drawing?.id : null)
+            || null;
+
+        if (!cloudDrawingId) {
+            return [];
+        }
+
+        try {
+            const cloudDrawing = await getDrawing(cloudDrawingId);
+            return inflateDrawingPaths(cloudDrawing?.payload?.paths);
+        } catch (error) {
+            console.error('[RibbonView] Failed to fetch drawing payload from cloud:', error);
+            return [];
+        }
+    }
+
     async function handleSavedDrawingSelect(drawing) {
-        const paths = inflateDrawingPaths(drawing?.paths);
+        const paths = await resolveSavedDrawingPaths(drawing);
         if (!paths.length) {
             return;
         }

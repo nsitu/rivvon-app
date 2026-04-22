@@ -1,7 +1,9 @@
 <script setup>
     import { computed, ref, watch } from 'vue';
     import Button from 'primevue/button';
+    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { createDrawingThumbnailDataUrl } from '../../modules/shared/drawingLibrary.js';
+    import { useRivvonAPI } from '../../services/api.js';
     import { useDrawingStorage } from '../../services/drawingStorage.js';
 
     const props = defineProps({
@@ -13,13 +15,89 @@
 
     const emit = defineEmits(['close', 'select']);
 
-    const { getAllDrawings, updateDrawing, deleteDrawing } = useDrawingStorage();
+    const { isAuthenticated } = useGoogleAuth();
+    const { getAllDrawings, updateDrawing: updateLocalDrawing, deleteDrawing: deleteLocalDrawing } = useDrawingStorage();
+    const { getMyDrawings, updateDrawing: updateCloudDrawing, deleteDrawing: deleteCloudDrawing } = useRivvonAPI();
 
-    const drawings = ref([]);
+    const localDrawings = ref([]);
+    const cloudDrawings = ref([]);
     const isLoading = ref(false);
     const error = ref('');
 
+    const drawings = computed(() => mergeDrawings(localDrawings.value, cloudDrawings.value));
     const hasDrawings = computed(() => drawings.value.length > 0);
+    const browserKicker = computed(() => (isAuthenticated.value ? 'Local + cloud saves' : 'Local saves'));
+
+    function normalizeTimestamp(value) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function createLocalBrowserRecord(drawing) {
+        return {
+            ...drawing,
+            local_id: drawing.id,
+            cloud_id: null,
+            is_local: true,
+            is_cloud: false,
+            browser_origin: drawing.cached_from ? 'cached-local' : 'local',
+            browser_sort_time: normalizeTimestamp(drawing.updated_at),
+        };
+    }
+
+    function createCloudBrowserRecord(drawing, localDrawing = null) {
+        return {
+            ...drawing,
+            local_id: localDrawing?.id || null,
+            cloud_id: drawing.id,
+            cached_from: localDrawing?.cached_from || null,
+            root_drawing_id: localDrawing?.root_drawing_id || localDrawing?.cached_from || drawing.id,
+            paths: localDrawing?.paths || null,
+            source: localDrawing?.source || null,
+            thumbnail_data_url: localDrawing?.thumbnail_data_url || null,
+            is_local: Boolean(localDrawing),
+            is_cloud: true,
+            browser_origin: localDrawing ? 'cloud-cached' : 'cloud',
+            browser_sort_time: Math.max(
+                normalizeTimestamp(drawing.updated_at),
+                normalizeTimestamp(localDrawing?.updated_at)
+            ),
+        };
+    }
+
+    function mergeDrawings(localRecords = [], cloudRecords = []) {
+        const mergedLocalIds = new Set();
+        const latestLocalByCloudId = new Map();
+
+        for (const localDrawing of localRecords) {
+            if (!localDrawing?.cached_from) {
+                continue;
+            }
+
+            const previousMatch = latestLocalByCloudId.get(localDrawing.cached_from);
+            if (!previousMatch || normalizeTimestamp(localDrawing.updated_at) >= normalizeTimestamp(previousMatch.updated_at)) {
+                latestLocalByCloudId.set(localDrawing.cached_from, localDrawing);
+            }
+        }
+
+        const mergedDrawings = cloudRecords.map((cloudDrawing) => {
+            const matchedLocal = latestLocalByCloudId.get(cloudDrawing.id) || null;
+            if (matchedLocal?.id) {
+                mergedLocalIds.add(matchedLocal.id);
+            }
+            return createCloudBrowserRecord(cloudDrawing, matchedLocal);
+        });
+
+        for (const localDrawing of localRecords) {
+            if (mergedLocalIds.has(localDrawing.id)) {
+                continue;
+            }
+
+            mergedDrawings.push(createLocalBrowserRecord(localDrawing));
+        }
+
+        return mergedDrawings.sort((left, right) => right.browser_sort_time - left.browser_sort_time);
+    }
 
     function getKindLabel(kind) {
         switch (kind) {
@@ -36,6 +114,22 @@
             default:
                 return 'Drawing';
         }
+    }
+
+    function getStorageLabel(drawing) {
+        if (drawing.browser_origin === 'cloud-cached') {
+            return drawing.storage_provider === 'r2' ? 'R2 + local cache' : 'Drive + local cache';
+        }
+
+        if (drawing.browser_origin === 'cloud') {
+            return drawing.storage_provider === 'r2' ? 'R2' : 'Google Drive';
+        }
+
+        if (drawing.cached_from) {
+            return 'Local cache';
+        }
+
+        return 'Local only';
     }
 
     function formatTimestamp(value) {
@@ -74,6 +168,14 @@
             return `${drawing.path_count} path${drawing.path_count === 1 ? '' : 's'}`;
         }
 
+        if (drawing.browser_origin === 'cloud' || drawing.browser_origin === 'cloud-cached') {
+            return `Saved in ${getStorageLabel(drawing)}`;
+        }
+
+        if (drawing.browser_origin === 'cached-local') {
+            return 'Local cached copy';
+        }
+
         return 'Saved locally';
     }
 
@@ -82,21 +184,41 @@
             size: 256,
         });
 
-        return regeneratedThumbnail || drawing?.thumbnail_data_url || null;
+        return regeneratedThumbnail || drawing?.thumbnail_data_url || drawing?.thumbnail_url || null;
     }
 
     async function loadDrawings() {
         isLoading.value = true;
         error.value = '';
 
-        try {
-            drawings.value = await getAllDrawings();
-        } catch (loadError) {
-            console.error('[DrawingBrowser] Failed to load drawings:', loadError);
-            error.value = 'Failed to load saved drawings.';
-        } finally {
-            isLoading.value = false;
+        const loadErrors = [];
+        const [localResult, cloudResult] = await Promise.allSettled([
+            getAllDrawings(),
+            isAuthenticated.value
+                ? getMyDrawings({ limit: 100, offset: 0 })
+                : Promise.resolve({ drawings: [] }),
+        ]);
+
+        if (localResult.status === 'fulfilled') {
+            localDrawings.value = Array.isArray(localResult.value) ? localResult.value : [];
+        } else {
+            localDrawings.value = [];
+            console.error('[DrawingBrowser] Failed to load local drawings:', localResult.reason);
+            loadErrors.push('Failed to load local drawings.');
         }
+
+        if (cloudResult.status === 'fulfilled') {
+            cloudDrawings.value = Array.isArray(cloudResult.value?.drawings) ? cloudResult.value.drawings : [];
+        } else {
+            cloudDrawings.value = [];
+            if (isAuthenticated.value) {
+                console.error('[DrawingBrowser] Failed to load cloud drawings:', cloudResult.reason);
+                loadErrors.push('Failed to load cloud drawings.');
+            }
+        }
+
+        error.value = loadErrors.join(' ');
+        isLoading.value = false;
     }
 
     async function handleRename(drawing) {
@@ -111,8 +233,21 @@
         }
 
         try {
-            const updatedDrawing = await updateDrawing(drawing.id, { name: trimmedName });
-            drawings.value = drawings.value.map((entry) => (entry.id === drawing.id ? updatedDrawing : entry));
+            if (drawing.is_cloud && drawing.cloud_id) {
+                await updateCloudDrawing(drawing.cloud_id, { name: trimmedName });
+                cloudDrawings.value = cloudDrawings.value.map((entry) => (
+                    entry.id === drawing.cloud_id
+                        ? { ...entry, name: trimmedName, updated_at: Date.now() }
+                        : entry
+                ));
+            }
+
+            if (drawing.local_id) {
+                const updatedLocalDrawing = await updateLocalDrawing(drawing.local_id, { name: trimmedName });
+                localDrawings.value = localDrawings.value.map((entry) => (
+                    entry.id === drawing.local_id ? updatedLocalDrawing : entry
+                ));
+            }
         } catch (renameError) {
             console.error('[DrawingBrowser] Failed to rename drawing:', renameError);
             error.value = 'Failed to rename drawing.';
@@ -126,8 +261,15 @@
         }
 
         try {
-            await deleteDrawing(drawing.id);
-            drawings.value = drawings.value.filter((entry) => entry.id !== drawing.id);
+            if (drawing.is_cloud && drawing.cloud_id) {
+                await deleteCloudDrawing(drawing.cloud_id);
+                cloudDrawings.value = cloudDrawings.value.filter((entry) => entry.id !== drawing.cloud_id);
+            }
+
+            if (drawing.local_id) {
+                await deleteLocalDrawing(drawing.local_id);
+                localDrawings.value = localDrawings.value.filter((entry) => entry.id !== drawing.local_id);
+            }
         } catch (deleteError) {
             console.error('[DrawingBrowser] Failed to delete drawing:', deleteError);
             error.value = 'Failed to delete drawing.';
@@ -139,7 +281,7 @@
         emit('close');
     }
 
-    watch(() => props.visible, (visible) => {
+    watch([() => props.visible, isAuthenticated], ([visible]) => {
         if (visible) {
             loadDrawings();
         }
@@ -155,7 +297,7 @@
             <div class="drawing-browser-content">
                 <div class="drawing-browser-header">
                     <div>
-                        <p class="drawing-browser-kicker">Local saves</p>
+                        <p class="drawing-browser-kicker">{{ browserKicker }}</p>
                         <h2 class="drawing-browser-title">Saved drawings</h2>
                     </div>
                     <div class="drawing-browser-count">{{ drawings.length }}</div>
@@ -174,7 +316,7 @@
                 <div
                     v-else-if="!hasDrawings"
                     class="drawing-browser-empty"
-                >New gesture, walk, text, emoji, and SVG drawings will appear here after autosave.</div>
+                >New gesture, walk, text, emoji, and SVG drawings will appear here after autosave, whether they are saved locally or in the cloud.</div>
 
                 <div
                     v-else
@@ -204,7 +346,7 @@
 
                         <div class="drawing-card-body">
                             <div class="drawing-card-meta">
-                                <span class="drawing-card-kind">{{ getKindLabel(drawing.kind) }}</span>
+                                <span class="drawing-card-kind">{{ getKindLabel(drawing.kind) }} · {{ getStorageLabel(drawing) }}</span>
                                 <span class="drawing-card-date">{{ formatTimestamp(drawing.updated_at) }}</span>
                             </div>
 
