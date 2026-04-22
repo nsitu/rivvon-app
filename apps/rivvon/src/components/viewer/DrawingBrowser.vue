@@ -46,18 +46,6 @@
         }
     });
     const hasDrawings = computed(() => displayDrawings.value.length > 0);
-    const activeDrawingCount = computed(() => displayDrawings.value.length);
-    const browserKicker = computed(() => {
-        if (activeTab.value === 'local') {
-            return 'Local saves';
-        }
-
-        if (activeTab.value === 'cloud') {
-            return 'Cloud saves';
-        }
-
-        return isAuthenticated.value ? 'Local + cloud saves' : 'Local saves';
-    });
     const drawingTabs = computed(() => ([
         {
             value: 'all',
@@ -603,14 +591,6 @@
     >
         <div class="drawing-browser-container">
             <div class="drawing-browser-content">
-                <div class="drawing-browser-header">
-                    <div>
-                        <p class="drawing-browser-kicker">{{ browserKicker }}</p>
-                        <h2 class="drawing-browser-title">Saved drawings</h2>
-                    </div>
-                    <div class="drawing-browser-count">{{ activeDrawingCount }}</div>
-                </div>
-
                 <div class="drawing-browser-tabs">
                     <button
                         v-for="tab in drawingTabs"
@@ -766,14 +746,6 @@
         scrollbar-gutter: stable;
     }
 
-    .drawing-browser-header {
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
     .drawing-browser-tabs {
         display: flex;
         flex-wrap: wrap;
@@ -814,34 +786,6 @@
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.1);
         font-size: 0.72rem;
-        font-weight: 600;
-    }
-
-    .drawing-browser-kicker {
-        margin: 0 0 0.35rem;
-        font-size: 0.7rem;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.52);
-    }
-
-    .drawing-browser-title {
-        margin: 0;
-        font-size: clamp(1.8rem, 3vw, 2.6rem);
-        font-weight: 500;
-        color: #fff;
-    }
-
-    .drawing-browser-count {
-        min-width: 2.5rem;
-        height: 2.5rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.1);
-        color: rgba(255, 255, 255, 0.85);
-        font-size: 0.95rem;
         font-weight: 600;
     }
 
@@ -971,10 +915,6 @@
 
         .drawing-browser-content {
             padding: 16px;
-        }
-
-        .drawing-browser-header {
-            align-items: center;
         }
 
         .drawing-browser-tabs {
