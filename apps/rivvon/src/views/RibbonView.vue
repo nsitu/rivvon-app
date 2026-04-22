@@ -39,7 +39,7 @@
     const route = useRoute();
     const router = useRouter();
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
-    const { uploadDrawing, uploadDrawingToR2, getDrawing } = useRivvonAPI();
+    const { getDrawing } = useRivvonAPI();
 
     useScreenWakeLock();
 
@@ -633,20 +633,6 @@
         return true;
     }
 
-    function getDrawingAutosaveTarget() {
-        if (!isAuthenticated.value) {
-            return 'local';
-        }
-
-        if (!isAdmin.value) {
-            return 'google-drive';
-        }
-
-        return app.drawingAutosaveTarget === 'local' || app.drawingAutosaveTarget === 'r2'
-            ? app.drawingAutosaveTarget
-            : 'google-drive';
-    }
-
     function buildDrawingDraft({ kind, paths, source = null, description = '' } = {}) {
         return createDrawingDocument({
             kind,
@@ -656,38 +642,6 @@
             source,
             storageProvider: 'local',
         });
-    }
-
-    async function dataUrlToBlob(dataUrl) {
-        if (!dataUrl) {
-            return null;
-        }
-
-        const response = await fetch(dataUrl);
-        return response.blob();
-    }
-
-    async function uploadDrawingToCloud(drawingDraft) {
-        const autosaveTarget = getDrawingAutosaveTarget();
-        if (!drawingDraft || autosaveTarget === 'local') {
-            return null;
-        }
-
-        const thumbnailBlob = await dataUrlToBlob(drawingDraft.thumbnail_data_url);
-        const uploadOptions = {
-            name: drawingDraft.name,
-            description: drawingDraft.description,
-            kind: drawingDraft.kind,
-            paths: drawingDraft.paths,
-            source: drawingDraft.source,
-            thumbnailBlob,
-        };
-
-        if (autosaveTarget === 'r2') {
-            return uploadDrawingToR2(uploadOptions);
-        }
-
-        return uploadDrawing(uploadOptions);
     }
 
     async function autosaveDrawingLocally(drawingDraft, { cachedFrom = null } = {}) {
@@ -717,20 +671,7 @@
         }
 
         const drawingDraft = buildDrawingDraft({ kind, paths, source, description });
-        let cloudResult = null;
-
-        try {
-            cloudResult = await uploadDrawingToCloud(drawingDraft);
-            if (cloudResult?.drawingId) {
-                console.log('[RibbonView] Saved drawing to cloud:', cloudResult.drawingId, cloudResult.storageProvider);
-            }
-        } catch (error) {
-            console.error('[RibbonView] Failed to autosave drawing to cloud:', error);
-        }
-
-        return autosaveDrawingLocally(drawingDraft, {
-            cachedFrom: cloudResult?.drawingId || null,
-        });
+        return autosaveDrawingLocally(drawingDraft);
     }
 
     function unpackGeneratedDrawingPayload(payload) {

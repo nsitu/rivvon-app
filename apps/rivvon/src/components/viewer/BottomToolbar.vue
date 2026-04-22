@@ -69,12 +69,6 @@
         { label: 'Black and White', value: 'blackAndWhite', icon: 'filter_alt' }
     ];
 
-    const drawingAutosaveTargetOptions = [
-        { label: 'Local Only', value: 'local', icon: 'save' },
-        { label: 'Google Drive', value: 'google-drive', icon: 'cloud_upload' },
-        { label: 'Cloudflare R2', value: 'r2', icon: 'cloud' }
-    ];
-
     const geometryOptions = [
         { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
         { label: 'Double Helix', value: 'helix', icon: 'genetics' }
@@ -133,15 +127,6 @@
         set: (option) => {
             if (!option?.value) return;
             app.setRenderFilterMode(option.value);
-        }
-    });
-
-    const selectedDrawingAutosaveTargetOption = computed({
-        get: () => drawingAutosaveTargetOptions.find((option) => option.value === app.drawingAutosaveTarget)
-            ?? drawingAutosaveTargetOptions[1],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setDrawingAutosaveTarget(option.value);
         }
     });
 
@@ -217,15 +202,6 @@
     }
 
     const buildTimestampDisplay = computed(() => formatBuildTimestamp(buildTimestampRaw));
-
-    const buildTimestampUtc = computed(() => {
-        if (!buildTimestampRaw) return '';
-
-        const parsed = new Date(buildTimestampRaw);
-        if (Number.isNaN(parsed.getTime())) return buildTimestampRaw;
-
-        return parsed.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
-    });
 
     function handleScreenWakeLockToggle() {
         if (app.screenWakeLockSupported === false) return;
@@ -830,52 +806,6 @@
                     </div>
                 </div>
 
-                <div
-                    v-if="isAdmin"
-                    class="tools-section"
-                >
-                    <div class="tools-section-label">Admin Drawing Saves</div>
-                    <div class="tools-section-items">
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedDrawingAutosaveTargetOption"
-                                :options="drawingAutosaveTargetOptions"
-                                option-label="label"
-                                class="tools-select"
-                            >
-                                <template #value="slotProps">
-                                    <div
-                                        v-if="slotProps.value"
-                                        class="tools-select-row"
-                                    >
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.value.icon }}</span>
-                                        <span>{{ slotProps.value.label }}</span>
-                                    </div>
-                                    <span v-else>{{ slotProps.placeholder }}</span>
-                                </template>
-                                <template #option="slotProps">
-                                    <div class="tools-select-row">
-                                        <span class="material-symbols-outlined tools-select-icon">{{
-                                            slotProps.option.icon }}</span>
-                                        <span>{{ slotProps.option.label }}</span>
-                                    </div>
-                                </template>
-                            </Select>
-                        </div>
-                        <div class="tools-meta-card">
-                            <div class="tools-meta-row">
-                                <span class="material-symbols-outlined tools-meta-icon">save</span>
-                                <div class="tools-meta-copy">
-                                    <div class="tools-meta-label">Autosave Target</div>
-                                    <div class="tools-meta-value">{{ selectedDrawingAutosaveTargetOption?.label || 'Google Drive' }}</div>
-                                    <div class="tools-meta-subtle">Guests always save locally. Signed-in non-admin users save to Google Drive by default. Admins can override drawing autosave here.</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Geometry section -->
                 <div class="tools-section">
                     <div class="tools-section-label">Geometry</div>
@@ -1121,16 +1051,6 @@
                             <span class="material-symbols-outlined">info</span>
                             <span>About Rivvon</span>
                         </button>
-                        <div class="tools-meta-card">
-                            <div class="tools-meta-row">
-                                <span class="material-symbols-outlined tools-meta-icon">schedule</span>
-                                <div class="tools-meta-copy">
-                                    <div class="tools-meta-label">Build Timestamp</div>
-                                    <div class="tools-meta-value">{{ buildTimestampDisplay }}</div>
-                                    <div class="tools-meta-subtle">{{ buildTimestampUtc }}</div>
-                                </div>
-                            </div>
-                        </div>
                         <button
                             v-if="isAuthenticated"
                             class="tools-option tools-user"
@@ -1204,6 +1124,9 @@
                         row
                         for each sample (planar cross section), or a periodic function that achieves a wave-based,
                         directly loopable animation.
+                    </p>
+                    <p class="info-build">
+                        Build: {{ buildTimestampDisplay }}
                     </p>
                     <p class="info-credit">
                         Created by <a
@@ -1615,55 +1538,6 @@
         text-align: center;
     }
 
-    .tools-meta-card {
-        margin: 0 0.5rem 0.5rem;
-        padding: 0.85rem 0.95rem;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .tools-meta-row {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .tools-meta-icon {
-        font-size: 1.2rem;
-        opacity: 0.85;
-        padding-top: 0.15rem;
-    }
-
-    .tools-meta-copy {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .tools-meta-label {
-        font-size: 0.78rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: rgba(255, 255, 255, 0.72);
-    }
-
-    .tools-meta-value {
-        margin-top: 0.35rem;
-        font-size: 0.9rem;
-        line-height: 1.4;
-        color: rgba(255, 255, 255, 0.86);
-    }
-
-    .tools-meta-subtle {
-        margin-top: 0.25rem;
-        font-size: 0.72rem;
-        line-height: 1.4;
-        color: rgba(255, 255, 255, 0.52);
-        font-family: monospace;
-        word-break: break-word;
-    }
-
     .tools-user {
         opacity: 0.55;
         cursor: default;
@@ -1771,6 +1645,12 @@
         font-size: 0.9rem;
         line-height: 1.6;
         color: var(--text-secondary);
+    }
+
+    .info-build {
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.58);
     }
 
     .info-content a {

@@ -3,7 +3,6 @@
     import Button from 'primevue/button';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { createDrawingThumbnailDataUrl } from '../../modules/shared/drawingLibrary.js';
-    import { useViewerStore } from '../../stores/viewerStore';
     import { useRivvonAPI } from '../../services/api.js';
     import { useDrawingStorage } from '../../services/drawingStorage.js';
 
@@ -16,7 +15,6 @@
 
     const emit = defineEmits(['close', 'select']);
 
-    const app = useViewerStore();
     const { user, isAdmin, isAuthenticated } = useGoogleAuth();
     const { saveDrawing: saveLocalDrawing, getAllDrawings, updateDrawing: updateLocalDrawing, deleteDrawing: deleteLocalDrawing } = useDrawingStorage();
     const {
@@ -80,36 +78,18 @@
             disabled: !isAuthenticated.value,
         },
     ]));
-    const cloudDuplicateDestination = computed(() => {
-        if (!isAuthenticated.value) {
-            return null;
-        }
-
-        if (isAdmin.value && app.drawingAutosaveTarget === 'r2') {
-            return 'r2';
-        }
-
-        return 'google-drive';
-    });
-    const cloudDuplicateButtonLabel = computed(() => {
-        if (cloudDuplicateDestination.value === 'r2') {
-            return 'Copy to R2';
-        }
-
-        return 'Copy to Drive';
-    });
     const emptyStateMessage = computed(() => {
         if (activeTab.value === 'cloud') {
             return isAuthenticated.value
-                ? 'Cloud drawings will appear here after saves or duplicates to Google Drive or R2.'
+                ? 'Cloud drawings will appear here after you copy drawings to Google Drive or R2.'
                 : 'Sign in to browse drawings saved to Google Drive or R2.';
         }
 
         if (activeTab.value === 'local') {
-            return 'Local drawings and cached cloud copies will appear here after autosave or duplicate-to-local actions.';
+            return 'New drawings autosave locally. Local copies and older cached cloud copies will appear here.';
         }
 
-        return 'New gesture, walk, text, emoji, and SVG drawings will appear here after autosave, whether they are saved locally or in the cloud.';
+        return 'New gesture, walk, text, emoji, and SVG drawings autosave locally. Use the browser to copy them to Google Drive or R2 when you want a cloud copy.';
     });
 
     function normalizeTimestamp(value) {
@@ -198,6 +178,40 @@
     function buildDuplicateName(name) {
         const baseName = typeof name === 'string' && name.trim() ? name.trim() : 'Untitled drawing';
         return / copy(?: \d+)?$/i.test(baseName) ? `${baseName} 2` : `${baseName} Copy`;
+    }
+
+    function getCloudCopyActions(drawing) {
+        if (!isAuthenticated.value) {
+            return [];
+        }
+
+        const actions = [];
+        const storageProvider = drawing?.storage_provider || 'local';
+
+        if (!drawing?.is_cloud) {
+            actions.push({
+                destination: 'google-drive',
+                label: 'Copy to Drive',
+            });
+
+            if (isAdmin.value) {
+                actions.push({
+                    destination: 'r2',
+                    label: 'Copy to R2',
+                });
+            }
+
+            return actions;
+        }
+
+        if (storageProvider === 'google-drive' && isAdmin.value) {
+            actions.push({
+                destination: 'r2',
+                label: 'Copy to R2',
+            });
+        }
+
+        return actions;
     }
 
     function getCloudParentDrawingId(drawing) {
@@ -494,8 +508,8 @@
         }
     }
 
-    async function handleDuplicateCloud(drawing) {
-        if (!isAuthenticated.value || !cloudDuplicateDestination.value) {
+    async function handleDuplicateCloud(drawing, destination) {
+        if (!isAuthenticated.value || !destination) {
             return;
         }
 
@@ -518,7 +532,7 @@
                     rootDrawingId: getCloudRootDrawingId(drawing),
                     thumbnailBlob,
                 };
-                const uploadResult = cloudDuplicateDestination.value === 'r2'
+                const uploadResult = destination === 'r2'
                     ? await uploadDrawingToR2(uploadOptions)
                     : await uploadDrawing(uploadOptions);
 
@@ -538,7 +552,7 @@
             });
         } catch (duplicateError) {
             console.error('[DrawingBrowser] Failed to duplicate drawing to cloud:', duplicateError);
-            error.value = `Failed to duplicate drawing to ${cloudDuplicateDestination.value === 'r2' ? 'R2' : 'Google Drive'}.`;
+            error.value = `Failed to duplicate drawing to ${destination === 'r2' ? 'R2' : 'Google Drive'}.`;
         }
     }
 
@@ -655,7 +669,8 @@
 
                         <div class="drawing-card-body">
                             <div class="drawing-card-meta">
-                                <span class="drawing-card-kind">{{ getKindLabel(drawing.kind) }} · {{ getStorageLabel(drawing) }}</span>
+                                <span class="drawing-card-kind">{{ getKindLabel(drawing.kind) }} · {{
+                                    getStorageLabel(drawing) }}</span>
                                 <span class="drawing-card-date">{{ formatTimestamp(drawing.updated_at) }}</span>
                             </div>
 
@@ -687,13 +702,14 @@
                                     @click="handleDuplicateLocal(drawing)"
                                 />
                                 <Button
-                                    v-if="isAuthenticated"
+                                    v-for="action in getCloudCopyActions(drawing)"
+                                    :key="`${drawing.id}-${action.destination}`"
                                     type="button"
                                     size="small"
                                     severity="secondary"
-                                    :label="cloudDuplicateButtonLabel"
+                                    :label="action.label"
                                     :disabled="isDrawingBusy(drawing)"
-                                    @click="handleDuplicateCloud(drawing)"
+                                    @click="handleDuplicateCloud(drawing, action.destination)"
                                 />
                                 <Button
                                     type="button"

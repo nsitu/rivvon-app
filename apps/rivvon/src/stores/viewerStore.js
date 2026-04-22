@@ -7,7 +7,6 @@ import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfi
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
 const VIEWER_FILTER_MODES = ['none', 'blackAndWhite'];
-const DRAWING_AUTOSAVE_TARGET_VALUES = ['local', 'google-drive', 'r2'];
 
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -32,12 +31,6 @@ function normalizeViewerFilterMode(value) {
 
 function normalizeViewerBooleanPreference(value, fallback = false) {
     return typeof value === 'boolean' ? value : fallback;
-}
-
-function normalizeDrawingAutosaveTarget(value) {
-    return DRAWING_AUTOSAVE_TARGET_VALUES.includes(value)
-        ? value
-        : 'google-drive';
 }
 
 function readViewerPreferences() {
@@ -145,7 +138,6 @@ export const useViewerStore = defineStore('viewer', {
 
         // Drawing browser
         drawingBrowserVisible: false,
-        drawingAutosaveTarget: normalizeDrawingAutosaveTarget(readViewerPreferences().drawingAutosaveTarget),
         
         // Slyce panel
         textureCreatorVisible: false,
@@ -325,12 +317,6 @@ export const useViewerStore = defineStore('viewer', {
 
         hideDrawingBrowser() {
             this.drawingBrowserVisible = false;
-        },
-
-        setDrawingAutosaveTarget(target) {
-            const nextTarget = normalizeDrawingAutosaveTarget(target);
-            this.drawingAutosaveTarget = nextTarget;
-            writeViewerPreferences({ drawingAutosaveTarget: nextTarget });
         },
         
         showTexturePreview() {
