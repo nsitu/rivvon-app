@@ -31,6 +31,8 @@ async function loadTSLModule() {
 
 // Default texture ID from CDN (used when no source specified)
 export const DEFAULT_TEXTURE_ID = 'wv-ywyV14qYSbrzgYga4l';
+const CAP_MASK_SDF_AA_SCALE = 0.7;
+const CAP_MASK_SDF_MIN_AA = 1 / 4096;
 
 function positiveModulo(value, modulus) {
     if (modulus <= 0) return 0;
@@ -38,7 +40,113 @@ function positiveModulo(value, modulus) {
 }
 
 function normalizeRepeatMode(mode) {
-    return mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
+    if (mode === 'mirrorBounce') {
+        return 'mirrorBounce';
+    }
+
+    return 'wrap';
+}
+
+function bigintAbs(value) {
+    return value < 0n ? -value : value;
+}
+
+function bigintGcd(a, b) {
+    let left = bigintAbs(a);
+    let right = bigintAbs(b);
+
+    while (right !== 0n) {
+        const remainder = left % right;
+        left = right;
+        right = remainder;
+    }
+
+    return left || 1n;
+}
+
+function bigintLcm(a, b) {
+    if (a === 0n || b === 0n) {
+        return 0n;
+    }
+
+    return bigintAbs((a / bigintGcd(a, b)) * b);
+}
+
+function reduceFraction(numerator, denominator) {
+    if (denominator === 0n) {
+        return null;
+    }
+
+    if (numerator === 0n) {
+        return { numerator: 0n, denominator: 1n };
+    }
+
+    const sign = denominator < 0n ? -1n : 1n;
+    const normalizedNumerator = numerator * sign;
+    const normalizedDenominator = denominator * sign;
+    const divisor = bigintGcd(normalizedNumerator, normalizedDenominator);
+
+    return {
+        numerator: normalizedNumerator / divisor,
+        denominator: normalizedDenominator / divisor,
+    };
+}
+
+function fractionToNumber(fraction) {
+    if (!fraction) {
+        return 0;
+    }
+
+    return Number(fraction.numerator) / Number(fraction.denominator);
+}
+
+function multiplyFractionByInteger(fraction, multiplier) {
+    if (!fraction) {
+        return null;
+    }
+
+    return reduceFraction(fraction.numerator * multiplier, fraction.denominator);
+}
+
+function lcmFractions(fractions) {
+    if (!Array.isArray(fractions) || fractions.length === 0) {
+        return null;
+    }
+
+    let numeratorLcm = 1n;
+    let denominatorGcd = fractions[0].denominator;
+
+    for (const fraction of fractions) {
+        if (!fraction) {
+            continue;
+        }
+
+        numeratorLcm = bigintLcm(numeratorLcm, fraction.numerator);
+        denominatorGcd = bigintGcd(denominatorGcd, fraction.denominator);
+    }
+
+    return reduceFraction(numeratorLcm, denominatorGcd);
+}
+
+function numberToFraction(value, maxDecimals = 6) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return null;
+    }
+
+    if (numeric === 0) {
+        return { numerator: 0n, denominator: 1n };
+    }
+
+    const fixed = Math.abs(numeric).toFixed(maxDecimals);
+    const trimmed = fixed.includes('.')
+        ? fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
+        : fixed;
+    const [wholePart, fractionalPart = ''] = trimmed.split('.');
+    const denominator = 10n ** BigInt(fractionalPart.length);
+    const numerator = BigInt(`${wholePart}${fractionalPart}` || '0') * (numeric < 0 ? -1n : 1n);
+
+    return reduceFraction(numerator, denominator);
 }
 
 export class TileManager {
@@ -50,6 +158,8 @@ export class TileManager {
             tileCount = 32,
             rotate90 = false,
             repeatMode = 'mirrorBounce',
+            flowAlignmentEnabled = true,
+            layerAnimationEnabled = true,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -70,6 +180,7 @@ export class TileManager {
         this.materials = [];
         this.mirroredMaterials = new Map();
         this.arrayTextures = []; // Raw array textures for dual-texture flow materials
+        this.ephemeralStaticMaterials = []; // Unique per-segment masked materials
 
         // Check if source is a zip file
         this.isZip = typeof source === 'string' && source.endsWith('.zip');
@@ -100,6 +211,7 @@ export class TileManager {
         this.direction = 1; // for ping-pong in planes mode
         this.fps = 30; // fixed cadence
         this.lastFrameTime = 0;
+        this.layerAnimationEnabled = !!layerAnimationEnabled;
         this.rotate90 = !!rotate90;
         this.repeatMode = normalizeRepeatMode(repeatMode);
 
@@ -110,8 +222,12 @@ export class TileManager {
         this.flowOffset = 0.0;         // Current fractional offset (0.0 to 1.0)
         this.tileFlowOffset = 0;       // Current base tile offset (integer)
         this.flowSpeed = -0.25;          // Tiles per second (negative and positive imply opposite direciotn. )
+        this.requestedFlowSpeed = Math.abs(this.flowSpeed);
+        this.flowDirection = this.flowSpeed < 0 ? -1 : 1;
         this.flowEnabled = false;       // Can be toggled
         this.flowMaterials = [];       // Track all dual-texture materials for uniform updates
+        this.flowAlignmentEnabled = !!flowAlignmentEnabled;
+        this.flowAlignmentInfo = null;
 
         // WebGPU material mode: 'node' (NodeMaterial) or 'basic' (MeshBasicMaterial)
         // Can be set externally (e.g., via URL param) before loading tiles.
@@ -125,6 +241,8 @@ export class TileManager {
 
         // Per-frame callback
         this._onTick = null;
+
+        this.#syncFlowSpeedAlignment();
     }
 
     /**
@@ -398,6 +516,33 @@ export class TileManager {
         this.mirroredMaterials.forEach(material => {
             if (material) visitor(material);
         });
+        this.ephemeralStaticMaterials.forEach(material => {
+            if (material) visitor(material);
+        });
+    }
+
+    #hasCapMask(options = {}) {
+        return !!(options?.capMaskStart?.texture || options?.capMaskEnd?.texture);
+    }
+
+    #disposeMaterialExtras(material) {
+        if (!material?._ownedCapTextures?.length) {
+            return;
+        }
+
+        for (const texture of material._ownedCapTextures) {
+            texture?.dispose?.();
+        }
+
+        material._ownedCapTextures = [];
+    }
+
+    clearEphemeralStaticMaterials() {
+        this.ephemeralStaticMaterials.forEach(material => {
+            this.#disposeMaterialExtras(material);
+            material?.dispose?.();
+        });
+        this.ephemeralStaticMaterials = [];
     }
 
     #resolveRepeatSample(effectiveIndex) {
@@ -405,7 +550,7 @@ export class TileManager {
             return { isGap: false, tileIndex: 0, mirrorX: false, cycleIndex: 0 };
         }
 
-        if (this.repeatMode !== 'mirrorBounce') {
+        if (this.repeatMode === 'wrap') {
             const tileIndex = positiveModulo(effectiveIndex, this.tileCount);
             return { isGap: false, tileIndex, mirrorX: false, cycleIndex: tileIndex };
         }
@@ -444,6 +589,14 @@ export class TileManager {
         const layerCount = textureCurrent.image?.depth || 1;
         const mirrorCurrent = options.mirrorCurrent ? 1 : 0;
         const mirrorNext = options.mirrorNext ? 1 : 0;
+        const reverseFlow = this.flowDirection < 0;
+        const hasStartMask = !!options.capMaskStart?.texture;
+        const hasEndMask = !!options.capMaskEnd?.texture;
+        const hasCapMask = hasStartMask || hasEndMask;
+        const startSpread = options.capMaskStart?.spread ?? 0.08;
+        const endSpread = options.capMaskEnd?.spread ?? 0.08;
+        const startTipFadeWidth = options.capMaskStart?.tipFadeWidth ?? 0;
+        const endTipFadeWidth = options.capMaskEnd?.tipFadeWidth ?? 0;
 
         const material = new THREE.ShaderMaterial({
             glslVersion: THREE.GLSL3,
@@ -456,6 +609,12 @@ export class TileManager {
                 uMirrorCurrent: { value: mirrorCurrent },
                 uMirrorNext: { value: mirrorNext },
                 uFlowOffset: this.sharedFlowOffsetUniform,
+                ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
+                ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
+                ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
+                ...(hasEndMask ? { uCapMaskEnd: { value: options.capMaskEnd.texture } } : {}),
+                ...(hasEndMask ? { uCapMaskEndSpread: { value: endSpread } } : {}),
+                ...(hasEndMask ? { uCapMaskEndTipFadeWidth: { value: endTipFadeWidth } } : {}),
             },
             vertexShader: /* glsl */`
                 out vec2 vUv;
@@ -475,7 +634,27 @@ export class TileManager {
                 uniform int uMirrorCurrent;
                 uniform int uMirrorNext;
                 uniform float uFlowOffset;
+                ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
+                ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
+                ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
+                ${hasEndMask ? 'uniform sampler2D uCapMaskEnd;' : ''}
+                ${hasEndMask ? 'uniform float uCapMaskEndSpread;' : ''}
+                ${hasEndMask ? 'uniform float uCapMaskEndTipFadeWidth;' : ''}
                 out vec4 outColor;
+
+                float sampleCapSdf(sampler2D maskTexture, vec2 maskUv, float spread, float tipFadeWidth) {
+                    float sdf = texture(maskTexture, maskUv).a;
+                    float signedDistance = (sdf * 2.0 - 1.0) * spread;
+                    float aa = max(fwidth(signedDistance) * ${CAP_MASK_SDF_AA_SCALE}, ${CAP_MASK_SDF_MIN_AA});
+                    float alpha = smoothstep(-aa, aa, signedDistance);
+
+                    if (tipFadeWidth > 0.0) {
+                        alpha *= smoothstep(0.0, tipFadeWidth, maskUv.x);
+                    }
+
+                    return alpha;
+                }
+
                 void main() {
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
@@ -484,7 +663,7 @@ export class TileManager {
                         (uMirrorCurrent == 1) ? (1.0 - shiftedU) : shiftedU,
                         vUv.y
                     );
-                    vec2 nextBaseUV = vec2(shiftedU - 1.0, vUv.y);
+                    vec2 nextBaseUV = vec2(${reverseFlow ? 'shiftedU + 1.0' : 'shiftedU - 1.0'}, vUv.y);
                     vec2 nextDerivUV = vec2(
                         (uMirrorNext == 1) ? (1.0 - nextBaseUV.x) : nextBaseUV.x,
                         nextBaseUV.y
@@ -510,40 +689,51 @@ export class TileManager {
                     vec2 dPdxNext = dFdx(flippedNext_d);
                     vec2 dPdyNext = dFdy(flippedNext_d);
                     
-                    vec2 sampleUV;
-                    vec4 texColor;
-                    
-                    if (shiftedU >= 1.0) {
-                        // This region shows the NEXT tile
-                        sampleUV = vec2(shiftedU - 1.0, vUv.y);
-                        sampleUV.x = (uMirrorNext == 1) ? (1.0 - sampleUV.x) : sampleUV.x;
-                        // Optionally rotate by 90 degrees (clockwise)
-                        vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
-                        // Flip V to match texture orientation
-                        vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                        texColor = textureGrad(uTexArrayNext, vec3(flippedUv, float(uLayer)), dPdxNext, dPdyNext);
-                    } else {
-                        // This region shows the CURRENT tile
-                        sampleUV = vec2(shiftedU, vUv.y);
-                        sampleUV.x = (uMirrorCurrent == 1) ? (1.0 - sampleUV.x) : sampleUV.x;
-                        // Optionally rotate by 90 degrees (clockwise)
-                        vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
-                        // Flip V to match texture orientation
-                        vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                        texColor = textureGrad(uTexArrayCurrent, vec3(flippedUv, float(uLayer)), dPdxCurrent, dPdyCurrent);
-                    }
+                    vec2 sampleUVCurrent = vec2(shiftedU, vUv.y);
+                    sampleUVCurrent.x = (uMirrorCurrent == 1) ? (1.0 - sampleUVCurrent.x) : sampleUVCurrent.x;
+                    vec2 uvRCurrent = (uRotate90 == 1) ? vec2(sampleUVCurrent.y, 1.0 - sampleUVCurrent.x) : sampleUVCurrent;
+                    vec2 flippedUvCurrent = vec2(uvRCurrent.x, 1.0 - uvRCurrent.y);
+                    vec4 texColorCurrent = textureGrad(uTexArrayCurrent, vec3(flippedUvCurrent, float(uLayer)), dPdxCurrent, dPdyCurrent);
+
+                    vec2 sampleUVNext = vec2(shiftedU - 1.0, vUv.y);
+                    sampleUVNext.x = (uMirrorNext == 1) ? (1.0 - sampleUVNext.x) : sampleUVNext.x;
+                    vec2 uvRNext = (uRotate90 == 1) ? vec2(sampleUVNext.y, 1.0 - sampleUVNext.x) : sampleUVNext;
+                    vec2 flippedUvNext = vec2(uvRNext.x, 1.0 - uvRNext.y);
+                    vec4 texColorNext = textureGrad(uTexArrayNext, vec3(flippedUvNext, float(uLayer)), dPdxNext, dPdyNext);
+
+                    vec4 texColor = ${reverseFlow
+                        ? 'shiftedU < 0.0 ? texColorNext : texColorCurrent'
+                        : 'shiftedU >= 1.0 ? texColorNext : texColorCurrent'};
+
+                    ${hasCapMask ? 'float capAlpha = 1.0;' : ''}
+                    ${hasStartMask ? 'capAlpha *= sampleCapSdf(uCapMaskStart, vec2(vUv.x, 1.0 - vUv.y), uCapMaskStartSpread, uCapMaskStartTipFadeWidth);' : ''}
+                    ${hasEndMask ? 'capAlpha *= sampleCapSdf(uCapMaskEnd, vec2(1.0 - vUv.x, 1.0 - vUv.y), uCapMaskEndSpread, uCapMaskEndTipFadeWidth);' : ''}
+                    ${hasCapMask ? 'texColor.a *= capAlpha;' : ''}
+                    ${hasCapMask ? 'if (texColor.a <= 0.001) discard;' : ''}
                     
                     outColor = texColor;
                 }
             `,
+            // Cap masks are cutouts, not translucent surfaces. Keep them in the
+            // normal depth pipeline so nearby ribbon geometry can occlude them
+            // consistently, and rely on alpha-to-coverage for edge smoothing.
             transparent: false,
             depthWrite: true,
+            alphaToCoverage: hasCapMask,
             side: THREE.DoubleSide
         });
 
         // Store texture references for swapping
         material._textureCurrent = textureCurrent;
         material._textureNext = textureNext;
+        material._ownedCapTextures = [];
+        if (options.capMaskStart?.owned) {
+            material._ownedCapTextures.push(options.capMaskStart.texture);
+        }
+        if (options.capMaskEnd?.owned) {
+            material._ownedCapTextures.push(options.capMaskEnd.texture);
+        }
+        material._hasCapMask = hasCapMask;
 
         return material;
     }
@@ -557,8 +747,12 @@ export class TileManager {
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, float, vec2 } = threeTSL;
+        const { texture, uniform, uv, float, vec2, vec4, smoothstep } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
+        const reverseFlow = this.flowDirection < 0;
+        const hasStartMask = !!options.capMaskStart?.texture;
+        const hasEndMask = !!options.capMaskEnd?.texture;
+        const hasCapMask = hasStartMask || hasEndMask;
 
         // Create uniforms
         const layerUniform = uniform(this.sharedLayerUniform.value);
@@ -571,7 +765,7 @@ export class TileManager {
         
         // Apply flow offset
         const shiftedU = baseUV.x.add(flowOffsetUniform);
-        const nextShiftedU = shiftedU.sub(1.0);
+        const nextShiftedU = reverseFlow ? shiftedU.add(1.0) : shiftedU.sub(1.0);
         
         // Create two UV sets
         const uvCurrent = vec2(
@@ -601,14 +795,51 @@ export class TileManager {
         const colorCurrent = texture(textureCurrent, finalUVCurrent).depth(layerUniform);
         const colorNext = texture(textureNext, finalUVNext).depth(layerUniform);
         
-        // Select based on whether shiftedU >= 1.0
-        const useNext = shiftedU.greaterThanEqual(1.0);
-        const finalColor = useNext.select(colorNext, colorCurrent);
+        const sampledColor = reverseFlow
+            ? shiftedU.lessThan(float(0.0)).select(colorNext, colorCurrent)
+            : shiftedU.greaterThanEqual(1.0).select(colorNext, colorCurrent);
+
+        let capAlpha = float(1.0);
+        if (hasStartMask) {
+            const startMaskUv = vec2(baseUV.x, float(1.0).sub(baseUV.y));
+            const startSdf = texture(options.capMaskStart.texture, startMaskUv).a;
+            const startSignedDistance = startSdf.mul(2.0).sub(1.0).mul(float(options.capMaskStart.spread ?? 0.08));
+            const startAa = startSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
+            let startAlpha = smoothstep(startAa.negate(), startAa, startSignedDistance);
+
+            if ((options.capMaskStart.tipFadeWidth ?? 0) > 0) {
+                startAlpha = startAlpha.mul(
+                    smoothstep(float(0.0), float(options.capMaskStart.tipFadeWidth), startMaskUv.x)
+                );
+            }
+
+            capAlpha = capAlpha.mul(startAlpha);
+        }
+        if (hasEndMask) {
+            const endMaskUv = vec2(float(1.0).sub(baseUV.x), float(1.0).sub(baseUV.y));
+            const endSdf = texture(options.capMaskEnd.texture, endMaskUv).a;
+            const endSignedDistance = endSdf.mul(2.0).sub(1.0).mul(float(options.capMaskEnd.spread ?? 0.08));
+            const endAa = endSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
+            let endAlpha = smoothstep(endAa.negate(), endAa, endSignedDistance);
+
+            if ((options.capMaskEnd.tipFadeWidth ?? 0) > 0) {
+                endAlpha = endAlpha.mul(
+                    smoothstep(float(0.0), float(options.capMaskEnd.tipFadeWidth), endMaskUv.x)
+                );
+            }
+
+            capAlpha = capAlpha.mul(endAlpha);
+        }
+
+        const finalColor = hasCapMask
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
+            : sampledColor;
 
         const material = new NodeMaterial();
         material.colorNode = finalColor;
         material.transparent = false;
         material.depthWrite = true;
+        material.alphaToCoverage = hasCapMask;
         material.side = THREE.DoubleSide;
 
         // Store references for updates
@@ -617,6 +848,14 @@ export class TileManager {
         material._flowOffsetUniform = flowOffsetUniform;
         material._textureCurrent = textureCurrent;
         material._textureNext = textureNext;
+        material._ownedCapTextures = [];
+        if (options.capMaskStart?.owned) {
+            material._ownedCapTextures.push(options.capMaskStart.texture);
+        }
+        if (options.capMaskEnd?.owned) {
+            material._ownedCapTextures.push(options.capMaskEnd.texture);
+        }
+        material._hasCapMask = hasCapMask;
 
         return material;
     }
@@ -626,14 +865,15 @@ export class TileManager {
      * @param {number} segmentIndex - The segment's base tile index
      * @returns {THREE.Material} Dual-texture material for smooth flow
      */
-    createFlowMaterial(segmentIndex) {
+    createFlowMaterial(segmentIndex, materialOptions = null) {
         if (!this.isKTX2 || this.arrayTextures.length === 0) {
-            return this.getMaterial(segmentIndex);
+            return this.getMaterial(segmentIndex, materialOptions);
         }
 
         const basePos = segmentIndex + this.tileFlowOffset;
+        const flowStep = this.flowDirection < 0 ? -1 : 1;
         const currentSample = this.resolveSegmentToTile(basePos);
-        const nextSample = this.resolveSegmentToTile(basePos + 1);
+        const nextSample = this.resolveSegmentToTile(basePos + flowStep);
 
         const currentTileIdx = currentSample.tileIndex;
         const nextTileIdx = nextSample.tileIndex;
@@ -643,7 +883,7 @@ export class TileManager {
 
         if (!textureCurrent || !textureNext) {
             console.warn(`[TileManager] Missing textures for flow material: ${currentTileIdx}, ${nextTileIdx}`);
-            return this.getMaterial(segmentIndex);
+            return this.getMaterial(segmentIndex, materialOptions);
         }
 
         let material;
@@ -651,11 +891,13 @@ export class TileManager {
             material = this.#createDualTextureMaterialWebGPU(textureCurrent, textureNext, {
                 mirrorCurrent: currentSample.mirrorX,
                 mirrorNext: nextSample.mirrorX,
+                ...materialOptions,
             });
         } else {
             material = this.#createDualTextureMaterialWebGL(textureCurrent, textureNext, {
                 mirrorCurrent: currentSample.mirrorX,
                 mirrorNext: nextSample.mirrorX,
+                ...materialOptions,
             });
         }
 
@@ -681,12 +923,23 @@ export class TileManager {
      * Clear tracked flow materials (call before rebuilding ribbons).
      */
     clearFlowMaterials() {
+        this.flowMaterials.forEach(material => {
+            this.#disposeMaterialExtras(material);
+            material?.dispose?.();
+        });
         this.flowMaterials = [];
     }
 
     #createArrayMaterialWebGL(arrayTexture, options = {}) {
         const layerCount = arrayTexture.image?.depth || 1;
         const mirrorX = options.mirrorX ? 1 : 0;
+        const hasStartMask = !!options.capMaskStart?.texture;
+        const hasEndMask = !!options.capMaskEnd?.texture;
+        const hasCapMask = hasStartMask || hasEndMask;
+        const startSpread = options.capMaskStart?.spread ?? 0.08;
+        const endSpread = options.capMaskEnd?.spread ?? 0.08;
+        const startTipFadeWidth = options.capMaskStart?.tipFadeWidth ?? 0;
+        const endTipFadeWidth = options.capMaskEnd?.tipFadeWidth ?? 0;
 
         const material = new THREE.ShaderMaterial({
             glslVersion: THREE.GLSL3,
@@ -695,7 +948,13 @@ export class TileManager {
                 uLayer: this.sharedLayerUniform,
                 uLayerCount: { value: layerCount },
                 uRotate90: this.sharedRotateUniform,
-                uMirrorX: { value: mirrorX }
+                uMirrorX: { value: mirrorX },
+                ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
+                ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
+                ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
+                ...(hasEndMask ? { uCapMaskEnd: { value: options.capMaskEnd.texture } } : {}),
+                ...(hasEndMask ? { uCapMaskEndSpread: { value: endSpread } } : {}),
+                ...(hasEndMask ? { uCapMaskEndTipFadeWidth: { value: endTipFadeWidth } } : {}),
             },
             vertexShader: /* glsl */`
                 out vec2 vUv;
@@ -712,7 +971,27 @@ export class TileManager {
                 uniform int uLayer;
                 uniform int uRotate90;
                 uniform int uMirrorX;
+                ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
+                ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
+                ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
+                ${hasEndMask ? 'uniform sampler2D uCapMaskEnd;' : ''}
+                ${hasEndMask ? 'uniform float uCapMaskEndSpread;' : ''}
+                ${hasEndMask ? 'uniform float uCapMaskEndTipFadeWidth;' : ''}
                 out vec4 outColor;
+
+                float sampleCapSdf(sampler2D maskTexture, vec2 maskUv, float spread, float tipFadeWidth) {
+                    float sdf = texture(maskTexture, maskUv).a;
+                    float signedDistance = (sdf * 2.0 - 1.0) * spread;
+                    float aa = max(fwidth(signedDistance) * ${CAP_MASK_SDF_AA_SCALE}, ${CAP_MASK_SDF_MIN_AA});
+                    float alpha = smoothstep(-aa, aa, signedDistance);
+
+                    if (tipFadeWidth > 0.0) {
+                        alpha *= smoothstep(0.0, tipFadeWidth, maskUv.x);
+                    }
+
+                    return alpha;
+                }
+
                 void main() {
                     vec2 sampleUV = vec2((uMirrorX == 1) ? (1.0 - vUv.x) : vUv.x, vUv.y);
                     // Optionally rotate by 90 degrees (clockwise)
@@ -720,14 +999,29 @@ export class TileManager {
                     
                     // Flip V to match texture orientation
                     vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
-                    
-                    outColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
+                    vec4 texColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
+                    ${hasCapMask ? 'float capAlpha = 1.0;' : ''}
+                    ${hasStartMask ? 'capAlpha *= sampleCapSdf(uCapMaskStart, vec2(vUv.x, 1.0 - vUv.y), uCapMaskStartSpread, uCapMaskStartTipFadeWidth);' : ''}
+                    ${hasEndMask ? 'capAlpha *= sampleCapSdf(uCapMaskEnd, vec2(1.0 - vUv.x, 1.0 - vUv.y), uCapMaskEndSpread, uCapMaskEndTipFadeWidth);' : ''}
+                    ${hasCapMask ? 'texColor.a *= capAlpha;' : ''}
+                    ${hasCapMask ? 'if (texColor.a <= 0.001) discard;' : ''}
+                    outColor = texColor;
                 }
             `,
             transparent: false,
             depthWrite: true,
+            alphaToCoverage: hasCapMask,
             side: THREE.DoubleSide
         });
+
+        material._ownedCapTextures = [];
+        if (options.capMaskStart?.owned) {
+            material._ownedCapTextures.push(options.capMaskStart.texture);
+        }
+        if (options.capMaskEnd?.owned) {
+            material._ownedCapTextures.push(options.capMaskEnd.texture);
+        }
+        material._hasCapMask = hasCapMask;
 
         return material;
     }
@@ -735,8 +1029,11 @@ export class TileManager {
     #createArrayMaterialWebGPU(arrayTexture, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, float, vec2 } = threeTSL;
+        const { texture, uniform, uv, float, vec2, vec4, smoothstep } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
+        const hasStartMask = !!options.capMaskStart?.texture;
+        const hasEndMask = !!options.capMaskEnd?.texture;
+        const hasCapMask = hasStartMask || hasEndMask;
 
         // Simple fallback path: use a non-array texture in a MeshBasicMaterial
         // for debugging, instead of the KTX2 array texture.
@@ -797,15 +1094,59 @@ export class TileManager {
 
         // Create NodeMaterial with texture array sampling using .depth()
         const material = new NodeMaterial();
-        material.colorNode = texture(arrayTexture, finalUV).depth(layerUniform);
+        const sampledColor = texture(arrayTexture, finalUV).depth(layerUniform);
+        let capAlpha = float(1.0);
+        if (hasStartMask) {
+            const startMaskUv = vec2(baseUV.x, float(1.0).sub(baseUV.y));
+            const startSdf = texture(options.capMaskStart.texture, startMaskUv).a;
+            const startSignedDistance = startSdf.mul(2.0).sub(1.0).mul(float(options.capMaskStart.spread ?? 0.08));
+            const startAa = startSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
+            let startAlpha = smoothstep(startAa.negate(), startAa, startSignedDistance);
+
+            if ((options.capMaskStart.tipFadeWidth ?? 0) > 0) {
+                startAlpha = startAlpha.mul(
+                    smoothstep(float(0.0), float(options.capMaskStart.tipFadeWidth), startMaskUv.x)
+                );
+            }
+
+            capAlpha = capAlpha.mul(startAlpha);
+        }
+        if (hasEndMask) {
+            const endMaskUv = vec2(float(1.0).sub(baseUV.x), float(1.0).sub(baseUV.y));
+            const endSdf = texture(options.capMaskEnd.texture, endMaskUv).a;
+            const endSignedDistance = endSdf.mul(2.0).sub(1.0).mul(float(options.capMaskEnd.spread ?? 0.08));
+            const endAa = endSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
+            let endAlpha = smoothstep(endAa.negate(), endAa, endSignedDistance);
+
+            if ((options.capMaskEnd.tipFadeWidth ?? 0) > 0) {
+                endAlpha = endAlpha.mul(
+                    smoothstep(float(0.0), float(options.capMaskEnd.tipFadeWidth), endMaskUv.x)
+                );
+            }
+
+            capAlpha = capAlpha.mul(endAlpha);
+        }
+
+        material.colorNode = hasCapMask
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
+            : sampledColor;
         material.transparent = false;
         material.depthWrite = true;
+        material.alphaToCoverage = hasCapMask;
         material.side = THREE.DoubleSide;
 
         // Store references to uniforms for updates
         material._layerUniform = layerUniform;
         material._rotateUniform = rotateUniform;
         material._mirrorUniform = mirrorUniform;
+        material._ownedCapTextures = [];
+        if (options.capMaskStart?.owned) {
+            material._ownedCapTextures.push(options.capMaskStart.texture);
+        }
+        if (options.capMaskEnd?.owned) {
+            material._ownedCapTextures.push(options.capMaskEnd.texture);
+        }
+        material._hasCapMask = hasCapMask;
 
         console.log('[TileManager] WebGPU material created:', {
             layerCount,
@@ -874,6 +1215,7 @@ export class TileManager {
                             this.currentLayer = 0;
                             this.direction = 1;
                             this.sharedLayerUniform.value = 0;
+                            this.#syncFlowSpeedAlignment();
                         } else {
                             const depth = arrayTexture.image?.depth || 1;
                             if (depth !== this.layerCount) {
@@ -926,6 +1268,7 @@ export class TileManager {
                             this.currentLayer = 0;
                             this.direction = 1;
                             this.sharedLayerUniform.value = 0;
+                            this.#syncFlowSpeedAlignment();
                         } else {
                             const depth = arrayTexture.image?.depth || 1;
                             if (depth !== this.layerCount) {
@@ -1002,13 +1345,28 @@ export class TileManager {
         return tile;
     }
 
-    getMaterial(index) {
+    getMaterial(index, materialOptions = null) {
         if (!this.isKTX2) return undefined;
         const sample = this.resolveSegmentToTile(index);
         const baseMaterial = this.materials[sample.tileIndex];
+        const hasCapMask = this.#hasCapMask(materialOptions);
 
-        if (!sample.mirrorX || !baseMaterial) {
+        if (!hasCapMask && (!sample.mirrorX || !baseMaterial)) {
             return baseMaterial;
+        }
+
+        if (hasCapMask) {
+            const arrayTexture = this.arrayTextures[sample.tileIndex];
+            if (!arrayTexture) {
+                return baseMaterial;
+            }
+
+            const material = this.#createArrayMaterial(arrayTexture, {
+                mirrorX: sample.mirrorX,
+                ...materialOptions,
+            });
+            this.ephemeralStaticMaterials.push(material);
+            return material;
         }
 
         let mirroredMaterial = this.mirroredMaterials.get(sample.tileIndex);
@@ -1030,7 +1388,15 @@ export class TileManager {
      */
     getEffectiveTileCount() {
         if (this.tileCount <= 0) return 0;
-        return this.repeatMode === 'mirrorBounce' ? this.tileCount * 2 : this.tileCount;
+        if (this.repeatMode === 'mirrorBounce') {
+            return this.tileCount * 2;
+        }
+
+        if (this.repeatMode === 'bounce') {
+            return this.tileCount > 1 ? (this.tileCount * 2 - 2) : 1;
+        }
+
+        return this.tileCount;
     }
 
     getTileSequence(startIndex, count) {
@@ -1058,19 +1424,182 @@ export class TileManager {
      * @param {boolean} flowActive - Whether flow animation is currently active
      * @returns {THREE.Material} The material to assign to the mesh segment
      */
-    getOrCreateMaterialForSegment(globalSegmentIndex, flowActive) {
+    getOrCreateMaterialForSegment(globalSegmentIndex, flowActive, materialOptions = null) {
         // Use dual-texture shader when flow animation is active.
         if (flowActive) {
-            return this.createFlowMaterial(globalSegmentIndex);
+            return this.createFlowMaterial(globalSegmentIndex, materialOptions);
         }
 
         // Normal: no flow
         const textureIndex = globalSegmentIndex + this.getTileFlowOffset();
-        return this.getMaterial(textureIndex);
+        return this.getMaterial(textureIndex, materialOptions);
     }
 
     getLayerCount() {
         return this.layerCount || 0;
+    }
+
+    #syncCurrentLayerUniforms() {
+        const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1))) | 0;
+        this.sharedLayerUniform.value = clamped;
+
+        if (this.rendererType === 'webgpu') {
+            this.#forEachStaticMaterial(material => {
+                if (material?._layerUniform) {
+                    material._layerUniform.value = clamped;
+                }
+            });
+            for (const material of this.flowMaterials) {
+                if (material?._layerUniform) {
+                    material._layerUniform.value = clamped;
+                }
+            }
+        }
+
+        return clamped;
+    }
+
+    setLayerAnimationEnabled(enabled) {
+        const nextEnabled = !!enabled;
+        if (this.layerAnimationEnabled === nextEnabled) {
+            return false;
+        }
+
+        this.layerAnimationEnabled = nextEnabled;
+        this.currentLayer = 0;
+        this.direction = 1;
+        this.lastFrameTime = 0;
+        this._deterministicAccum = 0;
+        this.#syncCurrentLayerUniforms();
+        this.#syncFlowSpeedAlignment();
+        return true;
+    }
+
+    isLayerAnimationEnabled() {
+        return this.layerAnimationEnabled;
+    }
+
+    getLayerCycleFrameCount() {
+        if (!this.layerAnimationEnabled) {
+            return 0;
+        }
+
+        const layerCount = this.getLayerCount();
+        if (layerCount <= 1) {
+            return 0;
+        }
+
+        return this.variant === 'waves'
+            ? layerCount
+            : (2 * (layerCount - 1));
+    }
+
+    #getLayerCycleFraction() {
+        const frameCount = this.getLayerCycleFrameCount();
+        if (frameCount <= 0) {
+            return null;
+        }
+
+        const fpsFraction = numberToFraction(this.getFps());
+        if (!fpsFraction || fpsFraction.numerator <= 0n) {
+            return null;
+        }
+
+        return reduceFraction(BigInt(frameCount) * fpsFraction.denominator, fpsFraction.numerator);
+    }
+
+    #getUndulationCycleFraction(targetPeriod = 3.0) {
+        const layerCycleFraction = this.#getLayerCycleFraction();
+        if (!layerCycleFraction) {
+            return null;
+        }
+
+        const layerCyclePeriod = fractionToNumber(layerCycleFraction);
+        if (layerCyclePeriod <= 0) {
+            return null;
+        }
+
+        const cycleMultiple = Math.max(1, Math.round(targetPeriod / layerCyclePeriod));
+        return multiplyFractionByInteger(layerCycleFraction, BigInt(cycleMultiple));
+    }
+
+    #getFlowCycleFraction() {
+        const effectiveTileCount = this.getEffectiveTileCount();
+        if (effectiveTileCount <= 0 || this.flowSpeed === 0) {
+            return null;
+        }
+
+        const layerCycleFraction = this.#getLayerCycleFraction();
+        if (this.flowAlignmentEnabled && this.flowAlignmentInfo?.cycleMultiple && layerCycleFraction) {
+            return multiplyFractionByInteger(layerCycleFraction, BigInt(this.flowAlignmentInfo.cycleMultiple));
+        }
+
+        const speedFraction = numberToFraction(Math.abs(this.flowSpeed));
+        if (!speedFraction || speedFraction.numerator === 0n) {
+            return null;
+        }
+
+        return reduceFraction(BigInt(effectiveTileCount) * speedFraction.denominator, speedFraction.numerator);
+    }
+
+    #syncFlowSpeedAlignment() {
+        const requestedMagnitude = Math.abs(Number(this.requestedFlowSpeed ?? this.flowSpeed));
+        if (!Number.isFinite(requestedMagnitude) || requestedMagnitude === 0) {
+            this.flowSpeed = 0;
+            this.flowAlignmentInfo = {
+                enabled: this.flowAlignmentEnabled,
+                canAlign: false,
+                aligned: false,
+                requestedSpeed: 0,
+                appliedSpeed: 0,
+                textureCyclePeriod: 0,
+                flowCyclePeriod: 0,
+                cycleMultiple: null,
+            };
+            return;
+        }
+
+        const sign = this.flowDirection < 0 ? -1 : 1;
+        const effectiveTileCount = this.getEffectiveTileCount();
+        const layerCycleFraction = this.#getLayerCycleFraction();
+        const textureCyclePeriod = fractionToNumber(layerCycleFraction);
+        const canAlign = this.flowAlignmentEnabled && effectiveTileCount > 0 && textureCyclePeriod > 0;
+
+        if (!canAlign) {
+            this.flowSpeed = sign * requestedMagnitude;
+            this.flowAlignmentInfo = {
+                enabled: this.flowAlignmentEnabled,
+                canAlign: false,
+                aligned: false,
+                requestedSpeed: requestedMagnitude,
+                appliedSpeed: requestedMagnitude,
+                textureCyclePeriod,
+                flowCyclePeriod: effectiveTileCount > 0 ? (effectiveTileCount / requestedMagnitude) : 0,
+                cycleMultiple: null,
+            };
+            return;
+        }
+
+        const rawCycleMultiple = effectiveTileCount / (requestedMagnitude * textureCyclePeriod);
+        const cycleMultiple = Math.max(1, Math.round(rawCycleMultiple));
+        const alignedSpeedFraction = reduceFraction(
+            BigInt(effectiveTileCount) * layerCycleFraction.denominator,
+            BigInt(cycleMultiple) * layerCycleFraction.numerator,
+        );
+        const appliedSpeed = fractionToNumber(alignedSpeedFraction);
+        const flowCyclePeriod = textureCyclePeriod * cycleMultiple;
+
+        this.flowSpeed = sign * appliedSpeed;
+        this.flowAlignmentInfo = {
+            enabled: true,
+            canAlign: true,
+            aligned: Math.abs(appliedSpeed - requestedMagnitude) >= 1e-4,
+            requestedSpeed: requestedMagnitude,
+            appliedSpeed,
+            textureCyclePeriod,
+            flowCyclePeriod,
+            cycleMultiple,
+        };
     }
 
     /**
@@ -1089,18 +1618,8 @@ export class TileManager {
      * @returns {number} Cycle period in seconds
      */
     getLayerCyclePeriod() {
-        const layerCount = this.getLayerCount();
-        const fps = this.getFps();
-        if (layerCount <= 1 || fps <= 0) return 1; // Default 1 second if no cycling
-        
-        if (this.variant === 'waves') {
-            // Waves: simple wrap-around cycle
-            return layerCount / fps;
-        } else {
-            // Planes: ping-pong cycle (0 → max → 0)
-            // Full cycle is 2 * (layerCount - 1) frames
-            return (2 * (layerCount - 1)) / fps;
-        }
+        const layerCycleFraction = this.#getLayerCycleFraction();
+        return layerCycleFraction ? fractionToNumber(layerCycleFraction) : 0;
     }
 
     /**
@@ -1111,14 +1630,8 @@ export class TileManager {
      * @returns {number} Optimal period in seconds (multiple of layer cycle)
      */
     getOptimalUndulationPeriod(targetPeriod = 3.0) {
-        const layerCycle = this.getLayerCyclePeriod();
-        
-        if (layerCycle <= 0) return targetPeriod;
-        
-        // Find the number of layer cycles that gets closest to target
-        const numCycles = Math.max(1, Math.round(targetPeriod / layerCycle));
-        
-        return numCycles * layerCycle;
+        const undulationFraction = this.#getUndulationCycleFraction(targetPeriod);
+        return undulationFraction ? fractionToNumber(undulationFraction) : targetPeriod;
     }
 
     tick(nowMs) {
@@ -1149,7 +1662,7 @@ export class TileManager {
         }
 
         // --- Layer cycling animation (frame-rate limited) ---
-        if (this.layerCount <= 1) {
+        if (this.layerCount <= 1 || !this.layerAnimationEnabled) {
             this.lastFrameTime = nowMs;
             // Still fire per-frame callback so preview textures update even
             // before the first KTX2 tile sets layerCount.
@@ -1179,24 +1692,7 @@ export class TileManager {
             }
 
             // Update shared uniform (clamped)
-            const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1)));
-            this.sharedLayerUniform.value = clamped | 0; // ensure int
-
-            // For WebGPU, also update TSL uniform nodes on BOTH regular and flow materials
-            if (this.rendererType === 'webgpu') {
-                // Update regular materials
-                this.#forEachStaticMaterial(material => {
-                    if (material?._layerUniform) {
-                        material._layerUniform.value = clamped;
-                    }
-                });
-                // Update flow materials
-                for (const material of this.flowMaterials) {
-                    if (material?._layerUniform) {
-                        material._layerUniform.value = clamped;
-                    }
-                }
-            }
+            this.#syncCurrentLayerUniforms();
         }
 
         // Fire per-frame callback (e.g. preview texture updates)
@@ -1225,7 +1721,7 @@ export class TileManager {
 
     /**
      * Set the tile repeat mode.
-     * @param {string} mode - 'wrap' | 'mirrorBounce'
+     * @param {string} mode - 'wrap' | 'bounce' | 'mirrorBounce'
      * @returns {boolean} Whether the mode changed
      */
     setRepeatMode(mode) {
@@ -1234,10 +1730,11 @@ export class TileManager {
             return false;
         }
 
-        const nextCycleLength = Math.max(1, nextMode === 'mirrorBounce' ? this.tileCount * 2 : this.tileCount);
         this.repeatMode = nextMode;
+        const nextCycleLength = Math.max(1, this.getEffectiveTileCount());
         this.tileFlowOffset = positiveModulo(this.tileFlowOffset, nextCycleLength);
         this._lastCheckedTileOffset = this.tileFlowOffset;
+        this.#syncFlowSpeedAlignment();
 
         console.log(`[TileManager] Repeat mode set to ${this.repeatMode}`);
         return true;
@@ -1256,8 +1753,18 @@ export class TileManager {
      * @param {number} tilesPerSecond - Speed in tiles per second. Positive = forward, negative = backward, 0 = disabled.
      */
     setFlowSpeed(tilesPerSecond) {
-        this.flowSpeed = tilesPerSecond;
-        console.log(`[TileManager] Flow speed set to ${tilesPerSecond} tiles/second`);
+        const parsed = Number(tilesPerSecond);
+        if (!Number.isFinite(parsed)) {
+            return false;
+        }
+
+        const previousDirection = this.flowDirection;
+        this.flowDirection = parsed < 0 ? -1 : 1;
+        this.requestedFlowSpeed = Math.abs(parsed);
+        this.#syncFlowSpeedAlignment();
+
+        console.log(`[TileManager] Flow speed set to ${this.flowSpeed} tiles/second (requested ${tilesPerSecond})`);
+        return previousDirection !== this.flowDirection;
     }
 
     /**
@@ -1266,6 +1773,29 @@ export class TileManager {
      */
     getFlowSpeed() {
         return this.flowSpeed;
+    }
+
+    getRequestedFlowSpeed() {
+        return this.flowDirection * this.requestedFlowSpeed;
+    }
+
+    setFlowAlignmentEnabled(enabled) {
+        const nextEnabled = !!enabled;
+        if (this.flowAlignmentEnabled === nextEnabled) {
+            return false;
+        }
+
+        this.flowAlignmentEnabled = nextEnabled;
+        this.#syncFlowSpeedAlignment();
+        return true;
+    }
+
+    isFlowAlignmentEnabled() {
+        return this.flowAlignmentEnabled;
+    }
+
+    getFlowAlignmentInfo() {
+        return this.flowAlignmentInfo ? { ...this.flowAlignmentInfo } : null;
     }
 
     /**
@@ -1363,19 +1893,17 @@ export class TileManager {
     resetAnimationState() {
         this.currentLayer = 0;
         this.direction = 1;
-        this.sharedLayerUniform.value = 0;
         this.lastFrameTime = 0;
         this.flowOffset = 0.0;
         this.tileFlowOffset = 0;
         this.sharedFlowOffsetUniform.value = 0.0;
         this._lastCheckedTileOffset = 0;
         this._deterministicAccum = 0;
+        this.#syncCurrentLayerUniforms();
 
         // Sync WebGPU TSL uniforms
         if (this.rendererType === 'webgpu') {
-            this.#forEachStaticMaterial(m => { if (m._layerUniform) m._layerUniform.value = 0; });
             for (const m of this.flowMaterials) {
-                if (m._layerUniform) m._layerUniform.value = 0;
                 if (m._flowOffsetUniform) m._flowOffsetUniform.value = 0;
             }
         }
@@ -1407,7 +1935,7 @@ export class TileManager {
         }
 
         // --- Layer cycling (frame-rate limited) ---
-        if (this.layerCount <= 1) return;
+        if (this.layerCount <= 1 || !this.layerAnimationEnabled) return;
 
         // Accumulate fractional frames
         if (!this._deterministicAccum) this._deterministicAccum = 0;
@@ -1432,15 +1960,7 @@ export class TileManager {
             }
         }
 
-        const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1)));
-        this.sharedLayerUniform.value = clamped | 0;
-
-        if (this.rendererType === 'webgpu') {
-            this.#forEachStaticMaterial(m => { if (m._layerUniform) m._layerUniform.value = clamped; });
-            for (const m of this.flowMaterials) {
-                if (m._layerUniform) m._layerUniform.value = clamped;
-            }
-        }
+        this.#syncCurrentLayerUniforms();
     }
 
     /**
@@ -1448,42 +1968,37 @@ export class TileManager {
      * Returns the time at which ALL cyclic animations (layer cycling,
      * wave undulation, and optionally tile flow) simultaneously return
      * to their starting state.
+     * @param {boolean} includeUndulation - Whether ribbon undulation should be considered part of the loop.
      * @returns {number} Seamless loop duration in seconds
      */
-    getSeamlessLoopDuration() {
-        const layerCycle = this.getLayerCyclePeriod();
-        const undulationPeriod = this.getOptimalUndulationPeriod(3.0);
+    getSeamlessLoopDuration(includeUndulation = true) {
+        const periods = [];
+        const layerCycleFraction = this.#getLayerCycleFraction();
 
-        // LCM of layer cycle and undulation period
-        // Both are already aligned (undulation is a multiple of layer cycle),
-        // so the LCM is just the undulation period.
-        let loopDuration = undulationPeriod;
-
-        // If flow is enabled, also incorporate the tile flow cycle:
-        // time for flow to traverse the full repeat cycle = cycleLength / |flowSpeed|
-        if (this.flowEnabled && this.flowSpeed !== 0) {
-            const effectiveTileCount = this.getEffectiveTileCount();
-            if (effectiveTileCount <= 0) {
-                return loopDuration;
-            }
-
-            const flowCycle = effectiveTileCount / Math.abs(this.flowSpeed);
-            // Simple LCM via stepping: find the first time ≥ loopDuration
-            // that is also a multiple of flowCycle (to nearest frame)
-            const fps = this.fps || 30;
-            const frameTime = 1 / fps;
-            let t = loopDuration;
-            // Cap search to avoid infinite loop (max 120 seconds)
-            while (t < 120) {
-                const flowRemainder = t % flowCycle;
-                const undulRemainder = t % undulationPeriod;
-                if (flowRemainder < frameTime && undulRemainder < frameTime) break;
-                t += frameTime;
-            }
-            loopDuration = t;
+        if (this.layerCount > 1 && layerCycleFraction) {
+            periods.push(layerCycleFraction);
         }
 
-        return loopDuration;
+        if (includeUndulation) {
+            const undulationFraction = this.#getUndulationCycleFraction(3.0);
+            if (undulationFraction) {
+                periods.push(undulationFraction);
+            }
+        }
+
+        if (this.flowEnabled && this.flowSpeed !== 0) {
+            const flowCycleFraction = this.#getFlowCycleFraction();
+            if (flowCycleFraction) {
+                periods.push(flowCycleFraction);
+            }
+        }
+
+        if (periods.length === 0) {
+            return 1;
+        }
+
+        const loopDuration = lcmFractions(periods);
+        return loopDuration ? fractionToNumber(loopDuration) : 1;
     }
 
     /**
@@ -1634,8 +2149,7 @@ export class TileManager {
 
         // Dispose flow materials and their texture uniforms
         this.flowMaterials.forEach(m => {
-            if (m?.uniforms?.uTexArrayA?.value?.dispose) m.uniforms.uTexArrayA.value.dispose();
-            if (m?.uniforms?.uTexArrayB?.value?.dispose) m.uniforms.uTexArrayB.value.dispose();
+            this.#disposeMaterialExtras(m);
             if (m?.dispose) m.dispose();
         });
         this.flowMaterials = [];
@@ -1674,6 +2188,8 @@ export class TileManager {
             material?.dispose?.();
         });
         this.mirroredMaterials.clear();
+
+        this.clearEphemeralStaticMaterials();
 
         // Also dispose tiles (for JPG mode)
         this.tiles.forEach(texture => {
@@ -1724,10 +2240,11 @@ export class TileManager {
         });
         this.mirroredMaterials.clear();
 
+        this.clearEphemeralStaticMaterials();
+
         // Dispose flow materials
         this.flowMaterials.forEach(m => {
-            if (m?.uniforms?.uTexArrayA?.value?.dispose) m.uniforms.uTexArrayA.value.dispose();
-            if (m?.uniforms?.uTexArrayB?.value?.dispose) m.uniforms.uTexArrayB.value.dispose();
+            this.#disposeMaterialExtras(m);
             if (m?.dispose) m.dispose();
         });
         this.flowMaterials = [];
@@ -1798,6 +2315,7 @@ export class TileManager {
                         this.currentLayer = 0;
                         this.direction = 1;
                         this.sharedLayerUniform.value = 0;
+                        this.#syncFlowSpeedAlignment();
                     } else if (depth !== this.layerCount) {
                         console.warn(`[TileManager] Realtime tile ${tileIndex} depth (${depth}) != layerCount (${this.layerCount})`);
                     }

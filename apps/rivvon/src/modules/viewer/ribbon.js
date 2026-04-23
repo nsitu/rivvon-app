@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { CatmullRomCurve3 } from 'three';
 import {
     DEFAULT_CAP_STYLE,
+    CAP_STYLE_ORGANIC,
     CAP_STYLE_ROUNDED,
+    getCapMaskTexture,
     getCapProfile,
     normalizeCapStyle,
     sampleCapIntervals,
@@ -45,6 +47,8 @@ function averageSampleWindow(values, index, radius) {
     return count > 0 ? total / count : 0;
 }
 
+let ribbonVariationCounter = 0;
+
 export class Ribbon {
     constructor(scene) {
         this.scene = scene;
@@ -65,6 +69,7 @@ export class Ribbon {
         this.waveAmplitude = 0.075;
         this.waveFrequency = 0.25;  // Waves per unit length (not per path)
         this.waveSpeed = 2;
+        this.undulationEnabled = true;
 
         // Helix mode parameters
         this.helixMode = false;
@@ -82,6 +87,7 @@ export class Ribbon {
         this.capStyle = DEFAULT_CAP_STYLE;
         this.roundedCaps = false;
         this.cornerNarrowingEnabled = false;
+        this._variationId = ribbonVariationCounter++;
     }
 
     setTileManager(tileManager) {
@@ -132,7 +138,7 @@ export class Ribbon {
 
     /**
      * Set helix mode parameters
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle, cornerNarrowingEnabled }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, capStyle, cornerNarrowingEnabled, undulationEnabled }
      * @returns {Ribbon} this for chaining
      */
     setHelixOptions(options = {}) {
@@ -141,6 +147,7 @@ export class Ribbon {
         if (options.helixPitch !== undefined) this.helixPitch = options.helixPitch;
         if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
         if (options.cornerNarrowingEnabled !== undefined) this.cornerNarrowingEnabled = !!options.cornerNarrowingEnabled;
+        if (options.undulationEnabled !== undefined) this.undulationEnabled = !!options.undulationEnabled;
         if (options.capStyle !== undefined || options.roundedCaps !== undefined) {
             this.capStyle = normalizeCapStyle(
                 options.capStyle,
@@ -149,6 +156,66 @@ export class Ribbon {
             this.roundedCaps = this.capStyle === CAP_STYLE_ROUNDED;
         }
         return this;
+    }
+
+    _buildCapMaskInfo(segmentIndex, capSide, strandOffset = 0) {
+        if (this.capStyle === 'square') {
+            return null;
+        }
+
+        const strandLabel = strandOffset > 0 ? 'b' : 'a';
+        const variationKey = `ribbon:${this._variationId}:cap:${capSide}:segment:${segmentIndex}:strand:${strandLabel}`;
+        const { texture, owned, spread, tipFadeWidth } = getCapMaskTexture(this.capStyle, this.roundedCaps, variationKey, {
+            tipFadeWidth: this.capStyle === CAP_STYLE_ORGANIC ? 0.18 : 0,
+        });
+
+        if (!texture) {
+            return null;
+        }
+
+        return {
+            texture,
+            owned,
+            side: capSide,
+            spread,
+            tipFadeWidth,
+        };
+    }
+
+    _assignCapMaskToMesh(mesh, segmentIndex, options = {}) {
+        if (!mesh) {
+            return;
+        }
+
+        const capMask = {};
+
+        if (options.start) {
+            capMask.capMaskStart = this._buildCapMaskInfo(segmentIndex, 'start', options.strandOffset || 0);
+        }
+
+        if (options.end) {
+            capMask.capMaskEnd = this._buildCapMaskInfo(segmentIndex, 'end', options.strandOffset || 0);
+        }
+
+        if (capMask.capMaskStart || capMask.capMaskEnd) {
+            mesh.userData.capMask = capMask;
+        }
+    }
+
+    _disposeOwnedCapTextures(mesh) {
+        const capMask = mesh?.userData?.capMask;
+        if (!capMask) {
+            return;
+        }
+
+        for (const side of ['capMaskStart', 'capMaskEnd', 'start', 'end']) {
+            const entry = capMask[side];
+            if (entry?.owned) {
+                entry.texture?.dispose?.();
+            }
+        }
+
+        delete mesh.userData.capMask;
     }
 
     buildFromPoints(points, width = 1, time = 0) {
@@ -240,23 +307,12 @@ export class Ribbon {
         for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
             const startT = segIdx / segmentCount;
             const endT = (segIdx + 1) / segmentCount;
-            const isProfileCapSegment = segmentCount > 1 && (segIdx === 0 || segIdx === segmentCount - 1);
-            const capSide = segIdx === 0 ? 'start' : 'end';
+            const hasStartCapMask = this.capStyle !== 'square' && segIdx === 0;
+            const hasEndCapMask = this.capStyle !== 'square' && segIdx === segmentCount - 1;
+            const hasCapMask = hasStartCapMask || hasEndCapMask;
 
             // Strand A (or Standard Ribbon in non-helix mode)
-            const segmentMesh = isProfileCapSegment
-                ? this.createProfileRibbonSegmentWithCache(
-                    curve,
-                    startT,
-                    endT,
-                    width,
-                    time,
-                    segIdx,
-                    frameSamples,
-                    capSide,
-                    0
-                )
-                : useCornerNarrowing
+            const segmentMesh = !hasCapMask && useCornerNarrowing
                     ? this.createMaskedRibbonSegmentWithCache(
                         curve,
                         startT,
@@ -280,10 +336,15 @@ export class Ribbon {
                     pointsPerSegment,
                     0,
                     null,
-                    segmentCount === 1 ? (localT) => this._getSingleSegmentCapWidthScale(localT) : null
+                    null
                 );
 
             if (segmentMesh) {
+                this._assignCapMaskToMesh(segmentMesh, segIdx, {
+                    start: hasStartCapMask,
+                    end: hasEndCapMask,
+                    strandOffset: 0,
+                });
                 this.meshSegments.push(segmentMesh);
                 this.scene.add(segmentMesh);
             }
@@ -291,20 +352,7 @@ export class Ribbon {
             // Strand B (helix mode only — offset by π)
             if (this.helixMode) {
                 const strandBTileManager = this.tileManagerB || this.tileManager;
-                const segmentMeshB = isProfileCapSegment
-                    ? this.createProfileRibbonSegmentWithCache(
-                        curve,
-                        startT,
-                        endT,
-                        width,
-                        time,
-                        segIdx,
-                        frameSamples,
-                        capSide,
-                        Math.PI,
-                        strandBTileManager
-                    )
-                    : this.createStripRibbonSegmentWithCache(
+                const segmentMeshB = this.createStripRibbonSegmentWithCache(
                         curve,
                         startT,
                         endT,
@@ -315,10 +363,15 @@ export class Ribbon {
                         pointsPerSegment,
                         Math.PI,
                         strandBTileManager,
-                        segmentCount === 1 ? (localT) => this._getSingleSegmentCapWidthScale(localT) : null
+                        null
                     );
 
                 if (segmentMeshB) {
+                    this._assignCapMaskToMesh(segmentMeshB, segIdx, {
+                        start: hasStartCapMask,
+                        end: hasEndCapMask,
+                        strandOffset: Math.PI,
+                    });
                     this.helixMeshSegmentsB.push(segmentMeshB);
                     this.scene.add(segmentMeshB);
                 }
@@ -515,12 +568,14 @@ export class Ribbon {
 
     _setAnimatedVertexPosition(target, frame, width, acrossValue, widthScale, time, strandOffset = 0, scratch) {
         const scaledAcross = acrossValue * widthScale;
+        const wavePhase = this.undulationEnabled
+            ? Math.sin(
+                frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+            ) * this.waveAmplitude
+            : 0;
 
         if (this.helixMode) {
             const helixAngle = frame.globalT * this.helixPitch * Math.PI * 2 + strandOffset;
-            const wavePhase = Math.sin(
-                frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-            ) * this.waveAmplitude;
             const animatedAngle = helixAngle + wavePhase;
             const cosA = Math.cos(animatedAngle);
             const sinA = Math.sin(animatedAngle);
@@ -538,12 +593,8 @@ export class Ribbon {
             return target;
         }
 
-        const phase = Math.sin(
-            frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
-        ) * this.waveAmplitude;
-
         scratch.animatedNormal.copy(frame.normal);
-        scratch.animatedNormal.applyAxisAngle(frame.tangent, phase);
+        scratch.animatedNormal.applyAxisAngle(frame.tangent, wavePhase);
         target.copy(frame.point).addScaledVector(scratch.animatedNormal, scaledAcross * width);
         return target;
     }
@@ -636,6 +687,105 @@ export class Ribbon {
         }));
     }
 
+    _mergeIntervals(intervals) {
+        if (!intervals.length) {
+            return [];
+        }
+
+        const epsilon = 1e-6;
+        const normalized = intervals
+            .map(([start, end]) => [
+                Math.max(0, Math.min(1, Math.min(start, end))),
+                Math.max(0, Math.min(1, Math.max(start, end))),
+            ])
+            .sort((left, right) => left[0] - right[0]);
+
+        const merged = [normalized[0]];
+
+        for (let index = 1; index < normalized.length; index++) {
+            const current = normalized[index];
+            const previous = merged[merged.length - 1];
+
+            if (current[0] <= previous[1] + epsilon) {
+                previous[1] = Math.max(previous[1], current[1]);
+            } else {
+                merged.push(current);
+            }
+        }
+
+        return merged;
+    }
+
+    _repairCapSliceGaps(slices) {
+        if (slices.length < 3) {
+            return slices;
+        }
+
+        const repaired = slices.map((slice) => ({
+            ...slice,
+            intervals: slice.intervals.map(([start, end]) => [start, end]),
+        }));
+
+        for (let index = 1; index < repaired.length - 1; index++) {
+            if (repaired[index].intervals.length > 0) {
+                continue;
+            }
+
+            const previousIntervals = repaired[index - 1].intervals;
+            const nextIntervals = repaired[index + 1].intervals;
+
+            if (!previousIntervals.length || !nextIntervals.length) {
+                continue;
+            }
+
+            const paired = this._pairCapIntervals(previousIntervals, nextIntervals);
+            if (!paired.length) {
+                continue;
+            }
+
+            repaired[index].intervals = paired.map(({ left, right }) => [
+                (left[0] + right[0]) * 0.5,
+                (left[1] + right[1]) * 0.5,
+            ]);
+        }
+
+        return repaired;
+    }
+
+    _normalizeCapSliceTopology(slices) {
+        const normalized = slices.map((slice) => ({
+            ...slice,
+            intervals: slice.intervals.map(([start, end]) => [start, end]),
+        }));
+
+        let changed = true;
+        let remainingPasses = normalized.length * 2;
+
+        while (changed && remainingPasses > 0) {
+            changed = false;
+            remainingPasses -= 1;
+
+            for (let index = 0; index < normalized.length - 1; index++) {
+                const leftIntervals = normalized[index].intervals;
+                const rightIntervals = normalized[index + 1].intervals;
+
+                if (!leftIntervals.length || !rightIntervals.length || leftIntervals.length === rightIntervals.length) {
+                    continue;
+                }
+
+                if (leftIntervals.length === 1 && rightIntervals.length === 2) {
+                    normalized[index].intervals = this._splitIntervalToMatch(leftIntervals[0], rightIntervals);
+                    changed = true;
+                } else if (leftIntervals.length === 2 && rightIntervals.length === 1) {
+                    normalized[index + 1].intervals = this._splitIntervalToMatch(rightIntervals[0], leftIntervals);
+                    changed = true;
+                }
+            }
+        }
+
+        return normalized;
+    }
+
     _getCapSliceLocalTs(profile, capSide, sliceCount) {
         const localTs = [];
 
@@ -668,9 +818,22 @@ export class Ribbon {
     }
 
     _sampleCapIntervalsWithVertexFallback(profile, profileU) {
-        const intervals = sampleCapIntervals(profile, profileU);
-        if (intervals.length > 0) {
-            return intervals;
+        const clampedU = Math.max(0, Math.min(1, profileU));
+        const jitterStep = 1e-4;
+        const aggregatedIntervals = [];
+
+        for (const offsetMultiplier of [0, -1, 1, -2, 2]) {
+            const sampledU = Math.max(0, Math.min(1, clampedU + offsetMultiplier * jitterStep));
+            const sampledIntervals = sampleCapIntervals(profile, sampledU);
+            if (sampledIntervals.length > 0) {
+                for (const interval of sampledIntervals) {
+                    aggregatedIntervals.push(interval);
+                }
+            }
+        }
+
+        if (aggregatedIntervals.length > 0) {
+            return this._mergeIntervals(aggregatedIntervals);
         }
 
         // Some aligned slices land exactly on a tip/cusp where the filled region has zero width.
@@ -679,7 +842,7 @@ export class Ribbon {
         const epsilon = 1e-5;
 
         for (const vertex of profile.vertices || []) {
-            if (Math.abs(vertex.u - profileU) <= epsilon) {
+            if (Math.abs(vertex.u - clampedU) <= epsilon) {
                 matchingVertices.push(Math.max(0, Math.min(1, vertex.v)));
             }
         }
@@ -701,7 +864,7 @@ export class Ribbon {
     }
 
     _getCapSlices(profile, capSide, sliceCount) {
-        return this._getCapSliceLocalTs(profile, capSide, sliceCount).map((segmentLocalT) => {
+        const slices = this._getCapSliceLocalTs(profile, capSide, sliceCount).map((segmentLocalT) => {
             const profileU = capSide === 'start' ? segmentLocalT : 1 - segmentLocalT;
             return {
                 segmentLocalT,
@@ -709,6 +872,8 @@ export class Ribbon {
                 intervals: this._sampleCapIntervalsWithVertexFallback(profile, profileU),
             };
         });
+
+        return this._repairCapSliceGaps(slices);
     }
 
     createStripRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, overrideTileManager = null, widthScaleFn = null) {
@@ -864,7 +1029,9 @@ export class Ribbon {
     }
 
     createProfileRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, capSide, strandOffset = 0, overrideTileManager = null) {
-        const profile = getCapProfile(this.capStyle, this.roundedCaps);
+        const strandLabel = strandOffset > 0 ? 'b' : 'a';
+        const variationKey = `ribbon:${this._variationId}:cap:${capSide}:segment:${segmentIndex}:strand:${strandLabel}`;
+        const profile = getCapProfile(this.capStyle, this.roundedCaps, variationKey);
         if (!profile?.vertices?.length || !profile?.indices?.length) {
             return null;
         }
@@ -884,31 +1051,23 @@ export class Ribbon {
         const scratch = this._createAnimationScratch();
         const vertexPosition = new THREE.Vector3();
         const sliceCount = Math.max(this._getBasePointsPerSegment(), 32);
-        const slices = this._getCapSlices(profile, capSide, sliceCount);
+        const slices = this._normalizeCapSliceTopology(this._getCapSlices(profile, capSide, sliceCount));
+        const sliceVertexRows = [];
 
-        for (let sliceIndex = 0; sliceIndex < slices.length - 1; sliceIndex++) {
-            const leftSlice = slices[sliceIndex];
-            const rightSlice = slices[sliceIndex + 1];
-            const intervalPairs = this._pairCapIntervals(leftSlice.intervals, rightSlice.intervals);
+        for (const slice of slices) {
+            const row = [];
 
-            for (const pair of intervalPairs) {
-                const quadVertices = [
-                    { localT: leftSlice.segmentLocalT, v: pair.left[0] },
-                    { localT: leftSlice.segmentLocalT, v: pair.left[1] },
-                    { localT: rightSlice.segmentLocalT, v: pair.right[0] },
-                    { localT: rightSlice.segmentLocalT, v: pair.right[1] },
-                ];
-                const baseIndex = positions.length / 3;
-
-                for (const vertex of quadVertices) {
-                    const globalT = startT + (endT - startT) * vertex.localT;
+            for (const interval of slice.intervals) {
+                for (const v of interval) {
+                    const globalT = startT + (endT - startT) * slice.segmentLocalT;
                     const frame = this._sampleFrame(curve, frameSamples, globalT);
-                    const acrossValue = Math.max(-0.5, Math.min(0.5, vertex.v - 0.5));
+                    const acrossValue = Math.max(-0.5, Math.min(0.5, v - 0.5));
 
                     this._setAnimatedVertexPosition(vertexPosition, frame, width, acrossValue, 1, time, strandOffset, scratch);
 
+                    row.push(positions.length / 3);
                     positions.push(vertexPosition.x, vertexPosition.y, vertexPosition.z);
-                    uvs.push(vertex.localT, Math.max(0, Math.min(1, vertex.v)));
+                    uvs.push(slice.segmentLocalT, Math.max(0, Math.min(1, v)));
                     basePositions.push(frame.point.clone());
                     normals.push(frame.normal.clone());
                     binormals.push(frame.binormal.clone());
@@ -918,9 +1077,27 @@ export class Ribbon {
                     acrossValues.push(acrossValue);
                     widthScales.push(1);
                 }
+            }
 
-                indices.push(baseIndex, baseIndex + 1, baseIndex + 2);
-                indices.push(baseIndex + 1, baseIndex + 3, baseIndex + 2);
+            sliceVertexRows.push(row);
+        }
+
+        for (let sliceIndex = 0; sliceIndex < sliceVertexRows.length - 1; sliceIndex++) {
+            const leftRow = sliceVertexRows[sliceIndex];
+            const rightRow = sliceVertexRows[sliceIndex + 1];
+
+            if (leftRow.length !== rightRow.length) {
+                continue;
+            }
+
+            for (let intervalIndex = 0; intervalIndex < leftRow.length; intervalIndex += 2) {
+                const leftStart = leftRow[intervalIndex];
+                const leftEnd = leftRow[intervalIndex + 1];
+                const rightStart = rightRow[intervalIndex];
+                const rightEnd = rightRow[intervalIndex + 1];
+
+                indices.push(leftStart, leftEnd, rightStart);
+                indices.push(leftEnd, rightEnd, rightStart);
             }
         }
 
@@ -968,6 +1145,10 @@ export class Ribbon {
      */
     updateWaveAnimation(time) {
         if (this.meshSegments.length === 0 || this._segmentCache.length === 0) {
+            return;
+        }
+
+        if (!this.undulationEnabled) {
             return;
         }
 
@@ -1050,6 +1231,7 @@ export class Ribbon {
     cleanupOldMesh() {
         // Clean up strand A segmented meshes
         this.meshSegments.forEach(mesh => {
+            this._disposeOwnedCapTextures(mesh);
             if (mesh.geometry) mesh.geometry.dispose();
             if (mesh.material) mesh.material.dispose();
             this.scene.remove(mesh);
@@ -1059,6 +1241,7 @@ export class Ribbon {
 
         // Clean up strand B (helix mode)
         this.helixMeshSegmentsB.forEach(mesh => {
+            this._disposeOwnedCapTextures(mesh);
             if (mesh.geometry) mesh.geometry.dispose();
             if (mesh.material) mesh.material.dispose();
             this.scene.remove(mesh);

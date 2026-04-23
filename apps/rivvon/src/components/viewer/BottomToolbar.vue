@@ -81,6 +81,7 @@
 
     const capOptions = [
         { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
+        { label: 'Organic Brush Caps', value: 'organic', icon: 'draw' },
         { label: 'Pointed Caps', value: 'pointed', icon: 'change_history' },
         { label: 'Swallowtail Caps', value: 'swallowtail', icon: 'content_cut' },
         { label: 'Square Caps', value: 'square', icon: 'crop' }
@@ -95,6 +96,10 @@
     function setFlowState(state) {
         app.setFlowState(state);
         app.hideToolsPanel();
+    }
+
+    function handleFlowSpeedInput(event) {
+        app.setFlowSpeed(parseFloat(event.target.value));
     }
 
     function setTextureRepeatMode(mode) {
@@ -192,6 +197,8 @@
         return app.screenWakeLockActive ? 'Active' : 'Auto';
     });
 
+    const flowSpeedDisplay = computed(() => `${app.flowSpeed.toFixed(2)} tiles/s`);
+
     const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
     function formatBuildTimestamp(value) {
@@ -267,6 +274,27 @@
         get: () => app.cornerNarrowingEnabled,
         set: (value) => {
             app.setCornerNarrowingEnabled(!!value);
+        }
+    });
+
+    const undulationModel = computed({
+        get: () => app.undulationEnabled,
+        set: (value) => {
+            app.setUndulationEnabled(!!value);
+        }
+    });
+
+    const flowCycleAlignmentModel = computed({
+        get: () => app.flowCycleAlignmentEnabled,
+        set: (value) => {
+            app.setFlowCycleAlignmentEnabled(!!value);
+        }
+    });
+
+    const textureAnimationModel = computed({
+        get: () => app.textureAnimationEnabled,
+        set: (value) => {
+            app.setTextureAnimationEnabled(!!value);
         }
     });
 
@@ -479,16 +507,10 @@
 
     const drawLauncherItems = computed(() => ([
         {
-            label: 'Gesture',
-            icon: 'draw',
-            active: app.isDrawingMode,
+            label: 'Import SVG',
+            icon: 'polyline',
             command: () => {
-                if (app.isDrawingMode) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('enter-draw-mode'));
+                handleImport('svg');
             }
         },
         {
@@ -531,10 +553,16 @@
             }
         },
         {
-            label: 'Import SVG',
-            icon: 'polyline',
+            label: 'Gesture',
+            icon: 'draw',
+            active: app.isDrawingMode,
             command: () => {
-                handleImport('svg');
+                if (app.isDrawingMode) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('enter-draw-mode'));
             }
         },
         {
@@ -554,28 +582,28 @@
 
     const textureLauncherItems = computed(() => ([
         {
-            label: 'From File',
-            icon: 'video_file',
-            active: app.textureCreatorVisible,
+            label: 'Import ZIP',
+            icon: 'folder_zip',
             command: () => {
-                activateContext(() => emit('open-texture-file'));
+                handleImport('zip');
             }
-        },
-        {
+        }, {
             label: 'From Camera',
             icon: 'camera_video',
             active: app.realtimeSamplerVisible,
             command: () => {
                 activateContext(() => emit('open-texture-camera'));
             }
-        },
-        {
-            label: 'Import Texture',
-            icon: 'folder_zip',
+        }, {
+            label: 'From Video',
+            icon: 'video_file',
+            active: app.textureCreatorVisible,
             command: () => {
-                handleImport('zip');
+                activateContext(() => emit('open-texture-file'));
             }
         },
+
+
         {
             label: 'Browse',
             icon: 'grid_view',
@@ -815,11 +843,73 @@
                                     </template>
                                 </Select>
                             </div>
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="undulationToggle"
+                                >
+                                    <span class="material-symbols-outlined">airwave</span>
+                                    <span>Ribbon Undulation</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off'
+                                    }}</span>
+                                    <ToggleSwitch
+                                        inputId="undulationToggle"
+                                        v-model="undulationModel"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="tools-section">
                         <div class="tools-section-label">Texture Layout</div>
+                        <div class="tools-slider">
+                            <label>Flow Speed <span class="tools-slider-value">{{ flowSpeedDisplay }}</span></label>
+                            <input
+                                type="range"
+                                min="0.05"
+                                max="2"
+                                step="0.05"
+                                :value="app.flowSpeed"
+                                @input="handleFlowSpeedInput"
+                            />
+                        </div>
+                        <div class="tools-toggle-row">
+                            <label
+                                class="tools-toggle-main"
+                                for="flowCycleAlignmentToggle"
+                            >
+                                <span class="material-symbols-outlined">sync_alt</span>
+                                <span>Align Flow To Texture Cycle</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' :
+                                    'Off' }}</span>
+                                <ToggleSwitch
+                                    inputId="flowCycleAlignmentToggle"
+                                    v-model="flowCycleAlignmentModel"
+                                />
+                            </div>
+                        </div>
+                        <div class="tools-toggle-row">
+                            <label
+                                class="tools-toggle-main"
+                                for="textureAnimationToggle"
+                            >
+                                <span class="material-symbols-outlined">layers</span>
+                                <span>Texture Layer Animation</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
+                                    }}</span>
+                                <ToggleSwitch
+                                    inputId="textureAnimationToggle"
+                                    v-model="textureAnimationModel"
+                                />
+                            </div>
+                        </div>
                         <div class="tools-section-items">
                             <div class="tools-select-wrap">
                                 <Select

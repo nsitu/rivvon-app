@@ -40,6 +40,17 @@ function alignDurations(cinematicDuration, textureDuration, fps) {
  * @param {Function} deps.resumeRenderLoop - Resume the live render loop after export
  */
 export function useSceneExport(ctx, deps = {}) {
+    function getRepeatModeLabel(mode) {
+        if (mode === 'mirrorBounce') {
+            return 'mirror-bounce';
+        }
+
+        if (mode === 'bounce') {
+            return 'bounce';
+        }
+
+        return 'wrap';
+    }
 
     function renderScene() {
         if (deps.renderScene) {
@@ -48,6 +59,136 @@ export function useSceneExport(ctx, deps = {}) {
         }
 
         ctx.renderer.value.render(ctx.scene.value, ctx.camera.value);
+    }
+
+    function getSeamlessLoopDuration() {
+        const tm = ctx.tileManager.value;
+        if (!tm) return 3.0;
+
+        return tm.getSeamlessLoopDuration?.(ctx.app.undulationEnabled) ?? 3.0;
+    }
+
+    function getCycleRepeatCount(loopDuration, cycleDuration) {
+        if (!Number.isFinite(loopDuration) || !Number.isFinite(cycleDuration) || cycleDuration <= 0) {
+            return null;
+        }
+
+        const rawRepeatCount = loopDuration / cycleDuration;
+        const roundedRepeatCount = Math.round(rawRepeatCount);
+
+        return Math.abs(rawRepeatCount - roundedRepeatCount) < 1e-3
+            ? roundedRepeatCount
+            : Number(rawRepeatCount.toFixed(2));
+    }
+
+    function getCycleInfo() {
+        const tm = ctx.tileManager.value;
+        const seamlessLoopDuration = getSeamlessLoopDuration();
+
+        if (!tm) {
+            return {
+                seamlessLoopDuration,
+                textureCyclePeriod: 0,
+                undulationPeriod: 0,
+                flowCyclePeriod: 0,
+                cinematicAutoDuration: seamlessLoopDuration,
+                cycleDetails: [],
+            };
+        }
+
+        const layerCount = tm.getLayerCount?.() ?? 0;
+        const fps = tm.getFps?.() ?? 30;
+        const variant = tm.variant === 'planes' ? 'planes' : 'waves';
+        const textureAnimationEnabled = tm.isLayerAnimationEnabled?.() ?? true;
+        const textureCyclePeriod = textureAnimationEnabled && layerCount > 1 ? (tm.getLayerCyclePeriod?.() ?? 0) : 0;
+        const undulationPeriod = ctx.app.undulationEnabled ? (tm.getOptimalUndulationPeriod?.(3.0) ?? 0) : 0;
+        const flowEnabled = tm.isFlowEnabled?.() ?? false;
+        const flowSpeed = tm.getFlowSpeed?.() ?? 0;
+        const flowAlignmentInfo = tm.getFlowAlignmentInfo?.() ?? null;
+        const requestedFlowSpeed = Math.abs(flowAlignmentInfo?.requestedSpeed ?? flowSpeed);
+        const appliedFlowSpeed = Math.abs(flowAlignmentInfo?.appliedSpeed ?? flowSpeed);
+        const effectiveTileCount = tm.getEffectiveTileCount?.() ?? 0;
+        const flowCyclePeriod = flowEnabled && flowSpeed !== 0 && effectiveTileCount > 0
+            ? (flowAlignmentInfo?.flowCyclePeriod ?? (effectiveTileCount / appliedFlowSpeed))
+            : 0;
+
+        const buildCycleDetail = ({ key, label, active, duration, detail, inactiveDetail, statusLabel }) => {
+            const repeatCount = active ? getCycleRepeatCount(seamlessLoopDuration, duration) : null;
+            const implication = active
+                ? (repeatCount === 1
+                    ? 'This cycle currently defines the seamless material loop.'
+                    : `It repeats ${repeatCount} times before the seamless material loop resets.`)
+                : inactiveDetail;
+
+            return {
+                key,
+                label,
+                active,
+                duration,
+                detail,
+                implication,
+                repeatCount,
+                statusLabel,
+            };
+        };
+
+        const cycleDetails = [
+            buildCycleDetail({
+                key: 'texture',
+                label: 'Texture Cycle',
+                active: textureCyclePeriod > 0,
+                duration: textureCyclePeriod,
+                detail: textureCyclePeriod > 0
+                    ? `${layerCount} layers animate at ${fps} fps in ${variant === 'planes' ? 'ping-pong' : 'wrap'} mode.`
+                    : (!textureAnimationEnabled && layerCount > 1
+                        ? 'Texture layer animation is turned off, so export will hold a single fixed KTX2 layer.'
+                        : 'Current texture set is static, so there is no animated texture cycle.'),
+                inactiveDetail: !textureAnimationEnabled && layerCount > 1
+                    ? 'Texture animation does not contribute to the seamless loop while disabled.'
+                    : 'Texture animation is not extending the loop right now.',
+                statusLabel: !textureAnimationEnabled && layerCount > 1 ? 'Off' : 'Static',
+            }),
+            buildCycleDetail({
+                key: 'undulation',
+                label: 'Undulation Cycle',
+                active: undulationPeriod > 0,
+                duration: undulationPeriod,
+                detail: undulationPeriod > 0
+                    ? 'Ribbon motion is snapped to a nearby multiple of the texture cycle for cleaner loop alignment.'
+                    : 'Ribbon undulation is turned off, so it is excluded from loop matching.',
+                inactiveDetail: 'Undulation does not contribute to the seamless loop while disabled.',
+                statusLabel: 'Off',
+            }),
+            buildCycleDetail({
+                key: 'flow',
+                label: 'Flow Cycle',
+                active: flowCyclePeriod > 0,
+                duration: flowCyclePeriod,
+                detail: flowCyclePeriod > 0
+                    ? (flowAlignmentInfo?.enabled && flowAlignmentInfo.canAlign && flowAlignmentInfo.cycleMultiple
+                        ? (flowAlignmentInfo.aligned
+                            ? `${effectiveTileCount} tile positions cycle at ${appliedFlowSpeed.toFixed(2)} tiles/s in ${getRepeatModeLabel(tm.getRepeatMode?.())} mode. Requested ${requestedFlowSpeed.toFixed(2)} tiles/s is snapped so one flow loop spans ${flowAlignmentInfo.cycleMultiple} texture cycles.`
+                            : `${effectiveTileCount} tile positions cycle at ${appliedFlowSpeed.toFixed(2)} tiles/s in ${getRepeatModeLabel(tm.getRepeatMode?.())} mode. It already lands on a ${flowAlignmentInfo.cycleMultiple}-texture-cycle flow loop.`)
+                        : `${effectiveTileCount} tile positions cycle at ${appliedFlowSpeed.toFixed(2)} tiles/s in ${getRepeatModeLabel(tm.getRepeatMode?.())} mode.`)
+                    : 'Tile flow is disabled, so streaming does not extend the loop.',
+                inactiveDetail: 'Flow does not contribute to the seamless loop while disabled.',
+                statusLabel: 'Off',
+            }),
+        ];
+
+        const cinematicDuration = ctx.cinematicCamera.getLoopDuration();
+        const cinematicAutoDuration = ctx.cinematicCamera.hasROIs.value
+            ? alignDurations(cinematicDuration, seamlessLoopDuration, fps)
+            : seamlessLoopDuration;
+
+        return {
+            seamlessLoopDuration,
+            textureCyclePeriod,
+            undulationPeriod,
+            flowCyclePeriod,
+            cinematicAutoDuration,
+            cycleDetails,
+        };
     }
 
     /**
@@ -273,7 +414,7 @@ export function useSceneExport(ctx, deps = {}) {
         }
 
         // --- Calculate duration ---
-        const loopDuration = ctx.tileManager.value.getSeamlessLoopDuration?.() || 3.0;
+        const loopDuration = getSeamlessLoopDuration();
         // When cinematic is active and no explicit duration, use the cinematic timeline duration.
         // Note: exportDuration may be updated later by prepareForExport if auto-ROIs are generated.
         let exportDuration;
@@ -361,6 +502,11 @@ export function useSceneExport(ctx, deps = {}) {
                 ctx.tileManager.value.resetAnimationState();
             }
 
+            // Resetting tileFlowOffset alone is not enough for export time-zero.
+            // Flow materials cache concrete tile pairs on the meshes, so rebuild
+            // them to match the reset state before rendering frame 0.
+            ctx.ribbonSeries.value?.initFlowMaterials?.();
+
             // --- Create mediabunny output ---
             const output = new MB.Output({
                 format: new OutputFormat(),
@@ -414,6 +560,7 @@ export function useSceneExport(ctx, deps = {}) {
                 }
 
                 const t = frame * deltaSec;
+                const animationDelta = frame === 0 ? 0 : deltaSec;
 
                 // --- Cinematic camera animation ---
                 if (cinematicReady) {
@@ -426,7 +573,7 @@ export function useSceneExport(ctx, deps = {}) {
                 }
 
                 // Render this frame at the exact synthetic time
-                renderFrameAtTime(t, deltaSec);
+                renderFrameAtTime(t, animationDelta);
 
                 if (exportCanvasContext && exportLogoAsset) {
                     exportCanvasContext.clearRect(0, 0, width, height);
@@ -510,10 +657,15 @@ export function useSceneExport(ctx, deps = {}) {
      */
     function getExportInfo() {
         const tm = ctx.tileManager.value;
+        const cycleInfo = getCycleInfo();
         return {
-            seamlessLoopDuration: tm?.getSeamlessLoopDuration?.() ?? 3.0,
-            layerCyclePeriod: tm?.getLayerCyclePeriod?.() ?? 1.0,
-            undulationPeriod: tm?.getOptimalUndulationPeriod?.(3.0) ?? 3.0,
+            seamlessLoopDuration: cycleInfo.seamlessLoopDuration,
+            layerCyclePeriod: cycleInfo.textureCyclePeriod || 0,
+            textureCyclePeriod: cycleInfo.textureCyclePeriod,
+            undulationPeriod: cycleInfo.undulationPeriod,
+            undulationEnabled: ctx.app.undulationEnabled,
+            flowCyclePeriod: cycleInfo.flowCyclePeriod,
+            cycleDetails: cycleInfo.cycleDetails,
             layerCount: tm?.getLayerCount?.() ?? 0,
             fps: tm?.getFps?.() ?? 30,
             flowEnabled: tm?.isFlowEnabled?.() ?? false,
@@ -521,7 +673,8 @@ export function useSceneExport(ctx, deps = {}) {
             tileCount: tm?.getTileCount?.() ?? 0,
             hasWebCodecs: typeof VideoEncoder !== 'undefined',
             hasROIs: ctx.cinematicCamera.hasROIs.value,
-            cinematicDuration: ctx.cinematicCamera.getLoopDuration()
+            cinematicDuration: ctx.cinematicCamera.getLoopDuration(),
+            cinematicAutoDuration: cycleInfo.cinematicAutoDuration,
         };
     }
 

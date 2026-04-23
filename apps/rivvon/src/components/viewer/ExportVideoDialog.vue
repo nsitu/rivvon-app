@@ -1,5 +1,9 @@
 <script setup>
     import { ref, computed } from 'vue';
+    import Accordion from 'primevue/accordion';
+    import AccordionPanel from 'primevue/accordionpanel';
+    import AccordionHeader from 'primevue/accordionheader';
+    import AccordionContent from 'primevue/accordioncontent';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -106,6 +110,14 @@
         return props.exportInfo?.seamlessLoopDuration ?? 3.0;
     });
 
+    const cinematicAutoDuration = computed(() => {
+        return props.exportInfo?.cinematicAutoDuration ?? seamlessLoopDuration.value;
+    });
+
+    const cycleDetails = computed(() => {
+        return props.exportInfo?.cycleDetails ?? [];
+    });
+
     const logoOverlayLayout = computed(() => {
         return getExportLogoOverlayLayout(resolvedWidth.value, resolvedHeight.value);
     });
@@ -118,7 +130,7 @@
     const resolvedDuration = computed(() => {
         if (durationMode.value === 'auto') {
             if (cameraMovement.value === 'cinematic') {
-                return props.exportInfo?.cinematicDuration || seamlessLoopDuration.value;
+                return cinematicAutoDuration.value;
             }
             return seamlessLoopDuration.value;
         }
@@ -126,13 +138,39 @@
     });
 
     const durationSummaryLabel = computed(() => {
+        if (durationMode.value === 'custom') {
+            return `Custom export length overrides the ${formatDuration(seamlessLoopDuration.value)} seamless-loop target.`;
+        }
         if (cameraMovement.value === 'cinematic') {
-            return 'Auto-aligns the cinematic camera path to the texture loop for a cleaner seam';
+            if (props.exportInfo?.hasROIs) {
+                return `Camera path auto-aligns from ${formatDuration(props.exportInfo?.cinematicDuration || 0)} to ${formatDuration(cinematicAutoDuration.value)} for a cleaner seam.`;
+            }
+            return `No saved cinematic views yet, so auto mode falls back to the ${formatDuration(seamlessLoopDuration.value)} material loop.`;
         }
         if (cameraMovement.value === 'circularTilt') {
-            return 'One full 360° Mouse Tilt-style artwork rotation';
+            return `One full 360° Mouse Tilt-style artwork rotation over ${formatDuration(resolvedDuration.value)}.`;
         }
-        return 'Seamless loop — all animations return to start';
+        return `Seamless loop — enabled cycles return to start after ${formatDuration(seamlessLoopDuration.value)}.`;
+    });
+
+    const loopDetailsSummary = computed(() => {
+        if (durationMode.value === 'custom') {
+            return `Base seamless loop is ${formatDuration(seamlessLoopDuration.value)}, but the export will run for ${formatDuration(resolvedDuration.value)}. Active cycles may be cut mid-loop.`;
+        }
+
+        if (cameraMovement.value === 'cinematic') {
+            if (props.exportInfo?.hasROIs) {
+                return `The authored camera loop is ${formatDuration(props.exportInfo?.cinematicDuration || 0)}. Auto mode aligns it to ${formatDuration(cinematicAutoDuration.value)} so camera and material cycles land together.`;
+            }
+
+            return `No authored camera loop is available, so auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop.`;
+        }
+
+        if (cameraMovement.value === 'circularTilt') {
+            return `Circular Tilt completes exactly one rotation over the selected export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+        }
+
+        return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;
     });
 
     const totalFrames = computed(() => {
@@ -159,6 +197,16 @@
     const hasWebCodecs = computed(() => {
         return props.exportInfo?.hasWebCodecs ?? false;
     });
+
+    function formatDuration(value) {
+        const numeric = Number(value);
+
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return 'Off';
+        }
+
+        return `${numeric.toFixed(numeric >= 10 ? 1 : 2)}s`;
+    }
 
     // --- Methods ---
     function handleExport() {
@@ -271,6 +319,40 @@
                                 </div>
                             </div>
                         </div>
+
+                        <Accordion class="loop-details-accordion">
+                            <AccordionPanel value="0">
+                                <AccordionHeader>
+                                    <span class="accordion-header-text">
+                                        <span class="material-symbols-outlined">schedule</span>
+                                        Loop Details
+                                    </span>
+                                </AccordionHeader>
+                                <AccordionContent>
+                                    <div class="loop-summary-card">
+                                        <div class="loop-summary-label">Seamless Material Loop</div>
+                                        <div class="loop-summary-value">{{ formatDuration(seamlessLoopDuration) }}</div>
+                                        <div class="loop-summary-copy">{{ loopDetailsSummary }}</div>
+                                    </div>
+
+                                    <div class="loop-cycle-list">
+                                        <div
+                                            v-for="cycle in cycleDetails"
+                                            :key="cycle.key"
+                                            class="loop-cycle-row"
+                                        >
+                                            <div class="loop-cycle-top">
+                                                <span class="loop-cycle-label">{{ cycle.label }}</span>
+                                                <span class="loop-cycle-duration">{{ cycle.active ?
+                                                    formatDuration(cycle.duration) : cycle.statusLabel }}</span>
+                                            </div>
+                                            <div class="loop-cycle-detail">{{ cycle.detail }}</div>
+                                            <div class="loop-cycle-implication">{{ cycle.implication }}</div>
+                                        </div>
+                                    </div>
+                                </AccordionContent>
+                            </AccordionPanel>
+                        </Accordion>
 
                         <div
                             v-if="durationMode === 'custom'"
@@ -507,6 +589,102 @@
         font-size: 0.78rem;
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.5));
         margin-top: 0.375rem;
+    }
+
+    .loop-details-accordion {
+        width: 100%;
+    }
+
+    .accordion-header-text {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .accordion-header-text .material-symbols-outlined {
+        font-size: 1.25rem;
+    }
+
+    .loop-summary-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        padding: 0.85rem 1rem;
+        border-radius: 0.85rem;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .loop-summary-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.55));
+    }
+
+    .loop-summary-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .loop-summary-copy {
+        font-size: 0.8rem;
+        line-height: 1.5;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.68));
+    }
+
+    .loop-cycle-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 0.85rem;
+    }
+
+    .loop-cycle-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.75rem 0 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .loop-cycle-row:first-child {
+        border-top: none;
+        padding-top: 0;
+    }
+
+    .loop-cycle-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+    }
+
+    .loop-cycle-label {
+        font-size: 0.86rem;
+        font-weight: 600;
+    }
+
+    .loop-cycle-duration {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--p-primary-color, #6366f1);
+    }
+
+    .loop-cycle-detail,
+    .loop-cycle-implication {
+        font-size: 0.78rem;
+        line-height: 1.45;
+    }
+
+    .loop-cycle-detail {
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.58));
+    }
+
+    .loop-cycle-implication {
+        color: var(--p-text-color, rgba(255, 255, 255, 0.86));
     }
 
     .toggle-row {

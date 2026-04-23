@@ -43,6 +43,7 @@ export class RibbonSeries {
             helixPitch: 4,
             helixStrandWidth: 0.3,
             ribbonWidthScale: 1,
+            undulationEnabled: true,
             capStyle: DEFAULT_CAP_STYLE,
             cornerNarrowingEnabled: false,
         };
@@ -50,7 +51,7 @@ export class RibbonSeries {
 
     /**
      * Set helix mode parameters, forwarded to all child ribbons
-     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, ribbonWidthScale, capStyle, cornerNarrowingEnabled }
+     * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, ribbonWidthScale, capStyle, cornerNarrowingEnabled, undulationEnabled }
      * @returns {RibbonSeries} this for chaining
      */
     setHelixOptions(options = {}) {
@@ -248,6 +249,7 @@ export class RibbonSeries {
         // Clear any existing flow materials tracked by all TileManagers
         for (const tm of this.tileManagers) {
             tm.clearFlowMaterials?.();
+            tm.clearEphemeralStaticMaterials?.();
         }
 
         // Track segment info for later updates
@@ -265,7 +267,8 @@ export class RibbonSeries {
 
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
-                const material = tmA.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
+                const materialOptions = mesh?.userData?.capMask || null;
+                const material = tmA.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive, materialOptions);
                 
                 if (material) {
                     mesh.material = material;
@@ -273,15 +276,15 @@ export class RibbonSeries {
                         mesh,
                         material,
                         baseIndex: globalSegmentIndex,
-                        tileManager: tmA
+                        tileManager: tmA,
+                        materialOptions,
                     });
 
                     // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
-                        const materialB = tmB === tmA
-                            ? material  // Same TileManager: reuse same material
-                            : tmB.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
+                        const materialOptionsB = meshB?.userData?.capMask || null;
+                        const materialB = tmB.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive, materialOptionsB);
 
                         if (materialB) {
                             meshB.material = materialB;
@@ -289,7 +292,8 @@ export class RibbonSeries {
                                 mesh: meshB,
                                 material: materialB,
                                 baseIndex: globalSegmentIndex,
-                                tileManager: tmB
+                                tileManager: tmB,
+                                materialOptions: materialOptionsB,
                             });
                         }
                     }
@@ -350,11 +354,11 @@ export class RibbonSeries {
 
             // Create new materials for each segment with updated tile pairs
             for (const entry of this._flowMaterials) {
-                const { mesh, baseIndex, tileManager: entryTm } = entry;
+                const { mesh, baseIndex, tileManager: entryTm, materialOptions } = entry;
                 const tm = entryTm || this.tileManager;
                 
                 // Create a new material for this segment with the updated tile pair
-                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true);
+                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true, materialOptions);
                 
                 if (newMaterial) {
                     mesh.material = newMaterial;

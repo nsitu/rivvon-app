@@ -41,6 +41,8 @@ export function useTextureLoader(ctx, deps = {}) {
             rendererType: ctx.app.rendererType,
             rotate90: true,
             repeatMode: ctx.app.textureRepeatMode,
+            flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
+            layerAnimationEnabled: ctx.app.textureAnimationEnabled,
             webgpuMaterialMode: 'node'
         });
         await ctx.tileManager.value.loadAllTiles();
@@ -160,6 +162,8 @@ export function useTextureLoader(ctx, deps = {}) {
                         rendererType: ctx.app.rendererType,
                         rotate90: true,
                         repeatMode: ctx.app.textureRepeatMode,
+                        flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
+                        layerAnimationEnabled: ctx.app.textureAnimationEnabled,
                         webgpuMaterialMode: 'node'
                     });
 

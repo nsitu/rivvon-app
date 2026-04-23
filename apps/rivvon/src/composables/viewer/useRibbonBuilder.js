@@ -196,16 +196,72 @@ export function useRibbonBuilder(ctx) {
         const baseSpeed = ctx.app.flowSpeed || 0.25;
         // Apply flow state to ALL TileManagers (multi-texture mode)
         const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        let directionChanged = false;
         for (const tm of targets) {
             if (state === 'off') {
                 tm.setFlowEnabled(false);
             } else {
                 const speed = state === 'forward' ? baseSpeed : -baseSpeed;
-                tm.setFlowSpeed(speed);
+                directionChanged = tm.setFlowSpeed(speed) || directionChanged;
                 tm.setFlowEnabled(true);
             }
         }
         ctx.app.setFlowState(state);
+
+        if (directionChanged && ctx.ribbonSeries.value) {
+            ctx.ribbonSeries.value.initFlowMaterials();
+        }
+    }
+
+    /**
+     * Set the base flow speed while preserving the current flow direction.
+     * @param {number} speed - Positive tiles per second magnitude
+     */
+    function setFlowSpeed(speed) {
+        const parsed = Number(speed);
+        if (!Number.isFinite(parsed)) {
+            return;
+        }
+
+        const baseSpeed = Math.max(0.05, parsed);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        const directionMultiplier = ctx.app.flowState === 'backward' ? -1 : 1;
+
+        for (const tm of targets) {
+            tm.setFlowSpeed(directionMultiplier * baseSpeed);
+        }
+
+        ctx.app.setFlowSpeed(baseSpeed);
+    }
+
+    /**
+     * Enable or disable automatic flow-cycle alignment to the texture cycle.
+     * @param {boolean} enabled
+     */
+    function setFlowCycleAlignmentEnabled(enabled) {
+        const nextEnabled = !!enabled;
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setFlowAlignmentEnabled?.(nextEnabled);
+        }
+
+        ctx.app.setFlowCycleAlignmentEnabled(nextEnabled);
+    }
+
+    /**
+     * Enable or disable KTX2 layer animation across all active TileManagers.
+     * @param {boolean} enabled
+     */
+    function setTextureAnimationEnabled(enabled) {
+        const nextEnabled = !!enabled;
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setLayerAnimationEnabled?.(nextEnabled);
+        }
+
+        ctx.app.setTextureAnimationEnabled(nextEnabled);
     }
 
     /**
@@ -250,6 +306,9 @@ export function useRibbonBuilder(ctx) {
         createRibbonFromDrawing,
         rebuildRibbonsWithNewTextures,
         setFlowState,
+        setFlowSpeed,
+        setFlowCycleAlignmentEnabled,
+        setTextureAnimationEnabled,
         setTextureRepeatMode,
         setHelixMode
     };

@@ -42,6 +42,9 @@
         loadTexturesFromLocal,
         loadMultipleTextures,
         setFlowState,
+        setFlowSpeed,
+        setFlowCycleAlignmentEnabled,
+        setTextureAnimationEnabled,
         setTextureRepeatMode,
         setHelixMode,
         exportImage,
@@ -149,6 +152,18 @@
         setFlowState(state);
     });
 
+    watch(() => app.flowSpeed, (speed) => {
+        setFlowSpeed(speed);
+    });
+
+    watch(() => app.flowCycleAlignmentEnabled, (enabled) => {
+        setFlowCycleAlignmentEnabled(enabled);
+    });
+
+    watch(() => app.textureAnimationEnabled, (enabled) => {
+        setTextureAnimationEnabled(enabled);
+    });
+
     watch(() => app.textureRepeatMode, (mode) => {
         setTextureRepeatMode(mode);
     });
@@ -179,6 +194,9 @@
         loadTexturesFromLocal,
         loadMultipleTextures,
         setFlowState,
+        setFlowSpeed,
+        setFlowCycleAlignmentEnabled,
+        setTextureAnimationEnabled,
         setTextureRepeatMode,
         setHelixMode,
         exportImage,

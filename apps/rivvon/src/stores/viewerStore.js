@@ -111,6 +111,18 @@ export const useViewerStore = defineStore('viewer', {
         // Ribbon/3D state
         flowState: 'forward', // 'off' | 'forward' | 'backward'
         flowSpeed: 0.25, // Base flow speed (positive value)
+        flowCycleAlignmentEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().flowCycleAlignmentEnabled,
+            true
+        ),
+        textureAnimationEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().textureAnimationEnabled,
+            true
+        ),
+        undulationEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().undulationEnabled,
+            true
+        ),
         
         // Helix mode
         helixMode: false,
@@ -296,6 +308,27 @@ export const useViewerStore = defineStore('viewer', {
         setFlowState(state) {
             this.flowState = state;
         },
+
+        setFlowSpeed(speed) {
+            const parsed = Number(speed);
+            if (!Number.isFinite(parsed)) {
+                return;
+            }
+
+            this.flowSpeed = Math.max(0.05, Math.min(2, parsed));
+        },
+
+        setFlowCycleAlignmentEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.flowCycleAlignmentEnabled = nextValue;
+            writeViewerPreferences({ flowCycleAlignmentEnabled: nextValue });
+        },
+
+        setTextureAnimationEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.textureAnimationEnabled = nextValue;
+            writeViewerPreferences({ textureAnimationEnabled: nextValue });
+        },
         
         showBetaModal(reason = 'default') {
             this.betaModalReason = reason;
@@ -402,6 +435,12 @@ export const useViewerStore = defineStore('viewer', {
 
         setTextureRepeatMode(mode) {
             this.textureRepeatMode = mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
+        },
+
+        setUndulationEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.undulationEnabled = nextValue;
+            writeViewerPreferences({ undulationEnabled: nextValue });
         },
 
         setPreferredTextureMaxResolution(resolution) {
@@ -560,6 +599,7 @@ export const useViewerStore = defineStore('viewer', {
             helixPitch: state.helixPitch,
             helixStrandWidth: state.helixStrandWidth,
             ribbonWidthScale: state.ribbonWidthScale,
+            undulationEnabled: state.undulationEnabled,
             capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,
             cornerNarrowingEnabled: state.cornerNarrowingEnabled,
