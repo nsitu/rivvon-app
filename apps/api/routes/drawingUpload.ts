@@ -1,13 +1,8 @@
 import { Hono } from 'hono';
 import { nanoid } from 'nanoid';
 import { verifySession } from '../middleware/session';
+import type { AppEnv } from '../types/hono';
 import { syncUser, isAdminUser } from '../utils/user';
-
-type Bindings = {
-  DB: D1Database;
-  BUCKET: R2Bucket;
-  ADMIN_USERS?: string;
-};
 
 const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg']);
 const DRAWING_STORAGE_PROVIDER_VALUES = new Set(['r2', 'google-drive']);
@@ -51,7 +46,7 @@ function normalizeOptionalId(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-export const drawingUploadRoutes = new Hono<{ Bindings: Bindings }>();
+export const drawingUploadRoutes = new Hono<AppEnv>();
 
 drawingUploadRoutes.use('*', verifySession);
 

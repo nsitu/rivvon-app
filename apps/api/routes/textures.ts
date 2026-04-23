@@ -1,13 +1,9 @@
 // src/routes/textures.ts
 import { Hono } from 'hono';
+import type { AppEnv } from '../types/hono';
 import { buildTextureFamilySummaries, decorateTextureFamilyRoot, getRootTextureId } from '../utils/textureFamilies';
 
-type Bindings = {
-    DB: D1Database;
-    BUCKET: R2Bucket;
-};
-
-export const textureRoutes = new Hono<{ Bindings: Bindings }>();
+export const textureRoutes = new Hono<AppEnv>();
 
 // List public texture sets
 textureRoutes.get('/', async (c) => {

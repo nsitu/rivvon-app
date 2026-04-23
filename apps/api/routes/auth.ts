@@ -1,6 +1,7 @@
 // src/routes/auth.ts
 
 import { Hono } from 'hono';
+import type { AppEnv } from '../types/hono';
 import {
     getCookie,
     buildCookieString,
@@ -13,17 +14,7 @@ import {
 import { createSessionToken, verifySessionToken, type SessionUser } from '../utils/session';
 import { isAdminUser } from '../utils/user';
 
-type Bindings = {
-    DB: D1Database;
-    GOOGLE_CLIENT_ID: string;
-    GOOGLE_CLIENT_SECRET: string;
-    SESSION_SECRET: string;
-    API_URL: string;
-    APP_URL: string;
-    ADMIN_USERS?: string;
-};
-
-const authRoutes = new Hono<{ Bindings: Bindings }>();
+const authRoutes = new Hono<AppEnv>();
 
 // OAuth scopes for Google
 const SCOPES = [
@@ -375,7 +366,7 @@ authRoutes.post('/logout', (c) => {
     const localDev = isLocalDev(c);
     console.log('[Auth] Logout called, clearing cookies, localDev:', localDev);
     clearAuthCookies(c, localDev);
-    console.log('[Auth] Set-Cookie headers:', c.res.headers.getSetCookie?.() || 'N/A');
+    console.log('[Auth] Set-Cookie header:', c.res.headers.get('set-cookie') || 'N/A');
     return c.json({ success: true });
 });
 

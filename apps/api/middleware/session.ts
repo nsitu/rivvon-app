@@ -1,22 +1,15 @@
 // src/middleware/session.ts
 
-import type { Context, Next } from 'hono';
+import type { MiddlewareHandler } from 'hono';
+import type { AppEnv, SessionAuthContext } from '../types/hono';
 import { getCookie } from '../utils/cookies';
-import { verifySessionToken, type SessionUser } from '../utils/session';
-
-export interface SessionAuthContext {
-    userId: string;
-    googleId: string;
-    email: string;
-    name: string;
-    picture?: string;
-}
+import { verifySessionToken } from '../utils/session';
 
 /**
  * Session-based authentication middleware
  * Verifies the session cookie and attaches user info to context
  */
-export async function verifySession(c: Context, next: Next) {
+export const verifySession: MiddlewareHandler<AppEnv> = async (c, next) => {
     const sessionToken = getCookie(c, 'session');
 
     if (!sessionToken) {
@@ -38,26 +31,28 @@ export async function verifySession(c: Context, next: Next) {
 
         // Attach user info to context
         // Use 'auth' key for backwards compatibility with existing routes
-        c.set('auth', {
+        const auth: SessionAuthContext = {
             userId: user.id,
             googleId: user.googleId,
             email: user.email,
             name: user.name,
             picture: user.picture,
-        } as SessionAuthContext);
+        };
+
+        c.set('auth', auth);
 
         await next();
     } catch (error) {
         console.error('Session verification failed:', error);
         return c.json({ error: 'Authentication failed' }, 401);
     }
-}
+};
 
 /**
  * Optional session middleware - doesn't fail if no session
  * Useful for routes that work for both authenticated and anonymous users
  */
-export async function optionalSession(c: Context, next: Next) {
+export const optionalSession: MiddlewareHandler<AppEnv> = async (c, next) => {
     const sessionToken = getCookie(c, 'session');
 
     if (sessionToken) {
@@ -66,13 +61,15 @@ export async function optionalSession(c: Context, next: Next) {
             if (sessionSecret) {
                 const user = await verifySessionToken(sessionToken, sessionSecret);
                 if (user) {
-                    c.set('auth', {
+                    const auth: SessionAuthContext = {
                         userId: user.id,
                         googleId: user.googleId,
                         email: user.email,
                         name: user.name,
                         picture: user.picture,
-                    } as SessionAuthContext);
+                    };
+
+                    c.set('auth', auth);
                 }
             }
         } catch {
@@ -81,4 +78,4 @@ export async function optionalSession(c: Context, next: Next) {
     }
 
     await next();
-}
+};

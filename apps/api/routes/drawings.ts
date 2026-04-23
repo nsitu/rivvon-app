@@ -1,12 +1,7 @@
 import { Hono } from 'hono';
 import { verifySession } from '../middleware/session';
+import type { AppEnv } from '../types/hono';
 import { isAdminUser } from '../utils/user';
-
-type Bindings = {
-  DB: D1Database;
-  BUCKET: R2Bucket;
-  ADMIN_USERS?: string;
-};
 
 function parsePayloadJson(payloadJson: unknown) {
   if (typeof payloadJson !== 'string' || !payloadJson) {
@@ -20,7 +15,7 @@ function parsePayloadJson(payloadJson: unknown) {
   }
 }
 
-export const drawingRoutes = new Hono<{ Bindings: Bindings }>();
+export const drawingRoutes = new Hono<AppEnv>();
 
 drawingRoutes.use('*', verifySession);
 

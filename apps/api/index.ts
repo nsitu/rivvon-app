@@ -5,25 +5,12 @@ import { drawingUploadRoutes } from './routes/drawingUpload';
 import { textureRoutes } from './routes/textures';
 import { drawingRoutes } from './routes/drawings';
 import { authRoutes } from './routes/auth';
-import { verifySession, type SessionAuthContext } from './middleware/session';
+import { verifySession } from './middleware/session';
+import type { AppEnv } from './types/hono';
 import { isAdminUser } from './utils/user';
 import { buildTextureFamilySummaries, decorateTextureFamilyRoot } from './utils/textureFamilies';
 
-type Bindings = {
-    DB: D1Database;
-    BUCKET: R2Bucket;
-    // Google OAuth
-    GOOGLE_CLIENT_ID: string;
-    GOOGLE_CLIENT_SECRET: string;
-    SESSION_SECRET: string;
-    API_URL: string;
-    APP_URL: string;
-    CORS_ORIGINS: string;
-    // Admin users (comma-separated emails)
-    ADMIN_USERS?: string;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<AppEnv>();
 
 // CORS middleware - must handle credentials for cross-site cookies
 app.use('*', async (c, next) => {
@@ -66,8 +53,8 @@ app.get('/', (c) => c.json({ status: 'ok', service: 'rivvon-api' }));
 app.route('/api/auth', authRoutes);
 
 // Get textures owned by current user, or all textures for admins (authenticated via session cookie)
-app.get('/my-textures', verifySession as any, async (c) => {
-    const auth = (c as any).get('auth') as SessionAuthContext;
+app.get('/my-textures', verifySession, async (c) => {
+    const auth = c.get('auth');
     const limit = parseInt(c.req.query('limit') || '50');
     const offset = parseInt(c.req.query('offset') || '0');
 

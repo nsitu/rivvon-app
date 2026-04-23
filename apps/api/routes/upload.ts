@@ -1,16 +1,11 @@
 // src/routes/upload.ts
 import { Hono } from 'hono';
 import { verifySession } from '../middleware/session';
+import type { AppEnv } from '../types/hono';
 import { syncUser, isAdminUser } from '../utils/user';
 import { nanoid } from 'nanoid';
 
-type Bindings = {
-  DB: D1Database;
-  BUCKET: R2Bucket;
-  ADMIN_USERS?: string;
-};
-
-export const uploadRoutes = new Hono<{ Bindings: Bindings }>();
+export const uploadRoutes = new Hono<AppEnv>();
 
 // All upload routes require authentication (session-based)
 uploadRoutes.use('*', verifySession);
@@ -18,6 +13,7 @@ uploadRoutes.use('*', verifySession);
 // Create a new texture set and get upload URLs
 uploadRoutes.post('/', async (c) => {
   const auth = c.get('auth');
+  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
   const body = await c.req.json();
 
   const {
@@ -54,9 +50,13 @@ uploadRoutes.post('/', async (c) => {
       return c.json({ error: 'parentTextureSetId must be a non-empty string when provided' }, 400);
     }
 
-    const requestedParentTextureSet = await c.env.DB.prepare(`
-      SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-    `).bind(parentTextureSetId.trim(), auth.userId).first() as any;
+    const requestedParentTextureSet = (isAdmin
+      ? await c.env.DB.prepare(`
+        SELECT * FROM texture_sets WHERE id = ?
+      `).bind(parentTextureSetId.trim()).first()
+      : await c.env.DB.prepare(`
+        SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
+      `).bind(parentTextureSetId.trim(), auth.userId).first()) as any;
 
     if (!requestedParentTextureSet) {
       return c.json({ error: 'Parent texture set not found' }, 404);
@@ -65,9 +65,13 @@ uploadRoutes.post('/', async (c) => {
     const rootTextureSetId = requestedParentTextureSet.parent_texture_set_id || requestedParentTextureSet.id;
     const familyRootTextureSet = rootTextureSetId === requestedParentTextureSet.id
       ? requestedParentTextureSet
-      : await c.env.DB.prepare(`
-        SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-      `).bind(rootTextureSetId, auth.userId).first() as any;
+      : (isAdmin
+        ? await c.env.DB.prepare(`
+          SELECT * FROM texture_sets WHERE id = ?
+        `).bind(rootTextureSetId).first()
+        : await c.env.DB.prepare(`
+          SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
+        `).bind(rootTextureSetId, auth.userId).first()) as any;
 
     if (!familyRootTextureSet) {
       return c.json({ error: 'Family root texture set not found' }, 404);
@@ -395,7 +399,7 @@ uploadRoutes.put('/:setId/tile/:index', async (c) => {
   // Get tile record
   const tile = await c.env.DB.prepare(`
     SELECT * FROM texture_tiles WHERE texture_set_id = ? AND tile_index = ?
-  `).bind(setId, tileIndex).first();
+  `).bind(setId, tileIndex).first() as { id: string; r2_key: string } | null;
 
   if (!tile) {
     return c.json({ error: 'Tile not found' }, 404);
