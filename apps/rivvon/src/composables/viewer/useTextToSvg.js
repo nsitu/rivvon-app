@@ -94,6 +94,31 @@ export function useTextToSvg() {
     }
 
     /**
+     * Generate SVG markup for live previews using the requested font.
+     * @param {string} text - Text to preview
+     * @param {Object} options - Preview and layout options
+     * @returns {Promise<string|null>} SVG markup or null when nothing can be rendered
+     */
+    async function textToSvgMarkup(text, options = {}) {
+        if (!textToSvg.value) {
+            throw new Error('TextToSvg not initialized');
+        }
+
+        const font = options.font || selectedFont.value;
+
+        try {
+            if (font && font !== textToSvg.value.currentFont) {
+                await textToSvg.value.loadFont(font);
+            }
+
+            return textToSvg.value.generateSvgString(text, options);
+        } catch (e) {
+            console.error('[TextToSvg] Preview generation failed:', e);
+            throw e;
+        }
+    }
+
+    /**
      * Select and load a font
      */
     async function setFont(fontName) {
@@ -121,6 +146,7 @@ export function useTextToSvg() {
         // Methods
         init,
         textToPoints,
+        textToSvgMarkup,
         setFont
     };
 }

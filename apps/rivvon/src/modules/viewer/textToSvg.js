@@ -240,6 +240,10 @@ export class TextToSvg {
             return null;
         }
 
+        const padding = Number.isFinite(options.padding) ? options.padding : 10;
+        const strokeColor = options.strokeColor || 'black';
+        const strokeWidth = Number.isFinite(options.strokeWidth) ? options.strokeWidth : 1;
+
         // Calculate bounds from all paths
         const allPathData = paths.map(p => p.d).join(' ');
 
@@ -258,15 +262,14 @@ export class TextToSvg {
         document.body.removeChild(tempSvg);
 
         // Create SVG with proper viewBox
-        const padding = 10;
         const viewBox = `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`;
 
         // Build SVG string with individual paths for multi-path support
         let pathsStr = paths.map(p =>
-            `<path d="${p.d}" fill="none" stroke="black" stroke-width="1"/>`
+            `<path d="${p.d}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`
         ).join('\n');
 
-        return `<svg xmlns="${svgNS}" viewBox="${viewBox}">\n${pathsStr}\n</svg>`;
+        return `<svg xmlns="${svgNS}" viewBox="${viewBox}" preserveAspectRatio="xMinYMid meet">\n${pathsStr}\n</svg>`;
     }
 
     /**
