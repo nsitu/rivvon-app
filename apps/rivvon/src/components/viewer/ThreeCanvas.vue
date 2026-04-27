@@ -56,7 +56,8 @@
         setBackgroundFromTileManager,
         cinematicCamera,
         headTracking,
-        mouseTilt
+        mouseTilt,
+        scrollTilt
     } = useThreeSetup();
 
     const viewerControlMode = computed(() => app.viewerControlMode);
@@ -92,6 +93,7 @@
                 tileManager: tileManager.value,
                 cinematicCamera,
                 headTracking,
+                scrollTilt,
                 viewerControlMode: viewerControlMode.value
             });
 
@@ -131,6 +133,7 @@
                 tileManager: tileManager.value,
                 cinematicCamera,
                 headTracking,
+                scrollTilt,
                 viewerControlMode: viewerControlMode.value
             });
 
@@ -214,6 +217,7 @@
         cinematicCamera,
         headTracking,
         mouseTilt,
+        scrollTilt,
         viewerControlMode
     });
 </script>

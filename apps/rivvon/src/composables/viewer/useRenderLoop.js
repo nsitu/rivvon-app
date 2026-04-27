@@ -191,6 +191,10 @@ export function useRenderLoop(ctx, deps = {}) {
             if (ctx.app.viewerControlMode === 'mouseTilt' && !ctx.cinematicCamera.isPlaying.value) {
                 ctx.mouseTilt?.tick?.();
             }
+
+            if (ctx.app.viewerControlMode === 'scrollTilt' && !ctx.cinematicCamera.isPlaying.value) {
+                ctx.scrollTilt?.tick?.();
+            }
             
             // Call custom render callback if provided
             if (renderCallback) {

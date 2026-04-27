@@ -11,6 +11,7 @@ import { TileManager } from '../../modules/viewer/tileManager';
 import { useCinematicCamera } from './useCinematicCamera';
 import { useHeadTracking } from './useHeadTracking';
 import { useMouseTilt } from './useMouseTilt';
+import { useScrollTilt } from './useScrollTilt';
 import { useRenderFilter } from './useRenderFilter';
 import { useRenderLoop } from './useRenderLoop';
 import { useSceneBackground } from './useSceneBackground';
@@ -75,6 +76,8 @@ export function useThreeSetup() {
 
     const mouseTilt = useMouseTilt(ctx);
     ctx.mouseTilt = mouseTilt;
+    const scrollTilt = useScrollTilt(ctx);
+    ctx.scrollTilt = scrollTilt;
     const renderFilter = useRenderFilter(ctx);
 
     // ── Sub-composables ────────────────────────────────────────────────
@@ -121,6 +124,7 @@ export function useThreeSetup() {
             resetCamera.value = result.resetCamera;
             headTracking.attach(result.camera, result.controls);
             mouseTilt.attach(result.camera, result.controls);
+            scrollTilt.attach(result.camera, result.controls);
             await renderFilter.initRenderFilter(result.rendererType);
             
             // Store context in app store for access by other components
@@ -130,6 +134,7 @@ export function useThreeSetup() {
                 renderer: result.renderer,
                 controls: result.controls,
                 headTracking,
+                scrollTilt,
                 rendererType: result.rendererType,
                 pauseRenderLoop: renderLoop.pauseRenderLoop,
                 resumeRenderLoop: renderLoop.resumeRenderLoop,
@@ -158,6 +163,7 @@ export function useThreeSetup() {
             cinematicCamera.init(result.camera, result.controls);
             await headTracking.syncWithSelectedMode();
             mouseTilt.syncWithMode(app.viewerControlMode);
+            scrollTilt.syncWithMode(app.viewerControlMode);
 
             // Register device-loss handler (works for both WebGPU and WebGL)
             if (result.onDeviceLost) {
@@ -194,6 +200,7 @@ export function useThreeSetup() {
         renderLoop.resetState();
         headTracking.detach({ releaseDetector: false });
         mouseTilt.deactivate({ restoreBaseline: false });
+        scrollTilt.deactivate({ restoreBaseline: false });
         cinematicCamera.dispose();
         renderFilter.disposeRenderFilter();
 
@@ -246,6 +253,7 @@ export function useThreeSetup() {
 
         renderLoop.stopRenderLoop();
         headTracking.detach({ releaseDetector: true });
+        scrollTilt.deactivate({ restoreBaseline: false });
         cinematicCamera.dispose();
         renderFilter.disposeRenderFilter();
         
@@ -353,5 +361,6 @@ export function useThreeSetup() {
         cinematicCamera,
         headTracking,
         mouseTilt,
+        scrollTilt,
     };
 }

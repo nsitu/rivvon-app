@@ -192,10 +192,10 @@
             return;
         }
 
-        if (mode === 'mouseTilt') {
-            // Mouse tilt needs no camera access — switch directly
+        if (mode === 'mouseTilt' || mode === 'scrollTilt') {
+            // Gesture-driven tilt modes need no camera access — switch directly
             app.clearHeadTrackingFeedback();
-            app.setViewerControlMode('mouseTilt');
+            app.setViewerControlMode(mode);
             return;
         }
 

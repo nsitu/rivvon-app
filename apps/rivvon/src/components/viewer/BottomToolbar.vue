@@ -90,7 +90,8 @@
     const viewerControlOptions = [
         { label: 'OrbitControls', value: 'orbit', icon: '3d_rotation' },
         { label: 'Mouse Tilt', value: 'mouseTilt', icon: 'open_with' },
-        { label: 'Head Tracking', value: 'headTracking', icon: 'face' }
+        { label: 'Head Tracking', value: 'headTracking', icon: 'face' },
+        { label: 'Scroll Tilt', value: 'scrollTilt', icon: '360' }
     ];
 
     function setFlowState(state) {
@@ -166,9 +167,16 @@
 
     const showHeadTrackingTools = computed(() => (
         app.viewerControlMode === 'headTracking'
-        || !!app.headTrackingMessage
-        || app.headTrackingSupported === false
+        || (
+            app.viewerControlMode !== 'scrollTilt'
+            && (
+                !!app.headTrackingMessage
+                || app.headTrackingSupported === false
+            )
+        )
     ));
+
+    const showScrollTiltTools = computed(() => app.viewerControlMode === 'scrollTilt');
 
     const headTrackingStatusLabel = computed(() => {
         if (app.headTrackingErrorMessage) return 'Unavailable';
@@ -190,6 +198,10 @@
         'is-error': !!app.headTrackingErrorMessage,
         'is-success': app.headTrackingActive && !app.headTrackingCalibrating,
     }));
+
+    const scrollTiltDisplayMessage = computed(() => (
+        'Use wheel, trackpad, or touch drag to scrub the circular tilt loop with extra inertia.'
+    ));
 
     const screenWakeLockHint = computed(() => {
         if (app.screenWakeLockSupported === false) return 'N/A';
@@ -806,6 +818,21 @@
                                             </button>
                                         </div>
                                         <div class="tools-status-message">{{ headTrackingDisplayMessage }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="showScrollTiltTools"
+                                class="tools-status-card"
+                            >
+                                <div class="tools-status-row">
+                                    <span class="material-symbols-outlined tools-status-icon">360</span>
+                                    <div class="tools-status-copy">
+                                        <div class="tools-status-label-row">
+                                            <span class="tools-status-label-text">Scroll Tilt</span>
+                                        </div>
+                                        <div class="tools-status-message">{{ scrollTiltDisplayMessage }}</div>
                                     </div>
                                 </div>
                             </div>

@@ -92,7 +92,7 @@ export const useViewerStore = defineStore('viewer', {
         walkPointCount: 0,
 
         // Viewer control mode
-        viewerControlMode: 'orbit', // 'orbit' | 'headTracking' | 'mouseTilt'
+        viewerControlMode: 'orbit', // 'orbit' | 'headTracking' | 'mouseTilt' | 'scrollTilt'
         headTrackingSupported: null,
         headTrackingActive: false,
         headTrackingCalibrating: false,
@@ -227,7 +227,7 @@ export const useViewerStore = defineStore('viewer', {
         },
 
         setViewerControlMode(mode) {
-            if (mode === 'headTracking' || mode === 'mouseTilt') {
+            if (mode === 'headTracking' || mode === 'mouseTilt' || mode === 'scrollTilt') {
                 this.viewerControlMode = mode;
             } else {
                 this.viewerControlMode = 'orbit';
