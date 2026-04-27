@@ -28,7 +28,7 @@ export function useTextToSvg() {
             
             // Load the first font by default
             if (fonts.value.length > 0) {
-                selectedFont.value = fonts.value[0];
+                selectedFont.value = fonts.value[0].id;
                 await textToSvg.value.loadFont(selectedFont.value);
             }
             
@@ -122,7 +122,7 @@ export function useTextToSvg() {
      * Select and load a font
      */
     async function setFont(fontName) {
-        if (!fonts.value.includes(fontName)) {
+        if (!fonts.value.some(font => font.id === fontName)) {
             console.warn('[TextToSvg] Font not available:', fontName);
             return;
         }
