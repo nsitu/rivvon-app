@@ -7,6 +7,7 @@ import {
 const SCROLL_TILT_LERP = 0.055;
 const SCROLL_TILT_WHEEL_TURNS_PER_PIXEL = 1 / 1800;
 const SCROLL_TILT_TOUCH_TURNS_PER_PIXEL = 1 / 900;
+const SCROLL_DRIVEN_TILT_SCALE = 0.1;
 const SCROLL_TILT_SETTLE_EPSILON = 0.0001;
 
 const INTERACTIVE_UI_SELECTOR = [
@@ -138,8 +139,13 @@ export function useScrollTilt(ctx) {
             return;
         }
 
-        targetPhase += deltaTurns;
-        hasInteracted = true;
+        if (ctx.app.scrollDrivenTiltEnabled) {
+            targetPhase += deltaTurns * SCROLL_DRIVEN_TILT_SCALE;
+            hasInteracted = true;
+        }
+
+        syncTextureLayerProgress(deltaTurns);
+        syncFlowProgress(deltaTurns);
     }
 
     function getScrollControlledTileManagers() {
@@ -168,7 +174,12 @@ export function useScrollTilt(ctx) {
     }
 
     function syncTextureLayerProgress(deltaTurns) {
-        if (!ctx.app.textureAnimationEnabled || !Number.isFinite(deltaTurns) || deltaTurns === 0) {
+        if (
+            !ctx.app.textureAnimationEnabled
+            || !ctx.app.scrollDrivenLayerCycleEnabled
+            || !Number.isFinite(deltaTurns)
+            || deltaTurns === 0
+        ) {
             return;
         }
 
@@ -177,6 +188,21 @@ export function useScrollTilt(ctx) {
 
         for (const tileManager of getScrollControlledTileManagers()) {
             tileManager.setLayerCycleProgress?.(texturePhaseTurns);
+        }
+    }
+
+    function syncFlowProgress(deltaTurns) {
+        if (
+            ctx.app.flowState === 'off'
+            || !ctx.app.scrollDrivenFlowEnabled
+            || !Number.isFinite(deltaTurns)
+            || deltaTurns === 0
+        ) {
+            return;
+        }
+
+        for (const tileManager of getScrollControlledTileManagers()) {
+            tileManager.advanceFlowOffset?.(deltaTurns);
         }
     }
 
@@ -302,11 +328,15 @@ export function useScrollTilt(ctx) {
     }
 
     function tick() {
-        if (!isActive || !cameraController.isActive || !hasInteracted) {
+        if (
+            !isActive
+            || !cameraController.isActive
+            || !ctx.app.scrollDrivenTiltEnabled
+            || !hasInteracted
+        ) {
             return;
         }
 
-        const previousPhase = currentPhase;
         currentPhase += (targetPhase - currentPhase) * SCROLL_TILT_LERP;
 
         if (Math.abs(targetPhase - currentPhase) <= SCROLL_TILT_SETTLE_EPSILON) {
@@ -314,7 +344,6 @@ export function useScrollTilt(ctx) {
         }
 
         cameraController.apply(getCircularTiltAnglesAtProgress(currentPhase));
-        syncTextureLayerProgress(currentPhase - previousPhase);
     }
 
     function syncWithMode(mode) {
@@ -350,6 +379,34 @@ export function useScrollTilt(ctx) {
 
     watch(
         () => ctx.tileManagers?.value,
+        () => {
+            texturePhasePrimed = false;
+        },
+    );
+
+    watch(
+        () => ctx.app.scrollDrivenTiltEnabled,
+        (enabled) => {
+            if (enabled) {
+                return;
+            }
+
+            targetPhase = 0;
+            currentPhase = 0;
+            hasInteracted = false;
+            cameraController.restoreBaseline?.();
+        },
+    );
+
+    watch(
+        () => ctx.app.scrollDrivenLayerCycleEnabled,
+        () => {
+            texturePhasePrimed = false;
+        },
+    );
+
+    watch(
+        () => ctx.app.textureAnimationEnabled,
         () => {
             texturePhasePrimed = false;
         },

@@ -162,15 +162,24 @@ export function useRenderLoop(ctx, deps = {}) {
             const scrollTiltDrivesTextureLayers = ctx.app.viewerControlMode === 'scrollTilt'
                 && !ctx.cinematicCamera.isPlaying.value
                 && ctx.app.textureAnimationEnabled;
+            const scrollTiltDrivesFlow = ctx.app.viewerControlMode === 'scrollTilt'
+                && !ctx.cinematicCamera.isPlaying.value
+                && ctx.app.flowState !== 'off';
             
             // Advance KTX2 layer cycling and tile flow (for texture animation)
             // Tick all TileManagers (multi-texture mode)
             if (ctx.tileManagers.value && ctx.tileManagers.value.length > 1) {
                 for (const tm of ctx.tileManagers.value) {
-                    tm.tick?.(now, { suppressLayerAnimation: scrollTiltDrivesTextureLayers });
+                    tm.tick?.(now, {
+                        suppressLayerAnimation: scrollTiltDrivesTextureLayers,
+                        suppressFlowAnimation: scrollTiltDrivesFlow,
+                    });
                 }
             } else if (ctx.tileManager.value?.tick) {
-                ctx.tileManager.value.tick(now, { suppressLayerAnimation: scrollTiltDrivesTextureLayers });
+                ctx.tileManager.value.tick(now, {
+                    suppressLayerAnimation: scrollTiltDrivesTextureLayers,
+                    suppressFlowAnimation: scrollTiltDrivesFlow,
+                });
             }
             
             // Update ribbon materials for tile flow effect (conveyor belt animation)

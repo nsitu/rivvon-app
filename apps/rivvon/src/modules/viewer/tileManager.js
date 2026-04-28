@@ -1486,6 +1486,18 @@ export class TileManager {
         return clamped;
     }
 
+    #syncFlowOffsetUniforms() {
+        this.sharedFlowOffsetUniform.value = this.flowOffset;
+
+        if (this.rendererType === 'webgpu') {
+            for (const material of this.flowMaterials) {
+                if (material?._flowOffsetUniform) {
+                    material._flowOffsetUniform.value = this.flowOffset;
+                }
+            }
+        }
+    }
+
     setLayerAnimationEnabled(enabled) {
         const nextEnabled = !!enabled;
         if (this.layerAnimationEnabled === nextEnabled) {
@@ -1689,7 +1701,7 @@ export class TileManager {
         return undulationFraction ? fractionToNumber(undulationFraction) : targetPeriod;
     }
 
-    tick(nowMs, { suppressLayerAnimation = false } = {}) {
+    tick(nowMs, { suppressLayerAnimation = false, suppressFlowAnimation = false } = {}) {
         if (!this.isKTX2) return;
 
         if (this.lastFrameTime === 0) this.lastFrameTime = nowMs;
@@ -1697,23 +1709,12 @@ export class TileManager {
         const elapsedSec = elapsed / 1000;
 
         // --- Flow animation (continuous dual-texture approach) ---
-        if (this.flowEnabled && this.flowSpeed !== 0) {
+        if (!suppressFlowAnimation && this.flowEnabled && this.flowSpeed !== 0) {
             // Accumulate fractional offset based on elapsed time
             // Let flowOffset exceed 1.0 - wrapping is handled by updateFlowMaterials()
             // to avoid 1-frame glitches when texture pairs are swapped
             this.flowOffset += this.flowSpeed * elapsedSec;
-            
-            // Update shared uniform for continuous animation
-            this.sharedFlowOffsetUniform.value = this.flowOffset;
-
-            // For WebGPU, also update TSL uniform nodes on all flow materials
-            if (this.rendererType === 'webgpu') {
-                for (const material of this.flowMaterials) {
-                    if (material._flowOffsetUniform) {
-                        material._flowOffsetUniform.value = this.flowOffset;
-                    }
-                }
-            }
+            this.#syncFlowOffsetUniforms();
         }
 
         // --- Layer cycling animation (frame-rate limited) ---
@@ -1871,6 +1872,17 @@ export class TileManager {
         return this.flowOffset;
     }
 
+    advanceFlowOffset(deltaTiles) {
+        const parsed = Number(deltaTiles);
+        if (!this.flowEnabled || !Number.isFinite(parsed) || parsed === 0) {
+            return false;
+        }
+
+        this.flowOffset += parsed;
+        this.#syncFlowOffsetUniforms();
+        return true;
+    }
+
     /**
      * Wrap the flow offset after texture pairs have been swapped.
      * Called by RibbonSeries.updateFlowMaterials() after creating new materials.
@@ -1885,16 +1897,7 @@ export class TileManager {
         this.flowOffset -= wholeTiles;
         
         // Update uniforms with wrapped value
-        this.sharedFlowOffsetUniform.value = this.flowOffset;
-        
-        // For WebGPU, update TSL uniform nodes
-        if (this.rendererType === 'webgpu') {
-            for (const material of this.flowMaterials) {
-                if (material._flowOffsetUniform) {
-                    material._flowOffsetUniform.value = this.flowOffset;
-                }
-            }
-        }
+        this.#syncFlowOffsetUniforms();
     }
 
     /**

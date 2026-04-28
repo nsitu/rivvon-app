@@ -91,7 +91,7 @@
         { label: 'OrbitControls', value: 'orbit', icon: '3d_rotation' },
         { label: 'Mouse Tilt', value: 'mouseTilt', icon: 'open_with' },
         { label: 'Head Tracking', value: 'headTracking', icon: 'face' },
-        { label: 'Scroll Tilt', value: 'scrollTilt', icon: '360' }
+        { label: 'Scroll Driven', value: 'scrollTilt', icon: '360' }
     ];
 
     function setFlowState(state) {
@@ -176,7 +176,7 @@
         )
     ));
 
-    const showScrollTiltTools = computed(() => app.viewerControlMode === 'scrollTilt');
+    const showScrollDrivenTools = computed(() => app.viewerControlMode === 'scrollTilt');
 
     const headTrackingStatusLabel = computed(() => {
         if (app.headTrackingErrorMessage) return 'Unavailable';
@@ -199,8 +199,8 @@
         'is-success': app.headTrackingActive && !app.headTrackingCalibrating,
     }));
 
-    const scrollTiltDisplayMessage = computed(() => (
-        'Use wheel, trackpad, or touch drag to scrub the circular tilt loop and KTX2 layer cycle with extra inertia.'
+    const scrollDrivenDisplayMessage = computed(() => (
+        'Use wheel, trackpad, or touch drag to drive the enabled responses below.'
     ));
 
     const screenWakeLockHint = computed(() => {
@@ -307,6 +307,27 @@
         get: () => app.textureAnimationEnabled,
         set: (value) => {
             app.setTextureAnimationEnabled(!!value);
+        }
+    });
+
+    const scrollDrivenTiltModel = computed({
+        get: () => app.scrollDrivenTiltEnabled,
+        set: (value) => {
+            app.setScrollDrivenTiltEnabled(!!value);
+        }
+    });
+
+    const scrollDrivenLayerCycleModel = computed({
+        get: () => app.scrollDrivenLayerCycleEnabled,
+        set: (value) => {
+            app.setScrollDrivenLayerCycleEnabled(!!value);
+        }
+    });
+
+    const scrollDrivenFlowModel = computed({
+        get: () => app.scrollDrivenFlowEnabled,
+        set: (value) => {
+            app.setScrollDrivenFlowEnabled(!!value);
         }
     });
 
@@ -823,17 +844,77 @@
                             </div>
 
                             <div
-                                v-if="showScrollTiltTools"
+                                v-if="showScrollDrivenTools"
                                 class="tools-status-card"
                             >
                                 <div class="tools-status-row">
                                     <span class="material-symbols-outlined tools-status-icon">360</span>
                                     <div class="tools-status-copy">
                                         <div class="tools-status-label-row">
-                                            <span class="tools-status-label-text">Scroll Tilt</span>
+                                            <span class="tools-status-label-text">Scroll Driven</span>
                                         </div>
-                                        <div class="tools-status-message">{{ scrollTiltDisplayMessage }}</div>
+                                        <div class="tools-status-message">{{ scrollDrivenDisplayMessage }}</div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="showScrollDrivenTools"
+                                class="tools-toggle-row"
+                            >
+                                <label
+                                    class="tools-toggle-main"
+                                    for="scrollDrivenTiltToggle"
+                                >
+                                    <span class="material-symbols-outlined">open_with</span>
+                                    <span>Camera Tilt</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenTiltEnabled ? 'On' : 'Off' }}</span>
+                                    <ToggleSwitch
+                                        inputId="scrollDrivenTiltToggle"
+                                        v-model="scrollDrivenTiltModel"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="showScrollDrivenTools"
+                                class="tools-toggle-row"
+                            >
+                                <label
+                                    class="tools-toggle-main"
+                                    for="scrollDrivenLayerCycleToggle"
+                                >
+                                    <span class="material-symbols-outlined">layers</span>
+                                    <span>Layer Cycle</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenLayerCycleEnabled ? 'On' : 'Off' }}</span>
+                                    <ToggleSwitch
+                                        inputId="scrollDrivenLayerCycleToggle"
+                                        v-model="scrollDrivenLayerCycleModel"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="showScrollDrivenTools"
+                                class="tools-toggle-row"
+                            >
+                                <label
+                                    class="tools-toggle-main"
+                                    for="scrollDrivenFlowToggle"
+                                >
+                                    <span class="material-symbols-outlined">repeat</span>
+                                    <span>Conveyor Flow</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenFlowEnabled ? 'On' : 'Off' }}</span>
+                                    <ToggleSwitch
+                                        inputId="scrollDrivenFlowToggle"
+                                        v-model="scrollDrivenFlowModel"
+                                    />
                                 </div>
                             </div>
                         </div>

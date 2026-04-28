@@ -93,6 +93,18 @@ export const useViewerStore = defineStore('viewer', {
 
         // Viewer control mode
         viewerControlMode: 'orbit', // 'orbit' | 'headTracking' | 'mouseTilt' | 'scrollTilt'
+        scrollDrivenTiltEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().scrollDrivenTiltEnabled,
+            true
+        ),
+        scrollDrivenLayerCycleEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().scrollDrivenLayerCycleEnabled,
+            true
+        ),
+        scrollDrivenFlowEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().scrollDrivenFlowEnabled,
+            true
+        ),
         headTrackingSupported: null,
         headTrackingActive: false,
         headTrackingCalibrating: false,
@@ -232,6 +244,24 @@ export const useViewerStore = defineStore('viewer', {
             } else {
                 this.viewerControlMode = 'orbit';
             }
+        },
+
+        setScrollDrivenTiltEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.scrollDrivenTiltEnabled = nextValue;
+            writeViewerPreferences({ scrollDrivenTiltEnabled: nextValue });
+        },
+
+        setScrollDrivenLayerCycleEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.scrollDrivenLayerCycleEnabled = nextValue;
+            writeViewerPreferences({ scrollDrivenLayerCycleEnabled: nextValue });
+        },
+
+        setScrollDrivenFlowEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.scrollDrivenFlowEnabled = nextValue;
+            writeViewerPreferences({ scrollDrivenFlowEnabled: nextValue });
         },
 
         setHeadTrackingSupported(supported) {
