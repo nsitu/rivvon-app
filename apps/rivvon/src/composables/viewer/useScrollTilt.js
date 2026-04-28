@@ -77,6 +77,8 @@ export function useScrollTilt(ctx) {
     let currentPhase = 0;
     let activeTouchId = null;
     let lastTouchPoint = null;
+    let texturePhaseTurns = 0;
+    let texturePhasePrimed = false;
 
     function resetMotionState() {
         hasInteracted = false;
@@ -84,6 +86,8 @@ export function useScrollTilt(ctx) {
         currentPhase = 0;
         activeTouchId = null;
         lastTouchPoint = null;
+        texturePhaseTurns = 0;
+        texturePhasePrimed = false;
     }
 
     function hasBlockingViewerContext() {
@@ -136,6 +140,44 @@ export function useScrollTilt(ctx) {
 
         targetPhase += deltaTurns;
         hasInteracted = true;
+    }
+
+    function getScrollControlledTileManagers() {
+        const activeTileManagers = Array.isArray(ctx.tileManagers?.value)
+            ? ctx.tileManagers.value.filter(Boolean)
+            : [];
+
+        if (activeTileManagers.length > 0) {
+            return activeTileManagers;
+        }
+
+        return ctx.tileManager?.value ? [ctx.tileManager.value] : [];
+    }
+
+    function primeTexturePhaseFromScene() {
+        if (texturePhasePrimed) {
+            return;
+        }
+
+        const referenceTileManager = getScrollControlledTileManagers().find(
+            (tileManager) => typeof tileManager?.getLayerCycleProgress === 'function',
+        );
+
+        texturePhaseTurns = referenceTileManager?.getLayerCycleProgress?.() ?? 0;
+        texturePhasePrimed = true;
+    }
+
+    function syncTextureLayerProgress(deltaTurns) {
+        if (!ctx.app.textureAnimationEnabled || !Number.isFinite(deltaTurns) || deltaTurns === 0) {
+            return;
+        }
+
+        primeTexturePhaseFromScene();
+        texturePhaseTurns += deltaTurns;
+
+        for (const tileManager of getScrollControlledTileManagers()) {
+            tileManager.setLayerCycleProgress?.(texturePhaseTurns);
+        }
     }
 
     function _onWheel(event) {
@@ -243,6 +285,7 @@ export function useScrollTilt(ctx) {
             return;
         }
 
+        primeTexturePhaseFromScene();
         _addListeners();
     }
 
@@ -263,6 +306,7 @@ export function useScrollTilt(ctx) {
             return;
         }
 
+        const previousPhase = currentPhase;
         currentPhase += (targetPhase - currentPhase) * SCROLL_TILT_LERP;
 
         if (Math.abs(targetPhase - currentPhase) <= SCROLL_TILT_SETTLE_EPSILON) {
@@ -270,6 +314,7 @@ export function useScrollTilt(ctx) {
         }
 
         cameraController.apply(getCircularTiltAnglesAtProgress(currentPhase));
+        syncTextureLayerProgress(currentPhase - previousPhase);
     }
 
     function syncWithMode(mode) {
@@ -293,6 +338,20 @@ export function useScrollTilt(ctx) {
             if (isActive && cameraController.isActive) {
                 cameraController.captureBaseline(ctx.controls.value?.target?.clone());
             }
+        },
+    );
+
+    watch(
+        () => ctx.tileManager?.value,
+        () => {
+            texturePhasePrimed = false;
+        },
+    );
+
+    watch(
+        () => ctx.tileManagers?.value,
+        () => {
+            texturePhasePrimed = false;
         },
     );
 

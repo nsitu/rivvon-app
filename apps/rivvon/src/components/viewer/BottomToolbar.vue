@@ -200,7 +200,7 @@
     }));
 
     const scrollTiltDisplayMessage = computed(() => (
-        'Use wheel, trackpad, or touch drag to scrub the circular tilt loop with extra inertia.'
+        'Use wheel, trackpad, or touch drag to scrub the circular tilt loop and KTX2 layer cycle with extra inertia.'
     ));
 
     const screenWakeLockHint = computed(() => {

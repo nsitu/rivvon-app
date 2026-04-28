@@ -1439,6 +1439,33 @@ export class TileManager {
         return this.layerCount || 0;
     }
 
+    #getLayerSequenceFrameCount() {
+        if (this.layerCount <= 1) {
+            return 0;
+        }
+
+        return this.variant === 'waves'
+            ? this.layerCount
+            : (2 * (this.layerCount - 1));
+    }
+
+    #getCurrentLayerCycleFrame() {
+        const frameCount = this.#getLayerSequenceFrameCount();
+        if (frameCount <= 0) {
+            return 0;
+        }
+
+        if (this.variant === 'waves') {
+            return positiveModulo(this.currentLayer, frameCount);
+        }
+
+        if (this.direction < 0) {
+            return (this.layerCount - 1) + ((this.layerCount - 1) - this.currentLayer);
+        }
+
+        return this.currentLayer;
+    }
+
     #syncCurrentLayerUniforms() {
         const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1))) | 0;
         this.sharedLayerUniform.value = clamped;
@@ -1484,14 +1511,42 @@ export class TileManager {
             return 0;
         }
 
-        const layerCount = this.getLayerCount();
-        if (layerCount <= 1) {
+        return this.#getLayerSequenceFrameCount();
+    }
+
+    getLayerCycleProgress() {
+        const frameCount = this.#getLayerSequenceFrameCount();
+        if (frameCount <= 0) {
             return 0;
         }
 
-        return this.variant === 'waves'
-            ? layerCount
-            : (2 * (layerCount - 1));
+        return this.#getCurrentLayerCycleFrame() / frameCount;
+    }
+
+    setLayerCycleProgress(progressTurns) {
+        const frameCount = this.#getLayerSequenceFrameCount();
+        if (frameCount <= 0) {
+            return false;
+        }
+
+        const normalizedTurns = Number.isFinite(progressTurns)
+            ? positiveModulo(progressTurns, 1)
+            : 0;
+        const cycleFrame = Math.floor(normalizedTurns * frameCount + 1e-9);
+
+        if (this.variant === 'waves') {
+            this.currentLayer = positiveModulo(cycleFrame, this.layerCount);
+            this.direction = 1;
+        } else if (cycleFrame <= this.layerCount - 1) {
+            this.currentLayer = cycleFrame;
+            this.direction = cycleFrame >= this.layerCount - 1 ? -1 : 1;
+        } else {
+            this.currentLayer = frameCount - cycleFrame;
+            this.direction = -1;
+        }
+
+        this.#syncCurrentLayerUniforms();
+        return true;
     }
 
     #getLayerCycleFraction() {
@@ -1634,7 +1689,7 @@ export class TileManager {
         return undulationFraction ? fractionToNumber(undulationFraction) : targetPeriod;
     }
 
-    tick(nowMs) {
+    tick(nowMs, { suppressLayerAnimation = false } = {}) {
         if (!this.isKTX2) return;
 
         if (this.lastFrameTime === 0) this.lastFrameTime = nowMs;
@@ -1662,7 +1717,7 @@ export class TileManager {
         }
 
         // --- Layer cycling animation (frame-rate limited) ---
-        if (this.layerCount <= 1 || !this.layerAnimationEnabled) {
+        if (this.layerCount <= 1 || !this.layerAnimationEnabled || suppressLayerAnimation) {
             this.lastFrameTime = nowMs;
             // Still fire per-frame callback so preview textures update even
             // before the first KTX2 tile sets layerCount.
