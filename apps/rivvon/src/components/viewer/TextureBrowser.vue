@@ -598,21 +598,25 @@
         }
     }, { immediate: true });
 
-    function detectTileResolutionFromArrayBuffer(arrayBuffer) {
+    function inspectTileShapeFromArrayBuffer(arrayBuffer) {
         const container = read(new Uint8Array(arrayBuffer));
         const width = Number(container?.pixelWidth);
         const height = Number(container?.pixelHeight);
+        const layerCount = Number(container?.layerCount) || 1;
 
         if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
             return null;
         }
 
-        return Math.max(width, height);
+        return {
+            tileResolution: Math.max(width, height),
+            layerCount,
+        };
     }
 
-    async function detectTileResolutionFromBlob(blob) {
+    async function inspectTileShapeFromBlob(blob) {
         if (!blob) return null;
-        return detectTileResolutionFromArrayBuffer(await blob.arrayBuffer());
+        return inspectTileShapeFromArrayBuffer(await blob.arrayBuffer());
     }
 
     function getTileIndex(tile) {
@@ -1237,14 +1241,56 @@
                     const sourceBundle = await fetchTextureSourceBundle(sourceTexture, (message) => {
                         copyProgress.value = `${progressPrefix}: ${message}`;
                     });
-                    let detectedTileResolution = Number(
+                    let inspectedTileShape = null;
+                    if (sourceBundle.tileEntries[0]?.blob) {
+                        try {
+                            inspectedTileShape = await inspectTileShapeFromBlob(sourceBundle.tileEntries[0].blob);
+                        } catch (inspectionError) {
+                            console.warn('[TextureBrowser] Failed to inspect copied tile shape:', inspectionError);
+                        }
+                    }
+
+                    const recordedTileResolution = Number(
                         sourceBundle?.sourceTextureSet?.tile_resolution
                         ?? sourceTexture?.tile_resolution
                         ?? entry?.resolution
                     ) || null;
+                    const recordedLayerCount = Number(
+                        sourceBundle?.sourceTextureSet?.layer_count
+                        ?? sourceTexture?.layer_count
+                        ?? sourceRootTexture?.layer_count
+                    ) || null;
+                    const detectedTileResolution = Number(
+                        inspectedTileShape?.tileResolution
+                        ?? recordedTileResolution
+                    ) || null;
+                    const detectedLayerCount = Number(
+                        inspectedTileShape?.layerCount
+                        ?? recordedLayerCount
+                    ) || 1;
 
-                    if (!detectedTileResolution && sourceBundle.tileEntries[0]?.blob) {
-                        detectedTileResolution = await detectTileResolutionFromBlob(sourceBundle.tileEntries[0].blob);
+                    if (
+                        inspectedTileShape?.tileResolution
+                        && recordedTileResolution
+                        && inspectedTileShape.tileResolution !== recordedTileResolution
+                    ) {
+                        console.warn('[TextureBrowser] Texture metadata tile_resolution differs from tile payload; using detected tile resolution for cloud copy.', {
+                            textureId: sourceTexture?.id,
+                            recordedTileResolution,
+                            detectedTileResolution: inspectedTileShape.tileResolution,
+                        });
+                    }
+
+                    if (
+                        inspectedTileShape?.layerCount
+                        && recordedLayerCount
+                        && inspectedTileShape.layerCount !== recordedLayerCount
+                    ) {
+                        console.warn('[TextureBrowser] Texture metadata layer_count differs from tile payload; using detected tile layer count for cloud copy.', {
+                            textureId: sourceTexture?.id,
+                            recordedLayerCount,
+                            detectedLayerCount: inspectedTileShape.layerCount,
+                        });
                     }
 
                     const thumbnailBlob = isRootUpload
@@ -1256,11 +1302,7 @@
                         isPublic: copiedIsPublic,
                         parentTextureSetId: isRootUpload ? null : destinationRootId,
                         tileResolution: detectedTileResolution ?? entry?.resolution ?? sourceTexture?.tile_resolution,
-                        layerCount: Number(
-                            sourceBundle?.sourceTextureSet?.layer_count
-                            ?? sourceTexture?.layer_count
-                            ?? sourceRootTexture?.layer_count
-                        ) || 1,
+                        layerCount: detectedLayerCount,
                         crossSectionType: sourceBundle?.sourceTextureSet?.cross_section_type
                             || sourceTexture?.cross_section_type
                             || sourceRootTexture?.cross_section_type
@@ -1489,13 +1531,50 @@
                 const variant = familyResult.variants[variantIndex];
                 const targetResolution = Number(variant.targetResolution);
                 const variantInfo = buildPublishedVariantInfo(sourceTexture, targetResolution);
+                const familyRootLayerCount = Number(
+                    sourceBundle.sourceTextureSet?.layer_count
+                    ?? sourceTexture.layer_count
+                ) || null;
+                const decodedSourceLayerCount = Number(
+                    variant.result.source?.layerCount
+                    ?? familyRootLayerCount
+                ) || null;
+                const outputLayerCount = Number(
+                    variant.result.output?.layerCount
+                    ?? decodedSourceLayerCount
+                ) || null;
+
+                if (
+                    Number.isInteger(familyRootLayerCount)
+                    && Number.isInteger(decodedSourceLayerCount)
+                    && decodedSourceLayerCount !== familyRootLayerCount
+                ) {
+                    throw new Error(
+                        `The source texture decodes to ${decodedSourceLayerCount} layers, but the cloud family root is recorded as ${familyRootLayerCount}. This family was likely published with incorrect layer metadata. Re-copy or republish the root texture before deriving variants.`
+                    );
+                }
+
+                if (
+                    Number.isInteger(outputLayerCount)
+                    && Number.isInteger(decodedSourceLayerCount)
+                    && outputLayerCount !== decodedSourceLayerCount
+                ) {
+                    throw new Error(
+                        `The ${targetResolution}px variant changed layerCount from ${decodedSourceLayerCount} to ${outputLayerCount} during local encoding. Upload was cancelled before publish.`
+                    );
+                }
+
+                const uploadLayerCount = familyRootLayerCount || decodedSourceLayerCount || outputLayerCount;
+                if (!Number.isInteger(uploadLayerCount) || uploadLayerCount <= 0) {
+                    throw new Error(`Unable to determine a valid layerCount for the ${targetResolution}px variant before upload.`);
+                }
 
                 deriveProgress.value = `Uploading ${targetResolution}px variant (${variantIndex + 1}/${familyResult.variants.length}) to ${publishLabel}...`;
                 const publishedVariant = await uploadVariant({
                     name: variantName,
                     tileCount: variant.result.output.tileCount,
                     tileResolution: variant.result.output.pixelWidth,
-                    layerCount: variant.result.output.layerCount,
+                    layerCount: uploadLayerCount,
                     description: sourceTexture.description || null,
                     parentTextureSetId: sourceTexture.id,
                     progressLabelPrefix: `${targetResolution}px variant`,
@@ -1521,7 +1600,7 @@
                     description: sourceTexture.description || '',
                     tileCount: variant.result.output.tileCount,
                     tileResolution: variant.result.output.pixelWidth,
-                    layerCount: variant.result.output.layerCount,
+                    layerCount: uploadLayerCount,
                     crossSectionType: sourceBundle.sourceTextureSet?.cross_section_type
                         || sourceTexture.cross_section_type
                         || 'waves',

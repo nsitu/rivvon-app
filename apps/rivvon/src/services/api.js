@@ -50,7 +50,15 @@ export function useRivvonAPI() {
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Failed to create texture set' }))
-            throw new Error(error.error || 'Failed to create texture set')
+            const hasLayerCountDetails = Number.isInteger(Number(error?.expectedLayerCount))
+                && Number.isInteger(Number(error?.receivedLayerCount))
+            const message = hasLayerCountDetails
+                ? `${error.error || 'Failed to create texture set'} (expected ${error.expectedLayerCount}, received ${error.receivedLayerCount})`
+                : (error.error || 'Failed to create texture set')
+            const requestError = new Error(message)
+            requestError.status = response.status
+            requestError.payload = error
+            throw requestError
         }
 
         return response.json()

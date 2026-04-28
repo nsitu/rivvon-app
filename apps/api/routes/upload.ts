@@ -103,7 +103,12 @@ uploadRoutes.post('/', async (c) => {
     }
 
     if (normalizedLayerCount !== rootLayerCount) {
-      return c.json({ error: 'Derived variants must preserve the family root layerCount' }, 400);
+      return c.json({
+        error: 'Derived variants must preserve the family root layerCount',
+        expectedLayerCount: rootLayerCount,
+        receivedLayerCount: normalizedLayerCount,
+        rootTextureSetId: familyRootTextureSet.id,
+      }, 400);
     }
 
     if (Number.isInteger(rootTileResolution) && normalizedTileResolution >= rootTileResolution) {

@@ -88,6 +88,75 @@ function normalizeTimestamp(value, fallback = Date.now()) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function sanitizeStructuredData(value, seen = new WeakMap()) {
+    if (value === null || value === undefined) {
+        return value;
+    }
+
+    if (
+        typeof value === 'string'
+        || typeof value === 'number'
+        || typeof value === 'boolean'
+        || typeof value === 'bigint'
+    ) {
+        return value;
+    }
+
+    if (value instanceof Date) {
+        return new Date(value.getTime());
+    }
+
+    if (value instanceof Blob) {
+        return new Blob([value], { type: value.type });
+    }
+
+    if (value instanceof ArrayBuffer) {
+        return value.slice(0);
+    }
+
+    if (isArrayBufferView(value)) {
+        return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+    }
+
+    if (Array.isArray(value)) {
+        if (seen.has(value)) {
+            return seen.get(value);
+        }
+
+        const sanitizedArray = [];
+        seen.set(value, sanitizedArray);
+
+        for (const entry of value) {
+            const sanitizedEntry = sanitizeStructuredData(entry, seen);
+            if (sanitizedEntry !== undefined) {
+                sanitizedArray.push(sanitizedEntry);
+            }
+        }
+
+        return sanitizedArray;
+    }
+
+    if (typeof value === 'object') {
+        if (seen.has(value)) {
+            return seen.get(value);
+        }
+
+        const sanitizedObject = {};
+        seen.set(value, sanitizedObject);
+
+        for (const [key, nestedValue] of Object.entries(value)) {
+            const sanitizedValue = sanitizeStructuredData(nestedValue, seen);
+            if (sanitizedValue !== undefined) {
+                sanitizedObject[key] = sanitizedValue;
+            }
+        }
+
+        return sanitizedObject;
+    }
+
+    return undefined;
+}
+
 function buildExplicitFamilyFields(textureSet = {}) {
     const currentId = textureSet?.id || null;
     let rootTextureId = getTextureRootId(textureSet) || currentId;
@@ -154,7 +223,7 @@ function normalizeTextureSetRecord(textureSet = {}) {
             : normalizedRecord.variant_summaries,
     });
 
-    return {
+    return sanitizeStructuredData({
         ...normalizedRecord,
         variant_summaries: variantSummaries,
         available_resolutions: getTextureAvailableResolutions({
@@ -162,7 +231,7 @@ function normalizeTextureSetRecord(textureSet = {}) {
             variant_summaries: variantSummaries,
             available_resolutions: textureSet.available_resolutions,
         }),
-    };
+    });
 }
 
 function hasTextureSetNormalizationChanges(original = {}, normalized = {}) {
@@ -223,7 +292,7 @@ async function putTextureSetRecord(textureSet) {
         transaction.onerror = () => reject(transaction.error);
         transaction.oncomplete = () => resolve();
 
-        transaction.objectStore(STORE_TEXTURE_SETS).put(textureSet);
+        transaction.objectStore(STORE_TEXTURE_SETS).put(sanitizeStructuredData(textureSet));
     });
 }
 
@@ -404,7 +473,7 @@ async function saveTextureSet({
 
         // Save texture set metadata
         const textureSetStore = transaction.objectStore(STORE_TEXTURE_SETS);
-        textureSetStore.add(textureSet);
+        textureSetStore.add(sanitizeStructuredData(textureSet));
 
         // Save each tile
         const tilesStore = transaction.objectStore(STORE_TILES);
@@ -796,7 +865,7 @@ async function cacheCloudTexture({
             resolve(id);
         };
 
-        transaction.objectStore(STORE_TEXTURE_SETS).add(textureSet);
+        transaction.objectStore(STORE_TEXTURE_SETS).add(sanitizeStructuredData(textureSet));
 
         const tilesStore = transaction.objectStore(STORE_TILES);
         for (const entry of tileEntries) {

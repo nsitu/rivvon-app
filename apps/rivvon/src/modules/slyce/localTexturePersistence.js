@@ -105,7 +105,7 @@ export function getProcessedTextureFamilyPlan(source = {}) {
     const effectiveFrameCount = source.effectiveFrameCount ?? getEffectiveFrameCount(source);
     const tileCount = source.tileCount ?? Object.keys(source.ktx2Blobs || source.ktx2BlobURLs || {}).length;
     const tileResolution = Number(source.tileResolution ?? source.potResolution ?? 512) || 512;
-    const layerCount = Number(source.layerCount ?? 60) || 60;
+    const layerCount = Number(source.layerCount ?? source.crossSectionCount ?? 60) || 60;
     const autoDerivedResolutions = normalizeTextureVariantTargetResolutions(
         tileResolution,
         source.autoDeriveResolutions || []
@@ -137,6 +137,7 @@ export function buildFileTextureSaveSource(app, overrides = {}) {
         framesToSample: app.framesToSample,
         frameCount: app.frameCount,
         tileResolution: app.potResolution,
+        layerCount: app.crossSectionCount,
         potResolution: app.potResolution,
         crossSectionCount: app.crossSectionCount,
         crossSectionType: app.crossSectionType,
