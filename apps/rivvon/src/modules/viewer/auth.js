@@ -45,7 +45,7 @@ function notifyListeners() {
 export async function initAuth() {
     if (isInitialized) return;
 
-    console.log('[Auth] Initializing...');
+    console.log('[Auth] Loading...');
 
     try {
         const response = await fetch(`${API_BASE_URL}/api/auth/me`, {

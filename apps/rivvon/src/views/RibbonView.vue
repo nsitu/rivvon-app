@@ -469,7 +469,7 @@
         console.log('[RibbonView] tileManager:', context.tileManager);
         console.log('[RibbonView] scene:', context.scene);
 
-        await startTextureLoading('Initializing...');
+        await startTextureLoading('Loading...');
 
         try {
             // Initialize default ribbon
@@ -1119,7 +1119,7 @@
 
     // Loading state for remote texture
     const isLoadingTexture = ref(true);
-    const loadingProgress = ref('Initializing...');
+    const loadingProgress = ref('Loading...');
 
     async function startTextureLoading(message = 'Loading...') {
         loadingProgress.value = message;
