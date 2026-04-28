@@ -165,6 +165,9 @@ export function useRenderLoop(ctx, deps = {}) {
             const scrollTiltDrivesFlow = ctx.app.viewerControlMode === 'scrollTilt'
                 && !ctx.cinematicCamera.isPlaying.value
                 && ctx.app.flowState !== 'off';
+            const scrollTiltDrivesUndulation = ctx.app.viewerControlMode === 'scrollTilt'
+                && !ctx.cinematicCamera.isPlaying.value
+                && ctx.app.undulationEnabled;
             
             // Advance KTX2 layer cycling and tile flow (for texture animation)
             // Tick all TileManagers (multi-texture mode)
@@ -188,7 +191,7 @@ export function useRenderLoop(ctx, deps = {}) {
             }
             
             // Update ribbon with current time for wave animation
-            if (ctx.ribbonSeries.value) {
+            if (ctx.ribbonSeries.value && !scrollTiltDrivesUndulation) {
                 ctx.ribbonSeries.value.update(elapsedTime);
             }
             
@@ -206,7 +209,7 @@ export function useRenderLoop(ctx, deps = {}) {
             }
 
             if (ctx.app.viewerControlMode === 'scrollTilt' && !ctx.cinematicCamera.isPlaying.value) {
-                ctx.scrollTilt?.tick?.();
+                ctx.scrollTilt?.tick?.(deltaSec, now);
             }
             
             // Call custom render callback if provided

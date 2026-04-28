@@ -125,6 +125,18 @@ export class Ribbon {
         this.waveSpeed = (2 * Math.PI) / undulationPeriod;
     }
 
+    getUndulationPeriod() {
+        return this.tileManager?.getOptimalUndulationPeriod?.(3.0) || 3.0;
+    }
+
+    setUndulationTime(timeSeconds) {
+        if (!Number.isFinite(timeSeconds)) {
+            return;
+        }
+
+        this.updateWaveAnimation(timeSeconds);
+    }
+
     /**
      * Set the segment offset for texture indexing
      * Used by RibbonSeries for continuous texture tiling across multiple ribbons

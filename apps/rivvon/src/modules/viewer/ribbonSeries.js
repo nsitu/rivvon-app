@@ -219,6 +219,20 @@ export class RibbonSeries {
         }
     }
 
+    getUndulationPeriod() {
+        return this.ribbons[0]?.getUndulationPeriod?.() || 3.0;
+    }
+
+    setUndulationTime(timeSeconds) {
+        if (this.ribbons.length === 0 || !Number.isFinite(timeSeconds)) {
+            return;
+        }
+
+        for (const ribbon of this.ribbons) {
+            ribbon.setUndulationTime(timeSeconds);
+        }
+    }
+
     /**
      * Full rebuild update (expensive - recreates all geometry and materials)
      * Use this when ribbon paths change, not for regular animation

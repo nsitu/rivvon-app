@@ -4,11 +4,16 @@ import {
     getCircularTiltAnglesAtProgress,
 } from '../../modules/viewer/mouseTiltMotion';
 
-const SCROLL_TILT_LERP = 0.055;
 const SCROLL_TILT_WHEEL_TURNS_PER_PIXEL = 1 / 1800;
 const SCROLL_TILT_TOUCH_TURNS_PER_PIXEL = 1 / 900;
 const SCROLL_DRIVEN_TILT_SCALE = 0.1;
-const SCROLL_TILT_SETTLE_EPSILON = 0.0001;
+const SCROLL_DRIVEN_FRICTION = 7;
+const SCROLL_DRIVEN_INPUT_SETTLE_MS = 40;
+const SCROLL_DRIVEN_MAX_STEP_SEC = 1 / 20;
+const SCROLL_DRIVEN_MIN_INPUT_STEP_SEC = 1 / 240;
+const SCROLL_DRIVEN_MAX_INPUT_STEP_SEC = 0.08;
+const SCROLL_DRIVEN_VELOCITY_BLEND = 0.35;
+const SCROLL_DRIVEN_VELOCITY_EPSILON = 0.002;
 
 const INTERACTIVE_UI_SELECTOR = [
     'a[href]',
@@ -73,22 +78,90 @@ export function useScrollTilt(ctx) {
     const cameraController = createMouseTiltController();
 
     let isActive = false;
-    let hasInteracted = false;
-    let targetPhase = 0;
     let currentPhase = 0;
+    let scrollVelocity = 0;
+    let lastInputTimestampMs = null;
     let activeTouchId = null;
     let lastTouchPoint = null;
     let texturePhaseTurns = 0;
     let texturePhasePrimed = false;
+    let undulationTimeSec = 0;
+    let undulationPhasePrimed = false;
 
     function resetMotionState() {
-        hasInteracted = false;
-        targetPhase = 0;
         currentPhase = 0;
+        scrollVelocity = 0;
+        lastInputTimestampMs = null;
         activeTouchId = null;
         lastTouchPoint = null;
         texturePhaseTurns = 0;
         texturePhasePrimed = false;
+        undulationTimeSec = 0;
+        undulationPhasePrimed = false;
+    }
+
+    function clampInputStepSec(value) {
+        if (!Number.isFinite(value) || value <= 0) {
+            return SCROLL_DRIVEN_MIN_INPUT_STEP_SEC;
+        }
+
+        return Math.min(SCROLL_DRIVEN_MAX_INPUT_STEP_SEC, Math.max(SCROLL_DRIVEN_MIN_INPUT_STEP_SEC, value));
+    }
+
+    function hasEnabledScrollDrivenResponse() {
+        return !!(
+            ctx.app.scrollDrivenTiltEnabled
+            || (ctx.app.textureAnimationEnabled && ctx.app.scrollDrivenLayerCycleEnabled)
+            || (ctx.app.flowState !== 'off' && ctx.app.scrollDrivenFlowEnabled)
+            || ctx.app.undulationEnabled
+        );
+    }
+
+    function updateMomentumFromInput(deltaTurns, inputTimestampMs) {
+        const numericTimestamp = Number(inputTimestampMs);
+        const inputStepSec = Number.isFinite(numericTimestamp) && Number.isFinite(lastInputTimestampMs)
+            ? clampInputStepSec((numericTimestamp - lastInputTimestampMs) / 1000)
+            : (1 / 60);
+        const nextVelocity = deltaTurns / inputStepSec;
+
+        if (!Number.isFinite(nextVelocity)) {
+            return;
+        }
+
+        if (Math.sign(nextVelocity) !== Math.sign(scrollVelocity) || Math.abs(scrollVelocity) <= SCROLL_DRIVEN_VELOCITY_EPSILON) {
+            scrollVelocity = nextVelocity;
+        } else {
+            scrollVelocity += (nextVelocity - scrollVelocity) * SCROLL_DRIVEN_VELOCITY_BLEND;
+        }
+
+        lastInputTimestampMs = Number.isFinite(numericTimestamp) ? numericTimestamp : null;
+    }
+
+    function applyDrivenDelta(deltaTurns) {
+        if (!Number.isFinite(deltaTurns) || deltaTurns === 0) {
+            return false;
+        }
+
+        let applied = false;
+
+        if (ctx.app.scrollDrivenTiltEnabled) {
+            currentPhase += deltaTurns * SCROLL_DRIVEN_TILT_SCALE;
+            applied = true;
+        }
+
+        applied = syncUndulationProgress(deltaTurns) || applied;
+        applied = syncTextureLayerProgress(deltaTurns) || applied;
+        applied = syncFlowProgress(deltaTurns) || applied;
+
+        return applied;
+    }
+
+    function applyTiltFromCurrentPhase() {
+        if (!ctx.app.scrollDrivenTiltEnabled) {
+            return;
+        }
+
+        cameraController.apply(getCircularTiltAnglesAtProgress(currentPhase));
     }
 
     function hasBlockingViewerContext() {
@@ -134,18 +207,20 @@ export function useScrollTilt(ctx) {
         return !isEventFromInteractiveUI(target);
     }
 
-    function applyPhaseDelta(deltaTurns) {
+    function applyPhaseDelta(deltaTurns, inputTimestampMs = performance.now()) {
         if (!Number.isFinite(deltaTurns) || deltaTurns === 0) {
             return;
         }
 
-        if (ctx.app.scrollDrivenTiltEnabled) {
-            targetPhase += deltaTurns * SCROLL_DRIVEN_TILT_SCALE;
-            hasInteracted = true;
+        if (!hasEnabledScrollDrivenResponse()) {
+            return;
         }
 
-        syncTextureLayerProgress(deltaTurns);
-        syncFlowProgress(deltaTurns);
+        if (!applyDrivenDelta(deltaTurns)) {
+            return;
+        }
+
+        updateMomentumFromInput(deltaTurns, inputTimestampMs);
     }
 
     function getScrollControlledTileManagers() {
@@ -180,7 +255,7 @@ export function useScrollTilt(ctx) {
             || !Number.isFinite(deltaTurns)
             || deltaTurns === 0
         ) {
-            return;
+            return false;
         }
 
         primeTexturePhaseFromScene();
@@ -189,6 +264,34 @@ export function useScrollTilt(ctx) {
         for (const tileManager of getScrollControlledTileManagers()) {
             tileManager.setLayerCycleProgress?.(texturePhaseTurns);
         }
+
+        return true;
+    }
+
+    function primeUndulationPhaseFromScene() {
+        if (undulationPhasePrimed) {
+            return;
+        }
+
+        undulationTimeSec = performance.now() / 1000;
+        undulationPhasePrimed = true;
+    }
+
+    function syncUndulationProgress(deltaTurns) {
+        if (
+            !ctx.app.undulationEnabled
+            || !ctx.ribbonSeries?.value
+            || typeof ctx.ribbonSeries.value.setUndulationTime !== 'function'
+            || !Number.isFinite(deltaTurns)
+            || deltaTurns === 0
+        ) {
+            return false;
+        }
+
+        primeUndulationPhaseFromScene();
+        undulationTimeSec += deltaTurns * (ctx.ribbonSeries.value.getUndulationPeriod?.() || 3.0);
+        ctx.ribbonSeries.value.setUndulationTime(undulationTimeSec);
+        return true;
     }
 
     function syncFlowProgress(deltaTurns) {
@@ -198,12 +301,14 @@ export function useScrollTilt(ctx) {
             || !Number.isFinite(deltaTurns)
             || deltaTurns === 0
         ) {
-            return;
+            return false;
         }
 
         for (const tileManager of getScrollControlledTileManagers()) {
             tileManager.advanceFlowOffset?.(deltaTurns);
         }
+
+        return true;
     }
 
     function _onWheel(event) {
@@ -217,7 +322,7 @@ export function useScrollTilt(ctx) {
         }
 
         event.preventDefault();
-        applyPhaseDelta(pixelDelta * SCROLL_TILT_WHEEL_TURNS_PER_PIXEL);
+        applyPhaseDelta(pixelDelta * SCROLL_TILT_WHEEL_TURNS_PER_PIXEL, event.timeStamp);
     }
 
     function _onTouchStart(event) {
@@ -228,6 +333,8 @@ export function useScrollTilt(ctx) {
         }
 
         const touch = event.touches[0];
+        scrollVelocity = 0;
+        lastInputTimestampMs = Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now();
         activeTouchId = touch.identifier;
         lastTouchPoint = { x: touch.clientX, y: touch.clientY };
     }
@@ -252,7 +359,12 @@ export function useScrollTilt(ctx) {
         }
 
         event.preventDefault();
-        applyPhaseDelta(pixelDelta * SCROLL_TILT_TOUCH_TURNS_PER_PIXEL);
+        const deltaTurns = pixelDelta * SCROLL_TILT_TOUCH_TURNS_PER_PIXEL;
+        if (!applyDrivenDelta(deltaTurns)) {
+            return;
+        }
+
+        updateMomentumFromInput(deltaTurns, event.timeStamp);
     }
 
     function _clearTouchState(touches = null) {
@@ -312,6 +424,7 @@ export function useScrollTilt(ctx) {
         }
 
         primeTexturePhaseFromScene();
+        primeUndulationPhaseFromScene();
         _addListeners();
     }
 
@@ -327,23 +440,29 @@ export function useScrollTilt(ctx) {
         resetMotionState();
     }
 
-    function tick() {
-        if (
-            !isActive
-            || !cameraController.isActive
-            || !ctx.app.scrollDrivenTiltEnabled
-            || !hasInteracted
-        ) {
+    function tick(deltaSec = 0, nowMs = performance.now()) {
+        if (!isActive || !cameraController.isActive) {
             return;
         }
 
-        currentPhase += (targetPhase - currentPhase) * SCROLL_TILT_LERP;
+        const safeDeltaSec = Math.min(SCROLL_DRIVEN_MAX_STEP_SEC, Math.max(0, Number(deltaSec) || 0));
+        const timeSinceInputMs = Number.isFinite(lastInputTimestampMs) ? (nowMs - lastInputTimestampMs) : Infinity;
 
-        if (Math.abs(targetPhase - currentPhase) <= SCROLL_TILT_SETTLE_EPSILON) {
-            currentPhase = targetPhase;
+        if (
+            safeDeltaSec > 0
+            && hasEnabledScrollDrivenResponse()
+            && Math.abs(scrollVelocity) > SCROLL_DRIVEN_VELOCITY_EPSILON
+            && timeSinceInputMs >= SCROLL_DRIVEN_INPUT_SETTLE_MS
+        ) {
+            applyDrivenDelta(scrollVelocity * safeDeltaSec);
+            scrollVelocity *= Math.exp(-SCROLL_DRIVEN_FRICTION * safeDeltaSec);
+
+            if (Math.abs(scrollVelocity) <= SCROLL_DRIVEN_VELOCITY_EPSILON) {
+                scrollVelocity = 0;
+            }
         }
 
-        cameraController.apply(getCircularTiltAnglesAtProgress(currentPhase));
+        applyTiltFromCurrentPhase();
     }
 
     function syncWithMode(mode) {
@@ -363,6 +482,7 @@ export function useScrollTilt(ctx) {
         () => ctx.ribbonSeries.value,
         () => {
             cameraController.setRibbonSeries(ctx.ribbonSeries.value);
+            undulationPhasePrimed = false;
 
             if (isActive && cameraController.isActive) {
                 cameraController.captureBaseline(ctx.controls.value?.target?.clone());
@@ -391,9 +511,7 @@ export function useScrollTilt(ctx) {
                 return;
             }
 
-            targetPhase = 0;
             currentPhase = 0;
-            hasInteracted = false;
             cameraController.restoreBaseline?.();
         },
     );
@@ -409,6 +527,30 @@ export function useScrollTilt(ctx) {
         () => ctx.app.textureAnimationEnabled,
         () => {
             texturePhasePrimed = false;
+        },
+    );
+
+    watch(
+        () => ctx.app.undulationEnabled,
+        () => {
+            undulationPhasePrimed = false;
+        },
+    );
+
+    watch(
+        () => [
+            ctx.app.scrollDrivenTiltEnabled,
+            ctx.app.scrollDrivenLayerCycleEnabled,
+            ctx.app.scrollDrivenFlowEnabled,
+            ctx.app.textureAnimationEnabled,
+            ctx.app.undulationEnabled,
+            ctx.app.flowState,
+        ],
+        () => {
+            if (!hasEnabledScrollDrivenResponse()) {
+                scrollVelocity = 0;
+                lastInputTimestampMs = null;
+            }
         },
     );
 
