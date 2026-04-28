@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent } from 'vue';
+    import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent, nextTick } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useViewerStore } from '../stores/viewerStore';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
@@ -469,9 +469,7 @@
         console.log('[RibbonView] tileManager:', context.tileManager);
         console.log('[RibbonView] scene:', context.scene);
 
-        // Show loading indicator during initial setup
-        isLoadingTexture.value = true;
-        loadingProgress.value = 'Initializing...';
+        await startTextureLoading('Initializing...');
 
         try {
             // Initialize default ribbon
@@ -484,8 +482,7 @@
 
             isReady.value = true;
         } finally {
-            isLoadingTexture.value = false;
-            loadingProgress.value = '';
+            finishTextureLoading();
         }
     }
 
@@ -1014,8 +1011,7 @@
     // Load local texture by ID
     async function loadLocalTexture(textureId) {
         console.log('[RibbonView] Loading local texture:', textureId);
-        isLoadingTexture.value = true;
-        loadingProgress.value = 'Loading local texture...';
+        await startTextureLoading('Loading local texture...');
 
         try {
             const textureSet = await getLocalTextureSet(textureId);
@@ -1057,8 +1053,7 @@
             console.error('[RibbonView] Failed to load local texture:', error);
             alert('Failed to load local texture: ' + error.message);
         } finally {
-            isLoadingTexture.value = false;
-            loadingProgress.value = '';
+            finishTextureLoading();
         }
     }
 
@@ -1075,8 +1070,7 @@
      */
     async function handleMultiTextureSelect(selections) {
         console.log('[RibbonView] Multi-texture selection:', selections.length, 'textures');
-        isLoadingTexture.value = true;
-        loadingProgress.value = 'Loading multiple textures...';
+        await startTextureLoading('Loading multiple textures...');
 
         try {
             // Build texture set entries in parallel
@@ -1119,20 +1113,32 @@
             console.error('[RibbonView] Failed to load multiple textures:', error);
             alert('Failed to load textures: ' + error.message);
         } finally {
-            isLoadingTexture.value = false;
-            loadingProgress.value = '';
+            finishTextureLoading();
         }
     }
 
     // Loading state for remote texture
-    const isLoadingTexture = ref(false);
-    const loadingProgress = ref('');
+    const isLoadingTexture = ref(true);
+    const loadingProgress = ref('Initializing...');
+
+    async function startTextureLoading(message = 'Loading...') {
+        loadingProgress.value = message;
+
+        if (!isLoadingTexture.value) {
+            isLoadingTexture.value = true;
+            await nextTick();
+        }
+    }
+
+    function finishTextureLoading() {
+        isLoadingTexture.value = false;
+        loadingProgress.value = '';
+    }
 
     // Handle texture selection from browser
     async function handleTextureSelect(texture) {
         console.log('[RibbonView] Loading remote texture:', texture.name);
-        isLoadingTexture.value = true;
-        loadingProgress.value = 'Loading...';
+        await startTextureLoading('Loading...');
 
         try {
             // Check if this texture is cached locally
@@ -1224,8 +1230,7 @@
                 alert('Failed to load texture: ' + error.message);
             }
         } finally {
-            isLoadingTexture.value = false;
-            loadingProgress.value = '';
+            finishTextureLoading();
         }
     }
 
