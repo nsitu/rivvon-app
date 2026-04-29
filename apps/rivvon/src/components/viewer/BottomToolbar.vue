@@ -88,7 +88,7 @@
     ];
 
     const viewerControlOptions = [
-        { label: 'OrbitControls', value: 'orbit', icon: '3d_rotation' },
+        { label: 'Orbit Controls', value: 'orbit', icon: '3d_rotation' },
         { label: 'Mouse Tilt', value: 'mouseTilt', icon: 'open_with' },
         { label: 'Head Tracking', value: 'headTracking', icon: 'face' },
         { label: 'Scroll Driven', value: 'scrollTilt', icon: '360' }
@@ -272,6 +272,7 @@
         'finish-drawing',
         'finish-walk',
         'viewer-control-mode-change',
+        'reset-viewer',
         'recenter-head-tracking',
         'cinematic-capture',
         'cinematic-toggle',
@@ -818,6 +819,15 @@
                                 </Select>
                             </div>
 
+                            <button
+                                type="button"
+                                class="tools-option"
+                                @click="emit('reset-viewer')"
+                            >
+                                <span class="material-symbols-outlined">restart_alt</span>
+                                <span>Reset View</span>
+                            </button>
+
                             <div
                                 v-if="showHeadTrackingTools"
                                 class="tools-status-card"
@@ -870,7 +880,8 @@
                                     <span>Camera Tilt</span>
                                 </label>
                                 <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenTiltEnabled ? 'On' : 'Off' }}</span>
+                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenTiltEnabled ? 'On' :
+                                        'Off' }}</span>
                                     <ToggleSwitch
                                         inputId="scrollDrivenTiltToggle"
                                         v-model="scrollDrivenTiltModel"
@@ -890,7 +901,8 @@
                                     <span>Layer Cycle</span>
                                 </label>
                                 <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenLayerCycleEnabled ? 'On' : 'Off' }}</span>
+                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenLayerCycleEnabled ?
+                                        'On' : 'Off' }}</span>
                                     <ToggleSwitch
                                         inputId="scrollDrivenLayerCycleToggle"
                                         v-model="scrollDrivenLayerCycleModel"
@@ -910,7 +922,8 @@
                                     <span>Conveyor Flow</span>
                                 </label>
                                 <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenFlowEnabled ? 'On' : 'Off' }}</span>
+                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenFlowEnabled ? 'On' :
+                                        'Off' }}</span>
                                     <ToggleSwitch
                                         inputId="scrollDrivenFlowToggle"
                                         v-model="scrollDrivenFlowModel"
@@ -961,7 +974,7 @@
                                 </label>
                                 <div class="tools-toggle-control">
                                     <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off'
-                                    }}</span>
+                                        }}</span>
                                     <ToggleSwitch
                                         inputId="undulationToggle"
                                         v-model="undulationModel"
@@ -1011,7 +1024,7 @@
                             </label>
                             <div class="tools-toggle-control">
                                 <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                                    }}</span>
+                                }}</span>
                                 <ToggleSwitch
                                     inputId="textureAnimationToggle"
                                     v-model="textureAnimationModel"
@@ -1121,7 +1134,7 @@
                         <div class="tools-section-items">
                             <div class="tools-slider">
                                 <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                                        }}x</span></label>
+                                }}x</span></label>
                                 <input
                                     type="range"
                                     min="0.4"
@@ -1166,7 +1179,7 @@
                             <template v-if="app.helixEnabled">
                                 <div class="tools-slider">
                                     <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                            }}</span></label>
+                                    }}</span></label>
                                     <input
                                         type="range"
                                         min="0.1"
@@ -1178,7 +1191,7 @@
                                 </div>
                                 <div class="tools-slider">
                                     <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                            }}</span></label>
+                                    }}</span></label>
                                     <input
                                         type="range"
                                         min="1"
@@ -1241,7 +1254,7 @@
                                 </label>
                                 <div class="tools-toggle-control">
                                     <span class="tools-hint tools-toggle-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP'
-                                        }}</span>
+                                    }}</span>
                                     <ToggleSwitch
                                         inputId="cornerNarrowingToggle"
                                         v-model="cornerNarrowingModel"
@@ -1270,7 +1283,7 @@
                                 @click="handleCinematicToggle"
                             >
                                 <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                    }}</span>
+                                }}</span>
                                 <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                                 <span class="tools-hint">P</span>
                             </button>
@@ -1285,7 +1298,7 @@
                                     v-if="props.cinematicRoiCount > 0"
                                     class="tools-badge"
                                 >{{ props.cinematicRoiCount
-                                    }}</span>
+                                }}</span>
                                 <span class="tools-hint">X</span>
                             </button>
                         </div>

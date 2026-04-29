@@ -1,4 +1,4 @@
-export const EXPORT_LOGO_SRC = '/rivvon.svg';
+export const EXPORT_LOGO_SRC = '/made-with-rivvon.svg';
 export const EXPORT_LOGO_AREA_RATIO = 0.005;
 
 const EXPORT_LOGO_FALLBACK_ASPECT_RATIO = 533.2 / 88.4;

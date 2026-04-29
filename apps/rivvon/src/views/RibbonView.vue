@@ -254,6 +254,41 @@
         app.requestHeadTrackingRecenter();
     }
 
+    function handleViewerReset() {
+        const canvas = threeCanvasRef.value;
+        if (!canvas?.resetCamera) {
+            return;
+        }
+
+        const activeMode = app.viewerControlMode;
+        const headTrackingController = canvas.headTracking?.cameraController?.value
+            ?? canvas.headTracking?.cameraController
+            ?? null;
+
+        if (activeMode === 'mouseTilt') {
+            canvas.mouseTilt?.deactivate?.();
+            canvas.resetCamera();
+            canvas.mouseTilt?.activate?.();
+            return;
+        }
+
+        if (activeMode === 'scrollTilt') {
+            canvas.scrollTilt?.deactivate?.();
+            canvas.resetCamera();
+            canvas.scrollTilt?.activate?.();
+            return;
+        }
+
+        if (activeMode === 'headTracking') {
+            headTrackingController?.restoreBaseline?.();
+            canvas.resetCamera();
+            canvas.headTracking?.recenter?.();
+            return;
+        }
+
+        canvas.resetCamera();
+    }
+
     async function enterRealtimeMode(options = {}) {
         ensureOrbitControlsForInteraction(
             'realtime-capture',
@@ -1456,6 +1491,7 @@
             @open-texture-camera="openCreateTextureCameraMode"
             @close-realtime-mode="handleRealtimeClose"
             @viewer-control-mode-change="handleViewerControlModeChange"
+            @reset-viewer="handleViewerReset"
             @recenter-head-tracking="handleHeadTrackingRecenter"
             @toggle-flow="toggleFlow"
             @open-text-panel="app.showTextPanel"

@@ -7,7 +7,7 @@
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
-    import { EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
+    import { EXPORT_LOGO_SRC, EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
@@ -425,6 +425,21 @@
                                     <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
                                 </div>
                             </div>
+
+                            <div
+                                v-if="logoOverlayEnabled"
+                                class="logo-preview-card"
+                            >
+                                <div class="logo-preview-label">Overlay Preview</div>
+                                <div class="logo-preview-frame">
+                                    <img
+                                        :src="EXPORT_LOGO_SRC"
+                                        alt="Rivvon export logo preview"
+                                        class="logo-preview-image"
+                                        decoding="async"
+                                    >
+                                </div>
+                            </div>
                         </div>
 
                         <div class="summary-row">
@@ -712,6 +727,46 @@
         font-weight: 500;
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.6));
         text-align: right;
+    }
+
+    .logo-preview-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding: 0.85rem;
+        border-radius: 0.85rem;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .logo-preview-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.55));
+    }
+
+    .logo-preview-frame {
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+        min-height: 6.5rem;
+        padding: 0.9rem;
+        border-radius: 0.75rem;
+        background:
+            radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 45%),
+            linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        overflow: hidden;
+    }
+
+    .logo-preview-image {
+        display: block;
+        width: min(12rem, 60%);
+        height: auto;
+        max-width: 100%;
+        filter: drop-shadow(0 0.35rem 0.75rem rgba(0, 0, 0, 0.35));
     }
 
     .summary-row {

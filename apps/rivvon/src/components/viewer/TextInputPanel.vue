@@ -270,28 +270,6 @@
 
                         <div class="form-group">
                             <div class="field-label-row">
-                                <label>Live preview</label>
-                                <span class="field-mode">{{ selectedFontName }}</span>
-                            </div>
-                            <div
-                                class="text-preview-card"
-                                :class="{ empty: !enteredTextPreviewSvg }"
-                            >
-                                <div
-                                    v-if="enteredTextPreviewSvg"
-                                    class="text-preview-svg"
-                                    v-html="enteredTextPreviewSvg"
-                                />
-                                <p
-                                    v-else
-                                    class="text-preview-placeholder"
-                                >{{ previewHelperText }}</p>
-                            </div>
-                            <p class="input-hint">{{ previewHelperText }}</p>
-                        </div>
-
-                        <div class="form-group">
-                            <div class="field-label-row">
                                 <label for="textInputField">Enter text:</label>
                                 <span class="field-mode">{{ isMultiline ? 'Multiline' : 'Single line' }}</span>
                             </div>
@@ -321,6 +299,28 @@
                                     'Press Enter to generate.'
                                 }}
                             </p>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="field-label-row">
+                                <label>Live preview</label>
+                                <span class="field-mode">{{ selectedFontName }}</span>
+                            </div>
+                            <div
+                                class="text-preview-card"
+                                :class="{ empty: !enteredTextPreviewSvg }"
+                            >
+                                <div
+                                    v-if="enteredTextPreviewSvg"
+                                    class="text-preview-svg"
+                                    v-html="enteredTextPreviewSvg"
+                                />
+                                <p
+                                    v-else
+                                    class="text-preview-placeholder"
+                                >{{ previewHelperText }}</p>
+                            </div>
+                            <p class="input-hint">{{ previewHelperText }}</p>
                         </div>
 
                         <div
