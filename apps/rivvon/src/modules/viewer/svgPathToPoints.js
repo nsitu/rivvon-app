@@ -6,6 +6,196 @@ export const POINTS_PER_UNIT = 1.5;      // Points per unit of path length (afte
 export const MIN_POINTS_PER_PATH = 50;   // Minimum points per subpath
 export const MAX_POINTS_PER_PATH = 2000; // Maximum points per subpath
 
+const SUPPORTED_SVG_GEOMETRY_SELECTOR = 'path, line, polyline, polygon, rect, circle, ellipse';
+
+function parseNumericAttribute(value, fallback = 0) {
+    const numericValue = Number.parseFloat(value);
+    return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function parsePointPairs(pointsValue) {
+    if (typeof pointsValue !== 'string' || !pointsValue.trim()) {
+        return [];
+    }
+
+    const coordinates = pointsValue.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g) ?? [];
+    const points = [];
+
+    for (let index = 0; index < coordinates.length - 1; index += 2) {
+        const x = Number.parseFloat(coordinates[index]);
+        const y = Number.parseFloat(coordinates[index + 1]);
+
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            points.push([x, y]);
+        }
+    }
+
+    return points;
+}
+
+function serializePointsToPath(points, { closePath = false } = {}) {
+    if (points.length < 2) {
+        return '';
+    }
+
+    const [firstPoint, ...remainingPoints] = points;
+    const commands = [`M ${firstPoint[0]} ${firstPoint[1]}`];
+
+    remainingPoints.forEach(([x, y]) => {
+        commands.push(`L ${x} ${y}`);
+    });
+
+    if (closePath) {
+        commands.push('Z');
+    }
+
+    return commands.join(' ');
+}
+
+function serializeRectToPath(element) {
+    const x = parseNumericAttribute(element.getAttribute('x'));
+    const y = parseNumericAttribute(element.getAttribute('y'));
+    const width = parseNumericAttribute(element.getAttribute('width'));
+    const height = parseNumericAttribute(element.getAttribute('height'));
+
+    if (width <= 0 || height <= 0) {
+        return '';
+    }
+
+    const rawRx = element.getAttribute('rx');
+    const rawRy = element.getAttribute('ry');
+
+    let rx = parseNumericAttribute(rawRx);
+    let ry = parseNumericAttribute(rawRy);
+
+    if (rawRx && !rawRy) {
+        ry = rx;
+    } else if (!rawRx && rawRy) {
+        rx = ry;
+    }
+
+    rx = Math.max(0, Math.min(rx, width / 2));
+    ry = Math.max(0, Math.min(ry, height / 2));
+
+    if (rx === 0 || ry === 0) {
+        return `M ${x} ${y} H ${x + width} V ${y + height} H ${x} Z`;
+    }
+
+    return [
+        `M ${x + rx} ${y}`,
+        `H ${x + width - rx}`,
+        `A ${rx} ${ry} 0 0 1 ${x + width} ${y + ry}`,
+        `V ${y + height - ry}`,
+        `A ${rx} ${ry} 0 0 1 ${x + width - rx} ${y + height}`,
+        `H ${x + rx}`,
+        `A ${rx} ${ry} 0 0 1 ${x} ${y + height - ry}`,
+        `V ${y + ry}`,
+        `A ${rx} ${ry} 0 0 1 ${x + rx} ${y}`,
+        'Z'
+    ].join(' ');
+}
+
+function serializeCircleToPath(element) {
+    const cx = parseNumericAttribute(element.getAttribute('cx'));
+    const cy = parseNumericAttribute(element.getAttribute('cy'));
+    const r = parseNumericAttribute(element.getAttribute('r'));
+
+    if (r <= 0) {
+        return '';
+    }
+
+    return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy} Z`;
+}
+
+function serializeEllipseToPath(element) {
+    const cx = parseNumericAttribute(element.getAttribute('cx'));
+    const cy = parseNumericAttribute(element.getAttribute('cy'));
+    const rx = parseNumericAttribute(element.getAttribute('rx'));
+    const ry = parseNumericAttribute(element.getAttribute('ry'));
+
+    if (rx <= 0 || ry <= 0) {
+        return '';
+    }
+
+    return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
+}
+
+function serializeSvgGeometryToPath(element) {
+    const tagName = element.tagName?.toLowerCase();
+
+    switch (tagName) {
+        case 'path':
+            return element.getAttribute('d') ?? '';
+        case 'line': {
+            const x1 = parseNumericAttribute(element.getAttribute('x1'));
+            const y1 = parseNumericAttribute(element.getAttribute('y1'));
+            const x2 = parseNumericAttribute(element.getAttribute('x2'));
+            const y2 = parseNumericAttribute(element.getAttribute('y2'));
+            return `M ${x1} ${y1} L ${x2} ${y2}`;
+        }
+        case 'polyline':
+            return serializePointsToPath(parsePointPairs(element.getAttribute('points')));
+        case 'polygon':
+            return serializePointsToPath(parsePointPairs(element.getAttribute('points')), { closePath: true });
+        case 'rect':
+            return serializeRectToPath(element);
+        case 'circle':
+            return serializeCircleToPath(element);
+        case 'ellipse':
+            return serializeEllipseToPath(element);
+        default:
+            return '';
+    }
+}
+
+function getCombinedTransform(element) {
+    const transforms = [];
+    let current = element;
+
+    while (current?.getAttribute) {
+        const transform = current.getAttribute('transform')?.trim();
+        if (transform) {
+            transforms.unshift(transform);
+        }
+        current = current.parentElement;
+    }
+
+    return transforms.join(' ');
+}
+
+function toNormalizedPathData(element) {
+    const pathData = serializeSvgGeometryToPath(element);
+    if (!pathData) {
+        return '';
+    }
+
+    const transform = getCombinedTransform(element);
+    if (!transform) {
+        return pathData;
+    }
+
+    try {
+        return new SvgPath(pathData).transform(transform).toString();
+    } catch (error) {
+        console.warn('[SVG] Failed to apply transform to geometry:', error);
+        return pathData;
+    }
+}
+
+export function extractSupportedSvgPathData(svgDoc) {
+    const geometryElements = svgDoc.querySelectorAll(SUPPORTED_SVG_GEOMETRY_SELECTOR);
+    const normalizedPathData = [];
+
+    geometryElements.forEach((geometryElement) => {
+        const pathData = toNormalizedPathData(geometryElement);
+        if (pathData) {
+            normalizedPathData.push(pathData);
+        }
+    });
+
+    return normalizedPathData;
+}
+
 /**
  * Calculate the length of an SVG path element
  * @param {string} pathData - The SVG path data string
@@ -35,8 +225,8 @@ export function calculateSvgPathLengths(svgContent) {
         const parserError = svgDoc.querySelector("parsererror");
         if (parserError) return result;
         
-        const paths = svgDoc.querySelectorAll("path");
-        if (!paths || paths.length === 0) return result;
+        const paths = extractSupportedSvgPathData(svgDoc);
+        if (!paths.length) return result;
         
         // Get scale from viewBox
         const svgElement = svgDoc.querySelector("svg");
@@ -50,8 +240,7 @@ export function calculateSvgPathLengths(svgContent) {
         }
         
         // Calculate lengths for each subpath
-        paths.forEach((path) => {
-            const pathData = path.getAttribute("d");
+        paths.forEach((pathData) => {
             if (!pathData) return;
             
             // Convert to absolute and split into subpaths
@@ -217,7 +406,7 @@ export function svgPathToPointsMulti(pathData, numPoints = 100, scale = 1, z = 0
 }
 
 /**
- * Parses SVG content and extracts points from the first path
+ * Parses SVG content and extracts points from the first supported SVG geometry
  * @param {string} svgContent - SVG content as string
  * @param {number} numPoints - Number of points to sample
  * @param {number} scale - Scale factor for the points
@@ -238,17 +427,10 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
             return [];
         }
 
-        // Get the first path element
-        const path = svgDoc.querySelector("path");
-        if (!path) {
-            console.error("No path found in SVG");
-            return null;
-        }
-
-        // Get path data
-        const pathData = path.getAttribute("d");
+        const paths = extractSupportedSvgPathData(svgDoc);
+        const pathData = paths[0];
         if (!pathData) {
-            console.error("Path has no data attribute");
+            console.error("No supported SVG geometry found");
             return null;
         }
 
@@ -275,12 +457,12 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
 }
 
 /**
- * Parses SVG content and extracts points from ALL paths
+ * Parses SVG content and extracts points from all supported SVG geometry
  * @param {string} svgContent - SVG content as string
  * @param {number} numPoints - Number of points to sample per path
  * @param {number} scale - Scale factor for the points
  * @param {number} z - Z position for all points
- * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per path), or empty array if parsing fails
+ * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per geometry path), or empty array if parsing fails
  */
 export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1, z = 0) {
     try {
@@ -295,10 +477,9 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
             return [];
         }
 
-        // Get ALL path elements
-        const paths = svgDoc.querySelectorAll("path");
-        if (!paths || paths.length === 0) {
-            console.error("No paths found in SVG");
+        const paths = extractSupportedSvgPathData(svgDoc);
+        if (!paths.length) {
+            console.error("No supported SVG geometry found");
             return [];
         }
 
@@ -318,10 +499,9 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
 
         // Convert each path to points, splitting on M commands for subpaths
         const pathsPoints = [];
-        paths.forEach((path, index) => {
-            const pathData = path.getAttribute("d");
+        paths.forEach((pathData, index) => {
             if (!pathData) {
-                console.warn(`Path ${index} has no data attribute, skipping`);
+                console.warn(`Geometry ${index} has no path data, skipping`);
                 return;
             }
 
@@ -352,7 +532,7 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
  * @param {number} options.maxPoints - Maximum points per subpath (default: 2000)
  * @param {number} scale - Scale factor for the points
  * @param {number} z - Z position for all points
- * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per path)
+ * @returns {Array<Array<THREE.Vector3>>} Array of point arrays (one per geometry path)
  */
 export function parseSvgContentDynamicResolution(svgContent, options = {}, scale = 1, z = 0) {
     const {
@@ -371,9 +551,9 @@ export function parseSvgContentDynamicResolution(svgContent, options = {}, scale
             return [];
         }
         
-        const paths = svgDoc.querySelectorAll("path");
-        if (!paths || paths.length === 0) {
-            console.error("No paths found in SVG");
+        const paths = extractSupportedSvgPathData(svgDoc);
+        if (!paths.length) {
+            console.error("No supported SVG geometry found");
             return [];
         }
         
@@ -393,8 +573,7 @@ export function parseSvgContentDynamicResolution(svgContent, options = {}, scale
         const pathsPoints = [];
         let totalPoints = 0;
         
-        paths.forEach((pathEl, index) => {
-            const pathData = pathEl.getAttribute("d");
+        paths.forEach((pathData, index) => {
             if (!pathData) return;
             
             // Convert to absolute for proper subpath splitting
@@ -457,7 +636,7 @@ export function parseSvgContentDynamicResolution(svgContent, options = {}, scale
 }
 
 /**
- * Loads an SVG file and returns points from the first path
+ * Loads an SVG file and returns points from the first supported SVG geometry
  * @param {string} url - URL to SVG file
  * @param {number} numPoints - Number of points to sample
  * @param {number} scale - Scale factor for the points
