@@ -1,6 +1,36 @@
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 import { RealtimeCamera } from './realtimeCamera.js';
 
+function getNominalFrameDuration(fileInfo) {
+    const duration = Number(fileInfo?.duration);
+    const frameCount = Number(fileInfo?.nb_frames);
+
+    if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(frameCount) || frameCount <= 0) {
+        return null;
+    }
+
+    return duration / frameCount;
+}
+
+function getSampleRangeTimestamps(fileInfo, frameStart, frameEnd) {
+    const frameDuration = getNominalFrameDuration(fileInfo);
+
+    if (!frameDuration) {
+        return null;
+    }
+
+    return {
+        // Target the middle of the requested frame so the decoder can jump to the nearest
+        // keyframe without us iterating from frame 1 in userland.
+        startTimestamp: frameStart > 1
+            ? Math.max(0, (frameStart - 1) * frameDuration + frameDuration / 2)
+            : 0,
+        endTimestamp: Number.isFinite(frameEnd)
+            ? Math.max(0, frameEnd * frameDuration)
+            : Number.POSITIVE_INFINITY
+    };
+}
+
 export class CameraFrameSource {
     constructor(options = {}) {
         this._camera = new RealtimeCamera(options);
@@ -68,24 +98,34 @@ export class VideoFileFrameSource {
 
         const videoTrack = await input.getPrimaryVideoTrack();
         const sink = new VideoSampleSink(videoTrack);
+        const sampleRange = getSampleRangeTimestamps(this.fileInfo, this.frameStart, this.frameEnd);
+        const sampleIterator = sampleRange
+            ? sink.samples(sampleRange.startTimestamp, sampleRange.endTimestamp)
+            : sink.samples();
 
-        let absoluteFrameNumber = 0;
+        let absoluteFrameNumber = sampleRange ? this.frameStart - 1 : 0;
         let frameNumber = 0;
 
-        for await (const videoSample of sink.samples()) {
+        if (sampleRange && this.frameStart > 1 && typeof this.onSeekProgress === 'function') {
+            this.onSeekProgress(this.frameStart);
+        }
+
+        for await (const videoSample of sampleIterator) {
             absoluteFrameNumber++;
 
-            if (absoluteFrameNumber < this.frameStart) {
-                videoSample.close();
-                if (typeof this.onSeekProgress === 'function' && (absoluteFrameNumber === 1 || absoluteFrameNumber % 30 === 0)) {
-                    this.onSeekProgress(absoluteFrameNumber);
+            if (!sampleRange) {
+                if (absoluteFrameNumber < this.frameStart) {
+                    videoSample.close();
+                    if (typeof this.onSeekProgress === 'function' && (absoluteFrameNumber === 1 || absoluteFrameNumber % 30 === 0)) {
+                        this.onSeekProgress(absoluteFrameNumber);
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            if (absoluteFrameNumber > this.frameEnd) {
-                videoSample.close();
-                break;
+                if (absoluteFrameNumber > this.frameEnd) {
+                    videoSample.close();
+                    break;
+                }
             }
 
             if (absoluteFrameNumber === this.frameStart && this.frameStart > 1 && typeof this.onRangeStart === 'function') {

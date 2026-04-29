@@ -166,7 +166,10 @@ const processVideo = async (settings) => {
         frameStart,
         frameEnd,
         onSeekProgress(currentFrame) {
-            app.setStatus('Seeking', `Skipping to frame ${frameStart} (at frame ${currentFrame})`);
+            const progressText = currentFrame && currentFrame !== frameStart
+                ? `Seeking to frame ${frameStart} (decoder at frame ${currentFrame})`
+                : `Seeking to frame ${frameStart}`;
+            app.setStatus('Seeking', progressText);
         },
         onRangeStart() {
             app.removeStatus('Seeking');
