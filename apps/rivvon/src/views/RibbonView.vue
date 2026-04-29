@@ -114,6 +114,8 @@
     }
 
     let textureServicePromise = null;
+    let textToSvgPromise = null;
+    let textToSvgInstance = null;
 
     async function fetchTextureSetById(textureId) {
         if (!textureServicePromise) {
@@ -122,6 +124,35 @@
 
         const { fetchTextureSet } = await textureServicePromise;
         return fetchTextureSet(textureId);
+    }
+
+    async function ensureTextToSvg() {
+        if (textToSvgInstance) {
+            return textToSvgInstance;
+        }
+
+        if (!textToSvgPromise) {
+            textToSvgPromise = import('../composables/viewer/useTextToSvg.js')
+                .then(async ({ useTextToSvg }) => {
+                    const instance = useTextToSvg();
+                    await instance.init();
+                    textToSvgInstance = instance;
+                    return instance;
+                })
+                .finally(() => {
+                    textToSvgPromise = null;
+                });
+        }
+
+        return textToSvgPromise;
+    }
+
+    function getQueryStringValue(value) {
+        if (Array.isArray(value)) {
+            return typeof value[0] === 'string' ? value[0] : '';
+        }
+
+        return typeof value === 'string' ? value : '';
     }
 
     const returnToCreateTextureOnRealtimeClose = ref(false);
@@ -473,7 +504,10 @@
 
         try {
             // Initialize default ribbon
-            await initializeDefaultRibbon();
+            const initializedFromQueryText = await initializeTextRibbonFromQuery();
+            if (!initializedFromQueryText) {
+                await initializeDefaultRibbon();
+            }
 
             // Check for texture deep link
             if (route.params.textureId) {
@@ -525,6 +559,44 @@
             }
         } catch (error) {
             console.error('[RibbonView] Failed to load default ribbon:', error);
+        }
+    }
+
+    async function initializeTextRibbonFromQuery() {
+        if (!threeCanvasRef.value) {
+            return false;
+        }
+
+        const sourceText = getQueryStringValue(route.query.text);
+        if (!sourceText.trim()) {
+            return false;
+        }
+
+        loadingProgress.value = 'Rendering text...';
+
+        try {
+            const textRenderer = await ensureTextToSvg();
+            const multiline = sourceText.includes('\n');
+            const lineHeight = 1.1;
+            const selectedFontId = textRenderer.selectedFont.value;
+            const paths = await textRenderer.textToPoints(sourceText, {
+                font: selectedFontId,
+                multiline,
+                lineHeight,
+            });
+
+            if (!paths.length) {
+                return false;
+            }
+
+            await applyDrawingPathsToViewer(paths);
+            setCurrentTextureMetadata(null);
+            app.setThumbnailUrl(null);
+            console.log('[RibbonView] Text ribbon created from query parameter');
+            return true;
+        } catch (error) {
+            console.error('[RibbonView] Failed to render text from query parameter:', error);
+            return false;
         }
     }
 
