@@ -8,6 +8,10 @@ import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 import App from './App.vue';
 import router from './router';
+
+
+import * as Sentry from "@sentry/vue";
+
 import './style.css';
 
 // Material Icons - combined from both apps
@@ -56,6 +60,17 @@ const RivvonPreset = definePreset(Aura, {
 });
 
 const app = createApp(App);
+
+Sentry.init({
+  app,
+  dsn: "https://810b200fd1dff85ee556805da4b48931@o4507833959710720.ingest.us.sentry.io/4511309425016832",
+  // Setting this option to true will send default PII data to Sentry.
+  // For example, automatic IP address collection on events
+  sendDefaultPii: true
+});
+
+
+
 
 // Pinia store
 const pinia = createPinia();
@@ -154,3 +169,7 @@ async function installTextureVariantDevHelpers() {
         }
     }
 })();
+
+
+
+myUndefinedFunction();
