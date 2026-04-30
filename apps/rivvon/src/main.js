@@ -170,6 +170,4 @@ async function installTextureVariantDevHelpers() {
     }
 })();
 
-
-
-myUndefinedFunction();
+ 
