@@ -1,3 +1,5 @@
+It is possible that we could segment the user's hand via ML models and the webcam, and then convert the mask to a vector polyline. "Touch Grass" could then be literally personallized per user with a grass texture mapped to their own hand.
+
 Whenever an emoji is used we should increment its popularity value in a list of frequently used emoji. we can then add a tab to the emoji seciton to show the user's previous emoji in one place.
 
 maybe we can share shapes as well as textures. this gives us an svg library as well as a texture library. the svg would need to be simplified, so as to keep only the paths that will be used for the ribbon, and not retain any extra colour.

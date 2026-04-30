@@ -184,6 +184,7 @@ export const useViewerStore = defineStore('viewer', {
         
         // Tools panel
         toolsPanelVisible: false,
+        toolsPanelOriginalState: null, // Captured state snapshot when tools panel opens
 
         // Emoji picker
         emojiPickerVisible: false,
@@ -405,10 +406,77 @@ export const useViewerStore = defineStore('viewer', {
         
         showToolsPanel() {
             this.toolsPanelVisible = true;
+            this.captureToolsPanelOriginalState();
         },
 
         hideToolsPanel() {
             this.toolsPanelVisible = false;
+            this.toolsPanelOriginalState = null;
+        },
+
+        /**
+         * Capture the current settings state as the "original" for tools panel change tracking.
+         * Called when the tools panel opens.
+         */
+        captureToolsPanelOriginalState() {
+            this.toolsPanelOriginalState = {
+                viewerControlMode: this.viewerControlMode,
+                scrollDrivenTiltEnabled: this.scrollDrivenTiltEnabled,
+                scrollDrivenLayerCycleEnabled: this.scrollDrivenLayerCycleEnabled,
+                scrollDrivenFlowEnabled: this.scrollDrivenFlowEnabled,
+                flowState: this.flowState,
+                flowSpeed: this.flowSpeed,
+                undulationEnabled: this.undulationEnabled,
+                flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
+                textureAnimationEnabled: this.textureAnimationEnabled,
+                textureRepeatMode: this.textureRepeatMode,
+                preferredTextureMaxResolution: this.preferredTextureMaxResolution,
+                renderFilterMode: this.renderFilterMode,
+                ribbonWidthScale: this.ribbonWidthScale,
+                helixMode: this.helixMode,
+                helixRadius: this.helixRadius,
+                helixPitch: this.helixPitch,
+                helixStrandWidth: this.helixStrandWidth,
+                capStyle: this.capStyle,
+                cornerNarrowingEnabled: this.cornerNarrowingEnabled,
+                showTextureMetadataOverlay: this.showTextureMetadataOverlay,
+                screenWakeLockEnabled: this.screenWakeLockEnabled,
+            };
+        },
+
+        /**
+         * Check if any settings in the tools panel have changed since it was opened.
+         * @returns {boolean} true if any settings have changed from their original values
+         */
+        hasToolsPanelChanges() {
+            if (!this.toolsPanelOriginalState) {
+                return false;
+            }
+
+            const original = this.toolsPanelOriginalState;
+            return (
+                this.viewerControlMode !== original.viewerControlMode ||
+                this.scrollDrivenTiltEnabled !== original.scrollDrivenTiltEnabled ||
+                this.scrollDrivenLayerCycleEnabled !== original.scrollDrivenLayerCycleEnabled ||
+                this.scrollDrivenFlowEnabled !== original.scrollDrivenFlowEnabled ||
+                this.flowState !== original.flowState ||
+                this.flowSpeed !== original.flowSpeed ||
+                this.undulationEnabled !== original.undulationEnabled ||
+                this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
+                this.textureAnimationEnabled !== original.textureAnimationEnabled ||
+                this.textureRepeatMode !== original.textureRepeatMode ||
+                this.preferredTextureMaxResolution !== original.preferredTextureMaxResolution ||
+                this.renderFilterMode !== original.renderFilterMode ||
+                this.ribbonWidthScale !== original.ribbonWidthScale ||
+                this.helixMode !== original.helixMode ||
+                this.helixRadius !== original.helixRadius ||
+                this.helixPitch !== original.helixPitch ||
+                this.helixStrandWidth !== original.helixStrandWidth ||
+                this.capStyle !== original.capStyle ||
+                this.cornerNarrowingEnabled !== original.cornerNarrowingEnabled ||
+                this.showTextureMetadataOverlay !== original.showTextureMetadataOverlay ||
+                this.screenWakeLockEnabled !== original.screenWakeLockEnabled
+            );
         },
 
         showEmojiPicker() {
@@ -634,5 +702,6 @@ export const useViewerStore = defineStore('viewer', {
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,
             cornerNarrowingEnabled: state.cornerNarrowingEnabled,
         }),
+        toolsPanelHasChanges: (state) => state.hasToolsPanelChanges(),
     }
 });

@@ -70,8 +70,14 @@ export function useRenderFilter(ctx) {
 
                 void main() {
                     vec4 color = texture2D(tDiffuse, vUv);
-                    float luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-                    gl_FragColor = vec4(vec3(luminance), color.a);
+
+                    // Handle premultiplied-alpha inputs so luminance is computed
+                    // from the original color before transparency is reapplied.
+                    float alpha = color.a;
+                    vec3 unpremultiplied = alpha > 0.0 ? (color.rgb / alpha) : vec3(0.0);
+                    float luminance = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722));
+                    vec3 premultipliedFiltered = vec3(luminance) * alpha;
+                    gl_FragColor = vec4(premultipliedFiltered, alpha);
                 }
             `,
             transparent: true,
@@ -82,15 +88,20 @@ export function useRenderFilter(ctx) {
 
     function createWebGPUFilterMaterial(texture) {
         const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-        const { texture: textureNode, uv, float, vec2, vec3, vec4, dot } = webGPUDeps.threeTSL;
+        const { texture: textureNode, uv, float, vec2, vec3, vec4, dot, max } = webGPUDeps.threeTSL;
 
         const material = new MeshBasicNodeMaterial();
         const baseUv = uv();
         const sampleUv = vec2(baseUv.x, float(1).sub(baseUv.y));
         const sampledColor = textureNode(texture, sampleUv);
-        const luminance = dot(sampledColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        const alpha = sampledColor.a;
+        const safeAlpha = max(alpha, float(0.00001));
+        const unpremultiplied = sampledColor.rgb.div(safeAlpha);
+        const luminance = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722));
+        const premultipliedFiltered = vec3(luminance, luminance, luminance).mul(alpha);
 
-        material.colorNode = vec4(vec3(luminance, luminance, luminance), sampledColor.a);
+        // Match WebGL path: filter first in unpremultiplied space, then reapply alpha.
+        material.colorNode = vec4(premultipliedFiltered, alpha);
         material.transparent = true;
         material.depthWrite = false;
         material.depthTest = false;
@@ -155,6 +166,54 @@ export function useRenderFilter(ctx) {
         return true;
     }
 
+    function applyCapMaskFilterOverrides(scene) {
+        const overrides = [];
+
+        scene.traverse((obj) => {
+            const materials = Array.isArray(obj.material)
+                ? obj.material
+                : (obj.material ? [obj.material] : []);
+
+            materials.forEach((material) => {
+                if (!material || !material._hasCapMask) {
+                    return;
+                }
+
+                overrides.push({
+                    material,
+                    transparent: material.transparent,
+                    depthWrite: material.depthWrite,
+                    depthTest: material.depthTest,
+                    alphaTest: material.alphaTest,
+                    alphaToCoverage: material.alphaToCoverage,
+                });
+
+                // For post-processing to preserve cap transparency correctly,
+                // use real alpha blending instead of alpha-to-coverage while
+                // retaining depth behavior to avoid sorting artifacts.
+                material.transparent = true;
+                material.depthWrite = true;
+                material.depthTest = true;
+                material.alphaTest = Math.max(material.alphaTest || 0, 0.05);
+                material.alphaToCoverage = false;
+                material.needsUpdate = true;
+            });
+        });
+
+        return overrides;
+    }
+
+    function restoreCapMaskFilterOverrides(overrides) {
+        overrides.forEach(({ material, transparent, depthWrite, depthTest, alphaTest, alphaToCoverage }) => {
+            material.transparent = transparent;
+            material.depthWrite = depthWrite;
+            material.depthTest = depthTest;
+            material.alphaTest = alphaTest;
+            material.alphaToCoverage = alphaToCoverage;
+            material.needsUpdate = true;
+        });
+    }
+
     function renderScene(target = null) {
         const renderer = ctx.renderer.value;
         if (!renderer || !ctx.scene.value || !ctx.camera.value) {
@@ -167,9 +226,23 @@ export function useRenderFilter(ctx) {
             return;
         }
 
-        renderer.setRenderTarget(filterRenderTarget);
-        renderer.render(ctx.scene.value, ctx.camera.value);
+        // Save current clear color and alpha
+        const savedClearColor = renderer.getClearColor(new THREE.Color());
+        const savedClearAlpha = renderer.getClearAlpha();
+        const capMaskOverrides = applyCapMaskFilterOverrides(ctx.scene.value);
 
+        try {
+            // Render scene to filter target with transparent clear color
+            renderer.setClearColor(0x000000, 0); // Clear to transparent black
+            renderer.setRenderTarget(filterRenderTarget);
+            renderer.clear(); // Explicitly clear the render target
+            renderer.render(ctx.scene.value, ctx.camera.value);
+        } finally {
+            restoreCapMaskFilterOverrides(capMaskOverrides);
+        }
+
+        // Restore clear color and render filtered result to target
+        renderer.setClearColor(savedClearColor, savedClearAlpha);
         renderer.setRenderTarget(target);
         renderer.render(filterScene, filterCamera);
     }
