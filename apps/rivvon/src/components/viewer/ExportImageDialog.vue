@@ -258,7 +258,7 @@
                             <Button
                                 type="button"
                                 class="preview-refresh-button"
-                                severity="contrast"
+                                variant="outlined"
                                 @click="handleRefreshPreview"
                             >
                                 <span class="material-symbols-outlined">restart_alt</span>
@@ -290,7 +290,7 @@
 
                 <div class="export-image-panel-footer">
                     <Button
-                        class="export-image-download-button"
+                        severity="success"
                         :disabled="!imageDataUrl"
                         @click="handleDownload"
                     >
@@ -299,7 +299,8 @@
                     </Button>
                     <Button
                         v-if="canShare"
-                        class="export-image-share-button"
+                        severity="info"
+                        variant="outlined"
                         :disabled="!imageDataUrl"
                         @click="handleShare"
                     >
@@ -307,7 +308,8 @@
                         <span>Share</span>
                     </Button>
                     <Button
-                        class="export-image-close-button"
+                        severity="secondary"
+                        variant="outlined"
                         @click="handleClose"
                     >
                         <span class="material-symbols-outlined">close</span>
@@ -464,18 +466,7 @@
         top: 0.6rem;
         right: 0.6rem;
         z-index: 2;
-        min-height: 2rem;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.62) !important;
-        border: 1px solid rgba(255, 255, 255, 0.28) !important;
-        color: rgba(255, 255, 255, 0.96) !important;
-        backdrop-filter: blur(6px);
-        padding: 0 0.65rem !important;
-        gap: 0.35rem;
-    }
-
-    :deep(.preview-refresh-button:hover) {
-        background: rgba(0, 0, 0, 0.78) !important;
+        min-height: 2.1rem;
     }
 
     :deep(.preview-refresh-button .material-symbols-outlined) {
@@ -527,62 +518,12 @@
         grid-template-columns: 1fr;
     }
 
-    :deep(.export-image-download-button),
-    :deep(.export-image-share-button),
-    :deep(.export-image-close-button) {
+    .export-image-panel-footer :deep(.p-button) {
         width: 100%;
         min-height: 2.75rem;
-        border-radius: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        font-size: 0.92rem;
-        font-weight: 600;
-        transition: background 0.2s ease, border-color 0.2s ease;
     }
 
-    :deep(.export-image-download-button) {
-        color: #0f172a;
-        background: #22c55e !important;
-        border: 1px solid transparent !important;
-    }
-
-    :deep(.export-image-download-button:hover) {
-        background: #16a34a;
-    }
-
-    :deep(.export-image-download-button:disabled) {
-        opacity: 0.4;
-    }
-
-    :deep(.export-image-share-button) {
-        color: rgba(255, 255, 255, 0.95);
-        border: 1px solid rgba(59, 130, 246, 0.7) !important;
-        background: rgba(59, 130, 246, 0.25) !important;
-    }
-
-    :deep(.export-image-share-button:hover) {
-        background: rgba(59, 130, 246, 0.4) !important;
-    }
-
-    :deep(.export-image-share-button:disabled) {
-        opacity: 0.4;
-    }
-
-    :deep(.export-image-close-button) {
-        color: rgba(255, 255, 255, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.18) !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    :deep(.export-image-close-button:hover) {
-        background: rgba(255, 255, 255, 0.14);
-    }
-
-    :deep(.export-image-download-button .material-symbols-outlined),
-    :deep(.export-image-share-button .material-symbols-outlined),
-    :deep(.export-image-close-button .material-symbols-outlined) {
+    .export-image-panel-footer :deep(.material-symbols-outlined) {
         font-size: 1.2rem;
     }
 
@@ -596,17 +537,7 @@
         }
 
         .export-image-panel-footer {
-            grid-template-columns: 1fr auto;
-        }
-
-        :deep(.export-image-share-button) {
-            width: auto;
-            padding: 0 1.2rem;
-        }
-
-        :deep(.export-image-close-button) {
-            width: auto;
-            padding: 0 1.2rem;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
     }
 </style>
