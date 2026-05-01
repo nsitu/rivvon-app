@@ -258,6 +258,7 @@
     const emit = defineEmits([
         'enter-draw-mode',
         'enter-walk-mode',
+        'enter-contour-mode',
         'open-drawing-browser',
         'toggle-flow',
         'open-text-panel',
@@ -402,6 +403,8 @@
             app.hideTextPanel();
         } else if (app.emojiPickerVisible) {
             app.hideEmojiPicker();
+        } else if (app.contourPanelVisible) {
+            app.hideContourPanel();
         } else if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');
         } else if (props.exportVideoVisible) {
@@ -417,7 +420,7 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || !!props.activeToolbarOverlay || props.exportVideoVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
+        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.contourPanelVisible || !!props.activeToolbarOverlay || props.exportVideoVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
 
     const drawGroupActive = computed(() => (
@@ -426,6 +429,7 @@
         || app.drawingBrowserVisible
         || app.textPanelVisible
         || app.emojiPickerVisible
+        || app.contourPanelVisible
     ));
 
     const textureGroupActive = computed(() => (
@@ -499,6 +503,9 @@
         }
         if (app.emojiPickerVisible) {
             app.hideEmojiPicker();
+        }
+        if (app.contourPanelVisible) {
+            app.hideContourPanel();
         }
         if (app.toolsPanelVisible) {
             app.hideToolsPanel();
@@ -605,6 +612,19 @@
                 }
 
                 activateContext(() => emit('enter-draw-mode'));
+            }
+        },
+        {
+            label: 'Contour',
+            icon: 'vr180_create2d',
+            active: app.contourPanelVisible,
+            command: () => {
+                if (app.contourPanelVisible) {
+                    handleBack();
+                    return;
+                }
+
+                activateContext(() => emit('enter-contour-mode'));
             }
         },
         {
@@ -982,7 +1002,7 @@
                                 </label>
                                 <div class="tools-toggle-control">
                                     <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off'
-                                        }}</span>
+                                    }}</span>
                                     <ToggleSwitch
                                         inputId="undulationToggle"
                                         v-model="undulationModel"
@@ -1032,7 +1052,7 @@
                             </label>
                             <div class="tools-toggle-control">
                                 <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                                }}</span>
+                                    }}</span>
                                 <ToggleSwitch
                                     inputId="textureAnimationToggle"
                                     v-model="textureAnimationModel"
@@ -1142,7 +1162,7 @@
                         <div class="tools-section-items">
                             <div class="tools-slider">
                                 <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                                }}x</span></label>
+                                        }}x</span></label>
                                 <input
                                     type="range"
                                     min="0.4"
@@ -1187,7 +1207,7 @@
                             <template v-if="app.helixEnabled">
                                 <div class="tools-slider">
                                     <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                    }}</span></label>
+                                            }}</span></label>
                                     <input
                                         type="range"
                                         min="0.1"
@@ -1199,7 +1219,7 @@
                                 </div>
                                 <div class="tools-slider">
                                     <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                    }}</span></label>
+                                            }}</span></label>
                                     <input
                                         type="range"
                                         min="1"
@@ -1262,7 +1282,7 @@
                                 </label>
                                 <div class="tools-toggle-control">
                                     <span class="tools-hint tools-toggle-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP'
-                                    }}</span>
+                                        }}</span>
                                     <ToggleSwitch
                                         inputId="cornerNarrowingToggle"
                                         v-model="cornerNarrowingModel"
@@ -1291,7 +1311,7 @@
                                 @click="handleCinematicToggle"
                             >
                                 <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                                    }}</span>
                                 <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                                 <span class="tools-hint">P</span>
                             </button>
@@ -1306,7 +1326,7 @@
                                     v-if="props.cinematicRoiCount > 0"
                                     class="tools-badge"
                                 >{{ props.cinematicRoiCount
-                                }}</span>
+                                    }}</span>
                                 <span class="tools-hint">X</span>
                             </button>
                         </div>

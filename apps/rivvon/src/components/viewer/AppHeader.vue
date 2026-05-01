@@ -56,6 +56,7 @@
         if (app.textureBrowserVisible) return 'Textures';
         if (app.emojiPickerVisible) return 'Emoji';
         if (app.textPanelVisible) return 'Text';
+        if (app.contourPanelVisible) return 'Contour';
         if (app.toolsPanelVisible) return 'Tools';
         if (app.aboutPanelVisible) return 'About';
         return null;
@@ -93,6 +94,8 @@
             app.hideEmojiPicker();
         } else if (app.textPanelVisible) {
             app.hideTextPanel();
+        } else if (app.contourPanelVisible) {
+            app.hideContourPanel();
         } else if (app.toolsPanelVisible) {
             app.hideToolsPanel();
         } else if (app.aboutPanelVisible) {

@@ -31,7 +31,8 @@ loadMaterialSymbols([
     'checklist','check_box','check_box_outline_blank','monitoring',
     'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule','directions_walk',
     'play_circle','download_done','line_curve','crop_free','layers','content_cut','tag','aspect_ratio','cloud_done','subtitles','sync_alt',
-    'repeat','swap_horiz'
+    'repeat','swap_horiz','vr180_create2d',
+    'camera','flip_camera_android','upload_file','photo_camera'
 ]);
 
 // Import utilities

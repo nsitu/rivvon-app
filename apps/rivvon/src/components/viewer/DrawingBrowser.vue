@@ -312,6 +312,8 @@
                 return 'Emoji';
             case 'svg':
                 return 'SVG';
+            case 'contour':
+                return 'Contour';
             default:
                 return 'Drawing';
         }
@@ -366,6 +368,10 @@
             return `${drawing.point_count} points`;
         }
 
+        if (drawing?.kind === 'contour' && Number.isFinite(drawing?.path_count)) {
+            return `${drawing.path_count} path${drawing.path_count === 1 ? '' : 's'}`;
+        }
+
         if (Number.isFinite(drawing?.path_count)) {
             return `${drawing.path_count} path${drawing.path_count === 1 ? '' : 's'}`;
         }
@@ -407,6 +413,10 @@
 
         if (drawing.kind === 'svg' && typeof drawing.source?.fileName === 'string') {
             return drawing.source.fileName.trim();
+        }
+
+        if (drawing.kind === 'contour' && Number.isFinite(drawing.path_count)) {
+            return `${drawing.path_count} contour path${drawing.path_count === 1 ? '' : 's'}`;
         }
 
         if (drawing.kind === 'walk' && Number.isFinite(drawing.point_count)) {

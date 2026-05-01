@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg']);
+const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg', 'contour']);
 const DRAWING_STORAGE_PROVIDER_VALUES = new Set(['local', 'google-drive', 'r2']);
 
 function normalizeFiniteNumber(value, fallback = 0) {
@@ -57,6 +57,8 @@ function getKindLabel(kind) {
             return 'Emoji';
         case 'svg':
             return 'SVG';
+        case 'contour':
+            return 'Contour';
         default:
             return 'Drawing';
     }

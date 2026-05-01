@@ -20,6 +20,7 @@
     import CountdownProgressBar from '../components/viewer/CountdownProgressBar.vue';
     const TextInputPanel = defineAsyncComponent(() => import('../components/viewer/TextInputPanel.vue'));
     const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
+    const ContourPanel = defineAsyncComponent(() => import('../components/viewer/ContourPanel.vue'));
     const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
@@ -679,6 +680,14 @@
         app.setWalkMode(true);
     }
 
+    function enterContourMode() {
+        ensureOrbitControlsForInteraction(
+            'contour-capture',
+            'Head tracking switched back to OrbitControls for contour capture.',
+        );
+        app.showContourPanel();
+    }
+
     function getSavedDrawingName(kind, source = null) {
         const fallbackName = createDefaultDrawingName(kind);
 
@@ -729,6 +738,13 @@
             const strokeCount = Number(source.strokeCount);
             if (Number.isFinite(strokeCount) && strokeCount > 1) {
                 return `Gesture ${strokeCount} strokes`;
+            }
+        }
+
+        if (kind === 'contour') {
+            const pathCount = Number(source.pathCount);
+            if (Number.isFinite(pathCount) && pathCount > 0) {
+                return `Contour ${pathCount} path${pathCount === 1 ? '' : 's'}`;
             }
         }
 
@@ -904,6 +920,33 @@
         await createDrawingAndAutosave({
             kind: 'emoji',
             paths,
+            source,
+        });
+    }
+
+    // Contour handler
+    async function handleContourGenerate(payload) {
+        const { paths, source } = unpackGeneratedDrawingPayload(payload);
+        if (!threeCanvasRef.value || paths.length === 0) return;
+
+        app.hideContourPanel();
+
+        // inferContours returns plain {x, y} objects; convert to THREE.Vector3
+        // so buildFromMultiplePaths can call p.clone() on each point.
+        const vector3Paths = paths
+            .map(path => path.map(p => new THREE.Vector3(p.x, p.y, 0)))
+            .filter(path => path.length >= 2);
+
+        if (vector3Paths.length === 0) return;
+
+        // Match other drawing modalities by fitting the extracted contour bounds
+        // to a consistent drawing size, so subjects do not appear tiny when the
+        // source image contains large empty margins.
+        const normalizedPaths = normalizePointsMultiPath(vector3Paths);
+
+        await createDrawingAndAutosave({
+            kind: 'contour',
+            paths: normalizedPaths,
             source,
         });
     }
@@ -1486,6 +1529,7 @@
             :export-video-visible="showExportDialog"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
+            @enter-contour-mode="enterContourMode"
             @open-drawing-browser="openDrawingBrowser"
             @open-texture-file="openCreateTextureFileMode"
             @open-texture-camera="openCreateTextureCameraMode"
@@ -1534,6 +1578,11 @@
         <EmojiPickerPanel
             v-model:visible="app.emojiPickerVisible"
             @generate="handleEmojiGenerate"
+        />
+        <ContourPanel
+            v-if="app.contourPanelVisible"
+            :active="app.contourPanelVisible"
+            @contour-complete="handleContourGenerate"
         />
         <DrawingBrowser
             v-if="app.drawingBrowserVisible"

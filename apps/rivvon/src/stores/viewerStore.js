@@ -189,6 +189,9 @@ export const useViewerStore = defineStore('viewer', {
         // Emoji picker
         emojiPickerVisible: false,
 
+        // Contour panel
+        contourPanelVisible: false,
+
         // About panel
         aboutPanelVisible: false,
 
@@ -485,6 +488,14 @@ export const useViewerStore = defineStore('viewer', {
 
         hideEmojiPicker() {
             this.emojiPickerVisible = false;
+        },
+
+        showContourPanel() {
+            this.contourPanelVisible = true;
+        },
+
+        hideContourPanel() {
+            this.contourPanelVisible = false;
         },
 
         showAboutPanel() {
