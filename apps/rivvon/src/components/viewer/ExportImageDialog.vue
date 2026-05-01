@@ -10,9 +10,10 @@
         filename: { type: String, default: 'rivvon-export.png' },
         imageWidth: { type: Number, default: 0 },
         imageHeight: { type: Number, default: 0 },
+        canShare: { type: Boolean, default: false },
     });
 
-    const emit = defineEmits(['update:visible', 'download', 'recapture-preview']);
+    const emit = defineEmits(['update:visible', 'download', 'share', 'recapture-preview']);
 
     function handleClose() {
         emit('update:visible', false);
@@ -123,6 +124,15 @@
 
     function handleDownload() {
         emit('download', {
+            width: resolvedWidth.value,
+            height: resolvedHeight.value,
+            quality: quality.value,
+            format: format.value,
+        });
+    }
+
+    function handleShare() {
+        emit('share', {
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             quality: quality.value,
@@ -286,6 +296,15 @@
                     >
                         <span class="material-symbols-outlined">download_done</span>
                         <span>Download Image</span>
+                    </Button>
+                    <Button
+                        v-if="canShare"
+                        class="export-image-share-button"
+                        :disabled="!imageDataUrl"
+                        @click="handleShare"
+                    >
+                        <span class="material-symbols-outlined">share</span>
+                        <span>Share</span>
                     </Button>
                     <Button
                         class="export-image-close-button"
@@ -509,6 +528,7 @@
     }
 
     :deep(.export-image-download-button),
+    :deep(.export-image-share-button),
     :deep(.export-image-close-button) {
         width: 100%;
         min-height: 2.75rem;
@@ -536,6 +556,20 @@
         opacity: 0.4;
     }
 
+    :deep(.export-image-share-button) {
+        color: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(59, 130, 246, 0.7) !important;
+        background: rgba(59, 130, 246, 0.25) !important;
+    }
+
+    :deep(.export-image-share-button:hover) {
+        background: rgba(59, 130, 246, 0.4) !important;
+    }
+
+    :deep(.export-image-share-button:disabled) {
+        opacity: 0.4;
+    }
+
     :deep(.export-image-close-button) {
         color: rgba(255, 255, 255, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.18) !important;
@@ -547,6 +581,7 @@
     }
 
     :deep(.export-image-download-button .material-symbols-outlined),
+    :deep(.export-image-share-button .material-symbols-outlined),
     :deep(.export-image-close-button .material-symbols-outlined) {
         font-size: 1.2rem;
     }
@@ -562,6 +597,11 @@
 
         .export-image-panel-footer {
             grid-template-columns: 1fr auto;
+        }
+
+        :deep(.export-image-share-button) {
+            width: auto;
+            padding: 0 1.2rem;
         }
 
         :deep(.export-image-close-button) {

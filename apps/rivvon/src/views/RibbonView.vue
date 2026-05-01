@@ -11,6 +11,8 @@
     import { useRivvonAPI } from '../services/api.js';
     import { useDrawingStorage } from '../services/drawingStorage.js';
     import { useLocalStorage } from '../services/localStorage.js';
+    import Toast from 'primevue/toast';
+    import { useToast } from 'primevue/usetoast';
     import * as THREE from 'three';
 
     // Components
@@ -37,6 +39,7 @@
     const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
+    const toast = useToast();
     const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
@@ -1020,19 +1023,36 @@
         showExportImageDialog.value = true;
     }
 
-    function handleDownloadExportImage(settings = {}) {
+    async function handleDownloadExportImage(settings = {}) {
         const format = settings.format === 'jpeg' || settings.format === 'webp' ? settings.format : 'png';
         const extension = format === 'jpeg' ? 'jpg' : format;
         const baseName = (exportImagePreview.value.filename || 'rivvon-export.png').replace(/\.[^.]+$/, '');
         const filename = `${baseName}.${extension}`;
 
         if (threeCanvasRef.value?.exportImageWithSettings) {
-            threeCanvasRef.value.exportImageWithSettings({
+            const didStartDownload = await threeCanvasRef.value.exportImageWithSettings({
                 width: settings.width,
                 height: settings.height,
                 format,
                 quality: settings.quality,
                 filename,
+            });
+
+            if (!didStartDownload) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Download Failed',
+                    detail: 'Unable to generate image for download.',
+                    life: 3600,
+                });
+                return;
+            }
+
+            toast.add({
+                severity: 'success',
+                summary: 'Download Started',
+                detail: 'Image saved to Downloads folder.',
+                life: 3600,
             });
             return;
         }
@@ -1045,6 +1065,122 @@
         link.download = filename;
         link.href = exportImagePreview.value.dataURL;
         link.click();
+
+        toast.add({
+            severity: 'success',
+            summary: 'Download Started',
+
+            detail: 'Image saved to Downloads folder.',
+            life: 3600,
+        });
+    }
+
+    const isMobileDevice = computed(() => {
+        if (typeof navigator === 'undefined') return false;
+        if (typeof navigator.userAgentData?.mobile === 'boolean') {
+            return navigator.userAgentData.mobile;
+        }
+
+        return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    });
+
+    const canImageShare = computed(() => {
+        if (!isMobileDevice.value || typeof navigator === 'undefined') {
+            return false;
+        }
+
+        return typeof navigator.share === 'function';
+    });
+
+    function getImageMimeType(format) {
+        if (format === 'jpeg') return 'image/jpeg';
+        if (format === 'webp') return 'image/webp';
+        return 'image/png';
+    }
+
+    async function dataUrlToBlob(dataUrl) {
+        const response = await fetch(dataUrl);
+        return response.blob();
+    }
+
+    async function handleShareExportImage(settings = {}) {
+        if (!canImageShare.value) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Share Not Available',
+                detail: 'Native sharing is only available on supported mobile browsers.',
+                life: 3200,
+            });
+            return;
+        }
+
+        const format = settings.format === 'jpeg' || settings.format === 'webp' ? settings.format : 'png';
+        const extension = format === 'jpeg' ? 'jpg' : format;
+        const baseName = (exportImagePreview.value.filename || 'rivvon-export.png').replace(/\.[^.]+$/, '');
+        const filename = `${baseName}.${extension}`;
+
+        try {
+            let blob = null;
+
+            if (threeCanvasRef.value?.captureImageBlobWithSettings) {
+                const capture = await threeCanvasRef.value.captureImageBlobWithSettings({
+                    width: settings.width,
+                    height: settings.height,
+                    format,
+                    quality: settings.quality,
+                });
+
+                blob = capture?.blob ?? null;
+            }
+
+            if (!blob && exportImagePreview.value?.dataURL) {
+                blob = await dataUrlToBlob(exportImagePreview.value.dataURL);
+            }
+
+            if (!blob) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Share Failed',
+                    detail: 'Unable to prepare image for sharing.',
+                    life: 3600,
+                });
+                return;
+            }
+
+            const mimeType = blob.type || getImageMimeType(format);
+            const file = new File([blob], filename, { type: mimeType });
+            const shareData = { files: [file], title: filename };
+
+            if (typeof navigator.canShare === 'function' && !navigator.canShare(shareData)) {
+                toast.add({
+                    severity: 'warn',
+                    summary: 'Share Not Supported',
+                    detail: 'This browser cannot share image files directly. Use Download instead.',
+                    life: 3600,
+                });
+                return;
+            }
+
+            await navigator.share(shareData);
+            toast.add({
+                severity: 'success',
+                summary: 'Shared',
+                detail: 'Image shared successfully.',
+                life: 2400,
+            });
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return;
+            }
+
+            console.error('Image share failed:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'Share Failed',
+                detail: 'Could not open the native share sheet on this device.',
+                life: 3600,
+            });
+        }
     }
 
     function handleRecaptureExportImagePreview(settings = {}) {
@@ -1735,10 +1871,14 @@
             :filename="exportImagePreview.filename"
             :image-width="exportImagePreview.width"
             :image-height="exportImagePreview.height"
+            :can-share="canImageShare"
             @update:visible="handleExportImageDialogVisibleChange"
             @recapture-preview="handleRecaptureExportImagePreview"
             @download="handleDownloadExportImage"
+            @share="handleShareExportImage"
         />
+
+        <Toast position="top-center" />
 
         <!-- Contextual technical overlay (press D to toggle) -->
         <ViewerTechnicalOverlay

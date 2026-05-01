@@ -314,19 +314,57 @@ export function useSceneExport(ctx, deps = {}) {
         return qualityMap[quality] ?? qualityMap.high;
     }
 
+    function dataURLToBlob(dataURL) {
+        const [header, base64] = dataURL.split(',');
+        const mimeMatch = /data:(.*?);base64/.exec(header);
+        const mimeType = mimeMatch?.[1] || 'application/octet-stream';
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+
+        for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+
+        return new Blob([bytes], { type: mimeType });
+    }
+
+    function canvasToBlob(canvas, mimeType, qualityEnabled, quality) {
+        return new Promise((resolve) => {
+            if (typeof canvas.toBlob !== 'function') {
+                const fallbackDataURL = qualityEnabled
+                    ? canvas.toDataURL(mimeType, quality)
+                    : canvas.toDataURL(mimeType);
+                resolve(dataURLToBlob(fallbackDataURL));
+                return;
+            }
+
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    resolve(blob);
+                    return;
+                }
+
+                const fallbackDataURL = qualityEnabled
+                    ? canvas.toDataURL(mimeType, quality)
+                    : canvas.toDataURL(mimeType);
+                resolve(dataURLToBlob(fallbackDataURL));
+            }, mimeType, qualityEnabled ? quality : undefined);
+        });
+    }
+
     /**
-     * Export the current scene as an image using explicit output settings.
+     * Capture the current scene as an image Blob using explicit output settings.
      * @param {Object} options
      * @param {number} options.width
      * @param {number} options.height
      * @param {'png'|'jpeg'|'webp'} options.format
      * @param {'very-low'|'low'|'medium'|'high'|'very-high'|number} options.quality
-     * @param {string} options.filename
+     * @returns {Promise<{ blob: Blob, width: number, height: number, format: string, mimeType: string } | null>}
      */
-    function exportImageWithSettings(options = {}) {
+    async function captureImageBlobWithSettings(options = {}) {
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
-            console.error('[ThreeSetup] Cannot export image with settings - not initialized');
-            return;
+            console.error('[ThreeSetup] Cannot capture image blob with settings - not initialized');
+            return null;
         }
 
         const renderer = ctx.renderer.value;
@@ -335,7 +373,6 @@ export function useSceneExport(ctx, deps = {}) {
         const width = Math.max(1, Math.round(Number(options.width) || canvas.width));
         const height = Math.max(1, Math.round(Number(options.height) || canvas.height));
         const format = options.format ?? 'png';
-        const filename = options.filename || `rivvon-export.${format === 'jpeg' ? 'jpg' : format}`;
 
         const mimeType = getImageMimeType(format);
         const quality = resolveImageQuality(options.quality);
@@ -358,18 +395,21 @@ export function useSceneExport(ctx, deps = {}) {
 
             renderScene();
 
-            const dataURL = qualityEnabled
-                ? canvas.toDataURL(mimeType, quality)
-                : canvas.toDataURL(mimeType);
+            const blob = await canvasToBlob(canvas, mimeType, qualityEnabled, quality);
+            if (!blob) {
+                return null;
+            }
 
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = dataURL;
-            link.click();
-
-            console.log('[ThreeSetup] Image exported with settings:', filename, width, height, format, quality);
+            return {
+                blob,
+                width,
+                height,
+                format,
+                mimeType,
+            };
         } catch (error) {
-            console.error('[ThreeSetup] Failed to export image with settings:', error);
+            console.error('[ThreeSetup] Failed to capture image blob with settings:', error);
+            return null;
         } finally {
             renderer.setPixelRatio(savedPixelRatio);
             renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
@@ -380,6 +420,46 @@ export function useSceneExport(ctx, deps = {}) {
                 ctx.controls.value.update();
             }
         }
+    }
+
+    /**
+     * Export the current scene as an image using explicit output settings.
+     * @param {Object} options
+     * @param {number} options.width
+     * @param {number} options.height
+     * @param {'png'|'jpeg'|'webp'} options.format
+     * @param {'very-low'|'low'|'medium'|'high'|'very-high'|number} options.quality
+     * @param {string} options.filename
+     */
+    async function exportImageWithSettings(options = {}) {
+        const format = options.format ?? 'png';
+        const filename = options.filename || `rivvon-export.${format === 'jpeg' ? 'jpg' : format}`;
+
+        const capture = await captureImageBlobWithSettings(options);
+        if (!capture?.blob) {
+            return false;
+        }
+
+        try {
+            const dataURL = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error || new Error('Failed to serialize image blob'));
+                reader.readAsDataURL(capture.blob);
+            });
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataURL;
+            link.click();
+
+            console.log('[ThreeSetup] Image exported with settings:', filename, capture.width, capture.height, format);
+            return true;
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to export image with settings:', error);
+        }
+
+        return false;
     }
 
     /**
@@ -868,6 +948,7 @@ export function useSceneExport(ctx, deps = {}) {
     return {
         captureImagePreview,
         captureImagePreviewWithSettings,
+        captureImageBlobWithSettings,
         exportImageWithSettings,
         exportImage,
         exportVideoLegacy,

@@ -353,6 +353,7 @@ export function useThreeSetup() {
         setHelixMode: ribbons.setHelixMode,
         captureImagePreview: exporter.captureImagePreview,
         captureImagePreviewWithSettings: exporter.captureImagePreviewWithSettings,
+        captureImageBlobWithSettings: exporter.captureImageBlobWithSettings,
         exportImageWithSettings: exporter.exportImageWithSettings,
         exportImage: exporter.exportImage,
         exportVideo: exporter.exportVideo,

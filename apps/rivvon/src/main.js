@@ -4,6 +4,7 @@
 import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 import PrimeVue from 'primevue/config';
+import ToastService from 'primevue/toastservice';
 import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 import App from './App.vue';
@@ -90,6 +91,7 @@ app.use(PrimeVue, {
         }
     }
 });
+app.use(ToastService);
 
 // PrimeVue directives
 import Tooltip from 'primevue/tooltip';
