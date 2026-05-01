@@ -32,13 +32,23 @@ function getWorker() {
     );
 
     workerInstance.onmessage = (event) => {
-        const { type, id, alpha, maskWidth, maskHeight, error } = event.data;
+        const { type, id, alpha, maskWidth, maskHeight, error, stage, message } = event.data;
         const entry = pendingRequests.get(id);
         if (!entry) return;
+
+        if (type === 'preload-status') {
+            if (typeof entry.onStatus === 'function') {
+                entry.onStatus({ stage, message });
+            }
+            return;
+        }
+
         pendingRequests.delete(id);
 
         if (type === 'infer-result') {
             entry.resolve({ alpha, maskWidth, maskHeight });
+        } else if (type === 'preload-complete') {
+            entry.resolve();
         } else {
             entry.reject(new Error(error || 'Inference worker error'));
         }
@@ -75,13 +85,16 @@ function requestAlpha(imageData) {
  * Called when ContourPanel opens to have the model ready by the time user captures/uploads.
  * Returns a Promise that resolves when model is loaded.
  */
-export function preloadModel() {
+export function preloadModel(options = {}) {
+    const { onStatus } = options;
+
     return new Promise((resolve, reject) => {
         const { worker, pending } = getWorker();
         const id = nextId++;
         pending.set(id, {
             resolve: () => resolve(),
-            reject
+            reject,
+            onStatus
         });
 
         worker.postMessage({ type: 'preload', id });

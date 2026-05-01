@@ -1,5 +1,6 @@
 <script setup>
     import { ref, watch, computed } from 'vue';
+    import Button from 'primevue/button';
     import { inferContours, preloadModel } from '../../modules/viewer/contourInference.js';
 
     const props = defineProps({
@@ -30,8 +31,22 @@
         if (active) {
             // Preload model when panel opens
             modelLoading.value = true;
-            preloadModel()
-                .catch(err => console.error('[ContourPanel] Model preload failed:', err))
+            setStatus('loading', 'Loading model…');
+
+            preloadModel({
+                onStatus: ({ message }) => {
+                    if (message) {
+                        setStatus('loading', message);
+                    }
+                }
+            })
+                .then(() => {
+                    setStatus('done', 'Model ready for use.');
+                })
+                .catch(err => {
+                    console.error('[ContourPanel] Model preload failed:', err);
+                    setStatus('error', `Model load failed: ${err?.message || 'Unknown error'}`);
+                })
                 .finally(() => {
                     modelLoading.value = false;
                 });
@@ -353,27 +368,29 @@
 
                     <!-- Action buttons -->
                     <div class="action-row">
-                        <button
-                            class="action-btn"
+                        <Button
+                            type="button"
                             :disabled="isProcessing || isInitializing"
                             @click="openFilePicker"
+                            class="action-button"
                         >
                             <span class="material-symbols-outlined">upload_file</span>
-                            Upload Image
-                        </button>
-                        <button
-                            class="action-btn"
+                            <span class="whitespace-pre">Upload Image</span>
+                        </Button>
+                        <Button
+                            type="button"
                             :disabled="isProcessing || isInitializing"
                             @click="openCamera"
+                            class="action-button"
                         >
                             <span class="material-symbols-outlined">photo_camera</span>
-                            Use Camera
-                        </button>
+                            <span class="whitespace-pre">Use Camera</span>
+                        </Button>
                     </div>
 
                     <!-- Status message -->
                     <div
-                        v-if="statusMessage"
+                        v-if="statusMessage && !previewSrc"
                         class="status-message"
                         :class="{ 'status-error': status === 'error', 'status-done': status === 'done' }"
                     >
@@ -389,10 +406,45 @@
                         v-if="previewSrc"
                         class="preview-area"
                     >
+                        <div
+                            v-if="statusMessage"
+                            class="status-message preview-status"
+                            :class="{ 'status-error': status === 'error', 'status-done': status === 'done' }"
+                        >
+                            <span
+                                v-if="isProcessing"
+                                class="material-symbols-outlined spin"
+                            >progress_activity</span>
+                            {{ statusMessage }}
+                        </div>
                         <canvas
                             ref="previewCanvas"
                             class="preview-canvas"
                         />
+                    </div>
+
+                    <!-- About Contours info panel -->
+                    <div class="about-info">
+                        <span class="material-symbols-outlined">info</span>
+                        <p>
+                            Background removal via <a
+                                href="https://github.com/jerrychan7/U2netInBrowser"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >U2netInBrowser</a>, an <a
+                                href="https://onnxruntime.ai/docs/get-started/with-javascript/web.html"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >ONNX Runtime Web</a> version of <a
+                                href="https://github.com/xuebinqin/u-2-net"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >U²-Net</a>. Contours traced via <a
+                                href="https://en.wikipedia.org/wiki/Marching_squares"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >Marching Squares</a>.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -402,14 +454,14 @@
                 class="contour-footer"
             >
                 <div class="confirm-row">
-                    <button
+                    <Button
                         class="apply-btn"
                         :disabled="isProcessing"
                         @click="applyContour"
                     >
                         <span class="material-symbols-outlined">check</span>
-                        Apply
-                    </button>
+                        <span>Apply</span>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -489,32 +541,17 @@
         justify-content: center;
     }
 
-    .action-btn {
+    :deep(.action-button) {
+        flex: 1;
+        min-width: 140px;
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        padding: 0.6rem 1.1rem;
-        background: #2a2a2a;
-        border: 1px solid #444;
-        border-radius: 8px;
-        color: #e0e0e0;
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: background 0.15s ease, border-color 0.15s ease;
+        justify-content: center;
+        gap: 0.5rem;
     }
 
-    .action-btn:hover:not(:disabled) {
-        background: #3a3a3a;
-        border-color: #666;
-    }
-
-    .action-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-
-    .action-btn .material-symbols-outlined {
-        font-size: 1.2rem;
+    :deep(.action-button .material-symbols-outlined) {
+        font-size: 1.25rem;
     }
 
     .status-message {
@@ -545,6 +582,7 @@
     }
 
     .preview-area {
+        position: relative;
         max-width: 640px;
         max-height: 50vh;
         border-radius: 8px;
@@ -562,6 +600,19 @@
         object-fit: contain;
     }
 
+    .preview-status {
+        position: absolute;
+        top: 0.5rem;
+        left: 0.5rem;
+        z-index: 2;
+        padding: 0.4rem 0.55rem;
+        border-radius: 0.4rem;
+        background: rgba(0, 0, 0, 0.62);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(2px);
+        pointer-events: none;
+    }
+
     .confirm-row {
         display: flex;
         justify-content: center;
@@ -577,33 +628,8 @@
         background: rgba(0, 0, 0, 0.6);
     }
 
-    .apply-btn {
-        box-sizing: border-box;
+    :deep(.apply-btn) {
         width: 100%;
-        height: auto;
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 0.375rem;
-        background: rgba(34, 197, 94, 1);
-        color: #ffffff;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        opacity: 0.92;
-        transition: opacity 0.3s ease;
-    }
-
-    .apply-btn:hover:not(:disabled) {
-        opacity: 1;
-    }
-
-    .apply-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
     }
 
     /* Camera */
@@ -655,5 +681,42 @@
 
     .cam-btn .material-symbols-outlined {
         font-size: 1.2rem;
+    }
+
+    .about-info {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        width: 100%;
+        max-width: 400px;
+        margin-top: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .about-info .material-symbols-outlined {
+        flex-shrink: 0;
+        font-size: 1.25rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 0.15rem;
+    }
+
+    .about-info p {
+        margin: 0;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: rgba(255, 255, 255, 0.68);
+    }
+
+    .about-info a {
+        color: rgba(255, 255, 255, 0.75);
+        text-decoration: underline;
+        transition: color 0.2s ease;
+    }
+
+    .about-info a:hover {
+        color: rgba(255, 255, 255, 0.95);
     }
 </style>

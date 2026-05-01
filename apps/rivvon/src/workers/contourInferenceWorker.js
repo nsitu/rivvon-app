@@ -17,11 +17,58 @@
 const MODEL_INPUT_SIZE = 320;
 const MEAN = [0.485, 0.456, 0.406];
 const STD  = [0.229, 0.224, 0.225];
+const BASE_URL = import.meta.env.BASE_URL || '/';
 const MODEL_PATH = `${import.meta.env.BASE_URL || '/'}u2net.quant.onnx`;
+const MODEL_ZIP_PATH = `${BASE_URL}u2net.quant.onnx.zip`;
+const MODEL_FILE_NAME = 'u2net.quant.onnx';
 
 let sessionPromise = null;
+let modelBufferPromise = null;
 
-async function getSession() {
+function emitPreloadStatus(postStatus, stage, message) {
+    if (typeof postStatus === 'function') {
+        postStatus({ stage, message });
+    }
+}
+
+async function loadModelBufferFromZip(postStatus) {
+    emitPreloadStatus(postStatus, 'loading', 'Loading model archive…');
+    const response = await fetch(MODEL_ZIP_PATH);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch zipped model (${response.status})`);
+    }
+
+    const zipBytes = await response.arrayBuffer();
+    emitPreloadStatus(postStatus, 'extracting', 'Extracting model…');
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(zipBytes);
+
+    const modelFile = zip.file(MODEL_FILE_NAME) || Object.values(zip.files).find((entry) => !entry.dir && entry.name.endsWith('.onnx'));
+    if (!modelFile) {
+        throw new Error(`Model file not found in zip: ${MODEL_FILE_NAME}`);
+    }
+
+    // onnxruntime-web accepts model bytes directly.
+    return await modelFile.async('arraybuffer');
+}
+
+async function getModelBuffer(postStatus) {
+    if (modelBufferPromise) return modelBufferPromise;
+
+    modelBufferPromise = (async () => {
+        try {
+            return await loadModelBufferFromZip(postStatus);
+        } catch (zipErr) {
+            console.warn('[ContourWorker] ZIP model load failed, falling back to plain ONNX path.', zipErr);
+            emitPreloadStatus(postStatus, 'loading', 'Loading model…');
+            return null;
+        }
+    })();
+
+    return modelBufferPromise;
+}
+
+async function getSession(postStatus) {
     if (sessionPromise) return sessionPromise;
 
     sessionPromise = (async () => {
@@ -29,7 +76,10 @@ async function getSession() {
         ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1/dist/';
         ort.env.wasm.numThreads = 1;
 
-        const session = await ort.InferenceSession.create(MODEL_PATH, {
+        const modelBuffer = await getModelBuffer(postStatus);
+        const modelSource = modelBuffer ?? MODEL_PATH;
+
+        const session = await ort.InferenceSession.create(modelSource, {
             executionProviders: ['wasm'],
         });
 
@@ -118,7 +168,11 @@ self.onmessage = async (event) => {
 
     if (type === 'preload') {
         try {
-            await getSession();
+            const postStatus = ({ stage, message }) => {
+                self.postMessage({ type: 'preload-status', id, stage, message });
+            };
+            await getSession(postStatus);
+            postStatus({ stage: 'ready', message: 'Model ready for use.' });
             self.postMessage({ type: 'preload-complete', id });
         } catch (err) {
             self.postMessage({ type: 'preload-error', id, error: String(err?.message ?? err) });
