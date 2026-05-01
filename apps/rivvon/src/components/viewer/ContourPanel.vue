@@ -321,28 +321,33 @@
                         muted
                     />
                     <div class="camera-controls">
-                        <button
-                            class="cam-btn"
+                        <Button
+                            type="button"
+                            class="cam-button cam-capture"
                             :disabled="isProcessing"
                             @click="captureFromCamera"
                         >
                             <span class="material-symbols-outlined">camera</span>
-                            Capture
-                        </button>
-                        <button
-                            class="cam-btn"
+                            <span>Capture</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            class="cam-button cam-flip"
+                            severity="secondary"
                             @click="switchCamera"
                         >
                             <span class="material-symbols-outlined">flip_camera_android</span>
-                            Flip
-                        </button>
-                        <button
-                            class="cam-btn"
+                            <span>Flip</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            class="cam-button cam-cancel"
+                            severity="danger"
                             @click="stopCamera"
                         >
                             <span class="material-symbols-outlined">close</span>
-                            Cancel
-                        </button>
+                            <span>Cancel</span>
+                        </Button>
                     </div>
                 </div>
 
@@ -634,53 +639,55 @@
 
     /* Camera */
     .camera-area {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        position: relative;
+        width: 100%;
+        max-width: 640px;
+        margin: 1rem auto 0;
         flex: 1;
-        padding-top: 1rem;
-        gap: 0.75rem;
     }
 
     .camera-video {
+        display: block;
         width: 100%;
-        max-width: 640px;
         border-radius: 8px;
         background: #000;
     }
 
     .camera-controls {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        justify-content: center;
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
     }
 
-    .cam-btn {
+    :deep(.cam-button) {
+        position: absolute;
         display: flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.6rem 1rem;
-        background: #2a2a2a;
-        border: 1px solid #444;
-        border-radius: 8px;
-        color: #e0e0e0;
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: background 0.15s ease;
+        justify-content: center;
+        min-width: 106px;
+        backdrop-filter: blur(3px);
+        pointer-events: auto;
     }
 
-    .cam-btn:hover:not(:disabled) {
-        background: #3a3a3a;
-    }
-
-    .cam-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-
-    .cam-btn .material-symbols-outlined {
+    :deep(.cam-button .material-symbols-outlined) {
         font-size: 1.2rem;
+    }
+
+    :deep(.cam-cancel) {
+        top: 0.75rem;
+        right: 0.75rem;
+    }
+
+    :deep(.cam-flip) {
+        bottom: 0.75rem;
+        left: 0.75rem;
+    }
+
+    :deep(.cam-capture) {
+        bottom: 0.75rem;
+        right: 0.75rem;
     }
 
     .about-info {
