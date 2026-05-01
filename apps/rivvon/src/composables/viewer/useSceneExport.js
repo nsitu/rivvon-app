@@ -68,6 +68,82 @@ export function useSceneExport(ctx, deps = {}) {
         return tm.getSeamlessLoopDuration?.(ctx.app.undulationEnabled) ?? 3.0;
     }
 
+    async function createImageExportCanvas(options = {}) {
+        if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
+            console.error('[ThreeSetup] Cannot capture image export canvas - not initialized');
+            return null;
+        }
+
+        const renderer = ctx.renderer.value;
+        const renderCanvas = renderer.domElement;
+
+        const width = Math.max(1, Math.round(Number(options.width) || renderCanvas.width));
+        const height = Math.max(1, Math.round(Number(options.height) || renderCanvas.height));
+        const logoOverlayEnabled = options.logoOverlayEnabled !== false;
+
+        const savedPixelRatio = renderer.getPixelRatio();
+        const savedWidth = renderCanvas.width;
+        const savedHeight = renderCanvas.height;
+        const savedAspect = ctx.camera.value.aspect;
+
+        try {
+            renderer.setPixelRatio(1);
+            renderer.setSize(width, height, false);
+            ctx.camera.value.aspect = width / height;
+            ctx.camera.value.updateProjectionMatrix();
+
+            if (ctx.controls.value) {
+                ctx.controls.value.update();
+            }
+
+            renderScene();
+
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+
+            const exportContext = exportCanvas.getContext('2d', { alpha: true });
+            if (!exportContext) {
+                throw new Error('Failed to create image export compositor.');
+            }
+
+            exportContext.drawImage(renderCanvas, 0, 0, width, height);
+
+            if (logoOverlayEnabled) {
+                try {
+                    const exportLogoAsset = await loadExportLogoAsset();
+                    drawExportLogoOverlay(
+                        exportContext,
+                        exportLogoAsset.image,
+                        width,
+                        height,
+                        exportLogoAsset.aspectRatio
+                    );
+                } catch (logoError) {
+                    console.warn('[ThreeSetup] Failed to apply image export logo overlay:', logoError);
+                }
+            }
+
+            return {
+                canvas: exportCanvas,
+                width,
+                height,
+            };
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to create image export canvas:', error);
+            return null;
+        } finally {
+            renderer.setPixelRatio(savedPixelRatio);
+            renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
+            ctx.camera.value.aspect = savedAspect;
+            ctx.camera.value.updateProjectionMatrix();
+
+            if (ctx.controls.value) {
+                ctx.controls.value.update();
+            }
+        }
+    }
+
     function getCycleRepeatCount(loopDuration, cycleDuration) {
         if (!Number.isFinite(loopDuration) || !Number.isFinite(cycleDuration) || cycleDuration <= 0) {
             return null;
@@ -195,28 +271,11 @@ export function useSceneExport(ctx, deps = {}) {
      * Capture the current scene as a PNG data URL for preview/download flows.
      * @returns {{ dataURL: string, width: number, height: number } | null}
      */
-    function captureImagePreview() {
-        if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
-            console.error('[ThreeSetup] Cannot capture image preview - not initialized');
-            return null;
-        }
-
-        try {
-            // Force a render to ensure the latest frame is captured
-            renderScene();
-
-            const canvas = ctx.renderer.value.domElement;
-            const dataURL = canvas.toDataURL('image/png');
-
-            return {
-                dataURL,
-                width: canvas.width,
-                height: canvas.height,
-            };
-        } catch (error) {
-            console.error('[ThreeSetup] Failed to capture image preview:', error);
-            return null;
-        }
+    async function captureImagePreview() {
+        return captureImagePreviewWithSettings({
+            format: 'png',
+            logoOverlayEnabled: true,
+        });
     }
 
     /**
@@ -228,61 +287,30 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {'very-low'|'low'|'medium'|'high'|'very-high'|number} options.quality
      * @returns {{ dataURL: string, width: number, height: number } | null}
      */
-    function captureImagePreviewWithSettings(options = {}) {
-        if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
-            console.error('[ThreeSetup] Cannot capture image preview with settings - not initialized');
+    async function captureImagePreviewWithSettings(options = {}) {
+        const capture = await createImageExportCanvas(options);
+        if (!capture?.canvas) {
             return null;
         }
 
-        const renderer = ctx.renderer.value;
-        const canvas = renderer.domElement;
-
-        const width = Math.max(1, Math.round(Number(options.width) || canvas.width));
-        const height = Math.max(1, Math.round(Number(options.height) || canvas.height));
         const format = options.format ?? 'png';
-
         const mimeType = getImageMimeType(format);
         const quality = resolveImageQuality(options.quality);
         const qualityEnabled = mimeType !== 'image/png';
 
-        const savedPixelRatio = renderer.getPixelRatio();
-        const savedWidth = canvas.width;
-        const savedHeight = canvas.height;
-        const savedAspect = ctx.camera.value.aspect;
-
         try {
-            renderer.setPixelRatio(1);
-            renderer.setSize(width, height, false);
-            ctx.camera.value.aspect = width / height;
-            ctx.camera.value.updateProjectionMatrix();
-
-            if (ctx.controls.value) {
-                ctx.controls.value.update();
-            }
-
-            renderScene();
-
             const dataURL = qualityEnabled
-                ? canvas.toDataURL(mimeType, quality)
-                : canvas.toDataURL(mimeType);
+                ? capture.canvas.toDataURL(mimeType, quality)
+                : capture.canvas.toDataURL(mimeType);
 
             return {
                 dataURL,
-                width,
-                height,
+                width: capture.width,
+                height: capture.height,
             };
         } catch (error) {
             console.error('[ThreeSetup] Failed to capture image preview with settings:', error);
             return null;
-        } finally {
-            renderer.setPixelRatio(savedPixelRatio);
-            renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
-            ctx.camera.value.aspect = savedAspect;
-            ctx.camera.value.updateProjectionMatrix();
-
-            if (ctx.controls.value) {
-                ctx.controls.value.update();
-            }
         }
     }
 
@@ -362,63 +390,32 @@ export function useSceneExport(ctx, deps = {}) {
      * @returns {Promise<{ blob: Blob, width: number, height: number, format: string, mimeType: string } | null>}
      */
     async function captureImageBlobWithSettings(options = {}) {
-        if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
-            console.error('[ThreeSetup] Cannot capture image blob with settings - not initialized');
+        const captureCanvas = await createImageExportCanvas(options);
+        if (!captureCanvas?.canvas) {
             return null;
         }
 
-        const renderer = ctx.renderer.value;
-        const canvas = renderer.domElement;
-
-        const width = Math.max(1, Math.round(Number(options.width) || canvas.width));
-        const height = Math.max(1, Math.round(Number(options.height) || canvas.height));
         const format = options.format ?? 'png';
-
         const mimeType = getImageMimeType(format);
         const quality = resolveImageQuality(options.quality);
         const qualityEnabled = mimeType !== 'image/png';
 
-        const savedPixelRatio = renderer.getPixelRatio();
-        const savedWidth = canvas.width;
-        const savedHeight = canvas.height;
-        const savedAspect = ctx.camera.value.aspect;
-
         try {
-            renderer.setPixelRatio(1);
-            renderer.setSize(width, height, false);
-            ctx.camera.value.aspect = width / height;
-            ctx.camera.value.updateProjectionMatrix();
-
-            if (ctx.controls.value) {
-                ctx.controls.value.update();
-            }
-
-            renderScene();
-
-            const blob = await canvasToBlob(canvas, mimeType, qualityEnabled, quality);
+            const blob = await canvasToBlob(captureCanvas.canvas, mimeType, qualityEnabled, quality);
             if (!blob) {
                 return null;
             }
 
             return {
                 blob,
-                width,
-                height,
+                width: captureCanvas.width,
+                height: captureCanvas.height,
                 format,
                 mimeType,
             };
         } catch (error) {
             console.error('[ThreeSetup] Failed to capture image blob with settings:', error);
             return null;
-        } finally {
-            renderer.setPixelRatio(savedPixelRatio);
-            renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
-            ctx.camera.value.aspect = savedAspect;
-            ctx.camera.value.updateProjectionMatrix();
-
-            if (ctx.controls.value) {
-                ctx.controls.value.update();
-            }
         }
     }
 
@@ -466,8 +463,8 @@ export function useSceneExport(ctx, deps = {}) {
      * Export the current scene as a PNG image
      * @param {string} filename - Optional filename (default: 'rivvon-export.png')
      */
-    function exportImage(filename = 'rivvon-export.png') {
-        const capture = captureImagePreview();
+    async function exportImage(filename = 'rivvon-export.png') {
+        const capture = await captureImagePreview();
         if (!capture) {
             return;
         }

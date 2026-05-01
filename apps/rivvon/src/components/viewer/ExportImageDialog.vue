@@ -3,6 +3,8 @@
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import ToggleSwitch from 'primevue/toggleswitch';
+    import { EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
@@ -25,6 +27,7 @@
     const customHeight = ref(1080);
     const quality = ref('high');
     const format = ref('png');
+    const logoOverlayEnabled = ref(true);
 
     const aspectRatioOptions = [
         { label: 'Landscape', value: 'landscape', icon: 'panorama' },
@@ -106,6 +109,26 @@
 
     const outputSummary = computed(() => `${resolvedWidth.value} x ${resolvedHeight.value} ${format.value.toUpperCase()}`);
 
+    const isTouchDevice = computed(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(pointer: coarse)').matches;
+    });
+
+    const tip = (text) => isTouchDevice.value ? null : text;
+
+    const logoOverlayLayout = computed(() => {
+        return getExportLogoOverlayLayout(resolvedWidth.value, resolvedHeight.value);
+    });
+
+    const logoOverlaySummary = computed(() => {
+        const { width, height } = logoOverlayLayout.value;
+        return `${Math.round(width)}x${Math.round(height)} px · ${Math.round(EXPORT_LOGO_AREA_RATIO * 100)}% frame area`;
+    });
+
+    const logoOverlayTooltip = computed(() => (
+        `Bottom-right Rivvon logo baked into the exported image. ${logoOverlaySummary.value}.`
+    ));
+
     watch(aspectRatioPreset, () => {
         const availableValues = resolutionOptions.value.map((option) => option.value);
         if (!availableValues.includes(resolutionPreset.value)) {
@@ -113,12 +136,13 @@
         }
     });
 
-    watch([resolvedWidth, resolvedHeight, () => props.visible], ([width, height, visible]) => {
+    watch([resolvedWidth, resolvedHeight, logoOverlayEnabled, () => props.visible], ([width, height, overlayEnabled, visible]) => {
         if (!visible) return;
 
         emit('recapture-preview', {
             width,
             height,
+            logoOverlayEnabled: overlayEnabled,
         });
     });
 
@@ -128,6 +152,7 @@
             height: resolvedHeight.value,
             quality: quality.value,
             format: format.value,
+            logoOverlayEnabled: logoOverlayEnabled.value,
         });
     }
 
@@ -137,6 +162,7 @@
             height: resolvedHeight.value,
             quality: quality.value,
             format: format.value,
+            logoOverlayEnabled: logoOverlayEnabled.value,
         });
     }
 
@@ -145,6 +171,7 @@
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             format: 'png',
+            logoOverlayEnabled: logoOverlayEnabled.value,
         });
     }
 </script>
@@ -250,6 +277,27 @@
                                 option-value="value"
                                 class="w-full"
                             />
+                        </div>
+
+                        <div class="form-field toggle-field">
+                            <div class="toggle-label-row">
+                                <label for="imageLogoOverlayToggle">Logo Overlay</label>
+                                <button
+                                    type="button"
+                                    class="tooltip-icon-button"
+                                    :aria-label="logoOverlayTooltip"
+                                    v-tooltip.bottom="tip(logoOverlayTooltip)"
+                                >
+                                    <span class="material-symbols-outlined">info</span>
+                                </button>
+                            </div>
+                            <div class="toggle-control">
+                                <ToggleSwitch
+                                    inputId="imageLogoOverlayToggle"
+                                    v-model="logoOverlayEnabled"
+                                />
+                                <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -434,6 +482,54 @@
         font-size: 0.72rem;
         color: rgba(255, 255, 255, 0.55);
         line-height: 1.35;
+    }
+
+    .toggle-field {
+        align-items: flex-start;
+    }
+
+    .toggle-label-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .tooltip-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        padding: 0;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.55);
+        cursor: help;
+    }
+
+    .tooltip-icon-button:hover {
+        color: rgba(255, 255, 255, 0.8);
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .tooltip-icon-button .material-symbols-outlined {
+        font-size: 1rem;
+        line-height: 1;
+    }
+
+    .toggle-control {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+    }
+
+    .toggle-copy {
+        min-width: 1.8rem;
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.6);
+        text-align: right;
     }
 
     .image-preview-stage {

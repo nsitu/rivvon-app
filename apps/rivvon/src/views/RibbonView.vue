@@ -996,7 +996,7 @@
     }
 
     // Image export handler
-    function handleExportImage() {
+    async function handleExportImage() {
         ensureOrbitControlsForInteraction(
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
@@ -1008,9 +1008,16 @@
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const filename = `rivvon-${timestamp}.png`;
 
-        const preview = threeCanvasRef.value?.captureImagePreview?.();
+        const preview = await threeCanvasRef.value?.captureImagePreviewWithSettings?.({
+            format: 'png',
+            logoOverlayEnabled: true,
+        });
         if (!preview?.dataURL) {
-            threeCanvasRef.value?.exportImage(filename);
+            await threeCanvasRef.value?.exportImageWithSettings?.({
+                format: 'png',
+                filename,
+                logoOverlayEnabled: true,
+            });
             return;
         }
 
@@ -1035,6 +1042,7 @@
                 height: settings.height,
                 format,
                 quality: settings.quality,
+                logoOverlayEnabled: settings.logoOverlayEnabled,
                 filename,
             });
 
@@ -1051,8 +1059,8 @@
             toast.add({
                 severity: 'success',
                 summary: 'Download Started',
-                detail: 'Image saved to Downloads folder.',
-                life: 3600,
+                detail: 'Image has been saved to your device Downloads folder.',
+                life: 3200,
             });
             return;
         }
@@ -1069,9 +1077,8 @@
         toast.add({
             severity: 'success',
             summary: 'Download Started',
-
-            detail: 'Image saved to Downloads folder.',
-            life: 3600,
+            detail: 'Image has been saved to your device Downloads folder.',
+            life: 3200,
         });
     }
 
@@ -1128,6 +1135,7 @@
                     height: settings.height,
                     format,
                     quality: settings.quality,
+                    logoOverlayEnabled: settings.logoOverlayEnabled,
                 });
 
                 blob = capture?.blob ?? null;
@@ -1183,14 +1191,15 @@
         }
     }
 
-    function handleRecaptureExportImagePreview(settings = {}) {
+    async function handleRecaptureExportImagePreview(settings = {}) {
         const width = Math.max(1, Math.round(Number(settings.width) || exportImagePreview.value.width || 1920));
         const height = Math.max(1, Math.round(Number(settings.height) || exportImagePreview.value.height || 1080));
 
-        const preview = threeCanvasRef.value?.captureImagePreviewWithSettings?.({
+        const preview = await threeCanvasRef.value?.captureImagePreviewWithSettings?.({
             width,
             height,
             format: 'png',
+            logoOverlayEnabled: settings.logoOverlayEnabled,
         });
 
         if (!preview?.dataURL) {

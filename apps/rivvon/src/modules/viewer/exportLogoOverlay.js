@@ -66,6 +66,13 @@ export function drawExportLogoOverlay(context, logoImage, videoWidth, videoHeigh
     context.save();
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
+
+    // Keep the white logo legible on both bright and dark backgrounds.
+    context.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    context.shadowBlur = Math.max(6, Math.round(layout.height * 0.2));
+    context.shadowOffsetX = 0;
+    context.shadowOffsetY = Math.max(2, Math.round(layout.height * 0.08));
+
     context.drawImage(logoImage, layout.x, layout.y, layout.width, layout.height);
     context.restore();
 
@@ -82,7 +89,20 @@ export async function loadExportLogoAsset() {
 
             const svgText = await response.text();
             const aspectRatio = getSvgAspectRatio(svgText);
-            const image = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`);
+            let image;
+
+            try {
+                const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+                const blobUrl = URL.createObjectURL(svgBlob);
+                try {
+                    image = await loadImage(blobUrl);
+                } finally {
+                    URL.revokeObjectURL(blobUrl);
+                }
+            } catch (blobError) {
+                console.warn('[ExportLogoOverlay] Blob URL decode failed, trying direct asset path:', blobError);
+                image = await loadImage(EXPORT_LOGO_SRC);
+            }
 
             return { image, aspectRatio };
         })().catch(error => {
