@@ -163,7 +163,7 @@
         try {
             const imageData = await loadImageData(url);
             drawPreviewFrame(imageData);
-            setStatus('processing', 'Running contour extraction…');
+            setStatus('processing', 'Finding contours…');
 
             const { paths, maskWidth, maskHeight } = await inferContours(imageData, {
                 maskThreshold: 160,
@@ -178,7 +178,7 @@
 
             drawPreviewOverlay(imageData, paths);
 
-            setStatus('done', `Found ${paths.length} contour path${paths.length === 1 ? '' : 's'}.`);
+            setStatus('done', `Found ${paths.length} contour${paths.length === 1 ? '' : 's'}.`);
             pendingPaths.value = paths;
             pendingSource.value = {
                 pathCount: paths.length,
