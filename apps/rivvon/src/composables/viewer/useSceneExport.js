@@ -192,13 +192,13 @@ export function useSceneExport(ctx, deps = {}) {
     }
 
     /**
-     * Export the current scene as a PNG image
-     * @param {string} filename - Optional filename (default: 'rivvon-export.png')
+     * Capture the current scene as a PNG data URL for preview/download flows.
+     * @returns {{ dataURL: string, width: number, height: number } | null}
      */
-    function exportImage(filename = 'rivvon-export.png') {
+    function captureImagePreview() {
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
-            console.error('[ThreeSetup] Cannot export image - not initialized');
-            return;
+            console.error('[ThreeSetup] Cannot capture image preview - not initialized');
+            return null;
         }
 
         try {
@@ -207,6 +207,193 @@ export function useSceneExport(ctx, deps = {}) {
 
             const canvas = ctx.renderer.value.domElement;
             const dataURL = canvas.toDataURL('image/png');
+
+            return {
+                dataURL,
+                width: canvas.width,
+                height: canvas.height,
+            };
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to capture image preview:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Capture the current scene as an image preview at explicit dimensions.
+     * @param {Object} options
+     * @param {number} options.width
+     * @param {number} options.height
+     * @param {'png'|'jpeg'|'webp'} options.format
+     * @param {'very-low'|'low'|'medium'|'high'|'very-high'|number} options.quality
+     * @returns {{ dataURL: string, width: number, height: number } | null}
+     */
+    function captureImagePreviewWithSettings(options = {}) {
+        if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
+            console.error('[ThreeSetup] Cannot capture image preview with settings - not initialized');
+            return null;
+        }
+
+        const renderer = ctx.renderer.value;
+        const canvas = renderer.domElement;
+
+        const width = Math.max(1, Math.round(Number(options.width) || canvas.width));
+        const height = Math.max(1, Math.round(Number(options.height) || canvas.height));
+        const format = options.format ?? 'png';
+
+        const mimeType = getImageMimeType(format);
+        const quality = resolveImageQuality(options.quality);
+        const qualityEnabled = mimeType !== 'image/png';
+
+        const savedPixelRatio = renderer.getPixelRatio();
+        const savedWidth = canvas.width;
+        const savedHeight = canvas.height;
+        const savedAspect = ctx.camera.value.aspect;
+
+        try {
+            renderer.setPixelRatio(1);
+            renderer.setSize(width, height, false);
+            ctx.camera.value.aspect = width / height;
+            ctx.camera.value.updateProjectionMatrix();
+
+            if (ctx.controls.value) {
+                ctx.controls.value.update();
+            }
+
+            renderScene();
+
+            const dataURL = qualityEnabled
+                ? canvas.toDataURL(mimeType, quality)
+                : canvas.toDataURL(mimeType);
+
+            return {
+                dataURL,
+                width,
+                height,
+            };
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to capture image preview with settings:', error);
+            return null;
+        } finally {
+            renderer.setPixelRatio(savedPixelRatio);
+            renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
+            ctx.camera.value.aspect = savedAspect;
+            ctx.camera.value.updateProjectionMatrix();
+
+            if (ctx.controls.value) {
+                ctx.controls.value.update();
+            }
+        }
+    }
+
+    function getImageMimeType(format) {
+        if (format === 'jpeg' || format === 'jpg') {
+            return 'image/jpeg';
+        }
+
+        if (format === 'webp') {
+            return 'image/webp';
+        }
+
+        return 'image/png';
+    }
+
+    function resolveImageQuality(quality) {
+        if (typeof quality === 'number') {
+            return Math.min(1, Math.max(0, quality));
+        }
+
+        const qualityMap = {
+            'very-low': 0.4,
+            'low': 0.58,
+            'medium': 0.74,
+            'high': 0.88,
+            'very-high': 0.96,
+        };
+
+        return qualityMap[quality] ?? qualityMap.high;
+    }
+
+    /**
+     * Export the current scene as an image using explicit output settings.
+     * @param {Object} options
+     * @param {number} options.width
+     * @param {number} options.height
+     * @param {'png'|'jpeg'|'webp'} options.format
+     * @param {'very-low'|'low'|'medium'|'high'|'very-high'|number} options.quality
+     * @param {string} options.filename
+     */
+    function exportImageWithSettings(options = {}) {
+        if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
+            console.error('[ThreeSetup] Cannot export image with settings - not initialized');
+            return;
+        }
+
+        const renderer = ctx.renderer.value;
+        const canvas = renderer.domElement;
+
+        const width = Math.max(1, Math.round(Number(options.width) || canvas.width));
+        const height = Math.max(1, Math.round(Number(options.height) || canvas.height));
+        const format = options.format ?? 'png';
+        const filename = options.filename || `rivvon-export.${format === 'jpeg' ? 'jpg' : format}`;
+
+        const mimeType = getImageMimeType(format);
+        const quality = resolveImageQuality(options.quality);
+        const qualityEnabled = mimeType !== 'image/png';
+
+        const savedPixelRatio = renderer.getPixelRatio();
+        const savedWidth = canvas.width;
+        const savedHeight = canvas.height;
+        const savedAspect = ctx.camera.value.aspect;
+
+        try {
+            renderer.setPixelRatio(1);
+            renderer.setSize(width, height, false);
+            ctx.camera.value.aspect = width / height;
+            ctx.camera.value.updateProjectionMatrix();
+
+            if (ctx.controls.value) {
+                ctx.controls.value.update();
+            }
+
+            renderScene();
+
+            const dataURL = qualityEnabled
+                ? canvas.toDataURL(mimeType, quality)
+                : canvas.toDataURL(mimeType);
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataURL;
+            link.click();
+
+            console.log('[ThreeSetup] Image exported with settings:', filename, width, height, format, quality);
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to export image with settings:', error);
+        } finally {
+            renderer.setPixelRatio(savedPixelRatio);
+            renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
+            ctx.camera.value.aspect = savedAspect;
+            ctx.camera.value.updateProjectionMatrix();
+
+            if (ctx.controls.value) {
+                ctx.controls.value.update();
+            }
+        }
+    }
+
+    /**
+     * Export the current scene as a PNG image
+     * @param {string} filename - Optional filename (default: 'rivvon-export.png')
+     */
+    function exportImage(filename = 'rivvon-export.png') {
+        const capture = captureImagePreview();
+        if (!capture) {
+            return;
+        }
+
+        try {
+            const { dataURL } = capture;
 
             // Create a download link and trigger download
             const link = document.createElement('a');
@@ -679,6 +866,9 @@ export function useSceneExport(ctx, deps = {}) {
     }
 
     return {
+        captureImagePreview,
+        captureImagePreviewWithSettings,
+        exportImageWithSettings,
         exportImage,
         exportVideoLegacy,
         exportVideo,

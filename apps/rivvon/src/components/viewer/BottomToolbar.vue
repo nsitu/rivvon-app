@@ -253,6 +253,7 @@
         technicalOverlay: { type: Boolean, default: false },
         textureMetadataOverlay: { type: Boolean, default: false },
         activeToolbarOverlay: { type: String, default: null },
+        exportImageVisible: { type: Boolean, default: false },
         exportVideoVisible: { type: Boolean, default: false }
     });
 
@@ -281,6 +282,7 @@
         'cinematic-clear',
         'technical-overlay-toggle',
         'texture-metadata-overlay-toggle',
+        'close-export-image',
         'close-export-video',
         'toolbar-overlay-change'
     ]);
@@ -408,6 +410,8 @@
             app.hideContourPanel();
         } else if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode');
+        } else if (props.exportImageVisible) {
+            emit('close-export-image');
         } else if (props.exportVideoVisible) {
             emit('close-export-video');
         } else if (props.activeToolbarOverlay) {
@@ -421,7 +425,7 @@
 
     // Computed: is any panel/mode currently active?
     const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.contourPanelVisible || !!props.activeToolbarOverlay || props.exportVideoVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
+        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.contourPanelVisible || !!props.activeToolbarOverlay || props.exportImageVisible || props.exportVideoVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
     );
 
     const drawGroupActive = computed(() => (
@@ -516,6 +520,9 @@
         }
         if (app.realtimeSamplerVisible) {
             emit('close-realtime-mode', { suppressCreateTextureReturn: true });
+        }
+        if (props.exportImageVisible) {
+            emit('close-export-image');
         }
         if (props.exportVideoVisible) {
             emit('close-export-video');
@@ -755,7 +762,7 @@
             <button
                 type="button"
                 class="toolbar-main-button"
-                :class="{ active: props.activeToolbarOverlay === 'share' || props.exportVideoVisible }"
+                :class="{ active: props.activeToolbarOverlay === 'share' || props.exportImageVisible || props.exportVideoVisible }"
                 :aria-expanded="props.activeToolbarOverlay === 'share'"
                 aria-label="Share actions"
                 aria-haspopup="dialog"
@@ -1003,7 +1010,7 @@
                                 </label>
                                 <div class="tools-toggle-control">
                                     <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off'
-                                        }}</span>
+                                    }}</span>
                                     <ToggleSwitch
                                         inputId="undulationToggle"
                                         v-model="undulationModel"
@@ -1053,7 +1060,7 @@
                             </label>
                             <div class="tools-toggle-control">
                                 <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                                }}</span>
+                                    }}</span>
                                 <ToggleSwitch
                                     inputId="textureAnimationToggle"
                                     v-model="textureAnimationModel"
@@ -1163,7 +1170,7 @@
                         <div class="tools-section-items">
                             <div class="tools-slider">
                                 <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                                }}x</span></label>
+                                        }}x</span></label>
                                 <input
                                     type="range"
                                     min="0.4"
@@ -1208,7 +1215,7 @@
                             <template v-if="app.helixEnabled">
                                 <div class="tools-slider">
                                     <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                    }}</span></label>
+                                            }}</span></label>
                                     <input
                                         type="range"
                                         min="0.1"
@@ -1220,7 +1227,7 @@
                                 </div>
                                 <div class="tools-slider">
                                     <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                    }}</span></label>
+                                            }}</span></label>
                                     <input
                                         type="range"
                                         min="1"
@@ -1283,7 +1290,7 @@
                                 </label>
                                 <div class="tools-toggle-control">
                                     <span class="tools-hint tools-toggle-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP'
-                                    }}</span>
+                                        }}</span>
                                     <ToggleSwitch
                                         inputId="cornerNarrowingToggle"
                                         v-model="cornerNarrowingModel"
@@ -1312,7 +1319,7 @@
                                 @click="handleCinematicToggle"
                             >
                                 <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                }}</span>
+                                    }}</span>
                                 <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                                 <span class="tools-hint">P</span>
                             </button>
@@ -1327,7 +1334,7 @@
                                     v-if="props.cinematicRoiCount > 0"
                                     class="tools-badge"
                                 >{{ props.cinematicRoiCount
-                                }}</span>
+                                    }}</span>
                                 <span class="tools-hint">X</span>
                             </button>
                         </div>

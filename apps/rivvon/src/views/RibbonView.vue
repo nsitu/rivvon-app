@@ -25,6 +25,7 @@
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
     import BetaModal from '../components/viewer/BetaModal.vue';
+    const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
     const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
     const DrawCanvas = defineAsyncComponent(() => import('../components/viewer/DrawCanvas.vue'));
@@ -997,11 +998,93 @@
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
         );
+
+        showExportDialog.value = false;
+
         // Generate filename with timestamp
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const filename = `rivvon-${timestamp}.png`;
-        threeCanvasRef.value?.exportImage(filename);
+
+        const preview = threeCanvasRef.value?.captureImagePreview?.();
+        if (!preview?.dataURL) {
+            threeCanvasRef.value?.exportImage(filename);
+            return;
+        }
+
+        exportImagePreview.value = {
+            filename,
+            dataURL: preview.dataURL,
+            width: preview.width,
+            height: preview.height,
+        };
+        showExportImageDialog.value = true;
     }
+
+    function handleDownloadExportImage(settings = {}) {
+        const format = settings.format === 'jpeg' || settings.format === 'webp' ? settings.format : 'png';
+        const extension = format === 'jpeg' ? 'jpg' : format;
+        const baseName = (exportImagePreview.value.filename || 'rivvon-export.png').replace(/\.[^.]+$/, '');
+        const filename = `${baseName}.${extension}`;
+
+        if (threeCanvasRef.value?.exportImageWithSettings) {
+            threeCanvasRef.value.exportImageWithSettings({
+                width: settings.width,
+                height: settings.height,
+                format,
+                quality: settings.quality,
+                filename,
+            });
+            return;
+        }
+
+        if (!exportImagePreview.value?.dataURL) {
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = exportImagePreview.value.dataURL;
+        link.click();
+    }
+
+    function handleRecaptureExportImagePreview(settings = {}) {
+        const width = Math.max(1, Math.round(Number(settings.width) || exportImagePreview.value.width || 1920));
+        const height = Math.max(1, Math.round(Number(settings.height) || exportImagePreview.value.height || 1080));
+
+        const preview = threeCanvasRef.value?.captureImagePreviewWithSettings?.({
+            width,
+            height,
+            format: 'png',
+        });
+
+        if (!preview?.dataURL) {
+            return;
+        }
+
+        exportImagePreview.value = {
+            ...exportImagePreview.value,
+            dataURL: preview.dataURL,
+            width: preview.width,
+            height: preview.height,
+        };
+    }
+
+    function resetExportImagePreview() {
+        exportImagePreview.value = {
+            filename: '',
+            dataURL: '',
+            width: 0,
+            height: 0,
+        };
+    }
+
+    const showExportImageDialog = ref(false);
+    const exportImagePreview = ref({
+        filename: '',
+        dataURL: '',
+        width: 0,
+        height: 0,
+    });
 
     // Video export dialog state
     const showExportDialog = ref(false);
@@ -1014,13 +1097,24 @@
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
         );
+        showExportImageDialog.value = false;
+        resetExportImagePreview();
         // Gather current scene info for the dialog
         exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
         showExportDialog.value = true;
     }
 
-    function handleExportDialogClose() {
+    function handleExportPanelClose() {
         showExportDialog.value = false;
+        showExportImageDialog.value = false;
+        resetExportImagePreview();
+    }
+
+    function handleExportImageDialogVisibleChange(visible) {
+        showExportImageDialog.value = visible;
+        if (!visible) {
+            resetExportImagePreview();
+        }
     }
 
     // Called when user confirms export settings in the dialog
@@ -1486,10 +1580,10 @@
         <AppHeader
             :camera-active="isCameraIndicatorVisible"
             :camera-dismiss-label="cameraDismissLabel"
-            :panel-title="showExportDialog ? 'Export Video' : null"
+            :panel-title="showExportDialog ? 'Export Video' : (showExportImageDialog ? 'Export Image' : null)"
             :toolbar-overlay-title="activeToolbarOverlay === 'draw' ? 'Draw' : activeToolbarOverlay === 'texture' ? 'Texture' : activeToolbarOverlay === 'share' ? 'Share' : null"
             @close-realtime-mode="handleRealtimeClose"
-            @close-panel="handleExportDialogClose"
+            @close-panel="handleExportPanelClose"
             @close-toolbar-overlay="handleToolbarOverlayClose"
             @turn-off-camera="handleTurnOffCamera"
         />
@@ -1526,6 +1620,7 @@
             :technical-overlay="showTechnicalOverlay"
             :texture-metadata-overlay="app.showTextureMetadataOverlay"
             :active-toolbar-overlay="activeToolbarOverlay"
+            :export-image-visible="showExportImageDialog"
             :export-video-visible="showExportDialog"
             @enter-draw-mode="enterDrawMode"
             @enter-walk-mode="enterWalkMode"
@@ -1542,7 +1637,8 @@
             @open-emoji-picker="app.showEmojiPicker"
             @open-texture-browser="openTextureBrowser"
             @import-file="openFileImport"
-            @close-export-video="handleExportDialogClose"
+            @close-export-image="handleExportPanelClose"
+            @close-export-video="handleExportPanelClose"
             @toolbar-overlay-change="handleToolbarOverlayChange"
             @export-image="handleExportImage"
             @export-video="handleExportVideo"
@@ -1633,6 +1729,17 @@
             @export="handleExportConfirm"
         />
 
+        <ExportImageDialog
+            :visible="showExportImageDialog"
+            :image-data-url="exportImagePreview.dataURL"
+            :filename="exportImagePreview.filename"
+            :image-width="exportImagePreview.width"
+            :image-height="exportImagePreview.height"
+            @update:visible="handleExportImageDialogVisibleChange"
+            @recapture-preview="handleRecaptureExportImagePreview"
+            @download="handleDownloadExportImage"
+        />
+
         <!-- Contextual technical overlay (press D to toggle) -->
         <ViewerTechnicalOverlay
             :cinematic-camera="threeCanvasRef?.cinematicCamera"
@@ -1672,6 +1779,7 @@
     /* Re-enable pointer events only on specific interactive containers */
     .ribbon-view :deep(.app-header),
     .ribbon-view :deep(.bottom-toolbar),
+    .ribbon-view :deep(.export-image-panel.active),
     .ribbon-view :deep(.export-video-panel.active),
     .ribbon-view :deep(.launcher-panel.active),
     .ribbon-view :deep(.tools-panel.active),
