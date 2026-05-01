@@ -1099,6 +1099,19 @@
         return typeof navigator.share === 'function';
     });
 
+    function getVideoMimeType(format) {
+        return format === 'webm' ? 'video/webm' : 'video/mp4';
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = url;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
     function getImageMimeType(format) {
         if (format === 'jpeg') return 'image/jpeg';
         if (format === 'webp') return 'image/webp';
@@ -1191,6 +1204,115 @@
         }
     }
 
+    function resetEncodedVideoExport() {
+        encodedVideoExport.value = {
+            blob: null,
+            filename: '',
+            format: '',
+            mimeType: '',
+            size: 0,
+        };
+        videoExportStatus.value = '';
+    }
+
+    function handleVideoExportSettingsChange() {
+        if (exportAbortController.value || !encodedVideoExport.value?.blob) {
+            return;
+        }
+
+        resetEncodedVideoExport();
+    }
+
+    function handleDownloadEncodedVideo() {
+        const exportRecord = encodedVideoExport.value;
+        if (!exportRecord?.blob) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Video Not Ready',
+                detail: 'Encode the video before downloading it.',
+                life: 3200,
+            });
+            return;
+        }
+
+        downloadBlob(exportRecord.blob, exportRecord.filename || 'rivvon-export.mp4');
+        toast.add({
+            severity: 'success',
+            summary: 'Download Started',
+            detail: 'Video has been saved to your device Downloads folder.',
+            life: 3200,
+        });
+    }
+
+    async function handleShareEncodedVideo() {
+        if (!canImageShare.value) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Share Not Available',
+                detail: 'Native sharing is only available on supported mobile browsers.',
+                life: 3200,
+            });
+            return;
+        }
+
+        const exportRecord = encodedVideoExport.value;
+        if (!exportRecord?.blob) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Video Not Ready',
+                detail: 'Encode the video before sharing it.',
+                life: 3200,
+            });
+            return;
+        }
+
+        try {
+            const mimeType = exportRecord.mimeType || getVideoMimeType(exportRecord.format);
+            const file = new File([exportRecord.blob], exportRecord.filename || 'rivvon-export.mp4', { type: mimeType });
+            const shareData = { files: [file], title: exportRecord.filename || 'rivvon-export.mp4' };
+
+            if (typeof navigator.canShare === 'function' && !navigator.canShare(shareData)) {
+                toast.add({
+                    severity: 'warn',
+                    summary: 'Share Not Supported',
+                    detail: 'This browser cannot share video files directly. Use Download instead.',
+                    life: 3600,
+                });
+                return;
+            }
+
+            await navigator.share(shareData);
+            toast.add({
+                severity: 'success',
+                summary: 'Shared',
+                detail: 'Video shared successfully.',
+                life: 2400,
+            });
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return;
+            }
+
+            console.error('Video share failed:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'Share Failed',
+                detail: 'Could not open the native share sheet on this device.',
+                life: 3600,
+            });
+        }
+    }
+
+    function handleCancelVideoExport() {
+        if (!exportAbortController.value) {
+            handleExportVideoDialogVisibleChange(false);
+            return;
+        }
+
+        videoExportStatus.value = 'Cancelling export…';
+        exportAbortController.value.abort();
+    }
+
     async function handleRecaptureExportImagePreview(settings = {}) {
         const width = Math.max(1, Math.round(Number(settings.width) || exportImagePreview.value.width || 1920));
         const height = Math.max(1, Math.round(Number(settings.height) || exportImagePreview.value.height || 1080));
@@ -1235,6 +1357,14 @@
     const showExportDialog = ref(false);
     const exportInfo = ref({});
     const exportAbortController = ref(null);
+    const encodedVideoExport = ref({
+        blob: null,
+        filename: '',
+        format: '',
+        mimeType: '',
+        size: 0,
+    });
+    const videoExportStatus = ref('');
 
     // Video export handler — opens dialog instead of recording immediately
     function handleExportVideo() {
@@ -1244,6 +1374,7 @@
         );
         showExportImageDialog.value = false;
         resetExportImagePreview();
+        resetEncodedVideoExport();
         // Gather current scene info for the dialog
         exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
         showExportDialog.value = true;
@@ -1253,6 +1384,15 @@
         showExportDialog.value = false;
         showExportImageDialog.value = false;
         resetExportImagePreview();
+        resetEncodedVideoExport();
+    }
+
+    function handleExportVideoDialogVisibleChange(visible) {
+        showExportDialog.value = visible;
+
+        if (!visible && !exportAbortController.value) {
+            resetEncodedVideoExport();
+        }
     }
 
     function handleExportImageDialogVisibleChange(visible) {
@@ -1268,19 +1408,18 @@
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
         );
-        showExportDialog.value = false;
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const ext = settings.format === 'webm' ? 'webm' : 'mp4';
         const filename = `rivvon-${timestamp}.${ext}`;
 
-        isLoadingTexture.value = true;
-        loadingProgress.value = 'Preparing export…';
+        resetEncodedVideoExport();
+        videoExportStatus.value = 'Preparing export…';
 
         exportAbortController.value = new AbortController();
 
         try {
-            await threeCanvasRef.value?.exportVideo({
+            const blob = await threeCanvasRef.value?.exportVideo({
                 width: settings.width,
                 height: settings.height,
                 fps: settings.fps,
@@ -1289,22 +1428,39 @@
                 cameraMovement: settings.cameraMovement,
                 quality: settings.quality,
                 logoOverlayEnabled: settings.logoOverlayEnabled,
-                filename,
                 signal: exportAbortController.value.signal,
                 onProgress: (progress) => {
-                    loadingProgress.value = `Encoding… ${Math.round(progress * 100)}%`;
+                    videoExportStatus.value = `Encoding… ${Math.round(progress * 100)}%`;
                 },
                 onStatus: (status) => {
-                    loadingProgress.value = status;
+                    videoExportStatus.value = status;
                 }
             });
-            loadingProgress.value = 'Video saved!';
+
+            if (!blob) {
+                videoExportStatus.value = 'Export cancelled.';
+                return;
+            }
+
+            encodedVideoExport.value = {
+                blob,
+                filename,
+                format: settings.format,
+                mimeType: blob.type || getVideoMimeType(settings.format),
+                size: blob.size,
+            };
+            videoExportStatus.value = '';
+            toast.add({
+                severity: 'success',
+                summary: 'Encoding complete',
+                detail: `${filename} · ${(blob.size / 1024 / 1024).toFixed(1)} MB`,
+                life: 5000,
+            });
         } catch (error) {
             console.error('Video export failed:', error);
-            loadingProgress.value = 'Export failed: ' + error.message;
+            videoExportStatus.value = 'Export failed: ' + error.message;
         } finally {
             exportAbortController.value = null;
-            setTimeout(() => { isLoadingTexture.value = false; }, 800);
         }
     }
 
@@ -1869,9 +2025,19 @@
 
         <!-- Export Video Dialog -->
         <ExportVideoDialog
-            v-model:visible="showExportDialog"
+            :visible="showExportDialog"
             :export-info="exportInfo"
+            :is-encoding="!!exportAbortController"
+            :export-status="videoExportStatus"
+            :encoded-filename="encodedVideoExport.filename"
+            :encoded-size="encodedVideoExport.size"
+            :can-share="canImageShare"
+            @update:visible="handleExportVideoDialogVisibleChange"
             @export="handleExportConfirm"
+            @download="handleDownloadEncodedVideo"
+            @share="handleShareEncodedVideo"
+            @cancel="handleCancelVideoExport"
+            @settings-change="handleVideoExportSettingsChange"
         />
 
         <ExportImageDialog

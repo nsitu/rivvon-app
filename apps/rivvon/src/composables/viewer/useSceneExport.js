@@ -868,16 +868,6 @@ export function useSceneExport(ctx, deps = {}) {
 
             console.log(`[ThreeSetup] Export complete: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
 
-            // --- Auto-download if filename provided ---
-            if (filename) {
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = filename;
-                link.href = url;
-                link.click();
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
-            }
-
             return blob;
         } finally {
             circularTiltController?.deactivate({ restoreBaseline: true });

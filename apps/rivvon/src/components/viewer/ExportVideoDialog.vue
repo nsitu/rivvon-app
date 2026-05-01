@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed } from 'vue';
+    import { ref, computed, watch } from 'vue';
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
     import AccordionHeader from 'primevue/accordionheader';
@@ -11,10 +11,15 @@
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
-        exportInfo: { type: Object, default: () => ({}) }
+        exportInfo: { type: Object, default: () => ({}) },
+        isEncoding: { type: Boolean, default: false },
+        exportStatus: { type: String, default: '' },
+        encodedFilename: { type: String, default: '' },
+        encodedSize: { type: Number, default: 0 },
+        canShare: { type: Boolean, default: false },
     });
 
-    const emit = defineEmits(['update:visible', 'export', 'cancel']);
+    const emit = defineEmits(['update:visible', 'export', 'download', 'share', 'cancel', 'settings-change']);
 
     // --- Form state ---
     const resolutionPreset = ref('1080p');
@@ -198,6 +203,30 @@
         return props.exportInfo?.hasWebCodecs ?? false;
     });
 
+    const hasEncodedVideo = computed(() => Boolean(props.encodedFilename));
+
+    const encodedSizeLabel = computed(() => {
+        const bytes = Number(props.encodedSize) || 0;
+        if (bytes <= 0) return '';
+        if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+        return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    });
+
+    watch([
+        resolutionPreset,
+        customWidth,
+        customHeight,
+        format,
+        durationMode,
+        customDuration,
+        fps,
+        cameraMovement,
+        quality,
+        logoOverlayEnabled,
+    ], () => {
+        emit('settings-change');
+    });
+
     function formatDuration(value) {
         const numeric = Number(value);
 
@@ -220,6 +249,18 @@
             quality: quality.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
         });
+    }
+
+    function handleDownload() {
+        emit('download');
+    }
+
+    function handleShare() {
+        emit('share');
+    }
+
+    function handleCancel() {
+        emit('cancel');
     }
 
     function handleClose() {
@@ -254,6 +295,7 @@
                                 :options="resolutionOptions"
                                 option-label="label"
                                 option-value="value"
+                                :disabled="isEncoding"
                                 class="w-full"
                             />
                         </div>
@@ -269,6 +311,7 @@
                                     :min="320"
                                     :max="7680"
                                     :step="2"
+                                    :disabled="isEncoding"
                                     class="w-full"
                                 />
                             </div>
@@ -280,6 +323,7 @@
                                     :min="240"
                                     :max="4320"
                                     :step="2"
+                                    :disabled="isEncoding"
                                     class="w-full"
                                 />
                             </div>
@@ -292,6 +336,7 @@
                                 :options="formatOptions"
                                 option-label="label"
                                 option-value="value"
+                                :disabled="isEncoding"
                                 class="w-full"
                             />
                         </div>
@@ -303,6 +348,7 @@
                                 :options="durationOptions"
                                 option-label="label"
                                 option-value="value"
+                                :disabled="isEncoding"
                                 class="w-full"
                             />
                         </div>
@@ -367,6 +413,7 @@
                                 :min-fraction-digits="1"
                                 :max-fraction-digits="1"
                                 suffix=" s"
+                                :disabled="isEncoding"
                                 class="w-full"
                             />
                             <div class="field-description">
@@ -382,6 +429,7 @@
                                 :options="qualityOptions"
                                 optionLabel="label"
                                 optionValue="value"
+                                :disabled="isEncoding"
                                 class="w-full"
                             />
                             <div
@@ -399,6 +447,7 @@
                                 :options="cameraMovementOptions"
                                 optionLabel="label"
                                 optionValue="value"
+                                :disabled="isEncoding"
                                 class="w-full"
                             />
                             <div
@@ -421,6 +470,7 @@
                                     <ToggleSwitch
                                         inputId="logoOverlayToggle"
                                         v-model="logoOverlayEnabled"
+                                        :disabled="isEncoding"
                                     />
                                     <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
                                 </div>
@@ -459,21 +509,72 @@
                     </div>
                 </div>
 
+                <div
+                    v-if="exportStatus"
+                    class="export-status-card"
+                    :class="{ ready: hasEncodedVideo, busy: isEncoding }"
+                >
+                    <span class="material-symbols-outlined">{{ hasEncodedVideo ? 'task_alt' : (isEncoding ? 'progress_activity' : 'info') }}</span>
+                    <div class="export-status-copy">
+                        <div class="export-status-text">{{ exportStatus }}</div>
+                        <div
+                            v-if="hasEncodedVideo"
+                            class="export-status-meta"
+                        >
+                            {{ encodedFilename }}<span v-if="encodedSizeLabel"> · {{ encodedSizeLabel }}</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="export-video-panel-footer dialog-footer">
-                    <button
-                        class="btn btn-secondary"
-                        @click="handleClose"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        class="btn btn-primary"
-                        :disabled="!hasWebCodecs"
-                        @click="handleExport"
-                    >
-                        <span class="material-symbols-outlined">videocam</span>
-                        Export
-                    </button>
+                    <template v-if="isEncoding">
+                        <button
+                            class="btn btn-secondary"
+                            @click="handleCancel"
+                        >
+                            <span class="material-symbols-outlined">cancel</span>
+                            Cancel Encode
+                        </button>
+                    </template>
+                    <template v-else-if="hasEncodedVideo">
+                        <button
+                            class="btn btn-secondary"
+                            @click="handleClose"
+                        >
+                            Close
+                        </button>
+                        <button
+                            v-if="canShare"
+                            class="btn btn-secondary"
+                            @click="handleShare"
+                        >
+                            <span class="material-symbols-outlined">share</span>
+                            Share
+                        </button>
+                        <button
+                            class="btn btn-primary"
+                            @click="handleDownload"
+                        >
+                            <span class="material-symbols-outlined">download_done</span>
+                            Download
+                        </button>
+                    </template>
+                    <template v-else>
+                        <button
+                            class="btn btn-secondary"
+                            @click="handleClose"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            class="btn btn-primary"
+                            :disabled="!hasWebCodecs"
+                            @click="handleExport"
+                        >
+                            <span class="material-symbols-outlined">videocam</span>
+                            Encode Video
+                        </button>
+                    </template>
                 </div>
             </div>
         </div>
@@ -812,10 +913,54 @@
         color: #ef4444;
     }
 
+    .export-status-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.85rem 1rem;
+        border-radius: 0.85rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .export-status-card.busy {
+        background: rgba(59, 130, 246, 0.12);
+        border-color: rgba(59, 130, 246, 0.28);
+    }
+
+    .export-status-card.ready {
+        background: rgba(34, 197, 94, 0.12);
+        border-color: rgba(34, 197, 94, 0.26);
+    }
+
+    .export-status-card .material-symbols-outlined {
+        font-size: 1.25rem;
+        line-height: 1.2;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .export-status-copy {
+        min-width: 0;
+    }
+
+    .export-status-text {
+        font-size: 0.86rem;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .export-status-meta {
+        margin-top: 0.2rem;
+        font-size: 0.76rem;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.62));
+        word-break: break-word;
+    }
+
     .dialog-footer {
         display: flex;
         justify-content: flex-end;
         gap: 0.75rem;
+        flex-wrap: wrap;
     }
 
     .btn {
