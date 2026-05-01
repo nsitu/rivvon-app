@@ -13,7 +13,7 @@
         }
     });
 
-    const emit = defineEmits(['next', 'resume-file-flow', 'choose-camera']);
+    const emit = defineEmits(['next', 'resume-file-flow']);
 
     const fileInput = ref(null);
 
@@ -77,27 +77,6 @@
                 </template>
             </Card>
 
-            <Card class="source-card source-card-camera">
-                <template #title>
-                    <h4 class="flex items-center gap-2 source-card-header">
-                        <span class="material-symbols-outlined source-icon">camera_video</span>
-                        <span class="source-card-title">Camera</span>
-                    </h4>
-                </template>
-                <template #content>
-                    <span class="source-card-detail">
-                        Capture from the camera, sample live, and save the result.
-                    </span>
-                </template>
-                <template #footer>
-                    <Button
-                        type="button"
-                        @click="emit('choose-camera')"
-                        label="Open Camera"
-                    />
-                </template>
-            </Card>
-
         </div>
 
         <p class="source-drop-hint">Drag and drop a video anywhere on this screen to jump straight into the file
@@ -120,7 +99,7 @@
         display: flex;
         flex-direction: column;
         gap: 2rem;
-        max-width: 920px;
+        max-width: 450px;
         margin: 0 auto;
         padding: 1rem 0 2rem;
     }
@@ -160,7 +139,7 @@
 
     .source-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 1rem;
     }
 
