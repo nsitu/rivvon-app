@@ -33,7 +33,7 @@
         { label: 'Landscape', value: 'landscape', icon: 'panorama' },
         { label: 'Portrait', value: 'portrait', icon: 'person_book' },
         { label: 'Square', value: 'square', icon: 'crop_square' },
-        { label: 'Instagram 5:4', value: 'instagram-5x4', icon: 'crop_5_4' },
+        { label: 'Instagram 5:4', value: 'instagram-5x4', icon: 'crop_portrait' },
         { label: 'Custom', value: 'custom', icon: 'crop_free' },
     ];
 
