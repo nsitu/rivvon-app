@@ -22,6 +22,7 @@
     const emit = defineEmits(['update:visible', 'export', 'download', 'share', 'cancel', 'settings-change']);
 
     // --- Form state ---
+    const aspectRatioPreset = ref('landscape');
     const resolutionPreset = ref('1080p');
     const customWidth = ref(1920);
     const customHeight = ref(1080);
@@ -48,16 +49,39 @@
     });
 
     // --- Preset options ---
-    const resolutionOptions = [
-        { label: '1080p (1920×1080)', value: '1080p' },
-        { label: '720p (1280×720)', value: '720p' },
-        { label: '480p (854×480)', value: '480p' },
-        { label: '4K (3840×2160)', value: '4k' },
-        { label: 'Vertical 1080p (1080×1920)', value: '1080p-v' },
-        { label: 'Vertical 4K (2160×3840)', value: '4k-v' },
-        { label: 'Square 1080 (1080×1080)', value: 'square' },
-        { label: 'Custom', value: 'custom' }
+    const aspectRatioOptions = [
+        { label: 'Landscape', value: 'landscape' },
+        { label: 'Portrait', value: 'portrait' },
+        { label: 'Square', value: 'square' },
+        { label: 'Instagram 5:4', value: 'instagram-5x4' },
+        { label: 'Custom', value: 'custom' },
     ];
+
+    const resolutionOptionsByAspect = {
+        landscape: [
+            { label: '720p (1280×720)', value: '720p' },
+            { label: '1080p (1920×1080)', value: '1080p' },
+            { label: '4K (3840×2160)', value: '4k' },
+        ],
+        portrait: [
+            { label: '1080p (1080×1920)', value: '1080p-v' },
+            { label: '4K (2160×3840)', value: '4k-v' },
+        ],
+        square: [
+            { label: '1080 (1080×1080)', value: 'square' },
+        ],
+        'instagram-5x4': [
+            { label: 'Post (1080×1350)', value: 'ig-5x4-1080' },
+            { label: 'Post HD (1920×2400)', value: 'ig-5x4-1920' },
+        ],
+        custom: [
+            { label: 'Custom Dimensions', value: 'custom' },
+        ],
+    };
+
+    const resolutionOptions = computed(() => (
+        resolutionOptionsByAspect[aspectRatioPreset.value] || resolutionOptionsByAspect.landscape
+    ));
 
     const formatOptions = [
         { label: 'MP4 (H.264)', value: 'mp4' },
@@ -89,6 +113,8 @@
             case '720p': return 1280;
             case '480p': return 854;
             case '4k': return 3840;
+            case 'ig-5x4-1080': return 1080;
+            case 'ig-5x4-1920': return 1920;
             case '1080p-v': return 1080;
             case '4k-v': return 2160;
             case 'square': return 1080;
@@ -103,6 +129,8 @@
             case '720p': return 720;
             case '480p': return 480;
             case '4k': return 2160;
+            case 'ig-5x4-1080': return 1350;
+            case 'ig-5x4-1920': return 2400;
             case '1080p-v': return 1920;
             case '4k-v': return 3840;
             case 'square': return 1080;
@@ -212,7 +240,15 @@
         return `${Math.max(1, Math.round(bytes / 1024))} KB`;
     });
 
+    watch(aspectRatioPreset, () => {
+        const availableValues = resolutionOptions.value.map((option) => option.value);
+        if (!availableValues.includes(resolutionPreset.value)) {
+            resolutionPreset.value = availableValues[0];
+        }
+    });
+
     watch([
+        aspectRatioPreset,
         resolutionPreset,
         customWidth,
         customHeight,
@@ -289,6 +325,18 @@
 
                     <div class="form-grid">
                         <div class="form-field">
+                            <label>Aspect Ratio</label>
+                            <Select
+                                v-model="aspectRatioPreset"
+                                :options="aspectRatioOptions"
+                                option-label="label"
+                                option-value="value"
+                                :disabled="isEncoding"
+                                class="w-full"
+                            />
+                        </div>
+
+                        <div class="form-field">
                             <label>Resolution</label>
                             <Select
                                 v-model="resolutionPreset"
@@ -301,7 +349,7 @@
                         </div>
 
                         <div
-                            v-if="resolutionPreset === 'custom'"
+                            v-if="aspectRatioPreset === 'custom' || resolutionPreset === 'custom'"
                             class="form-field form-row"
                         >
                             <div class="flex-1">
@@ -514,7 +562,8 @@
                     class="export-status-card"
                     :class="{ ready: hasEncodedVideo, busy: isEncoding }"
                 >
-                    <span class="material-symbols-outlined">{{ hasEncodedVideo ? 'task_alt' : (isEncoding ? 'progress_activity' : 'info') }}</span>
+                    <span class="material-symbols-outlined">{{ hasEncodedVideo ? 'task_alt' : (isEncoding ?
+                        'progress_activity' : 'info') }}</span>
                     <div class="export-status-copy">
                         <div class="export-status-text">{{ exportStatus }}</div>
                         <div

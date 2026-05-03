@@ -33,6 +33,7 @@
         { label: 'Landscape', value: 'landscape', icon: 'panorama' },
         { label: 'Portrait', value: 'portrait', icon: 'person_book' },
         { label: 'Square', value: 'square', icon: 'crop_square' },
+        { label: 'Instagram 5:4', value: 'instagram-5x4', icon: 'crop_5_4' },
         { label: 'Custom', value: 'custom', icon: 'crop_free' },
     ];
 
@@ -51,6 +52,10 @@
             { label: '1920 x 1920', value: 'square-1920' },
             { label: '2160 x 2160', value: 'square-2160' },
             { label: '3840 x 3840', value: 'square-3840' },
+        ],
+        'instagram-5x4': [
+            { label: '1080 x 1350', value: 'ig-5x4-1080' },
+            { label: '1920 x 2400', value: 'ig-5x4-1920' },
         ],
         custom: [
             { label: 'Custom Dimensions', value: 'custom' },
@@ -86,6 +91,8 @@
             case 'square-1920': return 1920;
             case 'square-2160': return 2160;
             case 'square-3840': return 3840;
+            case 'ig-5x4-1080': return 1080;
+            case 'ig-5x4-1920': return 1920;
             case 'custom': return customWidth.value;
             default: return 1920;
         }
@@ -102,6 +109,8 @@
             case 'square-1920': return 1920;
             case 'square-2160': return 2160;
             case 'square-3840': return 3840;
+            case 'ig-5x4-1080': return 1350;
+            case 'ig-5x4-1920': return 2400;
             case 'custom': return customHeight.value;
             default: return 1080;
         }
