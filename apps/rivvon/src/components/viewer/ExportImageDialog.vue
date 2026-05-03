@@ -30,10 +30,10 @@
     const logoOverlayEnabled = ref(true);
 
     const aspectRatioOptions = [
-        { label: 'Landscape', value: 'landscape', icon: 'panorama' },
-        { label: 'Portrait', value: 'portrait', icon: 'person_book' },
-        { label: 'Square', value: 'square', icon: 'crop_square' },
-        { label: 'Instagram 5:4', value: 'instagram-5x4', icon: 'crop_portrait' },
+        { label: 'Landscape (16:9)', value: 'landscape', icon: 'panorama_horizontal' },
+        { label: 'Portrait (9:16)', value: 'portrait', icon: 'panorama_vertical' },
+        { label: 'Instagram (5:4)', value: 'instagram-5x4', icon: 'crop_portrait' },
+        { label: 'Square (1:1)', value: 'square', icon: 'crop_square' },
         { label: 'Custom', value: 'custom', icon: 'crop_free' },
     ];
 
@@ -44,6 +44,7 @@
             { label: '3840 x 2160', value: '4k' }
         ],
         portrait: [
+            { label: '720 x 1280', value: '720p-v' },
             { label: '1080 x 1920', value: '1080p-v' },
             { label: '2160 x 3840', value: '4k-v' },
         ],
@@ -56,6 +57,8 @@
         'instagram-5x4': [
             { label: '1080 x 1350', value: 'ig-5x4-1080' },
             { label: '1920 x 2400', value: 'ig-5x4-1920' },
+            { label: '2160 x 2700', value: 'ig-5x4-2160' },
+            { label: '3840 x 4800', value: 'ig-5x4-3840' },
         ],
         custom: [
             { label: 'Custom Dimensions', value: 'custom' },
@@ -85,6 +88,7 @@
             case '1080p': return 1920;
             case '720p': return 1280;
             case '4k': return 3840;
+            case '720p-v': return 720;
             case '1080p-v': return 1080;
             case 'square': return 1080;
             case '4k-v': return 2160;
@@ -93,6 +97,8 @@
             case 'square-3840': return 3840;
             case 'ig-5x4-1080': return 1080;
             case 'ig-5x4-1920': return 1920;
+            case 'ig-5x4-2160': return 2160;
+            case 'ig-5x4-3840': return 3840;
             case 'custom': return customWidth.value;
             default: return 1920;
         }
@@ -103,6 +109,7 @@
             case '1080p': return 1080;
             case '720p': return 720;
             case '4k': return 2160;
+            case '720p-v': return 1280;
             case '1080p-v': return 1920;
             case 'square': return 1080;
             case '4k-v': return 3840;
@@ -111,6 +118,8 @@
             case 'square-3840': return 3840;
             case 'ig-5x4-1080': return 1350;
             case 'ig-5x4-1920': return 2400;
+            case 'ig-5x4-2160': return 2700;
+            case 'ig-5x4-3840': return 4800;
             case 'custom': return customHeight.value;
             default: return 1080;
         }

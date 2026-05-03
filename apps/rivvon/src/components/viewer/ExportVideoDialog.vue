@@ -64,15 +64,21 @@
             { label: '4K (3840×2160)', value: '4k' },
         ],
         portrait: [
+            { label: '720p (720×1280)', value: '720p-v' },
             { label: '1080p (1080×1920)', value: '1080p-v' },
             { label: '4K (2160×3840)', value: '4k-v' },
         ],
         square: [
             { label: '1080 (1080×1080)', value: 'square' },
+            { label: '1920 (1920×1920)', value: 'square-1920' },
+            { label: '2160 (2160×2160)', value: 'square-2160' },
+            { label: '3840 (3840×3840)', value: 'square-3840' },
         ],
         'instagram-5x4': [
             { label: 'Post (1080×1350)', value: 'ig-5x4-1080' },
             { label: 'Post HD (1920×2400)', value: 'ig-5x4-1920' },
+            { label: 'Post Pro (2160×2700)', value: 'ig-5x4-2160' },
+            { label: 'Post Max (3840×4800)', value: 'ig-5x4-3840' },
         ],
         custom: [
             { label: 'Custom Dimensions', value: 'custom' },
@@ -115,9 +121,15 @@
             case '4k': return 3840;
             case 'ig-5x4-1080': return 1080;
             case 'ig-5x4-1920': return 1920;
+            case 'ig-5x4-2160': return 2160;
+            case 'ig-5x4-3840': return 3840;
+            case '720p-v': return 720;
             case '1080p-v': return 1080;
             case '4k-v': return 2160;
             case 'square': return 1080;
+            case 'square-1920': return 1920;
+            case 'square-2160': return 2160;
+            case 'square-3840': return 3840;
             case 'custom': return customWidth.value;
             default: return 1920;
         }
@@ -131,9 +143,15 @@
             case '4k': return 2160;
             case 'ig-5x4-1080': return 1350;
             case 'ig-5x4-1920': return 2400;
+            case 'ig-5x4-2160': return 2700;
+            case 'ig-5x4-3840': return 4800;
+            case '720p-v': return 1280;
             case '1080p-v': return 1920;
             case '4k-v': return 3840;
             case 'square': return 1080;
+            case 'square-1920': return 1920;
+            case 'square-2160': return 2160;
+            case 'square-3840': return 3840;
             case 'custom': return customHeight.value;
             default: return 1080;
         }
