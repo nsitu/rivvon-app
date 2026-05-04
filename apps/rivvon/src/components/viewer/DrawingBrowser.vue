@@ -601,6 +601,108 @@
         }
     }
 
+    function sanitizeSvgFileName(name) {
+        const baseName = typeof name === 'string' && name.trim() ? name.trim() : 'drawing';
+        return baseName
+            .replace(/[\\/:*?"<>|]+/g, '-')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function formatSvgNumber(value) {
+        return Number(value.toFixed(5));
+    }
+
+    function createSvgFromPaths(paths) {
+        const normalizedPaths = [];
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        for (const rawPath of paths || []) {
+            if (!Array.isArray(rawPath)) {
+                continue;
+            }
+
+            const points = rawPath
+                .map((point) => {
+                    const x = Number(point?.x);
+                    const y = Number(point?.y);
+                    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                        return null;
+                    }
+                    // Flip Y to match viewer-space orientation.
+                    return { x, y: -y };
+                })
+                .filter(Boolean);
+
+            if (points.length < 2) {
+                continue;
+            }
+
+            for (const point of points) {
+                minX = Math.min(minX, point.x);
+                minY = Math.min(minY, point.y);
+                maxX = Math.max(maxX, point.x);
+                maxY = Math.max(maxY, point.y);
+            }
+
+            normalizedPaths.push(points);
+        }
+
+        if (!normalizedPaths.length) {
+            throw new Error('Drawing payload is missing valid path geometry.');
+        }
+
+        const width = Math.max(maxX - minX, 0.0001);
+        const height = Math.max(maxY - minY, 0.0001);
+        const pad = Math.max(width, height) * 0.02;
+        const viewBoxX = formatSvgNumber(minX - pad);
+        const viewBoxY = formatSvgNumber(minY - pad);
+        const viewBoxW = formatSvgNumber(width + pad * 2);
+        const viewBoxH = formatSvgNumber(height + pad * 2);
+
+        const pathMarkup = normalizedPaths
+            .map((points) => {
+                const d = points
+                    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${formatSvgNumber(point.x)} ${formatSvgNumber(point.y)}`)
+                    .join(' ');
+
+                return `  <path d="${d}" fill="none" stroke="currentColor" stroke-width="0.01" stroke-linecap="round" stroke-linejoin="round" />`;
+            })
+            .join('\n');
+
+        return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBoxX} ${viewBoxY} ${viewBoxW} ${viewBoxH}">\n${pathMarkup}\n</svg>\n`;
+    }
+
+    async function handleDownloadSvg(drawing) {
+        try {
+            await withDrawingAction(drawing, async () => {
+                const resolvedDrawing = await resolveDrawingRecord(drawing);
+                if (!Array.isArray(resolvedDrawing.paths) || resolvedDrawing.paths.length === 0) {
+                    throw new Error('Drawing payload is missing geometry.');
+                }
+
+                const svgText = createSvgFromPaths(resolvedDrawing.paths);
+                const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+
+                const anchor = document.createElement('a');
+                anchor.href = svgUrl;
+                anchor.download = `${sanitizeSvgFileName(resolvedDrawing.name)}.svg`;
+                document.body.appendChild(anchor);
+                anchor.click();
+                document.body.removeChild(anchor);
+
+                URL.revokeObjectURL(svgUrl);
+            });
+        } catch (downloadError) {
+            console.error('[DrawingBrowser] Failed to download drawing as SVG:', downloadError);
+            error.value = 'Failed to export drawing as SVG.';
+        }
+    }
+
     async function handleDelete(drawing) {
         const confirmed = confirm(`Delete "${drawing.name}"?`);
         if (!confirmed) {
@@ -777,6 +879,15 @@
                                     @click="handleOpen(drawing)"
                                 >
                                     <span class="material-symbols-outlined">visibility</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="action-button download-button"
+                                    title="Download as SVG"
+                                    :disabled="isDrawingBusy(drawing)"
+                                    @click="handleDownloadSvg(drawing)"
+                                >
+                                    <span class="material-symbols-outlined">download</span>
                                 </button>
                                 <button
                                     type="button"
@@ -1188,6 +1299,15 @@
 
     .action-button.open-button:hover:not(:disabled) {
         background: #90caf9;
+        transform: scale(1.1);
+    }
+
+    .action-button.download-button {
+        background: rgba(16, 185, 129, 0.9);
+    }
+
+    .action-button.download-button:hover:not(:disabled) {
+        background: #10b981;
         transform: scale(1.1);
     }
 
