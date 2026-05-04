@@ -206,7 +206,7 @@
             <div class="export-image-panel-content">
                 <div class="export-image-panel-body">
                     <div class="form-grid">
-                        <div class="form-field">
+                        <div class="form-field format-field">
                             <label>Format</label>
                             <Select
                                 v-model="format"
@@ -217,7 +217,7 @@
                             />
                         </div>
 
-                        <div class="form-field">
+                        <div class="form-field aspect-ratio-field">
                             <label>Aspect Ratio</label>
                             <Select
                                 v-model="aspectRatioPreset"
@@ -449,6 +449,16 @@
         flex: 1 1 10rem;
         min-width: 10rem;
         gap: 0.35rem;
+    }
+
+    .format-field {
+        flex: 0 1 8rem;
+        min-width: 7.5rem;
+    }
+
+    .aspect-ratio-field {
+        flex: 1.35 1 14rem;
+        min-width: 13rem;
     }
 
     .form-field label {

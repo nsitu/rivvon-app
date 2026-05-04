@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed } from 'vue';
+    import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
     import Button from 'primevue/button';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
@@ -470,6 +470,44 @@
         closeLaunchers();
         action();
     }
+
+    function isEditableTarget(target) {
+        if (!(target instanceof Element)) {
+            return false;
+        }
+
+        const tag = target.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+            return true;
+        }
+
+        return target.isContentEditable || Boolean(target.closest('[contenteditable="true"]'));
+    }
+
+    function handleGlobalKeydown(event) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+        if (isEditableTarget(event.target)) {
+            return;
+        }
+
+        if (!hasActiveContext.value) {
+            return;
+        }
+
+        event.preventDefault();
+        handleBack();
+    }
+
+    onMounted(() => {
+        window.addEventListener('keydown', handleGlobalKeydown);
+    });
+
+    onBeforeUnmount(() => {
+        window.removeEventListener('keydown', handleGlobalKeydown);
+    });
 
     const activeLauncherItems = computed(() => {
         if (props.activeToolbarOverlay === 'draw') {
