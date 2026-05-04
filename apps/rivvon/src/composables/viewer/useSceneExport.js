@@ -41,7 +41,7 @@ function alignDurations(cinematicDuration, textureDuration, fps) {
  */
 export function useSceneExport(ctx, deps = {}) {
     function getRepeatModeLabel(mode) {
-        if (mode === 'mirrorBounce') {
+        if (mode === 'mirrorTile') {
             return 'mirror-bounce';
         }
 
@@ -217,7 +217,7 @@ export function useSceneExport(ctx, deps = {}) {
                 detail: textureCyclePeriod > 0
                     ? `${layerCount} layers animate at ${fps} fps in ${variant === 'planes' ? 'ping-pong' : 'wrap'} mode.`
                     : (!textureAnimationEnabled && layerCount > 1
-                        ? 'Texture layer animation is turned off, so export will hold a single fixed KTX2 layer.'
+                        ? 'Animate Layers is turned off, so export will hold a single fixed KTX2 layer.'
                         : 'Current texture set is static, so there is no animated texture cycle.'),
                 inactiveDetail: !textureAnimationEnabled && layerCount > 1
                     ? 'Texture animation does not contribute to the seamless loop while disabled.'

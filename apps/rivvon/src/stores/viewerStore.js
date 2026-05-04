@@ -138,9 +138,9 @@ export const useViewerStore = defineStore('viewer', {
         
         // Helix mode
         helixMode: false,
-        helixRadius: 0.4,   // Distance each strand sits from the spine
-        helixPitch: 4,      // Number of full turns along the ribbon length
-        helixStrandWidth: 0.3, // Width of each helical ribbon strip (fraction of original width)
+        helixRadius: 0.20,   // Distance each strand sits from the spine
+        helixPitch: 9.0,      // Number of full turns along the ribbon length
+        helixStrandWidth: 0.50, // Width of each helical ribbon strip (fraction of original width)
         ribbonWidthScale: normalizeRibbonWidthScale(readViewerPreferences().ribbonWidthScale),
 
         // Geometry options
@@ -149,7 +149,7 @@ export const useViewerStore = defineStore('viewer', {
         cornerNarrowingEnabled: false,
         
         // Texture state
-        textureRepeatMode: 'mirrorBounce', // 'wrap' | 'mirrorBounce'
+        textureRepeatMode: 'mirrorTile', // 'wrap' | 'mirrorTile'
         preferredTextureMaxResolution: normalizePreferredTextureMaxResolution(
             readViewerPreferences().preferredTextureMaxResolution
         ),
@@ -543,7 +543,7 @@ export const useViewerStore = defineStore('viewer', {
         },
 
         setTextureRepeatMode(mode) {
-            this.textureRepeatMode = mode === 'mirrorBounce' ? 'mirrorBounce' : 'wrap';
+            this.textureRepeatMode = mode === 'mirrorTile' ? 'mirrorTile' : 'wrap';
         },
 
         setUndulationEnabled(enabled) {

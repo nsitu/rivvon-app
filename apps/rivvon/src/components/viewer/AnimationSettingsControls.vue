@@ -1,0 +1,361 @@
+﻿<script setup>
+    import { computed, getCurrentInstance, ref, watch } from 'vue';
+    import ToggleSwitch from 'primevue/toggleswitch';
+    import { useViewerStore } from '../../stores/viewerStore';
+
+    defineProps({
+        showTextureSection: { type: Boolean, default: true },
+    });
+
+    const emit = defineEmits(['change']);
+
+    const app = useViewerStore();
+    const instanceUid = getCurrentInstance()?.uid ?? Math.round(Math.random() * 1e9);
+    const inputIdPrefix = `animation-settings-${instanceUid}`;
+
+    const lastFlowDirection = ref(app.flowState === 'backward' ? 'backward' : 'forward');
+
+    const flowSpeedDisplay = computed(() => `${app.flowSpeed.toFixed(2)} tiles/s`);
+
+    watch(
+        () => app.flowState,
+        (state) => {
+            if (state === 'forward' || state === 'backward') {
+                lastFlowDirection.value = state;
+            }
+        },
+        { immediate: true }
+    );
+
+    const flowEnabledModel = computed({
+        get: () => app.flowState !== 'off',
+        set: (enabled) => {
+            app.setFlowState(enabled ? lastFlowDirection.value : 'off');
+            emit('change');
+        },
+    });
+
+    const reverseFlowModel = computed({
+        get: () => lastFlowDirection.value === 'backward',
+        set: (value) => {
+            const nextDirection = value ? 'backward' : 'forward';
+            lastFlowDirection.value = nextDirection;
+            app.setFlowState(nextDirection);
+            emit('change');
+        },
+    });
+
+    const mirrorTilesModel = computed({
+        get: () => app.textureRepeatMode === 'mirrorTile',
+        set: (value) => {
+            app.setTextureRepeatMode(value ? 'mirrorTile' : 'wrap');
+            emit('change');
+        },
+    });
+
+    const undulationModel = computed({
+        get: () => app.undulationEnabled,
+        set: (value) => {
+            app.setUndulationEnabled(!!value);
+            emit('change');
+        },
+    });
+
+    const flowCycleAlignmentModel = computed({
+        get: () => app.flowCycleAlignmentEnabled,
+        set: (value) => {
+            app.setFlowCycleAlignmentEnabled(!!value);
+            emit('change');
+        },
+    });
+
+    const textureAnimationModel = computed({
+        get: () => app.textureAnimationEnabled,
+        set: (value) => {
+            app.setTextureAnimationEnabled(!!value);
+            emit('change');
+        },
+    });
+
+    function handleFlowSpeedInput(event) {
+        app.setFlowSpeed(parseFloat(event.target.value));
+        emit('change');
+    }
+
+    function getInputId(name) {
+        return `${inputIdPrefix}-${name}`;
+    }
+</script>
+
+<template>
+    <div class="animation-settings-controls">
+        <div class="tools-section">
+            <div class="tools-section-label">Animation</div>
+            <div class="tools-section-items">
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('flow-mode')"
+                    >
+                        <span class="material-symbols-outlined">text_select_move_forward_word</span>
+                        <span>Conveyor Belt (Flow)</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ flowEnabledModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('flow-mode')"
+                            v-model="flowEnabledModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="flowEnabledModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('reverse-flow')"
+                    >
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        <span>Reverse Flow</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ reverseFlowModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('reverse-flow')"
+                            v-model="reverseFlowModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="app.flowState !== 'off'"
+                    class="tools-slider"
+                >
+                    <label><span class="material-symbols-outlined tools-slider-icon">speed</span>Flow Speed <span
+                            class="tools-slider-value"
+                        >{{ flowSpeedDisplay }}</span></label>
+                    <input
+                        type="range"
+                        min="0.05"
+                        max="2"
+                        step="0.05"
+                        :value="app.flowSpeed"
+                        @input="handleFlowSpeedInput"
+                    />
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('undulation')"
+                    >
+                        <span class="material-symbols-outlined">airwave</span>
+                        <span>Ribbon Undulation</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('undulation')"
+                            v-model="undulationModel"
+                        />
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('layer-cycling')"
+                    >
+                        <span class="material-symbols-outlined">layers</span>
+                        <span>Layer Cycling</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
+                        }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('layer-cycling')"
+                            v-model="textureAnimationModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="flowEnabledModel && textureAnimationModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('auto-align-cycles')"
+                    >
+                        <span class="material-symbols-outlined">horizontal_align_center</span>
+                        <span>Auto-Align Cycles</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
+                            }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('auto-align-cycles')"
+                            v-model="flowCycleAlignmentModel"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showTextureSection"
+            class="tools-section"
+        >
+            <div class="tools-section-label">Texture</div>
+
+            <div class="tools-section-items">
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('mirror-tiles')"
+                    >
+                        <span class="material-symbols-outlined">swap_horiz</span>
+                        <span>Mirror Tiles</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ mirrorTilesModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('mirror-tiles')"
+                            v-model="mirrorTilesModel"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<style scoped>
+    .animation-settings-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        width: 100%;
+    }
+
+    .tools-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+
+    .tools-section-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.4);
+        padding: 0 0.5rem 0.25rem;
+    }
+
+    .tools-section-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 10px;
+        padding: 0.25rem;
+    }
+
+    .tools-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.875rem 1rem;
+        color: var(--p-text-color, #fff);
+    }
+
+    .tools-toggle-main {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        min-width: 0;
+        color: inherit;
+        cursor: pointer;
+    }
+
+    .tools-toggle-main .material-symbols-outlined {
+        font-size: 1.35rem;
+        opacity: 0.85;
+        flex-shrink: 0;
+    }
+
+    .tools-toggle-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex-shrink: 0;
+    }
+
+    .tools-hint {
+        margin-left: auto;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0.2rem 0.45rem;
+        border-radius: 4px;
+        font-family: monospace;
+        letter-spacing: 0.02em;
+    }
+
+    .tools-toggle-hint {
+        margin-left: 0;
+    }
+
+    .tools-slider {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.5rem 1rem 0.625rem;
+    }
+
+    .tools-slider label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .tools-slider-icon {
+        font-size: 1rem;
+        opacity: 0.75;
+        flex-shrink: 0;
+    }
+
+    .tools-slider-value {
+        margin-left: auto;
+        color: rgba(255, 255, 255, 0.85);
+        font-family: monospace;
+        font-size: 0.75rem;
+    }
+
+    .tools-slider input[type='range'] {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 2px;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+    }
+
+    .tools-slider input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--p-primary-color, #10b981);
+        cursor: pointer;
+    }
+</style>

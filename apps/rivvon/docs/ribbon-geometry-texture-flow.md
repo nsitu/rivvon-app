@@ -264,7 +264,7 @@ The repeat cycle used for wrapping depends on the selected texture layout:
 | `flowOffset`     | float | [0, 1)  | Every frame (via `tick()`) | Fractional slide within the current tile pair    |
 | `tileFlowOffset` | int   | modular | When flowOffset wraps      | Base tile pair selection for each segment        |
 | `flowSpeed`      | float | +/-N    | User control               | Tiles per second; `flowOffset += flowSpeed * dt` |
-| `repeatMode`     | enum  | fixed   | User control               | Chooses `wrap` or `mirrorBounce` layout          |
+| `repeatMode`     | enum  | fixed   | User control               | Chooses `wrap` or `mirrorTile` layout            |
 
 ### Derivative Handling
 

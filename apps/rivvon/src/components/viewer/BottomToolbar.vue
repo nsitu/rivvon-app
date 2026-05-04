@@ -4,6 +4,7 @@
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -53,31 +54,10 @@
         emit('toolbar-overlay-change', nextLauncher);
     }
 
-    const flowOptions = [
-        { label: 'Oscillate', value: 'off', icon: 'airwave' },
-        { label: 'Forward', value: 'forward', icon: 'arrow_forward' },
-        { label: 'Backward', value: 'backward', icon: 'arrow_back' }
-    ];
-
-    const repeatOptions = [
-        { label: 'Wrap Tiles', value: 'wrap', icon: 'repeat' },
-        { label: 'Mirror Bounce', value: 'mirrorBounce', icon: 'swap_horiz' }
-    ];
-
     const preferredTextureResolutionOptions = [
         { label: '256 px', value: 256, icon: 'aspect_ratio' },
         { label: '512 px', value: 512, icon: 'aspect_ratio' },
         { label: '1024 px', value: 1024, icon: 'aspect_ratio' }
-    ];
-
-    const filterOptions = [
-        { label: 'None', value: 'none', icon: 'block' },
-        { label: 'Black and White', value: 'blackAndWhite', icon: 'filter_alt' }
-    ];
-
-    const geometryOptions = [
-        { label: 'Ribbon', value: 'flat', icon: '~', textIcon: true },
-        { label: 'Double Helix', value: 'helix', icon: 'genetics' }
     ];
 
     const capOptions = [
@@ -95,36 +75,6 @@
         { label: 'Scroll Driven', value: 'scrollTilt', icon: '360' }
     ];
 
-    function setFlowState(state) {
-        app.setFlowState(state);
-        app.hideToolsPanel();
-    }
-
-    function handleFlowSpeedInput(event) {
-        app.setFlowSpeed(parseFloat(event.target.value));
-    }
-
-    function setTextureRepeatMode(mode) {
-        app.setTextureRepeatMode(mode);
-        app.hideToolsPanel();
-    }
-
-    const selectedFlowOption = computed({
-        get: () => flowOptions.find((option) => option.value === app.flowState) ?? flowOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            setFlowState(option.value);
-        }
-    });
-
-    const selectedRepeatOption = computed({
-        get: () => repeatOptions.find((option) => option.value === app.textureRepeatMode) ?? repeatOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            setTextureRepeatMode(option.value);
-        }
-    });
-
     const selectedPreferredTextureResolutionOption = computed({
         get: () => preferredTextureResolutionOptions.find((option) => option.value === app.preferredTextureMaxResolution)
             ?? preferredTextureResolutionOptions[0],
@@ -134,27 +84,32 @@
         }
     });
 
-    const selectedFilterOption = computed({
-        get: () => filterOptions.find((option) => option.value === app.renderFilterMode) ?? filterOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setRenderFilterMode(option.value);
-        }
-    });
-
-    const selectedGeometryOption = computed({
-        get: () => geometryOptions.find((option) => option.value === (app.helixEnabled ? 'helix' : 'flat')) ?? geometryOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setHelixMode(option.value === 'helix');
-        }
-    });
-
     const selectedCapOption = computed({
         get: () => capOptions.find((option) => option.value === app.capStyle) ?? capOptions[0],
         set: (option) => {
             if (!option?.value) return;
             app.setCapStyle(option.value);
+        }
+    });
+
+    const blackAndWhiteFilterModel = computed({
+        get: () => app.renderFilterMode === 'blackAndWhite',
+        set: (value) => {
+            app.setRenderFilterMode(value ? 'blackAndWhite' : 'none');
+        }
+    });
+
+    const mirrorTilesModel = computed({
+        get: () => app.textureRepeatMode === 'mirrorTile',
+        set: (value) => {
+            app.setTextureRepeatMode(value ? 'mirrorTile' : 'wrap');
+        }
+    });
+
+    const doubleHelixModel = computed({
+        get: () => app.helixEnabled,
+        set: (value) => {
+            app.setHelixMode(!!value);
         }
     });
 
@@ -209,8 +164,6 @@
         if (!app.screenWakeLockEnabled) return 'Off';
         return app.screenWakeLockActive ? 'Active' : 'Auto';
     });
-
-    const flowSpeedDisplay = computed(() => `${app.flowSpeed.toFixed(2)} tiles/s`);
 
     const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
@@ -291,27 +244,6 @@
         get: () => app.cornerNarrowingEnabled,
         set: (value) => {
             app.setCornerNarrowingEnabled(!!value);
-        }
-    });
-
-    const undulationModel = computed({
-        get: () => app.undulationEnabled,
-        set: (value) => {
-            app.setUndulationEnabled(!!value);
-        }
-    });
-
-    const flowCycleAlignmentModel = computed({
-        get: () => app.flowCycleAlignmentEnabled,
-        set: (value) => {
-            app.setFlowCycleAlignmentEnabled(!!value);
-        }
-    });
-
-    const textureAnimationModel = computed({
-        get: () => app.textureAnimationEnabled,
-        set: (value) => {
-            app.setTextureAnimationEnabled(!!value);
         }
     });
 
@@ -611,7 +543,7 @@
         },
         {
             label: 'Gesture',
-            icon: 'draw',
+            icon: 'gesture',
             active: app.isDrawingMode,
             command: () => {
                 if (app.isDrawingMode) {
@@ -825,34 +757,37 @@
                 <div class="tools-panel-content">
                     <!-- Animation section -->
                     <div class="tools-section">
-                        <div class="tools-section-label">Viewer Controls</div>
+                        <div class="tools-section-label">Viewer</div>
                         <div class="tools-section-items">
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedViewerControlOption"
-                                    :options="viewerControlOptions"
-                                    option-label="label"
-                                    class="tools-select"
-                                >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
+                            <div class="tools-select-block">
+                                <label class="tools-select-label">Controls</label>
+                                <div class="tools-select-wrap">
+                                    <Select
+                                        v-model="selectedViewerControlOption"
+                                        :options="viewerControlOptions"
+                                        option-label="label"
+                                        class="tools-select"
+                                    >
+                                        <template #value="slotProps">
+                                            <div
+                                                v-if="slotProps.value"
+                                                class="tools-select-row"
+                                            >
+                                                <span class="material-symbols-outlined tools-select-icon">{{
+                                                    slotProps.value.icon }}</span>
+                                                <span>{{ slotProps.value.label }}</span>
+                                            </div>
+                                            <span v-else>{{ slotProps.placeholder }}</span>
+                                        </template>
+                                        <template #option="slotProps">
+                                            <div class="tools-select-row">
+                                                <span class="material-symbols-outlined tools-select-icon">{{
+                                                    slotProps.option.icon }}</span>
+                                                <span>{{ slotProps.option.label }}</span>
+                                            </div>
+                                        </template>
+                                    </Select>
+                                </div>
                             </div>
 
                             <button
@@ -966,200 +901,135 @@
                                     />
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- Animation section -->
-                    <div class="tools-section">
-                        <div class="tools-section-label">Animation</div>
-                        <div class="tools-section-items">
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedFlowOption"
-                                    :options="flowOptions"
-                                    option-label="label"
-                                    class="tools-select"
-                                >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
-                            </div>
                             <div class="tools-toggle-row">
                                 <label
                                     class="tools-toggle-main"
-                                    for="undulationToggle"
+                                    for="textureMetadataToggle"
                                 >
-                                    <span class="material-symbols-outlined">airwave</span>
-                                    <span>Ribbon Undulation</span>
+                                    <span class="material-symbols-outlined">subtitles</span>
+                                    <span>Texture Metadata</span>
                                 </label>
                                 <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off'
-                                    }}</span>
+                                    <span class="tools-hint tools-toggle-hint">M</span>
                                     <ToggleSwitch
-                                        inputId="undulationToggle"
-                                        v-model="undulationModel"
+                                        inputId="textureMetadataToggle"
+                                        v-model="textureMetadataOverlayModel"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="technicalOverlayToggle"
+                                >
+                                    <span class="material-symbols-outlined">monitoring</span>
+                                    <span>Technical Overlay</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">D</span>
+                                    <ToggleSwitch
+                                        inputId="technicalOverlayToggle"
+                                        v-model="technicalOverlayModel"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                class="tools-toggle-row"
+                                :class="{ 'is-disabled': app.screenWakeLockSupported === false }"
+                            >
+                                <label
+                                    class="tools-toggle-main"
+                                    for="screenWakeLockToggle"
+                                >
+                                    <span class="material-symbols-outlined">schedule</span>
+                                    <span>Keep Screen Awake</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ screenWakeLockHint }}</span>
+                                    <ToggleSwitch
+                                        inputId="screenWakeLockToggle"
+                                        v-model="screenWakeLockModel"
+                                        :disabled="app.screenWakeLockSupported === false"
                                     />
                                 </div>
                             </div>
                         </div>
                     </div>
 
+                    <div class="tools-section-host">
+                        <AnimationSettingsControls :show-texture-section="false" />
+                    </div>
+
                     <div class="tools-section">
-                        <div class="tools-section-label">Texture Layout</div>
-                        <div class="tools-slider">
-                            <label>Flow Speed <span class="tools-slider-value">{{ flowSpeedDisplay }}</span></label>
-                            <input
-                                type="range"
-                                min="0.05"
-                                max="2"
-                                step="0.05"
-                                :value="app.flowSpeed"
-                                @input="handleFlowSpeedInput"
-                            />
-                        </div>
-                        <div class="tools-toggle-row">
-                            <label
-                                class="tools-toggle-main"
-                                for="flowCycleAlignmentToggle"
-                            >
-                                <span class="material-symbols-outlined">sync_alt</span>
-                                <span>Align Flow To Texture Cycle</span>
-                            </label>
-                            <div class="tools-toggle-control">
-                                <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' :
-                                    'Off' }}</span>
-                                <ToggleSwitch
-                                    inputId="flowCycleAlignmentToggle"
-                                    v-model="flowCycleAlignmentModel"
-                                />
-                            </div>
-                        </div>
-                        <div class="tools-toggle-row">
-                            <label
-                                class="tools-toggle-main"
-                                for="textureAnimationToggle"
-                            >
-                                <span class="material-symbols-outlined">layers</span>
-                                <span>Texture Layer Animation</span>
-                            </label>
-                            <div class="tools-toggle-control">
-                                <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
+                        <div class="tools-section-label">Texture</div>
+                        <div class="tools-section-items">
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="toolbarMirrorTilesToggle"
+                                >
+                                    <span class="material-symbols-outlined">swap_horiz</span>
+                                    <span>Mirror Tiles</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ mirrorTilesModel ? 'On' : 'Off'
                                     }}</span>
-                                <ToggleSwitch
-                                    inputId="textureAnimationToggle"
-                                    v-model="textureAnimationModel"
-                                />
+                                    <ToggleSwitch
+                                        inputId="toolbarMirrorTilesToggle"
+                                        v-model="mirrorTilesModel"
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <div class="tools-section-items">
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedRepeatOption"
-                                    :options="repeatOptions"
-                                    option-label="label"
-                                    class="tools-select"
-                                >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="tools-section">
-                        <div class="tools-section-label">Preferred Texture Size</div>
-                        <div class="tools-section-items">
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedPreferredTextureResolutionOption"
-                                    :options="preferredTextureResolutionOptions"
-                                    option-label="label"
-                                    class="tools-select"
-                                >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
+                            <div class="tools-select-block">
+                                <label class="tools-select-label">Preferred Resolution</label>
+                                <div class="tools-select-wrap">
+                                    <Select
+                                        v-model="selectedPreferredTextureResolutionOption"
+                                        :options="preferredTextureResolutionOptions"
+                                        option-label="label"
+                                        class="tools-select"
+                                    >
+                                        <template #value="slotProps">
+                                            <div
+                                                v-if="slotProps.value"
+                                                class="tools-select-row"
+                                            >
+                                                <span class="material-symbols-outlined tools-select-icon">{{
+                                                    slotProps.value.icon }}</span>
+                                                <span>{{ slotProps.value.label }}</span>
+                                            </div>
+                                            <span v-else>{{ slotProps.placeholder }}</span>
+                                        </template>
+                                        <template #option="slotProps">
+                                            <div class="tools-select-row">
+                                                <span class="material-symbols-outlined tools-select-icon">{{
+                                                    slotProps.option.icon }}</span>
+                                                <span>{{ slotProps.option.label }}</span>
+                                            </div>
+                                        </template>
+                                    </Select>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="tools-section">
-                        <div class="tools-section-label">Filter</div>
-                        <div class="tools-section-items">
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedFilterOption"
-                                    :options="filterOptions"
-                                    option-label="label"
-                                    class="tools-select"
+                            <div class="tools-toggle-row">
+                                <label
+                                    class="tools-toggle-main"
+                                    for="blackAndWhiteFilterToggle"
                                 >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
+                                    <span class="material-symbols-outlined">filter_b_and_w</span>
+                                    <span>Black and White</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ blackAndWhiteFilterModel ? 'On' :
+                                        'Off' }}</span>
+                                    <ToggleSwitch
+                                        inputId="blackAndWhiteFilterToggle"
+                                        v-model="blackAndWhiteFilterModel"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1180,104 +1050,98 @@
                                     @input="app.setRibbonWidthScale(parseFloat($event.target.value))"
                                 />
                             </div>
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedGeometryOption"
-                                    :options="geometryOptions"
-                                    option-label="label"
-                                    class="tools-select"
+                            <div class="tools-geometry-group">
+                                <div class="tools-toggle-row">
+                                    <label
+                                        class="tools-toggle-main"
+                                        for="doubleHelixToggle"
+                                    >
+                                        <span class="material-symbols-outlined">genetics</span>
+                                        <span>Double Helix</span>
+                                    </label>
+                                    <div class="tools-toggle-control">
+                                        <span class="tools-hint tools-toggle-hint">{{ doubleHelixModel ? 'On' : 'Off'
+                                        }}</span>
+                                        <ToggleSwitch
+                                            inputId="doubleHelixToggle"
+                                            v-model="doubleHelixModel"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-if="app.helixEnabled"
+                                    class="tools-geometry-details"
                                 >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span
-                                                :class="slotProps.value.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
-                                            >{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span
-                                                :class="slotProps.option.textIcon ? 'tools-text-icon' : 'material-symbols-outlined tools-select-icon'"
-                                            >{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
+                                    <div class="tools-slider">
+                                        <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
+                                                }}</span></label>
+                                        <input
+                                            type="range"
+                                            min="0.1"
+                                            max="1.5"
+                                            step="0.05"
+                                            :value="app.helixRadius"
+                                            @input="app.setHelixOption('helixRadius', parseFloat($event.target.value))"
+                                        />
+                                    </div>
+                                    <div class="tools-slider">
+                                        <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
+                                                }}</span></label>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="12"
+                                            step="0.5"
+                                            :value="app.helixPitch"
+                                            @input="app.setHelixOption('helixPitch', parseFloat($event.target.value))"
+                                        />
+                                    </div>
+                                    <div class="tools-slider">
+                                        <label>Strand Width <span class="tools-slider-value">{{
+                                            app.helixStrandWidth.toFixed(2)
+                                                }}</span></label>
+                                        <input
+                                            type="range"
+                                            min="0.05"
+                                            max="0.8"
+                                            step="0.05"
+                                            :value="app.helixStrandWidth"
+                                            @input="app.setHelixOption('helixStrandWidth', parseFloat($event.target.value))"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <!-- Helix parameter sliders (visible when helix is active) -->
-                            <template v-if="app.helixEnabled">
-                                <div class="tools-slider">
-                                    <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                            }}</span></label>
-                                    <input
-                                        type="range"
-                                        min="0.1"
-                                        max="1.5"
-                                        step="0.05"
-                                        :value="app.helixRadius"
-                                        @input="app.setHelixOption('helixRadius', parseFloat($event.target.value))"
-                                    />
-                                </div>
-                                <div class="tools-slider">
-                                    <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                            }}</span></label>
-                                    <input
-                                        type="range"
-                                        min="1"
-                                        max="12"
-                                        step="0.5"
-                                        :value="app.helixPitch"
-                                        @input="app.setHelixOption('helixPitch', parseFloat($event.target.value))"
-                                    />
-                                </div>
-                                <div class="tools-slider">
-                                    <label>Strand Width <span class="tools-slider-value">{{
-                                        app.helixStrandWidth.toFixed(2)
-                                            }}</span></label>
-                                    <input
-                                        type="range"
-                                        min="0.05"
-                                        max="0.8"
-                                        step="0.05"
-                                        :value="app.helixStrandWidth"
-                                        @input="app.setHelixOption('helixStrandWidth', parseFloat($event.target.value))"
-                                    />
-                                </div>
-                            </template>
                             <!-- Cap style (works for both Standard Ribbon and helix strands) -->
-                            <div class="tools-select-wrap">
-                                <Select
-                                    v-model="selectedCapOption"
-                                    :options="capOptions"
-                                    option-label="label"
-                                    class="tools-select"
-                                >
-                                    <template #value="slotProps">
-                                        <div
-                                            v-if="slotProps.value"
-                                            class="tools-select-row"
-                                        >
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.value.icon }}</span>
-                                            <span>{{ slotProps.value.label }}</span>
-                                        </div>
-                                        <span v-else>{{ slotProps.placeholder }}</span>
-                                    </template>
-                                    <template #option="slotProps">
-                                        <div class="tools-select-row">
-                                            <span class="material-symbols-outlined tools-select-icon">{{
-                                                slotProps.option.icon }}</span>
-                                            <span>{{ slotProps.option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
+                            <div class="tools-select-block">
+                                <label class="tools-select-label">Cap Style</label>
+                                <div class="tools-select-wrap">
+                                    <Select
+                                        v-model="selectedCapOption"
+                                        :options="capOptions"
+                                        option-label="label"
+                                        class="tools-select"
+                                    >
+                                        <template #value="slotProps">
+                                            <div
+                                                v-if="slotProps.value"
+                                                class="tools-select-row"
+                                            >
+                                                <span class="material-symbols-outlined tools-select-icon">{{
+                                                    slotProps.value.icon }}</span>
+                                                <span>{{ slotProps.value.label }}</span>
+                                            </div>
+                                            <span v-else>{{ slotProps.placeholder }}</span>
+                                        </template>
+                                        <template #option="slotProps">
+                                            <div class="tools-select-row">
+                                                <span class="material-symbols-outlined tools-select-icon">{{
+                                                    slotProps.option.icon }}</span>
+                                                <span>{{ slotProps.option.label }}</span>
+                                            </div>
+                                        </template>
+                                    </Select>
+                                </div>
                             </div>
 
                             <div class="tools-toggle-row">
@@ -1337,70 +1201,6 @@
                                     }}</span>
                                 <span class="tools-hint">X</span>
                             </button>
-                        </div>
-                    </div>
-
-                    <div class="tools-section">
-                        <div class="tools-section-label">Overlays</div>
-                        <div class="tools-section-items">
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="textureMetadataToggle"
-                                >
-                                    <span class="material-symbols-outlined">subtitles</span>
-                                    <span>Texture Metadata</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">M</span>
-                                    <ToggleSwitch
-                                        inputId="textureMetadataToggle"
-                                        v-model="textureMetadataOverlayModel"
-                                    />
-                                </div>
-                            </div>
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="technicalOverlayToggle"
-                                >
-                                    <span class="material-symbols-outlined">monitoring</span>
-                                    <span>Technical Overlay</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">D</span>
-                                    <ToggleSwitch
-                                        inputId="technicalOverlayToggle"
-                                        v-model="technicalOverlayModel"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="tools-section">
-                        <div class="tools-section-label">Screen</div>
-                        <div class="tools-section-items">
-                            <div
-                                class="tools-toggle-row"
-                                :class="{ 'is-disabled': app.screenWakeLockSupported === false }"
-                            >
-                                <label
-                                    class="tools-toggle-main"
-                                    for="screenWakeLockToggle"
-                                >
-                                    <span class="material-symbols-outlined">schedule</span>
-                                    <span>Keep Screen Awake</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ screenWakeLockHint }}</span>
-                                    <ToggleSwitch
-                                        inputId="screenWakeLockToggle"
-                                        v-model="screenWakeLockModel"
-                                        :disabled="app.screenWakeLockSupported === false"
-                                    />
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -1810,6 +1610,16 @@
         .tools-section:last-child {
             margin-bottom: 0;
         }
+
+        .tools-section-host {
+            break-inside: avoid;
+            margin-bottom: 1.25rem;
+            page-break-inside: avoid;
+        }
+
+        .tools-section-host:last-child {
+            margin-bottom: 0;
+        }
     }
 
     .tools-section {
@@ -1836,8 +1646,35 @@
         padding: 0.25rem;
     }
 
-    .tools-select-wrap {
+    .tools-select-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
         padding: 0.5rem;
+    }
+
+    .tools-select-label {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+        padding: 0 0.1rem;
+    }
+
+    .tools-select-wrap {
+        padding: 0;
+    }
+
+    .tools-geometry-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .tools-geometry-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        border-left: 2px solid rgba(16, 185, 129, 0.3);
+        margin: 0 0.75rem 0.75rem 1.25rem;
     }
 
     .tools-status-card {

@@ -7,6 +7,7 @@
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import { EXPORT_LOGO_SRC, EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
 
     const props = defineProps({
@@ -27,10 +28,18 @@
     const customWidth = ref(1920);
     const customHeight = ref(1080);
     const format = ref('mp4');
-    const durationMode = ref('auto');
+    const durationMode = ref('loop');
     const customDuration = ref(5);
+    const cycleCount = ref(1);
+
+    const cycleCountOptions = [
+        { label: '1 loop', value: 1 },
+        { label: '2 loops', value: 2 },
+        { label: '3 loops', value: 3 },
+        { label: '4 loops', value: 4 },
+    ];
     const fps = ref(30);
-    const cameraMovement = ref('none');
+    const cameraMovement = ref('circularTilt');
     const quality = ref('high');
     const logoOverlayEnabled = ref(true);
 
@@ -39,7 +48,7 @@
         return [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
             { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
-            { label: 'Circular Tilt', value: 'circularTilt', description: 'Mouse Tilt-style artwork motion that completes one full 360° cycle over the export' },
+            { label: 'Circular Tilt', value: 'circularTilt', description: 'Artwork tilts through one full 360° rotation over the export duration' },
         ];
     });
 
@@ -50,11 +59,11 @@
 
     // --- Preset options ---
     const aspectRatioOptions = [
-        { label: 'Landscape', value: 'landscape' },
-        { label: 'Portrait', value: 'portrait' },
-        { label: 'Square', value: 'square' },
-        { label: 'Instagram 5:4', value: 'instagram-5x4' },
-        { label: 'Custom', value: 'custom' },
+        { label: 'Landscape (16:9)', value: 'landscape', icon: 'panorama_horizontal' },
+        { label: 'Portrait (9:16)', value: 'portrait', icon: 'panorama_vertical' },
+        { label: 'Instagram (5:4)', value: 'instagram-5x4', icon: 'crop_portrait' },
+        { label: 'Square (1:1)', value: 'square', icon: 'crop_square' },
+        { label: 'Custom', value: 'custom', icon: 'crop_free' },
     ];
 
     const resolutionOptionsByAspect = {
@@ -95,8 +104,8 @@
     ];
 
     const durationOptions = [
-        { label: 'One full cycle (seamless loop)', value: 'auto' },
-        { label: 'Custom duration', value: 'custom' }
+        { label: 'Looping Cycle', value: 'loop', icon: 'all_inclusive' },
+        { label: 'Custom', value: 'custom', icon: 'schedule' }
     ];
 
     const qualityOptions = [
@@ -179,11 +188,11 @@
     });
 
     const resolvedDuration = computed(() => {
-        if (durationMode.value === 'auto') {
+        if (durationMode.value === 'loop') {
             if (cameraMovement.value === 'cinematic') {
-                return cinematicAutoDuration.value;
+                return cinematicAutoDuration.value * cycleCount.value;
             }
-            return seamlessLoopDuration.value;
+            return seamlessLoopDuration.value * cycleCount.value;
         }
         return customDuration.value;
     });
@@ -199,7 +208,7 @@
             return `No saved cinematic views yet, so auto mode falls back to the ${formatDuration(seamlessLoopDuration.value)} material loop.`;
         }
         if (cameraMovement.value === 'circularTilt') {
-            return `One full 360° Mouse Tilt-style artwork rotation over ${formatDuration(resolvedDuration.value)}.`;
+            return `One full 360° artwork tilt rotation over ${formatDuration(resolvedDuration.value)}.`;
         }
         return `Seamless loop — enabled cycles return to start after ${formatDuration(seamlessLoopDuration.value)}.`;
     });
@@ -218,7 +227,7 @@
         }
 
         if (cameraMovement.value === 'circularTilt') {
-            return `Circular Tilt completes exactly one rotation over the selected export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+            return `Circular Tilt completes one full 360° rotation over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
         }
 
         return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;
@@ -273,6 +282,7 @@
         format,
         durationMode,
         customDuration,
+        cycleCount,
         fps,
         cameraMovement,
         quality,
@@ -298,7 +308,7 @@
             height: resolvedHeight.value,
             fps: fps.value,
             format: format.value,
-            duration: durationMode.value === 'auto' ? null : resolvedDuration.value,
+            duration: resolvedDuration.value,
             cameraMovement: cameraMovement.value,
             quality: quality.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
@@ -343,10 +353,10 @@
 
                     <div class="form-grid">
                         <div class="form-field">
-                            <label>Aspect Ratio</label>
+                            <label>Format</label>
                             <Select
-                                v-model="aspectRatioPreset"
-                                :options="aspectRatioOptions"
+                                v-model="format"
+                                :options="formatOptions"
                                 option-label="label"
                                 option-value="value"
                                 :disabled="isEncoding"
@@ -355,6 +365,35 @@
                         </div>
 
                         <div class="form-field">
+                            <label>Aspect Ratio</label>
+                            <Select
+                                v-model="aspectRatioPreset"
+                                :options="aspectRatioOptions"
+                                option-label="label"
+                                option-value="value"
+                                :disabled="isEncoding"
+                                class="w-full"
+                            >
+                                <template #value="{ value }">
+                                    <div class="aspect-ratio-option">
+                                        <span class="material-symbols-outlined">{{aspectRatioOptions.find(o => o.value
+                                            === value)?.icon}}</span>
+                                        <span>{{aspectRatioOptions.find(o => o.value === value)?.label}}</span>
+                                    </div>
+                                </template>
+                                <template #option="{ option }">
+                                    <div class="aspect-ratio-option">
+                                        <span class="material-symbols-outlined">{{ option.icon }}</span>
+                                        <span>{{ option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
+                        </div>
+
+                        <div
+                            v-if="aspectRatioPreset !== 'custom'"
+                            class="form-field"
+                        >
                             <label>Resolution</label>
                             <Select
                                 v-model="resolutionPreset"
@@ -395,23 +434,124 @@
                             </div>
                         </div>
 
-                        <div class="form-field">
-                            <label>Format</label>
+                        <div class="logo-overlay-group">
+                            <div class="form-field">
+                                <label for="logoOverlayToggle">Logo Overlay</label>
+                                <div class="toggle-control">
+                                    <ToggleSwitch
+                                        inputId="logoOverlayToggle"
+                                        v-model="logoOverlayEnabled"
+                                        :disabled="isEncoding"
+                                    />
+                                    <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
+                                </div>
+                                <div class="field-description">
+                                    Bottom-right Rivvon logo baked into each frame.
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="logoOverlayEnabled"
+                                class="logo-preview-frame"
+                            >
+                                <img
+                                    :src="EXPORT_LOGO_SRC"
+                                    alt="Rivvon export logo preview"
+                                    class="logo-preview-image"
+                                    decoding="async"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="form-field quality-field">
+                            <label>Quality</label>
                             <Select
-                                v-model="format"
-                                :options="formatOptions"
-                                option-label="label"
-                                option-value="value"
+                                v-model="quality"
+                                :options="qualityOptions"
+                                optionLabel="label"
+                                optionValue="value"
                                 :disabled="isEncoding"
                                 class="w-full"
                             />
+                            <div
+                                v-if="qualityDescription"
+                                class="field-description"
+                            >
+                                {{ qualityDescription }}
+                            </div>
                         </div>
 
-                        <div class="form-field">
-                            <label>Duration</label>
+                        <div class="form-field camera-movement-field">
+                            <label>Camera Movement</label>
                             <Select
-                                v-model="durationMode"
-                                :options="durationOptions"
+                                v-model="cameraMovement"
+                                :options="cameraMovementOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                :disabled="isEncoding"
+                                class="w-full"
+                            />
+                            <div
+                                v-if="cameraMovementDescription"
+                                class="field-description"
+                            >
+                                {{ cameraMovementDescription }}
+                            </div>
+                        </div>
+
+                        <AnimationSettingsControls
+                            class="export-animation-settings"
+                            @change="emit('settings-change')"
+                        />
+
+                        <div
+                            class="form-line-break"
+                            aria-hidden="true"
+                        ></div>
+
+                        <div class="form-field duration-field">
+                            <label>Duration</label>
+                            <div class="duration-row">
+                                <Select
+                                    v-model="durationMode"
+                                    :options="durationOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    :disabled="isEncoding"
+                                    class="duration-mode-select"
+                                >
+                                    <template #value="{ value }">
+                                        <div class="duration-option">
+                                            <span class="material-symbols-outlined">{{durationOptions.find(o => o.value
+                                                === value)?.icon}}</span>
+                                            <span>{{durationOptions.find(o => o.value === value)?.label}}</span>
+                                        </div>
+                                    </template>
+                                    <template #option="{ option }">
+                                        <div class="duration-option">
+                                            <span class="material-symbols-outlined">{{ option.icon }}</span>
+                                            <span>{{ option.label }}</span>
+                                        </div>
+                                    </template>
+                                </Select>
+                            </div>
+                            <div
+                                v-if="durationMode === 'custom'"
+                                class="field-description warning-inline"
+                            >
+                                <span class="material-symbols-outlined">warning</span> Custom durations may not loop
+                                cleanly.
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="durationMode === 'loop'"
+                            class="form-field loop-count-field"
+                        >
+                            <label>Loop Count</label>
+                            <Select
+                                v-model="cycleCount"
+                                :options="cycleCountOptions"
                                 option-label="label"
                                 option-value="value"
                                 :disabled="isEncoding"
@@ -420,16 +560,21 @@
                         </div>
 
                         <div
-                            v-if="durationMode === 'auto'"
-                            class="info-box"
+                            v-if="durationMode === 'custom'"
+                            class="form-field seconds-field"
                         >
-                            <span class="material-symbols-outlined">animation</span>
-                            <div>
-                                <div class="info-value">{{ resolvedDuration.toFixed(2) }}s</div>
-                                <div class="info-label">
-                                    {{ durationSummaryLabel }}
-                                </div>
-                            </div>
+                            <label>Seconds</label>
+                            <InputNumber
+                                v-model="customDuration"
+                                :min="0.5"
+                                :max="120"
+                                :step="0.5"
+                                :min-fraction-digits="1"
+                                :max-fraction-digits="1"
+                                suffix=" s"
+                                :disabled="isEncoding"
+                                class="w-full"
+                            />
                         </div>
 
                         <Accordion class="loop-details-accordion">
@@ -466,112 +611,6 @@
                             </AccordionPanel>
                         </Accordion>
 
-                        <div
-                            v-if="durationMode === 'custom'"
-                            class="form-field"
-                        >
-                            <label>Seconds</label>
-                            <InputNumber
-                                v-model="customDuration"
-                                :min="0.5"
-                                :max="120"
-                                :step="0.5"
-                                :min-fraction-digits="1"
-                                :max-fraction-digits="1"
-                                suffix=" s"
-                                :disabled="isEncoding"
-                                class="w-full"
-                            />
-                            <div class="field-description">
-                                Custom durations are not guaranteed to loop cleanly. Use One full cycle for loopable
-                                exports.
-                            </div>
-                        </div>
-
-                        <div class="form-field">
-                            <label>Quality</label>
-                            <Select
-                                v-model="quality"
-                                :options="qualityOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                :disabled="isEncoding"
-                                class="w-full"
-                            />
-                            <div
-                                v-if="qualityDescription"
-                                class="field-description"
-                            >
-                                {{ qualityDescription }}
-                            </div>
-                        </div>
-
-                        <div class="form-field">
-                            <label>Camera Movement</label>
-                            <Select
-                                v-model="cameraMovement"
-                                :options="cameraMovementOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                :disabled="isEncoding"
-                                class="w-full"
-                            />
-                            <div
-                                v-if="cameraMovementDescription"
-                                class="field-description"
-                            >
-                                {{ cameraMovementDescription }}
-                            </div>
-                        </div>
-
-                        <div class="form-field">
-                            <div class="toggle-row">
-                                <div class="toggle-text">
-                                    <label for="logoOverlayToggle">Logo Overlay</label>
-                                    <div class="field-description">
-                                        Bottom-right Rivvon logo baked into each frame. {{ logoOverlaySummary }}.
-                                    </div>
-                                </div>
-                                <div class="toggle-control">
-                                    <ToggleSwitch
-                                        inputId="logoOverlayToggle"
-                                        v-model="logoOverlayEnabled"
-                                        :disabled="isEncoding"
-                                    />
-                                    <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="logoOverlayEnabled"
-                                class="logo-preview-card"
-                            >
-                                <div class="logo-preview-label">Overlay Preview</div>
-                                <div class="logo-preview-frame">
-                                    <img
-                                        :src="EXPORT_LOGO_SRC"
-                                        alt="Rivvon export logo preview"
-                                        class="logo-preview-image"
-                                        decoding="async"
-                                    >
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="summary-row">
-                            <div class="summary-item">
-                                <span class="summary-label">Frames</span>
-                                <span class="summary-value">{{ totalFrames }}</span>
-                            </div>
-                            <div class="summary-item">
-                                <span class="summary-label">Duration</span>
-                                <span class="summary-value">{{ resolvedDuration.toFixed(2) }}s</span>
-                            </div>
-                            <div class="summary-item">
-                                <span class="summary-label">Size</span>
-                                <span class="summary-value">{{ estimatedSize }}</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -590,6 +629,21 @@
                         >
                             {{ encodedFilename }}<span v-if="encodedSizeLabel"> · {{ encodedSizeLabel }}</span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="summary-row">
+                    <div class="summary-item">
+                        <span class="summary-label">Frames</span>
+                        <span class="summary-value">{{ totalFrames }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Duration</span>
+                        <span class="summary-value">{{ resolvedDuration.toFixed(2) }}s</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Size</span>
+                        <span class="summary-value">{{ estimatedSize }}</span>
                     </div>
                 </div>
 
@@ -681,7 +735,6 @@
     .export-video-panel-content {
         flex: 1;
         width: 100%;
-        max-width: 32rem;
         margin: 0 auto;
         display: flex;
         flex-direction: column;
@@ -699,20 +752,60 @@
     }
 
     .export-video-panel-footer {
-        border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
-        padding-top: 1rem;
+        padding-top: 0.85rem;
     }
 
     .form-grid {
         display: flex;
-        flex-direction: column;
-        gap: 1rem;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 0.7rem;
+        padding: 0.25rem 0.1rem 0.35rem;
     }
 
     .form-field {
         display: flex;
         flex-direction: column;
+        flex: 1 1 13rem;
+        min-width: 13rem;
         gap: 0.375rem;
+    }
+
+    .form-line-break {
+        flex: 0 0 100%;
+        height: 0;
+    }
+
+    .export-animation-settings {
+        flex: 1 1 100%;
+        width: 100%;
+        padding-top: 0.6rem;
+        border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
+    }
+
+    .aspect-ratio-option {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .duration-option {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .aspect-ratio-option .material-symbols-outlined {
+        font-size: 1.1rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .duration-option .material-symbols-outlined {
+        font-size: 1.1rem;
+        line-height: 1;
+        flex-shrink: 0;
     }
 
     .form-field label {
@@ -724,9 +817,12 @@
     }
 
     .form-row {
+        display: flex;
         flex-direction: row;
         align-items: flex-end;
         gap: 0.5rem;
+        flex: 2 1 20rem;
+        min-width: 20rem;
     }
 
     .dimension-x {
@@ -740,32 +836,14 @@
         display: flex;
         flex-direction: column;
         gap: 0.375rem;
+        min-width: 0;
+        overflow: hidden;
     }
 
-    .info-box {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        background: rgba(99, 102, 241, 0.12);
-        border: 1px solid rgba(99, 102, 241, 0.25);
-    }
-
-    .info-box .material-symbols-outlined {
-        font-size: 1.5rem;
-        color: var(--p-primary-color, #6366f1);
-    }
-
-    .info-value {
-        font-size: 1.1rem;
-        font-weight: 600;
-    }
-
-    .info-label {
-        font-size: 0.78rem;
-        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.6));
-        margin-top: 0.125rem;
+    .flex-1 :deep(.p-inputnumber),
+    .flex-1 :deep(.p-inputnumber-input) {
+        width: 100%;
+        min-width: 0;
     }
 
     .field-description {
@@ -774,8 +852,21 @@
         margin-top: 0.375rem;
     }
 
+    .warning-inline {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .warning-inline .material-symbols-outlined {
+        font-size: 1rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
     .loop-details-accordion {
         width: 100%;
+        flex: 1 1 100%;
     }
 
     .accordion-header-text {
@@ -897,22 +988,22 @@
         text-align: right;
     }
 
-    .logo-preview-card {
+    .logo-overlay-group {
         display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-top: 0.75rem;
-        padding: 0.85rem;
-        border-radius: 0.85rem;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 0.7rem;
+        flex: 1 1 100%;
     }
 
-    .logo-preview-label {
-        font-size: 0.7rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.55));
+    .logo-overlay-group .form-field {
+        flex: 1 1 13rem;
+    }
+
+    .logo-overlay-group .logo-preview-frame {
+        flex: 1 1 13rem;
+        min-height: unset;
     }
 
     .logo-preview-frame {
@@ -937,11 +1028,29 @@
         filter: drop-shadow(0 0.35rem 0.75rem rgba(0, 0, 0, 0.35));
     }
 
+    .duration-row {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .duration-mode-select {
+        flex: 2;
+        min-width: 0;
+    }
+
+    .seconds-field {
+        flex: 0.9 1 11rem;
+        min-width: 11rem;
+    }
+
     .summary-row {
         display: flex;
         justify-content: space-between;
-        padding: 0.75rem 0;
-        border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
+        padding: 0.7rem 0 0.85rem;
+        border-bottom: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
+        flex-shrink: 0;
     }
 
     .summary-item {
@@ -1068,5 +1177,11 @@
     .btn-primary:disabled {
         opacity: 0.4;
         cursor: not-allowed;
+    }
+
+    @media (min-width: 769px) {
+        .export-video-panel-content {
+            max-width: 54rem;
+        }
     }
 </style>

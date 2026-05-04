@@ -39,9 +39,9 @@ export class RibbonSeries {
         // Helix mode options (forwarded to each Ribbon)
         this._helixOptions = {
             helixMode: false,
-            helixRadius: 0.4,
-            helixPitch: 4,
-            helixStrandWidth: 0.3,
+            helixRadius: 0.20,
+            helixPitch: 9.0,
+            helixStrandWidth: 0.50,
             ribbonWidthScale: 1,
             undulationEnabled: true,
             capStyle: DEFAULT_CAP_STYLE,

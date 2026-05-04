@@ -34,7 +34,7 @@ loadMaterialSymbols([
     'play_circle','download_done','line_curve','crop_free','layers','content_cut','tag','aspect_ratio','cloud_done','subtitles','sync_alt',
     'repeat','swap_horiz','vr180_create2d',
     'camera','flip_camera_android','upload_file','photo_camera',
-    'crop_landscape','crop_16_9','crop_9_16','crop_portrait','crop_square','settings_panorama','person_book','panorama','task_alt','panorama_horizontal','panorama_vertical'
+    'crop_landscape','crop_16_9','crop_9_16','crop_portrait','crop_square','settings_panorama','person_book','panorama','task_alt','panorama_horizontal','panorama_vertical','all_inclusive','schedule','gesture','text_select_move_forward_word','horizontal_align_center','speed','filter_b_and_w'
 ]);
 
 // Import utilities

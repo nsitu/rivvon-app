@@ -266,7 +266,7 @@ export function useRibbonBuilder(ctx) {
 
     /**
      * Set texture repeat mode.
-     * @param {string} mode - 'wrap' | 'mirrorBounce'
+     * @param {string} mode - 'wrap' | 'mirrorTile'
      */
     function setTextureRepeatMode(mode) {
         const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);

@@ -73,9 +73,9 @@ export class Ribbon {
 
         // Helix mode parameters
         this.helixMode = false;
-        this.helixRadius = 0.4;       // Distance each strand sits from the spine
-        this.helixPitch = 4;          // Full turns along the ribbon length
-        this.helixStrandWidth = 0.3;  // Width of each helical strip (fraction of original width)
+        this.helixRadius = 0.20;       // Distance each strand sits from the spine
+        this.helixPitch = 9.0;          // Full turns along the ribbon length
+        this.helixStrandWidth = 0.50;  // Width of each helical strip (fraction of original width)
         this.helixMeshSegmentsB = []; // Second strand meshes
         this._segmentCacheB = [];     // Cache for strand B animation
 

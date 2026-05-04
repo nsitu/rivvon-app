@@ -40,8 +40,8 @@ function positiveModulo(value, modulus) {
 }
 
 function normalizeRepeatMode(mode) {
-    if (mode === 'mirrorBounce') {
-        return 'mirrorBounce';
+    if (mode === 'mirrorTile') {
+        return 'mirrorTile';
     }
 
     return 'wrap';
@@ -157,7 +157,7 @@ export class TileManager {
             rendererType = 'webgl',
             tileCount = 32,
             rotate90 = false,
-            repeatMode = 'mirrorBounce',
+            repeatMode = 'mirrorTile',
             flowAlignmentEnabled = true,
             layerAnimationEnabled = true,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
@@ -1388,7 +1388,7 @@ export class TileManager {
      */
     getEffectiveTileCount() {
         if (this.tileCount <= 0) return 0;
-        if (this.repeatMode === 'mirrorBounce') {
+        if (this.repeatMode === 'mirrorTile') {
             return this.tileCount * 2;
         }
 
@@ -1777,7 +1777,7 @@ export class TileManager {
 
     /**
      * Set the tile repeat mode.
-     * @param {string} mode - 'wrap' | 'bounce' | 'mirrorBounce'
+     * @param {string} mode - 'wrap' | 'bounce' | 'mirrorTile'
      * @returns {boolean} Whether the mode changed
      */
     setRepeatMode(mode) {
@@ -1798,7 +1798,7 @@ export class TileManager {
 
     /**
      * Get the current tile repeat mode.
-     * @returns {string} 'wrap' | 'mirrorBounce'
+     * @returns {string} 'wrap' | 'mirrorTile'
      */
     getRepeatMode() {
         return this.repeatMode;

@@ -226,7 +226,7 @@
             event.currentTarget.setPointerCapture(event.pointerId);
         }
 
-        document.addEventListener('pointermove', onDrag);
+        document.addEventListener('pointermove', onPointerDrag);
         document.addEventListener('pointerup', stopPointerDrag);
         document.addEventListener('pointercancel', stopPointerDrag);
     };

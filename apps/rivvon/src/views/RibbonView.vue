@@ -1216,6 +1216,8 @@
     }
 
     function handleVideoExportSettingsChange() {
+        exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
+
         if (exportAbortController.value || !encodedVideoExport.value?.blob) {
             return;
         }
