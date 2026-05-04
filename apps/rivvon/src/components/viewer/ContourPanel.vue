@@ -200,6 +200,47 @@
         });
     }
 
+    function formatSvgNumber(value) {
+        return Number(value.toFixed(5));
+    }
+
+    function buildContourSvg(paths) {
+        const pathMarkup = paths
+            .filter(path => path.length > 1)
+            .map(path => {
+                const d = path
+                    .map((point, index) => {
+                        const x = formatSvgNumber(point.x);
+                        const y = formatSvgNumber(-point.y);
+                        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    })
+                    .join(' ');
+
+                return `  <path d="${d}" fill="none" stroke="currentColor" stroke-width="0.01" stroke-linecap="round" stroke-linejoin="round" />`;
+            })
+            .join('\n');
+
+        return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2">\n${pathMarkup}\n</svg>\n`;
+    }
+
+    function downloadContourSvg() {
+        if (!pendingPaths.value.length) return;
+
+        const svgText = buildContourSvg(pendingPaths.value);
+        const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const anchor = document.createElement('a');
+        anchor.href = blobUrl;
+        anchor.download = `contour-${pendingPaths.value.length}-paths-${timestamp}.svg`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+
+        URL.revokeObjectURL(blobUrl);
+    }
+
     function drawPreviewFrame(imageData) {
         const canvas = previewCanvas.value;
         if (!canvas) return;
@@ -460,6 +501,15 @@
             >
                 <div class="confirm-row">
                     <Button
+                        class="download-btn"
+                        severity="secondary"
+                        :disabled="isProcessing"
+                        @click="downloadContourSvg"
+                    >
+                        <span class="material-symbols-outlined">download</span>
+                        <span>Download SVG</span>
+                    </Button>
+                    <Button
                         class="apply-btn"
                         :disabled="isProcessing"
                         @click="applyContour"
@@ -618,12 +668,6 @@
         pointer-events: none;
     }
 
-    .confirm-row {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-    }
-
     .contour-footer {
         display: flex;
         flex-direction: column;
@@ -633,8 +677,18 @@
         background: rgba(0, 0, 0, 0.6);
     }
 
-    :deep(.apply-btn) {
+    .confirm-row {
+        display: flex;
+        justify-content: center;
         width: 100%;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    :deep(.download-btn),
+    :deep(.apply-btn) {
+        flex: 1;
+        min-width: 160px;
     }
 
     /* Camera */
