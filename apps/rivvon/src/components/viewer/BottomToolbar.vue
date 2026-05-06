@@ -1,10 +1,18 @@
 <script setup>
     import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
     import Button from 'primevue/button';
+    import CinematicCameraControls from './CinematicCameraControls.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
-    import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
+    import GeometrySettingsControls from './GeometrySettingsControls.vue';
+    import TextureSettingsControls from './TextureSettingsControls.vue';
+    import ViewerSettingsControls from './ViewerSettingsControls.vue';
+    import {
+        EXPORT_ASPECT_RATIO_OPTIONS,
+        getExportResolutionOptions,
+        normalizeExportDimensionSettings,
+    } from '../../modules/viewer/exportVideoDimensions.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -41,7 +49,7 @@
     const tip = (text) => isTouchDevice.value ? null : text;
 
     function closeLaunchers() {
-        emit('toolbar-overlay-change', null);
+        emit('request-toolbar-overlay-change', null);
     }
 
     function toggleLauncher(name) {
@@ -51,119 +59,33 @@
             return;
         }
 
-        emit('toolbar-overlay-change', nextLauncher);
+        emit('request-toolbar-overlay-change', nextLauncher);
     }
 
-    const preferredTextureResolutionOptions = [
-        { label: '256 px', value: 256, icon: 'aspect_ratio' },
-        { label: '512 px', value: 512, icon: 'aspect_ratio' },
-        { label: '1024 px', value: 1024, icon: 'aspect_ratio' }
-    ];
+    const exportAspectRatioOptions = EXPORT_ASPECT_RATIO_OPTIONS;
 
-    const capOptions = [
-        { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
-        { label: 'Organic Brush Caps', value: 'organic', icon: 'draw' },
-        { label: 'Pointed Caps', value: 'pointed', icon: 'change_history' },
-        { label: 'Swallowtail Caps', value: 'swallowtail', icon: 'content_cut' },
-        { label: 'Square Caps', value: 'square', icon: 'crop' }
-    ];
-
-    const viewerControlOptions = [
-        { label: 'Orbit Controls', value: 'orbit', icon: '3d_rotation' },
-        { label: 'Mouse Tilt', value: 'mouseTilt', icon: 'open_with' },
-        { label: 'Head Tracking', value: 'headTracking', icon: 'face' },
-        { label: 'Scroll Driven', value: 'scrollTilt', icon: '360' }
-    ];
-
-    const selectedPreferredTextureResolutionOption = computed({
-        get: () => preferredTextureResolutionOptions.find((option) => option.value === app.preferredTextureMaxResolution)
-            ?? preferredTextureResolutionOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setPreferredTextureMaxResolution(option.value);
-        }
-    });
-
-    const selectedCapOption = computed({
-        get: () => capOptions.find((option) => option.value === app.capStyle) ?? capOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setCapStyle(option.value);
-        }
-    });
-
-    const blackAndWhiteFilterModel = computed({
-        get: () => app.renderFilterMode === 'blackAndWhite',
-        set: (value) => {
-            app.setRenderFilterMode(value ? 'blackAndWhite' : 'none');
-        }
-    });
-
-    const mirrorTilesModel = computed({
-        get: () => app.textureRepeatMode === 'mirrorTile',
-        set: (value) => {
-            app.setTextureRepeatMode(value ? 'mirrorTile' : 'wrap');
-        }
-    });
-
-    const doubleHelixModel = computed({
-        get: () => app.helixEnabled,
-        set: (value) => {
-            app.setHelixMode(!!value);
-        }
-    });
-
-    const selectedViewerControlOption = computed({
-        get: () => viewerControlOptions.find((option) => option.value === app.viewerControlMode) ?? viewerControlOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            emit('viewer-control-mode-change', option.value);
-        }
-    });
-
-    const showHeadTrackingTools = computed(() => (
-        app.viewerControlMode === 'headTracking'
-        || (
-            app.viewerControlMode !== 'scrollTilt'
-            && (
-                !!app.headTrackingMessage
-                || app.headTrackingSupported === false
-            )
-        )
-    ));
-
-    const showScrollDrivenTools = computed(() => app.viewerControlMode === 'scrollTilt');
-
-    const headTrackingStatusLabel = computed(() => {
-        if (app.headTrackingErrorMessage) return 'Unavailable';
-        if (app.headTrackingCalibrating) return 'Calibrating';
-        if (app.headTrackingActive) return 'Active';
-        if (app.headTrackingSuspendedReason) return 'Paused';
-        if (app.viewerControlMode === 'headTracking') return 'Starting';
-        return 'Viewer Controls';
-    });
-
-    const headTrackingDisplayMessage = computed(() => (
-        app.headTrackingMessage
-        || (app.viewerControlMode === 'headTracking'
-            ? 'Center your face and hold still to start head tracking.'
-            : 'Choose how the viewer camera should respond to input.')
-    ));
-
-    const headTrackingStatusClass = computed(() => ({
-        'is-error': !!app.headTrackingErrorMessage,
-        'is-success': app.headTrackingActive && !app.headTrackingCalibrating,
+    const exportDimensionSettings = computed(() => normalizeExportDimensionSettings({
+        aspectRatioPreset: app.exportAspectRatioPreset,
+        resolutionPreset: app.exportResolutionPreset,
+        customWidth: app.exportCustomWidth,
+        customHeight: app.exportCustomHeight,
     }));
 
-    const scrollDrivenDisplayMessage = computed(() => (
-        'Use wheel, trackpad, or touch drag to drive the enabled responses below.'
-    ));
-
-    const screenWakeLockHint = computed(() => {
-        if (app.screenWakeLockSupported === false) return 'N/A';
-        if (!app.screenWakeLockEnabled) return 'Off';
-        return app.screenWakeLockActive ? 'Active' : 'Auto';
+    const exportAspectRatioPresetModel = computed({
+        get: () => exportDimensionSettings.value.aspectRatioPreset,
+        set: (value) => {
+            app.setExportAspectRatioPreset(value);
+        }
     });
+
+    const exportResolutionPresetModel = computed({
+        get: () => exportDimensionSettings.value.resolutionPreset,
+        set: (value) => {
+            app.setExportResolutionPreset(value);
+        }
+    });
+
+    const exportResolutionOptions = computed(() => getExportResolutionOptions(exportAspectRatioPresetModel.value));
 
     const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
@@ -184,19 +106,19 @@
     function handleImport(type) {
         closeLaunchers();
         app.hideToolsPanel();
-        emit('import-file', type);
+        emit('request-import-file', type);
     }
 
     function handleExportImage() {
         closeLaunchers();
         app.hideToolsPanel();
-        emit('export-image');
+        emit('request-export-image');
     }
 
     function handleExportVideo() {
         closeLaunchers();
         app.hideToolsPanel();
-        emit('export-video');
+        emit('request-export-video');
     }
 
     // Cinematic camera props (reactive state from composable)
@@ -204,108 +126,41 @@
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
         technicalOverlay: { type: Boolean, default: false },
-        textureMetadataOverlay: { type: Boolean, default: false },
         activeToolbarOverlay: { type: String, default: null },
         exportImageVisible: { type: Boolean, default: false },
         exportVideoVisible: { type: Boolean, default: false }
     });
 
+    // Store-backed settings sections write directly to Pinia.
+    // Any action that requires RibbonView-owned scene, camera, or panel orchestration
+    // crosses this boundary as an explicit request event.
     const emit = defineEmits([
-        'enter-draw-mode',
-        'enter-walk-mode',
-        'enter-contour-mode',
-        'open-drawing-browser',
-        'toggle-flow',
-        'open-text-panel',
-        'open-emoji-picker',
-        'open-texture-file',
-        'open-texture-camera',
-        'open-texture-browser',
-        'close-realtime-mode',
-        'import-file',
-        'export-image',
-        'export-video',
-        'finish-drawing',
-        'finish-walk',
-        'viewer-control-mode-change',
-        'reset-viewer',
-        'recenter-head-tracking',
-        'cinematic-capture',
-        'cinematic-toggle',
-        'cinematic-clear',
-        'technical-overlay-toggle',
-        'texture-metadata-overlay-toggle',
-        'close-export-image',
-        'close-export-video',
-        'toolbar-overlay-change'
+        'request-enter-draw-mode',
+        'request-enter-walk-mode',
+        'request-enter-contour-mode',
+        'request-open-drawing-browser',
+        'request-toggle-flow',
+        'request-open-text-panel',
+        'request-open-emoji-picker',
+        'request-open-texture-file',
+        'request-open-texture-camera',
+        'request-open-texture-browser',
+        'request-close-realtime-mode',
+        'request-import-file',
+        'request-export-image',
+        'request-export-video',
+        'request-finish-drawing',
+        'request-finish-walk',
+        'request-viewer-control-mode-change',
+        'request-reset-viewer',
+        'request-cinematic-capture',
+        'request-cinematic-toggle',
+        'request-cinematic-clear',
+        'request-technical-overlay-toggle',
+        'request-close-export-image',
+        'request-close-export-video',
+        'request-toolbar-overlay-change'
     ]);
-
-    const cornerNarrowingModel = computed({
-        get: () => app.cornerNarrowingEnabled,
-        set: (value) => {
-            app.setCornerNarrowingEnabled(!!value);
-        }
-    });
-
-    const scrollDrivenTiltModel = computed({
-        get: () => app.scrollDrivenTiltEnabled,
-        set: (value) => {
-            app.setScrollDrivenTiltEnabled(!!value);
-        }
-    });
-
-    const scrollDrivenLayerCycleModel = computed({
-        get: () => app.scrollDrivenLayerCycleEnabled,
-        set: (value) => {
-            app.setScrollDrivenLayerCycleEnabled(!!value);
-        }
-    });
-
-    const scrollDrivenFlowModel = computed({
-        get: () => app.scrollDrivenFlowEnabled,
-        set: (value) => {
-            app.setScrollDrivenFlowEnabled(!!value);
-        }
-    });
-
-    const textureMetadataOverlayModel = computed({
-        get: () => props.textureMetadataOverlay,
-        set: (value) => {
-            if (value === props.textureMetadataOverlay) return;
-            emit('texture-metadata-overlay-toggle');
-        }
-    });
-
-    const technicalOverlayModel = computed({
-        get: () => props.technicalOverlay,
-        set: (value) => {
-            if (value === props.technicalOverlay) return;
-            emit('technical-overlay-toggle');
-        }
-    });
-
-    const screenWakeLockModel = computed({
-        get: () => (app.screenWakeLockSupported === false ? false : app.screenWakeLockEnabled),
-        set: (value) => {
-            if (app.screenWakeLockSupported === false) return;
-            app.setScreenWakeLockEnabled(!!value);
-        }
-    });
-
-    function handleCinematicCapture() {
-        app.hideToolsPanel();
-        emit('cinematic-capture');
-    }
-
-    function handleCinematicToggle() {
-        app.hideToolsPanel();
-        emit('cinematic-toggle');
-    }
-
-    function handleCinematicClear() {
-        app.hideToolsPanel();
-        emit('cinematic-clear');
-    }
 
     // Check if Slyce processing is active (has status messages)
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
@@ -341,11 +196,11 @@
         } else if (app.contourPanelVisible) {
             app.hideContourPanel();
         } else if (app.realtimeSamplerVisible) {
-            emit('close-realtime-mode');
+            emit('request-close-realtime-mode');
         } else if (props.exportImageVisible) {
-            emit('close-export-image');
+            emit('request-close-export-image');
         } else if (props.exportVideoVisible) {
-            emit('close-export-video');
+            emit('request-close-export-video');
         } else if (props.activeToolbarOverlay) {
             closeLaunchers();
         } else if (app.toolsPanelVisible) {
@@ -401,11 +256,11 @@
 
     function handleFinishCapture() {
         if (app.isWalkMode) {
-            emit('finish-walk');
+            emit('request-finish-walk');
             return;
         }
 
-        emit('finish-drawing');
+        emit('request-finish-drawing');
     }
 
     /**
@@ -451,13 +306,13 @@
             app.hideAboutPanel();
         }
         if (app.realtimeSamplerVisible) {
-            emit('close-realtime-mode', { suppressCreateTextureReturn: true });
+            emit('request-close-realtime-mode', { suppressCreateTextureReturn: true });
         }
         if (props.exportImageVisible) {
-            emit('close-export-image');
+            emit('request-close-export-image');
         }
         if (props.exportVideoVisible) {
-            emit('close-export-video');
+            emit('request-close-export-video');
         }
         if (props.activeToolbarOverlay) {
             closeLaunchers();
@@ -550,7 +405,7 @@
                     return;
                 }
 
-                activateContext(() => emit('enter-walk-mode'));
+                activateContext(() => emit('request-enter-walk-mode'));
             }
         },
         {
@@ -563,7 +418,7 @@
                     return;
                 }
 
-                activateContext(() => emit('open-text-panel'));
+                activateContext(() => emit('request-open-text-panel'));
             }
         },
         {
@@ -576,7 +431,7 @@
                     return;
                 }
 
-                activateContext(() => emit('open-emoji-picker'));
+                activateContext(() => emit('request-open-emoji-picker'));
             }
         },
         {
@@ -589,7 +444,7 @@
                     return;
                 }
 
-                activateContext(() => emit('enter-draw-mode'));
+                activateContext(() => emit('request-enter-draw-mode'));
             }
         },
         {
@@ -602,7 +457,7 @@
                     return;
                 }
 
-                activateContext(() => emit('enter-contour-mode'));
+                activateContext(() => emit('request-enter-contour-mode'));
             }
         },
         {
@@ -615,7 +470,7 @@
                     return;
                 }
 
-                activateContext(() => emit('open-drawing-browser'));
+                activateContext(() => emit('request-open-drawing-browser'));
             }
         }
     ]));
@@ -632,14 +487,14 @@
             icon: 'camera_video',
             active: app.realtimeSamplerVisible,
             command: () => {
-                activateContext(() => emit('open-texture-camera'));
+                activateContext(() => emit('request-open-texture-camera'));
             }
         }, {
             label: 'From Video',
             icon: 'video_file',
             active: app.textureCreatorVisible,
             command: () => {
-                activateContext(() => emit('open-texture-file'));
+                activateContext(() => emit('request-open-texture-file'));
             }
         },
 
@@ -654,7 +509,7 @@
                     return;
                 }
 
-                activateContext(() => emit('open-texture-browser'));
+                activateContext(() => emit('request-open-texture-browser'));
             }
         }
     ]));
@@ -793,17 +648,37 @@
         <div class="tools-panel-container">
             <ScrollPanel class="tools-panel-scrollpanel">
                 <div class="tools-panel-content">
-                    <!-- Animation section -->
+                    <div class="tools-section-host">
+                        <ViewerSettingsControls
+                            :technical-overlay="props.technicalOverlay"
+                            @request-viewer-control-mode-change="emit('request-viewer-control-mode-change', $event)"
+                            @request-reset-viewer="emit('request-reset-viewer')"
+                            @request-technical-overlay-toggle="emit('request-technical-overlay-toggle')"
+                        />
+                    </div>
+
+                    <div class="tools-section-host">
+                        <AnimationSettingsControls />
+                    </div>
+
+                    <div class="tools-section-host">
+                        <TextureSettingsControls
+                            :show-preferred-resolution="true"
+                            :show-black-and-white-filter="true"
+                        />
+                    </div>
+
                     <div class="tools-section">
-                        <div class="tools-section-label">Viewer</div>
+                        <div class="tools-section-label">Export Preferences</div>
                         <div class="tools-section-items">
                             <div class="tools-select-block">
-                                <label class="tools-select-label">Controls</label>
+                                <label class="tools-select-label">Aspect Ratio</label>
                                 <div class="tools-select-wrap">
                                     <Select
-                                        v-model="selectedViewerControlOption"
-                                        :options="viewerControlOptions"
+                                        v-model="exportAspectRatioPresetModel"
+                                        :options="exportAspectRatioOptions"
                                         option-label="label"
+                                        option-value="value"
                                         class="tools-select"
                                     >
                                         <template #value="slotProps">
@@ -812,8 +687,10 @@
                                                 class="tools-select-row"
                                             >
                                                 <span class="material-symbols-outlined tools-select-icon">{{
-                                                    slotProps.value.icon }}</span>
-                                                <span>{{ slotProps.value.label }}</span>
+                                                    exportAspectRatioOptions.find((option) => option.value ===
+                                                        slotProps.value)?.icon}}</span>
+                                                <span>{{exportAspectRatioOptions.find((option) => option.value ===
+                                                    slotProps.value)?.label}}</span>
                                             </div>
                                             <span v-else>{{ slotProps.placeholder }}</span>
                                         </template>
@@ -828,169 +705,15 @@
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                class="tools-option"
-                                @click="emit('reset-viewer')"
-                            >
-                                <span class="material-symbols-outlined">restart_alt</span>
-                                <span>Reset View</span>
-                            </button>
-
-                            <div
-                                v-if="showHeadTrackingTools"
-                                class="tools-status-card"
-                                :class="headTrackingStatusClass"
-                            >
-                                <div class="tools-status-row">
-                                    <span class="material-symbols-outlined tools-status-icon">face</span>
-                                    <div class="tools-status-copy">
-                                        <div class="tools-status-label-row">
-                                            <span class="tools-status-label-text">{{ headTrackingStatusLabel }}</span>
-                                            <button
-                                                v-if="app.viewerControlMode === 'headTracking'"
-                                                type="button"
-                                                class="tools-inline-action"
-                                                @click="emit('recenter-head-tracking')"
-                                            >
-                                                <span class="material-symbols-outlined">center_focus_strong</span>
-                                                <span>Re-center</span>
-                                            </button>
-                                        </div>
-                                        <div class="tools-status-message">{{ headTrackingDisplayMessage }}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="showScrollDrivenTools"
-                                class="tools-status-card"
-                            >
-                                <div class="tools-status-row">
-                                    <span class="material-symbols-outlined tools-status-icon">360</span>
-                                    <div class="tools-status-copy">
-                                        <div class="tools-status-label-row">
-                                            <span class="tools-status-label-text">Scroll Driven</span>
-                                        </div>
-                                        <div class="tools-status-message">{{ scrollDrivenDisplayMessage }}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="showScrollDrivenTools"
-                                class="tools-toggle-row"
-                            >
-                                <label
-                                    class="tools-toggle-main"
-                                    for="scrollDrivenTiltToggle"
-                                >
-                                    <span class="material-symbols-outlined">open_with</span>
-                                    <span>Camera Tilt</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenTiltEnabled ? 'On' :
-                                        'Off' }}</span>
-                                    <ToggleSwitch
-                                        inputId="scrollDrivenTiltToggle"
-                                        v-model="scrollDrivenTiltModel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="showScrollDrivenTools"
-                                class="tools-toggle-row"
-                            >
-                                <label
-                                    class="tools-toggle-main"
-                                    for="scrollDrivenLayerCycleToggle"
-                                >
-                                    <span class="material-symbols-outlined">layers</span>
-                                    <span>Layer Cycle</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenLayerCycleEnabled ?
-                                        'On' : 'Off' }}</span>
-                                    <ToggleSwitch
-                                        inputId="scrollDrivenLayerCycleToggle"
-                                        v-model="scrollDrivenLayerCycleModel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="showScrollDrivenTools"
-                                class="tools-toggle-row"
-                            >
-                                <label
-                                    class="tools-toggle-main"
-                                    for="scrollDrivenFlowToggle"
-                                >
-                                    <span class="material-symbols-outlined">repeat</span>
-                                    <span>Conveyor Flow</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.scrollDrivenFlowEnabled ? 'On' :
-                                        'Off' }}</span>
-                                    <ToggleSwitch
-                                        inputId="scrollDrivenFlowToggle"
-                                        v-model="scrollDrivenFlowModel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="textureMetadataToggle"
-                                >
-                                    <span class="material-symbols-outlined">subtitles</span>
-                                    <span>Texture Metadata</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">M</span>
-                                    <ToggleSwitch
-                                        inputId="textureMetadataToggle"
-                                        v-model="textureMetadataOverlayModel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="technicalOverlayToggle"
-                                >
-                                    <span class="material-symbols-outlined">monitoring</span>
-                                    <span>Technical Overlay</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">D</span>
-                                    <ToggleSwitch
-                                        inputId="technicalOverlayToggle"
-                                        v-model="technicalOverlayModel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                class="tools-toggle-row"
-                                :class="{ 'is-disabled': app.screenWakeLockSupported === false }"
-                            >
-                                <label
-                                    class="tools-toggle-main"
-                                    for="screenWakeLockToggle"
-                                >
-                                    <span class="material-symbols-outlined">schedule</span>
-                                    <span>Keep Screen Awake</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ screenWakeLockHint }}</span>
-                                    <ToggleSwitch
-                                        inputId="screenWakeLockToggle"
-                                        v-model="screenWakeLockModel"
-                                        :disabled="app.screenWakeLockSupported === false"
+                            <div class="tools-select-block">
+                                <label class="tools-select-label">Resolution</label>
+                                <div class="tools-select-wrap">
+                                    <Select
+                                        v-model="exportResolutionPresetModel"
+                                        :options="exportResolutionOptions"
+                                        option-label="label"
+                                        option-value="value"
+                                        class="tools-select"
                                     />
                                 </div>
                             </div>
@@ -998,248 +721,17 @@
                     </div>
 
                     <div class="tools-section-host">
-                        <AnimationSettingsControls :show-texture-section="false" />
+                        <GeometrySettingsControls />
                     </div>
 
-                    <div class="tools-section">
-                        <div class="tools-section-label">Texture</div>
-                        <div class="tools-section-items">
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="toolbarMirrorTilesToggle"
-                                >
-                                    <span class="material-symbols-outlined">swap_horiz</span>
-                                    <span>Mirror Tiles</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ mirrorTilesModel ? 'On' : 'Off'
-                                    }}</span>
-                                    <ToggleSwitch
-                                        inputId="toolbarMirrorTilesToggle"
-                                        v-model="mirrorTilesModel"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="tools-select-block">
-                                <label class="tools-select-label">Preferred Resolution</label>
-                                <div class="tools-select-wrap">
-                                    <Select
-                                        v-model="selectedPreferredTextureResolutionOption"
-                                        :options="preferredTextureResolutionOptions"
-                                        option-label="label"
-                                        class="tools-select"
-                                    >
-                                        <template #value="slotProps">
-                                            <div
-                                                v-if="slotProps.value"
-                                                class="tools-select-row"
-                                            >
-                                                <span class="material-symbols-outlined tools-select-icon">{{
-                                                    slotProps.value.icon }}</span>
-                                                <span>{{ slotProps.value.label }}</span>
-                                            </div>
-                                            <span v-else>{{ slotProps.placeholder }}</span>
-                                        </template>
-                                        <template #option="slotProps">
-                                            <div class="tools-select-row">
-                                                <span class="material-symbols-outlined tools-select-icon">{{
-                                                    slotProps.option.icon }}</span>
-                                                <span>{{ slotProps.option.label }}</span>
-                                            </div>
-                                        </template>
-                                    </Select>
-                                </div>
-                            </div>
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="blackAndWhiteFilterToggle"
-                                >
-                                    <span class="material-symbols-outlined">filter_b_and_w</span>
-                                    <span>Black and White</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ blackAndWhiteFilterModel ? 'On' :
-                                        'Off' }}</span>
-                                    <ToggleSwitch
-                                        inputId="blackAndWhiteFilterToggle"
-                                        v-model="blackAndWhiteFilterModel"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Geometry section -->
-                    <div class="tools-section">
-                        <div class="tools-section-label">Geometry</div>
-                        <div class="tools-section-items">
-                            <div class="tools-slider">
-                                <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                                        }}x</span></label>
-                                <input
-                                    type="range"
-                                    min="0.4"
-                                    max="2.5"
-                                    step="0.05"
-                                    :value="app.ribbonWidthScale"
-                                    @input="app.setRibbonWidthScale(parseFloat($event.target.value))"
-                                />
-                            </div>
-                            <div class="tools-geometry-group">
-                                <div class="tools-toggle-row">
-                                    <label
-                                        class="tools-toggle-main"
-                                        for="doubleHelixToggle"
-                                    >
-                                        <span class="material-symbols-outlined">genetics</span>
-                                        <span>Double Helix</span>
-                                    </label>
-                                    <div class="tools-toggle-control">
-                                        <span class="tools-hint tools-toggle-hint">{{ doubleHelixModel ? 'On' : 'Off'
-                                        }}</span>
-                                        <ToggleSwitch
-                                            inputId="doubleHelixToggle"
-                                            v-model="doubleHelixModel"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div
-                                    v-if="app.helixEnabled"
-                                    class="tools-geometry-details"
-                                >
-                                    <div class="tools-slider">
-                                        <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                                }}</span></label>
-                                        <input
-                                            type="range"
-                                            min="0.1"
-                                            max="1.5"
-                                            step="0.05"
-                                            :value="app.helixRadius"
-                                            @input="app.setHelixOption('helixRadius', parseFloat($event.target.value))"
-                                        />
-                                    </div>
-                                    <div class="tools-slider">
-                                        <label>Pitch <span class="tools-slider-value">{{ app.helixPitch.toFixed(1)
-                                                }}</span></label>
-                                        <input
-                                            type="range"
-                                            min="1"
-                                            max="12"
-                                            step="0.5"
-                                            :value="app.helixPitch"
-                                            @input="app.setHelixOption('helixPitch', parseFloat($event.target.value))"
-                                        />
-                                    </div>
-                                    <div class="tools-slider">
-                                        <label>Strand Width <span class="tools-slider-value">{{
-                                            app.helixStrandWidth.toFixed(2)
-                                                }}</span></label>
-                                        <input
-                                            type="range"
-                                            min="0.05"
-                                            max="0.8"
-                                            step="0.05"
-                                            :value="app.helixStrandWidth"
-                                            @input="app.setHelixOption('helixStrandWidth', parseFloat($event.target.value))"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Cap style (works for both Standard Ribbon and helix strands) -->
-                            <div class="tools-select-block">
-                                <label class="tools-select-label">Cap Style</label>
-                                <div class="tools-select-wrap">
-                                    <Select
-                                        v-model="selectedCapOption"
-                                        :options="capOptions"
-                                        option-label="label"
-                                        class="tools-select"
-                                    >
-                                        <template #value="slotProps">
-                                            <div
-                                                v-if="slotProps.value"
-                                                class="tools-select-row"
-                                            >
-                                                <span class="material-symbols-outlined tools-select-icon">{{
-                                                    slotProps.value.icon }}</span>
-                                                <span>{{ slotProps.value.label }}</span>
-                                            </div>
-                                            <span v-else>{{ slotProps.placeholder }}</span>
-                                        </template>
-                                        <template #option="slotProps">
-                                            <div class="tools-select-row">
-                                                <span class="material-symbols-outlined tools-select-icon">{{
-                                                    slotProps.option.icon }}</span>
-                                                <span>{{ slotProps.option.label }}</span>
-                                            </div>
-                                        </template>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div class="tools-toggle-row">
-                                <label
-                                    class="tools-toggle-main"
-                                    for="cornerNarrowingToggle"
-                                >
-                                    <span class="material-symbols-outlined">line_curve</span>
-                                    <span>Adaptive Corner Narrowing</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-hint tools-toggle-hint">{{ app.helixEnabled ? 'Flat only' : 'EXP'
-                                        }}</span>
-                                    <ToggleSwitch
-                                        inputId="cornerNarrowingToggle"
-                                        v-model="cornerNarrowingModel"
-                                    />
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-
-                    <!-- Cinematic Camera section -->
-                    <div class="tools-section">
-                        <div class="tools-section-label">Cinematic Camera</div>
-                        <div class="tools-section-items">
-                            <button
-                                class="tools-option"
-                                :disabled="props.cinematicPlaying"
-                                @click="handleCinematicCapture"
-                            >
-                                <span class="material-symbols-outlined">center_focus_strong</span>
-                                <span>Capture View</span>
-                                <span class="tools-hint">C</span>
-                            </button>
-                            <button
-                                class="tools-option"
-                                @click="handleCinematicToggle"
-                            >
-                                <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters'
-                                    }}</span>
-                                <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
-                                <span class="tools-hint">P</span>
-                            </button>
-                            <button
-                                class="tools-option"
-                                :disabled="props.cinematicPlaying || props.cinematicRoiCount === 0"
-                                @click="handleCinematicClear"
-                            >
-                                <span class="material-symbols-outlined">delete_sweep</span>
-                                <span>Clear Views</span>
-                                <span
-                                    v-if="props.cinematicRoiCount > 0"
-                                    class="tools-badge"
-                                >{{ props.cinematicRoiCount
-                                    }}</span>
-                                <span class="tools-hint">X</span>
-                            </button>
-                        </div>
+                    <div class="tools-section-host">
+                        <CinematicCameraControls
+                            :cinematic-playing="props.cinematicPlaying"
+                            :cinematic-roi-count="props.cinematicRoiCount"
+                            @request-cinematic-capture="emit('request-cinematic-capture')"
+                            @request-cinematic-toggle="emit('request-cinematic-toggle')"
+                            @request-cinematic-clear="emit('request-cinematic-clear')"
+                        />
                     </div>
 
                     <!-- Display & Account section -->
@@ -1701,95 +1193,6 @@
         padding: 0;
     }
 
-    .tools-geometry-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-    }
-
-    .tools-geometry-details {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        border-left: 2px solid rgba(16, 185, 129, 0.3);
-        margin: 0 0.75rem 0.75rem 1.25rem;
-    }
-
-    .tools-status-card {
-        margin: 0 0.5rem 0.5rem;
-        padding: 0.85rem 0.95rem;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .tools-status-card.is-error {
-        background: rgba(239, 68, 68, 0.12);
-        border-color: rgba(239, 68, 68, 0.28);
-    }
-
-    .tools-status-card.is-success {
-        background: rgba(16, 185, 129, 0.12);
-        border-color: rgba(16, 185, 129, 0.28);
-    }
-
-    .tools-status-row {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .tools-status-icon {
-        font-size: 1.2rem;
-        opacity: 0.85;
-        padding-top: 0.15rem;
-    }
-
-    .tools-status-copy {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .tools-status-label-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-    }
-
-    .tools-status-label-text {
-        font-size: 0.78rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: rgba(255, 255, 255, 0.72);
-    }
-
-    .tools-status-message {
-        margin-top: 0.4rem;
-        font-size: 0.86rem;
-        line-height: 1.45;
-        color: rgba(255, 255, 255, 0.7);
-    }
-
-    .tools-inline-action {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.35rem 0.55rem;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.9);
-        cursor: pointer;
-        font-size: 0.74rem;
-        font-weight: 600;
-    }
-
-    .tools-inline-action .material-symbols-outlined {
-        font-size: 1rem;
-    }
-
     .tools-select {
         width: 100%;
     }
@@ -1842,49 +1245,6 @@
         background: color-mix(in srgb, var(--p-primary-color, #10b981) 12%, transparent);
     }
 
-    .tools-toggle-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 0.875rem 1rem;
-        color: var(--p-text-color, #fff);
-    }
-
-    .tools-toggle-row.is-disabled {
-        opacity: 0.35;
-    }
-
-    .tools-toggle-main {
-        display: flex;
-        align-items: center;
-        gap: 0.875rem;
-        min-width: 0;
-        color: inherit;
-        cursor: pointer;
-    }
-
-    .tools-toggle-main .material-symbols-outlined {
-        font-size: 1.35rem;
-        opacity: 0.85;
-        flex-shrink: 0;
-    }
-
-    .tools-toggle-row.is-disabled .tools-toggle-main {
-        cursor: default;
-    }
-
-    .tools-toggle-control {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.65rem;
-        flex-shrink: 0;
-    }
-
-    .tools-toggle-hint {
-        margin-left: 0;
-    }
-
     .tools-option .material-symbols-outlined {
         font-size: 1.35rem;
         opacity: 0.85;
@@ -1899,30 +1259,6 @@
         background: transparent;
     }
 
-    .tools-hint {
-        margin-left: auto;
-        font-size: 0.65rem;
-        font-weight: 600;
-        color: rgba(255, 255, 255, 0.5);
-        background: rgba(255, 255, 255, 0.08);
-        padding: 0.2rem 0.45rem;
-        border-radius: 4px;
-        font-family: monospace;
-        letter-spacing: 0.02em;
-    }
-
-    .tools-badge {
-        margin-left: auto;
-        font-size: 0.7rem;
-        font-weight: 700;
-        color: var(--p-primary-contrast-color, #fff);
-        background: var(--p-primary-color, #6366f1);
-        padding: 0.1rem 0.5rem;
-        border-radius: 10px;
-        min-width: 1.2rem;
-        text-align: center;
-    }
-
     .tools-user {
         opacity: 0.55;
         cursor: default;
@@ -1930,56 +1266,6 @@
 
     .tools-user:hover {
         background: transparent;
-    }
-
-    /* Helix parameter sliders */
-    .tools-slider {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        padding: 0.5rem 1rem 0.625rem;
-    }
-
-    .tools-slider label {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.6);
-    }
-
-    .tools-slider-value {
-        color: rgba(255, 255, 255, 0.85);
-        font-family: monospace;
-        font-size: 0.75rem;
-    }
-
-    .tools-slider input[type="range"] {
-        width: 100%;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.15);
-        border-radius: 2px;
-        outline: none;
-        -webkit-appearance: none;
-        appearance: none;
-        cursor: pointer;
-    }
-
-    .tools-slider input[type="range"]::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: var(--p-primary-color, #10b981);
-        cursor: pointer;
-    }
-
-    .tools-slider input[type="range"]::-moz-range-thumb {
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: var(--p-primary-color, #10b981);
-        border: none;
-        cursor: pointer;
     }
 
     /* Info panel content */
