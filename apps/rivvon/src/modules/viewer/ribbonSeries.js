@@ -346,19 +346,10 @@ export class RibbonSeries {
         // If flow is not active, nothing to update each frame
         if (!flowActive) return;
 
-        // Check if flowOffset has crossed 1.0 (or gone below 0.0 for reverse)
-        const flowOffset = this.tileManager.getFlowOffset?.() || 0;
-        
-        if (flowOffset >= 1.0 || flowOffset < 0.0) {
+        const wholeTiles = this.tileManager.getPendingFlowWrapTiles?.() || 0;
+
+        if (wholeTiles !== 0) {
             // Need to swap texture pairs and wrap the offset
-            
-            // Calculate how many whole tiles to shift
-            let wholeTiles;
-            if (flowOffset >= 1.0) {
-                wholeTiles = Math.floor(flowOffset);
-            } else {
-                wholeTiles = Math.ceil(flowOffset) - 1; // negative
-            }
 
             // Update tile offset in all TileManagers
             for (const tm of this.tileManagers) {
