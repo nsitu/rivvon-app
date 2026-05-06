@@ -160,6 +160,7 @@ export class TileManager {
             repeatMode = 'mirrorTile',
             flowAlignmentEnabled = true,
             layerAnimationEnabled = true,
+            layerAnimationReversed = false,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -212,14 +213,15 @@ export class TileManager {
         this.fps = 30; // fixed cadence
         this.lastFrameTime = 0;
         this.layerAnimationEnabled = !!layerAnimationEnabled;
+        this.layerAnimationReversed = !!layerAnimationReversed;
         this.rotate90 = !!rotate90;
         this.repeatMode = normalizeRepeatMode(repeatMode);
 
         // Flow animation state (continuous dual-texture approach)
-        // flowOffset: 0.0 to 1.0 representing progress sliding to next tile
-        // When flowOffset reaches 1.0, we swap tile pairs and reset to 0.0
+        // Forward flow uses a fractional offset in [0, 1); reverse flow uses
+        // (-1, 0]. Crossing a whole tile is handled by wrapFlowOffset().
         this.sharedFlowOffsetUniform = { value: 0.0 };
-        this.flowOffset = 0.0;         // Current fractional offset (0.0 to 1.0)
+        this.flowOffset = 0.0;         // Current signed fractional offset within the active tile pair
         this.tileFlowOffset = 0;       // Current base tile offset (integer)
         this.flowSpeed = -0.25;          // Tiles per second (negative and positive imply opposite direciotn. )
         this.requestedFlowSpeed = Math.abs(this.flowSpeed);
@@ -658,12 +660,13 @@ export class TileManager {
                 void main() {
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
+                    float nextShiftedU = ${reverseFlow ? 'shiftedU + 1.0' : 'shiftedU - 1.0'};
 
                     vec2 currentDerivUV = vec2(
                         (uMirrorCurrent == 1) ? (1.0 - shiftedU) : shiftedU,
                         vUv.y
                     );
-                    vec2 nextBaseUV = vec2(${reverseFlow ? 'shiftedU + 1.0' : 'shiftedU - 1.0'}, vUv.y);
+                    vec2 nextBaseUV = vec2(nextShiftedU, vUv.y);
                     vec2 nextDerivUV = vec2(
                         (uMirrorNext == 1) ? (1.0 - nextBaseUV.x) : nextBaseUV.x,
                         nextBaseUV.y
@@ -695,7 +698,7 @@ export class TileManager {
                     vec2 flippedUvCurrent = vec2(uvRCurrent.x, 1.0 - uvRCurrent.y);
                     vec4 texColorCurrent = textureGrad(uTexArrayCurrent, vec3(flippedUvCurrent, float(uLayer)), dPdxCurrent, dPdyCurrent);
 
-                    vec2 sampleUVNext = vec2(shiftedU - 1.0, vUv.y);
+                    vec2 sampleUVNext = vec2(nextShiftedU, vUv.y);
                     sampleUVNext.x = (uMirrorNext == 1) ? (1.0 - sampleUVNext.x) : sampleUVNext.x;
                     vec2 uvRNext = (uRotate90 == 1) ? vec2(sampleUVNext.y, 1.0 - sampleUVNext.x) : sampleUVNext;
                     vec2 flippedUvNext = vec2(uvRNext.x, 1.0 - uvRNext.y);
@@ -1466,6 +1469,44 @@ export class TileManager {
         return this.currentLayer;
     }
 
+    #applyLayerCycleFrame(cycleFrame) {
+        const frameCount = this.#getLayerSequenceFrameCount();
+        if (frameCount <= 0) {
+            this.currentLayer = 0;
+            this.direction = 1;
+            return false;
+        }
+
+        const normalizedFrame = positiveModulo(cycleFrame, frameCount);
+
+        if (this.variant === 'waves') {
+            this.currentLayer = positiveModulo(normalizedFrame, this.layerCount);
+            this.direction = 1;
+            return true;
+        }
+
+        if (normalizedFrame <= this.layerCount - 1) {
+            this.currentLayer = normalizedFrame;
+            this.direction = normalizedFrame >= this.layerCount - 1 ? -1 : 1;
+            return true;
+        }
+
+        this.currentLayer = frameCount - normalizedFrame;
+        this.direction = -1;
+        return true;
+    }
+
+    #stepLayerCycle() {
+        const frameCount = this.#getLayerSequenceFrameCount();
+        if (frameCount <= 0) {
+            return false;
+        }
+
+        const step = this.layerAnimationReversed ? -1 : 1;
+        const nextFrame = positiveModulo(this.#getCurrentLayerCycleFrame() + step, frameCount);
+        return this.#applyLayerCycleFrame(nextFrame);
+    }
+
     #syncCurrentLayerUniforms() {
         const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1))) | 0;
         this.sharedLayerUniform.value = clamped;
@@ -1518,6 +1559,20 @@ export class TileManager {
         return this.layerAnimationEnabled;
     }
 
+    setLayerAnimationReversed(reversed) {
+        const nextReversed = !!reversed;
+        if (this.layerAnimationReversed === nextReversed) {
+            return false;
+        }
+
+        this.layerAnimationReversed = nextReversed;
+        return true;
+    }
+
+    isLayerAnimationReversed() {
+        return this.layerAnimationReversed;
+    }
+
     getLayerCycleFrameCount() {
         if (!this.layerAnimationEnabled) {
             return 0;
@@ -1546,16 +1601,7 @@ export class TileManager {
             : 0;
         const cycleFrame = Math.floor(normalizedTurns * frameCount + 1e-9);
 
-        if (this.variant === 'waves') {
-            this.currentLayer = positiveModulo(cycleFrame, this.layerCount);
-            this.direction = 1;
-        } else if (cycleFrame <= this.layerCount - 1) {
-            this.currentLayer = cycleFrame;
-            this.direction = cycleFrame >= this.layerCount - 1 ? -1 : 1;
-        } else {
-            this.currentLayer = frameCount - cycleFrame;
-            this.direction = -1;
-        }
+        this.#applyLayerCycleFrame(cycleFrame);
 
         this.#syncCurrentLayerUniforms();
         return true;
@@ -1733,19 +1779,7 @@ export class TileManager {
         if (elapsed >= frameInterval) {
             this.lastFrameTime = nowMs;
 
-            if (this.variant === 'waves') {
-                this.currentLayer = (this.currentLayer + 1) % this.layerCount;
-            } else {
-                // planes: ping-pong
-                this.currentLayer += this.direction;
-                if (this.currentLayer >= this.layerCount - 1) {
-                    this.currentLayer = this.layerCount - 1;
-                    this.direction = -1;
-                } else if (this.currentLayer <= 0) {
-                    this.currentLayer = 0;
-                    this.direction = 1;
-                }
-            }
+            this.#stepLayerCycle();
 
             // Update shared uniform (clamped)
             this.#syncCurrentLayerUniforms();
@@ -1864,12 +1898,24 @@ export class TileManager {
     }
 
     /**
-     * Get the current fractional flow offset (0.0 to 1.0).
+     * Get the current signed fractional flow offset.
      * Used for continuous UV-based animation within dual-texture materials.
      * @returns {number} Current fractional offset
      */
     getFlowOffset() {
         return this.flowOffset;
+    }
+
+    getPendingFlowWrapTiles() {
+        if (this.flowOffset >= 1.0) {
+            return Math.floor(this.flowOffset);
+        }
+
+        if (this.flowOffset <= -1.0) {
+            return Math.ceil(this.flowOffset);
+        }
+
+        return 0;
     }
 
     advanceFlowOffset(deltaTiles) {
@@ -1893,7 +1939,7 @@ export class TileManager {
         const cycleLength = Math.max(1, this.getEffectiveTileCount());
         this.tileFlowOffset = positiveModulo(this.tileFlowOffset + wholeTiles, cycleLength);
         
-        // Wrap flowOffset to [0, 1) range
+        // Keep flowOffset within the active tile pair after swapping.
         this.flowOffset -= wholeTiles;
         
         // Update uniforms with wrapped value
@@ -2004,18 +2050,7 @@ export class TileManager {
         while (this._deterministicAccum >= frameInterval) {
             this._deterministicAccum -= frameInterval;
 
-            if (this.variant === 'waves') {
-                this.currentLayer = (this.currentLayer + 1) % this.layerCount;
-            } else {
-                this.currentLayer += this.direction;
-                if (this.currentLayer >= this.layerCount - 1) {
-                    this.currentLayer = this.layerCount - 1;
-                    this.direction = -1;
-                } else if (this.currentLayer <= 0) {
-                    this.currentLayer = 0;
-                    this.direction = 1;
-                }
-            }
+            this.#stepLayerCycle();
         }
 
         this.#syncCurrentLayerUniforms();
