@@ -8,6 +8,7 @@
     import { createDefaultDrawingName, createDrawingDocument, inflateDrawingPaths } from '../modules/shared/drawingLibrary.js';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
+    import { buildTextureOverviewExportInfo, exportTextureOverviewVideo } from '../modules/viewer/textureOverviewExport.js';
     import { useRivvonAPI } from '../services/api.js';
     import { useDrawingStorage } from '../services/drawingStorage.js';
     import { useLocalStorage } from '../services/localStorage.js';
@@ -25,6 +26,7 @@
     const ContourPanel = defineAsyncComponent(() => import('../components/viewer/ContourPanel.vue'));
     const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
+    const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
     import BetaModal from '../components/viewer/BetaModal.vue';
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
@@ -384,14 +386,22 @@
     // Local state
     const isReady = ref(false);
     const showTechnicalOverlay = ref(false);
+    const currentTextureSelection = ref(null);
+    const textureOverviewSelection = ref(null);
+    const isTextureOverviewActive = computed(() => Boolean(textureOverviewSelection.value?.texture));
     const showTextureMetadataOverlay = computed(() => (
         app.showTextureMetadataOverlay
         && !app.multiTextureActive
         && Boolean(app.currentTextureName || app.currentTextureDescription)
     ));
 
+    function setCurrentTextureSelection(selection = null) {
+        currentTextureSelection.value = selection;
+    }
+
     function setCurrentTextureMetadata(metadata = null) {
         if (!metadata) {
+            setCurrentTextureSelection(null);
             app.clearActiveTextures();
             app.clearCurrentTextureMetadata();
             return;
@@ -488,9 +498,9 @@
         window.removeEventListener('keydown', handleCinematicKeydown);
     });
 
-    // Watch drawing mode to control renderer visibility
-    watch(() => [app.isDrawingMode, app.isWalkMode], ([isDrawing, isWalking]) => {
-        const hasPathCaptureOverlay = isDrawing || isWalking;
+    // Watch overlay modes to control renderer visibility
+    watch(() => [app.isDrawingMode, app.isWalkMode, isTextureOverviewActive.value], ([isDrawing, isWalking, isOverviewActive]) => {
+        const hasPathCaptureOverlay = isDrawing || isWalking || isOverviewActive;
 
         // Hide/show the Three.js canvas when in drawing mode
         if (threeCanvasRef.value?.renderer) {
@@ -505,6 +515,19 @@
                 threeCanvasRef.value.controls.enabled = true;
             }
         }
+    });
+
+    watch(isTextureOverviewActive, (active) => {
+        if (!threeCanvasRef.value) {
+            return;
+        }
+
+        if (active) {
+            threeCanvasRef.value.pauseRenderLoop?.();
+            return;
+        }
+
+        threeCanvasRef.value.resumeRenderLoop?.();
     });
 
     watch(
@@ -654,6 +677,14 @@
                 if (textureSet?.thumbnail_url) {
                     app.setThumbnailUrl(textureSet.thumbnail_url);
                 }
+                setCurrentTextureSelection({
+                    source: 'cloud',
+                    texture: {
+                        ...(textureSet || {}),
+                        id: textureId,
+                    },
+                    isCached: false,
+                });
                 setCurrentTextureMetadata({
                     id: textureId,
                     name: textureSet?.name || '',
@@ -1215,8 +1246,8 @@
         videoExportStatus.value = '';
     }
 
-    function handleVideoExportSettingsChange() {
-        exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
+    async function handleVideoExportSettingsChange() {
+        await refreshVideoExportInfo();
 
         if (exportAbortController.value || !encodedVideoExport.value?.blob) {
             return;
@@ -1358,6 +1389,8 @@
     // Video export dialog state
     const showExportDialog = ref(false);
     const exportInfo = ref({});
+    const exportDialogInitialSettings = ref(null);
+    const exportSourceContext = ref(null);
     const exportAbortController = ref(null);
     const encodedVideoExport = ref({
         blob: null,
@@ -1367,9 +1400,93 @@
         size: 0,
     });
     const videoExportStatus = ref('');
+    let exportInfoRequestId = 0;
+
+    function getViewerAnimationSettings() {
+        return {
+            flowState: app.flowState,
+            flowSpeed: app.flowSpeed,
+            flowCycleAlignmentEnabled: app.flowCycleAlignmentEnabled,
+            textureAnimationEnabled: app.textureAnimationEnabled,
+            textureAnimationReversed: app.textureAnimationReversed,
+            textureRepeatMode: app.textureRepeatMode,
+            textureOverviewFlipVertical: app.textureOverviewFlipVertical,
+        };
+    }
+
+    function getSingleTextureExportContext() {
+        if (app.multiTextureActive || !currentTextureSelection.value?.texture) {
+            return null;
+        }
+
+        return {
+            kind: 'viewer',
+            source: currentTextureSelection.value.source,
+            texture: currentTextureSelection.value.texture,
+            isCached: Boolean(currentTextureSelection.value.isCached),
+        };
+    }
+
+    async function buildVideoExportInfo(sourceContext = null, preferredMode = 'ribbons') {
+        const requestId = ++exportInfoRequestId;
+        const modes = {};
+
+        if (!sourceContext || sourceContext.kind !== 'preview') {
+            modes.ribbons = threeCanvasRef.value?.getExportInfo?.() ?? {};
+        }
+
+        const textureOnlyContext = sourceContext?.kind === 'preview'
+            ? sourceContext
+            : getSingleTextureExportContext();
+
+        if (textureOnlyContext?.texture) {
+            const previewTextureOnlyInfo = sourceContext?.kind === 'preview'
+                ? await Promise.resolve(sourceContext.getTextureOnlyExportInfo?.())
+                : null;
+
+            modes.textureOnly = previewTextureOnlyInfo || await buildTextureOverviewExportInfo({
+                texture: textureOnlyContext.texture,
+                isLocal: textureOnlyContext.source === 'local',
+                isCached: textureOnlyContext.isCached,
+                getLocalTiles: getTiles,
+                getCachedLocalId,
+                viewerSettings: getViewerAnimationSettings(),
+            });
+        }
+
+        if (requestId !== exportInfoRequestId) {
+            return null;
+        }
+
+        const supportsRibbonExport = sourceContext?.kind !== 'preview';
+        const defaultExportMode = preferredMode === 'textureOnly' && modes.textureOnly
+            ? 'textureOnly'
+            : (supportsRibbonExport ? 'ribbons' : 'textureOnly');
+
+        return {
+            hasWebCodecs: typeof VideoEncoder !== 'undefined',
+            supportsRibbonExport,
+            defaultExportMode,
+            modes,
+        };
+    }
+
+    async function refreshVideoExportInfo() {
+        try {
+            const nextInfo = await buildVideoExportInfo(
+                exportSourceContext.value,
+                exportInfo.value?.defaultExportMode || (exportSourceContext.value?.kind === 'preview' ? 'textureOnly' : 'ribbons'),
+            );
+            if (nextInfo) {
+                exportInfo.value = nextInfo;
+            }
+        } catch (error) {
+            console.error('Failed to refresh export info:', error);
+        }
+    }
 
     // Video export handler — opens dialog instead of recording immediately
-    function handleExportVideo() {
+    async function handleExportVideo() {
         ensureOrbitControlsForInteraction(
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
@@ -1377,16 +1494,95 @@
         showExportImageDialog.value = false;
         resetExportImagePreview();
         resetEncodedVideoExport();
-        // Gather current scene info for the dialog
-        exportInfo.value = threeCanvasRef.value?.getExportInfo?.() ?? {};
+        exportDialogInitialSettings.value = null;
+        exportSourceContext.value = null;
+
+        try {
+            exportInfo.value = await buildVideoExportInfo(null, 'ribbons') ?? {};
+        } catch (error) {
+            console.error('Failed to prepare video export info:', error);
+            exportInfo.value = {
+                hasWebCodecs: typeof VideoEncoder !== 'undefined',
+                supportsRibbonExport: true,
+                defaultExportMode: 'ribbons',
+                modes: {
+                    ribbons: threeCanvasRef.value?.getExportInfo?.() ?? {},
+                },
+            };
+        }
+
         showExportDialog.value = true;
     }
+
+    async function handleTexturePreviewExport(payload) {
+        ensureOrbitControlsForInteraction(
+            'scene-export',
+            'Head tracking switched back to OrbitControls for export.',
+        );
+
+        showExportImageDialog.value = false;
+        resetExportImagePreview();
+        resetEncodedVideoExport();
+        exportDialogInitialSettings.value = payload.exportSettings || null;
+
+        exportSourceContext.value = {
+            kind: 'preview',
+            source: payload.source,
+            texture: payload.texture,
+            isCached: Boolean(payload.isCached),
+            getTextureOnlyExportInfo: payload.getTextureOnlyExportInfo,
+            exportTextureOnlyVideo: payload.exportTextureOnlyVideo,
+        };
+
+        try {
+            exportInfo.value = await buildVideoExportInfo(exportSourceContext.value, 'textureOnly') ?? {};
+            showExportDialog.value = true;
+        } catch (error) {
+            console.error('Failed to prepare texture-only export info:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'Export Unavailable',
+                detail: error.message || 'Could not prepare the texture-only export.',
+                life: 4200,
+            });
+            exportSourceContext.value = null;
+        }
+    }
+
+    const activePanelTitle = computed(() => {
+        if (showExportDialog.value) {
+            return 'Export Video';
+        }
+
+        if (showExportImageDialog.value) {
+            return 'Export Image';
+        }
+
+        if (isTextureOverviewActive.value) {
+            return 'Texture Overview';
+        }
+
+        return null;
+    });
 
     function handleExportPanelClose() {
         showExportDialog.value = false;
         showExportImageDialog.value = false;
         resetExportImagePreview();
         resetEncodedVideoExport();
+        exportDialogInitialSettings.value = null;
+        exportSourceContext.value = null;
+    }
+
+    function handleHeaderPanelClose() {
+        if (showExportDialog.value || showExportImageDialog.value) {
+            handleExportPanelClose();
+            return;
+        }
+
+        if (isTextureOverviewActive.value) {
+            closeTextureOverview();
+        }
     }
 
     function handleExportVideoDialogVisibleChange(visible) {
@@ -1394,6 +1590,8 @@
 
         if (!visible && !exportAbortController.value) {
             resetEncodedVideoExport();
+            exportDialogInitialSettings.value = null;
+            exportSourceContext.value = null;
         }
     }
 
@@ -1421,23 +1619,72 @@
         exportAbortController.value = new AbortController();
 
         try {
-            const blob = await threeCanvasRef.value?.exportVideo({
-                width: settings.width,
-                height: settings.height,
-                fps: settings.fps,
-                format: settings.format,
-                duration: settings.duration,
-                cameraMovement: settings.cameraMovement,
-                quality: settings.quality,
-                logoOverlayEnabled: settings.logoOverlayEnabled,
+            const progressHandlers = {
                 signal: exportAbortController.value.signal,
                 onProgress: (progress) => {
                     videoExportStatus.value = `Encoding… ${Math.round(progress * 100)}%`;
                 },
                 onStatus: (status) => {
                     videoExportStatus.value = status;
+                },
+            };
+
+            let blob = null;
+
+            if (settings.exportMode === 'textureOnly') {
+                const sourceContext = exportSourceContext.value?.kind === 'preview'
+                    ? exportSourceContext.value
+                    : getSingleTextureExportContext();
+
+                if (!sourceContext?.texture) {
+                    throw new Error('Texture-only export requires a single active texture.');
                 }
-            });
+
+                if (sourceContext.kind === 'preview' && sourceContext.exportTextureOnlyVideo) {
+                    blob = await sourceContext.exportTextureOnlyVideo({
+                        width: settings.width,
+                        height: settings.height,
+                        fps: settings.fps,
+                        format: settings.format,
+                        duration: settings.duration,
+                        loopCount: settings.loopCount,
+                        quality: settings.quality,
+                        logoOverlayEnabled: settings.logoOverlayEnabled,
+                        ...progressHandlers,
+                    });
+                } else {
+                    blob = await exportTextureOverviewVideo({
+                        texture: sourceContext.texture,
+                        isLocal: sourceContext.source === 'local',
+                        isCached: sourceContext.isCached,
+                        getLocalTiles: getTiles,
+                        getCachedLocalId,
+                        viewerSettings: getViewerAnimationSettings(),
+                        width: settings.width,
+                        height: settings.height,
+                        fps: settings.fps,
+                        format: settings.format,
+                        duration: settings.duration,
+                        loopCount: settings.loopCount,
+                        quality: settings.quality,
+                        logoOverlayEnabled: settings.logoOverlayEnabled,
+                        ...progressHandlers,
+                    });
+                }
+            } else {
+                blob = await threeCanvasRef.value?.exportVideo({
+                    width: settings.width,
+                    height: settings.height,
+                    fps: settings.fps,
+                    format: settings.format,
+                    duration: settings.duration,
+                    loopCount: settings.loopCount,
+                    cameraMovement: settings.cameraMovement,
+                    quality: settings.quality,
+                    logoOverlayEnabled: settings.logoOverlayEnabled,
+                    ...progressHandlers,
+                });
+            }
 
             if (!blob) {
                 videoExportStatus.value = 'Export cancelled.';
@@ -1468,7 +1715,40 @@
 
     // Texture browser handler
     function openTextureBrowser() {
+        textureOverviewSelection.value = null;
         app.showTextureBrowser();
+    }
+
+    function openTextureOverview(payload) {
+        if (!payload?.texture) {
+            return;
+        }
+
+        textureOverviewSelection.value = {
+            texture: payload.texture,
+            source: payload.source === 'local' ? 'local' : 'cloud',
+            isCached: Boolean(payload.isCached),
+        };
+
+        app.hideTextureBrowser();
+    }
+
+    function closeTextureOverview() {
+        textureOverviewSelection.value = null;
+        app.showTextureBrowser();
+    }
+
+    async function handleTextureOverviewApply(payload) {
+        if (!payload?.texture) {
+            return;
+        }
+
+        if (payload.source === 'local') {
+            await handleLocalTextureSelect(payload.texture);
+            return;
+        }
+
+        await handleTextureSelect(payload.texture);
     }
 
     function openDrawingBrowser() {
@@ -1589,6 +1869,11 @@
                 app.setThumbnailUrl(textureSet.thumbnail_data_url);
             }
 
+            setCurrentTextureSelection({
+                source: 'local',
+                texture: textureSet,
+                isCached: false,
+            });
             setCurrentTextureMetadata({
                 id: textureSet.id,
                 name: textureSet.name || '',
@@ -1642,6 +1927,7 @@
 
             if (success) {
                 // Update store with active texture IDs
+                setCurrentTextureSelection(null);
                 app.setActiveTextures(selections.map(s => s.id));
                 app.clearCurrentTextureMetadata();
 
@@ -1707,6 +1993,11 @@
                         if (texture.thumbnail_url) {
                             app.setThumbnailUrl(texture.thumbnail_url);
                         }
+                        setCurrentTextureSelection({
+                            source: 'cloud',
+                            texture,
+                            isCached: true,
+                        });
                         setCurrentTextureMetadata({
                             id: texture.id,
                             name: cachedTextureSet.name || texture.name || '',
@@ -1757,6 +2048,11 @@
                 app.setThumbnailUrl(texture.thumbnail_url);
             }
 
+            setCurrentTextureSelection({
+                source: 'cloud',
+                texture,
+                isCached: Boolean(cachedLocalId),
+            });
             setCurrentTextureMetadata({
                 id: texture.id,
                 name: textureSet.name || texture.name || '',
@@ -1883,12 +2179,12 @@
         <AppHeader
             :camera-active="isCameraIndicatorVisible"
             :camera-dismiss-label="cameraDismissLabel"
-            :panel-title="showExportDialog ? 'Export Video' : (showExportImageDialog ? 'Export Image' : null)"
+            :panel-title="activePanelTitle"
             :toolbar-overlay-title="activeToolbarOverlay === 'draw' ? 'Draw' : activeToolbarOverlay === 'texture' ? 'Texture' : activeToolbarOverlay === 'share' ? 'Share' : null"
-            @close-realtime-mode="handleRealtimeClose"
-            @close-panel="handleExportPanelClose"
-            @close-toolbar-overlay="handleToolbarOverlayClose"
-            @turn-off-camera="handleTurnOffCamera"
+            @request-close-realtime-mode="handleRealtimeClose"
+            @request-close-panel="handleHeaderPanelClose"
+            @request-close-toolbar-overlay="handleToolbarOverlayClose"
+            @request-turn-off-camera="handleTurnOffCamera"
         />
 
         <!-- Three.js canvas -->
@@ -1921,37 +2217,34 @@
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :technical-overlay="showTechnicalOverlay"
-            :texture-metadata-overlay="app.showTextureMetadataOverlay"
             :active-toolbar-overlay="activeToolbarOverlay"
             :export-image-visible="showExportImageDialog"
             :export-video-visible="showExportDialog"
-            @enter-draw-mode="enterDrawMode"
-            @enter-walk-mode="enterWalkMode"
-            @enter-contour-mode="enterContourMode"
-            @open-drawing-browser="openDrawingBrowser"
-            @open-texture-file="openCreateTextureFileMode"
-            @open-texture-camera="openCreateTextureCameraMode"
-            @close-realtime-mode="handleRealtimeClose"
-            @viewer-control-mode-change="handleViewerControlModeChange"
-            @reset-viewer="handleViewerReset"
-            @recenter-head-tracking="handleHeadTrackingRecenter"
-            @toggle-flow="toggleFlow"
-            @open-text-panel="app.showTextPanel"
-            @open-emoji-picker="app.showEmojiPicker"
-            @open-texture-browser="openTextureBrowser"
-            @import-file="openFileImport"
-            @close-export-image="handleExportPanelClose"
-            @close-export-video="handleExportPanelClose"
-            @toolbar-overlay-change="handleToolbarOverlayChange"
-            @export-image="handleExportImage"
-            @export-video="handleExportVideo"
-            @finish-drawing="finishDrawing"
-            @finish-walk="finishWalk"
-            @cinematic-capture="handleCinematicCapture"
-            @cinematic-toggle="handleCinematicToggle"
-            @cinematic-clear="handleCinematicClear"
-            @technical-overlay-toggle="showTechnicalOverlay = !showTechnicalOverlay"
-            @texture-metadata-overlay-toggle="app.setShowTextureMetadataOverlay(!app.showTextureMetadataOverlay)"
+            @request-enter-draw-mode="enterDrawMode"
+            @request-enter-walk-mode="enterWalkMode"
+            @request-enter-contour-mode="enterContourMode"
+            @request-open-drawing-browser="openDrawingBrowser"
+            @request-open-texture-file="openCreateTextureFileMode"
+            @request-open-texture-camera="openCreateTextureCameraMode"
+            @request-close-realtime-mode="handleRealtimeClose"
+            @request-viewer-control-mode-change="handleViewerControlModeChange"
+            @request-reset-viewer="handleViewerReset"
+            @request-toggle-flow="toggleFlow"
+            @request-open-text-panel="app.showTextPanel"
+            @request-open-emoji-picker="app.showEmojiPicker"
+            @request-open-texture-browser="openTextureBrowser"
+            @request-import-file="openFileImport"
+            @request-close-export-image="handleExportPanelClose"
+            @request-close-export-video="handleExportPanelClose"
+            @request-toolbar-overlay-change="handleToolbarOverlayChange"
+            @request-export-image="handleExportImage"
+            @request-export-video="handleExportVideo"
+            @request-finish-drawing="finishDrawing"
+            @request-finish-walk="finishWalk"
+            @request-cinematic-capture="handleCinematicCapture"
+            @request-cinematic-toggle="handleCinematicToggle"
+            @request-cinematic-clear="handleCinematicClear"
+            @request-technical-overlay-toggle="showTechnicalOverlay = !showTechnicalOverlay"
         />
 
         <TextureMetadataOverlay
@@ -1972,11 +2265,11 @@
         <!-- Modals -->
         <TextInputPanel
             v-model:visible="app.textPanelVisible"
-            @generate="handleTextGenerate"
+            @request-generate="handleTextGenerate"
         />
         <EmojiPickerPanel
             v-model:visible="app.emojiPickerVisible"
-            @generate="handleEmojiGenerate"
+            @request-generate="handleEmojiGenerate"
         />
         <ContourPanel
             v-if="app.contourPanelVisible"
@@ -1986,17 +2279,26 @@
         <DrawingBrowser
             v-if="app.drawingBrowserVisible"
             :visible="app.drawingBrowserVisible"
-            @close="app.hideDrawingBrowser"
-            @select="handleSavedDrawingSelect"
+            @request-close="app.hideDrawingBrowser"
+            @request-select="handleSavedDrawingSelect"
+        />
+        <TextureOverviewPanel
+            v-if="textureOverviewSelection?.texture"
+            :texture="textureOverviewSelection.texture"
+            :source="textureOverviewSelection.source"
+            :is-cached="textureOverviewSelection.isCached"
+            @request-apply="handleTextureOverviewApply"
+            @request-export-preview="handleTexturePreviewExport"
         />
         <TextureBrowser
             v-if="app.textureBrowserVisible"
             :visible="app.textureBrowserVisible"
             :initial-tab="textureBrowserInitialTab"
-            @close="app.hideTextureBrowser"
-            @select="handleTextureSelect"
-            @select-local="handleLocalTextureSelect"
-            @select-multi="handleMultiTextureSelect"
+            @request-close="app.hideTextureBrowser"
+            @request-open-overview="openTextureOverview"
+            @request-select="handleTextureSelect"
+            @request-select-local="handleLocalTextureSelect"
+            @request-select-multi="handleMultiTextureSelect"
         />
 
         <!-- Full-page Slyce panel (like drawing mode) -->
@@ -2004,17 +2306,17 @@
             v-if="app.textureCreatorVisible"
             :active="app.textureCreatorVisible"
             :launch-source="textureCreatorLaunchSource"
-            @close="closeCreateTextureMode"
-            @apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
-            @apply-texture="handleApplyCreatedTexture"
+            @request-close="closeCreateTextureMode"
+            @request-apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
+            @request-apply-texture="handleApplyCreatedTexture"
         />
 
         <!-- Full-page Realtime Sampler (like Slyce panel) -->
         <RealtimeSampler
             v-if="app.realtimeSamplerVisible"
             :active="app.realtimeSamplerVisible"
-            @apply="handleRealtimeApply"
-            @close="handleRealtimeClose"
+            @request-apply="handleRealtimeApply"
+            @request-close="handleRealtimeClose"
         />
 
         <BetaModal />
@@ -2022,23 +2324,24 @@
         <!-- GPU device lost recovery overlay -->
         <DeviceLostOverlay
             :visible="isDeviceLost"
-            @restart="handleDeviceLostRestart"
+            @request-restart="handleDeviceLostRestart"
         />
 
         <!-- Export Video Dialog -->
         <ExportVideoDialog
             :visible="showExportDialog"
             :export-info="exportInfo"
+            :initial-settings="exportDialogInitialSettings"
             :is-encoding="!!exportAbortController"
             :export-status="videoExportStatus"
             :encoded-filename="encodedVideoExport.filename"
             :encoded-size="encodedVideoExport.size"
             :can-share="canImageShare"
             @update:visible="handleExportVideoDialogVisibleChange"
-            @export="handleExportConfirm"
-            @download="handleDownloadEncodedVideo"
-            @share="handleShareEncodedVideo"
-            @cancel="handleCancelVideoExport"
+            @request-export="handleExportConfirm"
+            @request-download="handleDownloadEncodedVideo"
+            @request-share="handleShareEncodedVideo"
+            @request-cancel="handleCancelVideoExport"
             @settings-change="handleVideoExportSettingsChange"
         />
 
@@ -2050,9 +2353,9 @@
             :image-height="exportImagePreview.height"
             :can-share="canImageShare"
             @update:visible="handleExportImageDialogVisibleChange"
-            @recapture-preview="handleRecaptureExportImagePreview"
-            @download="handleDownloadExportImage"
-            @share="handleShareExportImage"
+            @request-recapture-preview="handleRecaptureExportImagePreview"
+            @request-download="handleDownloadExportImage"
+            @request-share="handleShareExportImage"
         />
 
         <Toast position="top-center" />
