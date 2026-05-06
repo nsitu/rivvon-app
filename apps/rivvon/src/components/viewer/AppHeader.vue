@@ -22,7 +22,12 @@
         },
     });
 
-    const emit = defineEmits(['close-realtime-mode', 'close-panel', 'close-toolbar-overlay', 'turn-off-camera']);
+    const emit = defineEmits([
+        'request-close-realtime-mode',
+        'request-close-panel',
+        'request-close-toolbar-overlay',
+        'request-turn-off-camera'
+    ]);
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
@@ -66,9 +71,9 @@
 
     function closeContext() {
         if (props.panelTitle) {
-            emit('close-panel');
+            emit('request-close-panel');
         } else if (props.toolbarOverlayTitle) {
-            emit('close-toolbar-overlay');
+            emit('request-close-toolbar-overlay');
         } else if (app.isWalkMode) {
             app.setWalkMode(false);
         } else if (app.isDrawingMode) {
@@ -76,7 +81,7 @@
         } else if (app.drawingBrowserVisible) {
             app.hideDrawingBrowser();
         } else if (app.realtimeSamplerVisible) {
-            emit('close-realtime-mode');
+            emit('request-close-realtime-mode');
         } else if (app.textureCreatorVisible) {
             if (isSlyceProcessing.value) {
                 const confirmed = confirm(
@@ -164,7 +169,7 @@
                 type="button"
                 class="camera-indicator-dismiss"
                 :aria-label="props.cameraDismissLabel"
-                @click="emit('turn-off-camera')"
+                @click="emit('request-turn-off-camera')"
             >
                 <span class="material-symbols-outlined">close</span>
             </button>
