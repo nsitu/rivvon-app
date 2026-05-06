@@ -3,6 +3,7 @@
 
 import { defineStore } from 'pinia';
 import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfiles.js';
+import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
 
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
@@ -75,8 +76,15 @@ function writeViewerPreferences(patch) {
     }
 }
 
+function getStoredExportDimensionSettings() {
+    return normalizeExportDimensionSettings(readViewerPreferences());
+}
+
 export const useViewerStore = defineStore('viewer', {
-    state: () => ({
+    state: () => {
+        const exportDimensionSettings = getStoredExportDimensionSettings();
+
+        return ({
         // Renderer state
         rendererType: 'webgl',    // 'webgl' | 'webgpu'
         
@@ -131,6 +139,10 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().textureAnimationEnabled,
             true
         ),
+        textureAnimationReversed: normalizeViewerBooleanPreference(
+            readViewerPreferences().textureAnimationReversed,
+            false
+        ),
         undulationEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().undulationEnabled,
             true
@@ -150,6 +162,14 @@ export const useViewerStore = defineStore('viewer', {
         
         // Texture state
         textureRepeatMode: 'mirrorTile', // 'wrap' | 'mirrorTile'
+        textureOverviewFlipVertical: normalizeViewerBooleanPreference(
+            readViewerPreferences().textureOverviewFlipVertical,
+            false
+        ),
+        exportAspectRatioPreset: exportDimensionSettings.aspectRatioPreset,
+        exportResolutionPreset: exportDimensionSettings.resolutionPreset,
+        exportCustomWidth: exportDimensionSettings.customWidth,
+        exportCustomHeight: exportDimensionSettings.customHeight,
         preferredTextureMaxResolution: normalizePreferredTextureMaxResolution(
             readViewerPreferences().preferredTextureMaxResolution
         ),
@@ -211,7 +231,8 @@ export const useViewerStore = defineStore('viewer', {
         resourcesReleased: false,
         isReinitializing: false,
         reinitCallback: null,
-    }),
+        });
+    },
     
     actions: {
         setDrawingMode(enabled) {
@@ -363,6 +384,12 @@ export const useViewerStore = defineStore('viewer', {
             this.textureAnimationEnabled = nextValue;
             writeViewerPreferences({ textureAnimationEnabled: nextValue });
         },
+
+        setTextureAnimationReversed(reversed) {
+            const nextValue = !!reversed;
+            this.textureAnimationReversed = nextValue;
+            writeViewerPreferences({ textureAnimationReversed: nextValue });
+        },
         
         showBetaModal(reason = 'default') {
             this.betaModalReason = reason;
@@ -432,7 +459,12 @@ export const useViewerStore = defineStore('viewer', {
                 undulationEnabled: this.undulationEnabled,
                 flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
                 textureAnimationEnabled: this.textureAnimationEnabled,
+                textureAnimationReversed: this.textureAnimationReversed,
                 textureRepeatMode: this.textureRepeatMode,
+                exportAspectRatioPreset: this.exportAspectRatioPreset,
+                exportResolutionPreset: this.exportResolutionPreset,
+                exportCustomWidth: this.exportCustomWidth,
+                exportCustomHeight: this.exportCustomHeight,
                 preferredTextureMaxResolution: this.preferredTextureMaxResolution,
                 renderFilterMode: this.renderFilterMode,
                 ribbonWidthScale: this.ribbonWidthScale,
@@ -467,7 +499,12 @@ export const useViewerStore = defineStore('viewer', {
                 this.undulationEnabled !== original.undulationEnabled ||
                 this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
                 this.textureAnimationEnabled !== original.textureAnimationEnabled ||
+                this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
+                this.exportAspectRatioPreset !== original.exportAspectRatioPreset ||
+                this.exportResolutionPreset !== original.exportResolutionPreset ||
+                this.exportCustomWidth !== original.exportCustomWidth ||
+                this.exportCustomHeight !== original.exportCustomHeight ||
                 this.preferredTextureMaxResolution !== original.preferredTextureMaxResolution ||
                 this.renderFilterMode !== original.renderFilterMode ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
@@ -544,6 +581,52 @@ export const useViewerStore = defineStore('viewer', {
 
         setTextureRepeatMode(mode) {
             this.textureRepeatMode = mode === 'mirrorTile' ? 'mirrorTile' : 'wrap';
+        },
+
+        setTextureOverviewFlipVertical(enabled) {
+            const nextValue = !!enabled;
+            this.textureOverviewFlipVertical = nextValue;
+            writeViewerPreferences({ textureOverviewFlipVertical: nextValue });
+        },
+
+        setExportDimensionSettings(settings = {}) {
+            const normalized = normalizeExportDimensionSettings({
+                aspectRatioPreset: this.exportAspectRatioPreset,
+                resolutionPreset: this.exportResolutionPreset,
+                customWidth: this.exportCustomWidth,
+                customHeight: this.exportCustomHeight,
+                ...settings,
+            });
+
+            this.exportAspectRatioPreset = normalized.aspectRatioPreset;
+            this.exportResolutionPreset = normalized.resolutionPreset;
+            this.exportCustomWidth = normalized.customWidth;
+            this.exportCustomHeight = normalized.customHeight;
+
+            writeViewerPreferences({
+                exportAspectRatioPreset: normalized.aspectRatioPreset,
+                exportResolutionPreset: normalized.resolutionPreset,
+                exportCustomWidth: normalized.customWidth,
+                exportCustomHeight: normalized.customHeight,
+            });
+
+            return normalized;
+        },
+
+        setExportAspectRatioPreset(aspectRatioPreset) {
+            return this.setExportDimensionSettings({ aspectRatioPreset });
+        },
+
+        setExportResolutionPreset(resolutionPreset) {
+            return this.setExportDimensionSettings({ resolutionPreset });
+        },
+
+        setExportCustomWidth(customWidth) {
+            return this.setExportDimensionSettings({ customWidth });
+        },
+
+        setExportCustomHeight(customHeight) {
+            return this.setExportDimensionSettings({ customHeight });
         },
 
         setUndulationEnabled(enabled) {
