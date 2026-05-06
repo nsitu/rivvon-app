@@ -8,11 +8,21 @@
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
+    import TextureSettingsControls from './TextureSettingsControls.vue';
+    import { useViewerStore } from '../../stores/viewerStore';
     import { EXPORT_LOGO_SRC, EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
+    import {
+        EXPORT_ASPECT_RATIO_OPTIONS,
+        getExportResolutionOptions,
+        normalizeExportDimensionSettings,
+    } from '../../modules/viewer/exportVideoDimensions';
+
+    const app = useViewerStore();
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
         exportInfo: { type: Object, default: () => ({}) },
+        initialSettings: { type: Object, default: null },
         isEncoding: { type: Boolean, default: false },
         exportStatus: { type: String, default: '' },
         encodedFilename: { type: String, default: '' },
@@ -20,14 +30,11 @@
         canShare: { type: Boolean, default: false },
     });
 
-    const emit = defineEmits(['update:visible', 'export', 'download', 'share', 'cancel', 'settings-change']);
+    const emit = defineEmits(['update:visible', 'request-export', 'request-download', 'request-share', 'request-cancel', 'settings-change']);
 
     // --- Form state ---
-    const aspectRatioPreset = ref('landscape');
-    const resolutionPreset = ref('1080p');
-    const customWidth = ref(1920);
-    const customHeight = ref(1080);
     const format = ref('mp4');
+    const exportMode = ref('ribbons');
     const durationMode = ref('loop');
     const customDuration = ref(5);
     const cycleCount = ref(1);
@@ -43,8 +50,34 @@
     const quality = ref('high');
     const logoOverlayEnabled = ref(true);
 
+    const exportModeOptions = computed(() => {
+        const options = [];
+        const modes = props.exportInfo?.modes || {};
+
+        if (props.exportInfo?.supportsRibbonExport !== false && modes.ribbons) {
+            options.push({ label: 'Ribbon Geometry', value: 'ribbons' });
+        }
+
+        if (modes.textureOnly) {
+            options.push({ label: 'Texture Only', value: 'textureOnly' });
+        }
+
+        return options;
+    });
+
+    const activeModeInfo = computed(() => {
+        const modes = props.exportInfo?.modes || {};
+        if (exportMode.value === 'textureOnly' && modes.textureOnly) {
+            return modes.textureOnly;
+        }
+
+        return modes.ribbons || modes.textureOnly || {};
+    });
+
+    const textureOnlyMode = computed(() => exportMode.value === 'textureOnly');
+
     const cameraMovementOptions = computed(() => {
-        const hasROIs = props.exportInfo?.hasROIs ?? false;
+        const hasROIs = activeModeInfo.value?.hasROIs ?? false;
         return [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
             { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
@@ -58,45 +91,39 @@
     });
 
     // --- Preset options ---
-    const aspectRatioOptions = [
-        { label: 'Landscape (16:9)', value: 'landscape', icon: 'panorama_horizontal' },
-        { label: 'Portrait (9:16)', value: 'portrait', icon: 'panorama_vertical' },
-        { label: 'Instagram (5:4)', value: 'instagram-5x4', icon: 'crop_portrait' },
-        { label: 'Square (1:1)', value: 'square', icon: 'crop_square' },
-        { label: 'Custom', value: 'custom', icon: 'crop_free' },
-    ];
+    const aspectRatioOptions = EXPORT_ASPECT_RATIO_OPTIONS;
 
-    const resolutionOptionsByAspect = {
-        landscape: [
-            { label: '720p (1280×720)', value: '720p' },
-            { label: '1080p (1920×1080)', value: '1080p' },
-            { label: '4K (3840×2160)', value: '4k' },
-        ],
-        portrait: [
-            { label: '720p (720×1280)', value: '720p-v' },
-            { label: '1080p (1080×1920)', value: '1080p-v' },
-            { label: '4K (2160×3840)', value: '4k-v' },
-        ],
-        square: [
-            { label: '1080 (1080×1080)', value: 'square' },
-            { label: '1920 (1920×1920)', value: 'square-1920' },
-            { label: '2160 (2160×2160)', value: 'square-2160' },
-            { label: '3840 (3840×3840)', value: 'square-3840' },
-        ],
-        'instagram-5x4': [
-            { label: 'Post (1080×1350)', value: 'ig-5x4-1080' },
-            { label: 'Post HD (1920×2400)', value: 'ig-5x4-1920' },
-            { label: 'Post Pro (2160×2700)', value: 'ig-5x4-2160' },
-            { label: 'Post Max (3840×4800)', value: 'ig-5x4-3840' },
-        ],
-        custom: [
-            { label: 'Custom Dimensions', value: 'custom' },
-        ],
-    };
-
-    const resolutionOptions = computed(() => (
-        resolutionOptionsByAspect[aspectRatioPreset.value] || resolutionOptionsByAspect.landscape
-    ));
+    const exportDimensionSettings = computed(() => normalizeExportDimensionSettings({
+        aspectRatioPreset: app.exportAspectRatioPreset,
+        resolutionPreset: app.exportResolutionPreset,
+        customWidth: app.exportCustomWidth,
+        customHeight: app.exportCustomHeight,
+    }));
+    const aspectRatioPreset = computed({
+        get: () => exportDimensionSettings.value.aspectRatioPreset,
+        set: (value) => {
+            app.setExportAspectRatioPreset(value);
+        },
+    });
+    const resolutionPreset = computed({
+        get: () => exportDimensionSettings.value.resolutionPreset,
+        set: (value) => {
+            app.setExportResolutionPreset(value);
+        },
+    });
+    const customWidth = computed({
+        get: () => exportDimensionSettings.value.customWidth,
+        set: (value) => {
+            app.setExportCustomWidth(value);
+        },
+    });
+    const customHeight = computed({
+        get: () => exportDimensionSettings.value.customHeight,
+        set: (value) => {
+            app.setExportCustomHeight(value);
+        },
+    });
+    const resolutionOptions = computed(() => getExportResolutionOptions(aspectRatioPreset.value));
 
     const formatOptions = [
         { label: 'MP4 (H.264)', value: 'mp4' },
@@ -121,61 +148,33 @@
         return option?.description ?? '';
     });
 
-    // --- Computed ---
-    const resolvedWidth = computed(() => {
-        switch (resolutionPreset.value) {
-            case '1080p': return 1920;
-            case '720p': return 1280;
-            case '480p': return 854;
-            case '4k': return 3840;
-            case 'ig-5x4-1080': return 1080;
-            case 'ig-5x4-1920': return 1920;
-            case 'ig-5x4-2160': return 2160;
-            case 'ig-5x4-3840': return 3840;
-            case '720p-v': return 720;
-            case '1080p-v': return 1080;
-            case '4k-v': return 2160;
-            case 'square': return 1080;
-            case 'square-1920': return 1920;
-            case 'square-2160': return 2160;
-            case 'square-3840': return 3840;
-            case 'custom': return customWidth.value;
-            default: return 1920;
+    function applyInitialDimensionSettings(settings = null) {
+        if (!settings) {
+            return;
         }
-    });
 
-    const resolvedHeight = computed(() => {
-        switch (resolutionPreset.value) {
-            case '1080p': return 1080;
-            case '720p': return 720;
-            case '480p': return 480;
-            case '4k': return 2160;
-            case 'ig-5x4-1080': return 1350;
-            case 'ig-5x4-1920': return 2400;
-            case 'ig-5x4-2160': return 2700;
-            case 'ig-5x4-3840': return 4800;
-            case '720p-v': return 1280;
-            case '1080p-v': return 1920;
-            case '4k-v': return 3840;
-            case 'square': return 1080;
-            case 'square-1920': return 1920;
-            case 'square-2160': return 2160;
-            case 'square-3840': return 3840;
-            case 'custom': return customHeight.value;
-            default: return 1080;
-        }
-    });
+        app.setExportDimensionSettings(settings);
+    }
+
+    // --- Computed ---
+    const resolvedWidth = computed(() => exportDimensionSettings.value.width);
+
+    const resolvedHeight = computed(() => exportDimensionSettings.value.height);
 
     const seamlessLoopDuration = computed(() => {
-        return props.exportInfo?.seamlessLoopDuration ?? 3.0;
+        return activeModeInfo.value?.seamlessLoopDuration ?? 3.0;
     });
 
     const cinematicAutoDuration = computed(() => {
-        return props.exportInfo?.cinematicAutoDuration ?? seamlessLoopDuration.value;
+        return activeModeInfo.value?.cinematicAutoDuration ?? seamlessLoopDuration.value;
     });
 
     const cycleDetails = computed(() => {
-        return props.exportInfo?.cycleDetails ?? [];
+        return activeModeInfo.value?.cycleDetails ?? [];
+    });
+
+    const loopSummaryLabel = computed(() => {
+        return activeModeInfo.value?.loopLabel || 'Seamless Material Loop';
     });
 
     const logoOverlayLayout = computed(() => {
@@ -189,7 +188,7 @@
 
     const resolvedDuration = computed(() => {
         if (durationMode.value === 'loop') {
-            if (cameraMovement.value === 'cinematic') {
+            if (!textureOnlyMode.value && cameraMovement.value === 'cinematic') {
                 return cinematicAutoDuration.value * cycleCount.value;
             }
             return seamlessLoopDuration.value * cycleCount.value;
@@ -199,11 +198,16 @@
 
     const durationSummaryLabel = computed(() => {
         if (durationMode.value === 'custom') {
-            return `Custom export length overrides the ${formatDuration(seamlessLoopDuration.value)} seamless-loop target.`;
+            return textureOnlyMode.value
+                ? `Custom export length overrides the ${formatDuration(seamlessLoopDuration.value)} texture-loop target.`
+                : `Custom export length overrides the ${formatDuration(seamlessLoopDuration.value)} seamless-loop target.`;
+        }
+        if (textureOnlyMode.value) {
+            return `Texture overview returns to its starting tile, layer, and flow state after ${formatDuration(seamlessLoopDuration.value)}.`;
         }
         if (cameraMovement.value === 'cinematic') {
-            if (props.exportInfo?.hasROIs) {
-                return `Camera path auto-aligns from ${formatDuration(props.exportInfo?.cinematicDuration || 0)} to ${formatDuration(cinematicAutoDuration.value)} for a cleaner seam.`;
+            if (activeModeInfo.value?.hasROIs) {
+                return `Camera path auto-aligns from ${formatDuration(activeModeInfo.value?.cinematicDuration || 0)} to ${formatDuration(cinematicAutoDuration.value)} for a cleaner seam.`;
             }
             return `No saved cinematic views yet, so auto mode falls back to the ${formatDuration(seamlessLoopDuration.value)} material loop.`;
         }
@@ -215,12 +219,18 @@
 
     const loopDetailsSummary = computed(() => {
         if (durationMode.value === 'custom') {
-            return `Base seamless loop is ${formatDuration(seamlessLoopDuration.value)}, but the export will run for ${formatDuration(resolvedDuration.value)}. Active cycles may be cut mid-loop.`;
+            return textureOnlyMode.value
+                ? `Base texture-only loop is ${formatDuration(seamlessLoopDuration.value)}, but the export will run for ${formatDuration(resolvedDuration.value)}. Active cycles may be cut mid-loop.`
+                : `Base seamless loop is ${formatDuration(seamlessLoopDuration.value)}, but the export will run for ${formatDuration(resolvedDuration.value)}. Active cycles may be cut mid-loop.`;
+        }
+
+        if (textureOnlyMode.value) {
+            return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless texture loop so tile placement, layer cycling, and conveyor flow land back on frame zero together.`;
         }
 
         if (cameraMovement.value === 'cinematic') {
-            if (props.exportInfo?.hasROIs) {
-                return `The authored camera loop is ${formatDuration(props.exportInfo?.cinematicDuration || 0)}. Auto mode aligns it to ${formatDuration(cinematicAutoDuration.value)} so camera and material cycles land together.`;
+            if (activeModeInfo.value?.hasROIs) {
+                return `The authored camera loop is ${formatDuration(activeModeInfo.value?.cinematicDuration || 0)}. Auto mode aligns it to ${formatDuration(cinematicAutoDuration.value)} so camera and material cycles land together.`;
             }
 
             return `No authored camera loop is available, so auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop.`;
@@ -267,10 +277,47 @@
         return `${Math.max(1, Math.round(bytes / 1024))} KB`;
     });
 
-    watch(aspectRatioPreset, () => {
-        const availableValues = resolutionOptions.value.map((option) => option.value);
-        if (!availableValues.includes(resolutionPreset.value)) {
-            resolutionPreset.value = availableValues[0];
+    watch(
+        () => [
+            props.visible,
+            props.initialSettings?.aspectRatioPreset,
+            props.initialSettings?.resolutionPreset,
+            props.initialSettings?.customWidth,
+            props.initialSettings?.customHeight,
+        ],
+        ([visible]) => {
+            if (!visible || !props.initialSettings) {
+                return;
+            }
+
+            applyInitialDimensionSettings(props.initialSettings);
+        },
+        { immediate: true }
+    );
+
+    watch(
+        () => [props.visible, props.exportInfo?.defaultExportMode, exportModeOptions.value.map((option) => option.value).join(',')],
+        ([visible]) => {
+            if (!visible) {
+                return;
+            }
+
+            const availableModes = exportModeOptions.value.map((option) => option.value);
+            const preferredMode = props.exportInfo?.defaultExportMode;
+            exportMode.value = availableModes.includes(preferredMode)
+                ? preferredMode
+                : (availableModes[0] || 'ribbons');
+
+            if (exportMode.value === 'textureOnly') {
+                cameraMovement.value = 'none';
+            }
+        },
+        { immediate: true }
+    );
+
+    watch(exportMode, (mode) => {
+        if (mode === 'textureOnly') {
+            cameraMovement.value = 'none';
         }
     });
 
@@ -280,6 +327,7 @@
         customWidth,
         customHeight,
         format,
+        exportMode,
         durationMode,
         customDuration,
         cycleCount,
@@ -287,6 +335,16 @@
         cameraMovement,
         quality,
         logoOverlayEnabled,
+        () => app.flowState,
+        () => app.flowSpeed,
+        () => app.undulationEnabled,
+        () => app.flowCycleAlignmentEnabled,
+        () => app.textureAnimationEnabled,
+        () => app.textureAnimationReversed,
+        () => app.preferredTextureMaxResolution,
+        () => app.renderFilterMode,
+        () => app.textureRepeatMode,
+        () => app.textureOverviewFlipVertical,
     ], () => {
         emit('settings-change');
     });
@@ -303,28 +361,30 @@
 
     // --- Methods ---
     function handleExport() {
-        emit('export', {
+        emit('request-export', {
+            exportMode: exportMode.value,
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             fps: fps.value,
             format: format.value,
-            duration: resolvedDuration.value,
-            cameraMovement: cameraMovement.value,
+            duration: durationMode.value === 'custom' ? resolvedDuration.value : null,
+            loopCount: durationMode.value === 'loop' ? cycleCount.value : 1,
+            cameraMovement: textureOnlyMode.value ? 'none' : cameraMovement.value,
             quality: quality.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
         });
     }
 
     function handleDownload() {
-        emit('download');
+        emit('request-download');
     }
 
     function handleShare() {
-        emit('share');
+        emit('request-share');
     }
 
     function handleCancel() {
-        emit('cancel');
+        emit('request-cancel');
     }
 
     function handleClose() {
@@ -352,6 +412,21 @@
                     </div>
 
                     <div class="form-grid">
+                        <div
+                            v-if="exportModeOptions.length > 1"
+                            class="form-field"
+                        >
+                            <label>Export Mode</label>
+                            <Select
+                                v-model="exportMode"
+                                :options="exportModeOptions"
+                                option-label="label"
+                                option-value="value"
+                                :disabled="isEncoding"
+                                class="w-full"
+                            />
+                        </div>
+
                         <div class="form-field">
                             <label>Format</label>
                             <Select
@@ -481,7 +556,10 @@
                             </div>
                         </div>
 
-                        <div class="form-field camera-movement-field">
+                        <div
+                            v-if="!textureOnlyMode"
+                            class="form-field camera-movement-field"
+                        >
                             <label>Camera Movement</label>
                             <Select
                                 v-model="cameraMovement"
@@ -501,7 +579,12 @@
 
                         <AnimationSettingsControls
                             class="export-animation-settings"
-                            @change="emit('settings-change')"
+                            :show-undulation="!textureOnlyMode"
+                        />
+
+                        <TextureSettingsControls
+                            class="export-texture-settings"
+                            :show-overview-vertical-flip="textureOnlyMode"
                         />
 
                         <div
@@ -587,7 +670,7 @@
                                 </AccordionHeader>
                                 <AccordionContent>
                                     <div class="loop-summary-card">
-                                        <div class="loop-summary-label">Seamless Material Loop</div>
+                                        <div class="loop-summary-label">{{ loopSummaryLabel }}</div>
                                         <div class="loop-summary-value">{{ formatDuration(seamlessLoopDuration) }}</div>
                                         <div class="loop-summary-copy">{{ loopDetailsSummary }}</div>
                                     </div>
@@ -782,6 +865,11 @@
         width: 100%;
         padding-top: 0.6rem;
         border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
+    }
+
+    .export-texture-settings {
+        flex: 1 1 100%;
+        width: 100%;
     }
 
     .aspect-ratio-option {
