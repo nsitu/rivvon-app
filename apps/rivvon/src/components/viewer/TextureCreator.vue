@@ -25,7 +25,7 @@
         }
     });
 
-    const emit = defineEmits(['close', 'apply-texture', 'apply-realtime-texture']);
+    const emit = defineEmits(['request-close', 'request-apply-texture', 'request-apply-realtime-texture']);
 
     const slyce = useSlyceStore();
     const realtime = useRealtimeSlyce();
@@ -177,12 +177,12 @@
 
     function handleEmbeddedRealtimeClose() {
         suppressRealtimeAutoStart.value = true;
-        emit('close');
+        emit('request-close');
     }
 
     function handleRealtimeApply(payload) {
         suppressRealtimeAutoStart.value = true;
-        emit('apply-realtime-texture', payload);
+        emit('request-apply-realtime-texture', payload);
     }
 
     const stepLabels = { '1': 'Start', '2': 'Config', '3': 'Process', '4': 'Done' };
@@ -411,8 +411,8 @@
                         <StepPanel value="1">
                             <UploadArea
                                 :can-resume-file-flow="hasExistingFileFlow"
-                                @resume-file-flow="selectFileMode"
-                                @next="handleFileSelected"
+                                @request-resume-file-flow="selectFileMode"
+                                @request-next="handleFileSelected"
                                 @choose-camera="selectWebcamMode"
                             />
                         </StepPanel>
@@ -424,9 +424,9 @@
                                     :active="true"
                                     :auto-start-camera="!suppressRealtimeAutoStart"
                                     :workflow-phase="cameraWorkflowPhase"
-                                    @start-capture="handleStartCameraProcessing"
-                                    @apply="handleRealtimeApply"
-                                    @close="handleEmbeddedRealtimeClose"
+                                    @request-start-capture="handleStartCameraProcessing"
+                                    @request-apply="handleRealtimeApply"
+                                    @request-close="handleEmbeddedRealtimeClose"
                                 />
                             </div>
                         </template>
@@ -436,16 +436,16 @@
                                 v-slot="{ activateCallback }"
                                 value="2"
                             >
-                                <SettingsArea @back="handleBackFromSettings(activateCallback)" />
+                                <SettingsArea @request-back="handleBackFromSettings(activateCallback)" />
                             </StepPanel>
                             <StepPanel
                                 v-slot="{ activateCallback }"
                                 value="3"
                             >
                                 <ResultsArea
-                                    @back="handleBackFromResults(activateCallback)"
-                                    @reset="handleReset(activateCallback)"
-                                    @apply-texture="(texture) => emit('apply-texture', texture)"
+                                    @request-back="handleBackFromResults(activateCallback)"
+                                    @request-reset="handleReset(activateCallback)"
+                                    @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
                                 />
                             </StepPanel>
                             <StepPanel
@@ -453,9 +453,9 @@
                                 value="4"
                             >
                                 <ResultsArea
-                                    @back="handleBackFromResults(activateCallback)"
-                                    @reset="handleReset(activateCallback)"
-                                    @apply-texture="(texture) => emit('apply-texture', texture)"
+                                    @request-back="handleBackFromResults(activateCallback)"
+                                    @request-reset="handleReset(activateCallback)"
+                                    @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
                                 />
                             </StepPanel>
                         </template>
