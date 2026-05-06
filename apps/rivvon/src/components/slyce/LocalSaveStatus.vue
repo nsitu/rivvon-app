@@ -57,7 +57,7 @@
         },
     });
 
-    const emit = defineEmits(['retry']);
+    const emit = defineEmits(['request-retry']);
     const slots = useSlots();
 
     const state = computed(() => {
@@ -159,7 +159,7 @@
                 v-if="state === 'error'"
                 type="button"
                 class="local-save-retry-btn"
-                @click="emit('retry')"
+                @click="emit('request-retry')"
             >
                 <span class="material-symbols-outlined">refresh</span>
                 {{ retryLabel }}
