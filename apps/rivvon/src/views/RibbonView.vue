@@ -21,6 +21,7 @@
     import BottomToolbar from '../components/viewer/BottomToolbar.vue';
     import CountdownNumbers from '../components/viewer/CountdownNumbers.vue';
     import CountdownProgressBar from '../components/viewer/CountdownProgressBar.vue';
+    import LoadingIndicator from '../components/shared/LoadingIndicator.vue';
     const TextInputPanel = defineAsyncComponent(() => import('../components/viewer/TextInputPanel.vue'));
     const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
     const ContourPanel = defineAsyncComponent(() => import('../components/viewer/ContourPanel.vue'));
@@ -595,7 +596,7 @@
 
         try {
             // Load default SVG path (spiral.svg exists in public folder)
-            loadingProgress.value = 'Loading...';
+            setTextureLoadingDisplay('Loading...', '');
             console.log('[RibbonView] Fetching /spiral.svg...');
             const response = await fetch('/spiral.svg');
             if (!response.ok) {
@@ -635,7 +636,7 @@
             return false;
         }
 
-        loadingProgress.value = 'Rendering text...';
+        setTextureLoadingDisplay('Rendering text...', '');
 
         try {
             const textRenderer = await ensureTextToSvg();
@@ -668,7 +669,7 @@
         if (!threeCanvasRef.value) return;
 
         try {
-            loadingProgress.value = 'Loading texture...';
+            setTextureLoadingDisplay('Loading texture...', '');
             console.log('[RibbonView] Loading texture:', textureId);
             await threeCanvasRef.value.loadTextures(textureId);
 
@@ -1851,13 +1852,7 @@
 
             // Load textures from local storage via TileManager
             const success = await threeCanvasRef.value?.loadTexturesFromLocal(textureSet, getTiles, (stage, current, total) => {
-                if (stage === 'downloading') {
-                    const pct = Math.round((current / total) * 100);
-                    loadingProgress.value = `Loading ${pct}%`;
-                } else if (stage === 'building') {
-                    const pct = Math.round((current / total) * 100);
-                    loadingProgress.value = `Building ${pct}%`;
-                }
+                setTextureLoadingProgress(stage, current, total);
             });
 
             if (!success) {
@@ -1952,10 +1947,41 @@
 
     // Loading state for remote texture
     const isLoadingTexture = ref(true);
-    const loadingProgress = ref('Loading...');
+    const loadingMessage = ref('Loading...');
+    const loadingStatusText = ref('');
+
+    function setTextureLoadingDisplay(message = 'Loading...', statusText = '') {
+        loadingMessage.value = message;
+        loadingStatusText.value = statusText;
+    }
+
+    function setTextureLoadingProgress(stage, current, total) {
+        const numericTotal = Math.max(0, Number(total) || 0);
+        const numericCurrent = Math.max(0, Number(current) || 0);
+        const percent = numericTotal > 0
+            ? `${Math.round((numericCurrent / numericTotal) * 100)}%`
+            : '';
+
+        if (stage === 'downloading') {
+            setTextureLoadingDisplay('Downloading...', percent);
+            return;
+        }
+
+        if (stage === 'building') {
+            setTextureLoadingDisplay('Building...', percent);
+            return;
+        }
+
+        if (stage === 'loading') {
+            setTextureLoadingDisplay('Loading...', percent);
+            return;
+        }
+
+        setTextureLoadingDisplay(loadingMessage.value || 'Loading...', percent);
+    }
 
     async function startTextureLoading(message = 'Loading...') {
-        loadingProgress.value = message;
+        setTextureLoadingDisplay(message, '');
 
         if (!isLoadingTexture.value) {
             isLoadingTexture.value = true;
@@ -1965,7 +1991,7 @@
 
     function finishTextureLoading() {
         isLoadingTexture.value = false;
-        loadingProgress.value = '';
+        setTextureLoadingDisplay('', '');
     }
 
     // Handle texture selection from browser
@@ -1981,13 +2007,7 @@
                 const cachedTextureSet = await getLocalTextureSet(cachedLocalId);
                 if (cachedTextureSet) {
                     const success = await threeCanvasRef.value?.loadTexturesFromLocal(cachedTextureSet, getTiles, (stage, current, total) => {
-                        if (stage === 'downloading') {
-                            const pct = Math.round((current / total) * 100);
-                            loadingProgress.value = `Loading ${pct}%`;
-                        } else if (stage === 'building') {
-                            const pct = Math.round((current / total) * 100);
-                            loadingProgress.value = `Building ${pct}%`;
-                        }
+                        setTextureLoadingProgress(stage, current, total);
                     });
                     if (success) {
                         if (texture.thumbnail_url) {
@@ -2030,13 +2050,7 @@
 
             // Load textures from remote URLs via TileManager
             const success = await threeCanvasRef.value?.loadTexturesFromRemote(textureSet, (stage, current, total) => {
-                if (stage === 'downloading') {
-                    const pct = Math.round((current / total) * 100);
-                    loadingProgress.value = `Downloading ${pct}%`;
-                } else if (stage === 'building') {
-                    const pct = Math.round((current / total) * 100);
-                    loadingProgress.value = `Building ${pct}%`;
-                }
+                setTextureLoadingProgress(stage, current, total);
             });
 
             if (!success) {
@@ -2375,10 +2389,11 @@
                 v-if="isLoadingTexture || app.isReinitializing"
                 class="loading-overlay"
             >
-                <div class="loading-content">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">{{ loadingProgress || 'Loading...' }}</div>
-                </div>
+                <LoadingIndicator
+                    class="loading-content"
+                    :message="loadingMessage || 'Loading...'"
+                    :status-text="loadingStatusText"
+                />
             </div>
         </Transition>
     </div>
@@ -2446,35 +2461,6 @@
         justify-content: center;
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(8px);
-    }
-
-    .loading-content {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .loading-spinner {
-        width: 48px;
-        height: 48px;
-        border: 3px solid rgba(255, 255, 255, 0.2);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    .loading-text {
-        color: #fff;
-        font-size: 1rem;
-        font-weight: 500;
-        letter-spacing: 0.05em;
     }
 
     /* Fade transition */

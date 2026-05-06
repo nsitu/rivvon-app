@@ -5,10 +5,11 @@
         class="tile-grid-renderer"
         :class="{ 'is-fullscreen': isFullscreen }"
     >
-        <div
+        <LoadingIndicator
             v-if="!isInitialized"
             class="loading-message"
-        >Initializing renderer...</div>
+            message="Initializing renderer..."
+        />
 
         <!-- Fullscreen toggle button -->
         <Button
@@ -56,6 +57,7 @@
 <script setup>
     import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue';
     import Button from 'primevue/button';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useSlyceStore } from '../../stores/slyceStore';
 
     // Import both renderer implementations
@@ -373,8 +375,10 @@
         left: 50%;
         transform: translate(-50%, -50%);
         color: #888;
-        font-size: 14px;
         z-index: 10;
+        --loading-indicator-text-size: 14px;
+        --loading-indicator-spinner-size: 28px;
+        --loading-indicator-spinner-border-width: 3px;
     }
 
     .fullscreen-button {

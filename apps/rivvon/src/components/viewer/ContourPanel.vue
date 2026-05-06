@@ -1,6 +1,7 @@
 <script setup>
     import { ref, watch, computed } from 'vue';
     import Button from 'primevue/button';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { inferContours, preloadModel } from '../../modules/viewer/contourInference.js';
 
     const props = defineProps({
@@ -403,15 +404,6 @@
                         </p>
                     </div>
 
-                    <!-- Model loading indicator -->
-                    <div
-                        v-if="isInitializing"
-                        class="status-message"
-                    >
-                        <span class="material-symbols-outlined spin">progress_activity</span>
-                        Loading model…
-                    </div>
-
                     <!-- Action buttons -->
                     <div class="action-row">
                         <Button
@@ -435,15 +427,16 @@
                     </div>
 
                     <!-- Status message -->
+                    <LoadingIndicator
+                        v-if="statusMessage && !previewSrc && isProcessing"
+                        class="status-message status-message--loading"
+                        :message="statusMessage"
+                    />
                     <div
-                        v-if="statusMessage && !previewSrc"
+                        v-else-if="statusMessage && !previewSrc"
                         class="status-message"
                         :class="{ 'status-error': status === 'error', 'status-done': status === 'done' }"
                     >
-                        <span
-                            v-if="isProcessing"
-                            class="material-symbols-outlined spin"
-                        >progress_activity</span>
                         {{ statusMessage }}
                     </div>
 
@@ -452,17 +445,16 @@
                         v-if="previewSrc"
                         class="preview-area"
                     >
+                        <LoadingIndicator
+                            v-if="statusMessage && isProcessing"
+                            class="status-message preview-status status-message--loading"
+                            :message="statusMessage"
+                        />
                         <div
-                            v-if="statusMessage"
+                            v-else-if="statusMessage"
                             class="status-message preview-status"
                             :class="{ 'status-error': status === 'error', 'status-done': status === 'done' }"
-                        >
-                            <span
-                                v-if="isProcessing"
-                                class="material-symbols-outlined spin"
-                            >progress_activity</span>
-                            {{ statusMessage }}
-                        </div>
+                        >{{ statusMessage }}</div>
                         <canvas
                             ref="previewCanvas"
                             class="preview-canvas"
@@ -617,23 +609,20 @@
         gap: 0.4rem;
     }
 
+    .status-message--loading {
+        --loading-indicator-direction: row;
+        --loading-indicator-gap: 0.4rem;
+        --loading-indicator-spinner-size: 1rem;
+        --loading-indicator-spinner-border-width: 2px;
+        --loading-indicator-text-size: 0.875rem;
+    }
+
     .status-error {
         color: #f88;
     }
 
     .status-done {
         color: #88f8a0;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    .spin {
-        animation: spin 1s linear infinite;
-        display: inline-block;
     }
 
     .preview-area {

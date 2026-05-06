@@ -13,32 +13,11 @@
             </div>
 
             <!-- Loading State -->
-            <div
+            <LoadingIndicator
                 v-if="isLoading"
-                class="flex items-center justify-center py-12"
-            >
-                <svg
-                    class="animate-spin h-8 w-8 text-purple-600"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                >
-                    <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                    ></circle>
-                    <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                </svg>
-                <span class="ml-3 loading-text">Loading local textures...</span>
-            </div>
+                class="local-textures-loading"
+                message="Loading local textures..."
+            />
 
             <!-- Empty State -->
             <div
@@ -167,6 +146,7 @@
 
 <script setup>
     import { ref, onMounted } from 'vue'
+    import LoadingIndicator from '../components/shared/LoadingIndicator.vue'
     import { useLocalStorage } from '../services/localStorage.js'
 
     const {
@@ -307,7 +287,7 @@
         color: #808090;
     }
 
-    .loading-text {
-        color: #a0a0b0;
+    .local-textures-loading {
+        padding: 3rem 0;
     }
 </style>

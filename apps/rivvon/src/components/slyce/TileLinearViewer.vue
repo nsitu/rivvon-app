@@ -23,17 +23,17 @@
         </div>
 
         <!-- Loading placeholder -->
-        <div
+        <LoadingIndicator
             v-if="!hasTiles && !isInitialized"
             class="loading-message"
-        >
-            Waiting for tiles...
-        </div>
+            message="Waiting for tiles..."
+        />
     </div>
 </template>
 
 <script setup>
     import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { createAndInitTileLinearRenderer } from '../../modules/slyce/tileLinearRenderer.js';
     import { chooseRenderer } from '../../utils/renderer-utils.js';
@@ -253,8 +253,10 @@
 
     .loading-message {
         color: #666;
-        font-size: 14px;
         padding: 2rem;
+        --loading-indicator-text-size: 14px;
+        --loading-indicator-spinner-size: 28px;
+        --loading-indicator-spinner-border-width: 3px;
     }
 
     /* Scrollbar styling for overflow */

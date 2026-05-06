@@ -1,6 +1,7 @@
 <script setup>
     import { onMounted } from 'vue';
     import { useRouter, useRoute } from 'vue-router';
+    import LoadingIndicator from '../components/shared/LoadingIndicator.vue';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
 
     const router = useRouter();
@@ -36,10 +37,10 @@
 
 <template>
     <div class="callback-view">
-        <div class="loading-container">
-            <div class="spinner"></div>
-            <p>Completing sign in...</p>
-        </div>
+        <LoadingIndicator
+            class="loading-container"
+            message="Completing sign in..."
+        />
     </div>
 </template>
 
@@ -53,29 +54,4 @@
         background: #1a1a2e;
     }
 
-    .loading-container {
-        text-align: center;
-        color: white;
-    }
-
-    .spinner {
-        width: 48px;
-        height: 48px;
-        border: 4px solid rgba(255, 255, 255, 0.2);
-        border-top-color: white;
-        border-radius: 50%;
-        margin: 0 auto 1rem;
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    .loading-container p {
-        font-size: 1rem;
-        opacity: 0.8;
-    }
 </style>

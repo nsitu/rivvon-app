@@ -1,5 +1,6 @@
 <script setup>
     import { computed, ref, watch } from 'vue';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { createDrawingThumbnailDataUrl } from '../../modules/shared/drawingLibrary.js';
     import { useRivvonAPI } from '../../services/api.js';
@@ -774,10 +775,11 @@
                     class="drawing-browser-error"
                 >{{ error }}</p>
 
-                <div
+                <LoadingIndicator
                     v-if="isLoading"
                     class="drawing-browser-empty"
-                >Loading saved drawings…</div>
+                    message="Loading saved drawings..."
+                />
 
                 <div
                     v-else-if="!hasDrawings"

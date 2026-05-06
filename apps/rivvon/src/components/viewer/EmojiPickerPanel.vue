@@ -5,6 +5,7 @@
     import Tab from 'primevue/tab';
     import TabPanels from 'primevue/tabpanels';
     import TabPanel from 'primevue/tabpanel';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useEmojiPicker } from '../../composables/viewer/useEmojiPicker';
 
     const props = defineProps({
@@ -80,22 +81,18 @@
         <div class="emoji-picker-container">
             <div class="emoji-picker-content">
                 <!-- Loading spinner for initial data load -->
-                <div
+                <LoadingIndicator
                     v-if="!isDataLoaded"
                     class="loading-state"
-                >
-                    <span class="material-symbols-outlined spin">progress_activity</span>
-                    <span>Loading emoji...</span>
-                </div>
+                    message="Loading emoji..."
+                />
 
                 <!-- Loading overlay for SVG fetch/parse -->
-                <div
+                <LoadingIndicator
                     v-if="isLoading"
                     class="loading-overlay"
-                >
-                    <span class="material-symbols-outlined spin">progress_activity</span>
-                    <span>Processing emoji...</span>
-                </div>
+                    message="Processing emoji..."
+                />
 
                 <!-- Error message -->
                 <p
@@ -131,12 +128,11 @@
                             :key="group.slug"
                             :value="idx"
                         >
-                            <div
+                            <LoadingIndicator
                                 v-if="isSpriteLoading"
                                 class="sprite-loading"
-                            >
-                                <span class="material-symbols-outlined spin">progress_activity</span>
-                            </div>
+                                message="Loading emoji..."
+                            />
                             <div
                                 v-else
                                 class="emoji-grid"
@@ -246,13 +242,11 @@
 
     /* Loading states */
     .loading-state {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.75rem;
         padding: 3rem 0;
-        color: #9ca3af;
-        font-size: 0.875rem;
+        --loading-indicator-gap: 0.75rem;
+        --loading-indicator-spinner-size: 1.5rem;
+        --loading-indicator-spinner-border-width: 3px;
+        --loading-indicator-text-size: 0.875rem;
     }
 
     .loading-overlay {
@@ -260,27 +254,10 @@
         inset: 0;
         z-index: 10;
         background: rgba(26, 26, 26, 0.85);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.75rem;
-        color: #9ca3af;
-        font-size: 0.875rem;
-    }
-
-    .spin {
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        from {
-            transform: rotate(0deg);
-        }
-
-        to {
-            transform: rotate(360deg);
-        }
+        --loading-indicator-gap: 0.75rem;
+        --loading-indicator-spinner-size: 1.5rem;
+        --loading-indicator-spinner-border-width: 3px;
+        --loading-indicator-text-size: 0.875rem;
     }
 
     /* Error */
@@ -335,11 +312,11 @@
 
     /* Sprite loading indicator within a tab panel */
     .sprite-loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
         padding: 2rem 0;
-        color: #9ca3af;
+        --loading-indicator-gap: 0.75rem;
+        --loading-indicator-spinner-size: 1.5rem;
+        --loading-indicator-spinner-border-width: 3px;
+        --loading-indicator-text-size: 0.875rem;
     }
 
     /* Attribution */

@@ -1,10 +1,10 @@
 <script setup>
     import { computed } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import StatusBox from './StatusBox.vue';
     import OutputActions from './OutputActions.vue';
     import TilePreview from './TilePreview.vue';
-    import ProgressSpinner from 'primevue/progressspinner';
     import Button from 'primevue/button';
 
     const app = useSlyceStore();
@@ -115,16 +115,11 @@
                 :tilePlan="app.tilePlan"
             />
             <!-- No tiles yet — show processing spinner -->
-            <div
+            <LoadingIndicator
                 v-else
                 class="preview-disabled-placeholder"
-            >
-                <ProgressSpinner
-                    style="width: 50px; height: 50px"
-                    strokeWidth="4"
-                />
-                <p>Processing video...</p>
-            </div>
+                message="Processing video..."
+            />
         </div>
     </div>
     <!-- No results and not processing -->
@@ -230,19 +225,14 @@
     }
 
     .preview-disabled-placeholder {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
         min-height: 120px;
         color: rgba(255, 255, 255, 0.4);
-        font-size: 14px;
         background: rgba(15, 15, 15, 0.5);
         border: 1px dashed rgba(255, 255, 255, 0.15);
         border-radius: 0.375rem;
-    }
-
-    .preview-disabled-placeholder .material-symbols-outlined {
-        font-size: 1.5rem;
+        --loading-indicator-gap: 0.5rem;
+        --loading-indicator-spinner-size: 50px;
+        --loading-indicator-spinner-border-width: 4px;
+        --loading-indicator-text-size: 14px;
     }
 </style>

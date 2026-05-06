@@ -1,6 +1,7 @@
 <script setup>
     import * as THREE from 'three';
     import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { TileManager } from '../../modules/viewer/tileManager';
     import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
@@ -45,6 +46,7 @@
     const isReady = ref(false);
     const displayScale = ref(1);
     const tileCount = ref(0);
+    const loadingStatusText = ref('');
 
     const wrapperStyle = computed(() => ({
         '--overview-aspect-ratio': `${Math.max(1, Number(props.targetWidth) || 1920)} / ${Math.max(1, Number(props.targetHeight) || 1080)}`,
@@ -69,6 +71,27 @@
         }
 
         return textureServicePromise;
+    }
+
+    function updateLoadingStatus(stage, current, total) {
+        const numericTotal = Math.max(0, Number(total) || 0);
+        const numericCurrent = Math.max(0, Number(current) || 0);
+
+        if (numericTotal <= 0) {
+            loadingStatusText.value = '';
+            return;
+        }
+
+        const normalized = Math.min(1, numericCurrent / numericTotal);
+        let overallProgress = normalized;
+
+        if (stage === 'downloading') {
+            overallProgress = normalized * 0.5;
+        } else if (stage === 'building') {
+            overallProgress = 0.5 + normalized * 0.5;
+        }
+
+        loadingStatusText.value = `${Math.round(overallProgress * 100)}%`;
     }
 
     function applyViewerSettings() {
@@ -284,7 +307,16 @@
         isLoading.value = true;
         isReady.value = false;
         error.value = '';
+        loadingStatusText.value = '0%';
         teardownTileManager();
+
+        const handleLoadProgress = (stage, current, total) => {
+            if (token !== reloadToken) {
+                return;
+            }
+
+            updateLoadingStatus(stage, current, total);
+        };
 
         const nextTileManager = new TileManager({
             renderer,
@@ -301,7 +333,7 @@
             let didLoad = false;
 
             if (props.isLocal) {
-                didLoad = await nextTileManager.loadFromLocal(props.texture, props.getLocalTiles);
+                didLoad = await nextTileManager.loadFromLocal(props.texture, props.getLocalTiles, handleLoadProgress);
             } else if (props.isCached && props.getCachedLocalId) {
                 const cachedLocalId = await props.getCachedLocalId(props.texture.id);
                 if (cachedLocalId) {
@@ -309,14 +341,14 @@
                         ...props.texture,
                         id: cachedLocalId,
                         thumbnail_data_url: props.texture.thumbnail_data_url || props.texture.thumbnail_url || null,
-                    }, props.getLocalTiles);
+                    }, props.getLocalTiles, handleLoadProgress);
                 }
             }
 
             if (!didLoad) {
                 const { fetchTextureWithTiles } = await loadTextureService();
                 const textureSet = await fetchTextureWithTiles(props.texture.id);
-                didLoad = await nextTileManager.loadFromRemote(textureSet);
+                didLoad = await nextTileManager.loadFromRemote(textureSet, handleLoadProgress);
             }
 
             if (!didLoad) {
@@ -330,6 +362,7 @@
 
             tileManager = nextTileManager;
             tileCount.value = tileManager.getTileCount?.() || props.texture.tile_count || 0;
+            loadingStatusText.value = '100%';
             applyViewerSettings();
             rebuildLayout();
             isReady.value = true;
@@ -344,6 +377,9 @@
         } finally {
             if (token === reloadToken) {
                 isLoading.value = false;
+                if (!error.value) {
+                    loadingStatusText.value = '';
+                }
             }
         }
     }
@@ -614,23 +650,16 @@
         :style="wrapperStyle"
     >
         <div
-            v-if="isLoading"
-            class="texture-overview-preview-message"
-        >
-            Loading overview...
-        </div>
-        <div
-            v-else-if="error"
+            v-if="error"
             class="texture-overview-preview-message is-error"
         >
             Failed to load overview: {{ error }}
         </div>
-        <div
-            v-else-if="!isReady"
+        <LoadingIndicator
+            v-else-if="isLoading || !isReady"
             class="texture-overview-preview-message"
-        >
-            Preparing overview...
-        </div>
+            :status-text="loadingStatusText"
+        />
     </div>
 </template>
 
@@ -658,17 +687,16 @@
     .texture-overview-preview-message {
         position: absolute;
         inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         padding: 1rem;
-        text-align: center;
-        color: #9ca3af;
-        font-size: 0.9rem;
         background: rgba(0, 0, 0, 0.24);
     }
 
     .texture-overview-preview-message.is-error {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
         color: #f87171;
+        font-size: 0.9rem;
     }
 </style>

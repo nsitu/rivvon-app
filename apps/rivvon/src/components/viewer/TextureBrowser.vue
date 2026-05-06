@@ -9,6 +9,7 @@
     import { fetchDriveFile } from '../../modules/viewer/auth.js';
     import { getTextureVariantTargetResolutionOptions } from '../../modules/slyce/textureFamilyPlanning.js';
     import Button from 'primevue/button';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import MultiSelect from 'primevue/multiselect';
     const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
 
@@ -2187,12 +2188,11 @@
                 </div>
 
                 <!-- Loading state -->
-                <div
+                <LoadingIndicator
                     v-if="isLoading"
                     class="texture-browser-loading"
-                >
-                    Loading textures...
-                </div>
+                    message="Loading textures..."
+                />
 
                 <!-- Error state -->
                 <div
@@ -2486,12 +2486,11 @@
                         :maxViewportHeight="7680"
                         :expectedTileCount="previewTexture.tile_count"
                     />
-                    <div
+                    <LoadingIndicator
                         v-else-if="previewLoading"
                         class="preview-loading"
-                    >
-                        Loading tiles...
-                    </div>
+                        message="Loading tiles..."
+                    />
                     <div
                         v-else-if="previewError"
                         class="preview-error"
@@ -2511,7 +2510,7 @@
                             (previewTileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewDisplayScale < 1">({{ Math.round(previewDisplayScale * 100)
-                    }}%
+                        }}%
                         scale)</span>
                 </div>
                 <div class="preview-actions">
@@ -2741,7 +2740,7 @@
                             <div class="derive-result-row">
                                 <span>Source tiles</span>
                                 <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
-                                    }})</strong>
+                                }})</strong>
                             </div>
                             <div class="derive-result-row">
                                 <span>Layer count</span>
@@ -2784,7 +2783,7 @@
                             <div class="derive-result-row">
                                 <span>Validation</span>
                                 <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                    }}</strong>
+                                }}</strong>
                             </div>
                         </div>
                     </details>
@@ -4140,9 +4139,13 @@
 
     .preview-loading,
     .preview-error {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 12rem;
         color: #999;
-        font-size: 14px;
         text-align: center;
+        --loading-indicator-text-size: 14px;
     }
 
     .preview-error {

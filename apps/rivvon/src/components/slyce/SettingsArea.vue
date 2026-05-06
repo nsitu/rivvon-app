@@ -31,7 +31,7 @@
     import InputGroup from 'primevue/inputgroup';
     import InputGroupAddon from 'primevue/inputgroupaddon';
 
-    import ProgressSpinner from 'primevue/progressspinner';
+    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import ToggleSwitch from 'primevue/toggleswitch';
 
     // Watch for changes in samplingSide and adjust samplePixelCount accordingly
@@ -263,15 +263,10 @@
 </script>
 <template>
     <!-- Loading state -->
-    <div
+    <LoadingIndicator
         v-if="isLoading"
         class="settings-placeholder"
-    >
-        <ProgressSpinner
-            style="width: 50px; height: 50px"
-            strokeWidth="4"
-        />
-    </div>
+    />
     <!-- Settings content -->
     <div
         v-else-if="app.file"
@@ -712,9 +707,6 @@
     }
 
     .settings-placeholder {
-        display: flex;
-        align-items: center;
-        justify-content: center;
         min-height: 200px;
         padding: 1rem;
         color: var(--text-tertiary);
