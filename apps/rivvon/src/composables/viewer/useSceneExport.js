@@ -630,6 +630,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {number} options.fps - Frames per second (default: 30)
      * @param {string} options.format - 'mp4' | 'webm' (default: 'mp4')
      * @param {number|null} options.duration - Duration in seconds, or null for auto (one seamless loop)
+    * @param {number} options.loopCount - Number of seamless auto loops when duration is null (default: 1)
      * @param {string} options.filename - Output filename
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
@@ -645,6 +646,7 @@ export function useSceneExport(ctx, deps = {}) {
             fps = 30,
             format = 'mp4',
             duration = null,
+            loopCount = 1,
             filename = null,
             onProgress = null,
             onStatus = null,
@@ -693,6 +695,7 @@ export function useSceneExport(ctx, deps = {}) {
         } else {
             exportDuration = loopDuration;
         }
+        const normalizedLoopCount = Math.max(1, Math.floor(Number(loopCount) || 1));
         const deltaSec = 1 / fps;
 
         // --- Save current state ---
@@ -722,6 +725,10 @@ export function useSceneExport(ctx, deps = {}) {
             if (!cinematicReady) {
                 console.warn('[ThreeSetup] Cinematic camera requested but no ROIs — camera will stay fixed');
             }
+        }
+
+        if (duration == null && normalizedLoopCount > 1) {
+            exportDuration *= normalizedLoopCount;
         }
 
         let circularTiltController = null;
