@@ -1770,9 +1770,15 @@
         app.hideTextureBrowser();
     }
 
-    function closeTextureOverview() {
+    function closeTextureOverview({ reopenTextureBrowser = true } = {}) {
         textureOverviewSelection.value = null;
-        app.showTextureBrowser();
+
+        if (reopenTextureBrowser) {
+            app.showTextureBrowser();
+            return;
+        }
+
+        app.hideTextureBrowser();
     }
 
     async function handleTextureOverviewApply(payload) {
@@ -1780,12 +1786,17 @@
             return;
         }
 
+        let applied = false;
+
         if (payload.source === 'local') {
-            await handleLocalTextureSelect(payload.texture);
-            return;
+            applied = await handleLocalTextureSelect(payload.texture);
+        } else {
+            applied = await handleTextureSelect(payload.texture);
         }
 
-        await handleTextureSelect(payload.texture);
+        if (applied) {
+            closeTextureOverview({ reopenTextureBrowser: false });
+        }
     }
 
     function openDrawingBrowser() {
@@ -1875,7 +1886,7 @@
     // Load local texture by ID
     async function loadLocalTexture(textureId) {
         console.log('[RibbonView] Loading local texture:', textureId);
-        await withTextureLoading('Loading local texture...', async () => {
+        return await withTextureLoading('Loading local texture...', async () => {
             try {
                 const textureSet = await getLocalTextureSet(textureId);
 
@@ -1905,12 +1916,14 @@
                 });
 
                 console.log('[RibbonView] Local texture loaded successfully');
+                return true;
             } catch (error) {
                 handleTextureLoadFailure({
                     error,
                     consoleMessage: '[RibbonView] Failed to load local texture:',
                     alertPrefix: 'Failed to load local texture: ',
                 });
+                return false;
             }
         });
     }
@@ -1918,7 +1931,7 @@
     // Handle local texture selection from browser
     async function handleLocalTextureSelect(texture) {
         console.log('[RibbonView] Selected local texture from browser:', texture.name);
-        await loadLocalTexture(texture.id);
+        return await loadLocalTexture(texture.id);
     }
 
     /**
@@ -2094,7 +2107,7 @@
     // Handle texture selection from browser
     async function handleTextureSelect(texture) {
         console.log('[RibbonView] Loading remote texture:', texture.name);
-        await withTextureLoading('Loading...', async () => {
+        return await withTextureLoading('Loading...', async () => {
             try {
                 // Check if this texture is cached locally
                 const cachedLocalId = await getCachedLocalId(texture.id);
@@ -2116,7 +2129,7 @@
                                 },
                             });
                             console.log('[RibbonView] Loaded from cache successfully');
-                            return;
+                            return true;
                         }
                         // If cache load failed, fall through to remote
                         console.warn('[RibbonView] Cache load failed, falling back to remote');
@@ -2135,7 +2148,7 @@
                 if (hasDriveTiles && !isAuthenticated.value) {
                     // Show beta modal with texture-auth context
                     app.showBetaModal('texture-auth');
-                    return;
+                    return false;
                 }
 
                 console.log(`[RibbonView] Fetched texture set: ${textureSet.tiles.length} tiles`);
@@ -2163,6 +2176,7 @@
                 cacheRemoteTextureInBackground(texture, textureSet);
 
                 console.log('[RibbonView] Remote texture loaded successfully');
+                return true;
             } catch (error) {
                 handleTextureLoadFailure({
                     error,
@@ -2170,6 +2184,7 @@
                     alertPrefix: 'Failed to load texture: ',
                     showAccessDeniedModal: true,
                 });
+                return false;
             }
         });
     }
