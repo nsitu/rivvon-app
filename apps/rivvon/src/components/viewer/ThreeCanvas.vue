@@ -45,6 +45,7 @@
         setFlowSpeed,
         setFlowCycleAlignmentEnabled,
         setTextureAnimationEnabled,
+        setTextureAnimationReversed,
         setTextureRepeatMode,
         setHelixMode,
         captureImagePreview,
@@ -171,6 +172,10 @@
         setTextureAnimationEnabled(enabled);
     });
 
+    watch(() => app.textureAnimationReversed, (reversed) => {
+        setTextureAnimationReversed(reversed);
+    });
+
     watch(() => app.textureRepeatMode, (mode) => {
         setTextureRepeatMode(mode);
     });
@@ -204,6 +209,7 @@
         setFlowSpeed,
         setFlowCycleAlignmentEnabled,
         setTextureAnimationEnabled,
+        setTextureAnimationReversed,
         setTextureRepeatMode,
         setHelixMode,
         captureImagePreview,
