@@ -46,7 +46,7 @@
             :success-title="localSaveSuccessTitle"
             :success-detail="localSaveSuccessDetail"
             :show-pending="true"
-            @retry="retrySaveLocally"
+            @request-retry="retrySaveLocally"
         >
             <template #success-actions>
                 <Button
@@ -299,7 +299,7 @@
         updateTextureSet: updateLocalTextureSet,
     } = useLocalStorage();
 
-    const emit = defineEmits(['apply-texture']);
+    const emit = defineEmits(['request-apply-texture']);
 
     const publishDestinationOptions = computed(() => {
         if (!isAuthenticated.value) {
@@ -964,7 +964,7 @@
 
     async function applyTexture() {
         if (app.publishedCloudRootId) {
-            emit('apply-texture', {
+            emit('request-apply-texture', {
                 id: app.publishedCloudRootId,
                 name: getCurrentTextureName(),
                 source: 'cloud',
@@ -979,7 +979,7 @@
 
         await syncLocalDraftMetadata();
 
-        emit('apply-texture', {
+        emit('request-apply-texture', {
             id: app.savedLocalTextureId,
             name: getCurrentTextureName(),
             source: 'local',
