@@ -13,7 +13,7 @@
         }
     });
 
-    const emit = defineEmits(['next', 'resume-file-flow']);
+    const emit = defineEmits(['request-next', 'request-resume-file-flow']);
 
     const fileInput = ref(null);
 
@@ -23,7 +23,7 @@
 
     function handleFileCardAction() {
         if (props.canResumeFileFlow) {
-            emit('resume-file-flow');
+            emit('request-resume-file-flow');
             return;
         }
 
@@ -38,7 +38,7 @@
             app.set('fileURL', URL.createObjectURL(files[0]))
             app.set('textureName', getDefaultTextureName(files[0]))
             app.set('textureDescription', '')
-            emit('next');
+            emit('request-next');
         }
     };
 </script>
