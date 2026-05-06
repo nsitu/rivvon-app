@@ -4,10 +4,8 @@
     import { useViewerStore } from '../../stores/viewerStore';
 
     defineProps({
-        showTextureSection: { type: Boolean, default: true },
+        showUndulation: { type: Boolean, default: true },
     });
-
-    const emit = defineEmits(['change']);
 
     const app = useViewerStore();
     const instanceUid = getCurrentInstance()?.uid ?? Math.round(Math.random() * 1e9);
@@ -31,7 +29,6 @@
         get: () => app.flowState !== 'off',
         set: (enabled) => {
             app.setFlowState(enabled ? lastFlowDirection.value : 'off');
-            emit('change');
         },
     });
 
@@ -41,15 +38,6 @@
             const nextDirection = value ? 'backward' : 'forward';
             lastFlowDirection.value = nextDirection;
             app.setFlowState(nextDirection);
-            emit('change');
-        },
-    });
-
-    const mirrorTilesModel = computed({
-        get: () => app.textureRepeatMode === 'mirrorTile',
-        set: (value) => {
-            app.setTextureRepeatMode(value ? 'mirrorTile' : 'wrap');
-            emit('change');
         },
     });
 
@@ -57,7 +45,6 @@
         get: () => app.undulationEnabled,
         set: (value) => {
             app.setUndulationEnabled(!!value);
-            emit('change');
         },
     });
 
@@ -65,7 +52,6 @@
         get: () => app.flowCycleAlignmentEnabled,
         set: (value) => {
             app.setFlowCycleAlignmentEnabled(!!value);
-            emit('change');
         },
     });
 
@@ -73,13 +59,18 @@
         get: () => app.textureAnimationEnabled,
         set: (value) => {
             app.setTextureAnimationEnabled(!!value);
-            emit('change');
+        },
+    });
+
+    const reverseLayerCycleModel = computed({
+        get: () => app.textureAnimationReversed,
+        set: (value) => {
+            app.setTextureAnimationReversed(!!value);
         },
     });
 
     function handleFlowSpeedInput(event) {
         app.setFlowSpeed(parseFloat(event.target.value));
-        emit('change');
     }
 
     function getInputId(name) {
@@ -146,7 +137,10 @@
                     />
                 </div>
 
-                <div class="tools-toggle-row">
+                <div
+                    v-if="showUndulation"
+                    class="tools-toggle-row"
+                >
                     <label
                         class="tools-toggle-main"
                         :for="getInputId('undulation')"
@@ -173,10 +167,30 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="textureAnimationModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('reverse-layer-cycle')"
+                    >
+                        <span class="material-symbols-outlined">fast_rewind</span>
+                        <span>Reverse Layer Cycle</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ reverseLayerCycleModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('reverse-layer-cycle')"
+                            v-model="reverseLayerCycleModel"
                         />
                     </div>
                 </div>
@@ -194,7 +208,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
@@ -204,31 +218,6 @@
             </div>
         </div>
 
-        <div
-            v-if="showTextureSection"
-            class="tools-section"
-        >
-            <div class="tools-section-label">Texture</div>
-
-            <div class="tools-section-items">
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('mirror-tiles')"
-                    >
-                        <span class="material-symbols-outlined">swap_horiz</span>
-                        <span>Mirror Tiles</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ mirrorTilesModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('mirror-tiles')"
-                            v-model="mirrorTilesModel"
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </template>
 
