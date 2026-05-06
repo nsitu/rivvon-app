@@ -12,7 +12,7 @@
         }
     });
 
-    const emit = defineEmits(['close', 'select']);
+    const emit = defineEmits(['request-close', 'request-select']);
 
     const { user, isAdmin, isAuthenticated } = useGoogleAuth();
     const { saveDrawing: saveLocalDrawing, getAllDrawings, updateDrawing: updateLocalDrawing, deleteDrawing: deleteLocalDrawing } = useDrawingStorage();
@@ -728,8 +728,8 @@
     }
 
     function handleOpen(drawing) {
-        emit('select', drawing);
-        emit('close');
+        emit('request-select', drawing);
+        emit('request-close');
     }
 
     watch([() => props.visible, isAuthenticated], ([visible, authenticated]) => {
