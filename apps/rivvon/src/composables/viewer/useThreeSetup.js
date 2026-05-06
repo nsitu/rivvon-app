@@ -149,6 +149,7 @@ export function useThreeSetup() {
                 repeatMode: app.textureRepeatMode,
                 flowAlignmentEnabled: app.flowCycleAlignmentEnabled,
                 layerAnimationEnabled: app.textureAnimationEnabled,
+                layerAnimationReversed: app.textureAnimationReversed,
                 webgpuMaterialMode: 'node'
             });
             await tileManager.value.loadAllTiles();
@@ -349,6 +350,7 @@ export function useThreeSetup() {
         setFlowSpeed: ribbons.setFlowSpeed,
         setFlowCycleAlignmentEnabled: ribbons.setFlowCycleAlignmentEnabled,
         setTextureAnimationEnabled: ribbons.setTextureAnimationEnabled,
+        setTextureAnimationReversed: ribbons.setTextureAnimationReversed,
         setTextureRepeatMode: ribbons.setTextureRepeatMode,
         setHelixMode: ribbons.setHelixMode,
         captureImagePreview: exporter.captureImagePreview,
