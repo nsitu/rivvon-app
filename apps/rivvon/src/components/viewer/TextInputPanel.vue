@@ -18,7 +18,7 @@
         }
     });
 
-    const emit = defineEmits(['update:visible', 'generate']);
+    const emit = defineEmits(['update:visible', 'request-generate']);
 
     const FONT_OPTION_PREVIEW_STROKE_WIDTH = 2;
     const LIVE_TEXT_PREVIEW_STROKE_WIDTH = 2;
@@ -42,10 +42,29 @@
     let textPreviewRequestId = 0;
 
     const canGenerate = computed(() => textInput.value.trim().length > 0);
+
+    function formatFontOptionMeta(font) {
+        const basedOn = font?.basedOn;
+        const primaryCredits = [font?.creator, font?.foundry].filter(Boolean);
+        const primaryMetaLine = primaryCredits.length > 0
+            ? `by ${primaryCredits.join(' / ')}`
+            : '';
+
+        const secondaryMetaLine = basedOn?.fontName
+            ? `Based on ${basedOn.fontName}${[basedOn.creator, basedOn.foundry].filter(Boolean).length ? ` by ${[basedOn.creator, basedOn.foundry].filter(Boolean).join(' / ')}` : ''}`
+            : '';
+
+        return {
+            primaryMetaLine,
+            secondaryMetaLine,
+        };
+    }
+
     const fontOptions = computed(() => fonts.value.map(font => ({
         fontName: font.fontName,
         value: font.id,
-        previewSvg: fontPreviewSvgByName.value[font.id] || ''
+        previewSvg: fontPreviewSvgByName.value[font.id] || '',
+        ...formatFontOptionMeta(font),
     })));
     const selectedFontModel = computed({
         get: () => selectedFont.value,
@@ -223,7 +242,7 @@
                 multiline: isMultiline.value,
                 lineHeight: selectedLineHeight
             });
-            emit('generate', {
+            emit('request-generate', {
                 points,
                 source: {
                     text: sourceText,
@@ -366,19 +385,36 @@
                                         :disabled="isLoading || fonts.length === 0"
                                         class="font-radio-control"
                                     />
-                                    <div
-                                        v-if="option.previewSvg"
-                                        class="font-select-preview font-select-preview--compact font-select-preview--radio"
-                                        v-html="option.previewSvg"
-                                    />
-                                    <span
-                                        v-else
-                                        class="font-select-name"
-                                    >{{ option.fontName }}</span>
+                                    <div class="font-radio-option-body">
+                                        <div
+                                            v-if="option.previewSvg"
+                                            class="font-select-preview font-select-preview--compact font-select-preview--radio"
+                                            v-html="option.previewSvg"
+                                        />
+                                        <div
+                                            v-if="!option.previewSvg || (selectedFont === option.value && (option.primaryMetaLine || option.secondaryMetaLine))"
+                                            class="font-select-copy"
+                                        >
+                                            <span
+                                                v-if="!option.previewSvg"
+                                                class="font-select-name"
+                                            >{{ option.fontName }}</span>
+                                            <span
+                                                v-if="selectedFont === option.value && option.primaryMetaLine"
+                                                class="font-select-meta font-select-meta--primary"
+                                            >{{ option.previewSvg ? `${option.fontName} ${option.primaryMetaLine}` :
+                                                option.primaryMetaLine }}</span>
+                                            <span
+                                                v-if="selectedFont === option.value && option.secondaryMetaLine"
+                                                class="font-select-meta font-select-meta--secondary"
+                                            >{{ option.secondaryMetaLine }}</span>
+                                        </div>
+                                    </div>
                                 </label>
                             </div>
-                            <p class="input-hint">Each option previews only the font name. Open About for file,
-                                attribution, and source details.</p>
+                            <p class="input-hint">Selected fonts show creator and source-typeface details. Open About
+                                for
+                                file, attribution, and source details.</p>
                         </div>
 
                         <div class="form-group">
@@ -645,6 +681,14 @@
         flex-shrink: 0;
     }
 
+    .font-radio-option-body {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+
     .font-select-preview,
     .text-preview-card {
         width: 100%;
@@ -661,14 +705,35 @@
     }
 
     .font-select-preview--radio {
-        flex: 1;
         min-width: 0;
+    }
+
+    .font-select-copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0.2rem;
     }
 
     .font-select-name {
         color: #d1d5db;
         font-size: 0.875rem;
         line-height: 1.3;
+    }
+
+    .font-select-meta {
+        color: #9ca3af;
+        font-size: 0.75rem;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    .font-select-meta--primary {
+        color: #d1d5db;
+    }
+
+    .font-select-meta--secondary {
+        color: #9ca3af;
     }
 
     .accordion-header-text {
