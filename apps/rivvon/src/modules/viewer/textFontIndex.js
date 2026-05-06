@@ -67,7 +67,8 @@ export const TEXT_FONT_INDEX = [
         fileName: 'MistralSingleLineOTF-SVG-Regular.otf',
         fontName: 'Mistral Single Line',
         format: 'opentype',
-        foundry: 'isdaT-type / institut supérieur des arts et du design de Toulouse',
+        creator: 'Institut supérieur des arts et du design de Toulouse',
+        foundry: 'isdaT-type',
         url: 'https://github.com/isdat-type',
         license: 'OFL'
     }
@@ -75,7 +76,10 @@ export const TEXT_FONT_INDEX = [
     {
         id: 'ResamitzSL-s24w0',
         fileName: 'ResamitzSL-s24w0.ttf',
-        fontName: 'Resamitz SL'
+        fontName: 'Resamitz SL',
+        creator:'Grzegorz Luksza',
+        foundry:'glukfonts',
+        url:'https://www.glukfonts.pl/info.php'
     }
 ];
 
