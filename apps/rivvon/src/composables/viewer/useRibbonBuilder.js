@@ -265,6 +265,21 @@ export function useRibbonBuilder(ctx) {
     }
 
     /**
+     * Reverse or restore the KTX2 layer-cycle direction across all active TileManagers.
+     * @param {boolean} reversed
+     */
+    function setTextureAnimationReversed(reversed) {
+        const nextReversed = !!reversed;
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setLayerAnimationReversed?.(nextReversed);
+        }
+
+        ctx.app.setTextureAnimationReversed(nextReversed);
+    }
+
+    /**
      * Set texture repeat mode.
      * @param {string} mode - 'wrap' | 'mirrorTile'
      */
@@ -309,6 +324,7 @@ export function useRibbonBuilder(ctx) {
         setFlowSpeed,
         setFlowCycleAlignmentEnabled,
         setTextureAnimationEnabled,
+        setTextureAnimationReversed,
         setTextureRepeatMode,
         setHelixMode
     };
