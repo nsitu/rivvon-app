@@ -2,6 +2,8 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types/hono';
 import { buildTextureFamilySummaries, decorateTextureFamilyRoot, getRootTextureId } from '../utils/textureFamilies';
+import { buildCdnUrl, buildGoogleDriveDownloadUrl } from '../utils/storagePaths';
+import { errorResponse, jsonResponse, notFoundResponse } from '../utils/response';
 
 export const textureRoutes = new Hono<AppEnv>();
 
@@ -30,9 +32,9 @@ textureRoutes.get('/', async (c) => {
         const families = buildTextureFamilySummaries(results.results as any[]);
         const pagedFamilies = families.slice(offset, offset + limit).map((family) => decorateTextureFamilyRoot(family));
 
-    return c.json({
-                textures: pagedFamilies,
-                pagination: { limit, offset, total: families.length },
+    return jsonResponse({
+        textures: pagedFamilies,
+        pagination: { limit, offset, total: families.length },
     });
 });
 
@@ -54,7 +56,7 @@ textureRoutes.get('/:id', async (c) => {
   `).bind(textureSetId).first() as any;
 
     if (!textureSet) {
-        return c.json({ error: 'Texture set not found' }, 404);
+        return notFoundResponse('Texture set not found');
     }
 
         const rootTextureId = getRootTextureId(textureSet);
@@ -90,10 +92,10 @@ textureRoutes.get('/:id', async (c) => {
             // Include driveFileId for frontend to use Drive API (bypasses CORS)
             driveFileId = tile.drive_file_id;
             // Also include URL as fallback (though it won't work due to CORS)
-            url = tile.public_url || `https://drive.google.com/uc?export=download&id=${tile.drive_file_id}`;
+            url = tile.public_url || buildGoogleDriveDownloadUrl(tile.drive_file_id);
         } else if (tile.r2_key) {
             // R2 storage - use CDN URL (no auth needed)
-            url = `https://cdn.rivvon.ca/${tile.r2_key}`;
+            url = buildCdnUrl(tile.r2_key);
         } else {
             // Fallback to stored public_url
             url = tile.public_url || '';
@@ -107,7 +109,7 @@ textureRoutes.get('/:id', async (c) => {
         };
     });
 
-    return c.json({
+    return jsonResponse({
         ...textureSet,
         root_texture_id: rootTextureId,
         available_resolutions: currentFamily?.availableResolutions || [Number(textureSet.tile_resolution)].filter(Number.isFinite),
@@ -127,12 +129,12 @@ textureRoutes.get('/:setId/tile/:index', async (c) => {
     `).bind(setId, tileIndex).first() as { r2_key?: string | null } | null;
 
         if (!tile?.r2_key) {
-        return c.json({ error: 'Tile not found' }, 404);
+        return notFoundResponse('Tile not found');
     }
 
     const object = await c.env.BUCKET.get(tile.r2_key);
     if (!object) {
-        return c.json({ error: 'File not found in storage' }, 404);
+        return errorResponse('File not found in storage', 404);
     }
 
     return new Response(object.body, {

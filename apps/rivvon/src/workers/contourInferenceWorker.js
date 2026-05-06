@@ -22,8 +22,17 @@ const MODEL_PATH = `${import.meta.env.BASE_URL || '/'}u2net.quant.onnx`;
 const MODEL_ZIP_PATH = `${BASE_URL}u2net.quant.onnx.zip`;
 const MODEL_FILE_NAME = 'u2net.quant.onnx';
 
-let sessionPromise = null;
-let modelBufferPromise = null;
+function createStickyPromiseLoader(load) {
+    let promise = null;
+
+    return function ensure(...args) {
+        if (!promise) {
+            promise = Promise.resolve(load(...args));
+        }
+
+        return promise;
+    };
+}
 
 function emitPreloadStatus(postStatus, stage, message) {
     if (typeof postStatus === 'function') {
@@ -52,42 +61,30 @@ async function loadModelBufferFromZip(postStatus) {
     return await modelFile.async('arraybuffer');
 }
 
-async function getModelBuffer(postStatus) {
-    if (modelBufferPromise) return modelBufferPromise;
+const getModelBuffer = createStickyPromiseLoader(async (postStatus) => {
+    try {
+        return await loadModelBufferFromZip(postStatus);
+    } catch (zipErr) {
+        console.warn('[ContourWorker] ZIP model load failed, falling back to plain ONNX path.', zipErr);
+        emitPreloadStatus(postStatus, 'loading', 'Loading model…');
+        return null;
+    }
+});
 
-    modelBufferPromise = (async () => {
-        try {
-            return await loadModelBufferFromZip(postStatus);
-        } catch (zipErr) {
-            console.warn('[ContourWorker] ZIP model load failed, falling back to plain ONNX path.', zipErr);
-            emitPreloadStatus(postStatus, 'loading', 'Loading model…');
-            return null;
-        }
-    })();
+const getSession = createStickyPromiseLoader(async (postStatus) => {
+    const ort = await import('onnxruntime-web');
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1/dist/';
+    ort.env.wasm.numThreads = 1;
 
-    return modelBufferPromise;
-}
+    const modelBuffer = await getModelBuffer(postStatus);
+    const modelSource = modelBuffer ?? MODEL_PATH;
 
-async function getSession(postStatus) {
-    if (sessionPromise) return sessionPromise;
+    const session = await ort.InferenceSession.create(modelSource, {
+        executionProviders: ['wasm'],
+    });
 
-    sessionPromise = (async () => {
-        const ort = await import('onnxruntime-web');
-        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1/dist/';
-        ort.env.wasm.numThreads = 1;
-
-        const modelBuffer = await getModelBuffer(postStatus);
-        const modelSource = modelBuffer ?? MODEL_PATH;
-
-        const session = await ort.InferenceSession.create(modelSource, {
-            executionProviders: ['wasm'],
-        });
-
-        return { ort, session };
-    })();
-
-    return sessionPromise;
-}
+    return { ort, session };
+});
 
 /**
  * Resize source RGBA data to MODEL_INPUT_SIZE × MODEL_INPUT_SIZE using

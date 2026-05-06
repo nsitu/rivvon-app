@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+import { createLazyLoader } from '../shared/lazyLoader.js';
 
 /** CDN base for individual OpenMoji Black SVGs (stroke-based line art) */
 const OPENMOJI_SVG_CDN =
@@ -26,9 +27,6 @@ const spriteCache = new Map();
 
 /** In-flight sprite fetch promises: slug → Promise */
 const spriteFetching = new Map();
-
-/** Deduplicates concurrent loadCatalog() calls */
-let catalogPromise = null;
 
 /** Pretty group names for display */
 const GROUP_LABELS = {
@@ -68,25 +66,19 @@ const GROUP_LABELS = {
  *
  * @returns {Promise<OpenMojiGroup[]>}
  */
-export async function loadOpenMojiCatalog() {
-    if (catalogPromise) return catalogPromise;
+export const loadOpenMojiCatalog = createLazyLoader(async () => {
+    const res = await fetch('/openmoji-index.json');
+    if (!res.ok) throw new Error(`Failed to load OpenMoji index: ${res.status}`);
 
-    catalogPromise = (async () => {
-        const res = await fetch('/openmoji-index.json');
-        if (!res.ok) throw new Error(`Failed to load OpenMoji index: ${res.status}`);
+    /** @type {Array<{s: string, m: OpenMojiEntry[]}>} */
+    const raw = await res.json();
 
-        /** @type {Array<{s: string, m: OpenMojiEntry[]}>} */
-        const raw = await res.json();
-
-        return raw.map(g => ({
-            name: GROUP_LABELS[g.s] || g.s,
-            slug: g.s,
-            emojis: g.m,
-        }));
-    })();
-
-    return catalogPromise;
-}
+    return raw.map(g => ({
+        name: GROUP_LABELS[g.s] || g.s,
+        slug: g.s,
+        emojis: g.m,
+    }));
+});
 
 // ─── Sprite loading ───────────────────────────────────────────────────
 

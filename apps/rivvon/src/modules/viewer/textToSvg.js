@@ -1,5 +1,6 @@
 import SvgPath from 'svgpath';
 import * as THREE from 'three';
+import { createLazyLoader } from '../shared/lazyLoader.js';
 import { TEXT_FONT_INDEX, TEXT_FONT_INDEX_BY_ID } from './textFontIndex.js';
 
 export { TEXT_FONT_INDEX };
@@ -59,15 +60,7 @@ function normalizeInputText(inputText, multiline = false) {
     return multiline ? normalizedText : normalizedText.replace(/\n+/g, ' ');
 }
 
-let openTypeModulePromise = null;
-
-async function loadOpenTypeModule() {
-    if (!openTypeModulePromise) {
-        openTypeModulePromise = import('opentype.js').then((module) => module.default || module);
-    }
-
-    return openTypeModulePromise;
-}
+const loadOpenTypeModule = createLazyLoader(() => import('opentype.js').then((module) => module.default || module));
 
 function readOpenTypeTag(arrayBuffer, offset) {
     return String.fromCharCode(...new Uint8Array(arrayBuffer, offset, 4));

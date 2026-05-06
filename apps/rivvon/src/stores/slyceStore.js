@@ -2,7 +2,7 @@
 // Pinia store for Slyce texture builder state
 
 import { defineStore } from 'pinia';
-import { abortProcessing } from '../modules/slyce/videoProcessor';
+import { abortProcessing } from '../modules/slyce/videoProcessingControl.js';
 import { createLocalSaveState, createObjectLocalSaveController } from '../modules/slyce/localSaveController.js';
 import { createPublishState, createObjectPublishController } from '../modules/slyce/publishController.js';
 

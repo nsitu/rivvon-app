@@ -14,6 +14,7 @@
         getExportResolutionOptions,
         normalizeExportDimensionSettings,
     } from '../../modules/viewer/exportVideoDimensions.js';
+    import { createViewerContexts, resolveOrderedContext } from '../../modules/viewer/viewerHeaderContext.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -166,6 +167,88 @@
     // Check if Slyce processing is active (has status messages)
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
 
+    const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
+        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'tools', 'about', 'realtimeSampler'],
+        onCloseRealtimeMode: (payload) => emit('request-close-realtime-mode', payload),
+        onResetSlyceProcessing: () => slyce.resetProcessing(),
+        isSlyceProcessing: isSlyceProcessing.value,
+    }).map((context) => [context.id, context])));
+
+    const toolbarBackContexts = computed(() => ([
+        viewerToolbarContextMap.value.walk,
+        viewerToolbarContextMap.value.draw,
+        viewerToolbarContextMap.value.drawings,
+        viewerToolbarContextMap.value.textureCreator,
+        viewerToolbarContextMap.value.textureBrowser,
+        viewerToolbarContextMap.value.text,
+        viewerToolbarContextMap.value.emoji,
+        viewerToolbarContextMap.value.contour,
+        viewerToolbarContextMap.value.realtimeSampler,
+        {
+            id: 'exportImage',
+            title: 'Export Image',
+            isActive: () => props.exportImageVisible,
+            close: () => {
+                emit('request-close-export-image');
+                return true;
+            }
+        },
+        {
+            id: 'exportVideo',
+            title: 'Export Video',
+            isActive: () => props.exportVideoVisible,
+            close: () => {
+                emit('request-close-export-video');
+                return true;
+            }
+        },
+        {
+            id: 'toolbarOverlay',
+            title: null,
+            isActive: () => Boolean(props.activeToolbarOverlay),
+            close: () => {
+                closeLaunchers();
+                return true;
+            }
+        },
+        viewerToolbarContextMap.value.tools,
+        viewerToolbarContextMap.value.about,
+    ].filter(Boolean)));
+
+    const toolbarCloseAllContexts = computed(() => ([
+        viewerToolbarContextMap.value.walk,
+        viewerToolbarContextMap.value.draw,
+        viewerToolbarContextMap.value.drawings,
+        viewerToolbarContextMap.value.textureCreator,
+        viewerToolbarContextMap.value.textureBrowser,
+        viewerToolbarContextMap.value.text,
+        viewerToolbarContextMap.value.emoji,
+        viewerToolbarContextMap.value.contour,
+        viewerToolbarContextMap.value.tools,
+        viewerToolbarContextMap.value.about,
+        viewerToolbarContextMap.value.realtimeSampler,
+        ...toolbarBackContexts.value.filter((context) => ['exportImage', 'exportVideo', 'toolbarOverlay'].includes(context.id)),
+    ]));
+
+    function runActiveContexts(contexts, { firstOnly = false } = {}) {
+        if (firstOnly) {
+            const activeContext = resolveOrderedContext(contexts);
+            return activeContext ? activeContext.close() !== false : true;
+        }
+
+        for (const context of contexts) {
+            if (!context?.isActive?.()) {
+                continue;
+            }
+
+            if (context.close?.() === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Handle the back button press.
      * If Slyce is visible and processing, confirm before cancelling and closing.
@@ -173,62 +256,29 @@
     function handleBack() {
         closeLaunchers();
 
-        if (app.isWalkMode) {
-            app.setWalkMode(false);
-        } else if (app.isDrawingMode) {
-            app.setDrawingMode(false);
-        } else if (app.drawingBrowserVisible) {
-            app.hideDrawingBrowser();
-        } else if (app.textureCreatorVisible) {
-            if (isSlyceProcessing.value) {
-                const confirmed = confirm(
-                    'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
-                );
-                if (!confirmed) return;
-                slyce.resetProcessing();
-            }
-            app.hideSlyce();
-        } else if (app.textureBrowserVisible) {
-            app.hideTextureBrowser();
-        } else if (app.textPanelVisible) {
-            app.hideTextPanel();
-        } else if (app.emojiPickerVisible) {
-            app.hideEmojiPicker();
-        } else if (app.contourPanelVisible) {
-            app.hideContourPanel();
-        } else if (app.realtimeSamplerVisible) {
-            emit('request-close-realtime-mode');
-        } else if (props.exportImageVisible) {
-            emit('request-close-export-image');
-        } else if (props.exportVideoVisible) {
-            emit('request-close-export-video');
-        } else if (props.activeToolbarOverlay) {
-            closeLaunchers();
-        } else if (app.toolsPanelVisible) {
-            app.hideToolsPanel();
-        } else if (app.aboutPanelVisible) {
-            app.hideAboutPanel();
-        }
+        runActiveContexts(toolbarBackContexts.value, { firstOnly: true });
     }
 
     // Computed: is any panel/mode currently active?
-    const hasActiveContext = computed(() =>
-        app.isDrawingMode || app.isWalkMode || app.drawingBrowserVisible || app.textureCreatorVisible || app.textureBrowserVisible || app.textPanelVisible || app.emojiPickerVisible || app.contourPanelVisible || !!props.activeToolbarOverlay || props.exportImageVisible || props.exportVideoVisible || app.toolsPanelVisible || app.aboutPanelVisible || app.realtimeSamplerVisible
-    );
+    const hasActiveContext = computed(() => Boolean(resolveOrderedContext(toolbarBackContexts.value)));
+
+    function isToolbarContextActive(contextId) {
+        return viewerToolbarContextMap.value[contextId]?.isActive?.() ?? false;
+    }
 
     const drawGroupActive = computed(() => (
-        app.isDrawingMode
-        || app.isWalkMode
-        || app.drawingBrowserVisible
-        || app.textPanelVisible
-        || app.emojiPickerVisible
-        || app.contourPanelVisible
+        isToolbarContextActive('draw')
+        || isToolbarContextActive('walk')
+        || isToolbarContextActive('drawings')
+        || isToolbarContextActive('text')
+        || isToolbarContextActive('emoji')
+        || isToolbarContextActive('contour')
     ));
 
     const textureGroupActive = computed(() => (
-        app.textureCreatorVisible
-        || app.textureBrowserVisible
-        || app.realtimeSamplerVisible
+        isToolbarContextActive('textureCreator')
+        || isToolbarContextActive('textureBrowser')
+        || isToolbarContextActive('realtimeSampler')
     ));
 
     const showFinishCaptureButton = computed(() => {
@@ -269,62 +319,22 @@
      * Returns false if the user cancelled (e.g., Slyce processing confirmation).
      */
     function closeActiveContext() {
-        if (app.isWalkMode) {
-            app.setWalkMode(false);
-        }
-        if (app.isDrawingMode) {
-            app.setDrawingMode(false);
-        }
-        if (app.drawingBrowserVisible) {
-            app.hideDrawingBrowser();
-        }
-        if (app.textureCreatorVisible) {
-            if (isSlyceProcessing.value) {
-                const confirmed = confirm(
-                    'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
-                );
-                if (!confirmed) return false;
-                slyce.resetProcessing();
-            }
-            app.hideSlyce();
-        }
-        if (app.textureBrowserVisible) {
-            app.hideTextureBrowser();
-        }
-        if (app.textPanelVisible) {
-            app.hideTextPanel();
-        }
-        if (app.emojiPickerVisible) {
-            app.hideEmojiPicker();
-        }
-        if (app.contourPanelVisible) {
-            app.hideContourPanel();
-        }
-        if (app.toolsPanelVisible) {
-            app.hideToolsPanel();
-        }
-        if (app.aboutPanelVisible) {
-            app.hideAboutPanel();
-        }
-        if (app.realtimeSamplerVisible) {
-            emit('request-close-realtime-mode', { suppressCreateTextureReturn: true });
-        }
-        if (props.exportImageVisible) {
-            emit('request-close-export-image');
-        }
-        if (props.exportVideoVisible) {
-            emit('request-close-export-video');
-        }
-        if (props.activeToolbarOverlay) {
-            closeLaunchers();
-        }
-        return true;
+        return runActiveContexts(toolbarCloseAllContexts.value);
     }
 
     function activateContext(action) {
         if (!closeActiveContext()) return;
         closeLaunchers();
         action();
+    }
+
+    function toggleContextItem(contextId, openAction) {
+        if (isToolbarContextActive(contextId)) {
+            handleBack();
+            return;
+        }
+
+        activateContext(openAction);
     }
 
     function isEditableTarget(target) {
@@ -399,80 +409,38 @@
         {
             label: 'Walk',
             icon: 'directions_walk',
-            active: app.isWalkMode,
-            command: () => {
-                if (app.isWalkMode) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-enter-walk-mode'));
-            }
+            active: isToolbarContextActive('walk'),
+            command: () => toggleContextItem('walk', () => emit('request-enter-walk-mode'))
         },
         {
             label: 'Write',
             icon: 'text_fields',
-            active: app.textPanelVisible,
-            command: () => {
-                if (app.textPanelVisible) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-open-text-panel'));
-            }
+            active: isToolbarContextActive('text'),
+            command: () => toggleContextItem('text', () => emit('request-open-text-panel'))
         },
         {
             label: 'Emoji',
             icon: 'mood',
-            active: app.emojiPickerVisible,
-            command: () => {
-                if (app.emojiPickerVisible) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-open-emoji-picker'));
-            }
+            active: isToolbarContextActive('emoji'),
+            command: () => toggleContextItem('emoji', () => emit('request-open-emoji-picker'))
         },
         {
             label: 'Gesture',
             icon: 'gesture',
-            active: app.isDrawingMode,
-            command: () => {
-                if (app.isDrawingMode) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-enter-draw-mode'));
-            }
+            active: isToolbarContextActive('draw'),
+            command: () => toggleContextItem('draw', () => emit('request-enter-draw-mode'))
         },
         {
             label: 'Contour',
             icon: 'vr180_create2d',
-            active: app.contourPanelVisible,
-            command: () => {
-                if (app.contourPanelVisible) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-enter-contour-mode'));
-            }
+            active: isToolbarContextActive('contour'),
+            command: () => toggleContextItem('contour', () => emit('request-enter-contour-mode'))
         },
         {
             label: 'Browse',
             icon: 'grid_view',
-            active: app.drawingBrowserVisible,
-            command: () => {
-                if (app.drawingBrowserVisible) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-open-drawing-browser'));
-            }
+            active: isToolbarContextActive('drawings'),
+            command: () => toggleContextItem('drawings', () => emit('request-open-drawing-browser'))
         }
     ]));
 
@@ -486,32 +454,21 @@
         }, {
             label: 'From Camera',
             icon: 'camera_video',
-            active: app.realtimeSamplerVisible,
-            command: () => {
-                activateContext(() => emit('request-open-texture-camera'));
-            }
+            active: isToolbarContextActive('realtimeSampler'),
+            command: () => activateContext(() => emit('request-open-texture-camera'))
         }, {
             label: 'From Video',
             icon: 'video_file',
-            active: app.textureCreatorVisible,
-            command: () => {
-                activateContext(() => emit('request-open-texture-file'));
-            }
+            active: isToolbarContextActive('textureCreator'),
+            command: () => activateContext(() => emit('request-open-texture-file'))
         },
 
 
         {
             label: 'Browse',
             icon: 'grid_view',
-            active: app.textureBrowserVisible,
-            command: () => {
-                if (app.textureBrowserVisible) {
-                    handleBack();
-                    return;
-                }
-
-                activateContext(() => emit('request-open-texture-browser'));
-            }
+            active: isToolbarContextActive('textureBrowser'),
+            command: () => toggleContextItem('textureBrowser', () => emit('request-open-texture-browser'))
         }
     ]));
 
@@ -575,8 +532,8 @@
         <!-- Tools panel toggle -->
         <button
             class="toolbar-utility-button"
-            :class="{ active: app.toolsPanelVisible }"
-            @click="app.toolsPanelVisible ? handleBack() : activateContext(() => app.showToolsPanel())"
+            :class="{ active: isToolbarContextActive('tools') }"
+            @click="isToolbarContextActive('tools') ? handleBack() : activateContext(() => app.showToolsPanel())"
         >
             <span class="toolbar-button-content">
                 <span class="material-symbols-outlined toolbar-button-icon">instant_mix</span>
@@ -644,7 +601,7 @@
     <!-- Tools panel (full-screen overlay, like TextureBrowser) -->
     <div
         class="tools-panel"
-        :class="{ active: app.toolsPanelVisible }"
+        :class="{ active: isToolbarContextActive('tools') }"
     >
         <div class="tools-panel-container">
             <ScrollPanel class="tools-panel-scrollpanel">
@@ -793,7 +750,7 @@
     <!-- About Rivvon Panel (full-screen overlay) -->
     <div
         class="about-panel"
-        :class="{ active: app.aboutPanelVisible }"
+        :class="{ active: isToolbarContextActive('about') }"
     >
         <div class="about-panel-container">
             <div class="about-panel-content">

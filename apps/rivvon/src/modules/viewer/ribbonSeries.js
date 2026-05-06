@@ -4,7 +4,7 @@
 
 import { Box3, Group, Vector3 } from 'three';
 import { Ribbon } from './ribbon.js';
-import { DEFAULT_CAP_STYLE } from './capProfiles.js';
+import { DEFAULT_CAP_STYLE } from './capStyle.js';
 
 export class RibbonSeries {
     /**

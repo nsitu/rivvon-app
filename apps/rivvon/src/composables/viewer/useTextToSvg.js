@@ -2,6 +2,7 @@
 // Text to SVG composable for rivvon
 
 import { ref, shallowRef } from 'vue';
+import { runAsyncWithState } from '../../modules/shared/asyncState.js';
 import { TextToSvg } from '../../modules/viewer/textToSvg';
 import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../../modules/viewer/svgPathToPoints';
 import { splitAllPathsAtCusps3D } from '../../modules/viewer/cuspSplitter.js';
@@ -17,10 +18,7 @@ export function useTextToSvg() {
      * Initialize TextToSvg converter
      */
     async function init() {
-        isLoading.value = true;
-        error.value = null;
-
-        try {
+        return runAsyncWithState(async () => {
             textToSvg.value = new TextToSvg();
             
             // Load available fonts
@@ -33,12 +31,14 @@ export function useTextToSvg() {
             }
             
             console.log('[TextToSvg] Initialized with', fonts.value.length, 'fonts');
-        } catch (e) {
-            console.error('[TextToSvg] Initialization failed:', e);
-            error.value = e.message;
-        } finally {
-            isLoading.value = false;
-        }
+        }, {
+            loading: isLoading,
+            errorRef: error,
+            onError: (cause) => {
+                console.error('[TextToSvg] Initialization failed:', cause);
+                error.value = cause instanceof Error ? cause.message : String(cause);
+            },
+        });
     }
 
     /**
@@ -127,13 +127,17 @@ export function useTextToSvg() {
             return;
         }
         
-        try {
+        return runAsyncWithState(async () => {
             await textToSvg.value.loadFont(fontName);
             selectedFont.value = fontName;
-        } catch (e) {
-            console.error('[TextToSvg] Failed to load font:', e);
-            error.value = e.message;
-        }
+        }, {
+            errorRef: error,
+            resetError: false,
+            onError: (cause) => {
+                console.error('[TextToSvg] Failed to load font:', cause);
+                error.value = cause instanceof Error ? cause.message : String(cause);
+            },
+        });
     }
 
     return {

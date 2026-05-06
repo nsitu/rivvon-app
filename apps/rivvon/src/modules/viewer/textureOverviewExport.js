@@ -2,16 +2,9 @@ import * as THREE from 'three';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay';
 import { TileManager } from './tileManager';
 import { calculateTextureOverviewLayout } from './textureOverviewLayout';
+import { createLazyLoader } from '../shared/lazyLoader.js';
 
-let textureServicePromise = null;
-
-function loadTextureService() {
-    if (!textureServicePromise) {
-        textureServicePromise = import('../../services/textureService.js');
-    }
-
-    return textureServicePromise;
-}
+const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
 
 function getRepeatModeLabel(mode) {
     if (mode === 'mirrorTile') {

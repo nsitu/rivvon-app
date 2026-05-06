@@ -6,17 +6,19 @@ import {
     ShapeGeometry,
 } from 'three';
 import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+import {
+    CAP_STYLE_ORGANIC,
+    CAP_STYLE_POINTED,
+    CAP_STYLE_ROUNDED,
+    CAP_STYLE_SQUARE,
+    CAP_STYLE_SWALLOWTAIL,
+    DEFAULT_CAP_STYLE,
+    normalizeCapStyle,
+} from './capStyle.js';
 import squareCapSvg from './cap-profiles/square.svg?raw';
 import roundedCapSvg from './cap-profiles/rounded.svg?raw';
 import pointedCapSvg from './cap-profiles/pointed.svg?raw';
 import swallowtailCapSvg from './cap-profiles/swallowtail.svg?raw';
-
-export const CAP_STYLE_SQUARE = 'square';
-export const CAP_STYLE_ROUNDED = 'rounded';
-export const CAP_STYLE_POINTED = 'pointed';
-export const CAP_STYLE_SWALLOWTAIL = 'swallowtail';
-export const CAP_STYLE_ORGANIC = 'organic';
-export const DEFAULT_CAP_STYLE = CAP_STYLE_SQUARE;
 
 const svgLoader = new SVGLoader();
 const INTERSECTION_EPSILON = 1e-6;
@@ -418,21 +420,15 @@ const CAP_PROFILES = Object.fromEntries(
 
 CAP_PROFILES[CAP_STYLE_ORGANIC] = buildOrganicBrushCapProfile();
 
-const KNOWN_CAP_STYLES = new Set([
-    CAP_STYLE_SQUARE,
-    CAP_STYLE_ROUNDED,
-    CAP_STYLE_POINTED,
-    CAP_STYLE_SWALLOWTAIL,
+export {
     CAP_STYLE_ORGANIC,
-]);
-
-export function normalizeCapStyle(capStyle, roundedCaps = false) {
-    if (capStyle && KNOWN_CAP_STYLES.has(capStyle)) {
-        return capStyle;
-    }
-
-    return roundedCaps ? CAP_STYLE_ROUNDED : DEFAULT_CAP_STYLE;
-}
+    CAP_STYLE_POINTED,
+    CAP_STYLE_ROUNDED,
+    CAP_STYLE_SQUARE,
+    CAP_STYLE_SWALLOWTAIL,
+    DEFAULT_CAP_STYLE,
+    normalizeCapStyle,
+};
 
 export function getCapProfile(capStyle, roundedCaps = false, variationKey = null) {
     const normalizedStyle = normalizeCapStyle(capStyle, roundedCaps);

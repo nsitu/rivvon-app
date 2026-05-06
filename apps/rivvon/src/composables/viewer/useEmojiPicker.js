@@ -4,6 +4,7 @@
 // and handles SVG fetch → point conversion on selection.
 
 import { ref, shallowRef } from 'vue';
+import { runAsyncWithState } from '../../modules/shared/asyncState.js';
 import {
     loadOpenMojiCatalog,
     fetchOpenMojiSvg,
@@ -33,13 +34,17 @@ export function useEmojiPicker() {
     async function loadEmojiData() {
         if (isDataLoaded.value) return;
 
-        try {
+        return runAsyncWithState(async () => {
             emojiGroups.value = await loadOpenMojiCatalog();
             isDataLoaded.value = true;
-        } catch (err) {
-            console.error('[useEmojiPicker] Failed to load emoji catalog:', err);
-            error.value = 'Failed to load emoji data.';
-        }
+        }, {
+            errorRef: error,
+            resetError: false,
+            onError: (cause) => {
+                console.error('[useEmojiPicker] Failed to load emoji catalog:', cause);
+                error.value = 'Failed to load emoji data.';
+            },
+        });
     }
 
     /**
@@ -52,8 +57,7 @@ export function useEmojiPicker() {
     async function ensureGroupLoaded(slug, container) {
         if (loadedSprites.value.has(slug)) return;
 
-        isSpriteLoading.value = true;
-        try {
+        return runAsyncWithState(async () => {
             const doc = await loadGroupSprite(slug);
             // Inject the root <svg> element (with all <symbol> defs) into the
             // container so <use href="#hex"> can resolve within the same document.
@@ -66,12 +70,15 @@ export function useEmojiPicker() {
             }
             // Reactive tracking
             loadedSprites.value = new Set([...loadedSprites.value, slug]);
-        } catch (err) {
-            console.error(`[useEmojiPicker] Failed to load sprite for ${slug}:`, err);
-            error.value = `Failed to load emoji group.`;
-        } finally {
-            isSpriteLoading.value = false;
-        }
+        }, {
+            loading: isSpriteLoading,
+            errorRef: error,
+            resetError: false,
+            onError: (cause) => {
+                console.error(`[useEmojiPicker] Failed to load sprite for ${slug}:`, cause);
+                error.value = 'Failed to load emoji group.';
+            },
+        });
     }
 
     /**
@@ -83,10 +90,7 @@ export function useEmojiPicker() {
      * @returns {Promise<Array<Array<import('three').Vector3>>|null>}
      */
     async function selectEmoji(hexcode) {
-        isLoading.value = true;
-        error.value = null;
-
-        try {
+        return runAsyncWithState(async () => {
             // Try local sprite extraction first, fall back to CDN
             let svgString = extractSvgFromSprite(hexcode);
             if (!svgString) {
@@ -108,13 +112,15 @@ export function useEmojiPicker() {
             const splitPaths = splitAllPathsAtCusps3D(pathsPoints);
 
             return normalizePointsMultiPath(splitPaths);
-        } catch (err) {
-            console.error('[useEmojiPicker] Failed to process emoji:', err);
-            error.value = 'Failed to process emoji.';
-            return null;
-        } finally {
-            isLoading.value = false;
-        }
+        }, {
+            loading: isLoading,
+            errorRef: error,
+            fallbackValue: null,
+            onError: (cause) => {
+                console.error('[useEmojiPicker] Failed to process emoji:', cause);
+                error.value = 'Failed to process emoji.';
+            },
+        });
     }
 
     return {

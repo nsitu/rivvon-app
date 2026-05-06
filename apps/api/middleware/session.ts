@@ -3,6 +3,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { AppEnv, SessionAuthContext } from '../types/hono';
 import { getCookie } from '../utils/cookies';
+import { serverErrorResponse, unauthorizedResponse } from '../utils/response';
 import { verifySessionToken } from '../utils/session';
 
 /**
@@ -13,20 +14,20 @@ export const verifySession: MiddlewareHandler<AppEnv> = async (c, next) => {
     const sessionToken = getCookie(c, 'session');
 
     if (!sessionToken) {
-        return c.json({ error: 'Not authenticated' }, 401);
+        return unauthorizedResponse('Not authenticated');
     }
 
     try {
         const sessionSecret = c.env.SESSION_SECRET;
         if (!sessionSecret) {
             console.error('SESSION_SECRET not configured');
-            return c.json({ error: 'Server configuration error' }, 500);
+            return serverErrorResponse('Server configuration error');
         }
 
         const user = await verifySessionToken(sessionToken, sessionSecret);
 
         if (!user) {
-            return c.json({ error: 'Invalid or expired session' }, 401);
+            return unauthorizedResponse('Invalid or expired session');
         }
 
         // Attach user info to context
@@ -44,7 +45,7 @@ export const verifySession: MiddlewareHandler<AppEnv> = async (c, next) => {
         await next();
     } catch (error) {
         console.error('Session verification failed:', error);
-        return c.json({ error: 'Authentication failed' }, 401);
+        return unauthorizedResponse('Authentication failed');
     }
 };
 

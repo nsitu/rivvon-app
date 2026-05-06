@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { verifySession } from '../middleware/session';
 import type { AppEnv } from '../types/hono';
-import { isAdminUser } from '../utils/user';
+import { countAccessibleRows, isAdminRequest, queryAccessibleRowById, queryAccessibleRows } from '../utils/resourceAccess';
+import { jsonResponse, notFoundResponse } from '../utils/response';
 
 function parsePayloadJson(payloadJson: unknown) {
   if (typeof payloadJson !== 'string' || !payloadJson) {
@@ -23,7 +24,7 @@ drawingRoutes.get('/', async (c) => {
   const auth = c.get('auth');
   const limit = parseInt(c.req.query('limit') || '50');
   const offset = parseInt(c.req.query('offset') || '0');
-  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
+  const isAdmin = isAdminRequest(auth, c.env.ADMIN_USERS);
 
   const baseQuery = `
     SELECT
@@ -38,20 +39,21 @@ drawingRoutes.get('/', async (c) => {
     LEFT JOIN users u ON d.owner_id = u.id
   `;
 
-  const results = isAdmin
-    ? await c.env.DB.prepare(`${baseQuery} ORDER BY d.created_at DESC LIMIT ? OFFSET ?`).bind(limit, offset).all()
-    : await c.env.DB.prepare(`${baseQuery} WHERE d.owner_id = ? ORDER BY d.created_at DESC LIMIT ? OFFSET ?`).bind(auth.userId, limit, offset).all();
+  const drawings = await queryAccessibleRows<any>(c.env.DB, baseQuery, auth, c.env.ADMIN_USERS, {
+    ownerColumn: 'd.owner_id',
+    orderBy: 'd.created_at DESC',
+    limit,
+    offset,
+  });
 
-  const totalResult = isAdmin
-    ? await c.env.DB.prepare(`SELECT COUNT(*) as total FROM drawings`).first() as { total: number }
-    : await c.env.DB.prepare(`SELECT COUNT(*) as total FROM drawings WHERE owner_id = ?`).bind(auth.userId).first() as { total: number };
+  const total = await countAccessibleRows(c.env.DB, 'drawings', auth, c.env.ADMIN_USERS);
 
-  return c.json({
-    drawings: results.results || [],
+  return jsonResponse({
+    drawings,
     pagination: {
       limit,
       offset,
-      total: Number(totalResult?.total || 0),
+      total,
     },
     scope: isAdmin ? 'admin-all' : 'owner',
   });
@@ -60,9 +62,8 @@ drawingRoutes.get('/', async (c) => {
 drawingRoutes.get('/:id', async (c) => {
   const auth = c.get('auth');
   const drawingId = c.req.param('id');
-  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
 
-  const drawing = await c.env.DB.prepare(`
+  const drawing = await queryAccessibleRowById<any>(c.env.DB, `
     SELECT
       d.*,
       u.google_id as owner_google_id,
@@ -70,14 +71,15 @@ drawingRoutes.get('/:id', async (c) => {
       u.picture as owner_picture
     FROM drawings d
     LEFT JOIN users u ON d.owner_id = u.id
-    WHERE d.id = ? ${isAdmin ? '' : 'AND d.owner_id = ?'}
-  `).bind(...(isAdmin ? [drawingId] : [drawingId, auth.userId])).first() as any;
+  `, 'd.id', drawingId, auth, c.env.ADMIN_USERS, {
+    ownerColumn: 'd.owner_id',
+  });
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found or not authorized' }, 404);
+    return notFoundResponse('Drawing not found or not authorized');
   }
 
-  return c.json({
+  return jsonResponse({
     ...drawing,
     payload: parsePayloadJson(drawing.payload_json),
   });

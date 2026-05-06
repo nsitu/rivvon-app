@@ -1,3 +1,5 @@
+import { createLazyLoader } from '../../shared/lazyLoader.js';
+
 const TASKS_VISION_VERSION = '0.10.34';
 const TASKS_VISION_WASM_ROOT = `/vendor/mediapipe/tasks-vision/${TASKS_VISION_VERSION}/wasm`;
 const FACE_LANDMARKER_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
@@ -7,26 +9,11 @@ export const FACE_LANDMARKER_DETECTION_STATUS = {
     processed: 'processed',
 };
 
-let tasksVisionModulePromise = null;
-let visionRuntimePromise = null;
+const loadTasksVisionModule = createLazyLoader(() => import('@mediapipe/tasks-vision'));
 
-async function loadTasksVisionModule() {
-    if (!tasksVisionModulePromise) {
-        tasksVisionModulePromise = import('@mediapipe/tasks-vision');
-    }
-
-    return tasksVisionModulePromise;
-}
-
-async function loadVisionRuntime() {
-    if (!visionRuntimePromise) {
-        visionRuntimePromise = loadTasksVisionModule().then(({ FilesetResolver }) => (
-            FilesetResolver.forVisionTasks(TASKS_VISION_WASM_ROOT)
-        ));
-    }
-
-    return visionRuntimePromise;
-}
+const loadVisionRuntime = createLazyLoader(() => loadTasksVisionModule().then(({ FilesetResolver }) => (
+    FilesetResolver.forVisionTasks(TASKS_VISION_WASM_ROOT)
+)));
 
 async function createLandmarker(delegate) {
     const [{ FaceLandmarker }, vision] = await Promise.all([

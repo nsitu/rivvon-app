@@ -12,6 +12,36 @@ const TASKS_VISION_WASM_SOURCE = normalizePath(resolve(__dirname, 'node_modules/
 const TASKS_VISION_WASM_DEST = `vendor/mediapipe/tasks-vision/${TASKS_VISION_VERSION}/wasm`;
 const BUILD_TIMESTAMP = new Date().toISOString();
 
+function resolveManualChunk(id) {
+    const normalizedId = id.split('\\').join('/');
+
+    if (!normalizedId.includes('/node_modules/')) {
+        return undefined;
+    }
+
+    if (normalizedId.includes('/node_modules/@sentry/')) {
+        return 'sentry';
+    }
+
+    if (normalizedId.includes('three.webgpu')) {
+        return 'three-webgpu';
+    }
+
+    if (normalizedId.includes('three.tsl')) {
+        return 'three-tsl';
+    }
+
+    if (normalizedId.includes('/node_modules/three/examples/jsm/') || normalizedId.includes('/node_modules/three/addons/')) {
+        return 'three-addons';
+    }
+
+    if (normalizedId.includes('/node_modules/three/')) {
+        return 'three-core';
+    }
+
+    return undefined;
+}
+
 export default defineConfig({
     base: '/',
     define: {
@@ -23,6 +53,9 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 main: resolve(__dirname, 'index.html'),
+            },
+            output: {
+                manualChunks: resolveManualChunk,
             },
         },
     },

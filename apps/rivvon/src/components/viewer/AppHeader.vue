@@ -1,5 +1,6 @@
 <script setup>
     import { computed } from 'vue';
+    import { resolveViewerHeaderContext } from '../../modules/viewer/viewerHeaderContext.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
 
@@ -49,63 +50,20 @@
         });
     }
 
-    // Compute which context is active (for header title + close button)
-    const activeContext = computed(() => {
-        if (props.panelTitle) return props.panelTitle;
-        if (props.toolbarOverlayTitle) return props.toolbarOverlayTitle;
-        if (app.isWalkMode) return 'Walk';
-        if (app.isDrawingMode) return 'Draw';
-        if (app.drawingBrowserVisible) return 'Drawings';
-        if (app.textureCreatorVisible || app.realtimeSamplerVisible) return 'Create Texture';
-        if (app.texturePreviewVisible) return 'Texture Preview';
-        if (app.textureBrowserVisible) return 'Textures';
-        if (app.emojiPickerVisible) return 'Emoji';
-        if (app.textPanelVisible) return 'Text';
-        if (app.contourPanelVisible) return 'Contour';
-        if (app.toolsPanelVisible) return 'Tools';
-        if (app.aboutPanelVisible) return 'About';
-        return null;
-    });
-
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
+    const headerContext = computed(() => resolveViewerHeaderContext(app, {
+        panelTitle: props.panelTitle,
+        toolbarOverlayTitle: props.toolbarOverlayTitle,
+        isSlyceProcessing: isSlyceProcessing.value,
+        onClosePanel: () => emit('request-close-panel'),
+        onCloseToolbarOverlay: () => emit('request-close-toolbar-overlay'),
+        onCloseRealtimeMode: () => emit('request-close-realtime-mode'),
+        onResetSlyceProcessing: () => slyce.resetProcessing(),
+    }));
+    const activeContext = computed(() => headerContext.value?.title ?? null);
 
     function closeContext() {
-        if (props.panelTitle) {
-            emit('request-close-panel');
-        } else if (props.toolbarOverlayTitle) {
-            emit('request-close-toolbar-overlay');
-        } else if (app.isWalkMode) {
-            app.setWalkMode(false);
-        } else if (app.isDrawingMode) {
-            app.setDrawingMode(false);
-        } else if (app.drawingBrowserVisible) {
-            app.hideDrawingBrowser();
-        } else if (app.realtimeSamplerVisible) {
-            emit('request-close-realtime-mode');
-        } else if (app.textureCreatorVisible) {
-            if (isSlyceProcessing.value) {
-                const confirmed = confirm(
-                    'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
-                );
-                if (!confirmed) return;
-                slyce.resetProcessing();
-            }
-            app.hideSlyce();
-        } else if (app.texturePreviewVisible) {
-            app.hideTexturePreview();
-        } else if (app.textureBrowserVisible) {
-            app.hideTextureBrowser();
-        } else if (app.emojiPickerVisible) {
-            app.hideEmojiPicker();
-        } else if (app.textPanelVisible) {
-            app.hideTextPanel();
-        } else if (app.contourPanelVisible) {
-            app.hideContourPanel();
-        } else if (app.toolsPanelVisible) {
-            app.hideToolsPanel();
-        } else if (app.aboutPanelVisible) {
-            app.hideAboutPanel();
-        }
+        headerContext.value?.close?.();
     }
 </script>
 

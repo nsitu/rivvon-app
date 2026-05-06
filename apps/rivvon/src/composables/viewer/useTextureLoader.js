@@ -14,6 +14,30 @@ import { TileManager } from '../../modules/viewer/tileManager';
  */
 export function useTextureLoader(ctx, deps = {}) {
 
+    function createTileManager(options = {}) {
+        return new TileManager({
+            renderer: ctx.renderer.value,
+            rendererType: ctx.app.rendererType,
+            rotate90: true,
+            repeatMode: ctx.app.textureRepeatMode,
+            flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
+            layerAnimationEnabled: ctx.app.textureAnimationEnabled,
+            layerAnimationReversed: ctx.app.textureAnimationReversed,
+            webgpuMaterialMode: 'node',
+            ...options,
+        });
+    }
+
+    async function finalizeTextureLoad({ clearMultiTexture = true } = {}) {
+        if (clearMultiTexture) {
+            clearMultiTextureState();
+        }
+
+        deps.setFlowState?.(ctx.app.flowState);
+        deps.rebuildRibbonsWithNewTextures?.();
+        await deps.setBackgroundFromTileManager?.();
+    }
+
     /**
      * Dispose any extra TileManagers from multi-texture mode,
      * keeping only the primary tileManager.value.
@@ -35,30 +59,10 @@ export function useTextureLoader(ctx, deps = {}) {
         }
 
         // Create new TileManager with the specified source
-        ctx.tileManager.value = new TileManager({
-            source,
-            renderer: ctx.renderer.value,
-            rendererType: ctx.app.rendererType,
-            rotate90: true,
-            repeatMode: ctx.app.textureRepeatMode,
-            flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
-            layerAnimationEnabled: ctx.app.textureAnimationEnabled,
-            layerAnimationReversed: ctx.app.textureAnimationReversed,
-            webgpuMaterialMode: 'node'
-        });
+        ctx.tileManager.value = createTileManager({ source });
         await ctx.tileManager.value.loadAllTiles();
 
-        // Single texture replaces any multi-texture state
-        clearMultiTextureState();
-
-        // Sync flow animation state from store
-        deps.setFlowState?.(ctx.app.flowState);
-        
-        // Rebuild ribbons with new textures
-        deps.rebuildRibbonsWithNewTextures?.();
-
-        // Update scene background from new textures
-        await deps.setBackgroundFromTileManager?.();
+        await finalizeTextureLoad();
     }
 
     /**
@@ -77,15 +81,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             if (success) {
                 console.log(`[ThreeSetup] Remote texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
-
-                // Single texture replaces any multi-texture state
-                clearMultiTextureState();
-                
-                // Rebuild ribbons with new textures
-                deps.rebuildRibbonsWithNewTextures?.();
-
-                // Update scene background from new textures
-                await deps.setBackgroundFromTileManager?.();
+                await finalizeTextureLoad();
             }
 
             return success;
@@ -112,15 +108,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             if (success) {
                 console.log(`[ThreeSetup] Local texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
-
-                // Single texture replaces any multi-texture state
-                clearMultiTextureState();
-                
-                // Rebuild ribbons with new textures
-                deps.rebuildRibbonsWithNewTextures?.();
-
-                // Update scene background from new textures
-                await deps.setBackgroundFromTileManager?.();
+                await finalizeTextureLoad();
             }
 
             return success;
@@ -158,16 +146,7 @@ export function useTextureLoader(ctx, deps = {}) {
             // Create and load all TileManagers in parallel
             const newTileManagers = await Promise.all(
                 textureSetsWithMeta.map(async (entry, index) => {
-                    const tm = new TileManager({
-                        renderer: ctx.renderer.value,
-                        rendererType: ctx.app.rendererType,
-                        rotate90: true,
-                        repeatMode: ctx.app.textureRepeatMode,
-                        flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
-                        layerAnimationEnabled: ctx.app.textureAnimationEnabled,
-                        layerAnimationReversed: ctx.app.textureAnimationReversed,
-                        webgpuMaterialMode: 'node'
-                    });
+                    const tm = createTileManager();
 
                     let success = false;
                     if (entry.source === 'local' && entry.getTiles) {
@@ -200,14 +179,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             console.log(`[ThreeSetup] Loaded ${validTileManagers.length} TileManagers`);
 
-            // Sync flow state on all TileManagers
-            deps.setFlowState?.(ctx.app.flowState);
-
-            // Rebuild ribbons with multi-texture distribution
-            deps.rebuildRibbonsWithNewTextures?.();
-
-            // Update background from first texture
-            await deps.setBackgroundFromTileManager?.();
+            await finalizeTextureLoad({ clearMultiTexture: false });
 
             return true;
         } catch (error) {

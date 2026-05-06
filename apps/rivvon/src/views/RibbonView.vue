@@ -6,6 +6,9 @@
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
     import { createDefaultDrawingName, createDrawingDocument, inflateDrawingPaths } from '../modules/shared/drawingLibrary.js';
+    import { createLazyLoader } from '../modules/shared/lazyLoader.js';
+    import { resolveOrderedContext } from '../modules/viewer/viewerHeaderContext.js';
+    import { isViewerPanelVisible, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
     import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
     import { buildTextureOverviewExportInfo, exportTextureOverviewVideo } from '../modules/viewer/textureOverviewExport.js';
@@ -29,16 +32,16 @@
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
-    import BetaModal from '../components/viewer/BetaModal.vue';
+    const BetaModal = defineAsyncComponent(() => import('../components/viewer/BetaModal.vue'));
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
     const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
     const DrawCanvas = defineAsyncComponent(() => import('../components/viewer/DrawCanvas.vue'));
     const WalkCanvas = defineAsyncComponent(() => import('../components/viewer/WalkCanvas.vue'));
-    import RendererIndicator from '../components/viewer/RendererIndicator.vue';
-    import ViewerTechnicalOverlay from '../components/viewer/ViewerTechnicalOverlay.vue';
-    import DeviceLostOverlay from '../components/viewer/DeviceLostOverlay.vue';
-    import TextureMetadataOverlay from '../components/viewer/TextureMetadataOverlay.vue';
+    const RendererIndicator = defineAsyncComponent(() => import('../components/viewer/RendererIndicator.vue'));
+    const ViewerTechnicalOverlay = defineAsyncComponent(() => import('../components/viewer/ViewerTechnicalOverlay.vue'));
+    const DeviceLostOverlay = defineAsyncComponent(() => import('../components/viewer/DeviceLostOverlay.vue'));
+    const TextureMetadataOverlay = defineAsyncComponent(() => import('../components/viewer/TextureMetadataOverlay.vue'));
     const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
@@ -49,31 +52,39 @@
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
 
+    function createViewerPanelModel(panelId) {
+        const stateKey = VIEWER_PANEL_KEYS[panelId];
+
+        return computed({
+            get: () => Boolean(app[stateKey]),
+            set: (value) => {
+                app[stateKey] = Boolean(value);
+            },
+        });
+    }
+
+    function createViewerPanelVisibility(panelId) {
+        return computed(() => isViewerPanelVisible(app, panelId));
+    }
+
+    const textPanelVisible = createViewerPanelModel('text');
+    const emojiPickerVisible = createViewerPanelModel('emoji');
+    const contourPanelVisible = createViewerPanelVisibility('contour');
+    const drawingBrowserVisible = createViewerPanelVisibility('drawings');
+    const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
+    const textureCreatorVisible = createViewerPanelVisibility('textureCreator');
+    const realtimeSamplerVisible = createViewerPanelVisibility('realtimeSampler');
+
     useScreenWakeLock();
 
     // Realtime webcam mode
     const realtimeInstance = shallowRef(null);
-    let realtimeLoaderPromise = null;
-
-    async function ensureRealtime() {
-        if (realtimeInstance.value) {
-            return realtimeInstance.value;
-        }
-
-        if (!realtimeLoaderPromise) {
-            realtimeLoaderPromise = import('../composables/slyce/useRealtimeSlyce.js')
-                .then(({ useRealtimeSlyce }) => {
-                    const instance = useRealtimeSlyce();
-                    realtimeInstance.value = instance;
-                    return instance;
-                })
-                .finally(() => {
-                    realtimeLoaderPromise = null;
-                });
-        }
-
-        return realtimeLoaderPromise;
-    }
+    const ensureRealtime = createLazyLoader(async () => {
+        const { useRealtimeSlyce } = await import('../composables/slyce/useRealtimeSlyce.js');
+        const instance = useRealtimeSlyce();
+        realtimeInstance.value = instance;
+        return instance;
+    });
 
     const realtime = {
         isCameraActive: computed(() => realtimeInstance.value?.isCameraActive?.value ?? false),
@@ -121,39 +132,22 @@
         activeToolbarOverlay.value = null;
     }
 
-    let textureServicePromise = null;
-    let textToSvgPromise = null;
     let textToSvgInstance = null;
 
-    async function fetchTextureSetById(textureId) {
-        if (!textureServicePromise) {
-            textureServicePromise = import('../services/textureService.js');
-        }
+    const ensureTextureService = createLazyLoader(() => import('../services/textureService.js'));
 
-        const { fetchTextureSet } = await textureServicePromise;
+    async function fetchTextureSetById(textureId) {
+        const { fetchTextureSet } = await ensureTextureService();
         return fetchTextureSet(textureId);
     }
 
-    async function ensureTextToSvg() {
-        if (textToSvgInstance) {
-            return textToSvgInstance;
-        }
-
-        if (!textToSvgPromise) {
-            textToSvgPromise = import('../composables/viewer/useTextToSvg.js')
-                .then(async ({ useTextToSvg }) => {
-                    const instance = useTextToSvg();
-                    await instance.init();
-                    textToSvgInstance = instance;
-                    return instance;
-                })
-                .finally(() => {
-                    textToSvgPromise = null;
-                });
-        }
-
-        return textToSvgPromise;
-    }
+    const ensureTextToSvg = createLazyLoader(async () => {
+        const { useTextToSvg } = await import('../composables/viewer/useTextToSvg.js');
+        const instance = useTextToSvg();
+        await instance.init();
+        textToSvgInstance = instance;
+        return instance;
+    });
 
     function getQueryStringValue(value) {
         if (Array.isArray(value)) {
@@ -238,7 +232,7 @@
             return;
         }
 
-        if (realtime.isCameraActive.value || realtime.isCapturing.value || app.realtimeSamplerVisible) {
+        if (realtime.isCameraActive.value || realtime.isCapturing.value || realtimeSamplerVisible.value) {
             forceOrbitControls({
                 reason: 'realtime-capture',
                 statusMessage: 'Head tracking is unavailable while realtime webcam capture is using the camera.',
@@ -422,6 +416,20 @@
         });
     }
 
+    function applyTextureResetState({ activeTextureIds = null, clearThumbnail = false } = {}) {
+        if (Array.isArray(activeTextureIds) && activeTextureIds.length > 0) {
+            setCurrentTextureSelection(null);
+            app.setActiveTextures(activeTextureIds);
+            app.clearCurrentTextureMetadata();
+        } else {
+            setCurrentTextureMetadata(null);
+        }
+
+        if (clearThumbnail) {
+            app.setThumbnailUrl(null);
+        }
+    }
+
     // ─── Cinematic camera keyboard bindings ────────────────────────
     function handleCinematicKeydown(e) {
         // Ignore if focus is in a text input
@@ -564,9 +572,7 @@
         console.log('[RibbonView] tileManager:', context.tileManager);
         console.log('[RibbonView] scene:', context.scene);
 
-        await startTextureLoading('Loading...');
-
-        try {
+        await withTextureLoading('Loading...', async () => {
             // Initialize default ribbon
             const initializedFromQueryText = await initializeTextRibbonFromQuery();
             if (!initializedFromQueryText) {
@@ -579,9 +585,7 @@
             }
 
             isReady.value = true;
-        } finally {
-            finishTextureLoading();
-        }
+        });
     }
 
     // Initialize ribbon with default SVG
@@ -615,14 +619,13 @@
                 console.log('[RibbonView] First path sample:', normalizedPaths[0]?.slice(0, 3));
 
                 await threeCanvasRef.value.createRibbonSeries(normalizedPaths);
-                setCurrentTextureMetadata(null);
-                app.setThumbnailUrl(null);
+                applyTextureResetState({ clearThumbnail: true });
                 console.log('[RibbonView] Default ribbon created with', paths.length, 'paths');
             } else {
                 console.warn('[RibbonView] No paths extracted from SVG');
             }
         } catch (error) {
-            console.error('[RibbonView] Failed to load default ribbon:', error);
+            logRibbonViewFailure('[RibbonView] Failed to load default ribbon:', error);
         }
     }
 
@@ -654,12 +657,11 @@
             }
 
             await applyDrawingPathsToViewer(paths);
-            setCurrentTextureMetadata(null);
-            app.setThumbnailUrl(null);
+            applyTextureResetState({ clearThumbnail: true });
             console.log('[RibbonView] Text ribbon created from query parameter');
             return true;
         } catch (error) {
-            console.error('[RibbonView] Failed to render text from query parameter:', error);
+            logRibbonViewFailure('[RibbonView] Failed to render text from query parameter:', error);
             return false;
         }
     }
@@ -675,27 +677,25 @@
 
             try {
                 const textureSet = await fetchTextureSetById(textureId);
-                if (textureSet?.thumbnail_url) {
-                    app.setThumbnailUrl(textureSet.thumbnail_url);
-                }
-                setCurrentTextureSelection({
+                applyLoadedTextureState({
                     source: 'cloud',
                     texture: {
                         ...(textureSet || {}),
                         id: textureId,
                     },
                     isCached: false,
-                });
-                setCurrentTextureMetadata({
-                    id: textureId,
-                    name: textureSet?.name || '',
-                    description: textureSet?.description || '',
+                    thumbnailUrl: textureSet?.thumbnail_url || null,
+                    metadata: {
+                        id: textureId,
+                        name: textureSet?.name || '',
+                        description: textureSet?.description || '',
+                    },
                 });
             } catch (metadataError) {
                 console.warn('[RibbonView] Loaded texture but failed to resolve metadata:', metadataError);
             }
         } catch (error) {
-            console.error('[RibbonView] Failed to load texture:', error);
+            logRibbonViewFailure('[RibbonView] Failed to load texture:', error);
         }
     }
 
@@ -1020,7 +1020,7 @@
         } else if (fileName.endsWith('.zip')) {
             // Handle ZIP texture pack
             await threeCanvasRef.value?.loadTextures(file);
-            setCurrentTextureMetadata(null);
+            applyTextureResetState();
         }
 
         // Reset file input
@@ -1036,9 +1036,7 @@
 
         showExportDialog.value = false;
 
-        // Generate filename with timestamp
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const filename = `rivvon-${timestamp}.png`;
+        const filename = createTimestampedExportFilename('png');
 
         const preview = await threeCanvasRef.value?.captureImagePreviewWithSettings?.({
             format: 'png',
@@ -1063,10 +1061,7 @@
     }
 
     async function handleDownloadExportImage(settings = {}) {
-        const format = settings.format === 'jpeg' || settings.format === 'webp' ? settings.format : 'png';
-        const extension = format === 'jpeg' ? 'jpg' : format;
-        const baseName = (exportImagePreview.value.filename || 'rivvon-export.png').replace(/\.[^.]+$/, '');
-        const filename = `${baseName}.${extension}`;
+        const { format, filename } = buildExportImageFilename(settings);
 
         if (threeCanvasRef.value?.exportImageWithSettings) {
             const didStartDownload = await threeCanvasRef.value.exportImageWithSettings({
@@ -1135,6 +1130,32 @@
         return format === 'webm' ? 'video/webm' : 'video/mp4';
     }
 
+    function createTimestampedExportFilename(extension) {
+        const normalizedExtension = extension === 'jpeg' ? 'jpg' : extension;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        return `rivvon-${timestamp}.${normalizedExtension}`;
+    }
+
+    function getNormalizedImageExportFormat(settings = {}) {
+        const format = settings.format === 'jpeg' || settings.format === 'webp' ? settings.format : 'png';
+        const extension = format === 'jpeg' ? 'jpg' : format;
+
+        return {
+            format,
+            extension,
+        };
+    }
+
+    function buildExportImageFilename(settings = {}) {
+        const { format, extension } = getNormalizedImageExportFormat(settings);
+        const baseName = (exportImagePreview.value.filename || 'rivvon-export.png').replace(/\.[^.]+$/, '');
+
+        return {
+            format,
+            filename: `${baseName}.${extension}`,
+        };
+    }
+
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -1166,10 +1187,7 @@
             return;
         }
 
-        const format = settings.format === 'jpeg' || settings.format === 'webp' ? settings.format : 'png';
-        const extension = format === 'jpeg' ? 'jpg' : format;
-        const baseName = (exportImagePreview.value.filename || 'rivvon-export.png').replace(/\.[^.]+$/, '');
-        const filename = `${baseName}.${extension}`;
+        const { format, filename } = buildExportImageFilename(settings);
 
         try {
             let blob = null;
@@ -1247,6 +1265,21 @@
         videoExportStatus.value = '';
     }
 
+    function clearVideoExportDialogState({
+        clearInitialSettings = false,
+        clearSourceContext = false,
+    } = {}) {
+        resetEncodedVideoExport();
+
+        if (clearInitialSettings) {
+            exportDialogInitialSettings.value = null;
+        }
+
+        if (clearSourceContext) {
+            exportSourceContext.value = null;
+        }
+    }
+
     async function handleVideoExportSettingsChange() {
         await refreshVideoExportInfo();
 
@@ -1254,7 +1287,7 @@
             return;
         }
 
-        resetEncodedVideoExport();
+        clearVideoExportDialogState();
     }
 
     function handleDownloadEncodedVideo() {
@@ -1379,6 +1412,10 @@
         };
     }
 
+    function clearExportImageDialogState() {
+        resetExportImagePreview();
+    }
+
     const showExportImageDialog = ref(false);
     const exportImagePreview = ref({
         filename: '',
@@ -1486,17 +1523,25 @@
         }
     }
 
-    // Video export handler — opens dialog instead of recording immediately
-    async function handleExportVideo() {
+    function prepareVideoExportDialog({
+        sourceContext = null,
+        exportSettings = null,
+    } = {}) {
         ensureOrbitControlsForInteraction(
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
         );
+
         showExportImageDialog.value = false;
-        resetExportImagePreview();
-        resetEncodedVideoExport();
-        exportDialogInitialSettings.value = null;
-        exportSourceContext.value = null;
+        clearExportImageDialogState();
+        clearVideoExportDialogState();
+        exportDialogInitialSettings.value = exportSettings;
+        exportSourceContext.value = sourceContext;
+    }
+
+    // Video export handler — opens dialog instead of recording immediately
+    async function handleExportVideo() {
+        prepareVideoExportDialog();
 
         try {
             exportInfo.value = await buildVideoExportInfo(null, 'ribbons') ?? {};
@@ -1516,17 +1561,7 @@
     }
 
     async function handleTexturePreviewExport(payload) {
-        ensureOrbitControlsForInteraction(
-            'scene-export',
-            'Head tracking switched back to OrbitControls for export.',
-        );
-
-        showExportImageDialog.value = false;
-        resetExportImagePreview();
-        resetEncodedVideoExport();
-        exportDialogInitialSettings.value = payload.exportSettings || null;
-
-        exportSourceContext.value = {
+        const sourceContext = {
             kind: 'preview',
             source: payload.source,
             texture: payload.texture,
@@ -1535,71 +1570,74 @@
             exportTextureOnlyVideo: payload.exportTextureOnlyVideo,
         };
 
+        prepareVideoExportDialog({
+            sourceContext,
+            exportSettings: payload.exportSettings || null,
+        });
+
         try {
             exportInfo.value = await buildVideoExportInfo(exportSourceContext.value, 'textureOnly') ?? {};
             showExportDialog.value = true;
         } catch (error) {
-            console.error('Failed to prepare texture-only export info:', error);
+            const errorMessage = logRibbonViewFailure('Failed to prepare texture-only export info:', error, 'Could not prepare the texture-only export.');
             toast.add({
                 severity: 'error',
                 summary: 'Export Unavailable',
-                detail: error.message || 'Could not prepare the texture-only export.',
+                detail: errorMessage,
                 life: 4200,
             });
             exportSourceContext.value = null;
         }
     }
 
-    const activePanelTitle = computed(() => {
-        if (showExportDialog.value) {
-            return 'Export Video';
-        }
-
-        if (showExportImageDialog.value) {
-            return 'Export Image';
-        }
-
-        if (isTextureOverviewActive.value) {
-            return 'Texture Overview';
-        }
-
-        return null;
-    });
+    const activePanelContext = computed(() => resolveOrderedContext([
+        {
+            title: 'Export Video',
+            isActive: () => showExportDialog.value,
+            close: () => handleExportPanelClose(),
+        },
+        {
+            title: 'Export Image',
+            isActive: () => showExportImageDialog.value,
+            close: () => handleExportPanelClose(),
+        },
+        {
+            title: 'Texture Overview',
+            isActive: () => isTextureOverviewActive.value,
+            close: () => closeTextureOverview(),
+        },
+    ]));
+    const activePanelTitle = computed(() => activePanelContext.value?.title ?? null);
 
     function handleExportPanelClose() {
         showExportDialog.value = false;
         showExportImageDialog.value = false;
-        resetExportImagePreview();
-        resetEncodedVideoExport();
-        exportDialogInitialSettings.value = null;
-        exportSourceContext.value = null;
+        clearExportImageDialogState();
+        clearVideoExportDialogState({
+            clearInitialSettings: true,
+            clearSourceContext: true,
+        });
     }
 
     function handleHeaderPanelClose() {
-        if (showExportDialog.value || showExportImageDialog.value) {
-            handleExportPanelClose();
-            return;
-        }
-
-        if (isTextureOverviewActive.value) {
-            closeTextureOverview();
-        }
+        activePanelContext.value?.close?.();
     }
 
     function handleExportVideoDialogVisibleChange(visible) {
         showExportDialog.value = visible;
 
         if (!visible && !exportAbortController.value) {
-            resetEncodedVideoExport();
-            exportDialogInitialSettings.value = null;
-            exportSourceContext.value = null;
+            clearVideoExportDialogState({
+                clearInitialSettings: true,
+                clearSourceContext: true,
+            });
         }
     }
 
     function handleExportImageDialogVisibleChange(visible) {
         showExportImageDialog.value = visible;
         if (!visible) {
-            resetExportImagePreview();
+            clearExportImageDialogState();
         }
     }
 
@@ -1610,11 +1648,9 @@
             'Head tracking switched back to OrbitControls for export.',
         );
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const ext = settings.format === 'webm' ? 'webm' : 'mp4';
-        const filename = `rivvon-${timestamp}.${ext}`;
+        const filename = createTimestampedExportFilename(settings.format === 'webm' ? 'webm' : 'mp4');
 
-        resetEncodedVideoExport();
+        clearVideoExportDialogState();
         videoExportStatus.value = 'Preparing export…';
 
         exportAbortController.value = new AbortController();
@@ -1707,8 +1743,8 @@
                 life: 5000,
             });
         } catch (error) {
-            console.error('Video export failed:', error);
-            videoExportStatus.value = 'Export failed: ' + error.message;
+            const errorMessage = logRibbonViewFailure('Video export failed:', error);
+            videoExportStatus.value = 'Export failed: ' + errorMessage;
         } finally {
             exportAbortController.value = null;
         }
@@ -1839,49 +1875,44 @@
     // Load local texture by ID
     async function loadLocalTexture(textureId) {
         console.log('[RibbonView] Loading local texture:', textureId);
-        await startTextureLoading('Loading local texture...');
+        await withTextureLoading('Loading local texture...', async () => {
+            try {
+                const textureSet = await getLocalTextureSet(textureId);
 
-        try {
-            const textureSet = await getLocalTextureSet(textureId);
+                if (!textureSet) {
+                    throw new Error('Local texture not found');
+                }
 
-            if (!textureSet) {
-                throw new Error('Local texture not found');
+                console.log(`[RibbonView] Found local texture set: ${textureSet.name}`);
+
+                // Load textures from local storage via TileManager
+                const success = await threeCanvasRef.value?.loadTexturesFromLocal(textureSet, getTiles, handleTextureLoadProgress);
+
+                if (!success) {
+                    throw new Error('Local texture data is incomplete or unreadable on this device.');
+                }
+
+                applyLoadedTextureState({
+                    source: 'local',
+                    texture: textureSet,
+                    isCached: false,
+                    thumbnailUrl: textureSet.thumbnail_data_url || null,
+                    metadata: {
+                        id: textureSet.id,
+                        name: textureSet.name || '',
+                        description: textureSet.description || '',
+                    },
+                });
+
+                console.log('[RibbonView] Local texture loaded successfully');
+            } catch (error) {
+                handleTextureLoadFailure({
+                    error,
+                    consoleMessage: '[RibbonView] Failed to load local texture:',
+                    alertPrefix: 'Failed to load local texture: ',
+                });
             }
-
-            console.log(`[RibbonView] Found local texture set: ${textureSet.name}`);
-
-            // Load textures from local storage via TileManager
-            const success = await threeCanvasRef.value?.loadTexturesFromLocal(textureSet, getTiles, (stage, current, total) => {
-                setTextureLoadingProgress(stage, current, total);
-            });
-
-            if (!success) {
-                throw new Error('Local texture data is incomplete or unreadable on this device.');
-            }
-
-            // Set blurred background from thumbnail
-            if (textureSet.thumbnail_data_url) {
-                app.setThumbnailUrl(textureSet.thumbnail_data_url);
-            }
-
-            setCurrentTextureSelection({
-                source: 'local',
-                texture: textureSet,
-                isCached: false,
-            });
-            setCurrentTextureMetadata({
-                id: textureSet.id,
-                name: textureSet.name || '',
-                description: textureSet.description || '',
-            });
-
-            console.log('[RibbonView] Local texture loaded successfully');
-        } catch (error) {
-            console.error('[RibbonView] Failed to load local texture:', error);
-            alert('Failed to load local texture: ' + error.message);
-        } finally {
-            finishTextureLoading();
-        }
+        });
     }
 
     // Handle local texture selection from browser
@@ -1897,52 +1928,49 @@
      */
     async function handleMultiTextureSelect(selections) {
         console.log('[RibbonView] Multi-texture selection:', selections.length, 'textures');
-        await startTextureLoading('Loading multiple textures...');
-
-        try {
-            // Build texture set entries in parallel
-            const textureSetsWithMeta = await Promise.all(
-                selections.map(async (sel) => {
-                    if (sel.source === 'local') {
-                        const textureSet = await getLocalTextureSet(sel.id);
-                        if (!textureSet) throw new Error(`Local texture not found: ${sel.name}`);
-                        return { textureSet, source: 'local', getTiles };
-                    } else {
-                        const textureSet = await fetchTextureSetById(sel.id);
-                        if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
-                            throw new Error(`No tiles found for: ${sel.name}`);
+        await withTextureLoading('Loading multiple textures...', async () => {
+            try {
+                // Build texture set entries in parallel
+                const textureSetsWithMeta = await Promise.all(
+                    selections.map(async (sel) => {
+                        if (sel.source === 'local') {
+                            const textureSet = await getLocalTextureSet(sel.id);
+                            if (!textureSet) throw new Error(`Local texture not found: ${sel.name}`);
+                            return { textureSet, source: 'local', getTiles };
+                        } else {
+                            const textureSet = await fetchTextureSetById(sel.id);
+                            if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
+                                throw new Error(`No tiles found for: ${sel.name}`);
+                            }
+                            return { textureSet, source: 'remote' };
                         }
-                        return { textureSet, source: 'remote' };
+                    })
+                );
+
+                // Load all TileManagers and rebuild ribbons
+                const success = await threeCanvasRef.value?.loadMultipleTextures(textureSetsWithMeta);
+
+                if (success) {
+                    applyTextureResetState({
+                        activeTextureIds: selections.map(s => s.id),
+                    });
+
+                    // Use first texture's thumbnail for background
+                    const firstTextureSetWithMeta = textureSetsWithMeta[0];
+                    if (firstTextureSetWithMeta?.source === 'local' && firstTextureSetWithMeta.textureSet?.thumbnail_data_url) {
+                        app.setThumbnailUrl(firstTextureSetWithMeta.textureSet.thumbnail_data_url);
                     }
-                })
-            );
 
-            // Load all TileManagers and rebuild ribbons
-            const success = await threeCanvasRef.value?.loadMultipleTextures(textureSetsWithMeta);
-
-            if (success) {
-                // Update store with active texture IDs
-                setCurrentTextureSelection(null);
-                app.setActiveTextures(selections.map(s => s.id));
-                app.clearCurrentTextureMetadata();
-
-                // Use first texture's thumbnail for background
-                const firstSel = selections[0];
-                if (firstSel.source === 'local') {
-                    const ts = await getLocalTextureSet(firstSel.id);
-                    if (ts?.thumbnail_data_url) {
-                        app.setThumbnailUrl(ts.thumbnail_data_url);
-                    }
+                    console.log('[RibbonView] Multi-texture load complete');
                 }
-
-                console.log('[RibbonView] Multi-texture load complete');
+            } catch (error) {
+                handleTextureLoadFailure({
+                    error,
+                    consoleMessage: '[RibbonView] Failed to load multiple textures:',
+                    alertPrefix: 'Failed to load textures: ',
+                });
             }
-        } catch (error) {
-            console.error('[RibbonView] Failed to load multiple textures:', error);
-            alert('Failed to load textures: ' + error.message);
-        } finally {
-            finishTextureLoading();
-        }
+        });
     }
 
     // Loading state for remote texture
@@ -1980,6 +2008,29 @@
         setTextureLoadingDisplay(loadingMessage.value || 'Loading...', percent);
     }
 
+    const handleTextureLoadProgress = (stage, current, total) => {
+        setTextureLoadingProgress(stage, current, total);
+    };
+
+    function applyLoadedTextureState({
+        source,
+        texture,
+        isCached = false,
+        thumbnailUrl = null,
+        metadata = null,
+    } = {}) {
+        if (thumbnailUrl) {
+            app.setThumbnailUrl(thumbnailUrl);
+        }
+
+        setCurrentTextureSelection({
+            source,
+            texture,
+            isCached,
+        });
+        setCurrentTextureMetadata(metadata);
+    }
+
     async function startTextureLoading(message = 'Loading...') {
         setTextureLoadingDisplay(message, '');
 
@@ -1994,101 +2045,133 @@
         setTextureLoadingDisplay('', '');
     }
 
-    // Handle texture selection from browser
-    async function handleTextureSelect(texture) {
-        console.log('[RibbonView] Loading remote texture:', texture.name);
-        await startTextureLoading('Loading...');
+    function resolveErrorMessage(error, fallbackMessage = 'Unknown error') {
+        if (error instanceof Error && error.message) {
+            return error.message;
+        }
+
+        if (typeof error === 'string' && error.trim()) {
+            return error;
+        }
+
+        return fallbackMessage;
+    }
+
+    function logRibbonViewFailure(consoleMessage, error, fallbackMessage) {
+        const errorMessage = resolveErrorMessage(error, fallbackMessage);
+        console.error(consoleMessage, error);
+        return errorMessage;
+    }
+
+    function handleTextureLoadFailure({
+        error,
+        consoleMessage,
+        alertPrefix = null,
+        showAccessDeniedModal = false,
+    } = {}) {
+        const errorMessage = logRibbonViewFailure(consoleMessage, error);
+
+        if (showAccessDeniedModal && (errorMessage.includes('Not authenticated') || errorMessage.includes('Access denied'))) {
+            app.showBetaModal('access-denied');
+            return;
+        }
+
+        if (alertPrefix) {
+            alert(`${alertPrefix}${errorMessage}`);
+        }
+    }
+
+    async function withTextureLoading(message, task) {
+        await startTextureLoading(message);
 
         try {
-            // Check if this texture is cached locally
-            const cachedLocalId = await getCachedLocalId(texture.id);
-            if (cachedLocalId) {
-                console.log(`[RibbonView] Using cached version: ${cachedLocalId}`);
-                const cachedTextureSet = await getLocalTextureSet(cachedLocalId);
-                if (cachedTextureSet) {
-                    const success = await threeCanvasRef.value?.loadTexturesFromLocal(cachedTextureSet, getTiles, (stage, current, total) => {
-                        setTextureLoadingProgress(stage, current, total);
-                    });
-                    if (success) {
-                        if (texture.thumbnail_url) {
-                            app.setThumbnailUrl(texture.thumbnail_url);
-                        }
-                        setCurrentTextureSelection({
-                            source: 'cloud',
-                            texture,
-                            isCached: true,
-                        });
-                        setCurrentTextureMetadata({
-                            id: texture.id,
-                            name: cachedTextureSet.name || texture.name || '',
-                            description: cachedTextureSet.description || texture.description || '',
-                        });
-                        console.log('[RibbonView] Loaded from cache successfully');
-                        return;
-                    }
-                    // If cache load failed, fall through to remote
-                    console.warn('[RibbonView] Cache load failed, falling back to remote');
-                }
-            }
-
-            // Fetch full texture set with tile URLs
-            const textureSet = await fetchTextureSetById(texture.id);
-
-            if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
-                throw new Error('No tiles found in texture set');
-            }
-
-            // Check if this is a Google Drive texture that requires authentication
-            const hasDriveTiles = textureSet.tiles.some(tile => tile.driveFileId);
-            if (hasDriveTiles && !isAuthenticated.value) {
-                // Show beta modal with texture-auth context
-                app.showBetaModal('texture-auth');
-                return;
-            }
-
-            console.log(`[RibbonView] Fetched texture set: ${textureSet.tiles.length} tiles`);
-
-            // Load textures from remote URLs via TileManager
-            const success = await threeCanvasRef.value?.loadTexturesFromRemote(textureSet, (stage, current, total) => {
-                setTextureLoadingProgress(stage, current, total);
-            });
-
-            if (!success) {
-                throw new Error('Texture data is incomplete or unreadable.');
-            }
-
-            // Set blurred background from thumbnail
-            if (texture.thumbnail_url) {
-                app.setThumbnailUrl(texture.thumbnail_url);
-            }
-
-            setCurrentTextureSelection({
-                source: 'cloud',
-                texture,
-                isCached: Boolean(cachedLocalId),
-            });
-            setCurrentTextureMetadata({
-                id: texture.id,
-                name: textureSet.name || texture.name || '',
-                description: textureSet.description || texture.description || '',
-            });
-
-            // Cache the downloaded tiles in background
-            cacheRemoteTextureInBackground(texture, textureSet);
-
-            console.log('[RibbonView] Remote texture loaded successfully');
-        } catch (error) {
-            console.error('[RibbonView] Failed to load remote texture:', error);
-
-            if (error.message.includes('Not authenticated') || error.message.includes('Access denied')) {
-                // Show beta modal with access-denied context
-                app.showBetaModal('access-denied');
-            } else {
-                alert('Failed to load texture: ' + error.message);
-            }
+            return await task();
         } finally {
             finishTextureLoading();
         }
+    }
+
+    // Handle texture selection from browser
+    async function handleTextureSelect(texture) {
+        console.log('[RibbonView] Loading remote texture:', texture.name);
+        await withTextureLoading('Loading...', async () => {
+            try {
+                // Check if this texture is cached locally
+                const cachedLocalId = await getCachedLocalId(texture.id);
+                if (cachedLocalId) {
+                    console.log(`[RibbonView] Using cached version: ${cachedLocalId}`);
+                    const cachedTextureSet = await getLocalTextureSet(cachedLocalId);
+                    if (cachedTextureSet) {
+                        const success = await threeCanvasRef.value?.loadTexturesFromLocal(cachedTextureSet, getTiles, handleTextureLoadProgress);
+                        if (success) {
+                            applyLoadedTextureState({
+                                source: 'cloud',
+                                texture,
+                                isCached: true,
+                                thumbnailUrl: texture.thumbnail_url || null,
+                                metadata: {
+                                    id: texture.id,
+                                    name: cachedTextureSet.name || texture.name || '',
+                                    description: cachedTextureSet.description || texture.description || '',
+                                },
+                            });
+                            console.log('[RibbonView] Loaded from cache successfully');
+                            return;
+                        }
+                        // If cache load failed, fall through to remote
+                        console.warn('[RibbonView] Cache load failed, falling back to remote');
+                    }
+                }
+
+                // Fetch full texture set with tile URLs
+                const textureSet = await fetchTextureSetById(texture.id);
+
+                if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
+                    throw new Error('No tiles found in texture set');
+                }
+
+                // Check if this is a Google Drive texture that requires authentication
+                const hasDriveTiles = textureSet.tiles.some(tile => tile.driveFileId);
+                if (hasDriveTiles && !isAuthenticated.value) {
+                    // Show beta modal with texture-auth context
+                    app.showBetaModal('texture-auth');
+                    return;
+                }
+
+                console.log(`[RibbonView] Fetched texture set: ${textureSet.tiles.length} tiles`);
+
+                // Load textures from remote URLs via TileManager
+                const success = await threeCanvasRef.value?.loadTexturesFromRemote(textureSet, handleTextureLoadProgress);
+
+                if (!success) {
+                    throw new Error('Texture data is incomplete or unreadable.');
+                }
+
+                applyLoadedTextureState({
+                    source: 'cloud',
+                    texture,
+                    isCached: Boolean(cachedLocalId),
+                    thumbnailUrl: texture.thumbnail_url || null,
+                    metadata: {
+                        id: texture.id,
+                        name: textureSet.name || texture.name || '',
+                        description: textureSet.description || texture.description || '',
+                    },
+                });
+
+                // Cache the downloaded tiles in background
+                cacheRemoteTextureInBackground(texture, textureSet);
+
+                console.log('[RibbonView] Remote texture loaded successfully');
+            } catch (error) {
+                handleTextureLoadFailure({
+                    error,
+                    consoleMessage: '[RibbonView] Failed to load remote texture:',
+                    alertPrefix: 'Failed to load texture: ',
+                    showAccessDeniedModal: true,
+                });
+            }
+        });
     }
 
     /**
@@ -2278,21 +2361,21 @@
 
         <!-- Modals -->
         <TextInputPanel
-            v-model:visible="app.textPanelVisible"
+            v-model:visible="textPanelVisible"
             @request-generate="handleTextGenerate"
         />
         <EmojiPickerPanel
-            v-model:visible="app.emojiPickerVisible"
+            v-model:visible="emojiPickerVisible"
             @request-generate="handleEmojiGenerate"
         />
         <ContourPanel
-            v-if="app.contourPanelVisible"
-            :active="app.contourPanelVisible"
+            v-if="contourPanelVisible"
+            :active="contourPanelVisible"
             @contour-complete="handleContourGenerate"
         />
         <DrawingBrowser
-            v-if="app.drawingBrowserVisible"
-            :visible="app.drawingBrowserVisible"
+            v-if="drawingBrowserVisible"
+            :visible="drawingBrowserVisible"
             @request-close="app.hideDrawingBrowser"
             @request-select="handleSavedDrawingSelect"
         />
@@ -2306,8 +2389,8 @@
             @request-export-preview="handleTexturePreviewExport"
         />
         <TextureBrowser
-            v-if="app.textureBrowserVisible"
-            :visible="app.textureBrowserVisible"
+            v-if="textureBrowserVisible"
+            :visible="textureBrowserVisible"
             :initial-tab="textureBrowserInitialTab"
             @request-close="app.hideTextureBrowser"
             @request-open-overview="openTextureOverview"
@@ -2318,8 +2401,8 @@
 
         <!-- Full-page Slyce panel (like drawing mode) -->
         <TextureCreator
-            v-if="app.textureCreatorVisible"
-            :active="app.textureCreatorVisible"
+            v-if="textureCreatorVisible"
+            :active="textureCreatorVisible"
             :launch-source="textureCreatorLaunchSource"
             @request-close="closeCreateTextureMode"
             @request-apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
@@ -2328,8 +2411,8 @@
 
         <!-- Full-page Realtime Sampler (like Slyce panel) -->
         <RealtimeSampler
-            v-if="app.realtimeSamplerVisible"
-            :active="app.realtimeSamplerVisible"
+            v-if="realtimeSamplerVisible"
+            :active="realtimeSamplerVisible"
             @request-apply="handleRealtimeApply"
             @request-close="handleRealtimeClose"
         />

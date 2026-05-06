@@ -1,6 +1,7 @@
 import { MathUtils } from 'three';
 import { onUnmounted, ref, shallowRef, watch } from 'vue';
 import { HeadTrackingStreamManager } from '../../modules/viewer/headTracking/headTrackingStreamManager';
+import { createPendingTaskRunner } from '../../modules/shared/lazyLoader.js';
 import {
     FaceLandmarkerDetector,
     FACE_LANDMARKER_DETECTION_STATUS,
@@ -101,7 +102,6 @@ export function useHeadTracking(ctx) {
     let stableFrameCount = 0;
     let lastFaceSeenAt = 0;
     let activationToken = 0;
-    let startPromise = null;
     let pausedForVisibility = false;
 
     const debugState = {
@@ -291,6 +291,36 @@ export function useHeadTracking(ctx) {
         }
     }
 
+    const runStartTracking = createPendingTaskRunner(async (token, statusMessage) => {
+        try {
+            await ensureDetector();
+            if (token !== activationToken || !isSelected()) {
+                return false;
+            }
+
+            await ensureStreamManager().start();
+            cameraActive.value = true;
+            if (token !== activationToken || !isSelected()) {
+                streamManager.value?.stop();
+                cameraActive.value = false;
+                return false;
+            }
+
+            pausedForVisibility = false;
+            beginCalibration(statusMessage);
+            setRuntimeState({ supported: true });
+            return true;
+        } catch (error) {
+            const describedError = describeHeadTrackingError(error);
+            exitToOrbit({
+                supported: describedError.supported,
+                reason: describedError.reason,
+                errorMessage: describedError.message,
+            });
+            return false;
+        }
+    });
+
     async function startTracking({ recaptureBaseline = true, statusMessage = 'Center your face and hold still to calibrate head tracking.' } = {}) {
         if (!ctx.camera.value || !ctx.controls.value || !isSelected()) {
             return false;
@@ -305,8 +335,9 @@ export function useHeadTracking(ctx) {
             return false;
         }
 
-        if (startPromise) {
-            return startPromise;
+        const pendingStart = runStartTracking.peek();
+        if (pendingStart) {
+            return pendingStart;
         }
 
         cameraController.value.attach(ctx.camera.value, ctx.controls.value);
@@ -317,39 +348,7 @@ export function useHeadTracking(ctx) {
         const token = ++activationToken;
         beginCalibration('Requesting webcam access for head tracking…');
 
-        startPromise = (async () => {
-            try {
-                await ensureDetector();
-                if (token !== activationToken || !isSelected()) {
-                    return false;
-                }
-
-                await ensureStreamManager().start();
-                cameraActive.value = true;
-                if (token !== activationToken || !isSelected()) {
-                    streamManager.value?.stop();
-                    cameraActive.value = false;
-                    return false;
-                }
-
-                pausedForVisibility = false;
-                beginCalibration(statusMessage);
-                setRuntimeState({ supported: true });
-                return true;
-            } catch (error) {
-                const describedError = describeHeadTrackingError(error);
-                exitToOrbit({
-                    supported: describedError.supported,
-                    reason: describedError.reason,
-                    errorMessage: describedError.message,
-                });
-                return false;
-            } finally {
-                startPromise = null;
-            }
-        })();
-
-        return startPromise;
+        return runStartTracking(token, statusMessage);
     }
 
     function exitToOrbit({ reason = null, statusMessage = '', errorMessage = '', supported = ctx.app.headTrackingSupported, clearFeedback = false } = {}) {

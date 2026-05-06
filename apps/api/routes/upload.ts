@@ -2,7 +2,24 @@
 import { Hono } from 'hono';
 import { verifySession } from '../middleware/session';
 import type { AppEnv } from '../types/hono';
-import { syncUser, isAdminUser } from '../utils/user';
+import { isAdminUser, syncUserIfProvided } from '../utils/user';
+import { getAccessibleResourceById, getOwnedResourceById, getResourceById } from '../utils/resourceAccess';
+import {
+  buildCdnUrl,
+  buildGoogleDriveDownloadUrl,
+  buildTextureThumbnailR2Key,
+  buildTextureTileR2Key,
+  extractCdnPath,
+} from '../utils/storagePaths';
+import { normalizeHttpsUrl } from '../utils/validation';
+import {
+  badRequestResponse,
+  forbiddenResponse,
+  jsonResponse,
+  notFoundResponse,
+  serverErrorResponse,
+  successResponse,
+} from '../utils/response';
 import { nanoid } from 'nanoid';
 
 export const uploadRoutes = new Hono<AppEnv>();
@@ -13,7 +30,6 @@ uploadRoutes.use('*', verifySession);
 // Create a new texture set and get upload URLs
 uploadRoutes.post('/', async (c) => {
   const auth = c.get('auth');
-  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
   const body = await c.req.json();
 
   const {
@@ -29,10 +45,7 @@ uploadRoutes.post('/', async (c) => {
     storageProvider: requestedStorageProvider,
   } = body;
 
-  // Sync user info if provided
-  if (userProfile) {
-    await syncUser(c.env.DB, auth.userId, userProfile);
-  }
+  await syncUserIfProvided(c.env.DB, auth.userId, userProfile);
 
   let normalizedName = typeof name === 'string' ? name.trim() : '';
   let normalizedDescription = typeof description === 'string' ? description : null;
@@ -47,43 +60,43 @@ uploadRoutes.post('/', async (c) => {
 
   if (parentTextureSetId !== undefined && parentTextureSetId !== null) {
     if (typeof parentTextureSetId !== 'string' || !parentTextureSetId.trim()) {
-      return c.json({ error: 'parentTextureSetId must be a non-empty string when provided' }, 400);
+      return badRequestResponse('parentTextureSetId must be a non-empty string when provided');
     }
 
-    const requestedParentTextureSet = (isAdmin
-      ? await c.env.DB.prepare(`
-        SELECT * FROM texture_sets WHERE id = ?
-      `).bind(parentTextureSetId.trim()).first()
-      : await c.env.DB.prepare(`
-        SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-      `).bind(parentTextureSetId.trim(), auth.userId).first()) as any;
+    const requestedParentTextureSet = await getAccessibleResourceById<any>(
+      c.env.DB,
+      'texture_sets',
+      parentTextureSetId.trim(),
+      auth,
+      c.env.ADMIN_USERS,
+    );
 
     if (!requestedParentTextureSet) {
-      return c.json({ error: 'Parent texture set not found' }, 404);
+      return notFoundResponse('Parent texture set not found');
     }
 
     const rootTextureSetId = requestedParentTextureSet.parent_texture_set_id || requestedParentTextureSet.id;
     const familyRootTextureSet = rootTextureSetId === requestedParentTextureSet.id
       ? requestedParentTextureSet
-      : (isAdmin
-        ? await c.env.DB.prepare(`
-          SELECT * FROM texture_sets WHERE id = ?
-        `).bind(rootTextureSetId).first()
-        : await c.env.DB.prepare(`
-          SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-        `).bind(rootTextureSetId, auth.userId).first()) as any;
+      : await getAccessibleResourceById<any>(
+        c.env.DB,
+        'texture_sets',
+        rootTextureSetId,
+        auth,
+        c.env.ADMIN_USERS,
+      );
 
     if (!familyRootTextureSet) {
-      return c.json({ error: 'Family root texture set not found' }, 404);
+        return notFoundResponse('Family root texture set not found');
     }
 
     const rootStorageProvider = familyRootTextureSet.storage_provider || 'google-drive';
     normalizedStorageProvider = requestedStorageProvider || rootStorageProvider;
 
     if (normalizedStorageProvider !== rootStorageProvider) {
-      return c.json({
-        error: `Derived variants must use the same storage provider as the family root (${rootStorageProvider})`
-      }, 400);
+      return badRequestResponse(
+        `Derived variants must use the same storage provider as the family root (${rootStorageProvider})`
+      );
     }
 
     if (!Number.isInteger(normalizedTileCount)) {
@@ -99,20 +112,19 @@ uploadRoutes.post('/', async (c) => {
     const rootTileResolution = Number(familyRootTextureSet.tile_resolution);
 
     if (normalizedTileCount !== rootTileCount) {
-      return c.json({ error: 'Derived variants must preserve the family root tileCount' }, 400);
+      return badRequestResponse('Derived variants must preserve the family root tileCount');
     }
 
     if (normalizedLayerCount !== rootLayerCount) {
-      return c.json({
-        error: 'Derived variants must preserve the family root layerCount',
+      return badRequestResponse('Derived variants must preserve the family root layerCount', {
         expectedLayerCount: rootLayerCount,
         receivedLayerCount: normalizedLayerCount,
         rootTextureSetId: familyRootTextureSet.id,
-      }, 400);
+      });
     }
 
     if (Number.isInteger(rootTileResolution) && normalizedTileResolution >= rootTileResolution) {
-      return c.json({ error: 'Derived variants must use a tileResolution smaller than the family root' }, 400);
+      return badRequestResponse('Derived variants must use a tileResolution smaller than the family root');
     }
 
     if (
@@ -120,7 +132,7 @@ uploadRoutes.post('/', async (c) => {
       && familyRootTextureSet.cross_section_type
       && normalizedCrossSectionType !== familyRootTextureSet.cross_section_type
     ) {
-      return c.json({ error: 'Derived variants must preserve the family root crossSectionType' }, 400);
+      return badRequestResponse('Derived variants must preserve the family root crossSectionType');
     }
 
     normalizedParentTextureSetId = familyRootTextureSet.id;
@@ -148,12 +160,12 @@ uploadRoutes.post('/', async (c) => {
     || !Number.isInteger(normalizedLayerCount)
     || normalizedLayerCount <= 0
   ) {
-    return c.json({ error: 'Missing or invalid required fields' }, 400);
+    return badRequestResponse('Missing or invalid required fields');
   }
 
   // Validate storage provider
   if (!['r2', 'google-drive'].includes(normalizedStorageProvider)) {
-    return c.json({ error: 'Invalid storage provider. Must be "r2" or "google-drive"' }, 400);
+    return badRequestResponse('Invalid storage provider. Must be "r2" or "google-drive"');
   }
 
   const textureSetId = nanoid();
@@ -195,8 +207,8 @@ uploadRoutes.post('/', async (c) => {
   if (normalizedStorageProvider === 'r2') {
     for (let i = 0; i < normalizedTileCount; i++) {
       const tileId = nanoid();
-      const r2Key = `textures/${textureSetId}/${i}.ktx2`;
-      const publicUrl = `https://cdn.rivvon.ca/${r2Key}`;
+      const r2Key = buildTextureTileR2Key(textureSetId, i);
+      const publicUrl = buildCdnUrl(r2Key);
 
       // Insert tile record
       await c.env.DB.prepare(`
@@ -219,7 +231,7 @@ uploadRoutes.post('/', async (c) => {
   // For Google Drive, no pre-creation - frontend uploads directly to Drive
   // and registers each tile via POST /texture-set/:id/tile/:index/metadata
 
-  return c.json({
+  return jsonResponse({
     textureSetId,
     parentTextureSetId: normalizedParentTextureSetId,
     storageProvider: normalizedStorageProvider,
@@ -235,13 +247,10 @@ uploadRoutes.post('/:id/complete', async (c) => {
   const auth = c.get('auth');
   const textureSetId = c.req.param('id');
 
-  // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
-    SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(textureSetId, auth.userId).first() as any;
+  const textureSet = await getOwnedResourceById<any>(c.env.DB, 'texture_sets', textureSetId, auth.userId);
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return notFoundResponse('Texture set not found');
   }
 
   const storageProvider = textureSet.storage_provider || 'r2';
@@ -257,10 +266,9 @@ uploadRoutes.post('/:id/complete', async (c) => {
     for (const tile of tiles.results as any[]) {
       const object = await c.env.BUCKET.head(tile.r2_key);
       if (!object) {
-        return c.json({
-          error: `Tile ${tile.tile_index} not uploaded`,
+        return badRequestResponse(`Tile ${tile.tile_index} not uploaded`, {
           missingTile: tile.tile_index
-        }, 400);
+        });
       }
 
       // Update tile with file info
@@ -279,19 +287,20 @@ uploadRoutes.post('/:id/complete', async (c) => {
           missingIndices.push(i);
         }
       }
-      return c.json({
-        error: `Missing ${expectedTileCount - tiles.results.length} tiles. Register them via /tile/:index/metadata`,
+      return badRequestResponse(
+        `Missing ${expectedTileCount - tiles.results.length} tiles. Register them via /tile/:index/metadata`,
+        {
         missingTiles: missingIndices,
-      }, 400);
+        }
+      );
     }
 
     // Verify all tiles have drive_file_id
     for (const tile of tiles.results as any[]) {
       if (!tile.drive_file_id) {
-        return c.json({
-          error: `Tile ${tile.tile_index} has no drive_file_id`,
+        return badRequestResponse(`Tile ${tile.tile_index} has no drive_file_id`, {
           missingTile: tile.tile_index
-        }, 400);
+        });
       }
     }
   }
@@ -303,7 +312,7 @@ uploadRoutes.post('/:id/complete', async (c) => {
     WHERE id = ?
   `).bind(textureSetId).run();
 
-  return c.json({ status: 'complete', textureSetId });
+  return jsonResponse({ status: 'complete', textureSetId });
 });
 
 // Register a tile's metadata (for Google Drive uploads)
@@ -316,26 +325,23 @@ uploadRoutes.post('/:id/tile/:index/metadata', async (c) => {
 
     console.log('Tile metadata request:', { textureSetId, tileIndex, userId: auth?.userId });
 
-    // Verify ownership
-    const textureSet = await c.env.DB.prepare(`
-      SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-    `).bind(textureSetId, auth.userId).first() as any;
+    const textureSet = await getOwnedResourceById<any>(c.env.DB, 'texture_sets', textureSetId, auth.userId);
 
     if (!textureSet) {
       console.log('Texture set not found:', { textureSetId, userId: auth.userId });
-      return c.json({ error: 'Texture set not found' }, 404);
+      return notFoundResponse('Texture set not found');
     }
 
     // Validate this is a Google Drive texture set
     if (textureSet.storage_provider !== 'google-drive') {
       console.log('Wrong storage provider:', textureSet.storage_provider);
-      return c.json({ error: 'This endpoint is only for Google Drive storage' }, 400);
+      return badRequestResponse('This endpoint is only for Google Drive storage');
     }
 
     // Validate tile index
     if (tileIndex < 0 || tileIndex >= textureSet.tile_count) {
       console.log('Invalid tile index:', { tileIndex, tileCount: textureSet.tile_count });
-      return c.json({ error: 'Invalid tile index' }, 400);
+      return badRequestResponse('Invalid tile index');
     }
 
     const body = await c.req.json();
@@ -344,12 +350,12 @@ uploadRoutes.post('/:id/tile/:index/metadata', async (c) => {
     console.log('Tile metadata body:', { driveFileId, fileSize, mimeType });
 
     if (!driveFileId) {
-      return c.json({ error: 'driveFileId is required' }, 400);
+      return badRequestResponse('driveFileId is required');
     }
 
     // Build public URL for Google Drive
     // Files need to be shared publicly for this URL to work
-    const publicUrl = `https://drive.google.com/uc?export=download&id=${driveFileId}`;
+    const publicUrl = buildGoogleDriveDownloadUrl(driveFileId);
 
     // Check if tile already exists (update) or needs to be created (insert)
     const existingTile = await c.env.DB.prepare(`
@@ -374,15 +380,14 @@ uploadRoutes.post('/:id/tile/:index/metadata', async (c) => {
       console.log('Inserted new tile:', { tileId, tileIndex });
     }
 
-    return c.json({
-      success: true,
+    return successResponse({
       tileIndex,
       driveFileId,
       publicUrl,
     });
   } catch (error) {
     console.error('Tile metadata error:', error);
-    return c.json({ error: 'Failed to register tile metadata', details: String(error) }, 500);
+    return serverErrorResponse('Failed to register tile metadata', { details: String(error) });
   }
 });
 
@@ -392,13 +397,10 @@ uploadRoutes.put('/:setId/tile/:index', async (c) => {
   const setId = c.req.param('setId');
   const tileIndex = parseInt(c.req.param('index'));
 
-  // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
-    SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(setId, auth.userId).first();
+  const textureSet = await getOwnedResourceById(c.env.DB, 'texture_sets', setId, auth.userId);
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return notFoundResponse('Texture set not found');
   }
 
   // Get tile record
@@ -407,7 +409,7 @@ uploadRoutes.put('/:setId/tile/:index', async (c) => {
   `).bind(setId, tileIndex).first() as { id: string; r2_key: string } | null;
 
   if (!tile) {
-    return c.json({ error: 'Tile not found' }, 404);
+    return notFoundResponse('Tile not found');
   }
 
   // Upload to R2
@@ -421,7 +423,7 @@ uploadRoutes.put('/:setId/tile/:index', async (c) => {
     UPDATE texture_tiles SET file_size = ? WHERE id = ?
   `).bind(body.byteLength, tile.id).run();
 
-  return c.json({ success: true, tileIndex, size: body.byteLength });
+  return successResponse({ tileIndex, size: body.byteLength });
 });
 
 // Upload thumbnail for a texture set
@@ -429,13 +431,10 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
   const auth = c.get('auth');
   const setId = c.req.param('setId');
 
-  // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
-    SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(setId, auth.userId).first();
+  const textureSet = await getOwnedResourceById(c.env.DB, 'texture_sets', setId, auth.userId);
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return notFoundResponse('Texture set not found');
   }
 
   // Get content type from request
@@ -444,9 +443,7 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
   // Validate content type
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
   if (!allowedTypes.includes(contentType)) {
-    return c.json({
-      error: 'Invalid content type. Allowed: image/jpeg, image/png, image/webp'
-    }, 400);
+    return badRequestResponse('Invalid content type. Allowed: image/jpeg, image/png, image/webp');
   }
 
   // Determine file extension
@@ -458,8 +455,8 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
   const ext = extMap[contentType];
 
   // R2 key for thumbnail
-  const r2Key = `thumbnails/${setId}.${ext}`;
-  const thumbnailUrl = `https://cdn.rivvon.ca/${r2Key}`;
+  const r2Key = buildTextureThumbnailR2Key(setId, ext);
+  const thumbnailUrl = buildCdnUrl(r2Key);
 
   // Upload to R2
   const body = await c.req.arrayBuffer();
@@ -474,8 +471,7 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
     WHERE id = ?
   `).bind(thumbnailUrl, setId).run();
 
-  return c.json({
-    success: true,
+  return successResponse({
     thumbnailUrl,
     size: body.byteLength
   });
@@ -486,25 +482,24 @@ uploadRoutes.patch('/:setId/thumbnail-url', async (c) => {
   const auth = c.get('auth');
   const setId = c.req.param('setId');
 
-  // Verify ownership
-  const textureSet = await c.env.DB.prepare(`
-    SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-  `).bind(setId, auth.userId).first();
+  const textureSet = await getOwnedResourceById(c.env.DB, 'texture_sets', setId, auth.userId);
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return notFoundResponse('Texture set not found');
   }
 
   const body = await c.req.json();
   const { thumbnailUrl } = body;
 
   if (!thumbnailUrl) {
-    return c.json({ error: 'thumbnailUrl is required' }, 400);
+    return badRequestResponse('thumbnailUrl is required');
   }
 
-  // Validate URL format (basic check)
-  if (!thumbnailUrl.startsWith('https://')) {
-    return c.json({ error: 'thumbnailUrl must be a valid HTTPS URL' }, 400);
+  let normalizedThumbnailUrl: string;
+  try {
+    normalizedThumbnailUrl = normalizeHttpsUrl(thumbnailUrl);
+  } catch {
+    return badRequestResponse('thumbnailUrl must be a valid HTTPS URL');
   }
 
   // Update texture set with thumbnail URL
@@ -512,9 +507,9 @@ uploadRoutes.patch('/:setId/thumbnail-url', async (c) => {
     UPDATE texture_sets 
     SET thumbnail_url = ?, updated_at = unixepoch()
     WHERE id = ?
-  `).bind(thumbnailUrl, setId).run();
+  `).bind(normalizedThumbnailUrl, setId).run();
 
-  return c.json({ success: true, thumbnailUrl });
+  return successResponse({ thumbnailUrl: normalizedThumbnailUrl });
 });
 
 // Delete a texture set (owner or admin)
@@ -522,23 +517,16 @@ uploadRoutes.delete('/:id', async (c) => {
   const auth = c.get('auth');
   const textureSetId = c.req.param('id');
 
-  // Check if user is admin
-  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
-
-  // Get texture set (admins can delete any, owners can delete their own)
-  let textureSet;
-  if (isAdmin) {
-    textureSet = await c.env.DB.prepare(`
-      SELECT * FROM texture_sets WHERE id = ?
-    `).bind(textureSetId).first();
-  } else {
-    textureSet = await c.env.DB.prepare(`
-      SELECT * FROM texture_sets WHERE id = ? AND owner_id = ?
-    `).bind(textureSetId, auth.userId).first();
-  }
+  const textureSet = await getAccessibleResourceById<any>(
+    c.env.DB,
+    'texture_sets',
+    textureSetId,
+    auth,
+    c.env.ADMIN_USERS,
+  );
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found or not authorized' }, 404);
+    return notFoundResponse('Texture set not found or not authorized');
   }
 
   // If deleting a root texture set, delete the full family payload from storage first.
@@ -571,7 +559,7 @@ uploadRoutes.delete('/:id', async (c) => {
     }
 
     const thumbnailUrl = familyTextureSet.thumbnail_url as string;
-    const thumbnailKey = thumbnailUrl.replace('https://cdn.rivvon.ca/', '');
+    const thumbnailKey = extractCdnPath(thumbnailUrl);
     r2KeysToDelete.add(thumbnailKey);
   }
 
@@ -585,12 +573,10 @@ uploadRoutes.delete('/:id', async (c) => {
     DELETE FROM texture_sets WHERE id = ?
   `).bind(textureSetId).run();
 
-  return c.json({
-    success: true,
-    message: 'Texture set deleted',
+  return successResponse({
     deletedFiles: r2KeysToDelete.size,
     deletedTextureSets: familyTextureSetIds.length
-  });
+  }, 'Texture set deleted');
 });
 
 // Update texture set metadata (name, description, etc.) - owner or admin
@@ -606,17 +592,17 @@ uploadRoutes.patch('/:id', async (c) => {
   // Check if user is admin
   const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
 
-  // Verify ownership or admin status
-  const textureSet = await c.env.DB.prepare(`
-    SELECT owner_id, parent_texture_set_id FROM texture_sets WHERE id = ?
-  `).bind(textureSetId).first();
+  const textureSet = await getResourceById<{
+    owner_id: string;
+    parent_texture_set_id: string | null;
+  }>(c.env.DB, 'texture_sets', textureSetId, 'owner_id, parent_texture_set_id');
 
   if (!textureSet) {
-    return c.json({ error: 'Texture set not found' }, 404);
+    return notFoundResponse('Texture set not found');
   }
 
   if (textureSet.owner_id !== auth.userId && !isAdmin) {
-    return c.json({ error: 'Not authorized to update this texture set' }, 403);
+    return forbiddenResponse('Not authorized to update this texture set');
   }
 
   // Build dynamic update query based on provided fields
@@ -626,7 +612,7 @@ uploadRoutes.patch('/:id', async (c) => {
 
   if (name !== undefined) {
     if (typeof normalizedName !== 'string' || !normalizedName) {
-      return c.json({ error: 'name must be a non-empty string' }, 400);
+      return badRequestResponse('name must be a non-empty string');
     }
 
     updates.push('name = ?');
@@ -646,7 +632,7 @@ uploadRoutes.patch('/:id', async (c) => {
   if (tileResolution !== undefined) {
     const parsedTileResolution = Number(tileResolution);
     if (!Number.isInteger(parsedTileResolution) || parsedTileResolution <= 0) {
-      return c.json({ error: 'tileResolution must be a positive integer' }, 400);
+      return badRequestResponse('tileResolution must be a positive integer');
     }
 
     updates.push('tile_resolution = ?');
@@ -654,7 +640,7 @@ uploadRoutes.patch('/:id', async (c) => {
   }
 
   if (updates.length === 0) {
-    return c.json({ error: 'No fields to update' }, 400);
+    return badRequestResponse('No fields to update');
   }
 
   // Add updated_at timestamp
@@ -693,8 +679,5 @@ uploadRoutes.patch('/:id', async (c) => {
     `).bind(...familyValues, familyRootTextureSetId, familyRootTextureSetId).run();
   }
 
-  return c.json({
-    success: true,
-    message: 'Texture set updated'
-  });
+  return successResponse({}, 'Texture set updated');
 });

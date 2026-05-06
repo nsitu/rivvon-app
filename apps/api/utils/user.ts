@@ -52,3 +52,15 @@ export async function syncUser(
         profile?.picture || null
     ).run();
 }
+
+export async function syncUserIfProvided(
+    db: D1Database,
+    userId: string,
+    profile?: UserProfile
+): Promise<void> {
+    if (!profile) {
+        return;
+    }
+
+    await syncUser(db, userId, profile);
+}

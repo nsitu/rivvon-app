@@ -8,12 +8,13 @@ import { KTX2WorkerPool } from './ktx2-worker-pool.js';
 import { getSharedBackgroundEncodeConfig } from './encodingPolicy.js';
 import { runSamplingPipeline } from './samplingPipeline.js';
 import { VideoFileFrameSource } from './samplingSources.js';
-
-// Singleton worker pool for KTX2 encoding (reused across all tiles)
-let ktx2WorkerPool = null;
-
-// Abort controller for cancelling processing
-let abortController = null;
+import {
+    abortProcessing,
+    cleanupKTX2Workers,
+    createProcessingAbortController,
+    getKtx2WorkerPool,
+    registerKtx2WorkerPool,
+} from './videoProcessingControl.js';
 
 /**
  * Create a thumbnail blob from RGBA image data.
@@ -56,36 +57,6 @@ async function createThumbnailFromRGBA(imageData, options = {}) {
     return blob;
 }
 
-/**
- * Cleanup function to terminate the worker pool when done
- */
-const cleanupKTX2Workers = () => {
-    if (ktx2WorkerPool) {
-        console.log('[KTX2] Cleaning up worker pool');
-        ktx2WorkerPool.terminate();
-        ktx2WorkerPool = null;
-    }
-};
-
-/**
- * Abort any ongoing video processing
- */
-const abortProcessing = () => {
-    if (abortController) {
-        console.log('[VideoProcessor] Aborting processing...');
-        abortController.abort();
-        abortController = null;
-    }
-    cleanupKTX2Workers();
-    // Resume the viewer if it was suspended for processing
-    try {
-        const viewerStore = useViewerStore();
-        viewerStore.resumeViewer();
-    } catch (e) {
-        // Store may not be initialized yet during early abort
-    }
-};
-
 const processVideo = async (settings) => {
 
     // Abort any previous processing
@@ -97,7 +68,7 @@ const processVideo = async (settings) => {
     viewerStore.suspendViewer(true);
 
     // Create new abort controller for this processing run
-    abortController = new AbortController();
+    const abortController = createProcessingAbortController();
     const abortSignal = abortController.signal;
 
     let frameNumber = 0;
@@ -332,8 +303,9 @@ const processVideo = async (settings) => {
                     try {
                         console.log(`[KTX2] Encoding tile ${tileId} with ${images.length} layers (parallel)`);
 
+                        let ktx2WorkerPool = getKtx2WorkerPool();
                         if (!ktx2WorkerPool) {
-                            ktx2WorkerPool = new KTX2WorkerPool(encodeConfig.layerWorkerCount);
+                            ktx2WorkerPool = registerKtx2WorkerPool(new KTX2WorkerPool(encodeConfig.layerWorkerCount));
                             await ktx2WorkerPool.init();
                             console.log(`[KTX2] Worker pool created with ${encodeConfig.layerWorkerCount} workers and will be reused for all tiles`);
                         }

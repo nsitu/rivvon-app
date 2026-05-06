@@ -1,33 +1,12 @@
 import * as THREE from 'three';
 import { acquireKTX2Loader, releaseKTX2Loader } from '../slyce/sharedKTX2Loader.js';
+import { createLazyLoader } from '../shared/lazyLoader.js';
 
-let jsZipModulePromise = null;
-let webgpuModulePromise = null;
-let tslModulePromise = null;
+const loadJSZipModule = createLazyLoader(() => import('jszip').then(module => module.default));
 
-async function loadJSZipModule() {
-    if (!jsZipModulePromise) {
-        jsZipModulePromise = import('jszip').then(module => module.default);
-    }
+const loadWebGPUModule = createLazyLoader(() => import('three/webgpu'));
 
-    return jsZipModulePromise;
-}
-
-async function loadWebGPUModule() {
-    if (!webgpuModulePromise) {
-        webgpuModulePromise = import('three/webgpu');
-    }
-
-    return webgpuModulePromise;
-}
-
-async function loadTSLModule() {
-    if (!tslModulePromise) {
-        tslModulePromise = import('three/tsl');
-    }
-
-    return tslModulePromise;
-}
+const loadTSLModule = createLazyLoader(() => import('three/tsl'));
 
 // Default texture ID from CDN (used when no source specified)
 export const DEFAULT_TEXTURE_ID = 'wv-ywyV14qYSbrzgYga4l';

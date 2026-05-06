@@ -1,19 +1,14 @@
+import { createLazyLoader } from '../shared/lazyLoader.js';
 import { getMemoryConstraints } from '../../utils/memory-utils.js';
 
 let basisModule = null;
-let basisPromise = null;
 
-export async function loadBasisModule() {
-    // Return existing promise if already loading/loaded
-    if (basisPromise) {
-        return basisPromise;
-    }
-
+const initializeBasisModule = createLazyLoader(() => {
     const constraints = getMemoryConstraints();
 
     console.log('[BASIS] Memory constraints analysis:', constraints);
 
-    basisPromise = new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
 
         // Always use single-threaded encoder (see /public/wasm/readme.md for architecture explanation)
         // Use absolute path since this can be loaded from /slyce routes
@@ -85,8 +80,10 @@ export async function loadBasisModule() {
 
         document.head.appendChild(script);
     });
+});
 
-    return basisPromise;
+export async function loadBasisModule() {
+    return initializeBasisModule();
 }
 
 export function getBasisModule() {

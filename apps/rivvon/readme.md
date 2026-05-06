@@ -1,5 +1,7 @@
 # Note
 
+Docs are in ./docs
+
 ## Realtime Sampling
 
 See [docs/realtime-sampling.md](./docs/realtime-sampling.md) for the current realtime webcam sampling design, why staging is now used everywhere, and why we intentionally do not enable `willReadFrequently` on the active sampling canvases.

@@ -1,10 +1,10 @@
+import { createLazyLoader } from '../shared/lazyLoader.js';
+
 export const EXPORT_LOGO_SRC = '/made-with-rivvon.svg';
 export const EXPORT_LOGO_AREA_RATIO = 0.005;
 
 const EXPORT_LOGO_FALLBACK_ASPECT_RATIO = 533.2 / 88.4;
 const EXPORT_LOGO_PADDING_RATIO = 0.025;
-
-let cachedExportLogoPromise = null;
 
 function parsePositiveNumber(value) {
     const parsed = Number.parseFloat(value);
@@ -79,37 +79,28 @@ export function drawExportLogoOverlay(context, logoImage, videoWidth, videoHeigh
     return layout;
 }
 
-export async function loadExportLogoAsset() {
-    if (!cachedExportLogoPromise) {
-        cachedExportLogoPromise = (async () => {
-            const response = await fetch(EXPORT_LOGO_SRC, { cache: 'force-cache' });
-            if (!response.ok) {
-                throw new Error(`Failed to fetch export logo (${response.status}).`);
-            }
-
-            const svgText = await response.text();
-            const aspectRatio = getSvgAspectRatio(svgText);
-            let image;
-
-            try {
-                const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
-                const blobUrl = URL.createObjectURL(svgBlob);
-                try {
-                    image = await loadImage(blobUrl);
-                } finally {
-                    URL.revokeObjectURL(blobUrl);
-                }
-            } catch (blobError) {
-                console.warn('[ExportLogoOverlay] Blob URL decode failed, trying direct asset path:', blobError);
-                image = await loadImage(EXPORT_LOGO_SRC);
-            }
-
-            return { image, aspectRatio };
-        })().catch(error => {
-            cachedExportLogoPromise = null;
-            throw error;
-        });
+export const loadExportLogoAsset = createLazyLoader(async () => {
+    const response = await fetch(EXPORT_LOGO_SRC, { cache: 'force-cache' });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch export logo (${response.status}).`);
     }
 
-    return cachedExportLogoPromise;
-}
+    const svgText = await response.text();
+    const aspectRatio = getSvgAspectRatio(svgText);
+    let image;
+
+    try {
+        const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(svgBlob);
+        try {
+            image = await loadImage(blobUrl);
+        } finally {
+            URL.revokeObjectURL(blobUrl);
+        }
+    } catch (blobError) {
+        console.warn('[ExportLogoOverlay] Blob URL decode failed, trying direct asset path:', blobError);
+        image = await loadImage(EXPORT_LOGO_SRC);
+    }
+
+    return { image, aspectRatio };
+});

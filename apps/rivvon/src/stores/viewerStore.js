@@ -2,8 +2,9 @@
 // Pinia store for rivvon viewer state
 
 import { defineStore } from 'pinia';
-import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capProfiles.js';
+import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capStyle.js';
 import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
+import { createViewerPanelVisibilityState, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
 
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
@@ -46,6 +47,22 @@ function normalizeViewerBooleanPreference(value, fallback = false) {
     return typeof value === 'boolean' ? value : fallback;
 }
 
+function setViewerFlag(store, key, value) {
+    store[key] = value;
+}
+
+function showViewerFlag(store, key) {
+    setViewerFlag(store, key, true);
+}
+
+function hideViewerFlag(store, key) {
+    setViewerFlag(store, key, false);
+}
+
+function toggleViewerFlag(store, key) {
+    setViewerFlag(store, key, !store[key]);
+}
+
 function readViewerPreferences() {
     if (typeof window === 'undefined' || !window.localStorage) {
         return {};
@@ -83,6 +100,7 @@ function getStoredExportDimensionSettings() {
 export const useViewerStore = defineStore('viewer', {
     state: () => {
         const exportDimensionSettings = getStoredExportDimensionSettings();
+        const panelVisibilityState = createViewerPanelVisibilityState();
 
         return ({
         // Renderer state
@@ -185,35 +203,14 @@ export const useViewerStore = defineStore('viewer', {
             false
         ),
 
+        // Viewer panel visibility state
+        ...panelVisibilityState,
+
         // Text to SVG
-        textPanelVisible: false,
         selectedFont: null,
         
-        // Texture browser
-        textureBrowserVisible: false,
-        texturePreviewVisible: false,
-
-        // Drawing browser
-        drawingBrowserVisible: false,
-        
-        // Slyce panel
-        textureCreatorVisible: false,
-
-        // Realtime sampler screen
-        realtimeSamplerVisible: false,
-        
         // Tools panel
-        toolsPanelVisible: false,
         toolsPanelOriginalState: null, // Captured state snapshot when tools panel opens
-
-        // Emoji picker
-        emojiPickerVisible: false,
-
-        // Contour panel
-        contourPanelVisible: false,
-
-        // About panel
-        aboutPanelVisible: false,
 
         // UI state
         betaModalVisible: false,
@@ -402,45 +399,45 @@ export const useViewerStore = defineStore('viewer', {
         },
         
         showTextPanel() {
-            this.textPanelVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.text);
         },
         
         hideTextPanel() {
-            this.textPanelVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.text);
         },
         
         showTextureBrowser() {
-            this.textureBrowserVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.textureBrowser);
         },
         
         hideTextureBrowser() {
-            this.textureBrowserVisible = false;
-            this.texturePreviewVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.textureBrowser);
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.texturePreview);
         },
 
         showDrawingBrowser() {
-            this.drawingBrowserVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.drawings);
         },
 
         hideDrawingBrowser() {
-            this.drawingBrowserVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.drawings);
         },
         
         showTexturePreview() {
-            this.texturePreviewVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.texturePreview);
         },
         
         hideTexturePreview() {
-            this.texturePreviewVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.texturePreview);
         },
         
         showToolsPanel() {
-            this.toolsPanelVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.tools);
             this.captureToolsPanelOriginalState();
         },
 
         hideToolsPanel() {
-            this.toolsPanelVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.tools);
             this.toolsPanelOriginalState = null;
         },
 
@@ -520,47 +517,47 @@ export const useViewerStore = defineStore('viewer', {
         },
 
         showEmojiPicker() {
-            this.emojiPickerVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.emoji);
         },
 
         hideEmojiPicker() {
-            this.emojiPickerVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.emoji);
         },
 
         showContourPanel() {
-            this.contourPanelVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.contour);
         },
 
         hideContourPanel() {
-            this.contourPanelVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.contour);
         },
 
         showAboutPanel() {
-            this.aboutPanelVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.about);
         },
 
         hideAboutPanel() {
-            this.aboutPanelVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.about);
         },
 
         showSlyce() {
-            this.textureCreatorVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.textureCreator);
         },
         
         hideSlyce() {
-            this.textureCreatorVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.textureCreator);
         },
         
         toggleSlyce() {
-            this.textureCreatorVisible = !this.textureCreatorVisible;
+            toggleViewerFlag(this, VIEWER_PANEL_KEYS.textureCreator);
         },
 
         showRealtimeSampler() {
-            this.realtimeSamplerVisible = true;
+            showViewerFlag(this, VIEWER_PANEL_KEYS.realtimeSampler);
         },
 
         hideRealtimeSampler() {
-            this.realtimeSamplerVisible = false;
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.realtimeSampler);
         },
         
         setThumbnailUrl(url) {

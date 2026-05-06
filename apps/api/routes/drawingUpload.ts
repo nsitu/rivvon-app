@@ -2,48 +2,35 @@ import { Hono } from 'hono';
 import { nanoid } from 'nanoid';
 import { verifySession } from '../middleware/session';
 import type { AppEnv } from '../types/hono';
-import { syncUser, isAdminUser } from '../utils/user';
+import { isAdminUser, syncUserIfProvided } from '../utils/user';
+import { getAccessibleResourceById, getOwnedResourceById, getResourceById } from '../utils/resourceAccess';
+import {
+  buildCdnUrl,
+  buildDrawingPayloadR2Key,
+  buildDrawingThumbnailR2Key,
+  buildGoogleDriveDownloadUrl,
+  extractCdnPath,
+} from '../utils/storagePaths';
+import {
+  normalizeHttpsUrl,
+  normalizeOptionalId,
+  normalizePayloadJson,
+  parsePositiveInteger,
+} from '../utils/validation';
+import {
+  badRequestResponse,
+  forbiddenResponse,
+  jsonResponse,
+  notFoundResponse,
+  successResponse,
+} from '../utils/response';
 
 const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg', 'contour']);
 const DRAWING_STORAGE_PROVIDER_VALUES = new Set(['r2', 'google-drive']);
 const THUMBNAIL_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']);
 
-function parsePositiveInteger(value: unknown, fieldName: string) {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${fieldName} must be a positive integer`);
-  }
-  return parsed;
-}
-
-function normalizePayloadJson(payload: unknown) {
-  const payloadJson = typeof payload === 'string' ? payload : JSON.stringify(payload ?? null);
-  if (!payloadJson || payloadJson === 'null') {
-    throw new Error('payloadJson is required');
-  }
-
-  try {
-    JSON.parse(payloadJson);
-  } catch {
-    throw new Error('payloadJson must be valid JSON');
-  }
-
-  return payloadJson;
-}
-
-function normalizeHttpsUrl(url: unknown, fallback = '') {
-  const normalized = typeof url === 'string' ? url.trim() : '';
-  if (!normalized) {
-    return fallback;
-  }
-  if (!normalized.startsWith('https://')) {
-    throw new Error('URL must use HTTPS');
-  }
-  return normalized;
-}
-
-function normalizeOptionalId(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+function badRequestFromUnknown(error: unknown, fallbackMessage: string): Response {
+  return badRequestResponse(error instanceof Error ? error.message : fallbackMessage);
 }
 
 export const drawingUploadRoutes = new Hono<AppEnv>();
@@ -65,50 +52,56 @@ drawingUploadRoutes.post('/', async (c) => {
     normalizedPathCount = parsePositiveInteger(body.pathCount, 'pathCount');
     normalizedPointCount = parsePositiveInteger(body.pointCount, 'pointCount');
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Invalid drawing metadata' }, 400);
+    return badRequestFromUnknown(error, 'Invalid drawing metadata');
   }
   const normalizedParentDrawingId = normalizeOptionalId(body.parentDrawingId);
   const normalizedRootDrawingId = normalizeOptionalId(body.rootDrawingId);
 
   if (!normalizedName) {
-    return c.json({ error: 'name is required' }, 400);
+    return badRequestResponse('name is required');
   }
 
   if (!DRAWING_KIND_VALUES.has(normalizedKind)) {
-    return c.json({ error: 'Invalid drawing kind' }, 400);
+    return badRequestResponse('Invalid drawing kind');
   }
 
   if (!DRAWING_STORAGE_PROVIDER_VALUES.has(normalizedStorageProvider)) {
-    return c.json({ error: 'Invalid storage provider. Must be "r2" or "google-drive"' }, 400);
+    return badRequestResponse('Invalid storage provider. Must be "r2" or "google-drive"');
   }
 
   if (normalizedStorageProvider === 'r2' && !isAdminUser(c.env.ADMIN_USERS, auth.email)) {
-    return c.json({ error: 'Only admin users can save drawings to R2' }, 403);
+    return forbiddenResponse('Only admin users can save drawings to R2');
   }
 
-  if (body.userProfile) {
-    await syncUser(c.env.DB, auth.userId, body.userProfile);
-  }
+  await syncUserIfProvided(c.env.DB, auth.userId, body.userProfile);
 
   let parentDrawing: { id: string; root_drawing_id: string | null } | null = null;
 
   if (normalizedParentDrawingId) {
-    parentDrawing = await c.env.DB.prepare(`
-      SELECT id, root_drawing_id FROM drawings WHERE id = ? AND owner_id = ?
-    `).bind(normalizedParentDrawingId, auth.userId).first();
+    parentDrawing = await getOwnedResourceById<{ id: string; root_drawing_id: string | null }>(
+      c.env.DB,
+      'drawings',
+      normalizedParentDrawingId,
+      auth.userId,
+      'id, root_drawing_id'
+    );
 
     if (!parentDrawing?.id) {
-      return c.json({ error: 'Parent drawing not found' }, 404);
+      return notFoundResponse('Parent drawing not found');
     }
   }
 
   if (normalizedRootDrawingId) {
-    const rootDrawing = await c.env.DB.prepare(`
-      SELECT id FROM drawings WHERE id = ? AND owner_id = ?
-    `).bind(normalizedRootDrawingId, auth.userId).first() as { id: string } | null;
+    const rootDrawing = await getOwnedResourceById<{ id: string }>(
+      c.env.DB,
+      'drawings',
+      normalizedRootDrawingId,
+      auth.userId,
+      'id'
+    );
 
     if (!rootDrawing?.id) {
-      return c.json({ error: 'Root drawing not found' }, 404);
+      return notFoundResponse('Root drawing not found');
     }
   }
 
@@ -121,15 +114,15 @@ drawingUploadRoutes.post('/', async (c) => {
   if (normalizedRootDrawingId && parentDrawing) {
     const expectedRootDrawingId = parentDrawing.root_drawing_id || parentDrawing.id;
     if (normalizedRootDrawingId !== expectedRootDrawingId) {
-      return c.json({ error: 'rootDrawingId must match the parent drawing root' }, 400);
+      return badRequestResponse('rootDrawingId must match the parent drawing root');
     }
   }
 
   const payloadR2Key = normalizedStorageProvider === 'r2'
-    ? `drawings/${drawingId}/drawing.json`
+    ? buildDrawingPayloadR2Key(drawingId)
     : null;
   const payloadPublicUrl = payloadR2Key
-    ? `https://cdn.rivvon.ca/${payloadR2Key}`
+    ? buildCdnUrl(payloadR2Key)
     : null;
 
   await c.env.DB.prepare(`
@@ -153,7 +146,7 @@ drawingUploadRoutes.post('/', async (c) => {
     normalizedStorageProvider,
   ).run();
 
-  return c.json({
+  return jsonResponse({
     drawingId,
     parentDrawingId: normalizedParentDrawingId,
     rootDrawingId: resolvedRootDrawingId,
@@ -169,16 +162,14 @@ drawingUploadRoutes.put('/:id/payload', async (c) => {
   const auth = c.get('auth');
   const drawingId = c.req.param('id');
 
-  const drawing = await c.env.DB.prepare(`
-    SELECT * FROM drawings WHERE id = ? AND owner_id = ?
-  `).bind(drawingId, auth.userId).first() as any;
+  const drawing = await getOwnedResourceById<any>(c.env.DB, 'drawings', drawingId, auth.userId);
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found' }, 404);
+    return notFoundResponse('Drawing not found');
   }
 
   if (drawing.storage_provider !== 'r2') {
-    return c.json({ error: 'This endpoint is only for R2-backed drawings' }, 400);
+    return badRequestResponse('This endpoint is only for R2-backed drawings');
   }
 
   const payloadBuffer = await c.req.arrayBuffer();
@@ -187,7 +178,7 @@ drawingUploadRoutes.put('/:id/payload', async (c) => {
   try {
     payloadJson = normalizePayloadJson(new TextDecoder().decode(payloadBuffer));
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Invalid drawing payload' }, 400);
+    return badRequestFromUnknown(error, 'Invalid drawing payload');
   }
 
   await c.env.BUCKET.put(drawing.payload_r2_key, payloadBuffer, {
@@ -200,8 +191,7 @@ drawingUploadRoutes.put('/:id/payload', async (c) => {
     WHERE id = ?
   `).bind(payloadJson, payloadBuffer.byteLength, drawingId).run();
 
-  return c.json({
-    success: true,
+  return successResponse({
     drawingId,
     payloadUrl: drawing.payload_public_url,
     size: payloadBuffer.byteLength,
@@ -212,16 +202,14 @@ drawingUploadRoutes.post('/:id/payload/metadata', async (c) => {
   const auth = c.get('auth');
   const drawingId = c.req.param('id');
 
-  const drawing = await c.env.DB.prepare(`
-    SELECT * FROM drawings WHERE id = ? AND owner_id = ?
-  `).bind(drawingId, auth.userId).first() as any;
+  const drawing = await getOwnedResourceById<any>(c.env.DB, 'drawings', drawingId, auth.userId);
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found' }, 404);
+    return notFoundResponse('Drawing not found');
   }
 
   if (drawing.storage_provider !== 'google-drive') {
-    return c.json({ error: 'This endpoint is only for Google Drive-backed drawings' }, 400);
+    return badRequestResponse('This endpoint is only for Google Drive-backed drawings');
   }
 
   const body = await c.req.json();
@@ -230,7 +218,7 @@ drawingUploadRoutes.post('/:id/payload/metadata', async (c) => {
   try {
     payloadJson = normalizePayloadJson(body.payloadJson ?? body.payload);
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Invalid drawing payload' }, 400);
+    return badRequestFromUnknown(error, 'Invalid drawing payload');
   }
   const fileSize = body.fileSize == null ? null : Number(body.fileSize);
   const driveFolderId = typeof body.driveFolderId === 'string' && body.driveFolderId.trim()
@@ -238,14 +226,14 @@ drawingUploadRoutes.post('/:id/payload/metadata', async (c) => {
     : null;
 
   if (!driveFileId) {
-    return c.json({ error: 'driveFileId is required' }, 400);
+    return badRequestResponse('driveFileId is required');
   }
 
   let payloadPublicUrl: string;
   try {
-    payloadPublicUrl = normalizeHttpsUrl(body.publicUrl, `https://drive.google.com/uc?export=download&id=${driveFileId}`);
+    payloadPublicUrl = normalizeHttpsUrl(body.publicUrl, buildGoogleDriveDownloadUrl(driveFileId));
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Invalid publicUrl' }, 400);
+    return badRequestFromUnknown(error, 'Invalid publicUrl');
   }
 
   await c.env.DB.prepare(`
@@ -261,8 +249,7 @@ drawingUploadRoutes.post('/:id/payload/metadata', async (c) => {
     drawingId,
   ).run();
 
-  return c.json({
-    success: true,
+  return successResponse({
     drawingId,
     driveFileId,
     payloadUrl: payloadPublicUrl,
@@ -273,22 +260,20 @@ drawingUploadRoutes.post('/:id/complete', async (c) => {
   const auth = c.get('auth');
   const drawingId = c.req.param('id');
 
-  const drawing = await c.env.DB.prepare(`
-    SELECT * FROM drawings WHERE id = ? AND owner_id = ?
-  `).bind(drawingId, auth.userId).first() as any;
+  const drawing = await getOwnedResourceById<any>(c.env.DB, 'drawings', drawingId, auth.userId);
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found' }, 404);
+    return notFoundResponse('Drawing not found');
   }
 
   if (drawing.storage_provider === 'r2') {
     if (!drawing.payload_r2_key) {
-      return c.json({ error: 'Missing payload storage key' }, 400);
+      return badRequestResponse('Missing payload storage key');
     }
 
     const object = await c.env.BUCKET.head(drawing.payload_r2_key);
     if (!object) {
-      return c.json({ error: 'Drawing payload not uploaded' }, 400);
+      return badRequestResponse('Drawing payload not uploaded');
     }
 
     await c.env.DB.prepare(`
@@ -297,11 +282,11 @@ drawingUploadRoutes.post('/:id/complete', async (c) => {
       WHERE id = ?
     `).bind(object.size, drawingId).run();
   } else if (!drawing.payload_drive_file_id) {
-    return c.json({ error: 'Drawing payload has not been registered' }, 400);
+    return badRequestResponse('Drawing payload has not been registered');
   }
 
   if (!drawing.payload_json) {
-    return c.json({ error: 'Drawing payload JSON is missing' }, 400);
+    return badRequestResponse('Drawing payload JSON is missing');
   }
 
   await c.env.DB.prepare(`
@@ -310,24 +295,22 @@ drawingUploadRoutes.post('/:id/complete', async (c) => {
     WHERE id = ?
   `).bind(drawingId).run();
 
-  return c.json({ success: true, drawingId, status: 'complete' });
+  return successResponse({ drawingId, status: 'complete' });
 });
 
 drawingUploadRoutes.put('/:id/thumbnail', async (c) => {
   const auth = c.get('auth');
   const drawingId = c.req.param('id');
 
-  const drawing = await c.env.DB.prepare(`
-    SELECT * FROM drawings WHERE id = ? AND owner_id = ?
-  `).bind(drawingId, auth.userId).first();
+  const drawing = await getOwnedResourceById(c.env.DB, 'drawings', drawingId, auth.userId);
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found' }, 404);
+    return notFoundResponse('Drawing not found');
   }
 
   const contentType = c.req.header('Content-Type') || 'image/jpeg';
   if (!THUMBNAIL_CONTENT_TYPES.has(contentType)) {
-    return c.json({ error: 'Invalid content type. Allowed: image/jpeg, image/png, image/webp, image/svg+xml' }, 400);
+    return badRequestResponse('Invalid content type. Allowed: image/jpeg, image/png, image/webp, image/svg+xml');
   }
 
   const extMap: Record<string, string> = {
@@ -337,8 +320,8 @@ drawingUploadRoutes.put('/:id/thumbnail', async (c) => {
     'image/svg+xml': 'svg',
   };
   const ext = extMap[contentType];
-  const r2Key = `drawing-thumbnails/${drawingId}.${ext}`;
-  const thumbnailUrl = `https://cdn.rivvon.ca/${r2Key}`;
+  const r2Key = buildDrawingThumbnailR2Key(drawingId, ext);
+  const thumbnailUrl = buildCdnUrl(r2Key);
   const body = await c.req.arrayBuffer();
 
   await c.env.BUCKET.put(r2Key, body, {
@@ -351,7 +334,7 @@ drawingUploadRoutes.put('/:id/thumbnail', async (c) => {
     WHERE id = ?
   `).bind(thumbnailUrl, drawingId).run();
 
-  return c.json({ success: true, drawingId, thumbnailUrl, size: body.byteLength });
+  return successResponse({ drawingId, thumbnailUrl, size: body.byteLength });
 });
 
 drawingUploadRoutes.patch('/:id', async (c) => {
@@ -361,16 +344,14 @@ drawingUploadRoutes.patch('/:id', async (c) => {
   const normalizedName = typeof body.name === 'string' ? body.name.trim() : body.name;
   const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
 
-  const drawing = await c.env.DB.prepare(`
-    SELECT owner_id FROM drawings WHERE id = ?
-  `).bind(drawingId).first() as any;
+  const drawing = await getResourceById<{ owner_id: string }>(c.env.DB, 'drawings', drawingId, 'owner_id');
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found' }, 404);
+    return notFoundResponse('Drawing not found');
   }
 
   if (drawing.owner_id !== auth.userId && !isAdmin) {
-    return c.json({ error: 'Not authorized to update this drawing' }, 403);
+    return forbiddenResponse('Not authorized to update this drawing');
   }
 
   const updates: string[] = [];
@@ -378,7 +359,7 @@ drawingUploadRoutes.patch('/:id', async (c) => {
 
   if (body.name !== undefined) {
     if (typeof normalizedName !== 'string' || !normalizedName) {
-      return c.json({ error: 'name must be a non-empty string' }, 400);
+      return badRequestResponse('name must be a non-empty string');
     }
     updates.push('name = ?');
     values.push(normalizedName);
@@ -390,7 +371,7 @@ drawingUploadRoutes.patch('/:id', async (c) => {
   }
 
   if (updates.length === 0) {
-    return c.json({ error: 'No fields to update' }, 400);
+    return badRequestResponse('No fields to update');
   }
 
   updates.push('updated_at = unixepoch()');
@@ -400,20 +381,23 @@ drawingUploadRoutes.patch('/:id', async (c) => {
     UPDATE drawings SET ${updates.join(', ')} WHERE id = ?
   `).bind(...values).run();
 
-  return c.json({ success: true, message: 'Drawing updated' });
+  return successResponse({}, 'Drawing updated');
 });
 
 drawingUploadRoutes.delete('/:id', async (c) => {
   const auth = c.get('auth');
   const drawingId = c.req.param('id');
-  const isAdmin = isAdminUser(c.env.ADMIN_USERS, auth.email);
 
-  const drawing = await c.env.DB.prepare(`
-    SELECT * FROM drawings WHERE id = ? ${isAdmin ? '' : 'AND owner_id = ?'}
-  `).bind(...(isAdmin ? [drawingId] : [drawingId, auth.userId])).first() as any;
+  const drawing = await getAccessibleResourceById<any>(
+    c.env.DB,
+    'drawings',
+    drawingId,
+    auth,
+    c.env.ADMIN_USERS,
+  );
 
   if (!drawing) {
-    return c.json({ error: 'Drawing not found or not authorized' }, 404);
+    return notFoundResponse('Drawing not found or not authorized');
   }
 
   const r2KeysToDelete = new Set<string>();
@@ -421,7 +405,7 @@ drawingUploadRoutes.delete('/:id', async (c) => {
     r2KeysToDelete.add(drawing.payload_r2_key);
   }
   if (drawing.thumbnail_url) {
-    r2KeysToDelete.add(String(drawing.thumbnail_url).replace('https://cdn.rivvon.ca/', ''));
+    r2KeysToDelete.add(extractCdnPath(String(drawing.thumbnail_url)));
   }
 
   if (r2KeysToDelete.size > 0) {
@@ -432,5 +416,5 @@ drawingUploadRoutes.delete('/:id', async (c) => {
     DELETE FROM drawings WHERE id = ?
   `).bind(drawingId).run();
 
-  return c.json({ success: true, drawingId, deletedFiles: r2KeysToDelete.size });
+  return successResponse({ drawingId, deletedFiles: r2KeysToDelete.size });
 });

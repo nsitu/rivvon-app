@@ -3,11 +3,13 @@
     import { read } from 'ktx-parse';
     import { useViewerStore } from '../../stores/viewerStore';
     import { groupTextureRecordsIntoFamilies } from '../../modules/shared/textureFamilyResolver.js';
+    import { isViewerPanelVisible } from '../../modules/viewer/viewerPanels.js';
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { fetchDriveFile } from '../../modules/viewer/auth.js';
     import { getTextureVariantTargetResolutionOptions } from '../../modules/slyce/textureFamilyPlanning.js';
+    import { createLazyLoader } from '../../modules/shared/lazyLoader.js';
     import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import MultiSelect from 'primevue/multiselect';
@@ -78,8 +80,8 @@
     const deriveProgress = ref('');
     const deriveError = ref(null);
     const deriveResult = ref(null);
-    let deriveModulePromise = null;
-    let textureServicePromise = null;
+    const loadDeriveModule = createLazyLoader(() => import('../../modules/slyce/ktx2RoundtripVariant.js'));
+    const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
 
     // Edit state
     const textureToEdit = ref(null);
@@ -89,14 +91,6 @@
     const editError = ref(null);
     const editTextureIds = ref([]);
     const editVariantCount = ref(1);
-
-    function loadTextureService() {
-        if (!textureServicePromise) {
-            textureServicePromise = import('../../services/textureService.js');
-        }
-
-        return textureServicePromise;
-    }
 
     function buildResolvedTextureRecord(rootTexture, resolvedSummary, fallbackRecord = null) {
         const baseTexture = fallbackRecord || rootTexture || null;
@@ -669,14 +663,6 @@
         }
 
         return getTargetResolutionOptions(texture).length > 0;
-    }
-
-    function loadDeriveModule() {
-        if (!deriveModulePromise) {
-            deriveModulePromise = import('../../modules/slyce/ktx2RoundtripVariant.js');
-        }
-
-        return deriveModulePromise;
     }
 
     function formatDurationMs(value) {
@@ -2095,7 +2081,7 @@
     }
 
     // Watch store flag — AppHeader close button sets this to false
-    watch(() => app.texturePreviewVisible, (visible) => {
+    watch(() => isViewerPanelVisible(app, 'texturePreview'), (visible) => {
         if (!visible && previewTexture.value) {
             // Store was cleared externally (e.g. AppHeader close) — clean up local state
             Object.values(previewBlobURLs.value).forEach(url => URL.revokeObjectURL(url));

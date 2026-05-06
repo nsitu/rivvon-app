@@ -7,6 +7,7 @@
     import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
+    import { createLazyLoader } from '../../modules/shared/lazyLoader';
 
     const props = defineProps({
         texture: {
@@ -63,15 +64,7 @@
     let currentLayout = null;
     let flowWasActive = null;
     let reloadToken = 0;
-    let textureServicePromise = null;
-
-    function loadTextureService() {
-        if (!textureServicePromise) {
-            textureServicePromise = import('../../services/textureService.js');
-        }
-
-        return textureServicePromise;
-    }
+    const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
 
     function updateLoadingStatus(stage, current, total) {
         const numericTotal = Math.max(0, Number(total) || 0);

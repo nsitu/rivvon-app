@@ -1,5 +1,6 @@
+import { createLazyLoader } from '../modules/shared/lazyLoader.js';
+
 let basisModule = null;
-let basisInitPromise = null;
 
 const RGBA32_TRANSCODER_FORMAT = 13;
 const DEFAULT_FACE_INDEX = 0;
@@ -48,56 +49,48 @@ function cleanupJob(jobId) {
     activeJobs.delete(jobId);
 }
 
-async function loadBasisTranscoderInWorker() {
-    if (basisInitPromise) {
-        return basisInitPromise;
+const loadBasisTranscoderInWorker = createLazyLoader(async () => {
+    const basePath = import.meta.env.BASE_URL || '/';
+    const scriptPath = `${basePath}wasm/basis_transcoder.js`;
+
+    const response = await fetch(scriptPath);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${scriptPath}: ${response.statusText}`);
     }
 
-    basisInitPromise = (async () => {
-        const basePath = import.meta.env.BASE_URL || '/';
-        const scriptPath = `${basePath}wasm/basis_transcoder.js`;
+    const scriptText = await response.text();
+    (0, eval)(scriptText);
 
-        const response = await fetch(scriptPath);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ${scriptPath}: ${response.statusText}`);
-        }
+    if (typeof BASIS === 'undefined') {
+        throw new Error('BASIS is not defined after loading basis_transcoder.js');
+    }
 
-        const scriptText = await response.text();
-        (0, eval)(scriptText);
-
-        if (typeof BASIS === 'undefined') {
-            throw new Error('BASIS is not defined after loading basis_transcoder.js');
-        }
-
-        const module = await BASIS({
-            locateFile: (path, scriptDirectory) => {
-                if (path.endsWith('.wasm')) {
-                    return `${basePath}wasm/${path}`;
-                }
-
-                return scriptDirectory + path;
-            },
-            onAbort: (what) => {
-                console.error('[KTX2 Transcode Worker] BASIS transcoder aborted:', what);
+    const module = await BASIS({
+        locateFile: (path, scriptDirectory) => {
+            if (path.endsWith('.wasm')) {
+                return `${basePath}wasm/${path}`;
             }
-        });
 
-        if (!module.initializeBasis) {
-            throw new Error('initializeBasis is not available on the Basis transcoder module');
+            return scriptDirectory + path;
+        },
+        onAbort: (what) => {
+            console.error('[KTX2 Transcode Worker] BASIS transcoder aborted:', what);
         }
+    });
 
-        module.initializeBasis();
+    if (!module.initializeBasis) {
+        throw new Error('initializeBasis is not available on the Basis transcoder module');
+    }
 
-        if (!module.KTX2File) {
-            throw new Error('KTX2File is not available on the Basis transcoder module');
-        }
+    module.initializeBasis();
 
-        basisModule = module;
-        return module;
-    })();
+    if (!module.KTX2File) {
+        throw new Error('KTX2File is not available on the Basis transcoder module');
+    }
 
-    return basisInitPromise;
-}
+    basisModule = module;
+    return module;
+});
 
 async function handleOpenFile({ jobId, buffer }) {
     const module = await loadBasisTranscoderInWorker();

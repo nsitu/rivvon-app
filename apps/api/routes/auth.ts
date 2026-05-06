@@ -1,6 +1,7 @@
 // src/routes/auth.ts
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import type { AppEnv } from '../types/hono';
 import {
     getCookie,
@@ -11,6 +12,13 @@ import {
     clearOAuthStateCookie,
     isLocalDev,
 } from '../utils/cookies';
+import {
+    badRequestResponse,
+    jsonResponse,
+    serverErrorResponse,
+    successResponse,
+    unauthorizedResponse,
+} from '../utils/response';
 import { createSessionToken, verifySessionToken, type SessionUser } from '../utils/session';
 import { isAdminUser } from '../utils/user';
 
@@ -23,6 +31,22 @@ const SCOPES = [
     'profile',
     'https://www.googleapis.com/auth/drive.file',
 ].join(' ');
+
+async function requireSessionUser(
+    c: Context<AppEnv>,
+    sessionToken = getCookie(c, 'session')
+): Promise<SessionUser | Response> {
+    if (!sessionToken) {
+        return unauthorizedResponse('Not authenticated');
+    }
+
+    const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
+    if (!user) {
+        return unauthorizedResponse('Invalid session');
+    }
+
+    return user;
+}
 
 /**
  * GET /api/auth/login
@@ -237,21 +261,21 @@ authRoutes.get('/me', async (c) => {
 
     if (!sessionToken) {
         console.log('[/me] No session token found');
-        return c.json({ authenticated: false });
+        return jsonResponse({ authenticated: false });
     }
 
     const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
     console.log('[/me] Session verification result:', user ? 'valid' : 'invalid');
 
     if (!user) {
-        return c.json({ authenticated: false });
+        return jsonResponse({ authenticated: false });
     }
 
     // Check if user is an admin
     const isAdmin = isAdminUser(c.env.ADMIN_USERS, user.email);
     console.log('[/me] Admin check:', user.email, isAdmin);
 
-    return c.json({ authenticated: true, user, isAdmin });
+    return jsonResponse({ authenticated: true, user, isAdmin });
 });
 
 /**
@@ -267,24 +291,20 @@ authRoutes.get('/drive-token', async (c) => {
     // Verify session first
     const sessionToken = getCookie(c, 'session');
     console.log('[drive-token] Session token:', sessionToken ? 'present' : 'missing');
-    
-    if (!sessionToken) {
-        return c.json({ error: 'Not authenticated' }, 401);
+
+    const user = await requireSessionUser(c, sessionToken);
+    if (user instanceof Response) {
+        return user;
     }
 
-    const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
     console.log('[drive-token] User verified:', user ? user.email : 'failed');
-    
-    if (!user) {
-        return c.json({ error: 'Invalid session' }, 401);
-    }
 
     // Read refresh token from HTTP-only cookie
     const refreshToken = getCookie(c, 'google_refresh_token');
     console.log('[drive-token] Refresh token:', refreshToken ? 'present' : 'missing');
     
     if (!refreshToken) {
-        return c.json({ error: 'No refresh token', needsReauth: true }, 401);
+        return unauthorizedResponse('No refresh token', { needsReauth: true });
     }
 
     try {
@@ -308,7 +328,7 @@ authRoutes.get('/drive-token', async (c) => {
 
         if (tokens.error) {
             console.error('Token refresh error:', tokens.error);
-            return c.json({ error: 'Token expired', needsReauth: true }, 401);
+            return unauthorizedResponse('Token expired', { needsReauth: true });
         }
 
         // Get user's cached Drive folder ID
@@ -316,14 +336,14 @@ authRoutes.get('/drive-token', async (c) => {
             'SELECT drive_folder_id FROM users WHERE google_id = ?'
         ).bind(user.googleId).first() as { drive_folder_id?: string } | null;
 
-        return c.json({
+        return jsonResponse({
             accessToken: tokens.access_token,
             expiresIn: tokens.expires_in || 3600,
             slyceFolderId: userRecord?.drive_folder_id || null,
         });
     } catch (err) {
         console.error('Drive token refresh error:', err);
-        return c.json({ error: 'Token refresh failed' }, 500);
+        return serverErrorResponse('Token refresh failed');
     }
 });
 
@@ -332,22 +352,16 @@ authRoutes.get('/drive-token', async (c) => {
  * Save the user's Slyce folder ID in Google Drive
  */
 authRoutes.post('/drive-folder', async (c) => {
-    // Verify session first
-    const sessionToken = getCookie(c, 'session');
-    if (!sessionToken) {
-        return c.json({ error: 'Not authenticated' }, 401);
-    }
-
-    const user = await verifySessionToken(sessionToken, c.env.SESSION_SECRET);
-    if (!user) {
-        return c.json({ error: 'Invalid session' }, 401);
+    const user = await requireSessionUser(c);
+    if (user instanceof Response) {
+        return user;
     }
 
     const body = await c.req.json() as { folderId?: string };
     const { folderId } = body;
 
     if (!folderId) {
-        return c.json({ error: 'folderId is required' }, 400);
+        return badRequestResponse('folderId is required');
     }
 
     // Update user's Drive folder ID
@@ -355,7 +369,7 @@ authRoutes.post('/drive-folder', async (c) => {
         UPDATE users SET drive_folder_id = ? WHERE google_id = ?
     `).bind(folderId, user.googleId).run();
 
-    return c.json({ success: true, folderId });
+    return successResponse({ folderId });
 });
 
 /**
@@ -367,7 +381,7 @@ authRoutes.post('/logout', (c) => {
     console.log('[Auth] Logout called, clearing cookies, localDev:', localDev);
     clearAuthCookies(c, localDev);
     console.log('[Auth] Set-Cookie header:', c.res.headers.get('set-cookie') || 'N/A');
-    return c.json({ success: true });
+    return successResponse();
 });
 
 /**

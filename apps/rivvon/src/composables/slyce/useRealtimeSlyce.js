@@ -23,6 +23,7 @@ import { runSamplingPipeline } from '../../modules/slyce/samplingPipeline.js';
 import { CameraFrameSource } from '../../modules/slyce/samplingSources.js';
 import { createRefLocalSaveController } from '../../modules/slyce/localSaveController.js';
 import { saveProcessedTextureSetLocally } from '../../modules/slyce/localTexturePersistence.js';
+import { createPendingTaskRunner } from '../../modules/shared/lazyLoader.js';
 
 const DEFAULT_CROSS_SECTION_COUNT = 30;
 const MIN_CROSS_SECTION_COUNT = 1;
@@ -119,7 +120,6 @@ let tileBuilder = null;
 let drainingTileBuilder = null;
 let workerPool = null;
 let drainWorkerPool = null;
-let drainWorkerPoolInitPromise = null;
 let frameLoopAbort = null;
 let hasStartedOnce = false;
 
@@ -424,22 +424,22 @@ export function useRealtimeSlyce() {
         pumpEncodeWaiters();
     }
 
+    const ensureDrainWorkerPoolInit = createPendingTaskRunner(async () => {
+        const pool = new KTX2WorkerPool(DRAIN_WORKER_COUNT);
+        try {
+            await pool.init();
+            drainWorkerPool = pool;
+            cleanupIdleWorkerPools();
+            return pool;
+        } catch (error) {
+            pool.terminate();
+            throw error;
+        }
+    });
+
     async function ensureDrainWorkerPool() {
         if (drainWorkerPool) return drainWorkerPool;
-        if (!drainWorkerPoolInitPromise) {
-            const pool = new KTX2WorkerPool(DRAIN_WORKER_COUNT);
-            drainWorkerPoolInitPromise = pool.init().then(() => {
-                drainWorkerPool = pool;
-                cleanupIdleWorkerPools();
-                return pool;
-            }).catch(error => {
-                pool.terminate();
-                throw error;
-            }).finally(() => {
-                drainWorkerPoolInitPromise = null;
-            });
-        }
-        return drainWorkerPoolInitPromise;
+        return ensureDrainWorkerPoolInit();
     }
 
     async function getWorkerPoolForEncode() {
@@ -553,7 +553,7 @@ export function useRealtimeSlyce() {
             drainWorkerPool.terminate();
             drainWorkerPool = null;
         }
-        drainWorkerPoolInitPromise = null;
+        ensureDrainWorkerPoolInit.reset();
         activeEncodeCount = 0;
         encodeWaiters.length = 0;
         workerPoolUsage.clear();
