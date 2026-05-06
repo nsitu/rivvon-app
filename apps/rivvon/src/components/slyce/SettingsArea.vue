@@ -4,7 +4,7 @@
     import { useSlyceStore } from '../../stores/slyceStore';
     const app = useSlyceStore()  // Pinia store
 
-    const emit = defineEmits(['back']);
+    const emit = defineEmits(['request-back']);
 
     import { useTilePlan } from '../../composables/slyce/useTilePlan';
     const { tilePlan } = useTilePlan();
@@ -436,7 +436,7 @@
                     class="back-button"
                     severity="secondary"
                     variant="outlined"
-                    @click="emit('back')"
+                    @click="emit('request-back')"
                 >
                     <span class="material-symbols-outlined">arrow_back</span>
                     Back
@@ -467,7 +467,7 @@
     >
         <p>Please <a
                 href="#"
-                @click.prevent="emit('back')"
+                @click.prevent="emit('request-back')"
             >upload a video</a> to define processing settings here.
         </p>
     </div>
