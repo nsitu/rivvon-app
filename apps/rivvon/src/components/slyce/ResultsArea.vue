@@ -8,7 +8,7 @@
     import Button from 'primevue/button';
 
     const app = useSlyceStore();
-    const emit = defineEmits(['back', 'reset', 'apply-texture']);
+    const emit = defineEmits(['request-back', 'request-reset', 'request-apply-texture']);
 
     // Has at least one tile (show preview during processing or when done)
     const hasTiles = computed(() => Object.keys(app.ktx2BlobURLs).length > 0);
@@ -25,7 +25,7 @@
         const confirmed = confirm('Abort processing? Any progress will be lost.');
         if (!confirmed) return;
         app.resetProcessing();
-        emit('back');
+        emit('request-back');
     }
 
     // Reset app and return to upload screen
@@ -36,7 +36,7 @@
 
         if (confirm('Are you sure you want to start over? All current results will be cleared.')) {
             app.reset();
-            emit('reset');
+            emit('request-reset');
         }
     }
 
@@ -46,7 +46,7 @@
             return;
         }
 
-        emit('back');
+        emit('request-back');
     }
 </script>
 
@@ -65,7 +65,7 @@
             <!-- Complete phase: output actions (upload, save, download, apply) -->
             <OutputActions
                 v-if="app.isComplete"
-                @apply-texture="(texture) => emit('apply-texture', texture)"
+                @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
             />
 
             <!-- Action bar — always visible, content changes by phase -->
@@ -135,8 +135,9 @@
         <div class="results-main">
             <p>No results available. Please <a
                     href="#"
-                    @click.prevent="emit('back')"
-                >go back</a> and process a video to see
+                    @click.prevent="emit('request-back')"
+                >go back</a> and process a
+                video to see
                 results here.</p>
         </div>
     </div>
