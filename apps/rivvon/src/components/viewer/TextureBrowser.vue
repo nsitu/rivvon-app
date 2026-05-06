@@ -2,7 +2,7 @@
     import { ref, computed, onBeforeUnmount, watch, defineAsyncComponent } from 'vue';
     import { read } from 'ktx-parse';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { fetchTextures, fetchTextureWithTiles, groupTextureRecordsIntoFamilies } from '../../services/textureService';
+    import { groupTextureRecordsIntoFamilies } from '../../modules/shared/textureFamilyResolver.js';
     import { useRivvonAPI } from '../../services/api.js';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { useLocalStorage } from '../../services/localStorage.js';
@@ -23,7 +23,13 @@
         }
     });
 
-    const emit = defineEmits(['close', 'select', 'select-local', 'select-multi']);
+    const emit = defineEmits([
+        'request-close',
+        'request-select',
+        'request-select-local',
+        'request-select-multi',
+        'request-open-overview'
+    ]);
 
     // Multi-select state
     const MAX_MULTI_SELECT = 4;
@@ -72,6 +78,7 @@
     const deriveError = ref(null);
     const deriveResult = ref(null);
     let deriveModulePromise = null;
+    let textureServicePromise = null;
 
     // Edit state
     const textureToEdit = ref(null);
@@ -81,6 +88,14 @@
     const editError = ref(null);
     const editTextureIds = ref([]);
     const editVariantCount = ref(1);
+
+    function loadTextureService() {
+        if (!textureServicePromise) {
+            textureServicePromise = import('../../services/textureService.js');
+        }
+
+        return textureServicePromise;
+    }
 
     function buildResolvedTextureRecord(rootTexture, resolvedSummary, fallbackRecord = null) {
         const baseTexture = fallbackRecord || rootTexture || null;
@@ -821,6 +836,8 @@
     }
 
     async function fetchTextureSourceBundle(texture, onProgress) {
+        const { fetchTextureWithTiles } = await loadTextureService();
+
         if (isLocalTexture(texture)) {
             onProgress?.('Loading source tiles from local storage...');
             const localTiles = sortTilesByIndex(await getLocalTiles(texture.id));
@@ -902,6 +919,8 @@
         error.value = null;
 
         try {
+            const { fetchTextures } = await loadTextureService();
+
             // Load remote, local, and cache status in parallel
             const [result, localResult, cachedIds] = await Promise.all([
                 fetchTextures({ limit: 100 }),
@@ -929,13 +948,13 @@
 
     function selectLocalTexture(texture) {
         console.log('[TextureBrowser] Selected local texture:', texture.id, texture.name);
-        emit('select-local', texture);
+        emit('request-select-local', texture);
         close();
     }
 
     function selectTexture(texture) {
         console.log('[TextureBrowser] Selected texture:', texture.id, texture.name);
-        emit('select', texture);
+        emit('request-select', texture);
         close();
     }
 
@@ -1000,7 +1019,7 @@
             name: entry.texture.name
         }));
         console.log('[TextureBrowser] Applying multi-selection:', selections.length, 'textures');
-        emit('select-multi', selections);
+        emit('request-select-multi', selections);
         close();
     }
 
@@ -1012,7 +1031,7 @@
         multiSelectMode.value = false;
         selectedTextures.value = new Map();
         selectedFamilyVariantIds.value = new Map();
-        emit('close');
+        emit('request-close');
         app.hideTextureBrowser();
     }
 
@@ -1796,6 +1815,8 @@
     const previewError = ref(null);
     const previewViewerRef = ref(null);
     const previewCanApply = computed(() => Boolean(previewTexture.value));
+    const previewTileCount = computed(() => previewViewerRef.value?.tileCount ?? 0);
+    const previewDisplayScale = computed(() => previewViewerRef.value?.displayScale ?? 1);
     const deriveValidationStatus = computed(() => {
         const viewerCompatible = Boolean(deriveResult.value?.validation?.viewerCompatibleShape);
 
@@ -1964,6 +1985,7 @@
 
                 if (!loadedFromCache) {
                     // Remote: fetch tile metadata, then download KTX2 data
+                    const { fetchTextureWithTiles } = await loadTextureService();
                     const textureSet = await fetchTextureWithTiles(texture.id);
                     const tiles = textureSet.tiles || [];
                     const downloadedBlobs = {}; // tileIndex → Blob for caching
@@ -1997,6 +2019,20 @@
         } finally {
             previewLoading.value = false;
         }
+    }
+
+    function openOverview(texture, event) {
+        event.stopPropagation();
+
+        if (previewTexture.value) {
+            closePreview();
+        }
+
+        emit('request-open-overview', {
+            texture,
+            source: isLocalTexture(texture) ? 'local' : 'cloud',
+            isCached: !isLocalTexture(texture) && cachedCloudIds.value.has(texture.id),
+        });
     }
 
     /**
@@ -2379,6 +2415,13 @@
                                 >
                                     <span class="material-symbols-outlined">play_circle</span>
                                 </button>
+                                <button
+                                    class="action-button overview-button"
+                                    title="Open texture overview"
+                                    @click="openOverview(getFamilySelectionTexture(texture), $event)"
+                                >
+                                    <span class="material-symbols-outlined">grid_view</span>
+                                </button>
                                 <!-- Edit button (owner or admin) -->
                                 <button
                                     v-if="isLocalTexture(texture) || isOwner(getFamilyActionTexture(texture)) || isAdmin"
@@ -2457,31 +2500,33 @@
                     </div>
                 </div>
                 <div
-                    v-if="previewViewerRef?.tileCount > 0 || previewTexture?.tile_count"
+                    v-if="previewTileCount > 0 || previewTexture?.tile_count"
                     class="preview-tile-info"
                 >
-                    <template v-if="previewViewerRef?.tileCount < previewTexture?.tile_count">
-                        {{ previewViewerRef?.tileCount || 0 }} / {{ previewTexture.tile_count }} tiles
+                    <template v-if="previewTileCount < previewTexture?.tile_count">
+                        {{ previewTileCount || 0 }} / {{ previewTexture.tile_count }} tiles
                     </template>
                     <template v-else>
-                        {{ previewViewerRef?.tileCount || previewTexture?.tile_count }} tile{{
-                            (previewViewerRef?.tileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
+                        {{ previewTileCount || previewTexture?.tile_count }} tile{{
+                            (previewTileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
-                    <span v-if="previewViewerRef?.displayScale < 1">({{ Math.round(previewViewerRef.displayScale * 100)
+                    <span v-if="previewDisplayScale < 1">({{ Math.round(previewDisplayScale * 100)
                     }}%
                         scale)</span>
                 </div>
-                <Button
-                    v-if="previewCanApply"
-                    type="button"
-                    class="preview-apply-button"
-                    severity="info"
-                    title="Apply texture to ribbon"
-                    @click="applyTextureSelection(previewTexture)"
-                >
-                    <span class="material-symbols-outlined">check</span>
-                    Apply
-                </Button>
+                <div class="preview-actions">
+                    <Button
+                        v-if="previewCanApply"
+                        type="button"
+                        class="preview-apply-button"
+                        severity="info"
+                        title="Apply texture to ribbon"
+                        @click="applyTextureSelection(previewTexture)"
+                    >
+                        <span class="material-symbols-outlined">check</span>
+                        Apply
+                    </Button>
+                </div>
             </div>
 
             <!-- Multi-select Apply bar -->
@@ -3904,6 +3949,15 @@
         color: #90caf9;
     }
 
+    .action-button.overview-button {
+        background: rgba(14, 165, 233, 0.9);
+    }
+
+    .action-button.overview-button:hover {
+        background: #0ea5e9;
+        transform: scale(1.1);
+    }
+
     /* Animated preview fullscreen overlay */
     /* ── Texture Preview Panel (in-place, shares AppHeader/BottomToolbar spacing) ── */
     .texture-preview-panel {
@@ -3912,6 +3966,117 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
+    }
+
+    .preview-mode-tabs {
+        display: flex;
+        gap: 0.5rem;
+        padding: 1rem 1rem 0;
+        z-index: 2;
+    }
+
+    .preview-dimension-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        padding: 0.9rem 1rem 0;
+        z-index: 2;
+    }
+
+    .preview-dimension-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .preview-control-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+
+    .preview-control-field-small {
+        min-width: 0;
+    }
+
+    .preview-control-label {
+        color: #9ca3af;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .preview-control-select,
+    .preview-control-input {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid #4b5563;
+        background: rgba(17, 24, 39, 0.82);
+        color: #f8fafc;
+        border-radius: 8px;
+        padding: 0.65rem 0.75rem;
+        font-size: 0.82rem;
+        outline: none;
+    }
+
+    .preview-control-select:focus,
+    .preview-control-input:focus {
+        border-color: #60a5fa;
+    }
+
+    .preview-control-custom-row {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .preview-dimension-footer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.5rem 0.75rem;
+        align-items: center;
+    }
+
+    .preview-dimension-summary {
+        color: #f8fafc;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .preview-dimension-hint {
+        color: #9ca3af;
+        font-size: 0.72rem;
+        line-height: 1.4;
+    }
+
+    .preview-mode-tab {
+        border: 1px solid #555;
+        background: rgba(0, 0, 0, 0.22);
+        color: #888;
+        border-radius: 999px;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .preview-mode-tab:hover {
+        color: #fff;
+        border-color: #888;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .preview-mode-tab.active {
+        color: #4caf50;
+        border-color: #4caf50;
+        background: rgba(76, 175, 80, 0.12);
     }
 
     .preview-scroll-area {
@@ -3941,16 +4106,25 @@
         z-index: 2;
     }
 
-    .preview-apply-button {
+    .preview-actions {
         position: absolute;
         bottom: 1rem;
         left: 50%;
         transform: translateX(-50%);
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
         pointer-events: auto;
         z-index: 2;
     }
 
-    .preview-apply-button .material-symbols-outlined {
+    .preview-apply-button,
+    .preview-export-button {
+        pointer-events: auto;
+    }
+
+    .preview-apply-button .material-symbols-outlined,
+    .preview-export-button .material-symbols-outlined {
         font-size: 1.1rem;
         margin-right: 0.3rem;
     }
@@ -3973,5 +4147,19 @@
 
     .preview-error {
         color: #ef5350;
+    }
+
+    @media (min-width: 768px) {
+        .texture-browser-container.has-preview.is-overview-preview .texture-preview-panel {
+            width: min(48vw, 42rem);
+        }
+    }
+
+    @media (max-width: 767px) {
+
+        .preview-dimension-grid,
+        .preview-control-custom-row {
+            grid-template-columns: minmax(0, 1fr);
+        }
     }
 </style>
