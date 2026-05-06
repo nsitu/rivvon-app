@@ -4,7 +4,13 @@
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import { useViewerStore } from '../../stores/viewerStore';
     import { EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
+    import {
+        EXPORT_ASPECT_RATIO_OPTIONS,
+        getExportResolutionOptions,
+        normalizeExportDimensionSettings,
+    } from '../../modules/viewer/exportVideoDimensions';
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
@@ -15,59 +21,56 @@
         canShare: { type: Boolean, default: false },
     });
 
-    const emit = defineEmits(['update:visible', 'download', 'share', 'recapture-preview']);
+    const emit = defineEmits(['update:visible', 'request-download', 'request-share', 'request-recapture-preview']);
+
+    const app = useViewerStore();
 
     function handleClose() {
         emit('update:visible', false);
     }
 
-    const aspectRatioPreset = ref('landscape');
-    const resolutionPreset = ref('1080p');
-    const customWidth = ref(1920);
-    const customHeight = ref(1080);
     const quality = ref('high');
     const format = ref('png');
     const logoOverlayEnabled = ref(true);
 
-    const aspectRatioOptions = [
-        { label: 'Landscape (16:9)', value: 'landscape', icon: 'panorama_horizontal' },
-        { label: 'Portrait (9:16)', value: 'portrait', icon: 'panorama_vertical' },
-        { label: 'Instagram (5:4)', value: 'instagram-5x4', icon: 'crop_portrait' },
-        { label: 'Square (1:1)', value: 'square', icon: 'crop_square' },
-        { label: 'Custom', value: 'custom', icon: 'crop_free' },
-    ];
+    const aspectRatioOptions = EXPORT_ASPECT_RATIO_OPTIONS;
 
-    const resolutionOptionsByAspect = {
-        landscape: [
-            { label: '1280 x 720', value: '720p' },
-            { label: '1920 x 1080', value: '1080p' },
-            { label: '3840 x 2160', value: '4k' }
-        ],
-        portrait: [
-            { label: '720 x 1280', value: '720p-v' },
-            { label: '1080 x 1920', value: '1080p-v' },
-            { label: '2160 x 3840', value: '4k-v' },
-        ],
-        square: [
-            { label: '1080 x 1080', value: 'square' },
-            { label: '1920 x 1920', value: 'square-1920' },
-            { label: '2160 x 2160', value: 'square-2160' },
-            { label: '3840 x 3840', value: 'square-3840' },
-        ],
-        'instagram-5x4': [
-            { label: '1080 x 1350', value: 'ig-5x4-1080' },
-            { label: '1920 x 2400', value: 'ig-5x4-1920' },
-            { label: '2160 x 2700', value: 'ig-5x4-2160' },
-            { label: '3840 x 4800', value: 'ig-5x4-3840' },
-        ],
-        custom: [
-            { label: 'Custom Dimensions', value: 'custom' },
-        ],
-    };
+    const exportDimensionSettings = computed(() => normalizeExportDimensionSettings({
+        aspectRatioPreset: app.exportAspectRatioPreset,
+        resolutionPreset: app.exportResolutionPreset,
+        customWidth: app.exportCustomWidth,
+        customHeight: app.exportCustomHeight,
+    }));
 
-    const resolutionOptions = computed(() => (
-        resolutionOptionsByAspect[aspectRatioPreset.value] || resolutionOptionsByAspect.landscape
-    ));
+    const aspectRatioPreset = computed({
+        get: () => exportDimensionSettings.value.aspectRatioPreset,
+        set: (value) => {
+            app.setExportAspectRatioPreset(value);
+        },
+    });
+
+    const resolutionPreset = computed({
+        get: () => exportDimensionSettings.value.resolutionPreset,
+        set: (value) => {
+            app.setExportResolutionPreset(value);
+        },
+    });
+
+    const customWidth = computed({
+        get: () => exportDimensionSettings.value.customWidth,
+        set: (value) => {
+            app.setExportCustomWidth(value);
+        },
+    });
+
+    const customHeight = computed({
+        get: () => exportDimensionSettings.value.customHeight,
+        set: (value) => {
+            app.setExportCustomHeight(value);
+        },
+    });
+
+    const resolutionOptions = computed(() => getExportResolutionOptions(aspectRatioPreset.value));
 
     const qualityOptions = [
         { label: 'Very Low', value: 'very-low' },
@@ -83,47 +86,9 @@
         { label: 'WebP', value: 'webp' },
     ];
 
-    const resolvedWidth = computed(() => {
-        switch (resolutionPreset.value) {
-            case '1080p': return 1920;
-            case '720p': return 1280;
-            case '4k': return 3840;
-            case '720p-v': return 720;
-            case '1080p-v': return 1080;
-            case 'square': return 1080;
-            case '4k-v': return 2160;
-            case 'square-1920': return 1920;
-            case 'square-2160': return 2160;
-            case 'square-3840': return 3840;
-            case 'ig-5x4-1080': return 1080;
-            case 'ig-5x4-1920': return 1920;
-            case 'ig-5x4-2160': return 2160;
-            case 'ig-5x4-3840': return 3840;
-            case 'custom': return customWidth.value;
-            default: return 1920;
-        }
-    });
+    const resolvedWidth = computed(() => exportDimensionSettings.value.width);
 
-    const resolvedHeight = computed(() => {
-        switch (resolutionPreset.value) {
-            case '1080p': return 1080;
-            case '720p': return 720;
-            case '4k': return 2160;
-            case '720p-v': return 1280;
-            case '1080p-v': return 1920;
-            case 'square': return 1080;
-            case '4k-v': return 3840;
-            case 'square-1920': return 1920;
-            case 'square-2160': return 2160;
-            case 'square-3840': return 3840;
-            case 'ig-5x4-1080': return 1350;
-            case 'ig-5x4-1920': return 2400;
-            case 'ig-5x4-2160': return 2700;
-            case 'ig-5x4-3840': return 4800;
-            case 'custom': return customHeight.value;
-            default: return 1080;
-        }
-    });
+    const resolvedHeight = computed(() => exportDimensionSettings.value.height);
 
     const outputSummary = computed(() => `${resolvedWidth.value} x ${resolvedHeight.value} ${format.value.toUpperCase()}`);
 
@@ -147,17 +112,10 @@
         `Bottom-right Rivvon logo baked into the exported image. ${logoOverlaySummary.value}.`
     ));
 
-    watch(aspectRatioPreset, () => {
-        const availableValues = resolutionOptions.value.map((option) => option.value);
-        if (!availableValues.includes(resolutionPreset.value)) {
-            resolutionPreset.value = availableValues[0];
-        }
-    });
-
     watch([resolvedWidth, resolvedHeight, logoOverlayEnabled, () => props.visible], ([width, height, overlayEnabled, visible]) => {
         if (!visible) return;
 
-        emit('recapture-preview', {
+        emit('request-recapture-preview', {
             width,
             height,
             logoOverlayEnabled: overlayEnabled,
@@ -165,7 +123,7 @@
     });
 
     function handleDownload() {
-        emit('download', {
+        emit('request-download', {
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             quality: quality.value,
@@ -175,7 +133,7 @@
     }
 
     function handleShare() {
-        emit('share', {
+        emit('request-share', {
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             quality: quality.value,
@@ -185,7 +143,7 @@
     }
 
     function handleRefreshPreview() {
-        emit('recapture-preview', {
+        emit('request-recapture-preview', {
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             format: 'png',
