@@ -1,6 +1,7 @@
 <script setup>
     import { computed, ref } from 'vue';
     import Button from 'primevue/button';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { useViewerStore } from '../../stores/viewerStore.js';
     import {
@@ -25,7 +26,7 @@
         },
     });
 
-    const emit = defineEmits(['request-apply', 'request-export-preview']);
+    const emit = defineEmits(['request-apply', 'request-close', 'request-export-preview']);
 
     const app = useViewerStore();
     const { getTiles: getLocalTiles, getCachedLocalId } = useLocalStorage();
@@ -94,6 +95,10 @@
             source: props.source,
             isCached: props.isCached,
         });
+    }
+
+    function handleClose() {
+        emit('request-close');
     }
 
     function handleExport() {
@@ -220,15 +225,16 @@
                     </div>
                 </div>
 
-                <footer class="texture-overview-panel-footer texture-overview-actions">
+                <PanelActionBar class="texture-overview-panel-footer">
                     <Button
-                        label="Apply"
-                        severity="info"
+                        label="Close"
+                        severity="secondary"
+                        variant="outlined"
                         icon="material-symbols-outlined"
-                        @click="handleApply"
+                        @click="handleClose"
                     >
                         <template #icon>
-                            <span class="material-symbols-outlined">check</span>
+                            <span class="material-symbols-outlined">close</span>
                         </template>
                     </Button>
                     <Button
@@ -242,7 +248,16 @@
                             <span class="material-symbols-outlined">movie</span>
                         </template>
                     </Button>
-                </footer>
+                    <Button
+                        label="Apply"
+                        icon="material-symbols-outlined"
+                        @click="handleApply"
+                    >
+                        <template #icon>
+                            <span class="material-symbols-outlined">check</span>
+                        </template>
+                    </Button>
+                </PanelActionBar>
             </section>
         </div>
     </div>
@@ -448,24 +463,9 @@
         white-space: nowrap;
     }
 
-    .texture-overview-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.75rem;
-        align-items: center;
-    }
-
     .texture-overview-panel-footer {
-        padding-top: 0.85rem;
-        border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
-    }
-
-    .texture-overview-actions :deep(.p-button) {
-        min-width: 8.5rem;
-    }
-
-    .texture-overview-actions :deep(.material-symbols-outlined) {
-        font-size: 1.1rem;
+        --panel-action-bar-padding: 0.85rem 0 0;
+        --panel-action-bar-button-min-width: 8.5rem;
     }
 
     @media (max-width: 767px) {
@@ -483,13 +483,5 @@
             grid-template-columns: minmax(0, 1fr);
         }
 
-        .texture-overview-actions {
-            flex-wrap: wrap;
-            justify-content: stretch;
-        }
-
-        .texture-overview-actions :deep(.p-button) {
-            flex: 1 1 12rem;
-        }
     }
 </style>

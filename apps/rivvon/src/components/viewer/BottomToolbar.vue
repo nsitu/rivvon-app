@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
     import Button from 'primevue/button';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
@@ -774,19 +775,18 @@
                 </div>
             </ScrollPanel>
             <!-- Apply changes footer -->
-            <div
+            <PanelActionBar
                 v-if="showToolsPanelCheckmark"
                 class="tools-panel-footer"
             >
                 <Button
                     type="button"
-                    class="tools-panel-apply-button"
                     @click="handleToolsPanelCheckmark"
                 >
                     <span class="material-symbols-outlined">check</span>
                     <span>Done</span>
                 </Button>
-            </div>
+            </PanelActionBar>
         </div>
     </div>
 
@@ -1059,17 +1059,10 @@
         padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
-    :deep(.tools-panel-apply-button) {
-        width: 100%;
-    }
-
     .tools-panel-footer {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        border-top: 1px solid #374151;
-        padding: 1rem 1.25rem;
-        background: rgba(0, 0, 0, 0.6);
+        --panel-action-bar-background: rgba(0, 0, 0, 0.6);
+        --panel-action-bar-border-color: #374151;
+        --panel-action-bar-padding: 1rem 1.25rem;
     }
 
     .tools-panel-scrollpanel {

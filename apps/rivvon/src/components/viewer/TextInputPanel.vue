@@ -5,6 +5,7 @@
     import AccordionHeader from 'primevue/accordionheader';
     import AccordionPanel from 'primevue/accordionpanel';
     import Button from 'primevue/button';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import RadioButton from 'primevue/radiobutton';
     import Slider from 'primevue/slider';
     import Textarea from 'primevue/textarea';
@@ -491,23 +492,22 @@
                     </div>
                 </div>
 
-                <div class="text-input-panel-footer">
-                    <p
-                        v-if="error"
-                        class="error-message"
-                    >{{ error }}</p>
-
+                <PanelActionBar class="text-input-panel-footer">
+                    <template #leading>
+                        <p
+                            v-if="error"
+                            class="error-message"
+                        >{{ error }}</p>
+                    </template>
                     <Button
                         type="button"
-                        class="text-submit-btn"
-                        size="large"
                         :disabled="!canGenerate || isLoading"
                         @click="generate"
                     >
                         <span class="material-symbols-outlined">check</span>
                         Go
                     </Button>
-                </div>
+                </PanelActionBar>
             </div>
         </div>
     </div>
@@ -574,11 +574,8 @@
     }
 
     .text-input-panel-footer {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        border-top: 1px solid #374151;
-        padding-top: 1rem;
+        --panel-action-bar-border-color: #374151;
+        --panel-action-bar-padding: 1rem 0 0;
     }
 
     .form-group {
@@ -831,22 +828,6 @@
         font-size: 0.875rem;
         text-align: center;
         line-height: 1.5;
-    }
-
-    .text-submit-btn {
-        gap: 0.5rem;
-        justify-content: center;
-        min-height: 48px;
-        font-size: 1rem;
-        font-weight: 500;
-    }
-
-    .text-submit-btn:disabled {
-        opacity: 0.5;
-    }
-
-    .text-submit-btn .material-symbols-outlined {
-        font-size: 1.25rem;
     }
 
     .error-message {

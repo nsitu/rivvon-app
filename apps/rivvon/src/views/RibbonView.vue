@@ -2302,6 +2302,7 @@
             :source="textureOverviewSelection.source"
             :is-cached="textureOverviewSelection.isCached"
             @request-apply="handleTextureOverviewApply"
+            @request-close="closeTextureOverview"
             @request-export-preview="handleTexturePreviewExport"
         />
         <TextureBrowser

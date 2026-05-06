@@ -4,6 +4,7 @@
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
     import {
@@ -312,25 +313,7 @@
                     </div>
                 </div>
 
-                <div class="export-image-panel-footer">
-                    <Button
-                        severity="success"
-                        :disabled="!imageDataUrl"
-                        @click="handleDownload"
-                    >
-                        <span class="material-symbols-outlined">download_done</span>
-                        <span>Download Image</span>
-                    </Button>
-                    <Button
-                        v-if="canShare"
-                        severity="info"
-                        variant="outlined"
-                        :disabled="!imageDataUrl"
-                        @click="handleShare"
-                    >
-                        <span class="material-symbols-outlined">share</span>
-                        <span>Share</span>
-                    </Button>
+                <PanelActionBar class="export-image-panel-footer">
                     <Button
                         severity="secondary"
                         variant="outlined"
@@ -339,7 +322,24 @@
                         <span class="material-symbols-outlined">close</span>
                         <span>Close</span>
                     </Button>
-                </div>
+                    <Button
+                        v-if="canShare"
+                        severity="secondary"
+                        variant="outlined"
+                        :disabled="!imageDataUrl"
+                        @click="handleShare"
+                    >
+                        <span class="material-symbols-outlined">share</span>
+                        <span>Share</span>
+                    </Button>
+                    <Button
+                        :disabled="!imageDataUrl"
+                        @click="handleDownload"
+                    >
+                        <span class="material-symbols-outlined">download_done</span>
+                        <span>Download Image</span>
+                    </Button>
+                </PanelActionBar>
             </div>
         </div>
     </div>
@@ -593,20 +593,8 @@
     }
 
     .export-image-panel-footer {
-        padding: 1rem 1.25rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.14);
-        display: grid;
-        gap: 0.65rem;
-        grid-template-columns: 1fr;
-    }
-
-    .export-image-panel-footer :deep(.p-button) {
-        width: 100%;
-        min-height: 2.75rem;
-    }
-
-    .export-image-panel-footer :deep(.material-symbols-outlined) {
-        font-size: 1.2rem;
+        --panel-action-bar-padding: 1rem 1.25rem;
+        --panel-action-bar-border-color: rgba(255, 255, 255, 0.14);
     }
 
     @media (min-width: 769px) {
@@ -619,7 +607,9 @@
         }
 
         .export-image-panel-footer {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            max-width: 54rem;
+            width: 100%;
+            margin: 0 auto;
         }
     }
 </style>

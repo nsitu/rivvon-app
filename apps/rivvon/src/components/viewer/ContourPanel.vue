@@ -2,6 +2,7 @@
     import { ref, watch, computed } from 'vue';
     import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import { inferContours, preloadModel } from '../../modules/viewer/contourInference.js';
 
     const props = defineProps({
@@ -487,30 +488,27 @@
                 </div>
             </div>
 
-            <div
+            <PanelActionBar
                 v-if="!showCamera && hasPendingContour"
                 class="contour-footer"
             >
-                <div class="confirm-row">
-                    <Button
-                        class="download-btn"
-                        severity="secondary"
-                        :disabled="isProcessing"
-                        @click="downloadContourSvg"
-                    >
-                        <span class="material-symbols-outlined">download</span>
-                        <span>Download SVG</span>
-                    </Button>
-                    <Button
-                        class="apply-btn"
-                        :disabled="isProcessing"
-                        @click="applyContour"
-                    >
-                        <span class="material-symbols-outlined">check</span>
-                        <span>Apply</span>
-                    </Button>
-                </div>
-            </div>
+                <Button
+                    severity="secondary"
+                    variant="outlined"
+                    :disabled="isProcessing"
+                    @click="downloadContourSvg"
+                >
+                    <span class="material-symbols-outlined">download</span>
+                    <span>Download SVG</span>
+                </Button>
+                <Button
+                    :disabled="isProcessing"
+                    @click="applyContour"
+                >
+                    <span class="material-symbols-outlined">check</span>
+                    <span>Apply</span>
+                </Button>
+            </PanelActionBar>
         </div>
 
         <!-- Hidden file input -->
@@ -658,26 +656,9 @@
     }
 
     .contour-footer {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        border-top: 1px solid #374151;
-        padding: 1rem 1.25rem;
-        background: rgba(0, 0, 0, 0.6);
-    }
-
-    .confirm-row {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-    }
-
-    :deep(.download-btn),
-    :deep(.apply-btn) {
-        flex: 1;
-        min-width: 160px;
+        --panel-action-bar-background: rgba(0, 0, 0, 0.6);
+        --panel-action-bar-border-color: #374151;
+        --panel-action-bar-padding: 1rem 1.25rem;
     }
 
     /* Camera */

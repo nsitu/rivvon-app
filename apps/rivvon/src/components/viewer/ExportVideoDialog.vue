@@ -4,9 +4,11 @@
     import AccordionPanel from 'primevue/accordionpanel';
     import AccordionHeader from 'primevue/accordionheader';
     import AccordionContent from 'primevue/accordioncontent';
+    import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -730,56 +732,66 @@
                     </div>
                 </div>
 
-                <div class="export-video-panel-footer dialog-footer">
+                <PanelActionBar class="export-video-panel-footer">
                     <template v-if="isEncoding">
-                        <button
-                            class="btn btn-secondary"
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="handleCancel"
                         >
                             <span class="material-symbols-outlined">cancel</span>
                             Cancel Encode
-                        </button>
+                        </Button>
                     </template>
                     <template v-else-if="hasEncodedVideo">
-                        <button
-                            class="btn btn-secondary"
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="handleClose"
                         >
+                            <span class="material-symbols-outlined">close</span>
                             Close
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             v-if="canShare"
-                            class="btn btn-secondary"
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="handleShare"
                         >
                             <span class="material-symbols-outlined">share</span>
                             Share
-                        </button>
-                        <button
-                            class="btn btn-primary"
+                        </Button>
+                        <Button
+                            type="button"
                             @click="handleDownload"
                         >
                             <span class="material-symbols-outlined">download_done</span>
                             Download
-                        </button>
+                        </Button>
                     </template>
                     <template v-else>
-                        <button
-                            class="btn btn-secondary"
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="handleClose"
                         >
+                            <span class="material-symbols-outlined">close</span>
                             Cancel
-                        </button>
-                        <button
-                            class="btn btn-primary"
+                        </Button>
+                        <Button
+                            type="button"
                             :disabled="!hasWebCodecs"
                             @click="handleExport"
                         >
                             <span class="material-symbols-outlined">videocam</span>
                             Encode Video
-                        </button>
+                        </Button>
                     </template>
-                </div>
+                </PanelActionBar>
             </div>
         </div>
     </div>
@@ -835,7 +847,7 @@
     }
 
     .export-video-panel-footer {
-        padding-top: 0.85rem;
+        --panel-action-bar-padding: 0.85rem 0 0;
     }
 
     .form-grid {
@@ -1218,53 +1230,6 @@
         font-size: 0.76rem;
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.62));
         word-break: break-word;
-    }
-
-    .dialog-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-    }
-
-    .btn {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.625rem 1.25rem;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        font-weight: 500;
-        border: none;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
-
-    .btn .material-symbols-outlined {
-        font-size: 1.1rem;
-    }
-
-    .btn-secondary {
-        background: var(--p-content-hover-background, rgba(255, 255, 255, 0.08));
-        color: var(--p-text-color, #fff);
-    }
-
-    .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.15);
-    }
-
-    .btn-primary {
-        background: var(--p-primary-color, #6366f1);
-        color: var(--p-primary-contrast-color, #fff);
-    }
-
-    .btn-primary:hover {
-        filter: brightness(1.1);
-    }
-
-    .btn-primary:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
     }
 
     @media (min-width: 769px) {
