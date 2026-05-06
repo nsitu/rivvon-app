@@ -5,7 +5,7 @@
         visible: Boolean
     });
 
-    const emit = defineEmits(['restart']);
+    const emit = defineEmits(['request-restart']);
 
     const countdown = ref(30);
     let timer = null;
@@ -18,7 +18,7 @@
                 if (countdown.value <= 0) {
                     clearInterval(timer);
                     timer = null;
-                    emit('restart');
+                    emit('request-restart');
                 }
             }, 1000);
         } else {
@@ -38,7 +38,7 @@
             clearInterval(timer);
             timer = null;
         }
-        emit('restart');
+        emit('request-restart');
     }
 </script>
 
