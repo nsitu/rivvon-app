@@ -14,7 +14,7 @@
         }
     });
 
-    const emit = defineEmits(['update:visible', 'generate']);
+    const emit = defineEmits(['update:visible', 'request-generate']);
 
     const {
         emojiGroups,
@@ -54,7 +54,7 @@
     async function handleEmojiClick(entry) {
         const points = await selectEmoji(entry.h);
         if (points && points.length > 0) {
-            emit('generate', {
+            emit('request-generate', {
                 points,
                 source: {
                     hexcode: entry.h,
