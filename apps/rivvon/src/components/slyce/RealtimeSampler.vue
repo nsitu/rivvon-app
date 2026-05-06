@@ -25,7 +25,7 @@
         }
     });
 
-    const emit = defineEmits(['close', 'apply', 'start-capture']);
+    const emit = defineEmits(['request-close', 'request-apply', 'request-start-capture']);
 
     const realtime = useRealtimeSlyce();
     const { updateTextureSet: updateLocalTextureSet } = useLocalStorage();
@@ -474,7 +474,7 @@
 
     function handleStart() {
         if (isSetupPhase.value) {
-            emit('start-capture');
+            emit('request-start-capture');
             return;
         }
 
@@ -487,7 +487,7 @@
 
     async function handleApply() {
         await syncSavedTextureMetadata();
-        emit('apply', getCurrentCaptureMetadata());
+        emit('request-apply', getCurrentCaptureMetadata());
     }
 
     function handleDiscard() {
@@ -501,7 +501,7 @@
     async function handleOpenTextureLibrary() {
         await syncSavedTextureMetadata();
         router.push({ path: route.path, query: { ...route.query, textures: 'local' } });
-        emit('close');
+        emit('request-close');
     }
 
     // Cleanup on unmount
@@ -645,7 +645,7 @@
                     :saving-detail="localSaveInProgressDetail"
                     success-title="Texture Saved"
                     :success-detail="localSaveSuccessDetail"
-                    @retry="handleRetryLocalSave"
+                    @request-retry="handleRetryLocalSave"
                 />
 
                 <!-- Webcam + Preview area -->
