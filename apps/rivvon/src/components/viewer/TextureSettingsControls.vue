@@ -2,6 +2,7 @@
     import { computed, getCurrentInstance } from 'vue';
     import ColorPicker from 'primevue/colorpicker';
     import Select from 'primevue/select';
+    import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
 
@@ -52,6 +53,52 @@
             app.setTransparentShadowsEnabled(!!value);
         }
     });
+
+    const transparencyHighlightsModel = computed({
+        get: () => app.transparencyMode === 'highlights',
+        set: (value) => {
+            app.setTransparencyMode(value ? 'highlights' : 'shadows');
+        }
+    });
+
+    const transparencyModeLabel = computed(
+        () => transparencyHighlightsModel.value ? 'Highlights' : 'Shadows'
+    );
+
+    const transparentShadowsThresholdRangeModel = computed({
+        get: () => [
+            Math.round(app.transparentShadowsThresholdMin * 100),
+            Math.round(app.transparentShadowsThresholdMax * 100)
+        ],
+        set: (value) => {
+            if (!Array.isArray(value) || value.length !== 2) return;
+
+            app.setTransparentShadowsThresholdRange([
+                Number(value[0]) / 100,
+                Number(value[1]) / 100,
+            ]);
+        }
+    });
+
+    const transparentShadowsThresholdMinLabel = computed(
+        () => `${Math.round(app.transparentShadowsThresholdMin * 100)}%`
+    );
+
+    const transparentShadowsThresholdMaxLabel = computed(
+        () => `${Math.round(app.transparentShadowsThresholdMax * 100)}%`
+    );
+
+    const transparencyThresholdMinCaption = computed(
+        () => transparencyHighlightsModel.value
+            ? `Opaque at ${transparentShadowsThresholdMinLabel.value}`
+            : `Transparent at ${transparentShadowsThresholdMinLabel.value}`
+    );
+
+    const transparencyThresholdMaxCaption = computed(
+        () => transparencyHighlightsModel.value
+            ? `Transparent at ${transparentShadowsThresholdMaxLabel.value}`
+            : `Opaque at ${transparentShadowsThresholdMaxLabel.value}`
+    );
 
     const duotoneColorModel = computed({
         get: () => app.duotoneColor,
@@ -214,7 +261,7 @@
                         :for="getInputId('transparent-shadows-filter')"
                     >
                         <span class="material-symbols-outlined">filter_alt</span>
-                        <span>Transparent Shadows</span>
+                        <span>Transparency</span>
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ transparentShadowsFilterModel ? 'On' : 'Off'
@@ -223,6 +270,50 @@
                             :inputId="getInputId('transparent-shadows-filter')"
                             v-model="transparentShadowsFilterModel"
                         />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter && transparentShadowsFilterModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('transparency-highlights-mode')"
+                    >
+                        <span class="material-symbols-outlined">filter_alt</span>
+                        <span>Highlights</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ transparencyModeLabel }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('transparency-highlights-mode')"
+                            v-model="transparencyHighlightsModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter && transparentShadowsFilterModel"
+                    class="tools-slider-block"
+                >
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Transparency Range</label>
+                        <span class="tools-hint tools-slider-hint">
+                            {{ transparentShadowsThresholdMinLabel }} - {{ transparentShadowsThresholdMaxLabel }}
+                        </span>
+                    </div>
+                    <Slider
+                        v-model="transparentShadowsThresholdRangeModel"
+                        range
+                        :min="0"
+                        :max="100"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>{{ transparencyThresholdMinCaption }}</span>
+                        <span>{{ transparencyThresholdMaxCaption }}</span>
                     </div>
                 </div>
 
@@ -374,6 +465,44 @@
         text-transform: uppercase;
     }
 
+    .tools-slider-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        padding: 0 1rem 0.875rem;
+        color: var(--p-text-color, #fff);
+    }
+
+    .tools-slider-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .tools-slider-label {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .tools-slider-hint {
+        margin-left: 0;
+    }
+
+    .tools-range-slider {
+        width: calc(100% - 1rem);
+        margin: 0 0.5rem;
+    }
+
+    .tools-slider-caption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        color: rgba(255, 255, 255, 0.56);
+        font-size: 0.72rem;
+    }
+
     .tools-select-block {
         display: flex;
         flex-direction: column;
@@ -423,5 +552,14 @@
             linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%);
         background-size: 10px 10px;
         background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+    }
+
+    :deep(.tools-range-slider .p-slider-handle) {
+        background: var(--p-primary-color, #10b981) !important;
+        border-color: var(--p-primary-color, #10b981) !important;
+    }
+
+    :deep(.tools-range-slider .p-slider-handle::before) {
+        background: var(--p-primary-color, #10b981) !important;
     }
 </style>

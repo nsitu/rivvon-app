@@ -608,6 +608,9 @@ export class TileManager {
                 uMirrorNext: { value: mirrorNext },
                 uFlowOffset: this.sharedFlowOffsetUniform,
                 uTransparentShadows: { value: 0 },
+                uTransparentHighlights: { value: 0 },
+                uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
+                uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
                 ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
                 ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
                 ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
@@ -634,6 +637,9 @@ export class TileManager {
                 uniform int uMirrorNext;
                 uniform float uFlowOffset;
                 uniform int uTransparentShadows;
+                uniform int uTransparentHighlights;
+                uniform float uTransparentShadowsThresholdMin;
+                uniform float uTransparentShadowsThresholdMax;
                 ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
@@ -715,10 +721,14 @@ export class TileManager {
                     if (uTransparentShadows == 1) {
                         float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
                         float alphaScale = clamp(
-                            (luminance - ${TRANSPARENT_SHADOWS_LUMA_MIN}) / ${TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN},
+                            (luminance - uTransparentShadowsThresholdMin)
+                                / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
                             0.0,
                             1.0
                         );
+                        if (uTransparentHighlights == 1) {
+                            alphaScale = 1.0 - alphaScale;
+                        }
                         texColor.a *= alphaScale;
                     }
                     
@@ -746,6 +756,9 @@ export class TileManager {
         }
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
+        material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
+        material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
+        material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -773,6 +786,12 @@ export class TileManager {
         const mirrorNextUniform = uniform(options.mirrorNext ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
         const transparentShadowsUniform = uniform(0);
+        const transparentHighlightsUniform = uniform(0);
+        const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
+        const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
+        const transparentShadowsSpan = transparentShadowsMaxUniform
+            .sub(transparentShadowsMinUniform)
+            .max(float(0.00001));
 
         const baseUV = uv();
         
@@ -848,14 +867,17 @@ export class TileManager {
             ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
             : sampledColor;
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-        const transparentShadowAlpha = finalColor.a.mul(
-            luminance.sub(float(TRANSPARENT_SHADOWS_LUMA_MIN))
-                .div(float(TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN))
-                .max(float(0.0))
-                .min(float(1.0))
+        const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
+            .div(transparentShadowsSpan)
+            .max(float(0.0))
+            .min(float(1.0));
+        const mappedTransparencyFactor = transparentHighlightsUniform.equal(1).select(
+            float(1.0).sub(transparencyFactor),
+            transparencyFactor
         );
+        const mappedTransparencyAlpha = finalColor.a.mul(mappedTransparencyFactor);
         const outputColor = transparentShadowsUniform.equal(1).select(
-            vec4(finalColor.rgb, transparentShadowAlpha),
+            vec4(finalColor.rgb, mappedTransparencyAlpha),
             finalColor
         );
 
@@ -881,6 +903,9 @@ export class TileManager {
         }
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
+        material._transparentHighlightsUniform = transparentHighlightsUniform;
+        material._transparentShadowsMinUniform = transparentShadowsMinUniform;
+        material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -975,6 +1000,9 @@ export class TileManager {
                 uRotate90: this.sharedRotateUniform,
                 uMirrorX: { value: mirrorX },
                 uTransparentShadows: { value: 0 },
+                uTransparentHighlights: { value: 0 },
+                uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
+                uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
                 ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
                 ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
                 ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
@@ -998,6 +1026,9 @@ export class TileManager {
                 uniform int uRotate90;
                 uniform int uMirrorX;
                 uniform int uTransparentShadows;
+                uniform int uTransparentHighlights;
+                uniform float uTransparentShadowsThresholdMin;
+                uniform float uTransparentShadowsThresholdMax;
                 ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
@@ -1036,10 +1067,14 @@ export class TileManager {
                     if (uTransparentShadows == 1) {
                         float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
                         float alphaScale = clamp(
-                            (luminance - ${TRANSPARENT_SHADOWS_LUMA_MIN}) / ${TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN},
+                            (luminance - uTransparentShadowsThresholdMin)
+                                / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
                             0.0,
                             1.0
                         );
+                        if (uTransparentHighlights == 1) {
+                            alphaScale = 1.0 - alphaScale;
+                        }
                         texColor.a *= alphaScale;
                     }
                     outColor = texColor;
@@ -1060,6 +1095,9 @@ export class TileManager {
         }
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
+        material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
+        material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
+        material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1107,6 +1145,12 @@ export class TileManager {
         const rotateUniform = uniform(this.sharedRotateUniform.value);
         const mirrorUniform = uniform(options.mirrorX ? 1 : 0);
         const transparentShadowsUniform = uniform(0);
+        const transparentHighlightsUniform = uniform(0);
+        const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
+        const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
+        const transparentShadowsSpan = transparentShadowsMaxUniform
+            .sub(transparentShadowsMinUniform)
+            .max(float(0.00001));
 
         // Get base UV coordinates
         const baseUV = uv();
@@ -1166,33 +1210,28 @@ export class TileManager {
             capAlpha = capAlpha.mul(endAlpha);
         }
 
+        const finalColor = hasCapMask
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
+            : sampledColor;
+        const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
+            .div(transparentShadowsSpan)
+            .max(float(0.0))
+            .min(float(1.0));
+        const mappedTransparencyFactor = transparentHighlightsUniform.equal(1).select(
+            float(1.0).sub(transparencyFactor),
+            transparencyFactor
+        );
+        const mappedTransparencyAlpha = finalColor.a.mul(mappedTransparencyFactor);
+
         material.colorNode = hasCapMask
             ? transparentShadowsUniform.equal(1).select(
-                (() => {
-                    const finalColor = vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha));
-                    const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-                    const remappedAlpha = finalColor.a.mul(
-                        luminance.sub(float(TRANSPARENT_SHADOWS_LUMA_MIN))
-                            .div(float(TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN))
-                            .max(float(0.0))
-                            .min(float(1.0))
-                    );
-                    return vec4(finalColor.rgb, remappedAlpha);
-                })(),
-                vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
+                vec4(finalColor.rgb, mappedTransparencyAlpha),
+                finalColor
             )
             : transparentShadowsUniform.equal(1).select(
-                (() => {
-                    const luminance = dot(sampledColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-                    const remappedAlpha = sampledColor.a.mul(
-                        luminance.sub(float(TRANSPARENT_SHADOWS_LUMA_MIN))
-                            .div(float(TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN))
-                            .max(float(0.0))
-                            .min(float(1.0))
-                    );
-                    return vec4(sampledColor.rgb, remappedAlpha);
-                })(),
-                sampledColor
+                vec4(finalColor.rgb, mappedTransparencyAlpha),
+                finalColor
             );
         material.transparent = false;
         material.depthWrite = true;
@@ -1212,6 +1251,9 @@ export class TileManager {
         }
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
+        material._transparentHighlightsUniform = transparentHighlightsUniform;
+        material._transparentShadowsMinUniform = transparentShadowsMinUniform;
+        material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
 
         console.log('[TileManager] WebGPU material created:', {
             layerCount,

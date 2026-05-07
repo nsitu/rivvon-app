@@ -25,6 +25,20 @@ export function useRenderFilter(ctx) {
         return ctx.app.transparentShadowsEnabled === true;
     }
 
+    function isTransparencyHighlightsMode() {
+        return ctx.app.transparencyMode === 'highlights';
+    }
+
+    function getTransparentShadowsThresholds() {
+        const min = Number(ctx.app.transparentShadowsThresholdMin);
+        const max = Number(ctx.app.transparentShadowsThresholdMax);
+
+        return {
+            min: Number.isFinite(min) ? Math.min(1, Math.max(0, min)) : 0.2,
+            max: Number.isFinite(max) ? Math.min(1, Math.max(0, max)) : 0.5,
+        };
+    }
+
     function getPostProcessFilterMode() {
         const mode = getActiveFilterMode();
         return mode === 'blackAndWhite' || mode === 'duotone'
@@ -223,6 +237,8 @@ export function useRenderFilter(ctx) {
 
     function syncTransparentShadowsMaterials(scene) {
         const enabled = isTransparentShadowsEnabled();
+        const useHighlights = isTransparencyHighlightsMode();
+        const { min, max } = getTransparentShadowsThresholds();
 
         scene.traverse((obj) => {
             const materials = Array.isArray(obj.material)
@@ -235,6 +251,15 @@ export function useRenderFilter(ctx) {
                 }
 
                 material._transparentShadowsUniform.value = enabled ? 1 : 0;
+                if (material._transparentHighlightsUniform) {
+                    material._transparentHighlightsUniform.value = useHighlights ? 1 : 0;
+                }
+                if (material._transparentShadowsMinUniform) {
+                    material._transparentShadowsMinUniform.value = min;
+                }
+                if (material._transparentShadowsMaxUniform) {
+                    material._transparentShadowsMaxUniform.value = max;
+                }
 
                 const original = material._transparentShadowsOriginalState || {
                     transparent: material.transparent,

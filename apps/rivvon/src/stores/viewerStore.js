@@ -10,6 +10,11 @@ const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
 const VIEWER_FILTER_MODES = ['none', 'blackAndWhite', 'duotone'];
 const DEFAULT_DUOTONE_COLOR = '#ff7a00';
+const TRANSPARENCY_MODES = ['shadows', 'highlights'];
+const DEFAULT_TRANSPARENCY_MODE = 'shadows';
+const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN = 0.2;
+const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX = 0.5;
+const MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP = 0.01;
 const MIN_RIBBON_WIDTH_SCALE = 0.4;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
 
@@ -51,6 +56,50 @@ function normalizeDuotoneColor(value) {
     return /^[0-9a-f]{6}$/.test(normalized)
         ? `#${normalized}`
         : DEFAULT_DUOTONE_COLOR;
+}
+
+function normalizeTransparencyMode(value) {
+    return TRANSPARENCY_MODES.includes(value)
+        ? value
+        : DEFAULT_TRANSPARENCY_MODE;
+}
+
+function normalizeTransparentShadowsThresholdValue(value, fallback) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+
+    return Math.min(1, Math.max(0, parsed));
+}
+
+function normalizeTransparentShadowsThresholdRange(minValue, maxValue) {
+    let minThreshold = normalizeTransparentShadowsThresholdValue(
+        minValue,
+        DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN
+    );
+    let maxThreshold = normalizeTransparentShadowsThresholdValue(
+        maxValue,
+        DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX
+    );
+
+    if (maxThreshold < minThreshold) {
+        [minThreshold, maxThreshold] = [maxThreshold, minThreshold];
+    }
+
+    if ((maxThreshold - minThreshold) < MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP) {
+        if (minThreshold + MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP <= 1) {
+            maxThreshold = minThreshold + MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP;
+        } else {
+            minThreshold = Math.max(0, maxThreshold - MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP);
+        }
+    }
+
+    return {
+        min: minThreshold,
+        max: maxThreshold,
+    };
 }
 
 function normalizeRibbonWidthScale(value) {
@@ -119,6 +168,10 @@ function getStoredExportDimensionSettings() {
 
 function getStoredFilterSettings() {
     const preferences = readViewerPreferences();
+    const transparentShadowsThresholds = normalizeTransparentShadowsThresholdRange(
+        preferences.transparentShadowsThresholdMin,
+        preferences.transparentShadowsThresholdMax
+    );
 
     return {
         renderFilterMode: normalizeViewerFilterMode(preferences.renderFilterMode),
@@ -126,6 +179,9 @@ function getStoredFilterSettings() {
             preferences.transparentShadowsEnabled,
             preferences.renderFilterMode === 'transparentShadows'
         ),
+        transparencyMode: normalizeTransparencyMode(preferences.transparencyMode),
+        transparentShadowsThresholdMin: transparentShadowsThresholds.min,
+        transparentShadowsThresholdMax: transparentShadowsThresholds.max,
         duotoneColor: normalizeDuotoneColor(preferences.duotoneColor),
     };
 }
@@ -227,6 +283,9 @@ export const useViewerStore = defineStore('viewer', {
         ),
         renderFilterMode: storedFilterSettings.renderFilterMode,
         transparentShadowsEnabled: storedFilterSettings.transparentShadowsEnabled,
+        transparencyMode: storedFilterSettings.transparencyMode,
+        transparentShadowsThresholdMin: storedFilterSettings.transparentShadowsThresholdMin,
+        transparentShadowsThresholdMax: storedFilterSettings.transparentShadowsThresholdMax,
         duotoneColor: storedFilterSettings.duotoneColor,
         currentTextureId: null,
         currentTextureName: '',
@@ -501,6 +560,9 @@ export const useViewerStore = defineStore('viewer', {
                 preferredTextureMaxResolution: this.preferredTextureMaxResolution,
                 renderFilterMode: this.renderFilterMode,
                 transparentShadowsEnabled: this.transparentShadowsEnabled,
+                transparencyMode: this.transparencyMode,
+                transparentShadowsThresholdMin: this.transparentShadowsThresholdMin,
+                transparentShadowsThresholdMax: this.transparentShadowsThresholdMax,
                 duotoneColor: this.duotoneColor,
                 ribbonWidthScale: this.ribbonWidthScale,
                 helixMode: this.helixMode,
@@ -543,6 +605,9 @@ export const useViewerStore = defineStore('viewer', {
                 this.preferredTextureMaxResolution !== original.preferredTextureMaxResolution ||
                 this.renderFilterMode !== original.renderFilterMode ||
                 this.transparentShadowsEnabled !== original.transparentShadowsEnabled ||
+                this.transparencyMode !== original.transparencyMode ||
+                this.transparentShadowsThresholdMin !== original.transparentShadowsThresholdMin ||
+                this.transparentShadowsThresholdMax !== original.transparentShadowsThresholdMax ||
                 this.duotoneColor !== original.duotoneColor ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
                 this.helixMode !== original.helixMode ||
@@ -688,6 +753,26 @@ export const useViewerStore = defineStore('viewer', {
             const nextValue = !!enabled;
             this.transparentShadowsEnabled = nextValue;
             writeViewerPreferences({ transparentShadowsEnabled: nextValue });
+        },
+
+        setTransparencyMode(mode) {
+            const nextMode = normalizeTransparencyMode(mode);
+            this.transparencyMode = nextMode;
+            writeViewerPreferences({ transparencyMode: nextMode });
+        },
+
+        setTransparentShadowsThresholdRange(range) {
+            const [minValue, maxValue] = Array.isArray(range) ? range : [];
+            const normalized = normalizeTransparentShadowsThresholdRange(minValue, maxValue);
+
+            this.transparentShadowsThresholdMin = normalized.min;
+            this.transparentShadowsThresholdMax = normalized.max;
+            writeViewerPreferences({
+                transparentShadowsThresholdMin: normalized.min,
+                transparentShadowsThresholdMax: normalized.max,
+            });
+
+            return normalized;
         },
 
         setDuotoneColor(color) {
