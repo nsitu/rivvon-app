@@ -224,6 +224,8 @@ export class TileManager {
 
         // Per-frame callback
         this._onTick = null;
+        this._onLayerChange = null;
+        this._lastNotifiedLayer = 0;
 
         this.#syncFlowSpeedAlignment();
     }
@@ -242,6 +244,15 @@ export class TileManager {
      */
     setProgressCallback(callback) {
         this.onProgress = callback;
+    }
+
+    /**
+     * Set a callback for discrete layer changes.
+     * @param {Function|null} callback - (layerIndex) => {}
+     */
+    setLayerChangeCallback(callback) {
+        this._onLayerChange = typeof callback === 'function' ? callback : null;
+        this._lastNotifiedLayer = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1))) | 0;
     }
 
     async loadAllTiles() {
@@ -1611,6 +1622,17 @@ export class TileManager {
         return this.#applyLayerCycleFrame(nextFrame);
     }
 
+    #notifyLayerChange(layerIndex) {
+        const normalizedLayer = Math.max(0, Math.min(layerIndex, Math.max(0, this.layerCount - 1))) | 0;
+
+        if (this._lastNotifiedLayer === normalizedLayer) {
+            return;
+        }
+
+        this._lastNotifiedLayer = normalizedLayer;
+        this._onLayerChange?.(normalizedLayer);
+    }
+
     #syncCurrentLayerUniforms() {
         const clamped = Math.max(0, Math.min(this.currentLayer, Math.max(0, this.layerCount - 1))) | 0;
         this.sharedLayerUniform.value = clamped;
@@ -1627,6 +1649,8 @@ export class TileManager {
                 }
             }
         }
+
+        this.#notifyLayerChange(clamped);
 
         return clamped;
     }
@@ -2358,6 +2382,8 @@ export class TileManager {
         }
 
         this._onTick = null;
+        this._onLayerChange = null;
+        this._lastNotifiedLayer = 0;
 
         console.log('[TileManager] Disposed all GPU resources');
     }

@@ -176,6 +176,18 @@
         setTextureAnimationReversed(reversed);
     });
 
+    watch(() => app.animatedBackgroundEnabled, () => {
+        setBackgroundFromTileManager().catch((error) => {
+            console.error('[ThreeCanvas] Failed to update animated scene background:', error);
+        });
+    });
+
+    watch(() => app.backgroundBlurEnabled, () => {
+        setBackgroundFromTileManager().catch((error) => {
+            console.error('[ThreeCanvas] Failed to update scene background blur:', error);
+        });
+    });
+
     watch(() => app.textureRepeatMode, (mode) => {
         setTextureRepeatMode(mode);
     });

@@ -92,45 +92,12 @@ export async function initThreeWebGPU() {
 
     console.log('[ThreeSetup] WebGPU renderer initialized');
 
-    /**
-     * Create an ambient gradient background
-     * @param {THREE.Material} material - Material to sample colors from (unused for now)
-     */
-    async function createSkySphere(material) {
-        console.log('[ThreeSetup] Creating gradient background...');
-
-        // Create a canvas gradient for background
-        const canvas = document.createElement('canvas');
-        canvas.width = 2;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-
-        // Create vertical gradient
-        const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-        gradient.addColorStop(0, '#533483');   // Top - Purple
-        gradient.addColorStop(0.4, '#0f3460'); // Upper middle - Blue
-        gradient.addColorStop(0.7, '#16213e'); // Lower middle - Darker blue
-        gradient.addColorStop(1, '#1a1a2e');   // Bottom - Dark blue
-
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 2, 256);
-
-        // Create texture and set as scene background
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        scene.background = texture;
-
-        console.log('[ThreeSetup] Gradient background set');
-        return null;
-    }
-
     return {
         scene,
         camera,
         renderer,
         controls,
         resetCamera,
-        createSkySphere,
         handleResize,
         onDeviceLost,
         rendererType: 'webgpu'

@@ -62,6 +62,20 @@
         },
     });
 
+    const animatedBackgroundModel = computed({
+        get: () => app.animatedBackgroundEnabled,
+        set: (value) => {
+            app.setAnimatedBackgroundEnabled(!!value);
+        },
+    });
+
+    const backgroundBlurModel = computed({
+        get: () => app.backgroundBlurEnabled,
+        set: (value) => {
+            app.setBackgroundBlurEnabled(!!value);
+        },
+    });
+
     const reverseLayerCycleModel = computed({
         get: () => app.textureAnimationReversed,
         set: (value) => {
@@ -171,6 +185,43 @@
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="textureAnimationModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('animated-background')"
+                    >
+                        <span class="material-symbols-outlined">wallpaper</span>
+                        <span>Animated Background</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ animatedBackgroundModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('animated-background')"
+                            v-model="animatedBackgroundModel"
+                        />
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('background-blur')"
+                    >
+                        <span class="material-symbols-outlined">blur_on</span>
+                        <span>Background Blur</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundBlurModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-blur')"
+                            v-model="backgroundBlurModel"
                         />
                     </div>
                 </div>

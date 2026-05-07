@@ -11,15 +11,91 @@ import * as THREE from 'three';
  */
 export function useSceneBackground(ctx) {
 
+    let activeTileBackgroundRuntime = null;
+    let activeTileBackgroundListenerTarget = null;
+    let backgroundGenerationToken = 0;
+
+    function clearTileBackgroundListener() {
+        activeTileBackgroundListenerTarget?.setLayerChangeCallback?.(null);
+        activeTileBackgroundListenerTarget = null;
+    }
+
+    function clearBackgroundTextureReference(texture = null) {
+        if (!texture) {
+            ctx.backgroundTexture.value = null;
+            if (ctx.scene.value) {
+                ctx.scene.value.background = null;
+            }
+            return;
+        }
+
+        if (ctx.backgroundTexture.value === texture) {
+            ctx.backgroundTexture.value = null;
+        }
+
+        if (ctx.scene.value?.background === texture) {
+            ctx.scene.value.background = null;
+        }
+    }
+
+    function clearBackgroundResources() {
+        clearTileBackgroundListener();
+
+        if (activeTileBackgroundRuntime) {
+            activeTileBackgroundRuntime.dispose();
+            activeTileBackgroundRuntime = null;
+            return;
+        }
+
+        if (ctx.backgroundTexture.value) {
+            const texture = ctx.backgroundTexture.value;
+            clearBackgroundTextureReference(texture);
+            texture.dispose?.();
+            return;
+        }
+
+        if (ctx.scene.value) {
+            ctx.scene.value.background = null;
+        }
+    }
+
     /**
      * Dispose the current background texture and clear the scene background
      */
     function disposeBackground() {
-        if (ctx.backgroundTexture.value) {
-            ctx.backgroundTexture.value.dispose();
-            ctx.backgroundTexture.value = null;
-            if (ctx.scene.value) ctx.scene.value.background = null;
+        backgroundGenerationToken += 1;
+        clearBackgroundResources();
+    }
+
+    function clampBackgroundLayer(layerIndex, arrayTexture) {
+        const layerCount = Math.max(1, arrayTexture?.image?.depth || 1);
+        const parsedLayer = Number(layerIndex);
+
+        if (!Number.isFinite(parsedLayer)) {
+            return 0;
         }
+
+        return Math.max(0, Math.min(Math.round(parsedLayer), layerCount - 1));
+    }
+
+    function bindAnimatedTileBackground(tileManager, arrayTexture, runtime) {
+        clearTileBackgroundListener();
+
+        const layerCount = Math.max(1, arrayTexture?.image?.depth || 1);
+        if (!ctx.app.animatedBackgroundEnabled || layerCount <= 1) {
+            return;
+        }
+
+        tileManager.setLayerChangeCallback?.((layerIndex) => {
+            runtime.renderLayer(clampBackgroundLayer(layerIndex, arrayTexture));
+        });
+        activeTileBackgroundListenerTarget = tileManager;
+    }
+
+    function getResolvedBlurRadius(requestedRadius) {
+        const parsedRadius = Number(requestedRadius);
+        const fallbackRadius = Number.isFinite(parsedRadius) ? parsedRadius : 0;
+        return ctx.app.backgroundBlurEnabled ? Math.max(0, fallbackRadius) : 0;
     }
 
     // ── Public API ─────────────────────────────────────────────────────
@@ -35,12 +111,14 @@ export function useSceneBackground(ctx) {
      */
     async function setBackgroundFromTileManager(options = {}) {
         const {
-            blurRadius = 40,
+            blurRadius: requestedBlurRadius = 40,
             saturation = 1,
             opacity = 0.7
         } = options;
+        const blurRadius = getResolvedBlurRadius(requestedBlurRadius);
 
-        disposeBackground();
+        const requestToken = ++backgroundGenerationToken;
+        clearBackgroundResources();
 
         if (!ctx.scene.value || !ctx.renderer.value || !ctx.tileManager.value) {
             console.warn('[ThreeSetup] Cannot set background - not initialized');
@@ -55,14 +133,38 @@ export function useSceneBackground(ctx) {
         }
 
         const isWebGPU = ctx.app.rendererType === 'webgpu';
+        let runtime = null;
 
         try {
             if (isWebGPU) {
-                await _setBackgroundFromArrayTextureWebGPU(arrayTexture, blurRadius, saturation, opacity);
+                runtime = await _createTileBackgroundRuntimeWebGPU(arrayTexture, blurRadius, saturation, opacity);
             } else {
-                await _setBackgroundFromArrayTextureWebGL(arrayTexture, blurRadius, saturation, opacity);
+                runtime = _createTileBackgroundRuntimeWebGL(arrayTexture, blurRadius, saturation, opacity);
             }
+
+            if (requestToken !== backgroundGenerationToken) {
+                runtime.dispose();
+                return;
+            }
+
+            const initialLayer = ctx.app.animatedBackgroundEnabled
+                ? clampBackgroundLayer(ctx.tileManager.value.currentLayer, arrayTexture)
+                : 0;
+
+            runtime.renderLayer(initialLayer);
+
+            if (requestToken !== backgroundGenerationToken) {
+                runtime.dispose();
+                return;
+            }
+
+            activeTileBackgroundRuntime = runtime;
+            bindAnimatedTileBackground(ctx.tileManager.value, arrayTexture, runtime);
         } catch (error) {
+            runtime?.dispose?.();
+            if (requestToken !== backgroundGenerationToken) {
+                return;
+            }
             console.error('[ThreeSetup] Failed to set background from tile:', error);
         }
     }
@@ -79,10 +181,11 @@ export function useSceneBackground(ctx) {
      */
     async function setBackgroundFromUrl(imageUrl, options = {}) {
         const {
-            blurRadius = 15,
+            blurRadius: requestedBlurRadius = 15,
             saturation = 1.2,
             opacity = 0.7
         } = options;
+        const blurRadius = getResolvedBlurRadius(requestedBlurRadius);
 
         disposeBackground();
 
@@ -279,7 +382,7 @@ export function useSceneBackground(ctx) {
      * Set background from DataArrayTexture using WebGPU TSL
      * Samples the first layer and applies Kawase blur
      */
-    async function _setBackgroundFromArrayTextureWebGPU(arrayTexture, blurRadius, saturation, opacity) {
+    async function _createTileBackgroundRuntimeWebGPU(arrayTexture, blurRadius, saturation, opacity) {
         const {
             texture: textureNode,
             uv,
@@ -288,7 +391,6 @@ export function useSceneBackground(ctx) {
             vec3,
             vec4,
             float,
-            int,
             dot,
             mix,
             add,
@@ -308,36 +410,25 @@ export function useSceneBackground(ctx) {
             colorSpace: THREE.SRGBColorSpace
         };
         const sampleRT = new THREE.RenderTarget(width, height, rtOptions);
-        let rtA = new THREE.RenderTarget(width, height, rtOptions);
-        let rtB = new THREE.RenderTarget(width, height, rtOptions);
-
-        // Use the existing tileManager material to sample layer 0
-        // This correctly handles array texture sampling for WebGPU
-        const existingMaterial = ctx.tileManager.value.getMaterial(0);
-        if (!existingMaterial) {
-            console.warn('[ThreeSetup] No material available from tileManager');
-            return;
-        }
-
-        // Clone the material and set layer to 0
-        const sampleMaterial = existingMaterial.clone();
-        if (sampleMaterial.uniforms?.uLayer) {
-            sampleMaterial.uniforms.uLayer.value = 0;
-        }
+        const rtA = new THREE.RenderTarget(width, height, rtOptions);
+        const rtB = new THREE.RenderTarget(width, height, rtOptions);
 
         const sampleScene = new THREE.Scene();
         const sampleCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         const sampleGeometry = new THREE.PlaneGeometry(2, 2);
+        const sampleLayerUniform = uniform(0);
+        const rotateUniform = uniform(ctx.tileManager.value?.rotate90 ? 1 : 0);
+        const sampleUv = uv();
+        const rotatedUv = rotateUniform.equal(1).select(
+            vec2(sampleUv.y, float(1).sub(sampleUv.x)),
+            sampleUv
+        );
+        const finalUv = vec2(rotatedUv.x, float(1).sub(rotatedUv.y));
+        const sampleMaterial = new MeshBasicNodeMaterial();
+        sampleMaterial.colorNode = textureNode(arrayTexture, finalUv).depth(sampleLayerUniform);
         const sampleQuad = new THREE.Mesh(sampleGeometry, sampleMaterial);
         sampleScene.add(sampleQuad);
 
-        ctx.renderer.value.setRenderTarget(sampleRT);
-        ctx.renderer.value.render(sampleScene, sampleCamera);
-
-        sampleScene.remove(sampleQuad);
-        sampleMaterial.dispose();
-
-        // Now blur the sampled 2D texture
         const createBlurMaterial = (inputTexture, offsetVal, saturationVal, opacityVal) => {
             const material = new MeshBasicNodeMaterial();
             const uvCoord = uv();
@@ -365,53 +456,83 @@ export function useSceneBackground(ctx) {
         const blurScene = new THREE.Scene();
         const blurCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         const blurGeometry = new THREE.PlaneGeometry(2, 2);
+        const passes = Math.max(0, Math.round(blurRadius / 3));
+        const initialOffset = passes > 0 ? 1.0 : 0.0;
+        const blurMaterials = [
+            createBlurMaterial(
+                sampleRT.texture,
+                initialOffset,
+                passes > 0 ? 1.0 : saturation,
+                passes > 0 ? 1.0 : opacity
+            )
+        ];
 
-        const passes = Math.max(1, Math.round(blurRadius / 3));
-        console.log(`[ThreeSetup] Applying GPU blur from tile (WebGPU TSL): ${passes} passes at ${width}x${height}`);
-
-        // First blur pass
-        let blurMaterial = createBlurMaterial(sampleRT.texture, 1.0, 1.0, 1.0);
-        let blurQuad = new THREE.Mesh(blurGeometry, blurMaterial);
-        blurScene.add(blurQuad);
-
-        ctx.renderer.value.setRenderTarget(rtA);
-        ctx.renderer.value.render(blurScene, blurCamera);
-        blurScene.remove(blurQuad);
-        blurMaterial.dispose();
-
-        // Ping-pong blur passes
         for (let i = 0; i < passes; i++) {
             const isLastPass = i === passes - 1;
-            const temp = rtA;
-            rtA = rtB;
-            rtB = temp;
-
-            const offsetVal = i + 0.5;
-            const satVal = isLastPass ? saturation : 1.0;
-            const opacVal = isLastPass ? opacity : 1.0;
-
-            blurMaterial = createBlurMaterial(rtB.texture, offsetVal, satVal, opacVal);
-            blurQuad = new THREE.Mesh(blurGeometry, blurMaterial);
-            blurScene.add(blurQuad);
-
-            ctx.renderer.value.setRenderTarget(rtA);
-            ctx.renderer.value.render(blurScene, blurCamera);
-            blurScene.remove(blurQuad);
-            blurMaterial.dispose();
+            const inputTexture = i % 2 === 0 ? rtA.texture : rtB.texture;
+            blurMaterials.push(createBlurMaterial(
+                inputTexture,
+                i + 0.5,
+                isLastPass ? saturation : 1.0,
+                isLastPass ? opacity : 1.0
+            ));
         }
 
-        ctx.renderer.value.setRenderTarget(null);
+        console.log(`[ThreeSetup] Applying GPU blur from tile (WebGPU TSL): ${passes} passes at ${width}x${height}`);
+        const blurQuad = new THREE.Mesh(blurGeometry, blurMaterials[0]);
+        blurScene.add(blurQuad);
 
-        ctx.backgroundTexture.value = rtA.texture;
-        ctx.scene.value.background = rtA.texture;
+        let currentLayer = null;
+        let activeOutputTexture = null;
 
-        // Cleanup
-        sampleRT.dispose();
-        rtB.dispose();
-        sampleGeometry.dispose();
-        blurGeometry.dispose();
+        function renderLayer(layerIndex = 0) {
+            const clampedLayer = clampBackgroundLayer(layerIndex, arrayTexture);
+            if (currentLayer === clampedLayer) {
+                return;
+            }
 
-        console.log('[ThreeSetup] Background set from tile texture (WebGPU TSL mode)');
+            sampleLayerUniform.value = clampedLayer;
+
+            ctx.renderer.value.setRenderTarget(sampleRT);
+            ctx.renderer.value.render(sampleScene, sampleCamera);
+
+            let outputTarget = rtA;
+
+            for (let passIndex = 0; passIndex < blurMaterials.length; passIndex++) {
+                blurQuad.material = blurMaterials[passIndex];
+                outputTarget = passIndex % 2 === 0 ? rtA : rtB;
+                ctx.renderer.value.setRenderTarget(outputTarget);
+                ctx.renderer.value.render(blurScene, blurCamera);
+            }
+
+            ctx.renderer.value.setRenderTarget(null);
+
+            activeOutputTexture = outputTarget.texture;
+            currentLayer = clampedLayer;
+            ctx.backgroundTexture.value = activeOutputTexture;
+            if (ctx.scene.value) {
+                ctx.scene.value.background = activeOutputTexture;
+            }
+        }
+
+        function dispose() {
+            if (activeOutputTexture) {
+                clearBackgroundTextureReference(activeOutputTexture);
+            }
+
+            sampleRT.dispose();
+            rtA.dispose();
+            rtB.dispose();
+            sampleMaterial.dispose();
+            sampleGeometry.dispose();
+            blurMaterials.forEach((material) => material.dispose());
+            blurGeometry.dispose();
+        }
+
+        return {
+            renderLayer,
+            dispose,
+        };
     }
 
     // ── Private: WebGL blur implementations ────────────────────────────
@@ -565,7 +686,7 @@ export function useSceneBackground(ctx) {
      * Set background from DataArrayTexture using WebGL
      * Samples the first layer and applies Kawase blur
      */
-    async function _setBackgroundFromArrayTextureWebGL(arrayTexture, blurRadius, saturation, opacity) {
+    function _createTileBackgroundRuntimeWebGL(arrayTexture, blurRadius, saturation, opacity) {
         // Create shader that samples from layer 0 of the array texture
         // Must use GLSL ES 3.0 for sampler2DArray support
         // Note: Swap and flip UV to match WebGPU/tileManager orientation (90° CCW rotation)
@@ -609,18 +730,16 @@ export function useSceneBackground(ctx) {
             colorSpace: THREE.SRGBColorSpace
         };
         const sampleRT = new THREE.WebGLRenderTarget(width, height, rtOptions);
-        let rtA = new THREE.WebGLRenderTarget(width, height, rtOptions);
-        let rtB = new THREE.WebGLRenderTarget(width, height, rtOptions);
+        const rtA = new THREE.WebGLRenderTarget(width, height, rtOptions);
+        const rtB = new THREE.WebGLRenderTarget(width, height, rtOptions);
 
         // Sample the array texture to a 2D texture
         const sampleScene = new THREE.Scene();
         const sampleCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const sampleGeometry = new THREE.PlaneGeometry(2, 2);
         const sampleMaterial = new THREE.ShaderMaterial(sampleShader);
-        const sampleQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), sampleMaterial);
+        const sampleQuad = new THREE.Mesh(sampleGeometry, sampleMaterial);
         sampleScene.add(sampleQuad);
-
-        ctx.renderer.value.setRenderTarget(sampleRT);
-        ctx.renderer.value.render(sampleScene, sampleCamera);
 
         // Now apply blur using the sampled texture
         const blurShader = {
@@ -670,53 +789,81 @@ export function useSceneBackground(ctx) {
 
         const blurScene = new THREE.Scene();
         const blurCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const blurGeometry = new THREE.PlaneGeometry(2, 2);
         const blurMaterial = new THREE.ShaderMaterial(blurShader);
-        const blurQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMaterial);
+        const blurQuad = new THREE.Mesh(blurGeometry, blurMaterial);
         blurScene.add(blurQuad);
 
-        const passes = Math.max(1, Math.round(blurRadius / 3));
+        const passes = Math.max(0, Math.round(blurRadius / 3));
         console.log(`[ThreeSetup] Applying GPU blur from tile (WebGL): ${passes} passes at ${width}x${height}`);
+        let currentLayer = null;
+        let activeOutputTexture = null;
 
-        // First blur pass from sampled texture
-        blurMaterial.uniforms.tDiffuse.value = sampleRT.texture;
-        blurMaterial.uniforms.uOffset.value = 1.0;
-        ctx.renderer.value.setRenderTarget(rtA);
-        ctx.renderer.value.render(blurScene, blurCamera);
-
-        // Ping-pong blur passes
-        for (let i = 0; i < passes; i++) {
-            const isLastPass = i === passes - 1;
-            const temp = rtA;
-            rtA = rtB;
-            rtB = temp;
-
-            blurMaterial.uniforms.tDiffuse.value = rtB.texture;
-            blurMaterial.uniforms.uOffset.value = i + 0.5;
-
-            if (isLastPass) {
-                blurMaterial.uniforms.uSaturation.value = saturation;
-                blurMaterial.uniforms.uOpacity.value = opacity;
+        function renderLayer(layerIndex = 0) {
+            const clampedLayer = clampBackgroundLayer(layerIndex, arrayTexture);
+            if (currentLayer === clampedLayer) {
+                return;
             }
 
-            ctx.renderer.value.setRenderTarget(rtA);
+            sampleMaterial.uniforms.uLayer.value = clampedLayer;
+
+            ctx.renderer.value.setRenderTarget(sampleRT);
+            ctx.renderer.value.render(sampleScene, sampleCamera);
+
+            blurMaterial.uniforms.tDiffuse.value = sampleRT.texture;
+            blurMaterial.uniforms.uOffset.value = passes > 0 ? 1.0 : 0.0;
+            blurMaterial.uniforms.uSaturation.value = passes > 0 ? 1.0 : saturation;
+            blurMaterial.uniforms.uOpacity.value = passes > 0 ? 1.0 : opacity;
+
+            let outputTarget = rtA;
+            let inputTarget = rtB;
+
+            ctx.renderer.value.setRenderTarget(outputTarget);
             ctx.renderer.value.render(blurScene, blurCamera);
+
+            for (let i = 0; i < passes; i++) {
+                const isLastPass = i === passes - 1;
+                const temp = outputTarget;
+                outputTarget = inputTarget;
+                inputTarget = temp;
+
+                blurMaterial.uniforms.tDiffuse.value = inputTarget.texture;
+                blurMaterial.uniforms.uOffset.value = i + 0.5;
+                blurMaterial.uniforms.uSaturation.value = isLastPass ? saturation : 1.0;
+                blurMaterial.uniforms.uOpacity.value = isLastPass ? opacity : 1.0;
+
+                ctx.renderer.value.setRenderTarget(outputTarget);
+                ctx.renderer.value.render(blurScene, blurCamera);
+            }
+
+            ctx.renderer.value.setRenderTarget(null);
+
+            activeOutputTexture = outputTarget.texture;
+            currentLayer = clampedLayer;
+            ctx.backgroundTexture.value = activeOutputTexture;
+            if (ctx.scene.value) {
+                ctx.scene.value.background = activeOutputTexture;
+            }
         }
 
-        ctx.renderer.value.setRenderTarget(null);
+        function dispose() {
+            if (activeOutputTexture) {
+                clearBackgroundTextureReference(activeOutputTexture);
+            }
 
-        // Use result as background - keep rtA alive, don't dispose it!
-        ctx.backgroundTexture.value = rtA.texture;
-        ctx.scene.value.background = rtA.texture;
+            sampleRT.dispose();
+            rtA.dispose();
+            rtB.dispose();
+            sampleMaterial.dispose();
+            sampleGeometry.dispose();
+            blurMaterial.dispose();
+            blurGeometry.dispose();
+        }
 
-        // Cleanup - but NOT rtA since we're using its texture as background
-        sampleRT.dispose();
-        rtB.dispose();
-        sampleMaterial.dispose();
-        sampleQuad.geometry.dispose();
-        blurMaterial.dispose();
-        blurQuad.geometry.dispose();
-
-        console.log('[ThreeSetup] Background set from tile texture (WebGL mode)');
+        return {
+            renderLayer,
+            dispose,
+        };
     }
 
     return {

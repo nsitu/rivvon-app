@@ -247,6 +247,14 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().textureAnimationEnabled,
             true
         ),
+        animatedBackgroundEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().animatedBackgroundEnabled,
+            false
+        ),
+        backgroundBlurEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().backgroundBlurEnabled,
+            true
+        ),
         textureAnimationReversed: normalizeViewerBooleanPreference(
             readViewerPreferences().textureAnimationReversed,
             false
@@ -477,6 +485,18 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ textureAnimationEnabled: nextValue });
         },
 
+        setAnimatedBackgroundEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.animatedBackgroundEnabled = nextValue;
+            writeViewerPreferences({ animatedBackgroundEnabled: nextValue });
+        },
+
+        setBackgroundBlurEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.backgroundBlurEnabled = nextValue;
+            writeViewerPreferences({ backgroundBlurEnabled: nextValue });
+        },
+
         setTextureAnimationReversed(reversed) {
             const nextValue = !!reversed;
             this.textureAnimationReversed = nextValue;
@@ -551,6 +571,8 @@ export const useViewerStore = defineStore('viewer', {
                 undulationEnabled: this.undulationEnabled,
                 flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
                 textureAnimationEnabled: this.textureAnimationEnabled,
+                animatedBackgroundEnabled: this.animatedBackgroundEnabled,
+                backgroundBlurEnabled: this.backgroundBlurEnabled,
                 textureAnimationReversed: this.textureAnimationReversed,
                 textureRepeatMode: this.textureRepeatMode,
                 exportAspectRatioPreset: this.exportAspectRatioPreset,
@@ -596,6 +618,8 @@ export const useViewerStore = defineStore('viewer', {
                 this.undulationEnabled !== original.undulationEnabled ||
                 this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
                 this.textureAnimationEnabled !== original.textureAnimationEnabled ||
+                this.animatedBackgroundEnabled !== original.animatedBackgroundEnabled ||
+                this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
                 this.exportAspectRatioPreset !== original.exportAspectRatioPreset ||

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Rivvon renders ribbons as discrete mesh segments laid out along a smooth spline. Each segment maps one texture tile across its full U range. Seamless tiling comes from modular segment indexing, while conveyor-style motion comes from dual-texture flow materials that shift the sampled U coordinate. The old gap system is no longer part of the renderer.
+Rivvon renders ribbons as discrete mesh segments laid out along a smooth spline. Each segment maps one texture tile across its full U range. Seamless tiling comes from modular segment indexing, while conveyor-style motion comes from dual-texture flow materials that shift the sampled U coordinate.
 
 ---
 

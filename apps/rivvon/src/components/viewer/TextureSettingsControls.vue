@@ -253,6 +253,31 @@
                 </div>
 
                 <div
+                    v-if="showDuotoneFilter && duotoneFilterModel"
+                    class="tools-color-row"
+                >
+                    <label
+                        class="tools-color-main"
+                        :for="getInputId('duotone-color')"
+                    >
+                        <span
+                            class="tools-color-swatch"
+                            :style="{ backgroundColor: duotoneColorModel }"
+                        ></span>
+                        <span>Duotone Color</span>
+                    </label>
+                    <div class="tools-color-control">
+                        <span class="tools-hint tools-color-hint">{{ duotoneColorLabel }}</span>
+                        <ColorPicker
+                            :inputId="getInputId('duotone-color')"
+                            v-model="duotoneColorPickerModel"
+                            format="hex"
+                            class="tools-color-picker"
+                        />
+                    </div>
+                </div>
+
+                <div
                     v-if="showTransparentShadowsFilter"
                     class="tools-toggle-row"
                 >
@@ -317,30 +342,6 @@
                     </div>
                 </div>
 
-                <div
-                    v-if="showDuotoneFilter && duotoneFilterModel"
-                    class="tools-color-row"
-                >
-                    <label
-                        class="tools-color-main"
-                        :for="getInputId('duotone-color')"
-                    >
-                        <span
-                            class="tools-color-swatch"
-                            :style="{ backgroundColor: duotoneColorModel }"
-                        ></span>
-                        <span>Duotone Color</span>
-                    </label>
-                    <div class="tools-color-control">
-                        <span class="tools-hint tools-color-hint">{{ duotoneColorLabel }}</span>
-                        <ColorPicker
-                            :inputId="getInputId('duotone-color')"
-                            v-model="duotoneColorPickerModel"
-                            format="hex"
-                            class="tools-color-picker"
-                        />
-                    </div>
-                </div>
             </div>
         </div>
     </div>
