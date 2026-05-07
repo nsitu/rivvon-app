@@ -8,7 +8,8 @@ import { createViewerPanelVisibilityState, VIEWER_PANEL_KEYS } from '../modules/
 
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
-const VIEWER_FILTER_MODES = ['none', 'blackAndWhite'];
+const VIEWER_FILTER_MODES = ['none', 'blackAndWhite', 'duotone'];
+const DEFAULT_DUOTONE_COLOR = '#ff7a00';
 const MIN_RIBBON_WIDTH_SCALE = 0.4;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
 
@@ -31,6 +32,25 @@ function normalizeViewerFilterMode(value) {
     return VIEWER_FILTER_MODES.includes(value)
         ? value
         : 'none';
+}
+
+function normalizeDuotoneColor(value) {
+    if (typeof value !== 'string') {
+        return DEFAULT_DUOTONE_COLOR;
+    }
+
+    const normalized = value.trim().replace(/^#/, '').toLowerCase();
+
+    if (/^[0-9a-f]{3}$/.test(normalized)) {
+        return `#${normalized
+            .split('')
+            .map((char) => `${char}${char}`)
+            .join('')}`;
+    }
+
+    return /^[0-9a-f]{6}$/.test(normalized)
+        ? `#${normalized}`
+        : DEFAULT_DUOTONE_COLOR;
 }
 
 function normalizeRibbonWidthScale(value) {
@@ -97,9 +117,23 @@ function getStoredExportDimensionSettings() {
     return normalizeExportDimensionSettings(readViewerPreferences());
 }
 
+function getStoredFilterSettings() {
+    const preferences = readViewerPreferences();
+
+    return {
+        renderFilterMode: normalizeViewerFilterMode(preferences.renderFilterMode),
+        transparentShadowsEnabled: normalizeViewerBooleanPreference(
+            preferences.transparentShadowsEnabled,
+            preferences.renderFilterMode === 'transparentShadows'
+        ),
+        duotoneColor: normalizeDuotoneColor(preferences.duotoneColor),
+    };
+}
+
 export const useViewerStore = defineStore('viewer', {
     state: () => {
         const exportDimensionSettings = getStoredExportDimensionSettings();
+        const storedFilterSettings = getStoredFilterSettings();
         const panelVisibilityState = createViewerPanelVisibilityState();
 
         return ({
@@ -191,7 +225,9 @@ export const useViewerStore = defineStore('viewer', {
         preferredTextureMaxResolution: normalizePreferredTextureMaxResolution(
             readViewerPreferences().preferredTextureMaxResolution
         ),
-        renderFilterMode: normalizeViewerFilterMode(readViewerPreferences().renderFilterMode),
+        renderFilterMode: storedFilterSettings.renderFilterMode,
+        transparentShadowsEnabled: storedFilterSettings.transparentShadowsEnabled,
+        duotoneColor: storedFilterSettings.duotoneColor,
         currentTextureId: null,
         currentTextureName: '',
         currentTextureDescription: '',
@@ -464,6 +500,8 @@ export const useViewerStore = defineStore('viewer', {
                 exportCustomHeight: this.exportCustomHeight,
                 preferredTextureMaxResolution: this.preferredTextureMaxResolution,
                 renderFilterMode: this.renderFilterMode,
+                transparentShadowsEnabled: this.transparentShadowsEnabled,
+                duotoneColor: this.duotoneColor,
                 ribbonWidthScale: this.ribbonWidthScale,
                 helixMode: this.helixMode,
                 helixRadius: this.helixRadius,
@@ -504,6 +542,8 @@ export const useViewerStore = defineStore('viewer', {
                 this.exportCustomHeight !== original.exportCustomHeight ||
                 this.preferredTextureMaxResolution !== original.preferredTextureMaxResolution ||
                 this.renderFilterMode !== original.renderFilterMode ||
+                this.transparentShadowsEnabled !== original.transparentShadowsEnabled ||
+                this.duotoneColor !== original.duotoneColor ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
                 this.helixMode !== original.helixMode ||
                 this.helixRadius !== original.helixRadius ||
@@ -642,6 +682,18 @@ export const useViewerStore = defineStore('viewer', {
             const nextMode = normalizeViewerFilterMode(mode);
             this.renderFilterMode = nextMode;
             writeViewerPreferences({ renderFilterMode: nextMode });
+        },
+
+        setTransparentShadowsEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.transparentShadowsEnabled = nextValue;
+            writeViewerPreferences({ transparentShadowsEnabled: nextValue });
+        },
+
+        setDuotoneColor(color) {
+            const nextColor = normalizeDuotoneColor(color);
+            this.duotoneColor = nextColor;
+            writeViewerPreferences({ duotoneColor: nextColor });
         },
 
         setShowTextureMetadataOverlay(enabled) {

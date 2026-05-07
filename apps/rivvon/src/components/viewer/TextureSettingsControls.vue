@@ -1,5 +1,6 @@
 <script setup>
     import { computed, getCurrentInstance } from 'vue';
+    import ColorPicker from 'primevue/colorpicker';
     import Select from 'primevue/select';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -7,6 +8,8 @@
     defineProps({
         showPreferredResolution: { type: Boolean, default: false },
         showBlackAndWhiteFilter: { type: Boolean, default: false },
+        showDuotoneFilter: { type: Boolean, default: false },
+        showTransparentShadowsFilter: { type: Boolean, default: false },
         showOverviewVerticalFlip: { type: Boolean, default: true },
     });
 
@@ -35,6 +38,36 @@
             app.setRenderFilterMode(value ? 'blackAndWhite' : 'none');
         }
     });
+
+    const duotoneFilterModel = computed({
+        get: () => app.renderFilterMode === 'duotone',
+        set: (value) => {
+            app.setRenderFilterMode(value ? 'duotone' : 'none');
+        }
+    });
+
+    const transparentShadowsFilterModel = computed({
+        get: () => app.transparentShadowsEnabled,
+        set: (value) => {
+            app.setTransparentShadowsEnabled(!!value);
+        }
+    });
+
+    const duotoneColorModel = computed({
+        get: () => app.duotoneColor,
+        set: (value) => {
+            app.setDuotoneColor(value);
+        }
+    });
+
+    const duotoneColorPickerModel = computed({
+        get: () => duotoneColorModel.value.replace('#', ''),
+        set: (value) => {
+            app.setDuotoneColor(typeof value === 'string' ? `#${value}` : value);
+        }
+    });
+
+    const duotoneColorLabel = computed(() => duotoneColorModel.value.toUpperCase());
 
     const mirrorTilesModel = computed({
         get: () => app.textureRepeatMode === 'mirrorTile',
@@ -151,6 +184,72 @@
                         />
                     </div>
                 </div>
+
+                <div
+                    v-if="showDuotoneFilter"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('duotone-filter')"
+                    >
+                        <span class="material-symbols-outlined">palette</span>
+                        <span>Duotone</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ duotoneFilterModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('duotone-filter')"
+                            v-model="duotoneFilterModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('transparent-shadows-filter')"
+                    >
+                        <span class="material-symbols-outlined">filter_alt</span>
+                        <span>Transparent Shadows</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ transparentShadowsFilterModel ? 'On' : 'Off'
+                            }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('transparent-shadows-filter')"
+                            v-model="transparentShadowsFilterModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showDuotoneFilter && duotoneFilterModel"
+                    class="tools-color-row"
+                >
+                    <label
+                        class="tools-color-main"
+                        :for="getInputId('duotone-color')"
+                    >
+                        <span
+                            class="tools-color-swatch"
+                            :style="{ backgroundColor: duotoneColorModel }"
+                        ></span>
+                        <span>Duotone Color</span>
+                    </label>
+                    <div class="tools-color-control">
+                        <span class="tools-hint tools-color-hint">{{ duotoneColorLabel }}</span>
+                        <ColorPicker
+                            :inputId="getInputId('duotone-color')"
+                            v-model="duotoneColorPickerModel"
+                            format="hex"
+                            class="tools-color-picker"
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -232,6 +331,49 @@
         margin-left: 0;
     }
 
+    .tools-color-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0 1rem 0.875rem;
+        color: var(--p-text-color, #fff);
+    }
+
+    .tools-color-row.is-disabled {
+        opacity: 0.6;
+    }
+
+    .tools-color-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.875rem;
+        min-width: 0;
+        color: inherit;
+        font-size: 0.9rem;
+    }
+
+    .tools-color-swatch {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22) inset;
+        flex-shrink: 0;
+    }
+
+    .tools-color-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex-shrink: 0;
+    }
+
+    .tools-color-hint {
+        margin-left: 0;
+        text-transform: uppercase;
+    }
+
     .tools-select-block {
         display: flex;
         flex-direction: column;
@@ -266,5 +408,20 @@
 
     :deep(.tools-select .p-select-label) {
         font-size: 0.95rem;
+    }
+
+    :deep(.tools-color-picker .p-colorpicker-preview) {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: none;
+        background-image:
+            linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
+            linear-gradient(-45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%),
+            linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%);
+        background-size: 10px 10px;
+        background-position: 0 0, 0 5px, 5px -5px, -5px 0;
     }
 </style>

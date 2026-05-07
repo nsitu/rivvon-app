@@ -623,6 +623,8 @@
                         <TextureSettingsControls
                             :show-preferred-resolution="true"
                             :show-black-and-white-filter="true"
+                            :show-duotone-filter="true"
+                            :show-transparent-shadows-filter="true"
                         />
                     </div>
 

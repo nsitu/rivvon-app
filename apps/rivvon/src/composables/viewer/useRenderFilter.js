@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export function useRenderFilter(ctx) {
     let activeRendererType = 'webgl';
     let webGPUDeps = null;
+    const duotoneColor = new THREE.Color();
 
     let filterScene = null;
     let filterCamera = null;
@@ -10,9 +11,43 @@ export function useRenderFilter(ctx) {
     let filterQuad = null;
     let filterMaterial = null;
     let filterRenderTarget = null;
+    let filterMaterialSignature = null;
+    let filterMaterialTexture = null;
+
+    function getActiveFilterMode() {
+        return ctx.app.renderFilterMode === 'blackAndWhite'
+            || ctx.app.renderFilterMode === 'duotone'
+            ? ctx.app.renderFilterMode
+            : 'none';
+    }
+
+    function isTransparentShadowsEnabled() {
+        return ctx.app.transparentShadowsEnabled === true;
+    }
+
+    function getPostProcessFilterMode() {
+        const mode = getActiveFilterMode();
+        return mode === 'blackAndWhite' || mode === 'duotone'
+            ? mode
+            : 'none';
+    }
+
+    function getDuotoneColorValues() {
+        duotoneColor.set(ctx.app.duotoneColor || '#ff7a00');
+        return [duotoneColor.r, duotoneColor.g, duotoneColor.b]
+            .map((value) => Number(value).toFixed(8))
+            .join(', ');
+    }
+
+    function getFilterMaterialSignature() {
+        const mode = getPostProcessFilterMode();
+        return mode === 'duotone'
+            ? `${mode}:${ctx.app.duotoneColor || '#ff7a00'}`
+            : mode;
+    }
 
     function shouldApplyFilter() {
-        return ctx.app.renderFilterMode === 'blackAndWhite';
+        return getPostProcessFilterMode() !== 'none';
     }
 
     async function initRenderFilter(rendererType = 'webgl') {
@@ -52,6 +87,11 @@ export function useRenderFilter(ctx) {
     }
 
     function createWebGLFilterMaterial(texture) {
+        const filterMode = getPostProcessFilterMode();
+        const filteredColorExpression = filterMode === 'duotone'
+            ? `mix(vec3(0.0), vec3(${getDuotoneColorValues()}), luminance)`
+            : 'vec3(luminance)';
+
         return new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { value: texture }
@@ -76,7 +116,8 @@ export function useRenderFilter(ctx) {
                     float alpha = color.a;
                     vec3 unpremultiplied = alpha > 0.0 ? (color.rgb / alpha) : vec3(0.0);
                     float luminance = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722));
-                    vec3 premultipliedFiltered = vec3(luminance) * alpha;
+                    vec3 filteredColor = ${filteredColorExpression};
+                    vec3 premultipliedFiltered = filteredColor * alpha;
                     gl_FragColor = vec4(premultipliedFiltered, alpha);
                 }
             `,
@@ -88,7 +129,11 @@ export function useRenderFilter(ctx) {
 
     function createWebGPUFilterMaterial(texture) {
         const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-        const { texture: textureNode, uv, float, vec2, vec3, vec4, dot, max } = webGPUDeps.threeTSL;
+        const { texture: textureNode, uv, float, vec2, vec3, vec4, dot, max, mix } = webGPUDeps.threeTSL;
+        const [duotoneRed, duotoneGreen, duotoneBlue] = getDuotoneColorValues()
+            .split(', ')
+            .map((value) => Number(value));
+        const filterMode = getPostProcessFilterMode();
 
         const material = new MeshBasicNodeMaterial();
         const baseUv = uv();
@@ -98,7 +143,11 @@ export function useRenderFilter(ctx) {
         const safeAlpha = max(alpha, float(0.00001));
         const unpremultiplied = sampledColor.rgb.div(safeAlpha);
         const luminance = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722));
-        const premultipliedFiltered = vec3(luminance, luminance, luminance).mul(alpha);
+        const grayscale = vec3(luminance, luminance, luminance);
+        const filteredBase = filterMode === 'duotone'
+            ? mix(vec3(0.0, 0.0, 0.0), vec3(duotoneRed, duotoneGreen, duotoneBlue), luminance)
+            : grayscale;
+        const premultipliedFiltered = filteredBase.mul(alpha);
 
         // Match WebGL path: filter first in unpremultiplied space, then reapply alpha.
         material.colorNode = vec4(premultipliedFiltered, alpha);
@@ -114,26 +163,36 @@ export function useRenderFilter(ctx) {
             return false;
         }
 
+        const nextSignature = getFilterMaterialSignature();
+
         if (!filterQuad) {
             filterQuad = new THREE.Mesh(filterGeometry, null);
             filterQuad.frustumCulled = false;
             filterScene.add(filterQuad);
         }
 
+        const needsNewMaterial = !filterMaterial
+            || filterMaterialSignature !== nextSignature
+            || filterMaterialTexture !== texture;
+
+        if (!needsNewMaterial) {
+            return true;
+        }
+
         if (activeRendererType === 'webgpu') {
             filterMaterial?.dispose?.();
             filterMaterial = createWebGPUFilterMaterial(texture);
             filterQuad.material = filterMaterial;
+            filterMaterialSignature = nextSignature;
+            filterMaterialTexture = texture;
             return true;
         }
 
-        if (!filterMaterial) {
-            filterMaterial = createWebGLFilterMaterial(texture);
-            filterQuad.material = filterMaterial;
-            return true;
-        }
-
-        filterMaterial.uniforms.tDiffuse.value = texture;
+        filterMaterial?.dispose?.();
+        filterMaterial = createWebGLFilterMaterial(texture);
+        filterQuad.material = filterMaterial;
+        filterMaterialSignature = nextSignature;
+        filterMaterialTexture = texture;
         return true;
     }
 
@@ -157,13 +216,48 @@ export function useRenderFilter(ctx) {
         if (needsNewTarget) {
             filterRenderTarget?.dispose?.();
             filterRenderTarget = createRenderTarget(width, height);
-
-            if (!ensureFilterQuad(filterRenderTarget.texture)) {
-                return false;
-            }
         }
 
-        return true;
+        return ensureFilterQuad(filterRenderTarget.texture);
+    }
+
+    function syncTransparentShadowsMaterials(scene) {
+        const enabled = isTransparentShadowsEnabled();
+
+        scene.traverse((obj) => {
+            const materials = Array.isArray(obj.material)
+                ? obj.material
+                : (obj.material ? [obj.material] : []);
+
+            materials.forEach((material) => {
+                if (!material?._transparentShadowsUniform) {
+                    return;
+                }
+
+                material._transparentShadowsUniform.value = enabled ? 1 : 0;
+
+                const original = material._transparentShadowsOriginalState || {
+                    transparent: material.transparent,
+                    depthWrite: material.depthWrite,
+                    alphaToCoverage: material.alphaToCoverage,
+                };
+
+                const nextTransparent = enabled ? true : original.transparent;
+                const nextDepthWrite = enabled ? false : original.depthWrite;
+                const nextAlphaToCoverage = enabled ? false : original.alphaToCoverage;
+
+                if (
+                    material.transparent !== nextTransparent
+                    || material.depthWrite !== nextDepthWrite
+                    || material.alphaToCoverage !== nextAlphaToCoverage
+                ) {
+                    material.transparent = nextTransparent;
+                    material.depthWrite = nextDepthWrite;
+                    material.alphaToCoverage = nextAlphaToCoverage;
+                    material.needsUpdate = true;
+                }
+            });
+        });
     }
 
     function applyCapMaskFilterOverrides(scene) {
@@ -220,6 +314,8 @@ export function useRenderFilter(ctx) {
             return;
         }
 
+        syncTransparentShadowsMaterials(ctx.scene.value);
+
         if (!shouldApplyFilter() || !ensureFilterResources()) {
             renderer.setRenderTarget(target);
             renderer.render(ctx.scene.value, ctx.camera.value);
@@ -253,6 +349,8 @@ export function useRenderFilter(ctx) {
 
         filterMaterial?.dispose?.();
         filterMaterial = null;
+        filterMaterialSignature = null;
+        filterMaterialTexture = null;
 
         if (filterQuad && filterScene) {
             filterScene.remove(filterQuad);

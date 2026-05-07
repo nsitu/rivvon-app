@@ -345,6 +345,8 @@
         () => app.textureAnimationReversed,
         () => app.preferredTextureMaxResolution,
         () => app.renderFilterMode,
+        () => app.transparentShadowsEnabled,
+        () => app.duotoneColor,
         () => app.textureRepeatMode,
         () => app.textureOverviewFlipVertical,
     ], () => {

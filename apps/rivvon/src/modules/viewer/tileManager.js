@@ -12,6 +12,8 @@ const loadTSLModule = createLazyLoader(() => import('three/tsl'));
 export const DEFAULT_TEXTURE_ID = 'wv-ywyV14qYSbrzgYga4l';
 const CAP_MASK_SDF_AA_SCALE = 0.7;
 const CAP_MASK_SDF_MIN_AA = 1 / 4096;
+const TRANSPARENT_SHADOWS_LUMA_MIN = 0.2;
+const TRANSPARENT_SHADOWS_LUMA_MAX = 0.5;
 
 function positiveModulo(value, modulus) {
     if (modulus <= 0) return 0;
@@ -518,6 +520,21 @@ export class TileManager {
         material._ownedCapTextures = [];
     }
 
+    #decorateTransparentShadowsMaterial(material, hasCapMask) {
+        if (!material) {
+            return material;
+        }
+
+        material._transparentShadowsCapMask = hasCapMask;
+        material._transparentShadowsOriginalState = {
+            transparent: material.transparent,
+            depthWrite: material.depthWrite,
+            alphaToCoverage: material.alphaToCoverage,
+        };
+
+        return material;
+    }
+
     clearEphemeralStaticMaterials() {
         this.ephemeralStaticMaterials.forEach(material => {
             this.#disposeMaterialExtras(material);
@@ -590,6 +607,7 @@ export class TileManager {
                 uMirrorCurrent: { value: mirrorCurrent },
                 uMirrorNext: { value: mirrorNext },
                 uFlowOffset: this.sharedFlowOffsetUniform,
+                uTransparentShadows: { value: 0 },
                 ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
                 ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
                 ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
@@ -615,6 +633,7 @@ export class TileManager {
                 uniform int uMirrorCurrent;
                 uniform int uMirrorNext;
                 uniform float uFlowOffset;
+                uniform int uTransparentShadows;
                 ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
@@ -692,6 +711,16 @@ export class TileManager {
                     ${hasEndMask ? 'capAlpha *= sampleCapSdf(uCapMaskEnd, vec2(1.0 - vUv.x, 1.0 - vUv.y), uCapMaskEndSpread, uCapMaskEndTipFadeWidth);' : ''}
                     ${hasCapMask ? 'texColor.a *= capAlpha;' : ''}
                     ${hasCapMask ? 'if (texColor.a <= 0.001) discard;' : ''}
+
+                    if (uTransparentShadows == 1) {
+                        float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+                        float alphaScale = clamp(
+                            (luminance - ${TRANSPARENT_SHADOWS_LUMA_MIN}) / ${TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN},
+                            0.0,
+                            1.0
+                        );
+                        texColor.a *= alphaScale;
+                    }
                     
                     outColor = texColor;
                 }
@@ -716,8 +745,9 @@ export class TileManager {
             material._ownedCapTextures.push(options.capMaskEnd.texture);
         }
         material._hasCapMask = hasCapMask;
+        material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
 
-        return material;
+        return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
 
     /**
@@ -729,7 +759,7 @@ export class TileManager {
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, float, vec2, vec4, smoothstep } = threeTSL;
+        const { texture, uniform, uv, float, vec2, vec3, vec4, dot, smoothstep } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
         const reverseFlow = this.flowDirection < 0;
         const hasStartMask = !!options.capMaskStart?.texture;
@@ -742,6 +772,7 @@ export class TileManager {
         const mirrorCurrentUniform = uniform(options.mirrorCurrent ? 1 : 0);
         const mirrorNextUniform = uniform(options.mirrorNext ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
+        const transparentShadowsUniform = uniform(0);
 
         const baseUV = uv();
         
@@ -816,9 +847,20 @@ export class TileManager {
         const finalColor = hasCapMask
             ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
             : sampledColor;
+        const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        const transparentShadowAlpha = finalColor.a.mul(
+            luminance.sub(float(TRANSPARENT_SHADOWS_LUMA_MIN))
+                .div(float(TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN))
+                .max(float(0.0))
+                .min(float(1.0))
+        );
+        const outputColor = transparentShadowsUniform.equal(1).select(
+            vec4(finalColor.rgb, transparentShadowAlpha),
+            finalColor
+        );
 
         const material = new NodeMaterial();
-        material.colorNode = finalColor;
+        material.colorNode = outputColor;
         material.transparent = false;
         material.depthWrite = true;
         material.alphaToCoverage = hasCapMask;
@@ -838,8 +880,9 @@ export class TileManager {
             material._ownedCapTextures.push(options.capMaskEnd.texture);
         }
         material._hasCapMask = hasCapMask;
+        material._transparentShadowsUniform = transparentShadowsUniform;
 
-        return material;
+        return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
 
     /**
@@ -931,6 +974,7 @@ export class TileManager {
                 uLayerCount: { value: layerCount },
                 uRotate90: this.sharedRotateUniform,
                 uMirrorX: { value: mirrorX },
+                uTransparentShadows: { value: 0 },
                 ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
                 ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
                 ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
@@ -953,6 +997,7 @@ export class TileManager {
                 uniform int uLayer;
                 uniform int uRotate90;
                 uniform int uMirrorX;
+                uniform int uTransparentShadows;
                 ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
                 ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
@@ -987,6 +1032,16 @@ export class TileManager {
                     ${hasEndMask ? 'capAlpha *= sampleCapSdf(uCapMaskEnd, vec2(1.0 - vUv.x, 1.0 - vUv.y), uCapMaskEndSpread, uCapMaskEndTipFadeWidth);' : ''}
                     ${hasCapMask ? 'texColor.a *= capAlpha;' : ''}
                     ${hasCapMask ? 'if (texColor.a <= 0.001) discard;' : ''}
+
+                    if (uTransparentShadows == 1) {
+                        float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+                        float alphaScale = clamp(
+                            (luminance - ${TRANSPARENT_SHADOWS_LUMA_MIN}) / ${TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN},
+                            0.0,
+                            1.0
+                        );
+                        texColor.a *= alphaScale;
+                    }
                     outColor = texColor;
                 }
             `,
@@ -1004,14 +1059,15 @@ export class TileManager {
             material._ownedCapTextures.push(options.capMaskEnd.texture);
         }
         material._hasCapMask = hasCapMask;
+        material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
 
-        return material;
+        return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
 
     #createArrayMaterialWebGPU(arrayTexture, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, float, vec2, vec4, smoothstep } = threeTSL;
+        const { texture, uniform, uv, float, vec2, vec3, vec4, dot, smoothstep } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
         const hasStartMask = !!options.capMaskStart?.texture;
         const hasEndMask = !!options.capMaskEnd?.texture;
@@ -1050,6 +1106,7 @@ export class TileManager {
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
         const mirrorUniform = uniform(options.mirrorX ? 1 : 0);
+        const transparentShadowsUniform = uniform(0);
 
         // Get base UV coordinates
         const baseUV = uv();
@@ -1110,8 +1167,33 @@ export class TileManager {
         }
 
         material.colorNode = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
-            : sampledColor;
+            ? transparentShadowsUniform.equal(1).select(
+                (() => {
+                    const finalColor = vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha));
+                    const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+                    const remappedAlpha = finalColor.a.mul(
+                        luminance.sub(float(TRANSPARENT_SHADOWS_LUMA_MIN))
+                            .div(float(TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN))
+                            .max(float(0.0))
+                            .min(float(1.0))
+                    );
+                    return vec4(finalColor.rgb, remappedAlpha);
+                })(),
+                vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
+            )
+            : transparentShadowsUniform.equal(1).select(
+                (() => {
+                    const luminance = dot(sampledColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+                    const remappedAlpha = sampledColor.a.mul(
+                        luminance.sub(float(TRANSPARENT_SHADOWS_LUMA_MIN))
+                            .div(float(TRANSPARENT_SHADOWS_LUMA_MAX - TRANSPARENT_SHADOWS_LUMA_MIN))
+                            .max(float(0.0))
+                            .min(float(1.0))
+                    );
+                    return vec4(sampledColor.rgb, remappedAlpha);
+                })(),
+                sampledColor
+            );
         material.transparent = false;
         material.depthWrite = true;
         material.alphaToCoverage = hasCapMask;
@@ -1129,6 +1211,7 @@ export class TileManager {
             material._ownedCapTextures.push(options.capMaskEnd.texture);
         }
         material._hasCapMask = hasCapMask;
+        material._transparentShadowsUniform = transparentShadowsUniform;
 
         console.log('[TileManager] WebGPU material created:', {
             layerCount,
@@ -1137,7 +1220,7 @@ export class TileManager {
             rotate90: this.rotate90
         });
 
-        return material;
+        return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
 
     /**
