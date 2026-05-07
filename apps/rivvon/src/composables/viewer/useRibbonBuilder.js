@@ -177,9 +177,13 @@ export function useRibbonBuilder(ctx) {
             applyTileManagersToSeries(ctx.ribbonSeries.value);
             ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
             // Rebuild ribbon series with new textures
-            if (ctx.ribbonSeries.value.lastPathsPoints && ctx.ribbonSeries.value.lastPathsPoints.length > 0) {
+            const sourcePaths = ctx.ribbonSeries.value.sourcePathsPoints?.length
+                ? ctx.ribbonSeries.value.sourcePathsPoints
+                : ctx.ribbonSeries.value.lastPathsPoints;
+
+            if (sourcePaths && sourcePaths.length > 0) {
                 ctx.ribbonSeries.value.buildFromMultiplePaths(
-                    ctx.ribbonSeries.value.lastPathsPoints, 
+                    sourcePaths,
                     ctx.ribbonSeries.value.lastWidth || 1.2
                 );
                 ctx.ribbonSeries.value.initFlowMaterials();

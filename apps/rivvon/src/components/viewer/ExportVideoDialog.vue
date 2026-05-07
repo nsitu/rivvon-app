@@ -12,7 +12,7 @@
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { EXPORT_LOGO_SRC, EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
+    import { EXPORT_LOGO_SRC, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
     import {
         EXPORT_ASPECT_RATIO_OPTIONS,
         getExportResolutionOptions,
@@ -51,6 +51,14 @@
     const cameraMovement = ref('circularTilt');
     const quality = ref('high');
     const logoOverlayEnabled = ref(true);
+    const logoOverlayCorner = ref('bottomLeft');
+
+    const logoOverlayCornerOptions = [
+        { label: 'Top Left', value: 'topLeft' },
+        { label: 'Top Right', value: 'topRight' },
+        { label: 'Bottom Right', value: 'bottomRight' },
+        { label: 'Bottom Left', value: 'bottomLeft' },
+    ];
 
     const exportModeOptions = computed(() => {
         const options = [];
@@ -78,12 +86,22 @@
 
     const textureOnlyMode = computed(() => exportMode.value === 'textureOnly');
 
+    function isCircularOrbitMovement(value) {
+        return value === 'circularOrbit' || value === 'circularOrbitReverse';
+    }
+
+    function getCircularOrbitDirectionLabel(value) {
+        return value === 'circularOrbitReverse' ? 'clockwise' : 'counterclockwise';
+    }
+
     const cameraMovementOptions = computed(() => {
         const hasROIs = activeModeInfo.value?.hasROIs ?? false;
         return [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
             { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
             { label: 'Circular Tilt', value: 'circularTilt', description: 'Artwork tilts through one full 360° rotation over the export duration' },
+            { label: 'Counterclockwise Orbit', value: 'circularOrbit', description: 'View completes one full counterclockwise orbit around the artwork center over the export duration' },
+            { label: 'Clockwise Orbit', value: 'circularOrbitReverse', description: 'View completes one full clockwise orbit around the artwork center over the export duration' },
         ];
     });
 
@@ -180,12 +198,25 @@
     });
 
     const logoOverlayLayout = computed(() => {
-        return getExportLogoOverlayLayout(resolvedWidth.value, resolvedHeight.value);
+        return getExportLogoOverlayLayout(
+            resolvedWidth.value,
+            resolvedHeight.value,
+            undefined,
+            logoOverlayCorner.value,
+        );
     });
 
-    const logoOverlaySummary = computed(() => {
-        const { width, height } = logoOverlayLayout.value;
-        return `${Math.round(width)}×${Math.round(height)} px · ${Math.round(EXPORT_LOGO_AREA_RATIO * 100)}% frame area`;
+    const logoPreviewCornerClass = computed(() => {
+        switch (logoOverlayCorner.value) {
+            case 'topLeft':
+                return 'logo-corner-top-left';
+            case 'topRight':
+                return 'logo-corner-top-right';
+            case 'bottomRight':
+                return 'logo-corner-bottom-right';
+            default:
+                return 'logo-corner-bottom-left';
+        }
     });
 
     const resolvedDuration = computed(() => {
@@ -216,6 +247,9 @@
         if (cameraMovement.value === 'circularTilt') {
             return `One full 360° artwork tilt rotation over ${formatDuration(resolvedDuration.value)}.`;
         }
+        if (isCircularOrbitMovement(cameraMovement.value)) {
+            return `One full 360° ${getCircularOrbitDirectionLabel(cameraMovement.value)} orbit around the artwork center over ${formatDuration(resolvedDuration.value)}.`;
+        }
         return `Seamless loop — enabled cycles return to start after ${formatDuration(seamlessLoopDuration.value)}.`;
     });
 
@@ -240,6 +274,10 @@
 
         if (cameraMovement.value === 'circularTilt') {
             return `Circular Tilt completes one full 360° rotation over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+        }
+
+        if (isCircularOrbitMovement(cameraMovement.value)) {
+            return `Circular Orbit (${getCircularOrbitDirectionLabel(cameraMovement.value)}) completes one full 360° turntable-style orbit over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
         }
 
         return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;
@@ -323,6 +361,18 @@
         }
     });
 
+    watch(
+        () => [props.visible, props.initialSettings?.logoOverlayCorner],
+        ([visible]) => {
+            if (!visible) {
+                return;
+            }
+
+            logoOverlayCorner.value = props.initialSettings?.logoOverlayCorner || 'bottomLeft';
+        },
+        { immediate: true }
+    );
+
     watch([
         aspectRatioPreset,
         resolutionPreset,
@@ -337,6 +387,7 @@
         cameraMovement,
         quality,
         logoOverlayEnabled,
+        logoOverlayCorner,
         () => app.flowState,
         () => app.flowSpeed,
         () => app.undulationEnabled,
@@ -379,6 +430,7 @@
             cameraMovement: textureOnlyMode.value ? 'none' : cameraMovement.value,
             quality: quality.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
+            logoOverlayCorner: logoOverlayCorner.value,
         });
     }
 
@@ -528,13 +580,29 @@
                                     <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
                                 </div>
                                 <div class="field-description">
-                                    Bottom-right Rivvon logo baked into each frame.
+                                    Rivvon logo baked into each frame.
                                 </div>
                             </div>
 
                             <div
                                 v-if="logoOverlayEnabled"
+                                class="form-field"
+                            >
+                                <label>Logo Corner</label>
+                                <Select
+                                    v-model="logoOverlayCorner"
+                                    :options="logoOverlayCornerOptions"
+                                    option-label="label"
+                                    option-value="value"
+                                    :disabled="isEncoding"
+                                    class="w-full"
+                                />
+                            </div>
+
+                            <div
+                                v-if="logoOverlayEnabled"
                                 class="logo-preview-frame"
+                                :class="logoPreviewCornerClass"
                             >
                                 <img
                                     :src="EXPORT_LOGO_SRC"
@@ -1113,8 +1181,6 @@
 
     .logo-preview-frame {
         display: flex;
-        justify-content: flex-end;
-        align-items: flex-end;
         min-height: 6.5rem;
         padding: 0.9rem;
         border-radius: 0.75rem;
@@ -1123,6 +1189,26 @@
             linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
         border: 1px solid rgba(255, 255, 255, 0.06);
         overflow: hidden;
+    }
+
+    .logo-preview-frame.logo-corner-top-left {
+        justify-content: flex-start;
+        align-items: flex-start;
+    }
+
+    .logo-preview-frame.logo-corner-top-right {
+        justify-content: flex-end;
+        align-items: flex-start;
+    }
+
+    .logo-preview-frame.logo-corner-bottom-right {
+        justify-content: flex-end;
+        align-items: flex-end;
+    }
+
+    .logo-preview-frame.logo-corner-bottom-left {
+        justify-content: flex-start;
+        align-items: flex-end;
     }
 
     .logo-preview-image {

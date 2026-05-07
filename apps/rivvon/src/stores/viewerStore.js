@@ -4,6 +4,10 @@
 import { defineStore } from 'pinia';
 import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capStyle.js';
 import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
+import {
+    DEFAULT_SPHERICAL_WRAP_DEGREES,
+    normalizeSphericalProjectionWrapDegrees,
+} from '../modules/viewer/sphericalProjection.js';
 import { createViewerPanelVisibilityState, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
 
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
@@ -15,8 +19,9 @@ const DEFAULT_TRANSPARENCY_MODE = 'shadows';
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN = 0.2;
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX = 0.5;
 const MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP = 0.01;
-const MIN_RIBBON_WIDTH_SCALE = 0.4;
+const MIN_RIBBON_WIDTH_SCALE = 0.1;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
+const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
 
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -110,6 +115,12 @@ function normalizeRibbonWidthScale(value) {
     }
 
     return Math.min(MAX_RIBBON_WIDTH_SCALE, Math.max(MIN_RIBBON_WIDTH_SCALE, parsed));
+}
+
+function normalizeRibbonPathAlignmentMode(value) {
+    return RIBBON_PATH_ALIGNMENT_MODES.includes(value)
+        ? value
+        : 'center';
 }
 
 function normalizeViewerBooleanPreference(value, fallback = false) {
@@ -270,11 +281,21 @@ export const useViewerStore = defineStore('viewer', {
         helixPitch: 9.0,      // Number of full turns along the ribbon length
         helixStrandWidth: 0.50, // Width of each helical ribbon strip (fraction of original width)
         ribbonWidthScale: normalizeRibbonWidthScale(readViewerPreferences().ribbonWidthScale),
+        ribbonPathAlignmentMode: normalizeRibbonPathAlignmentMode(
+            readViewerPreferences().ribbonPathAlignmentMode
+        ),
 
         // Geometry options
         capStyle: CAP_STYLE_ROUNDED,
         roundedCaps: true, // Legacy alias for capStyle === 'rounded'
         cornerNarrowingEnabled: false,
+        sphericalProjectionEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().sphericalProjectionEnabled,
+            false
+        ),
+        sphericalProjectionWrapDegrees: normalizeSphericalProjectionWrapDegrees(
+            readViewerPreferences().sphericalProjectionWrapDegrees
+        ),
         
         // Texture state
         textureRepeatMode: 'mirrorTile', // 'wrap' | 'mirrorTile'
@@ -587,12 +608,15 @@ export const useViewerStore = defineStore('viewer', {
                 transparentShadowsThresholdMax: this.transparentShadowsThresholdMax,
                 duotoneColor: this.duotoneColor,
                 ribbonWidthScale: this.ribbonWidthScale,
+                ribbonPathAlignmentMode: this.ribbonPathAlignmentMode,
                 helixMode: this.helixMode,
                 helixRadius: this.helixRadius,
                 helixPitch: this.helixPitch,
                 helixStrandWidth: this.helixStrandWidth,
                 capStyle: this.capStyle,
                 cornerNarrowingEnabled: this.cornerNarrowingEnabled,
+                sphericalProjectionEnabled: this.sphericalProjectionEnabled,
+                sphericalProjectionWrapDegrees: this.sphericalProjectionWrapDegrees,
                 showTextureMetadataOverlay: this.showTextureMetadataOverlay,
                 screenWakeLockEnabled: this.screenWakeLockEnabled,
             };
@@ -634,12 +658,15 @@ export const useViewerStore = defineStore('viewer', {
                 this.transparentShadowsThresholdMax !== original.transparentShadowsThresholdMax ||
                 this.duotoneColor !== original.duotoneColor ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
+                this.ribbonPathAlignmentMode !== original.ribbonPathAlignmentMode ||
                 this.helixMode !== original.helixMode ||
                 this.helixRadius !== original.helixRadius ||
                 this.helixPitch !== original.helixPitch ||
                 this.helixStrandWidth !== original.helixStrandWidth ||
                 this.capStyle !== original.capStyle ||
                 this.cornerNarrowingEnabled !== original.cornerNarrowingEnabled ||
+                this.sphericalProjectionEnabled !== original.sphericalProjectionEnabled ||
+                this.sphericalProjectionWrapDegrees !== original.sphericalProjectionWrapDegrees ||
                 this.showTextureMetadataOverlay !== original.showTextureMetadataOverlay ||
                 this.screenWakeLockEnabled !== original.screenWakeLockEnabled
             );
@@ -920,6 +947,12 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ ribbonWidthScale: nextScale });
         },
 
+        setRibbonPathAlignmentMode(mode) {
+            const nextMode = normalizeRibbonPathAlignmentMode(mode);
+            this.ribbonPathAlignmentMode = nextMode;
+            writeViewerPreferences({ ribbonPathAlignmentMode: nextMode });
+        },
+
         setCapStyle(style) {
             const nextStyle = normalizeCapStyle(style, this.roundedCaps);
             this.capStyle = nextStyle;
@@ -932,6 +965,18 @@ export const useViewerStore = defineStore('viewer', {
 
         setCornerNarrowingEnabled(enabled) {
             this.cornerNarrowingEnabled = !!enabled;
+        },
+
+        setSphericalProjectionEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.sphericalProjectionEnabled = nextValue;
+            writeViewerPreferences({ sphericalProjectionEnabled: nextValue });
+        },
+
+        setSphericalProjectionWrapDegrees(value) {
+            const nextValue = normalizeSphericalProjectionWrapDegrees(value);
+            this.sphericalProjectionWrapDegrees = nextValue;
+            writeViewerPreferences({ sphericalProjectionWrapDegrees: nextValue });
         },
 
     },
@@ -949,10 +994,13 @@ export const useViewerStore = defineStore('viewer', {
             helixPitch: state.helixPitch,
             helixStrandWidth: state.helixStrandWidth,
             ribbonWidthScale: state.ribbonWidthScale,
+            ribbonPathAlignmentMode: normalizeRibbonPathAlignmentMode(state.ribbonPathAlignmentMode),
             undulationEnabled: state.undulationEnabled,
             capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,
             cornerNarrowingEnabled: state.cornerNarrowingEnabled,
+            sphericalProjectionEnabled: state.sphericalProjectionEnabled,
+            sphericalProjectionWrapDegrees: state.sphericalProjectionWrapDegrees || DEFAULT_SPHERICAL_WRAP_DEGREES,
         }),
         toolsPanelHasChanges: (state) => state.hasToolsPanelChanges(),
     }

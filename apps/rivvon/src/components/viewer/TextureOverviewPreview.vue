@@ -438,6 +438,7 @@
             loopCount = 1,
             quality = 'high',
             logoOverlayEnabled = true,
+            logoOverlayCorner = 'bottomLeft',
             signal = null,
             onProgress = null,
             onStatus = null,
@@ -536,6 +537,7 @@
                         width,
                         height,
                         exportLogoAsset.aspectRatio,
+                        logoOverlayCorner,
                     );
                 }
 

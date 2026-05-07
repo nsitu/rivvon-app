@@ -16,6 +16,12 @@
         { label: 'Square Caps', value: 'square', icon: 'crop' }
     ];
 
+    const ribbonPathAlignmentOptions = [
+        { label: 'Align to Inside', value: 'inside' },
+        { label: 'Align to Centre', value: 'center' },
+        { label: 'Align to Outside', value: 'outside' }
+    ];
+
     const selectedCapOption = computed({
         get: () => capOptions.find((option) => option.value === app.capStyle) ?? capOptions[0],
         set: (option) => {
@@ -38,6 +44,22 @@
         }
     });
 
+    const sphericalProjectionModel = computed({
+        get: () => app.sphericalProjectionEnabled,
+        set: (value) => {
+            app.setSphericalProjectionEnabled(!!value);
+        }
+    });
+
+    const sphericalProjectionWrapDegreesLabel = computed(() => `${Math.round(app.sphericalProjectionWrapDegrees)}°`);
+
+    const ribbonPathAlignmentModel = computed({
+        get: () => app.ribbonPathAlignmentMode,
+        set: (value) => {
+            app.setRibbonPathAlignmentMode(value);
+        }
+    });
+
     function getInputId(name) {
         return `${inputIdPrefix}-${name}`;
     }
@@ -50,10 +72,10 @@
             <div class="tools-section-items">
                 <div class="tools-slider">
                     <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                            }}x</span></label>
+                    }}x</span></label>
                     <input
                         type="range"
-                        min="0.4"
+                        min="0.1"
                         max="2.5"
                         step="0.05"
                         :value="app.ribbonWidthScale"
@@ -61,7 +83,56 @@
                     />
                 </div>
 
+                <div class="tools-select-block">
+                    <label class="tools-select-label">Path Alignment</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="ribbonPathAlignmentModel"
+                            :options="ribbonPathAlignmentOptions"
+                            option-label="label"
+                            option-value="value"
+                            class="tools-select"
+                        />
+                    </div>
+                </div>
+
                 <div class="tools-geometry-group">
+                    <div class="tools-toggle-row">
+                        <label
+                            class="tools-toggle-main"
+                            :for="getInputId('spherical-projection')"
+                        >
+                            <span class="material-symbols-outlined">3d_rotation</span>
+                            <span>Spherical Projection</span>
+                        </label>
+                        <div class="tools-toggle-control">
+                            <span class="tools-hint tools-toggle-hint">{{ sphericalProjectionModel ? 'On' : 'Off'
+                                }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('spherical-projection')"
+                                v-model="sphericalProjectionModel"
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="app.sphericalProjectionEnabled"
+                        class="tools-geometry-details"
+                    >
+                        <div class="tools-slider">
+                            <label>Horizontal Wrap <span class="tools-slider-value">{{
+                                    sphericalProjectionWrapDegreesLabel }}</span></label>
+                            <input
+                                type="range"
+                                min="15"
+                                max="360"
+                                step="5"
+                                :value="app.sphericalProjectionWrapDegrees"
+                                @input="app.setSphericalProjectionWrapDegrees(parseFloat($event.target.value))"
+                            />
+                        </div>
+                    </div>
+
                     <div class="tools-toggle-row">
                         <label
                             class="tools-toggle-main"
@@ -85,7 +156,7 @@
                     >
                         <div class="tools-slider">
                             <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                    }}</span></label>
+                            }}</span></label>
                             <input
                                 type="range"
                                 min="0.1"
@@ -110,7 +181,7 @@
 
                         <div class="tools-slider">
                             <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                    }}</span></label>
+                            }}</span></label>
                             <input
                                 type="range"
                                 min="0.05"
@@ -138,7 +209,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -146,7 +217,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>

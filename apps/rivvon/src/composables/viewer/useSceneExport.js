@@ -1,8 +1,12 @@
 // src/composables/viewer/useSceneExport.js
 // Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
 
+import { Quaternion, Vector3 } from 'three';
 import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
+
+const EXPORT_CIRCULAR_TURN_RADIANS = Math.PI * 2;
+const EXPORT_WORLD_UP = new Vector3(0, 1, 0);
 
 /**
  * Align cinematic camera duration with texture loop duration.
@@ -635,7 +639,8 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
-    * @param {string} options.cameraMovement - 'none' | 'cinematic' | 'circularTilt'
+    * @param {string} options.cameraMovement - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse'
+    * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
@@ -654,6 +659,7 @@ export function useSceneExport(ctx, deps = {}) {
             cameraMovement = 'none',
             quality = 'high',
             logoOverlayEnabled = true,
+            logoOverlayCorner = 'bottomLeft',
         } = options;
 
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value || !ctx.tileManager.value) {
@@ -733,6 +739,14 @@ export function useSceneExport(ctx, deps = {}) {
 
         let circularTiltController = null;
         let circularTiltReady = false;
+        let circularOrbitRoot = null;
+        let circularOrbitReady = false;
+        let circularOrbitPivot = null;
+        let circularOrbitBasePosition = null;
+        let circularOrbitBaseQuaternion = null;
+        const circularOrbitDirection = cameraMovement === 'circularOrbitReverse' ? -1 : 1;
+        const circularOrbitRotation = new Quaternion();
+        const circularOrbitOffset = new Vector3();
 
         // Compute total frames (after cinematic setup which may have updated exportDuration)
         const totalFrames = Math.ceil(exportDuration * fps);
@@ -761,6 +775,21 @@ export function useSceneExport(ctx, deps = {}) {
 
                 if (!circularTiltReady) {
                     console.warn('[ThreeSetup] Circular tilt export requested but no camera baseline could be captured — camera will stay fixed');
+                }
+            }
+
+            if (cameraMovement === 'circularOrbit' || cameraMovement === 'circularOrbitReverse') {
+                circularOrbitRoot = ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
+
+                if (circularOrbitRoot) {
+                    circularOrbitBasePosition = circularOrbitRoot.position.clone();
+                    circularOrbitBaseQuaternion = circularOrbitRoot.quaternion.clone();
+                    circularOrbitPivot = ctx.app.sphericalProjectionEnabled
+                        ? new Vector3(0, 0, 0)
+                        : (savedControlsTarget?.clone() ?? circularOrbitBasePosition.clone());
+                    circularOrbitReady = true;
+                } else {
+                    console.warn('[ThreeSetup] Circular orbit export requested but no ribbon root is available — artwork will stay fixed');
                 }
             }
 
@@ -843,6 +872,20 @@ export function useSceneExport(ctx, deps = {}) {
                     circularTiltController.apply(getCircularTiltAnglesAtProgress(motionProgress));
                 }
 
+                if (circularOrbitReady) {
+                    const motionProgress = totalFrames <= 1 ? 0 : frame / (totalFrames - 1);
+                    const orbitAngle = motionProgress * EXPORT_CIRCULAR_TURN_RADIANS * circularOrbitDirection;
+
+                    circularOrbitRotation.setFromAxisAngle(EXPORT_WORLD_UP, orbitAngle);
+                    circularOrbitOffset.copy(circularOrbitBasePosition)
+                        .sub(circularOrbitPivot)
+                        .applyQuaternion(circularOrbitRotation);
+
+                    circularOrbitRoot.position.copy(circularOrbitPivot).add(circularOrbitOffset);
+                    circularOrbitRoot.quaternion.copy(circularOrbitBaseQuaternion).premultiply(circularOrbitRotation);
+                    circularOrbitRoot.updateMatrixWorld(true);
+                }
+
                 // Render this frame at the exact synthetic time
                 renderFrameAtTime(t, animationDelta);
 
@@ -854,7 +897,8 @@ export function useSceneExport(ctx, deps = {}) {
                         exportLogoAsset.image,
                         width,
                         height,
-                        exportLogoAsset.aspectRatio
+                        exportLogoAsset.aspectRatio,
+                        logoOverlayCorner,
                     );
                 }
 
@@ -878,6 +922,12 @@ export function useSceneExport(ctx, deps = {}) {
             return blob;
         } finally {
             circularTiltController?.deactivate({ restoreBaseline: true });
+
+            if (circularOrbitRoot && circularOrbitBasePosition && circularOrbitBaseQuaternion) {
+                circularOrbitRoot.position.copy(circularOrbitBasePosition);
+                circularOrbitRoot.quaternion.copy(circularOrbitBaseQuaternion);
+                circularOrbitRoot.updateMatrixWorld(true);
+            }
 
             // --- Restore renderer state ---
             ctx.renderer.value.setPixelRatio(savedPixelRatio);

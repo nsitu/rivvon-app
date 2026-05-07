@@ -5,6 +5,8 @@ export const EXPORT_LOGO_AREA_RATIO = 0.005;
 
 const EXPORT_LOGO_FALLBACK_ASPECT_RATIO = 533.2 / 88.4;
 const EXPORT_LOGO_PADDING_RATIO = 0.025;
+const EXPORT_LOGO_DEFAULT_CORNER = 'bottomRight';
+const EXPORT_LOGO_CORNERS = new Set(['topLeft', 'topRight', 'bottomRight', 'bottomLeft']);
 
 function parsePositiveNumber(value) {
     const parsed = Number.parseFloat(value);
@@ -42,26 +44,46 @@ function loadImage(src) {
     });
 }
 
-export function getExportLogoOverlayLayout(videoWidth, videoHeight, aspectRatio = EXPORT_LOGO_FALLBACK_ASPECT_RATIO) {
+export function normalizeExportLogoCorner(value, fallback = EXPORT_LOGO_DEFAULT_CORNER) {
+    if (EXPORT_LOGO_CORNERS.has(value)) {
+        return value;
+    }
+
+    return EXPORT_LOGO_CORNERS.has(fallback)
+        ? fallback
+        : EXPORT_LOGO_DEFAULT_CORNER;
+}
+
+export function getExportLogoOverlayLayout(videoWidth, videoHeight, aspectRatio = EXPORT_LOGO_FALLBACK_ASPECT_RATIO, corner = EXPORT_LOGO_DEFAULT_CORNER) {
     const safeWidth = Math.max(1, Math.round(videoWidth));
     const safeHeight = Math.max(1, Math.round(videoHeight));
     const targetArea = safeWidth * safeHeight * EXPORT_LOGO_AREA_RATIO;
     const width = Math.sqrt(targetArea * aspectRatio);
     const height = Math.sqrt(targetArea / aspectRatio);
     const padding = Math.max(12, Math.round(Math.min(safeWidth, safeHeight) * EXPORT_LOGO_PADDING_RATIO));
+    const normalizedCorner = normalizeExportLogoCorner(corner);
+
+    const x = normalizedCorner === 'topLeft' || normalizedCorner === 'bottomLeft'
+        ? padding
+        : safeWidth - padding - width;
+
+    const y = normalizedCorner === 'topLeft' || normalizedCorner === 'topRight'
+        ? padding
+        : safeHeight - padding - height;
 
     return {
         width,
         height,
-        x: safeWidth - padding - width,
-        y: safeHeight - padding - height,
+        x,
+        y,
         padding,
         targetArea,
+        corner: normalizedCorner,
     };
 }
 
-export function drawExportLogoOverlay(context, logoImage, videoWidth, videoHeight, aspectRatio) {
-    const layout = getExportLogoOverlayLayout(videoWidth, videoHeight, aspectRatio);
+export function drawExportLogoOverlay(context, logoImage, videoWidth, videoHeight, aspectRatio, corner = EXPORT_LOGO_DEFAULT_CORNER) {
+    const layout = getExportLogoOverlayLayout(videoWidth, videoHeight, aspectRatio, corner);
 
     context.save();
     context.imageSmoothingEnabled = true;

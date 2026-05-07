@@ -5,6 +5,7 @@
 import { Box3, Group, Vector3 } from 'three';
 import { Ribbon } from './ribbon.js';
 import { DEFAULT_CAP_STYLE } from './capStyle.js';
+import { projectPathsToSphere } from './sphericalProjection.js';
 
 export class RibbonSeries {
     /**
@@ -17,10 +18,12 @@ export class RibbonSeries {
         this.tileManager = null;
         this.tileManagers = [];      // Array of TileManagers for multi-texture mode
         this.totalSegmentCount = 0;  // For tracking total segments across all ribbons
+        this.sourcePathsPoints = []; // Preserve original source paths for geometry mode rebuilds
         this.lastPathsPoints = [];   // Store for animation updates
         this.lastWidth = 1;
         this._flowMaterials = [];    // Track materials for flow updates
         this._flowWasActive = null;  // Track last flow state (null = not yet initialized)
+        this._resolvedSphericalProjectionRadius = null;
 
         // Round-robin mapping: each entry is { ribbon, strand, tileManager }
         this._strandTileManagerMap = [];
@@ -46,6 +49,9 @@ export class RibbonSeries {
             undulationEnabled: true,
             capStyle: DEFAULT_CAP_STYLE,
             cornerNarrowingEnabled: false,
+            sphericalProjectionEnabled: false,
+            sphericalProjectionRadius: null,
+            sphericalProjectionWrapDegrees: null,
         };
     }
 
@@ -86,6 +92,33 @@ export class RibbonSeries {
         return this;
     }
 
+    _clonePaths(pathsPoints = []) {
+        return pathsPoints.map((points) => points.map((point) => point.clone()));
+    }
+
+    _resolveGeometryPaths(pathsPoints) {
+        const sourcePaths = this._clonePaths(pathsPoints);
+
+        if (!this._helixOptions.sphericalProjectionEnabled) {
+            return {
+                sourcePaths,
+                resolvedPaths: this._clonePaths(sourcePaths),
+                sphericalProjectionRadius: null,
+            };
+        }
+
+        const { radius, paths } = projectPathsToSphere(sourcePaths, {
+            radius: this._helixOptions.sphericalProjectionRadius,
+            wrapDegrees: this._helixOptions.sphericalProjectionWrapDegrees,
+        });
+
+        return {
+            sourcePaths,
+            resolvedPaths: paths,
+            sphericalProjectionRadius: radius,
+        };
+    }
+
     _updateTransformRoot(pathsPoints) {
         this._bounds.makeEmpty();
 
@@ -123,14 +156,20 @@ export class RibbonSeries {
 
        // console.log('[RibbonSeries] Building from', pathsPoints.length, 'paths');
 
+        const {
+            sourcePaths,
+            resolvedPaths,
+            sphericalProjectionRadius,
+        } = this._resolveGeometryPaths(pathsPoints);
+
         // Clean up existing ribbons first
         this.cleanup();
 
-        // Store for animation updates (after cleanup so we don't lose the new data)
-        this.lastPathsPoints = pathsPoints.map(points =>
-            points.map(p => p.clone())
-        );
+        // Store both the original source geometry and the resolved build geometry.
+        this.sourcePathsPoints = this._clonePaths(sourcePaths);
+        this.lastPathsPoints = this._clonePaths(resolvedPaths);
         this.lastWidth = width;
+        this._resolvedSphericalProjectionRadius = sphericalProjectionRadius;
         this._updateTransformRoot(this.lastPathsPoints);
 
         const ribbonWidthScale = Number.isFinite(this._helixOptions.ribbonWidthScale)
@@ -142,8 +181,8 @@ export class RibbonSeries {
         const N = this.tileManagers.length; // Number of available TileManagers
         let textureIndex = 0; // Running index for round-robin TileManager assignment
 
-        for (let i = 0; i < pathsPoints.length; i++) {
-            const points = pathsPoints[i];
+        for (let i = 0; i < this.lastPathsPoints.length; i++) {
+            const points = this.lastPathsPoints[i];
 
             if (points.length < 2) {
                 console.warn(`[RibbonSeries] Path ${i} has insufficient points, skipping`);
@@ -161,7 +200,10 @@ export class RibbonSeries {
             textureIndex++;
 
             // Apply helix options before building
-            ribbon.setHelixOptions(this._helixOptions);
+            ribbon.setHelixOptions({
+                ...this._helixOptions,
+                sphericalProjectionRadius,
+            });
 
             // If helix mode and multiple textures, assign strand B a different TileManager
             if (this._helixOptions.helixMode && N > 1) {
@@ -243,7 +285,7 @@ export class RibbonSeries {
             // Preserve flow state before rebuild
             const wasActive = this._flowWasActive;
             
-            this.buildFromMultiplePaths(this.lastPathsPoints, this.lastWidth, time);
+            this.buildFromMultiplePaths(this.sourcePathsPoints, this.lastWidth, time);
             
             // Restore flow state
             this._flowWasActive = wasActive;
@@ -420,8 +462,10 @@ export class RibbonSeries {
         this._lastTileOffset = 0;
         // Note: Don't reset _flowWasActive here - it tracks across rebuilds
         this.totalSegmentCount = 0;
+        this.sourcePathsPoints = [];
         this.lastPathsPoints = [];
         this.lastWidth = 1;
+        this._resolvedSphericalProjectionRadius = null;
     }
 
     /**

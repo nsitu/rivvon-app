@@ -1687,6 +1687,7 @@
                         loopCount: settings.loopCount,
                         quality: settings.quality,
                         logoOverlayEnabled: settings.logoOverlayEnabled,
+                        logoOverlayCorner: settings.logoOverlayCorner,
                         ...progressHandlers,
                     });
                 } else {
@@ -1705,6 +1706,7 @@
                         loopCount: settings.loopCount,
                         quality: settings.quality,
                         logoOverlayEnabled: settings.logoOverlayEnabled,
+                        logoOverlayCorner: settings.logoOverlayCorner,
                         ...progressHandlers,
                     });
                 }
@@ -1719,6 +1721,7 @@
                     cameraMovement: settings.cameraMovement,
                     quality: settings.quality,
                     logoOverlayEnabled: settings.logoOverlayEnabled,
+                    logoOverlayCorner: settings.logoOverlayCorner,
                     ...progressHandlers,
                 });
             }

@@ -335,6 +335,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         loopCount = 1,
         quality = 'high',
         logoOverlayEnabled = true,
+        logoOverlayCorner = 'bottomLeft',
         signal = null,
         onProgress = null,
         onStatus = null,
@@ -451,6 +452,7 @@ export async function exportTextureOverviewVideo(options = {}) {
                     width,
                     height,
                     exportLogoAsset.aspectRatio,
+                    logoOverlayCorner,
                 );
             }
 

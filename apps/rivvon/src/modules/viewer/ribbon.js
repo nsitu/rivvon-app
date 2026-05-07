@@ -9,12 +9,15 @@ import {
     normalizeCapStyle,
     sampleCapIntervals,
 } from './capProfiles.js';
+import { reprojectPointToSphere } from './sphericalProjection.js';
 
 const CURVATURE_LOOKAHEAD_SAMPLES = 4;
 const CURVATURE_SMOOTHING_RADIUS = 4;
 const CURVATURE_NARROWING_START_ANGLE = 0.2;
 const CURVATURE_NARROWING_FULL_ANGLE = 0.95;
 const CURVATURE_NARROWING_MIN_WIDTH = 0.45;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const WORLD_RIGHT = new THREE.Vector3(1, 0, 0);
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, value));
@@ -87,6 +90,10 @@ export class Ribbon {
         this.capStyle = DEFAULT_CAP_STYLE;
         this.roundedCaps = false;
         this.cornerNarrowingEnabled = false;
+        this.ribbonPathAlignmentMode = 'center';
+        this.sphericalProjectionEnabled = false;
+        this.sphericalProjectionRadius = 1;
+        this.sphericalProjectionCenter = new THREE.Vector3(0, 0, 0);
         this._variationId = ribbonVariationCounter++;
     }
 
@@ -160,6 +167,11 @@ export class Ribbon {
         if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
         if (options.cornerNarrowingEnabled !== undefined) this.cornerNarrowingEnabled = !!options.cornerNarrowingEnabled;
         if (options.undulationEnabled !== undefined) this.undulationEnabled = !!options.undulationEnabled;
+        if (options.ribbonPathAlignmentMode !== undefined) this.ribbonPathAlignmentMode = options.ribbonPathAlignmentMode || 'center';
+        if (options.sphericalProjectionEnabled !== undefined) this.sphericalProjectionEnabled = !!options.sphericalProjectionEnabled;
+        if (options.sphericalProjectionRadius !== undefined && Number.isFinite(options.sphericalProjectionRadius) && options.sphericalProjectionRadius > 0) {
+            this.sphericalProjectionRadius = options.sphericalProjectionRadius;
+        }
         if (options.capStyle !== undefined || options.roundedCaps !== undefined) {
             this.capStyle = normalizeCapStyle(
                 options.capStyle,
@@ -228,6 +240,70 @@ export class Ribbon {
         }
 
         delete mesh.userData.capMask;
+    }
+
+    _projectCurvePointOntoSphere(point, target = new THREE.Vector3()) {
+        return reprojectPointToSphere(
+            point,
+            this.sphericalProjectionRadius,
+            target,
+            this.sphericalProjectionCenter
+        );
+    }
+
+    _getFallbackSurfaceTangent(surfaceNormal, target = new THREE.Vector3()) {
+        const axis = Math.abs(surfaceNormal.y) < 0.9 ? WORLD_UP : WORLD_RIGHT;
+        target.crossVectors(axis, surfaceNormal);
+
+        if (target.lengthSq() < 1e-10) {
+            target.set(1, 0, 0);
+        }
+
+        return target.normalize();
+    }
+
+    _projectDirectionOntoSurface(direction, surfaceNormal, target = new THREE.Vector3()) {
+        target.copy(direction).addScaledVector(surfaceNormal, -direction.dot(surfaceNormal));
+
+        if (target.lengthSq() < 1e-10) {
+            return this._getFallbackSurfaceTangent(surfaceNormal, target);
+        }
+
+        return target.normalize();
+    }
+
+    _computeSphericalSideVector(surfaceNormal, tangent, fallbackSideVector = null, target = new THREE.Vector3()) {
+        target.crossVectors(surfaceNormal, tangent);
+
+        if (target.lengthSq() < 1e-10 && fallbackSideVector) {
+            target.copy(fallbackSideVector).addScaledVector(
+                surfaceNormal,
+                -fallbackSideVector.dot(surfaceNormal)
+            );
+        }
+
+        if (target.lengthSq() < 1e-10) {
+            this._getFallbackSurfaceTangent(surfaceNormal, target);
+            target.crossVectors(surfaceNormal, target);
+        }
+
+        return target.normalize();
+    }
+
+    _sampleSphericalTangent(curve, globalT, frameSampleCount, surfaceNormal, target = new THREE.Vector3()) {
+        const sampleDelta = 1 / Math.max(256, frameSampleCount * 8);
+        const prevT = Math.max(0, globalT - sampleDelta);
+        const nextT = Math.min(1, globalT + sampleDelta);
+        const prevPoint = this._projectCurvePointOntoSphere(curve.getPoint(prevT), new THREE.Vector3());
+        const nextPoint = this._projectCurvePointOntoSphere(curve.getPoint(nextT), new THREE.Vector3());
+
+        target.copy(nextPoint).sub(prevPoint);
+
+        if (target.lengthSq() < 1e-10) {
+            target.copy(curve.getTangent(globalT));
+        }
+
+        return this._projectDirectionOntoSurface(target, surfaceNormal, target);
     }
 
     buildFromPoints(points, width = 1, time = 0) {
@@ -465,6 +541,58 @@ export class Ribbon {
     }
 
     createFrameSamples(curve, sampleCount) {
+        if (this.sphericalProjectionEnabled) {
+            const samplePoints = [];
+            const tangents = [];
+
+            for (let i = 0; i < sampleCount; i++) {
+                const t = i / (sampleCount - 1);
+                samplePoints.push(this._projectCurvePointOntoSphere(curve.getPoint(t), new THREE.Vector3()));
+            }
+
+            for (let i = 0; i < sampleCount; i++) {
+                const t = i / (sampleCount - 1);
+                const point = samplePoints[i];
+                const prevPoint = samplePoints[Math.max(0, i - 1)];
+                const nextPoint = samplePoints[Math.min(sampleCount - 1, i + 1)];
+                const surfaceNormal = point.clone().sub(this.sphericalProjectionCenter).normalize();
+                const tangent = nextPoint.clone().sub(prevPoint);
+
+                if (tangent.lengthSq() < 1e-10) {
+                    tangent.copy(curve.getTangent(t));
+                }
+
+                tangents.push(this._projectDirectionOntoSurface(tangent, surfaceNormal, tangent));
+            }
+
+            const rawCurvatures = tangents.map((_, index) => {
+                const leftIndex = Math.max(0, index - CURVATURE_LOOKAHEAD_SAMPLES);
+                const rightIndex = Math.min(sampleCount - 1, index + CURVATURE_LOOKAHEAD_SAMPLES);
+
+                if (leftIndex === rightIndex) {
+                    return 0;
+                }
+
+                return angleBetweenVectors(tangents[leftIndex], tangents[rightIndex]);
+            });
+
+            const smoothedCurvatures = rawCurvatures.map((_, index) => (
+                averageSampleWindow(rawCurvatures, index, CURVATURE_SMOOTHING_RADIUS)
+            ));
+
+            return samplePoints.map((point, index) => {
+                const normal = point.clone().sub(this.sphericalProjectionCenter).normalize();
+                const sideVector = this._computeSphericalSideVector(normal, tangents[index], null, new THREE.Vector3());
+
+                return {
+                    normal,
+                    binormal: sideVector.clone(),
+                    widthDirection: normal.clone(),
+                    curvature: smoothedCurvatures[index] || 0,
+                };
+            });
+        }
+
         const tangents = [];
 
         for (let i = 0; i < sampleCount; i++) {
@@ -531,6 +659,7 @@ export class Ribbon {
             frameSamples.push({
                 normal: normal.clone(),
                 binormal: binormal.clone(),
+                widthDirection: normal.clone(),
                 curvature: smoothedCurvatures[i] || 0,
             });
 
@@ -547,6 +676,36 @@ export class Ribbon {
         const lowerIndex = Math.floor(scaledIndex);
         const upperIndex = Math.min(frameSamples.length - 1, lowerIndex + 1);
         const alpha = scaledIndex - lowerIndex;
+
+        if (this.sphericalProjectionEnabled) {
+            const point = this._projectCurvePointOntoSphere(curve.getPoint(clampedT), new THREE.Vector3());
+            const normal = point.clone().sub(this.sphericalProjectionCenter).normalize();
+            const tangent = this._sampleSphericalTangent(curve, clampedT, frameSamples.length, normal, new THREE.Vector3());
+            const fallbackSideVector = frameSamples[lowerIndex].binormal.clone()
+                .lerp(frameSamples[upperIndex].binormal, alpha);
+            const sideVector = this._computeSphericalSideVector(
+                normal,
+                tangent,
+                fallbackSideVector,
+                new THREE.Vector3()
+            );
+
+            return {
+                point,
+                tangent,
+                normal,
+                binormal: sideVector.clone(),
+                widthDirection: normal.clone(),
+                arcLength: clampedT * this.pathLength,
+                globalT: clampedT,
+                curvature: THREE.MathUtils.lerp(
+                    frameSamples[lowerIndex].curvature || 0,
+                    frameSamples[upperIndex].curvature || 0,
+                    alpha
+                ),
+            };
+        }
+
         const tangent = curve.getTangent(clampedT).normalize();
         const normal = frameSamples[lowerIndex].normal.clone()
             .lerp(frameSamples[upperIndex].normal, alpha)
@@ -559,6 +718,7 @@ export class Ribbon {
             tangent,
             normal,
             binormal,
+            widthDirection: normal.clone(),
             arcLength: clampedT * this.pathLength,
             globalT: clampedT,
             curvature: THREE.MathUtils.lerp(
@@ -575,11 +735,24 @@ export class Ribbon {
             helixCenter: new THREE.Vector3(),
             radialDir: new THREE.Vector3(),
             acrossDir: new THREE.Vector3(),
+            widthDirection: new THREE.Vector3(),
         };
     }
 
+    _getAlignedAcrossValue(acrossValue) {
+        if (this.ribbonPathAlignmentMode === 'inside') {
+            return acrossValue - 0.5;
+        }
+
+        if (this.ribbonPathAlignmentMode === 'outside') {
+            return acrossValue + 0.5;
+        }
+
+        return acrossValue;
+    }
+
     _setAnimatedVertexPosition(target, frame, width, acrossValue, widthScale, time, strandOffset = 0, scratch) {
-        const scaledAcross = acrossValue * widthScale;
+        const scaledAcross = this._getAlignedAcrossValue(acrossValue) * widthScale;
         const wavePhase = this.undulationEnabled
             ? Math.sin(
                 frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
@@ -605,7 +778,8 @@ export class Ribbon {
             return target;
         }
 
-        scratch.animatedNormal.copy(frame.normal);
+        scratch.widthDirection.copy(frame.widthDirection || frame.normal);
+        scratch.animatedNormal.copy(scratch.widthDirection);
         scratch.animatedNormal.applyAxisAngle(frame.tangent, wavePhase);
         target.copy(frame.point).addScaledVector(scratch.animatedNormal, scaledAcross * width);
         return target;
@@ -897,6 +1071,7 @@ export class Ribbon {
         const basePositions = [];
         const normals = [];
         const binormals = [];
+        const widthDirections = [];
         const tangents = [];
         const arcLengths = [];
         const globalTs = [];
@@ -926,6 +1101,7 @@ export class Ribbon {
                 basePositions.push(frame.point.clone());
                 normals.push(frame.normal.clone());
                 binormals.push(frame.binormal.clone());
+                widthDirections.push((frame.widthDirection || frame.normal).clone());
                 tangents.push(frame.tangent.clone());
                 arcLengths.push(frame.arcLength);
                 globalTs.push(frame.globalT);
@@ -945,6 +1121,7 @@ export class Ribbon {
             basePositions,
             normals,
             binormals,
+            widthDirections,
             tangents,
             arcLengths,
             globalTs,
@@ -971,6 +1148,7 @@ export class Ribbon {
         const basePositions = [];
         const normals = [];
         const binormals = [];
+        const widthDirections = [];
         const tangents = [];
         const arcLengths = [];
         const globalTs = [];
@@ -1004,6 +1182,7 @@ export class Ribbon {
                 basePositions.push(frame.point.clone());
                 normals.push(frame.normal.clone());
                 binormals.push(frame.binormal.clone());
+                widthDirections.push((frame.widthDirection || frame.normal).clone());
                 tangents.push(frame.tangent.clone());
                 arcLengths.push(frame.arcLength);
                 globalTs.push(frame.globalT);
@@ -1023,6 +1202,7 @@ export class Ribbon {
             basePositions,
             normals,
             binormals,
+            widthDirections,
             tangents,
             arcLengths,
             globalTs,
@@ -1055,6 +1235,7 @@ export class Ribbon {
         const basePositions = [];
         const normals = [];
         const binormals = [];
+        const widthDirections = [];
         const tangents = [];
         const arcLengths = [];
         const globalTs = [];
@@ -1083,6 +1264,7 @@ export class Ribbon {
                     basePositions.push(frame.point.clone());
                     normals.push(frame.normal.clone());
                     binormals.push(frame.binormal.clone());
+                    widthDirections.push((frame.widthDirection || frame.normal).clone());
                     tangents.push(frame.tangent.clone());
                     arcLengths.push(frame.arcLength);
                     globalTs.push(frame.globalT);
@@ -1122,6 +1304,7 @@ export class Ribbon {
             basePositions,
             normals,
             binormals,
+            widthDirections,
             tangents,
             arcLengths,
             globalTs,
@@ -1196,6 +1379,7 @@ export class Ribbon {
                 basePositions,
                 normals,
                 binormals,
+                widthDirections,
                 tangents,
                 arcLengths,
                 globalTs,
@@ -1210,6 +1394,7 @@ export class Ribbon {
                     point: basePositions[i],
                     normal: normals[i],
                     binormal: binormals[i],
+                    widthDirection: widthDirections[i],
                     tangent: tangents[i],
                     arcLength: arcLengths[i],
                     globalT: globalTs[i],
