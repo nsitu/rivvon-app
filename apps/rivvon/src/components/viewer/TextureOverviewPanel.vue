@@ -1,6 +1,7 @@
 <script setup>
     import { computed, ref } from 'vue';
     import Button from 'primevue/button';
+    import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { useViewerStore } from '../../stores/viewerStore.js';
@@ -9,7 +10,10 @@
         getExportResolutionOptions,
         normalizeExportDimensionSettings,
     } from '../../modules/viewer/exportVideoDimensions';
-    import { TEXTURE_OVERVIEW_LAYOUT_STRATEGY_OPTIONS } from '../../modules/viewer/textureOverviewLayout.js';
+    import {
+        TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
+        TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
+    } from '../../modules/viewer/textureOverviewLayout.js';
     import TextureOverviewPreview from './TextureOverviewPreview.vue';
 
     const props = defineProps({
@@ -52,10 +56,14 @@
             app.setExportResolutionPreset(value);
         },
     });
-    const layoutStrategy = computed({
-        get: () => app.textureOverviewLayoutStrategy,
+    const alignTilesToEdge = computed({
+        get: () => app.textureOverviewLayoutStrategy === TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
         set: (value) => {
-            app.setTextureOverviewLayoutStrategy(value);
+            app.setTextureOverviewLayoutStrategy(
+                value
+                    ? TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE
+                    : TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
+            );
         },
     });
     const customWidth = computed({
@@ -115,7 +123,10 @@
             isCached: props.isCached,
             getTextureOnlyExportInfo: () => overviewRef.value?.getTextureOnlyExportInfo?.() ?? null,
             exportTextureOnlyVideo: (options) => overviewRef.value?.exportVideoWithLiveScene?.(options) ?? null,
-            exportSettings: { ...exportDimensionSettings.value },
+            exportSettings: {
+                ...exportDimensionSettings.value,
+                layoutStrategy: app.textureOverviewLayoutStrategy,
+            },
         });
     }
 </script>
@@ -174,19 +185,12 @@
                             </label>
 
                             <label class="preview-control-field">
-                                <span class="preview-control-label">Layout</span>
-                                <select
-                                    v-model="layoutStrategy"
-                                    class="preview-control-select"
-                                >
-                                    <option
-                                        v-for="option in TEXTURE_OVERVIEW_LAYOUT_STRATEGY_OPTIONS"
-                                        :key="option.value"
-                                        :value="option.value"
-                                    >
-                                        {{ option.label }}
-                                    </option>
-                                </select>
+                                <span class="preview-control-label">Snap Tiles to Frame Height</span>
+                                <div class="preview-control-toggle-row">
+                                    <ToggleSwitch v-model="alignTilesToEdge" />
+                                    <span class="preview-control-toggle-copy">{{ alignTilesToEdge ? 'On' : 'Off'
+                                        }}</span>
+                                </div>
                             </label>
 
                             <div
@@ -221,7 +225,7 @@
                         <div class="preview-dimension-footer">
                             <span class="preview-dimension-summary">{{ resolvedDimensions.width }}×{{
                                 resolvedDimensions.height }}</span>
-                            <span class="preview-dimension-hint">Overview frame and texture-only export target.</span>
+
                         </div>
                     </div>
 
@@ -436,6 +440,20 @@
         gap: 0.75rem;
     }
 
+    .preview-control-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-height: 2.5rem;
+        padding: 0.25rem 0;
+    }
+
+    .preview-control-toggle-copy {
+        color: #cbd5e1;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
     .preview-dimension-footer {
         display: flex;
         flex-wrap: wrap;
@@ -466,9 +484,6 @@
         align-items: flex-start;
         justify-content: center;
         overflow: auto;
-        background: rgba(2, 6, 23, 0.65);
-        border: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
-        scrollbar-gutter: stable both-edges;
     }
 
     .preview-tile-info {

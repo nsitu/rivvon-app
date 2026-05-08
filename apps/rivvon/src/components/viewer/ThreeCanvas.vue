@@ -47,6 +47,7 @@
         setTextureAnimationEnabled,
         setTextureAnimationReversed,
         setTextureRepeatMode,
+        setTextureFlipVertical,
         setHelixMode,
         captureImagePreview,
         captureImagePreviewWithSettings,
@@ -192,6 +193,10 @@
         setTextureRepeatMode(mode);
     });
 
+    watch(() => app.textureFlipVertical, (enabled) => {
+        setTextureFlipVertical(enabled);
+    });
+
     // Watch for helix mode/option changes and rebuild ribbons
     watch(() => app.helixOptions, (options) => {
         setHelixMode(options);
@@ -223,6 +228,7 @@
         setTextureAnimationEnabled,
         setTextureAnimationReversed,
         setTextureRepeatMode,
+        setTextureFlipVertical,
         setHelixMode,
         captureImagePreview,
         captureImagePreviewWithSettings,

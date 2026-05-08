@@ -11,7 +11,7 @@
         showBlackAndWhiteFilter: { type: Boolean, default: false },
         showDuotoneFilter: { type: Boolean, default: false },
         showTransparentShadowsFilter: { type: Boolean, default: false },
-        showOverviewVerticalFlip: { type: Boolean, default: true },
+        showVerticalFlip: { type: Boolean, default: true },
     });
 
     const app = useViewerStore();
@@ -123,10 +123,10 @@
         }
     });
 
-    const overviewVerticalFlipModel = computed({
-        get: () => app.textureOverviewFlipVertical,
+    const verticalFlipModel = computed({
+        get: () => app.textureFlipVertical,
         set: (value) => {
-            app.setTextureOverviewFlipVertical(!!value);
+            app.setTextureFlipVertical(!!value);
         }
     });
 
@@ -159,21 +159,21 @@
                 </div>
 
                 <div
-                    v-if="showOverviewVerticalFlip"
+                    v-if="showVerticalFlip"
                     class="tools-toggle-row"
                 >
                     <label
                         class="tools-toggle-main"
-                        :for="getInputId('overview-vertical-flip')"
+                        :for="getInputId('vertical-flip')"
                     >
                         <span class="material-symbols-outlined">swap_vert</span>
-                        <span>Flip Overview Vertically</span>
+                        <span>Flip Vertically</span>
                     </label>
                     <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ overviewVerticalFlipModel ? 'On' : 'Off' }}</span>
+                        <span class="tools-hint tools-toggle-hint">{{ verticalFlipModel ? 'On' : 'Off' }}</span>
                         <ToggleSwitch
-                            :inputId="getInputId('overview-vertical-flip')"
-                            v-model="overviewVerticalFlipModel"
+                            :inputId="getInputId('vertical-flip')"
+                            v-model="verticalFlipModel"
                         />
                     </div>
                 </div>
@@ -196,7 +196,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                    }}</span>
+                                        }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -204,7 +204,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                    }}</span>
+                                        }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>
@@ -290,7 +290,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ transparentShadowsFilterModel ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('transparent-shadows-filter')"
                             v-model="transparentShadowsFilterModel"

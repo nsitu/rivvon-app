@@ -53,6 +53,7 @@ function buildCycleDetail({ loopDuration, key, label, active, duration, detail, 
 
 function applyViewerSettings(tileManager, viewerSettings = {}) {
     tileManager.setRepeatMode?.(viewerSettings.textureRepeatMode ?? 'mirrorTile');
+    tileManager.setVerticalFlip?.(viewerSettings.textureFlipVertical ?? false);
     tileManager.setFlowAlignmentEnabled?.(viewerSettings.flowCycleAlignmentEnabled ?? true);
     tileManager.setLayerAnimationEnabled?.(viewerSettings.textureAnimationEnabled ?? true);
     tileManager.setLayerAnimationReversed?.(viewerSettings.textureAnimationReversed ?? false);
@@ -108,6 +109,7 @@ async function loadTemporaryTileManager(options = {}) {
         rendererType: 'webgl',
         rotate90: true,
         repeatMode: viewerSettings?.textureRepeatMode ?? 'mirrorTile',
+        flipVertical: viewerSettings?.textureFlipVertical ?? false,
         flowAlignmentEnabled: viewerSettings?.flowCycleAlignmentEnabled ?? true,
         layerAnimationEnabled: viewerSettings?.textureAnimationEnabled ?? true,
         layerAnimationReversed: viewerSettings?.textureAnimationReversed ?? false,
@@ -209,7 +211,6 @@ export function buildTextureOverviewModeInfoFromTileManager(tileManager) {
 }
 
 function createOverviewScene(tileManager, width, height, options = {}) {
-    const flipVertical = options.flipVertical === true;
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(
         -width / 2,
@@ -237,7 +238,6 @@ function createOverviewScene(tileManager, width, height, options = {}) {
     const cells = layout.positions.map((position) => {
         const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
         mesh.position.set(position.x, position.y, 0);
-        mesh.scale.y = flipVertical ? -1 : 1;
         scene.add(mesh);
         return {
             mesh,
@@ -377,9 +377,7 @@ export async function exportTextureOverviewVideo(options = {}) {
             viewerSettings,
         });
 
-        overviewScene = createOverviewScene(tileManager, width, height, {
-            flipVertical: viewerSettings?.textureOverviewFlipVertical === true,
-        });
+        overviewScene = createOverviewScene(tileManager, width, height);
         tileManager.resetAnimationState?.();
         overviewScene.syncMaterials(true);
 

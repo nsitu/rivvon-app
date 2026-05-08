@@ -18,6 +18,10 @@
         getExportResolutionOptions,
         normalizeExportDimensionSettings,
     } from '../../modules/viewer/exportVideoDimensions';
+    import {
+        TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
+        TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
+    } from '../../modules/viewer/textureOverviewLayout.js';
 
     const app = useViewerStore();
 
@@ -131,6 +135,16 @@
             app.setExportResolutionPreset(value);
         },
     });
+    const alignTilesToEdge = computed({
+        get: () => app.textureOverviewLayoutStrategy === TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
+        set: (value) => {
+            app.setTextureOverviewLayoutStrategy(
+                value
+                    ? TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE
+                    : TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
+            );
+        },
+    });
     const customWidth = computed({
         get: () => exportDimensionSettings.value.customWidth,
         set: (value) => {
@@ -174,6 +188,10 @@
         }
 
         app.setExportDimensionSettings(settings);
+
+        if (settings.layoutStrategy) {
+            app.setTextureOverviewLayoutStrategy(settings.layoutStrategy);
+        }
     }
 
     // --- Computed ---
@@ -324,6 +342,7 @@
             props.initialSettings?.resolutionPreset,
             props.initialSettings?.customWidth,
             props.initialSettings?.customHeight,
+            props.initialSettings?.layoutStrategy,
         ],
         ([visible]) => {
             if (!visible || !props.initialSettings) {
@@ -378,6 +397,7 @@
         resolutionPreset,
         customWidth,
         customHeight,
+        alignTilesToEdge,
         format,
         exportMode,
         durationMode,
@@ -402,7 +422,7 @@
         () => app.transparentShadowsThresholdMax,
         () => app.duotoneColor,
         () => app.textureRepeatMode,
-        () => app.textureOverviewFlipVertical,
+        () => app.textureFlipVertical,
     ], () => {
         emit('settings-change');
     });
@@ -540,6 +560,24 @@
                         </div>
 
                         <div
+                            v-if="textureOnlyMode"
+                            class="form-field"
+                        >
+                            <label for="alignTilesToEdgeToggle">Snap Tiles to Frame Height</label>
+                            <div class="toggle-control">
+                                <ToggleSwitch
+                                    inputId="alignTilesToEdgeToggle"
+                                    v-model="alignTilesToEdge"
+                                    :disabled="isEncoding"
+                                />
+                                <span class="toggle-copy">{{ alignTilesToEdge ? 'On' : 'Off' }}</span>
+                            </div>
+                            <div class="field-description">
+                                Snaps tile rows cleanly to the frame height while still filling the full width.
+                            </div>
+                        </div>
+
+                        <div
                             v-if="aspectRatioPreset === 'custom' || resolutionPreset === 'custom'"
                             class="form-field form-row"
                         >
@@ -657,10 +695,7 @@
                             :show-undulation="!textureOnlyMode"
                         />
 
-                        <TextureSettingsControls
-                            class="export-texture-settings"
-                            :show-overview-vertical-flip="textureOnlyMode"
-                        />
+                        <TextureSettingsControls class="export-texture-settings" />
 
                         <div
                             class="form-line-break"

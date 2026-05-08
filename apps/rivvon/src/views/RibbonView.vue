@@ -1448,7 +1448,7 @@
             textureAnimationEnabled: app.textureAnimationEnabled,
             textureAnimationReversed: app.textureAnimationReversed,
             textureRepeatMode: app.textureRepeatMode,
-            textureOverviewFlipVertical: app.textureOverviewFlipVertical,
+            textureFlipVertical: app.textureFlipVertical,
             textureOverviewLayoutStrategy: app.textureOverviewLayoutStrategy,
         };
     }

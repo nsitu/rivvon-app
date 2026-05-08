@@ -302,9 +302,12 @@ export const useViewerStore = defineStore('viewer', {
         
         // Texture state
         textureRepeatMode: 'mirrorTile', // 'wrap' | 'mirrorTile'
-        textureOverviewFlipVertical: normalizeViewerBooleanPreference(
-            readViewerPreferences().textureOverviewFlipVertical,
-            false
+        textureFlipVertical: normalizeViewerBooleanPreference(
+            readViewerPreferences().textureFlipVertical,
+            normalizeViewerBooleanPreference(
+                readViewerPreferences().textureOverviewFlipVertical,
+                false
+            )
         ),
         textureOverviewLayoutStrategy: normalizeTextureOverviewLayoutStrategy(
             readViewerPreferences().textureOverviewLayoutStrategy
@@ -602,6 +605,7 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurEnabled: this.backgroundBlurEnabled,
                 textureAnimationReversed: this.textureAnimationReversed,
                 textureRepeatMode: this.textureRepeatMode,
+                textureFlipVertical: this.textureFlipVertical,
                 textureOverviewLayoutStrategy: this.textureOverviewLayoutStrategy,
                 exportAspectRatioPreset: this.exportAspectRatioPreset,
                 exportResolutionPreset: this.exportResolutionPreset,
@@ -653,6 +657,7 @@ export const useViewerStore = defineStore('viewer', {
                 this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
+                this.textureFlipVertical !== original.textureFlipVertical ||
                 this.textureOverviewLayoutStrategy !== original.textureOverviewLayoutStrategy ||
                 this.exportAspectRatioPreset !== original.exportAspectRatioPreset ||
                 this.exportResolutionPreset !== original.exportResolutionPreset ||
@@ -744,10 +749,13 @@ export const useViewerStore = defineStore('viewer', {
             this.textureRepeatMode = mode === 'mirrorTile' ? 'mirrorTile' : 'wrap';
         },
 
-        setTextureOverviewFlipVertical(enabled) {
+        setTextureFlipVertical(enabled) {
             const nextValue = !!enabled;
-            this.textureOverviewFlipVertical = nextValue;
-            writeViewerPreferences({ textureOverviewFlipVertical: nextValue });
+            this.textureFlipVertical = nextValue;
+            writeViewerPreferences({
+                textureFlipVertical: nextValue,
+                textureOverviewFlipVertical: nextValue,
+            });
         },
 
         setTextureOverviewLayoutStrategy(strategy) {

@@ -93,6 +93,7 @@
         }
 
         tileManager.setRepeatMode?.(app.textureRepeatMode);
+        tileManager.setVerticalFlip?.(app.textureFlipVertical);
         tileManager.setFlowAlignmentEnabled?.(app.flowCycleAlignmentEnabled);
         tileManager.setLayerAnimationEnabled?.(app.textureAnimationEnabled);
         tileManager.setLayerAnimationReversed?.(app.textureAnimationReversed);
@@ -129,14 +130,6 @@
         if (tileManager) {
             tileManager.dispose?.();
             tileManager = null;
-        }
-    }
-
-    function applyCellOrientation() {
-        const scaleY = app.textureOverviewFlipVertical ? -1 : 1;
-
-        for (const entry of cellEntries) {
-            entry.mesh.scale.y = scaleY;
         }
     }
 
@@ -256,7 +249,6 @@
             };
         });
 
-        applyCellOrientation();
         syncCellMaterials(true);
         updateViewport();
     }
@@ -317,6 +309,7 @@
             rendererType: 'webgl',
             rotate90: true,
             repeatMode: app.textureRepeatMode,
+            flipVertical: app.textureFlipVertical,
             flowAlignmentEnabled: app.flowCycleAlignmentEnabled,
             layerAnimationEnabled: app.textureAnimationEnabled,
             layerAnimationReversed: app.textureAnimationReversed,
@@ -615,9 +608,9 @@
     );
 
     watch(
-        () => app.textureOverviewFlipVertical,
+        () => app.textureFlipVertical,
         () => {
-            applyCellOrientation();
+            tileManager?.setVerticalFlip?.(app.textureFlipVertical);
             renderer?.render?.(scene, camera);
         }
     );
@@ -696,7 +689,6 @@
         position: absolute;
         inset: 0;
         padding: 1rem;
-        background: rgba(0, 0, 0, 0.24);
     }
 
     .texture-overview-preview-message.is-error {

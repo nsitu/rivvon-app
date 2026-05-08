@@ -20,6 +20,7 @@ export function useTextureLoader(ctx, deps = {}) {
             rendererType: ctx.app.rendererType,
             rotate90: true,
             repeatMode: ctx.app.textureRepeatMode,
+            flipVertical: ctx.app.textureFlipVertical,
             flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
             layerAnimationEnabled: ctx.app.textureAnimationEnabled,
             layerAnimationReversed: ctx.app.textureAnimationReversed,

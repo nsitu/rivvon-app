@@ -138,6 +138,7 @@ export class TileManager {
             rendererType = 'webgl',
             tileCount = 32,
             rotate90 = false,
+            flipVertical = false,
             repeatMode = 'mirrorTile',
             flowAlignmentEnabled = true,
             layerAnimationEnabled = true,
@@ -188,6 +189,7 @@ export class TileManager {
         // Cycling state (KTX2 only)
         this.sharedLayerUniform = { value: 0 };
         this.sharedRotateUniform = { value: rotate90 ? 1 : 0 };
+        this.sharedFlipVerticalUniform = { value: flipVertical ? 1 : 0 };
         this.currentLayer = 0;
         this.layerCount = 0;
         this.direction = 1; // for ping-pong in planes mode
@@ -196,6 +198,7 @@ export class TileManager {
         this.layerAnimationEnabled = !!layerAnimationEnabled;
         this.layerAnimationReversed = !!layerAnimationReversed;
         this.rotate90 = !!rotate90;
+        this.flipVertical = !!flipVertical;
         this.repeatMode = normalizeRepeatMode(repeatMode);
 
         // Flow animation state (continuous dual-texture approach)
@@ -615,6 +618,7 @@ export class TileManager {
                 uLayer: this.sharedLayerUniform,
                 uLayerCount: { value: layerCount },
                 uRotate90: this.sharedRotateUniform,
+                uFlipVertical: this.sharedFlipVerticalUniform,
                 uMirrorCurrent: { value: mirrorCurrent },
                 uMirrorNext: { value: mirrorNext },
                 uFlowOffset: this.sharedFlowOffsetUniform,
@@ -644,6 +648,7 @@ export class TileManager {
                 uniform sampler2DArray uTexArrayNext;
                 uniform int uLayer;
                 uniform int uRotate90;
+                uniform int uFlipVertical;
                 uniform int uMirrorCurrent;
                 uniform int uMirrorNext;
                 uniform float uFlowOffset;
@@ -676,12 +681,13 @@ export class TileManager {
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
                     float nextShiftedU = ${reverseFlow ? 'shiftedU + 1.0' : 'shiftedU - 1.0'};
+                    float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
 
                     vec2 currentDerivUV = vec2(
                         (uMirrorCurrent == 1) ? (1.0 - shiftedU) : shiftedU,
-                        vUv.y
+                        sampleV
                     );
-                    vec2 nextBaseUV = vec2(nextShiftedU, vUv.y);
+                    vec2 nextBaseUV = vec2(nextShiftedU, sampleV);
                     vec2 nextDerivUV = vec2(
                         (uMirrorNext == 1) ? (1.0 - nextBaseUV.x) : nextBaseUV.x,
                         nextBaseUV.y
@@ -707,13 +713,13 @@ export class TileManager {
                     vec2 dPdxNext = dFdx(flippedNext_d);
                     vec2 dPdyNext = dFdy(flippedNext_d);
                     
-                    vec2 sampleUVCurrent = vec2(shiftedU, vUv.y);
+                    vec2 sampleUVCurrent = vec2(shiftedU, sampleV);
                     sampleUVCurrent.x = (uMirrorCurrent == 1) ? (1.0 - sampleUVCurrent.x) : sampleUVCurrent.x;
                     vec2 uvRCurrent = (uRotate90 == 1) ? vec2(sampleUVCurrent.y, 1.0 - sampleUVCurrent.x) : sampleUVCurrent;
                     vec2 flippedUvCurrent = vec2(uvRCurrent.x, 1.0 - uvRCurrent.y);
                     vec4 texColorCurrent = textureGrad(uTexArrayCurrent, vec3(flippedUvCurrent, float(uLayer)), dPdxCurrent, dPdyCurrent);
 
-                    vec2 sampleUVNext = vec2(nextShiftedU, vUv.y);
+                    vec2 sampleUVNext = vec2(nextShiftedU, sampleV);
                     sampleUVNext.x = (uMirrorNext == 1) ? (1.0 - sampleUVNext.x) : sampleUVNext.x;
                     vec2 uvRNext = (uRotate90 == 1) ? vec2(sampleUVNext.y, 1.0 - sampleUVNext.x) : sampleUVNext;
                     vec2 flippedUvNext = vec2(uvRNext.x, 1.0 - uvRNext.y);
@@ -793,6 +799,7 @@ export class TileManager {
         // Create uniforms
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
+        const flipVerticalUniform = uniform(this.sharedFlipVerticalUniform.value);
         const mirrorCurrentUniform = uniform(options.mirrorCurrent ? 1 : 0);
         const mirrorNextUniform = uniform(options.mirrorNext ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
@@ -809,15 +816,16 @@ export class TileManager {
         // Apply flow offset
         const shiftedU = baseUV.x.add(flowOffsetUniform);
         const nextShiftedU = reverseFlow ? shiftedU.add(1.0) : shiftedU.sub(1.0);
+        const sampledV = flipVerticalUniform.equal(1).select(float(1).sub(baseUV.y), baseUV.y);
         
         // Create two UV sets
         const uvCurrent = vec2(
             mirrorCurrentUniform.equal(1).select(float(1).sub(shiftedU), shiftedU),
-            baseUV.y
+            sampledV
         );
         const uvNext = vec2(
             mirrorNextUniform.equal(1).select(float(1).sub(nextShiftedU), nextShiftedU),
-            baseUV.y
+            sampledV
         );
         
         // Apply rotation and flip for current
@@ -902,6 +910,7 @@ export class TileManager {
         // Store references for updates
         material._layerUniform = layerUniform;
         material._rotateUniform = rotateUniform;
+        material._flipVerticalUniform = flipVerticalUniform;
         material._flowOffsetUniform = flowOffsetUniform;
         material._textureCurrent = textureCurrent;
         material._textureNext = textureNext;
@@ -1009,6 +1018,7 @@ export class TileManager {
                 uLayer: this.sharedLayerUniform,
                 uLayerCount: { value: layerCount },
                 uRotate90: this.sharedRotateUniform,
+                uFlipVertical: this.sharedFlipVerticalUniform,
                 uMirrorX: { value: mirrorX },
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
@@ -1035,6 +1045,7 @@ export class TileManager {
                 uniform sampler2DArray uTexArray;
                 uniform int uLayer;
                 uniform int uRotate90;
+                uniform int uFlipVertical;
                 uniform int uMirrorX;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
@@ -1062,7 +1073,8 @@ export class TileManager {
                 }
 
                 void main() {
-                    vec2 sampleUV = vec2((uMirrorX == 1) ? (1.0 - vUv.x) : vUv.x, vUv.y);
+                    float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
+                    vec2 sampleUV = vec2((uMirrorX == 1) ? (1.0 - vUv.x) : vUv.x, sampleV);
                     // Optionally rotate by 90 degrees (clockwise)
                     vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
                     
@@ -1154,6 +1166,7 @@ export class TileManager {
         // Create uniforms for layer and rotation
         const layerUniform = uniform(this.sharedLayerUniform.value);
         const rotateUniform = uniform(this.sharedRotateUniform.value);
+        const flipVerticalUniform = uniform(this.sharedFlipVerticalUniform.value);
         const mirrorUniform = uniform(options.mirrorX ? 1 : 0);
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
@@ -1167,7 +1180,7 @@ export class TileManager {
         const baseUV = uv();
         const sampleUV = vec2(
             mirrorUniform.equal(1).select(float(1).sub(baseUV.x), baseUV.x),
-            baseUV.y
+            flipVerticalUniform.equal(1).select(float(1).sub(baseUV.y), baseUV.y)
         );
 
         // Step 1: Optionally rotate by 90 degrees clockwise
@@ -1252,6 +1265,7 @@ export class TileManager {
         // Store references to uniforms for updates
         material._layerUniform = layerUniform;
         material._rotateUniform = rotateUniform;
+        material._flipVerticalUniform = flipVerticalUniform;
         material._mirrorUniform = mirrorUniform;
         material._ownedCapTextures = [];
         if (options.capMaskStart?.owned) {
@@ -1934,6 +1948,29 @@ export class TileManager {
                     material._rotateUniform.value = this.rotate90 ? 1 : 0;
                 }
             });
+        }
+    }
+
+    /**
+     * Flip or restore the vertical sampling orientation for all texture materials.
+     * @param {boolean} flag
+     */
+    setVerticalFlip(flag) {
+        this.flipVertical = !!flag;
+        this.sharedFlipVerticalUniform.value = this.flipVertical ? 1 : 0;
+
+        if (this.rendererType === 'webgpu') {
+            this.#forEachStaticMaterial(material => {
+                if (material._flipVerticalUniform) {
+                    material._flipVerticalUniform.value = this.flipVertical ? 1 : 0;
+                }
+            });
+
+            for (const material of this.flowMaterials) {
+                if (material?._flipVerticalUniform) {
+                    material._flipVerticalUniform.value = this.flipVertical ? 1 : 0;
+                }
+            }
         }
     }
 

@@ -301,6 +301,21 @@ export function useRibbonBuilder(ctx) {
     }
 
     /**
+     * Flip or restore the vertical texture orientation across all active TileManagers.
+     * @param {boolean} enabled
+     */
+    function setTextureFlipVertical(enabled) {
+        const nextEnabled = !!enabled;
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setVerticalFlip?.(nextEnabled);
+        }
+
+        ctx.app.setTextureFlipVertical(nextEnabled);
+    }
+
+    /**
      * Apply helix mode options and rebuild ribbons
      * Called when helix toggle or parameters change in the store
      * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
@@ -330,6 +345,7 @@ export function useRibbonBuilder(ctx) {
         setTextureAnimationEnabled,
         setTextureAnimationReversed,
         setTextureRepeatMode,
+        setTextureFlipVertical,
         setHelixMode
     };
 }
