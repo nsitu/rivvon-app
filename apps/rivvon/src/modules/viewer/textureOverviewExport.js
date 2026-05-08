@@ -231,6 +231,7 @@ function createOverviewScene(tileManager, width, height, options = {}) {
         targetHeight: height,
         tileWidth: tileResolution,
         tileHeight: tileResolution,
+        strategy: viewerSettings?.textureOverviewLayoutStrategy,
     });
     const geometry = new THREE.PlaneGeometry(layout.tileWidth, layout.tileHeight);
     const cells = layout.positions.map((position) => {

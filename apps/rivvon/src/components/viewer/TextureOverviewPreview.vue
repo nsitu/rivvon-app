@@ -242,6 +242,7 @@
             targetHeight,
             tileWidth: tileResolution,
             tileHeight: tileResolution,
+            strategy: app.textureOverviewLayoutStrategy,
         });
 
         cellGeometry = new THREE.PlaneGeometry(currentLayout.tileWidth, currentLayout.tileHeight);
@@ -589,6 +590,18 @@
             }
 
             await nextTick();
+            rebuildLayout();
+            renderer?.render?.(scene, camera);
+        }
+    );
+
+    watch(
+        () => app.textureOverviewLayoutStrategy,
+        () => {
+            if (!renderer || !tileManager) {
+                return;
+            }
+
             rebuildLayout();
             renderer?.render?.(scene, camera);
         }

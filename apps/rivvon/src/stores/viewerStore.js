@@ -5,6 +5,9 @@ import { defineStore } from 'pinia';
 import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capStyle.js';
 import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
 import {
+    normalizeTextureOverviewLayoutStrategy,
+} from '../modules/viewer/textureOverviewLayout.js';
+import {
     DEFAULT_SPHERICAL_WRAP_DEGREES,
     normalizeSphericalProjectionWrapDegrees,
 } from '../modules/viewer/sphericalProjection.js';
@@ -303,6 +306,9 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().textureOverviewFlipVertical,
             false
         ),
+        textureOverviewLayoutStrategy: normalizeTextureOverviewLayoutStrategy(
+            readViewerPreferences().textureOverviewLayoutStrategy
+        ),
         exportAspectRatioPreset: exportDimensionSettings.aspectRatioPreset,
         exportResolutionPreset: exportDimensionSettings.resolutionPreset,
         exportCustomWidth: exportDimensionSettings.customWidth,
@@ -596,6 +602,7 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurEnabled: this.backgroundBlurEnabled,
                 textureAnimationReversed: this.textureAnimationReversed,
                 textureRepeatMode: this.textureRepeatMode,
+                textureOverviewLayoutStrategy: this.textureOverviewLayoutStrategy,
                 exportAspectRatioPreset: this.exportAspectRatioPreset,
                 exportResolutionPreset: this.exportResolutionPreset,
                 exportCustomWidth: this.exportCustomWidth,
@@ -646,6 +653,7 @@ export const useViewerStore = defineStore('viewer', {
                 this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
+                this.textureOverviewLayoutStrategy !== original.textureOverviewLayoutStrategy ||
                 this.exportAspectRatioPreset !== original.exportAspectRatioPreset ||
                 this.exportResolutionPreset !== original.exportResolutionPreset ||
                 this.exportCustomWidth !== original.exportCustomWidth ||
@@ -740,6 +748,13 @@ export const useViewerStore = defineStore('viewer', {
             const nextValue = !!enabled;
             this.textureOverviewFlipVertical = nextValue;
             writeViewerPreferences({ textureOverviewFlipVertical: nextValue });
+        },
+
+        setTextureOverviewLayoutStrategy(strategy) {
+            const nextStrategy = normalizeTextureOverviewLayoutStrategy(strategy);
+            this.textureOverviewLayoutStrategy = nextStrategy;
+            writeViewerPreferences({ textureOverviewLayoutStrategy: nextStrategy });
+            return nextStrategy;
         },
 
         setExportDimensionSettings(settings = {}) {

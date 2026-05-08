@@ -9,6 +9,7 @@
         getExportResolutionOptions,
         normalizeExportDimensionSettings,
     } from '../../modules/viewer/exportVideoDimensions';
+    import { TEXTURE_OVERVIEW_LAYOUT_STRATEGY_OPTIONS } from '../../modules/viewer/textureOverviewLayout.js';
     import TextureOverviewPreview from './TextureOverviewPreview.vue';
 
     const props = defineProps({
@@ -49,6 +50,12 @@
         get: () => exportDimensionSettings.value.resolutionPreset,
         set: (value) => {
             app.setExportResolutionPreset(value);
+        },
+    });
+    const layoutStrategy = computed({
+        get: () => app.textureOverviewLayoutStrategy,
+        set: (value) => {
+            app.setTextureOverviewLayoutStrategy(value);
         },
     });
     const customWidth = computed({
@@ -158,6 +165,22 @@
                                 >
                                     <option
                                         v-for="option in resolutionOptions"
+                                        :key="option.value"
+                                        :value="option.value"
+                                    >
+                                        {{ option.label }}
+                                    </option>
+                                </select>
+                            </label>
+
+                            <label class="preview-control-field">
+                                <span class="preview-control-label">Layout</span>
+                                <select
+                                    v-model="layoutStrategy"
+                                    class="preview-control-select"
+                                >
+                                    <option
+                                        v-for="option in TEXTURE_OVERVIEW_LAYOUT_STRATEGY_OPTIONS"
                                         :key="option.value"
                                         :value="option.value"
                                     >
@@ -365,7 +388,7 @@
 
     .preview-dimension-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
         gap: 0.75rem;
     }
 

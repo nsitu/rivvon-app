@@ -1449,6 +1449,7 @@
             textureAnimationReversed: app.textureAnimationReversed,
             textureRepeatMode: app.textureRepeatMode,
             textureOverviewFlipVertical: app.textureOverviewFlipVertical,
+            textureOverviewLayoutStrategy: app.textureOverviewLayoutStrategy,
         };
     }
 
