@@ -67,7 +67,68 @@
     let reloadToken = 0;
     let debugOverrideMaterials = [];
     let overviewDevHelper = null;
+    let autoDiagnosticRunSequence = 0;
+    let lastAutoDiagnosticKey = null;
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
+
+    function waitForAnimationFrame() {
+        return new Promise((resolve) => {
+            requestAnimationFrame(() => resolve());
+        });
+    }
+
+    function shouldAutoRunDiagnostics() {
+        if (typeof window === 'undefined') {
+            return false;
+        }
+
+        if (app.debugMode || window.location.hash === '#debug' || Boolean(window.eruda)) {
+            return true;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const raw = (params.get('overviewDiagnostics') || '').trim().toLowerCase();
+        return raw === '1' || raw === 'true' || raw === 'auto';
+    }
+
+    function buildAutoDiagnosticKey() {
+        return [
+            props.texture?.id || 'unknown',
+            props.targetWidth || 0,
+            props.targetHeight || 0,
+            currentLayout?.strategy || 'none',
+            currentLayout?.cellCount || 0,
+            tileCount.value || 0,
+            Math.round((displayScale.value || 0) * 1000),
+        ].join('|');
+    }
+
+    function classifyAutoDiagnosticSummary(result) {
+        const baselineRender = result?.baseline?.probes?.render?.nonEmptySampleCount ?? 0;
+        const baselineComposite = result?.baseline?.probes?.composite?.nonEmptySampleCount ?? 0;
+        const debugRender = result?.debugOverride?.probes?.render?.nonEmptySampleCount ?? 0;
+        const debugComposite = result?.debugOverride?.probes?.composite?.nonEmptySampleCount ?? 0;
+
+        let suspectedFailureStage = 'unknown';
+
+        if (baselineRender === 0 && debugRender > 0) {
+            suspectedFailureStage = 'texture-or-material-path';
+        } else if (debugRender === 0) {
+            suspectedFailureStage = 'webgl-draw-or-geometry-path';
+        } else if (baselineRender > 0 && baselineComposite === 0) {
+            suspectedFailureStage = 'canvas-composite-or-export-path';
+        } else if (baselineRender > 0 && baselineComposite > 0) {
+            suspectedFailureStage = 'no-black-frame-detected';
+        }
+
+        return {
+            suspectedFailureStage,
+            baselineRenderNonEmpty: baselineRender,
+            baselineCompositeNonEmpty: baselineComposite,
+            debugRenderNonEmpty: debugRender,
+            debugCompositeNonEmpty: debugComposite,
+        };
+    }
 
     function disposeDebugOverrideMaterials() {
         if (debugOverrideMaterials.length === 0) {
@@ -324,6 +385,7 @@
         }
 
         renderCurrentScene();
+        renderer?.getContext?.()?.finish?.();
 
         const probeCanvas = document.createElement('canvas');
         probeCanvas.width = Math.max(1, canvas.width);
@@ -375,6 +437,83 @@
         return result;
     }
 
+    async function runAutoDiagnostics(options = {}) {
+        const {
+            reason = 'manual',
+            force = false,
+            includeDebugOverride = true,
+            logToConsole = true,
+        } = options;
+
+        if (!renderer || !tileManager || !cellEntries.length || !isReady.value || isLoading.value || error.value) {
+            return {
+                ok: false,
+                reason: 'not-ready',
+            };
+        }
+
+        const diagnosticKey = buildAutoDiagnosticKey();
+        if (!force && lastAutoDiagnosticKey === diagnosticKey && overviewDevHelper?.lastAutoDiagnostics) {
+            return overviewDevHelper.lastAutoDiagnostics;
+        }
+
+        const sequence = ++autoDiagnosticRunSequence;
+
+        await nextTick();
+        await waitForAnimationFrame();
+
+        if (sequence !== autoDiagnosticRunSequence) {
+            return overviewDevHelper?.lastAutoDiagnostics ?? {
+                ok: false,
+                reason: 'superseded',
+            };
+        }
+
+        if (debugOverrideMaterials.length > 0) {
+            restoreMaterials();
+        }
+
+        const baseline = buildOverviewDebugState({ includeProbes: true });
+        const debugOverride = includeDebugOverride
+            ? paintDebugTiles()
+            : null;
+        const restored = includeDebugOverride
+            ? restoreMaterials()
+            : buildOverviewDebugState({ includeProbes: true });
+
+        const result = {
+            ok: true,
+            reason,
+            timestamp: new Date().toISOString(),
+            diagnosticKey,
+            baseline,
+            debugOverride,
+            restored,
+        };
+
+        result.summary = classifyAutoDiagnosticSummary(result);
+        lastAutoDiagnosticKey = diagnosticKey;
+
+        if (overviewDevHelper) {
+            overviewDevHelper.lastAutoDiagnostics = result;
+            overviewDevHelper.autoDiagnosticsHistory = [
+                ...(overviewDevHelper.autoDiagnosticsHistory || []),
+                result,
+            ].slice(-5);
+        }
+
+        if (typeof window !== 'undefined' && window[OVERVIEW_DEV_HELPER_KEY]) {
+            window[OVERVIEW_DEV_HELPER_KEY].lastAutoDiagnostics = result;
+            window[OVERVIEW_DEV_HELPER_KEY].autoDiagnosticsHistory = overviewDevHelper?.autoDiagnosticsHistory || [result];
+        }
+
+        if (logToConsole) {
+            console.info('[TextureOverviewPreview] Auto diagnostics complete', result.summary, result);
+        }
+
+        return result;
+    }
+
     function paintDebugTiles() {
         if (!cellEntries.length) {
             return { ok: false, reason: 'no-cells' };
@@ -410,18 +549,23 @@
         overviewDevHelper = {
             help() {
                 return [
+                    `window.${OVERVIEW_DEV_HELPER_KEY}.lastAutoDiagnostics`,
+                    `window.${OVERVIEW_DEV_HELPER_KEY}.runAutoDiagnostics({ force: true })`,
                     `window.${OVERVIEW_DEV_HELPER_KEY}.logState({ includeProbes: true })`,
                     `window.${OVERVIEW_DEV_HELPER_KEY}.paintDebugTiles()`,
                     `window.${OVERVIEW_DEV_HELPER_KEY}.restoreMaterials()`,
                     `window.${OVERVIEW_DEV_HELPER_KEY}.captureCompositeProbe({ includeDataUrl: true })`,
                 ];
             },
+            lastAutoDiagnostics: null,
+            autoDiagnosticsHistory: [],
             getState: (options = {}) => buildOverviewDebugState(options),
             logState(options = {}) {
                 const state = buildOverviewDebugState(options);
                 console.info('[TextureOverviewPreview] Debug state', state);
                 return state;
             },
+            runAutoDiagnostics,
             captureRenderProbe,
             captureCompositeProbe,
             paintDebugTiles,
@@ -449,6 +593,7 @@
         }
 
         overviewDevHelper = null;
+        lastAutoDiagnosticKey = null;
     }
 
     function updateLoadingStatus(stage, current, total) {
@@ -757,6 +902,10 @@
                 isLoading.value = false;
                 if (!error.value) {
                     loadingStatusText.value = '';
+
+                    if (shouldAutoRunDiagnostics()) {
+                        void runAutoDiagnostics({ reason: 'load-complete' });
+                    }
                 }
             }
         }
