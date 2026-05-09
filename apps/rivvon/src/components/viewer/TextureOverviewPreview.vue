@@ -199,10 +199,10 @@
             visibleHeight = currentLayout.frameWidth / viewportAspect;
         }
 
-        camera.left = -currentLayout.frameWidth / 2;
-        camera.right = camera.left + visibleWidth;
-        camera.top = currentLayout.frameHeight / 2;
-        camera.bottom = camera.top - visibleHeight;
+        camera.left = -visibleWidth / 2;
+        camera.right = visibleWidth / 2;
+        camera.top = visibleHeight / 2;
+        camera.bottom = -visibleHeight / 2;
         camera.updateProjectionMatrix();
 
         const nextPixelRatio = pixelRatioOverride == null
