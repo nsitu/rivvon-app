@@ -48,6 +48,7 @@
     const displayScale = ref(1);
     const tileCount = ref(0);
     const loadingStatusText = ref('');
+    const OVERVIEW_DEV_HELPER_KEY = '__rivvonTextureOverview';
 
     const wrapperStyle = computed(() => ({
         '--overview-aspect-ratio': `${Math.max(1, Number(props.targetWidth) || 1920)} / ${Math.max(1, Number(props.targetHeight) || 1080)}`,
@@ -64,7 +65,391 @@
     let currentLayout = null;
     let flowWasActive = null;
     let reloadToken = 0;
+    let debugOverrideMaterials = [];
+    let overviewDevHelper = null;
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
+
+    function disposeDebugOverrideMaterials() {
+        if (debugOverrideMaterials.length === 0) {
+            return;
+        }
+
+        for (const material of debugOverrideMaterials) {
+            material?.dispose?.();
+        }
+
+        debugOverrideMaterials = [];
+    }
+
+    function safeGetContextParameter(context, parameter) {
+        if (!context || typeof parameter === 'undefined') {
+            return null;
+        }
+
+        try {
+            return context.getParameter(parameter);
+        } catch {
+            return null;
+        }
+    }
+
+    function describeMaterial(material) {
+        if (!material) {
+            return null;
+        }
+
+        const uniforms = material.uniforms && typeof material.uniforms === 'object'
+            ? Object.keys(material.uniforms)
+            : [];
+
+        return {
+            type: material.type || material.constructor?.name || 'UnknownMaterial',
+            transparent: Boolean(material.transparent),
+            opacity: Number.isFinite(material.opacity) ? material.opacity : null,
+            visible: material.visible !== false,
+            side: material.side ?? null,
+            hasMap: Boolean(material.map),
+            uniformKeys: uniforms.slice(0, 16),
+            hasTextureArray: Boolean(material.uniforms?.uTexArray?.value),
+            hasFlowTextures: Boolean(material.uniforms?.uTexA?.value || material.uniforms?.uTexB?.value),
+        };
+    }
+
+    function buildGlContextSummary() {
+        const context = renderer?.getContext?.();
+        if (!context) {
+            return null;
+        }
+
+        const debugInfo = context.getExtension?.('WEBGL_debug_renderer_info') || null;
+        const isWebGl2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
+
+        return {
+            isWebGl2,
+            version: safeGetContextParameter(context, context.VERSION),
+            shadingLanguageVersion: safeGetContextParameter(context, context.SHADING_LANGUAGE_VERSION),
+            vendor: debugInfo
+                ? safeGetContextParameter(context, debugInfo.UNMASKED_VENDOR_WEBGL)
+                : safeGetContextParameter(context, context.VENDOR),
+            renderer: debugInfo
+                ? safeGetContextParameter(context, debugInfo.UNMASKED_RENDERER_WEBGL)
+                : safeGetContextParameter(context, context.RENDERER),
+            maxTextureSize: safeGetContextParameter(context, context.MAX_TEXTURE_SIZE),
+            maxTextureImageUnits: safeGetContextParameter(context, context.MAX_TEXTURE_IMAGE_UNITS),
+            maxArrayTextureLayers: isWebGl2
+                ? safeGetContextParameter(context, context.MAX_ARRAY_TEXTURE_LAYERS)
+                : null,
+            contextAttributes: context.getContextAttributes?.() || null,
+            extensions: {
+                astc: Boolean(context.getExtension?.('WEBGL_compressed_texture_astc')),
+                etc: Boolean(context.getExtension?.('WEBGL_compressed_texture_etc')),
+                etc1: Boolean(context.getExtension?.('WEBGL_compressed_texture_etc1')),
+                s3tc: Boolean(context.getExtension?.('WEBGL_compressed_texture_s3tc')),
+                pvrtc: Boolean(context.getExtension?.('WEBGL_compressed_texture_pvrtc')),
+            },
+        };
+    }
+
+    function collectMaterialSample() {
+        return cellEntries.slice(0, 4).map((entry, index) => ({
+            index,
+            baseIndex: entry.baseIndex,
+            position: {
+                x: Number(entry.mesh.position.x.toFixed(2)),
+                y: Number(entry.mesh.position.y.toFixed(2)),
+                z: Number(entry.mesh.position.z.toFixed(2)),
+            },
+            material: describeMaterial(entry.mesh.material),
+        }));
+    }
+
+    function buildOverviewDebugState(options = {}) {
+        const includeProbes = Boolean(options.includeProbes);
+        const canvas = renderer?.domElement || null;
+        const wrapper = wrapperRef.value;
+        const rendererSize = renderer ? renderer.getSize(new THREE.Vector2()) : null;
+
+        const state = {
+            ready: isReady.value,
+            loading: isLoading.value,
+            error: error.value || null,
+            loadingStatusText: loadingStatusText.value || null,
+            texture: {
+                id: props.texture?.id || null,
+                name: props.texture?.name || null,
+                tileCount: props.texture?.tile_count || null,
+                tileResolution: props.texture?.tile_resolution || null,
+                source: props.isLocal ? 'local' : (props.isCached ? 'cached' : 'cloud'),
+            },
+            targetFrame: {
+                width: props.targetWidth,
+                height: props.targetHeight,
+            },
+            viewport: {
+                wrapperWidth: wrapper?.clientWidth || 0,
+                wrapperHeight: wrapper?.clientHeight || 0,
+                devicePixelRatio: window.devicePixelRatio || 1,
+                displayScale: displayScale.value,
+            },
+            canvas: canvas
+                ? {
+                    clientWidth: canvas.clientWidth,
+                    clientHeight: canvas.clientHeight,
+                    width: canvas.width,
+                    height: canvas.height,
+                }
+                : null,
+            renderer: renderer
+                ? {
+                    pixelRatio: renderer.getPixelRatio(),
+                    size: rendererSize ? { width: rendererSize.x, height: rendererSize.y } : null,
+                    info: {
+                        memory: renderer.info?.memory || null,
+                        render: renderer.info?.render || null,
+                    },
+                    context: buildGlContextSummary(),
+                }
+                : null,
+            camera: camera
+                ? {
+                    left: camera.left,
+                    right: camera.right,
+                    top: camera.top,
+                    bottom: camera.bottom,
+                    near: camera.near,
+                    far: camera.far,
+                    z: camera.position.z,
+                }
+                : null,
+            layout: currentLayout
+                ? {
+                    strategy: currentLayout.strategy,
+                    frameWidth: currentLayout.frameWidth,
+                    frameHeight: currentLayout.frameHeight,
+                    tileWidth: currentLayout.tileWidth,
+                    tileHeight: currentLayout.tileHeight,
+                    cols: currentLayout.cols,
+                    rows: currentLayout.rows,
+                    cellCount: currentLayout.cellCount,
+                }
+                : null,
+            tileManager: tileManager
+                ? {
+                    rendererType: tileManager.rendererType,
+                    variant: tileManager.variant,
+                    isKtx2: Boolean(tileManager.isKTX2),
+                    tileCount: tileManager.getTileCount?.() ?? tileManager.tileCount ?? null,
+                    effectiveTileCount: tileManager.getEffectiveTileCount?.() ?? null,
+                    loadedMaterials: tileManager.materials?.length ?? 0,
+                    mirroredMaterials: tileManager.mirroredMaterials?.size ?? 0,
+                    arrayTextures: tileManager.arrayTextures?.length ?? 0,
+                    flowMaterials: tileManager.flowMaterials?.length ?? 0,
+                    layerCount: tileManager.getLayerCount?.() ?? tileManager.layerCount ?? null,
+                    currentLayer: tileManager.currentLayer ?? null,
+                    flowEnabled: tileManager.isFlowEnabled?.() ?? null,
+                    flowSpeed: tileManager.getFlowSpeed?.() ?? null,
+                    requestedFlowSpeed: tileManager.getRequestedFlowSpeed?.() ?? null,
+                    flowOffset: tileManager.getFlowOffset?.() ?? tileManager.flowOffset ?? null,
+                    tileFlowOffset: tileManager.getTileFlowOffset?.() ?? tileManager.tileFlowOffset ?? null,
+                    repeatMode: tileManager.getRepeatMode?.() ?? tileManager.repeatMode ?? null,
+                    flowAlignment: tileManager.getFlowAlignmentInfo?.() ?? tileManager.flowAlignmentInfo ?? null,
+                    textureSetId: tileManager.currentTextureSet?.id || null,
+                }
+                : null,
+            cells: {
+                count: cellEntries.length,
+                debugOverrideActive: debugOverrideMaterials.length > 0,
+                sample: collectMaterialSample(),
+            },
+        };
+
+        if (includeProbes) {
+            state.probes = {
+                render: captureRenderProbe({ gridSize: 3 }),
+                composite: captureCompositeProbe({ gridSize: 3 }),
+            };
+        }
+
+        return state;
+    }
+
+    function captureRenderProbe(options = {}) {
+        if (!renderer) {
+            return { available: false, reason: 'renderer-unavailable' };
+        }
+
+        const context = renderer.getContext?.();
+        const canvas = renderer.domElement;
+        if (!context || !canvas) {
+            return { available: false, reason: 'context-unavailable' };
+        }
+
+        renderCurrentScene();
+        context.finish?.();
+
+        const gridSize = Math.max(1, Math.min(6, Math.floor(Number(options.gridSize) || 3)));
+        const samples = [];
+        let nonEmptySampleCount = 0;
+
+        for (let row = 1; row <= gridSize; row += 1) {
+            for (let col = 1; col <= gridSize; col += 1) {
+                const x = Math.min(canvas.width - 1, Math.floor((col / (gridSize + 1)) * canvas.width));
+                const y = Math.min(canvas.height - 1, Math.floor((row / (gridSize + 1)) * canvas.height));
+                const pixel = new Uint8Array(4);
+                context.readPixels(x, y, 1, 1, context.RGBA, context.UNSIGNED_BYTE, pixel);
+                const values = Array.from(pixel);
+
+                if (values.some((value) => value > 0)) {
+                    nonEmptySampleCount += 1;
+                }
+
+                samples.push({ x, y, values });
+            }
+        }
+
+        return {
+            available: true,
+            gridSize,
+            nonEmptySampleCount,
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            samples,
+        };
+    }
+
+    function captureCompositeProbe(options = {}) {
+        const canvas = renderer?.domElement;
+        if (!canvas) {
+            return { available: false, reason: 'canvas-unavailable' };
+        }
+
+        renderCurrentScene();
+
+        const probeCanvas = document.createElement('canvas');
+        probeCanvas.width = Math.max(1, canvas.width);
+        probeCanvas.height = Math.max(1, canvas.height);
+
+        const context2d = probeCanvas.getContext('2d', { alpha: true });
+        if (!context2d) {
+            return { available: false, reason: '2d-context-unavailable' };
+        }
+
+        context2d.clearRect(0, 0, probeCanvas.width, probeCanvas.height);
+        context2d.drawImage(canvas, 0, 0, probeCanvas.width, probeCanvas.height);
+
+        const gridSize = Math.max(1, Math.min(6, Math.floor(Number(options.gridSize) || 3)));
+        const samples = [];
+        let nonEmptySampleCount = 0;
+
+        for (let row = 1; row <= gridSize; row += 1) {
+            for (let col = 1; col <= gridSize; col += 1) {
+                const x = Math.min(probeCanvas.width - 1, Math.floor((col / (gridSize + 1)) * probeCanvas.width));
+                const y = Math.min(probeCanvas.height - 1, Math.floor((row / (gridSize + 1)) * probeCanvas.height));
+                const values = Array.from(context2d.getImageData(x, y, 1, 1).data);
+
+                if (values.some((value) => value > 0)) {
+                    nonEmptySampleCount += 1;
+                }
+
+                samples.push({ x, y, values });
+            }
+        }
+
+        const result = {
+            available: true,
+            gridSize,
+            nonEmptySampleCount,
+            width: probeCanvas.width,
+            height: probeCanvas.height,
+            samples,
+        };
+
+        if (options.includeDataUrl) {
+            try {
+                result.dataUrl = probeCanvas.toDataURL('image/png');
+            } catch (error) {
+                result.dataUrlError = error?.message || String(error);
+            }
+        }
+
+        return result;
+    }
+
+    function paintDebugTiles() {
+        if (!cellEntries.length) {
+            return { ok: false, reason: 'no-cells' };
+        }
+
+        disposeDebugOverrideMaterials();
+
+        debugOverrideMaterials = cellEntries.map((entry, index) => {
+            const material = new THREE.MeshBasicMaterial();
+            material.color.setHSL((index % Math.max(1, cellEntries.length)) / Math.max(1, cellEntries.length), 0.85, 0.55);
+            material.transparent = false;
+            material.opacity = 1;
+            entry.mesh.material = material;
+            return material;
+        });
+
+        renderCurrentScene();
+        return buildOverviewDebugState({ includeProbes: true });
+    }
+
+    function restoreMaterials() {
+        disposeDebugOverrideMaterials();
+        syncCellMaterials(true);
+        renderCurrentScene();
+        return buildOverviewDebugState({ includeProbes: true });
+    }
+
+    function installOverviewDevHelpers() {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        overviewDevHelper = {
+            help() {
+                return [
+                    `window.${OVERVIEW_DEV_HELPER_KEY}.logState({ includeProbes: true })`,
+                    `window.${OVERVIEW_DEV_HELPER_KEY}.paintDebugTiles()`,
+                    `window.${OVERVIEW_DEV_HELPER_KEY}.restoreMaterials()`,
+                    `window.${OVERVIEW_DEV_HELPER_KEY}.captureCompositeProbe({ includeDataUrl: true })`,
+                ];
+            },
+            getState: (options = {}) => buildOverviewDebugState(options),
+            logState(options = {}) {
+                const state = buildOverviewDebugState(options);
+                console.info('[TextureOverviewPreview] Debug state', state);
+                return state;
+            },
+            captureRenderProbe,
+            captureCompositeProbe,
+            paintDebugTiles,
+            restoreMaterials,
+            renderFrame() {
+                renderCurrentScene();
+                return true;
+            },
+        };
+
+        window[OVERVIEW_DEV_HELPER_KEY] = overviewDevHelper;
+        console.info(
+            `[TextureOverviewPreview] Installed dev helpers on window.${OVERVIEW_DEV_HELPER_KEY}.`,
+            overviewDevHelper.help(),
+        );
+    }
+
+    function removeOverviewDevHelpers() {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        if (window[OVERVIEW_DEV_HELPER_KEY] === overviewDevHelper) {
+            delete window[OVERVIEW_DEV_HELPER_KEY];
+        }
+
+        overviewDevHelper = null;
+    }
 
     function updateLoadingStatus(stage, current, total) {
         const numericTotal = Math.max(0, Number(total) || 0);
@@ -109,6 +494,8 @@
     }
 
     function clearCellMeshes() {
+        disposeDebugOverrideMaterials();
+
         if (cellEntries.length > 0 && scene) {
             for (const entry of cellEntries) {
                 scene.remove(entry.mesh);
@@ -135,6 +522,10 @@
 
     function syncCellMaterials(force = false) {
         if (!tileManager || cellEntries.length === 0) {
+            return;
+        }
+
+        if (debugOverrideMaterials.length > 0) {
             return;
         }
 
@@ -562,6 +953,7 @@
     onMounted(async () => {
         await nextTick();
         await initializeRenderer();
+        installOverviewDevHelpers();
     });
 
     watch(
@@ -619,6 +1011,8 @@
         reloadToken += 1;
 
         stopAnimationLoop();
+        removeOverviewDevHelpers();
+        disposeDebugOverrideMaterials();
 
         resizeObserver?.disconnect?.();
         resizeObserver = null;
