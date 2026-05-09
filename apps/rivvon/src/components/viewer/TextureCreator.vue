@@ -1,5 +1,5 @@
 <script setup>
-    import { computed, nextTick, ref, watch } from 'vue';
+    import { computed, nextTick, ref, watch, watchEffect } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
@@ -25,7 +25,12 @@
         }
     });
 
-    const emit = defineEmits(['request-close', 'request-apply-texture', 'request-apply-realtime-texture']);
+    const emit = defineEmits([
+        'request-close',
+        'request-apply-texture',
+        'request-apply-realtime-texture',
+        'navigation-state-change',
+    ]);
 
     const slyce = useSlyceStore();
     const realtime = useRealtimeSlyce();
@@ -77,6 +82,8 @@
         if (selectedSource.value === 'file') return fileDisplayStep.value;
         return '1';
     });
+    const stepLabels = { '1': 'Start', '2': 'Config', '3': 'Process', '4': 'Done' };
+    const currentStepLabel = computed(() => stepLabels[stepperValue.value] || '');
 
     const cameraWorkflowPhase = computed(() => {
         if (cameraDisplayStep.value === '2') return 'setup';
@@ -185,8 +192,31 @@
         emit('request-apply-realtime-texture', payload);
     }
 
-    const stepLabels = { '1': 'Start', '2': 'Config', '3': 'Process', '4': 'Done' };
-    const currentStepLabel = computed(() => stepLabels[stepperValue.value] || '');
+    const navigationBreadcrumbs = computed(() => {
+        const breadcrumbs = ['Create Texture'];
+
+        if (selectedSource.value === 'file') {
+            breadcrumbs.push('Video');
+        }
+
+        if (selectedSource.value === 'camera') {
+            breadcrumbs.push('Camera');
+        }
+
+        return breadcrumbs;
+    });
+    const navigationState = computed(() => {
+        if (!props.active) {
+            return null;
+        }
+
+        return {
+            breadcrumbs: navigationBreadcrumbs.value,
+            statusLabel: null,
+            canGoBack: selectedSource.value !== null,
+            canExit: true,
+        };
+    });
 
     function isStepActive(value) {
         return Number(value) <= Number(stepperValue.value);
@@ -208,17 +238,26 @@
         activateCallback('1');
     }
 
-    // Handle going back from Results with processing check
-    function handleBackFromResults(activateCallback) {
+    function stepBackFromFileResults() {
         if (isProcessing.value) {
             const confirmed = confirm(
                 'Processing is in progress. Going back will abandon the current process and clear any generated results. Continue?'
             );
-            if (!confirmed) return;
+            if (!confirmed) return false;
             slyce.resetProcessing();
         }
 
         slyce.set('currentStep', '2');
+        return true;
+    }
+
+    // Handle going back from Results with processing check
+    function handleBackFromResults(activateCallback) {
+        const steppedBack = stepBackFromFileResults();
+        if (!steppedBack) {
+            return;
+        }
+
         activateCallback('2');
     }
 
@@ -248,6 +287,58 @@
         }
         activateCallback();
     }
+
+    function handleNavigationBack() {
+        if (selectedSource.value === null) {
+            return false;
+        }
+
+        returnToSourceChooser();
+        return selectedSource.value === null;
+    }
+
+    function handleNavigationExit() {
+        if (selectedSource.value === 'file' && isProcessing.value) {
+            const confirmed = confirm(
+                'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
+            );
+            if (!confirmed) {
+                return false;
+            }
+
+            slyce.resetProcessing();
+        }
+
+        if (selectedSource.value === 'camera' && hasRealtimeWork.value) {
+            const confirmed = confirm(
+                'Current camera capture will be cleared when you leave Create Texture. Continue?'
+            );
+            if (!confirmed) {
+                return false;
+            }
+
+            clearRealtimeFlow();
+        }
+
+        emit('request-close');
+        return true;
+    }
+
+    watchEffect(() => {
+        const nextNavigationState = navigationState.value;
+
+        emit('navigation-state-change', nextNavigationState
+            ? {
+                ...nextNavigationState,
+                breadcrumbs: [...nextNavigationState.breadcrumbs],
+            }
+            : null);
+    });
+
+    defineExpose({
+        handleNavigationBack,
+        handleNavigationExit,
+    });
 
     // Drag and drop handlers
     function handleDragOver(e) {
@@ -300,7 +391,7 @@
         @dragover="handleDragOver"
         @drop="handleDrop"
     >
-        <div class="slyce-container">
+        <div class="slyce-container viewer-chrome-panel-container">
             <!-- Main content area -->
             <div class="slyce-content">
                 <Stepper
@@ -492,10 +583,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: 5.5rem;
-        /* Space for AppHeader */
-        padding-bottom: 5.5rem;
-        /* Space for BottomToolbar */
         /* note, this is based on the button dimensions
          in the app header and bottom toolbar, ie.
         height: 1.5rem 

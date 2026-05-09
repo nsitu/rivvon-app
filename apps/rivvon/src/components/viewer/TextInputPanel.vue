@@ -271,7 +271,7 @@
         class="text-input-panel"
         :class="{ active: visible }"
     >
-        <div class="text-input-container">
+        <div class="text-input-container viewer-chrome-panel-container">
             <div class="text-input-panel-content">
                 <div class="text-input-panel-body">
                     <div class="text-form">
@@ -539,10 +539,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: 5.5rem;
-        /* Space for AppHeader */
-        padding-bottom: 5.5rem;
-        /* Space for BottomToolbar */
     }
 
     .text-input-panel-content {

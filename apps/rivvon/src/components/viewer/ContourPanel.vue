@@ -349,7 +349,7 @@
         class="contour-panel"
         :class="{ active }"
     >
-        <div class="contour-container">
+        <div class="contour-container viewer-chrome-panel-container">
             <div class="contour-scroll">
                 <!-- Camera live feed -->
                 <div
@@ -524,8 +524,6 @@
 
 <style scoped>
     .contour-panel {
-        --viewer-header-chrome-height: 5.5rem;
-        --viewer-bottom-chrome-height: 6.4rem;
         position: absolute;
         top: 0;
         left: 0;
@@ -550,8 +548,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: var(--viewer-header-chrome-height);
-        padding-bottom: var(--viewer-bottom-chrome-height);
         overflow: hidden;
     }
 

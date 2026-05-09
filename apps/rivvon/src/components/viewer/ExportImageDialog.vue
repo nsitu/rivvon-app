@@ -161,7 +161,7 @@
         aria-modal="true"
         aria-label="Export Image"
     >
-        <div class="export-image-panel-container">
+        <div class="export-image-panel-container viewer-chrome-panel-container">
             <div class="export-image-panel-content">
                 <div class="export-image-panel-body">
                     <div class="form-grid">
@@ -355,8 +355,6 @@
         transition: opacity 0.3s ease;
         display: flex;
         flex-direction: column;
-        --viewer-header-chrome-height: 5.5rem;
-        --viewer-bottom-chrome-height: 6.4rem;
     }
 
     .export-image-panel.active {
@@ -369,8 +367,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        padding-top: var(--viewer-header-chrome-height);
-        padding-bottom: var(--viewer-bottom-chrome-height);
         background: transparent;
     }
 

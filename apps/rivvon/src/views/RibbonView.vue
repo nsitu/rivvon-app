@@ -121,6 +121,12 @@
     });
 
     const activeToolbarOverlay = ref(null);
+    const activeToolbarOverlayTitle = computed(() => {
+        if (activeToolbarOverlay.value === 'draw') return 'Draw';
+        if (activeToolbarOverlay.value === 'texture') return 'Texture';
+        if (activeToolbarOverlay.value === 'share') return 'Share';
+        return null;
+    });
 
     function handleToolbarOverlayChange(nextOverlay) {
         activeToolbarOverlay.value = nextOverlay === 'draw' || nextOverlay === 'texture' || nextOverlay === 'share'
@@ -159,27 +165,38 @@
 
     const returnToCreateTextureOnRealtimeClose = ref(false);
     const textureCreatorLaunchSource = ref(null);
+    const textureCreatorReturnOverlay = ref(null);
 
     function openCreateTextureMode() {
         returnToCreateTextureOnRealtimeClose.value = false;
         textureCreatorLaunchSource.value = null;
+        textureCreatorReturnOverlay.value = null;
         app.showSlyce();
     }
 
     function openCreateTextureFileMode() {
         returnToCreateTextureOnRealtimeClose.value = false;
         textureCreatorLaunchSource.value = 'file';
+        textureCreatorReturnOverlay.value = 'texture';
         app.showSlyce();
     }
 
     async function openCreateTextureCameraMode() {
         textureCreatorLaunchSource.value = null;
+        textureCreatorReturnOverlay.value = null;
         await enterRealtimeMode();
     }
 
-    function closeCreateTextureMode() {
+    function closeCreateTextureMode(options = {}) {
+        const { reopenToolbarOverlay = null } = options;
         textureCreatorLaunchSource.value = null;
+        textureCreatorReturnOverlay.value = null;
+        textureCreatorNavigationState.value = null;
         app.hideSlyce();
+
+        if (reopenToolbarOverlay) {
+            activeToolbarOverlay.value = reopenToolbarOverlay;
+        }
     }
 
     function forceOrbitControls(options = {}) {
@@ -376,6 +393,7 @@
     const threeCanvasRef = ref(null);
     const drawCanvasRef = ref(null);
     const walkCanvasRef = ref(null);
+    const textureCreatorRef = ref(null);
     const fileInputRef = ref(null);
 
     // Local state
@@ -383,6 +401,7 @@
     const showTechnicalOverlay = ref(false);
     const currentTextureSelection = ref(null);
     const textureOverviewSelection = ref(null);
+    const textureCreatorNavigationState = ref(null);
     const isTextureOverviewActive = computed(() => Boolean(textureOverviewSelection.value?.texture));
     const showTextureMetadataOverlay = computed(() => (
         app.showTextureMetadataOverlay
@@ -414,6 +433,10 @@
             name: metadata.name ?? '',
             description: metadata.description ?? '',
         });
+    }
+
+    function handleTextureCreatorNavigationStateChange(state) {
+        textureCreatorNavigationState.value = state;
     }
 
     function applyTextureResetState({ activeTextureIds = null, clearThumbnail = false } = {}) {
@@ -1591,6 +1614,209 @@
         }
     }
 
+    const primaryWorkflowNavigation = computed(() => {
+        if (textureCreatorVisible.value) {
+            return {
+                id: 'textureCreator',
+                group: 'texture',
+                breadcrumbs: textureCreatorNavigationState.value?.breadcrumbs ?? ['Create Texture'],
+                statusLabel: textureCreatorNavigationState.value?.statusLabel ?? null,
+                canGoBack: textureCreatorNavigationState.value?.canGoBack === true,
+                back: () => {
+                    if (
+                        textureCreatorReturnOverlay.value
+                        && textureCreatorLaunchSource.value === 'file'
+                        && textureCreatorNavigationState.value?.canGoBack === true
+                    ) {
+                        closeCreateTextureMode({ reopenToolbarOverlay: textureCreatorReturnOverlay.value });
+                        return true;
+                    }
+
+                    return textureCreatorRef.value?.handleNavigationBack?.() ?? false;
+                },
+                canExit: textureCreatorNavigationState.value?.canExit !== false,
+                exit: () => textureCreatorRef.value?.handleNavigationExit?.() ?? closeCreateTextureMode(),
+            };
+        }
+
+        if (realtimeSamplerVisible.value) {
+            return {
+                id: 'realtimeSampler',
+                group: 'texture',
+                breadcrumbs: ['Create Texture', 'Camera'],
+                statusLabel: 'Capture',
+                canGoBack: false,
+                back: () => false,
+                canExit: true,
+                exit: () => {
+                    handleRealtimeClose({ suppressCreateTextureReturn: true });
+                    return true;
+                },
+            };
+        }
+
+        if (isTextureOverviewActive.value || textureBrowserVisible.value) {
+            return {
+                id: 'textures',
+                group: 'texture',
+                breadcrumbs: isTextureOverviewActive.value ? ['Textures', 'Overview'] : ['Textures'],
+                statusLabel: null,
+                canGoBack: isTextureOverviewActive.value,
+                back: () => {
+                    if (!isTextureOverviewActive.value) {
+                        return false;
+                    }
+
+                    closeTextureOverview({ reopenTextureBrowser: true });
+                    return true;
+                },
+                canExit: true,
+                exit: () => {
+                    if (isTextureOverviewActive.value) {
+                        closeTextureOverview({ reopenTextureBrowser: false });
+                        return true;
+                    }
+
+                    app.hideTextureBrowser();
+                    return true;
+                },
+            };
+        }
+
+        if (drawingBrowserVisible.value) {
+            return {
+                id: 'drawings',
+                group: 'drawings',
+                breadcrumbs: ['Drawings'],
+                statusLabel: null,
+                canGoBack: false,
+                back: () => false,
+                canExit: true,
+                exit: () => {
+                    app.hideDrawingBrowser();
+                    return true;
+                },
+            };
+        }
+
+        return null;
+    });
+    const activeNavigationModal = computed(() => {
+        if (showExportDialog.value) {
+            return {
+                id: 'exportVideo',
+                label: 'Export Video',
+                close: () => {
+                    handleExportPanelClose();
+                    return true;
+                },
+            };
+        }
+
+        if (showExportImageDialog.value) {
+            return {
+                id: 'exportImage',
+                label: 'Export Image',
+                close: () => {
+                    handleExportPanelClose();
+                    return true;
+                },
+            };
+        }
+
+        return null;
+    });
+    const activeNavigationOverlay = computed(() => {
+        if (activeToolbarOverlay.value) {
+            return {
+                id: 'toolbarOverlay',
+                label: activeToolbarOverlayTitle.value,
+                close: () => {
+                    handleToolbarOverlayClose();
+                    return true;
+                },
+            };
+        }
+
+        if (app.toolsPanelVisible) {
+            return {
+                id: 'tools',
+                label: 'Tools',
+                close: () => {
+                    app.hideToolsPanel();
+                    return true;
+                },
+            };
+        }
+
+        return null;
+    });
+    const navigationBreadcrumbs = computed(() => {
+        const breadcrumbs = primaryWorkflowNavigation.value
+            ? [...primaryWorkflowNavigation.value.breadcrumbs]
+            : [];
+
+        if (activeNavigationOverlay.value?.label) {
+            breadcrumbs.push(activeNavigationOverlay.value.label);
+        }
+
+        if (activeNavigationModal.value?.label) {
+            breadcrumbs.push(activeNavigationModal.value.label);
+        }
+
+        return breadcrumbs;
+    });
+    const navigationCanGoBack = computed(() => {
+        if (activeNavigationModal.value) {
+            return true;
+        }
+
+        if (activeNavigationOverlay.value) {
+            return true;
+        }
+
+        return primaryWorkflowNavigation.value?.canGoBack === true;
+    });
+    const navigationCanExitWorkflow = computed(() => Boolean(primaryWorkflowNavigation.value?.canExit));
+    const navigationHasActiveWorkflow = computed(() => Boolean(primaryWorkflowNavigation.value));
+    const navigationWorkflowGroup = computed(() => primaryWorkflowNavigation.value?.group ?? null);
+    const headerNavigationModel = computed(() => {
+        if (!navigationHasActiveWorkflow.value && !activeNavigationOverlay.value && !activeNavigationModal.value) {
+            return null;
+        }
+
+        return {
+            breadcrumbs: navigationBreadcrumbs.value,
+            statusLabel: primaryWorkflowNavigation.value?.statusLabel ?? null,
+            canGoBack: navigationCanGoBack.value,
+            canExit: navigationCanExitWorkflow.value,
+        };
+    });
+
+    async function handleNavigationBack() {
+        if (activeNavigationModal.value) {
+            activeNavigationModal.value.close();
+            return;
+        }
+
+        if (activeNavigationOverlay.value) {
+            activeNavigationOverlay.value.close();
+            return;
+        }
+
+        if (primaryWorkflowNavigation.value?.canGoBack) {
+            await primaryWorkflowNavigation.value.back?.();
+        }
+    }
+
+    async function handleNavigationExit() {
+        if (!primaryWorkflowNavigation.value?.canExit) {
+            return;
+        }
+
+        await primaryWorkflowNavigation.value.exit?.();
+    }
+
     const activePanelContext = computed(() => resolveOrderedContext([
         {
             title: 'Export Video',
@@ -2295,8 +2521,11 @@
         <AppHeader
             :camera-active="isCameraIndicatorVisible"
             :camera-dismiss-label="cameraDismissLabel"
+            :navigation-model="headerNavigationModel"
             :panel-title="activePanelTitle"
-            :toolbar-overlay-title="activeToolbarOverlay === 'draw' ? 'Draw' : activeToolbarOverlay === 'texture' ? 'Texture' : activeToolbarOverlay === 'share' ? 'Share' : null"
+            :toolbar-overlay-title="activeToolbarOverlayTitle"
+            @request-navigation-back="handleNavigationBack"
+            @request-navigation-exit="handleNavigationExit"
             @request-close-realtime-mode="handleRealtimeClose"
             @request-close-panel="handleHeaderPanelClose"
             @request-close-toolbar-overlay="handleToolbarOverlayClose"
@@ -2336,6 +2565,10 @@
             :active-toolbar-overlay="activeToolbarOverlay"
             :export-image-visible="showExportImageDialog"
             :export-video-visible="showExportDialog"
+            :navigation-can-go-back="navigationCanGoBack"
+            :navigation-can-exit-workflow="navigationCanExitWorkflow"
+            :navigation-has-active-workflow="navigationHasActiveWorkflow"
+            :navigation-workflow-group="navigationWorkflowGroup"
             @request-enter-draw-mode="enterDrawMode"
             @request-enter-walk-mode="enterWalkMode"
             @request-enter-contour-mode="enterContourMode"
@@ -2352,6 +2585,8 @@
             @request-import-file="openFileImport"
             @request-close-export-image="handleExportPanelClose"
             @request-close-export-video="handleExportPanelClose"
+            @request-navigation-back="handleNavigationBack"
+            @request-navigation-exit="handleNavigationExit"
             @request-toolbar-overlay-change="handleToolbarOverlayChange"
             @request-export-image="handleExportImage"
             @request-export-video="handleExportVideo"
@@ -2420,9 +2655,11 @@
 
         <!-- Full-page Slyce panel (like drawing mode) -->
         <TextureCreator
+            ref="textureCreatorRef"
             v-if="textureCreatorVisible"
             :active="textureCreatorVisible"
             :launch-source="textureCreatorLaunchSource"
+            @navigation-state-change="handleTextureCreatorNavigationStateChange"
             @request-close="closeCreateTextureMode"
             @request-apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
             @request-apply-texture="handleApplyCreatedTexture"

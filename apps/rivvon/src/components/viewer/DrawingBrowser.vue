@@ -749,7 +749,7 @@
         class="drawing-browser"
         :class="{ active: visible }"
     >
-        <div class="drawing-browser-container">
+        <div class="drawing-browser-container viewer-chrome-panel-container">
             <div class="drawing-browser-content">
                 <div class="drawing-browser-header">
                     <h2>Saved Drawings</h2>
@@ -973,8 +973,6 @@
         flex-direction: column;
         width: 100%;
         height: 100%;
-        padding-top: 5.5rem;
-        padding-bottom: 5.5rem;
         min-height: 0;
     }
 
@@ -1383,11 +1381,6 @@
     }
 
     @media (max-width: 768px) {
-        .drawing-browser-container {
-            padding-top: 5.5rem;
-            padding-bottom: 5.5rem;
-        }
-
         .drawing-browser-content {
             padding: 16px;
         }

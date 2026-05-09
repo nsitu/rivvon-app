@@ -181,7 +181,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
@@ -259,7 +259,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
@@ -278,30 +278,6 @@
         flex-direction: column;
         gap: 1.25rem;
         width: 100%;
-    }
-
-    .tools-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
-
-    .tools-section-label {
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: rgba(255, 255, 255, 0.4);
-        padding: 0 0.5rem 0.25rem;
-    }
-
-    .tools-section-items {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-        background: rgba(0, 0, 0, 0.25);
-        border-radius: 10px;
-        padding: 0.25rem;
     }
 
     .tools-toggle-row {

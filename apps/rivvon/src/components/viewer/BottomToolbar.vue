@@ -57,10 +57,16 @@
     function toggleLauncher(name) {
         const nextLauncher = props.activeToolbarOverlay === name ? null : name;
 
-        if (nextLauncher && !closeActiveContext()) {
+        if (!nextLauncher) {
+            closeLaunchers();
             return;
         }
 
+        if (props.exportImageVisible || props.exportVideoVisible) {
+            return;
+        }
+
+        app.hideToolsPanel();
         emit('request-toolbar-overlay-change', nextLauncher);
     }
 
@@ -130,7 +136,11 @@
         technicalOverlay: { type: Boolean, default: false },
         activeToolbarOverlay: { type: String, default: null },
         exportImageVisible: { type: Boolean, default: false },
-        exportVideoVisible: { type: Boolean, default: false }
+        exportVideoVisible: { type: Boolean, default: false },
+        navigationCanGoBack: { type: Boolean, default: false },
+        navigationCanExitWorkflow: { type: Boolean, default: false },
+        navigationHasActiveWorkflow: { type: Boolean, default: false },
+        navigationWorkflowGroup: { type: String, default: null },
     });
 
     // Store-backed settings sections write directly to Pinia.
@@ -161,6 +171,8 @@
         'request-technical-overlay-toggle',
         'request-close-export-image',
         'request-close-export-video',
+        'request-navigation-back',
+        'request-navigation-exit',
         'request-toolbar-overlay-change'
     ]);
 
@@ -175,15 +187,6 @@
     }).map((context) => [context.id, context])));
 
     const toolbarBackContexts = computed(() => ([
-        viewerToolbarContextMap.value.walk,
-        viewerToolbarContextMap.value.draw,
-        viewerToolbarContextMap.value.drawings,
-        viewerToolbarContextMap.value.textureCreator,
-        viewerToolbarContextMap.value.textureBrowser,
-        viewerToolbarContextMap.value.text,
-        viewerToolbarContextMap.value.emoji,
-        viewerToolbarContextMap.value.contour,
-        viewerToolbarContextMap.value.realtimeSampler,
         {
             id: 'exportImage',
             title: 'Export Image',
@@ -212,10 +215,15 @@
             }
         },
         viewerToolbarContextMap.value.tools,
-        viewerToolbarContextMap.value.about,
-    ].filter(Boolean)));
-
-    const toolbarCloseAllContexts = computed(() => ([
+        {
+            id: 'navigationBack',
+            title: null,
+            isActive: () => props.navigationCanGoBack,
+            close: () => {
+                emit('request-navigation-back');
+                return true;
+            }
+        },
         viewerToolbarContextMap.value.walk,
         viewerToolbarContextMap.value.draw,
         viewerToolbarContextMap.value.drawings,
@@ -224,10 +232,31 @@
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
         viewerToolbarContextMap.value.contour,
-        viewerToolbarContextMap.value.tools,
+        viewerToolbarContextMap.value.realtimeSampler,
+        viewerToolbarContextMap.value.about,
+    ].filter(Boolean)));
+
+    const toolbarCloseAllContexts = computed(() => ([
+        ...toolbarBackContexts.value.filter((context) => ['exportImage', 'exportVideo', 'toolbarOverlay', 'tools'].includes(context.id)),
+        {
+            id: 'navigationExit',
+            title: null,
+            isActive: () => props.navigationHasActiveWorkflow && props.navigationCanExitWorkflow,
+            close: () => {
+                emit('request-navigation-exit');
+                return true;
+            }
+        },
+        viewerToolbarContextMap.value.walk,
+        viewerToolbarContextMap.value.draw,
+        viewerToolbarContextMap.value.drawings,
+        viewerToolbarContextMap.value.textureCreator,
+        viewerToolbarContextMap.value.textureBrowser,
+        viewerToolbarContextMap.value.text,
+        viewerToolbarContextMap.value.emoji,
+        viewerToolbarContextMap.value.contour,
         viewerToolbarContextMap.value.about,
         viewerToolbarContextMap.value.realtimeSampler,
-        ...toolbarBackContexts.value.filter((context) => ['exportImage', 'exportVideo', 'toolbarOverlay'].includes(context.id)),
     ]));
 
     function runActiveContexts(contexts, { firstOnly = false } = {}) {
@@ -254,8 +283,6 @@
      * If Slyce is visible and processing, confirm before cancelling and closing.
      */
     function handleBack() {
-        closeLaunchers();
-
         runActiveContexts(toolbarBackContexts.value, { firstOnly: true });
     }
 
@@ -267,7 +294,9 @@
     }
 
     const drawGroupActive = computed(() => (
-        isToolbarContextActive('draw')
+        props.navigationWorkflowGroup === 'draw'
+        || props.navigationWorkflowGroup === 'drawings'
+        || isToolbarContextActive('draw')
         || isToolbarContextActive('walk')
         || isToolbarContextActive('drawings')
         || isToolbarContextActive('text')
@@ -276,7 +305,8 @@
     ));
 
     const textureGroupActive = computed(() => (
-        isToolbarContextActive('textureCreator')
+        props.navigationWorkflowGroup === 'texture'
+        || isToolbarContextActive('textureCreator')
         || isToolbarContextActive('textureBrowser')
         || isToolbarContextActive('realtimeSampler')
     ));
@@ -326,6 +356,15 @@
         if (!closeActiveContext()) return;
         closeLaunchers();
         action();
+    }
+
+    function openToolsOverlay() {
+        if (props.exportImageVisible || props.exportVideoVisible) {
+            return;
+        }
+
+        closeLaunchers();
+        app.showToolsPanel();
     }
 
     function toggleContextItem(contextId, openAction) {
@@ -533,7 +572,7 @@
         <button
             class="toolbar-utility-button"
             :class="{ active: isToolbarContextActive('tools') }"
-            @click="isToolbarContextActive('tools') ? handleBack() : activateContext(() => app.showToolsPanel())"
+            @click="isToolbarContextActive('tools') ? handleBack() : openToolsOverlay()"
         >
             <span class="toolbar-button-content">
                 <span class="material-symbols-outlined toolbar-button-icon">instant_mix</span>
@@ -575,7 +614,7 @@
         role="dialog"
         :aria-label="`${activeLauncherTitle} actions`"
     >
-        <div class="launcher-panel-container">
+        <div class="launcher-panel-container viewer-chrome-panel-container">
             <div class="launcher-panel-content">
                 <div class="tools-section">
                     <div class="tools-section-label">Actions</div>
@@ -603,7 +642,7 @@
         class="tools-panel"
         :class="{ active: isToolbarContextActive('tools') }"
     >
-        <div class="tools-panel-container">
+        <div class="tools-panel-container viewer-chrome-panel-container">
             <ScrollPanel class="tools-panel-scrollpanel">
                 <div class="tools-panel-content">
                     <div class="tools-section-host">
@@ -754,7 +793,7 @@
         class="about-panel"
         :class="{ active: isToolbarContextActive('about') }"
     >
-        <div class="about-panel-container">
+        <div class="about-panel-container viewer-chrome-panel-container">
             <div class="about-panel-content">
                 <div class="info-content">
                     <p>
@@ -809,14 +848,6 @@
 </template>
 
 <style scoped>
-
-    .bottom-toolbar,
-    .launcher-panel,
-    .tools-panel,
-    .about-panel {
-        --viewer-header-chrome-height: 5.5rem;
-        --viewer-bottom-chrome-height: 6.4rem;
-    }
 
     .bottom-toolbar {
         position: absolute;
@@ -886,7 +917,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        z-index: 5;
+        z-index: 8;
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.3s ease;
@@ -905,14 +936,11 @@
         height: 100%;
         width: 100%;
         background: transparent;
-        padding-top: var(--viewer-header-chrome-height);
-        padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
     .launcher-panel-content {
         flex: 1;
         overflow-y: auto;
-        background: rgba(0, 0, 0, 0.6);
         padding: 1.5rem 1.25rem;
         width: 100%;
         /* max-width: 480px; */
@@ -993,7 +1021,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        z-index: 5;
+        z-index: 8;
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.3s ease;
@@ -1014,12 +1042,10 @@
         min-height: 0;
         width: 100%;
         background: transparent;
-        padding-top: var(--viewer-header-chrome-height);
-        padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
     .tools-panel-footer {
-        --panel-action-bar-background: rgba(0, 0, 0, 0.6);
+        --panel-action-bar-background: var(--viewer-toolbar-panel-background);
         --panel-action-bar-border-color: #374151;
         --panel-action-bar-padding: 1rem 1.25rem;
     }
@@ -1065,7 +1091,6 @@
 
     .tools-panel-content {
         box-sizing: border-box;
-        background: rgba(0, 0, 0, 0.6);
         padding: 1.5rem 1.25rem;
         width: 100%;
         display: flex;
@@ -1102,30 +1127,6 @@
         .tools-section-host:last-child {
             margin-bottom: 0;
         }
-    }
-
-    .tools-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
-
-    .tools-section-label {
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: rgba(255, 255, 255, 0.4);
-        padding: 0 0.5rem 0.25rem;
-    }
-
-    .tools-section-items {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-        background: rgba(0, 0, 0, 0.25);
-        border-radius: 10px;
-        padding: 0.25rem;
     }
 
     .tools-select-block {
@@ -1227,7 +1228,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        z-index: 5;
+        z-index: 8;
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.3s ease;
@@ -1246,8 +1247,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: var(--viewer-header-chrome-height);
-        padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
     .about-panel-content {

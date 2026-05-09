@@ -2,6 +2,7 @@
 /* Global styles for Vue 3 rivvon app (merged: viewer + slyce) */
 
 @import "tailwindcss";
+@import "./components/viewer/toolsPanelShared.css";
 
 /* Tell Tailwind v4 where to find source files for class detection */
 @source "../src/**/*.vue";

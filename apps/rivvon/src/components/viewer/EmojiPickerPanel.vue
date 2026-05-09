@@ -78,7 +78,7 @@
             style="position:absolute;width:0;height:0;overflow:hidden"
         ></div>
 
-        <div class="emoji-picker-container">
+        <div class="emoji-picker-container viewer-chrome-panel-container">
             <div class="emoji-picker-content">
                 <!-- Loading spinner for initial data load -->
                 <LoadingIndicator
@@ -201,8 +201,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: 5.5rem;
-        padding-bottom: 5.5rem;
     }
 
     .emoji-picker-content {

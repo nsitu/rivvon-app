@@ -2113,7 +2113,7 @@
         tabindex="-1"
     >
         <div
-            class="texture-browser-container"
+            class="texture-browser-container viewer-chrome-panel-container"
             :class="{ 'has-preview': previewTexture }"
             :style="previewTexture ? { '--preview-tile-size': previewCanvasWidth + 'px' } : undefined"
         >
@@ -2496,7 +2496,7 @@
                             (previewTileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewDisplayScale < 1">({{ Math.round(previewDisplayScale * 100)
-                        }}%
+                    }}%
                         scale)</span>
                 </div>
                 <div class="preview-actions">
@@ -2726,7 +2726,7 @@
                             <div class="derive-result-row">
                                 <span>Source tiles</span>
                                 <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
-                                }})</strong>
+                                    }})</strong>
                             </div>
                             <div class="derive-result-row">
                                 <span>Layer count</span>
@@ -2769,7 +2769,7 @@
                             <div class="derive-result-row">
                                 <span>Validation</span>
                                 <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                }}</strong>
+                                    }}</strong>
                             </div>
                         </div>
                     </details>
@@ -2919,10 +2919,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: 5.5rem;
-        /* Space for AppHeader */
-        padding-bottom: 5.5rem;
-        /* Space for BottomToolbar */
     }
 
     /* On mobile, hide browser content when preview is active */

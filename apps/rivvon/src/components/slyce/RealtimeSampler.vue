@@ -524,7 +524,7 @@
         :class="{ active: active, embedded: embedded }"
     >
         <div
-            class="realtime-container"
+            class="realtime-container viewer-chrome-panel-container"
             :class="{ embedded: embedded }"
         >
             <!-- Main content area -->
@@ -1011,8 +1011,6 @@
         height: 100%;
         width: 100%;
         background: #1a1a1a;
-        padding-top: 5.5rem;
-        padding-bottom: 5.5rem;
     }
 
     .realtime-container.embedded {

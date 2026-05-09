@@ -21,12 +21,18 @@
             type: String,
             default: null,
         },
+        navigationModel: {
+            type: Object,
+            default: null,
+        },
     });
 
     const emit = defineEmits([
         'request-close-realtime-mode',
         'request-close-panel',
         'request-close-toolbar-overlay',
+        'request-navigation-back',
+        'request-navigation-exit',
         'request-turn-off-camera'
     ]);
 
@@ -51,6 +57,11 @@
     }
 
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
+    const hasNavigationModel = computed(() => Array.isArray(props.navigationModel?.breadcrumbs) && props.navigationModel.breadcrumbs.length > 0);
+    const navigationBreadcrumbs = computed(() => hasNavigationModel.value ? props.navigationModel.breadcrumbs : []);
+    const navigationStatusLabel = computed(() => props.navigationModel?.statusLabel ?? null);
+    const showNavigationBack = computed(() => props.navigationModel?.canGoBack === true);
+    const showNavigationExit = computed(() => props.navigationModel?.canExit === true);
     const headerContext = computed(() => resolveViewerHeaderContext(app, {
         panelTitle: props.panelTitle,
         toolbarOverlayTitle: props.toolbarOverlayTitle,
@@ -72,42 +83,82 @@
         class="app-header"
         :class="{ hidden: app.isFullscreen }"
     >
-        <!-- Logo -->
-        <a
-            href="/"
-            class="app-logo"
-        >
-            <img
-                src="/rivvon.svg"
-                alt="Rivvon"
-            />
-        </a>
+        <div class="header-main">
+            <a
+                href="/"
+                class="app-logo"
+            >
+                <img
+                    src="/rivvon.svg"
+                    alt="Rivvon"
+                />
+            </a>
 
-        <!-- Context title -->
-        <Transition name="fade">
-            <span
-                v-if="activeContext"
-                class="context-title"
-            >{{ activeContext }}</span>
-        </Transition>
+            <button
+                v-if="hasNavigationModel && showNavigationBack"
+                type="button"
+                class="header-nav-button"
+                aria-label="Go back"
+                @click="emit('request-navigation-back')"
+            >
+                <span class="material-symbols-outlined">arrow_back</span>
+            </button>
 
-        <!-- Close button (context active) -->
-        <button
-            v-if="activeContext"
-            class="header-action"
-            @click="closeContext"
-        >
-            <span class="material-symbols-outlined">close</span>
-        </button>
+            <Transition name="fade">
+                <div
+                    v-if="hasNavigationModel"
+                    class="navigation-summary"
+                >
+                    <template
+                        v-for="(breadcrumb, index) in navigationBreadcrumbs"
+                        :key="`${breadcrumb}-${index}`"
+                    >
+                        <span
+                            v-if="index > 0"
+                            class="breadcrumb-separator"
+                            aria-hidden="true"
+                        >/</span>
+                        <span class="breadcrumb-segment">{{ breadcrumb }}</span>
+                    </template>
+                    <span
+                        v-if="navigationStatusLabel"
+                        class="navigation-status"
+                    >{{ navigationStatusLabel }}</span>
+                </div>
+                <span
+                    v-else-if="activeContext"
+                    class="context-title"
+                >{{ activeContext }}</span>
+            </Transition>
+        </div>
 
-        <!-- Fullscreen button (no context active) -->
-        <button
-            v-else
-            class="header-action"
-            @click="toggleFullscreen"
-        >
-            <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
-        </button>
+        <div class="header-actions">
+            <button
+                v-if="hasNavigationModel && showNavigationExit"
+                type="button"
+                class="header-action"
+                aria-label="Close workflow"
+                @click="emit('request-navigation-exit')"
+            >
+                <span class="material-symbols-outlined">close</span>
+            </button>
+
+            <button
+                v-else-if="!hasNavigationModel && activeContext"
+                class="header-action"
+                @click="closeContext"
+            >
+                <span class="material-symbols-outlined">close</span>
+            </button>
+
+            <button
+                v-else-if="!hasNavigationModel"
+                class="header-action"
+                @click="toggleFullscreen"
+            >
+                <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+            </button>
+        </div>
     </header>
 
     <Transition name="fade">
@@ -156,6 +207,20 @@
         transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
+    .header-main {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        margin-left: auto;
+        min-height: 100%;
+    }
+
     .app-header.hidden,
     .camera-indicator.hidden {
         opacity: 0;
@@ -181,6 +246,61 @@
 
     .app-logo:hover {
         background: rgba(0, 0, 0, 0.25);
+    }
+
+    .header-nav-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        margin-left: 0.5rem;
+        border: none;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.82);
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .header-nav-button:hover {
+        background: rgba(255, 255, 255, 0.16);
+        color: #fff;
+    }
+
+    .header-nav-button .material-symbols-outlined {
+        font-size: 1.2rem;
+    }
+
+    .navigation-summary {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        min-width: 0;
+        margin-left: 0.9rem;
+        color: rgba(255, 255, 255, 0.78);
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .breadcrumb-segment {
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .breadcrumb-separator {
+        font-size: 0.82rem;
+        color: rgba(255, 255, 255, 0.42);
+        flex-shrink: 0;
+    }
+
+    .navigation-status {
+        color: rgba(255, 255, 255, 0.56);
     }
 
     .camera-indicator {
@@ -289,6 +409,15 @@
     @media (max-width: 768px) {
         .app-header {
             --app-header-side-padding: 2rem;
+        }
+
+        .navigation-summary {
+            margin-left: 0.65rem;
+            gap: 0.35rem;
+        }
+
+        .breadcrumb-segment {
+            font-size: 0.75rem;
         }
 
         .camera-indicator {

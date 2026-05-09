@@ -196,7 +196,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -204,7 +204,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>
@@ -290,7 +290,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ transparentShadowsFilterModel ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('transparent-shadows-filter')"
                             v-model="transparentShadowsFilterModel"
@@ -350,30 +350,6 @@
 <style scoped>
     .texture-settings-controls {
         width: 100%;
-    }
-
-    .tools-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
-
-    .tools-section-label {
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: rgba(255, 255, 255, 0.4);
-        padding: 0 0.5rem 0.25rem;
-    }
-
-    .tools-section-items {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-        background: rgba(0, 0, 0, 0.25);
-        border-radius: 10px;
-        padding: 0.25rem;
     }
 
     .tools-toggle-row {

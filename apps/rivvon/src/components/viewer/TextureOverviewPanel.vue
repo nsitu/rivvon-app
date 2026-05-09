@@ -139,7 +139,7 @@
             :style="backgroundThumbnailStyle"
             aria-hidden="true"
         ></div>
-        <div class="texture-overview-panel-container">
+        <div class="texture-overview-panel-container viewer-chrome-panel-container">
             <section class="texture-overview-panel-content">
                 <div class="texture-overview-panel-body">
                     <div class="texture-overview-meta">
@@ -189,7 +189,7 @@
                                 <div class="preview-control-toggle-row">
                                     <ToggleSwitch v-model="alignTilesToEdge" />
                                     <span class="preview-control-toggle-copy">{{ alignTilesToEdge ? 'On' : 'Off'
-                                        }}</span>
+                                    }}</span>
                                 </div>
                             </label>
 
@@ -292,8 +292,6 @@
 
 <style scoped>
     .texture-overview-panel {
-        --viewer-header-chrome-height: 5.5rem;
-        --viewer-bottom-chrome-height: 6.4rem;
         position: absolute;
         inset: 0;
         z-index: 5;
@@ -335,8 +333,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        padding-top: var(--viewer-header-chrome-height);
-        padding-bottom: var(--viewer-bottom-chrome-height);
     }
 
     .texture-overview-panel-content {
@@ -507,11 +503,6 @@
     }
 
     @media (max-width: 767px) {
-        .texture-overview-panel-container {
-            padding-top: var(--viewer-header-chrome-height);
-            padding-bottom: var(--viewer-bottom-chrome-height);
-        }
-
         .texture-overview-panel-content {
             padding: 0.85rem 0.6rem 1rem;
         }

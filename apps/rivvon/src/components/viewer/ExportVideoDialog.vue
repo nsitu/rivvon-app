@@ -479,7 +479,7 @@
         aria-modal="true"
         aria-label="Export Video"
     >
-        <div class="export-video-panel-container">
+        <div class="export-video-panel-container viewer-chrome-panel-container">
             <div class="export-video-panel-content">
                 <div class="export-video-panel-body">
                     <div
@@ -931,8 +931,6 @@
         height: 100%;
         width: 100%;
         background: rgba(0, 0, 0, 0.8);
-        padding-top: 5.5rem;
-        padding-bottom: 5.5rem;
     }
 
     .export-video-panel-content {
