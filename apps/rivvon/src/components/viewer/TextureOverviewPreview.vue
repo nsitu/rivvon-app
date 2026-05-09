@@ -67,9 +67,12 @@
     let reloadToken = 0;
     let debugOverrideMaterials = [];
     let overviewDevHelper = null;
+    let activeRendererType = 'webgl';
     let autoDiagnosticRunSequence = 0;
     let lastAutoDiagnosticKey = null;
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
+    const loadThreeWebGPUModule = createLazyLoader(() => import('three/webgpu'));
+    const loadWebGPUCapability = createLazyLoader(() => import('three/addons/capabilities/WebGPU.js').then((module) => module.default));
 
     function waitForAnimationFrame() {
         return new Promise((resolve) => {
@@ -104,6 +107,8 @@
     }
 
     function classifyAutoDiagnosticSummary(result) {
+        const baselineRenderAvailable = result?.baseline?.probes?.render?.available !== false;
+        const debugRenderAvailable = result?.debugOverride?.probes?.render?.available !== false;
         const baselineRender = result?.baseline?.probes?.render?.nonEmptySampleCount ?? 0;
         const baselineComposite = result?.baseline?.probes?.composite?.nonEmptySampleCount ?? 0;
         const debugRender = result?.debugOverride?.probes?.render?.nonEmptySampleCount ?? 0;
@@ -111,18 +116,20 @@
 
         let suspectedFailureStage = 'unknown';
 
-        if (baselineRender === 0 && debugRender > 0) {
-            suspectedFailureStage = 'texture-or-material-path';
-        } else if (debugRender === 0) {
-            suspectedFailureStage = 'webgl-draw-or-geometry-path';
-        } else if (baselineRender > 0 && baselineComposite === 0) {
-            suspectedFailureStage = 'canvas-composite-or-export-path';
-        } else if (baselineRender > 0 && baselineComposite > 0) {
+        if (baselineComposite > 0) {
             suspectedFailureStage = 'no-black-frame-detected';
+        } else if ((baselineRenderAvailable ? baselineRender : baselineComposite) === 0
+            && (debugRenderAvailable ? debugRender : debugComposite) > 0) {
+            suspectedFailureStage = 'texture-or-material-path';
+        } else if ((debugRenderAvailable ? debugRender : debugComposite) === 0) {
+            suspectedFailureStage = 'webgl-draw-or-geometry-path';
+        } else if (baselineRenderAvailable && baselineRender > 0 && baselineComposite === 0) {
+            suspectedFailureStage = 'canvas-composite-or-export-path';
         }
 
         return {
             suspectedFailureStage,
+            rendererType: result?.baseline?.renderer?.type ?? null,
             baselineRenderNonEmpty: baselineRender,
             baselineCompositeNonEmpty: baselineComposite,
             debugRenderNonEmpty: debugRender,
@@ -182,10 +189,18 @@
             return null;
         }
 
+        if (typeof context.getParameter !== 'function') {
+            return {
+                api: activeRendererType,
+                readPixelsSupported: false,
+            };
+        }
+
         const debugInfo = context.getExtension?.('WEBGL_debug_renderer_info') || null;
         const isWebGl2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
 
         return {
+            api: activeRendererType,
             isWebGl2,
             version: safeGetContextParameter(context, context.VERSION),
             shadingLanguageVersion: safeGetContextParameter(context, context.SHADING_LANGUAGE_VERSION),
@@ -262,6 +277,7 @@
                 : null,
             renderer: renderer
                 ? {
+                    type: activeRendererType,
                     pixelRatio: renderer.getPixelRatio(),
                     size: rendererSize ? { width: rendererSize.x, height: rendererSize.y } : null,
                     info: {
@@ -343,6 +359,14 @@
         const canvas = renderer.domElement;
         if (!context || !canvas) {
             return { available: false, reason: 'context-unavailable' };
+        }
+
+        if (typeof context.readPixels !== 'function') {
+            return {
+                available: false,
+                reason: 'readPixels-unavailable',
+                rendererType: activeRendererType,
+            };
         }
 
         renderCurrentScene();
@@ -512,6 +536,50 @@
         }
 
         return result;
+    }
+
+    async function createOverviewRenderer() {
+        const preferredRendererType = app.rendererType === 'webgpu' ? 'webgpu' : 'webgl';
+
+        if (preferredRendererType === 'webgpu') {
+            try {
+                const [THREEWebGPU, WebGPU] = await Promise.all([
+                    loadThreeWebGPUModule(),
+                    loadWebGPUCapability(),
+                ]);
+
+                if (WebGPU?.isAvailable?.()) {
+                    const webgpuRenderer = new THREEWebGPU.WebGPURenderer({
+                        antialias: true,
+                        alpha: true,
+                    });
+                    webgpuRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                    webgpuRenderer.setClearColor(0x000000, 0);
+                    webgpuRenderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+                    await webgpuRenderer.init();
+
+                    return {
+                        renderer: webgpuRenderer,
+                        rendererType: 'webgpu',
+                    };
+                }
+            } catch (error) {
+                console.warn('[TextureOverviewPreview] Falling back to WebGL for overview renderer:', error);
+            }
+        }
+
+        const webglRenderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            powerPreference: 'high-performance',
+        });
+        webglRenderer.setClearColor(0x000000, 0);
+        webglRenderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+        return {
+            renderer: webglRenderer,
+            rendererType: 'webgl',
+        };
     }
 
     function paintDebugTiles() {
@@ -842,7 +910,7 @@
 
         const nextTileManager = new TileManager({
             renderer,
-            rendererType: 'webgl',
+            rendererType: activeRendererType,
             rotate90: true,
             repeatMode: app.textureRepeatMode,
             flipVertical: app.textureFlipVertical,
@@ -920,12 +988,9 @@
         camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
         camera.position.z = 2;
 
-        renderer = new THREE.WebGLRenderer({
-            antialias: true,
-            alpha: true,
-            powerPreference: 'high-performance',
-        });
-        renderer.setClearColor(0x000000, 0);
+        const rendererInfo = await createOverviewRenderer();
+        renderer = rendererInfo.renderer;
+        activeRendererType = rendererInfo.rendererType;
         wrapperRef.value.appendChild(renderer.domElement);
 
         resizeObserver = new ResizeObserver(() => {
