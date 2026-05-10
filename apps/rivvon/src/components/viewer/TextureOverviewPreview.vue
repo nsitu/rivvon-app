@@ -931,7 +931,7 @@
         });
 
         try {
-            const { cacheCloudTextureInBackground, getCachedRemoteTextureTiles, resolveTextureLoadTarget } = await import('../../services/textureCacheCoordinator.js');
+            const { cacheCloudTextureInBackground, getCachedTextureTiles, resolveTextureLoadTarget } = await import('../../services/textureCacheCoordinator.js');
             const resolvedTexture = await resolveTextureLoadTarget({
                 texture: props.texture,
                 isLocal: props.isLocal,
@@ -949,7 +949,9 @@
                 preferSessionCache: true,
             });
 
-            const didLoad = resolvedTexture.kind === 'remote' || resolvedTexture.kind === 'session-remote'
+            const didLoad = resolvedTexture.kind === 'session'
+                ? await nextTileManager.loadFromSession(resolvedTexture.textureSet, resolvedTexture.sessionTileEntry || null, handleLoadProgress)
+                : resolvedTexture.kind === 'remote'
                 ? await nextTileManager.loadFromRemote(resolvedTexture.textureSet, handleLoadProgress)
                 : await nextTileManager.loadFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleLoadProgress);
 
@@ -971,12 +973,12 @@
             isReady.value = true;
 
             if (resolvedTexture.kind === 'remote') {
-                const remoteTileEntry = getCachedRemoteTextureTiles(resolvedTexture.textureSet);
+                const tileEntry = getCachedTextureTiles(resolvedTexture.textureSet);
                 cacheCloudTextureInBackground({
                     texture: props.texture,
                     textureSet: resolvedTexture.textureSet,
                     cacheCloudTexture,
-                    remoteTileEntry,
+                    tileEntry,
                     tileManager: nextTileManager,
                     logPrefix: '[TextureOverviewPreview]',
                 });

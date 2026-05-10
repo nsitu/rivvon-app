@@ -1945,7 +1945,7 @@
         app.showTexturePreview();
 
         try {
-            const { cacheCloudTextureInBackground, createObjectUrlsFromLocalTiles, createObjectUrlsFromRemoteTextureTiles, resolveTextureLoadTarget } = await import('../../services/textureCacheCoordinator.js');
+            const { cacheCloudTextureInBackground, createObjectUrlsFromLocalTiles, createObjectUrlsFromTextureTiles, resolveTextureLoadTarget } = await import('../../services/textureCacheCoordinator.js');
             const resolvedTexture = await resolveTextureLoadTarget({
                 texture,
                 isLocal: isLocalTexture(texture),
@@ -1961,17 +1961,17 @@
                     return fetchTextureWithTiles(textureId);
                 },
                 includeLocalTiles: true,
-                includeRemoteTileEntry: true,
+                includeSessionTileEntry: true,
                 preferSessionCache: true,
             });
 
-            if (resolvedTexture.kind === 'remote' || resolvedTexture.kind === 'session-remote') {
-                previewBlobURLs.value = createObjectUrlsFromRemoteTextureTiles(resolvedTexture.remoteTileEntry);
+            if (resolvedTexture.kind === 'remote' || resolvedTexture.kind === 'session') {
+                previewBlobURLs.value = createObjectUrlsFromTextureTiles(resolvedTexture.sessionTileEntry);
                 cacheCloudTextureInBackground({
                     texture,
                     textureSet: resolvedTexture.textureSet,
                     cacheCloudTexture,
-                    remoteTileEntry: resolvedTexture.remoteTileEntry,
+                    tileEntry: resolvedTexture.sessionTileEntry,
                     onPersisted: () => {
                         cachedCloudIds.value = new Set([...cachedCloudIds.value, texture.id]);
                     },

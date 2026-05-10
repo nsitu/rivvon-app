@@ -1,12 +1,12 @@
 import { fetchDriveFile } from '../modules/viewer/auth.js';
 
-const MAX_REMOTE_TEXTURE_CACHE_ENTRIES = 4;
-const MAX_REMOTE_TEXTURE_CACHE_BYTES = 256 * 1024 * 1024;
+const MAX_SESSION_TEXTURE_CACHE_ENTRIES = 4;
+const MAX_SESSION_TEXTURE_CACHE_BYTES = 256 * 1024 * 1024;
 
-const remoteTextureTileCache = new Map();
-const remoteTextureTileInflight = new Map();
+const sessionTextureTileCache = new Map();
+const sessionTextureTileInflight = new Map();
 
-function getRemoteTextureCacheKey(textureSet) {
+function getTextureTileCacheKey(textureSet) {
     const directId = textureSet?.id || textureSet?.textureSetId;
     if (directId) {
         return String(directId);
@@ -36,14 +36,14 @@ function getProgressTotal(tiles) {
 
 function getCurrentCachedByteSize() {
     let total = 0;
-    for (const entry of remoteTextureTileCache.values()) {
+    for (const entry of sessionTextureTileCache.values()) {
         total += entry.byteSize || 0;
     }
     return total;
 }
 
-function touchRemoteTextureEntry(cacheKey) {
-    const entry = remoteTextureTileCache.get(cacheKey);
+function touchTextureEntry(cacheKey) {
+    const entry = sessionTextureTileCache.get(cacheKey);
     if (!entry) {
         return null;
     }
@@ -52,17 +52,17 @@ function touchRemoteTextureEntry(cacheKey) {
     return entry;
 }
 
-function evictRemoteTextureCacheIfNeeded(preserveKey = null) {
+function evictTextureCacheIfNeeded(preserveKey = null) {
     let totalBytes = getCurrentCachedByteSize();
 
     while (
-        remoteTextureTileCache.size > MAX_REMOTE_TEXTURE_CACHE_ENTRIES
-        || totalBytes > MAX_REMOTE_TEXTURE_CACHE_BYTES
+        sessionTextureTileCache.size > MAX_SESSION_TEXTURE_CACHE_ENTRIES
+        || totalBytes > MAX_SESSION_TEXTURE_CACHE_BYTES
     ) {
         let oldestKey = null;
         let oldestEntry = null;
 
-        for (const [cacheKey, entry] of remoteTextureTileCache.entries()) {
+        for (const [cacheKey, entry] of sessionTextureTileCache.entries()) {
             if (cacheKey === preserveKey) {
                 continue;
             }
@@ -77,10 +77,87 @@ function evictRemoteTextureCacheIfNeeded(preserveKey = null) {
             break;
         }
 
-        remoteTextureTileCache.delete(oldestKey);
+        sessionTextureTileCache.delete(oldestKey);
         totalBytes -= oldestEntry.byteSize || 0;
-        console.log('[RemoteTextureCache] Evicted cached texture tiles:', oldestKey);
+        console.log('[SessionTextureCache] Evicted cached texture tiles:', oldestKey);
     }
+}
+
+function cloneTileBytes(bytes) {
+    if (bytes instanceof ArrayBuffer) {
+        return new Uint8Array(bytes.slice(0));
+    }
+
+    if (ArrayBuffer.isView(bytes)) {
+        const start = bytes.byteOffset;
+        const end = bytes.byteOffset + bytes.byteLength;
+        return new Uint8Array(bytes.buffer.slice(start, end));
+    }
+
+    return null;
+}
+
+function normalizeTextureTileEntry(tileEntry, cacheKey) {
+    const zipFiles = {};
+    let byteSize = 0;
+
+    for (const [filename, bytes] of Object.entries(tileEntry?.zipFiles || {})) {
+        const clonedBytes = cloneTileBytes(bytes);
+        if (!clonedBytes) {
+            continue;
+        }
+
+        zipFiles[filename] = clonedBytes;
+        byteSize += clonedBytes.byteLength;
+    }
+
+    const inferredTileCount = Object.keys(zipFiles).length;
+    const tileCount = Number(tileEntry?.tileCount ?? tileEntry?.tile_count) || inferredTileCount;
+    const progressTotal = Number(tileEntry?.progressTotal) || byteSize || tileCount;
+    const isComplete = typeof tileEntry?.isComplete === 'boolean'
+        ? tileEntry.isComplete
+        : tileCount > 0 && inferredTileCount >= tileCount;
+
+    return {
+        cacheKey,
+        zipFiles,
+        tileCount,
+        layerCount: Number(tileEntry?.layerCount ?? tileEntry?.layer_count) || 0,
+        variant: tileEntry?.variant || tileEntry?.cross_section_type || 'waves',
+        byteSize: Number(tileEntry?.byteSize) || byteSize,
+        progressTotal,
+        isComplete,
+        source: tileEntry?.source || 'session',
+        lastAccessedAt: Date.now(),
+    };
+}
+
+export function getCachedTextureTiles(textureSetOrId) {
+    const cacheKey = typeof textureSetOrId === 'string'
+        ? textureSetOrId
+        : getTextureTileCacheKey(textureSetOrId);
+
+    return touchTextureEntry(cacheKey);
+}
+
+export function cacheTextureTiles(textureSetOrId, tileEntry, { logPrefix = '[SessionTextureCache]' } = {}) {
+    const cacheKey = typeof textureSetOrId === 'string'
+        ? textureSetOrId
+        : getTextureTileCacheKey(textureSetOrId || tileEntry);
+    const normalizedEntry = normalizeTextureTileEntry(tileEntry, cacheKey);
+
+    if (!normalizedEntry.isComplete) {
+        return null;
+    }
+
+    sessionTextureTileCache.set(cacheKey, normalizedEntry);
+    evictTextureCacheIfNeeded(cacheKey);
+    console.log(`${logPrefix} Cached texture tiles:`, cacheKey, {
+        source: normalizedEntry.source,
+        tileCount: normalizedEntry.tileCount,
+        byteSizeMB: (normalizedEntry.byteSize / 1024 / 1024).toFixed(2),
+    });
+    return normalizedEntry;
 }
 
 async function fetchArrayBufferWithProgress(url, onBytesReceived = null) {
@@ -152,7 +229,7 @@ async function downloadRemoteTextureTiles(textureSet, { onProgress = null } = {}
 
     if (tiles.length === 0) {
         return {
-            cacheKey: getRemoteTextureCacheKey(textureSet),
+            cacheKey: getTextureTileCacheKey(textureSet),
             zipFiles: {},
             tileCount: Number(textureSet?.tile_count) || 0,
             layerCount: Number(textureSet?.layer_count) || 0,
@@ -160,6 +237,7 @@ async function downloadRemoteTextureTiles(textureSet, { onProgress = null } = {}
             byteSize: 0,
             progressTotal: 0,
             isComplete: false,
+            source: 'remote',
         };
     }
 
@@ -197,7 +275,7 @@ async function downloadRemoteTextureTiles(textureSet, { onProgress = null } = {}
                     onProgress?.('downloading', downloadedProgress, progressTotal);
                 }
 
-                console.error(`[RemoteTextureCache] Failed to download tile ${getTileIndex(tile)}:`, error);
+                console.error(`[SessionTextureCache] Failed to download tile ${getTileIndex(tile)}:`, error);
                 return {
                     index: getTileIndex(tile),
                     bytes: null,
@@ -218,7 +296,7 @@ async function downloadRemoteTextureTiles(textureSet, { onProgress = null } = {}
     }
 
     return {
-        cacheKey: getRemoteTextureCacheKey(textureSet),
+        cacheKey: getTextureTileCacheKey(textureSet),
         zipFiles,
         tileCount: Number(textureSet?.tile_count) || tiles.length,
         layerCount: Number(textureSet?.layer_count) || 0,
@@ -226,30 +304,23 @@ async function downloadRemoteTextureTiles(textureSet, { onProgress = null } = {}
         byteSize,
         progressTotal,
         isComplete: Object.keys(zipFiles).length === (Number(textureSet?.tile_count) || tiles.length),
+        source: 'remote',
     };
 }
 
-export function getCachedRemoteTextureTiles(textureSetOrId) {
-    const cacheKey = typeof textureSetOrId === 'string'
-        ? textureSetOrId
-        : getRemoteTextureCacheKey(textureSetOrId);
-
-    return touchRemoteTextureEntry(cacheKey);
-}
-
-export async function getOrFetchRemoteTextureTiles(textureSet, { onProgress = null } = {}) {
-    const cacheKey = getRemoteTextureCacheKey(textureSet);
-    const cached = touchRemoteTextureEntry(cacheKey);
+export async function getOrFetchTextureTiles(textureSet, { onProgress = null } = {}) {
+    const cacheKey = getTextureTileCacheKey(textureSet);
+    const cached = touchTextureEntry(cacheKey);
 
     if (cached) {
-        console.log('[RemoteTextureCache] Reusing cached remote texture tiles:', cacheKey);
+        console.log('[SessionTextureCache] Reusing cached texture tiles:', cacheKey, { source: cached.source || 'unknown' });
         onProgress?.('downloading', cached.progressTotal, cached.progressTotal);
         return cached;
     }
 
-    if (remoteTextureTileInflight.has(cacheKey)) {
-        console.log('[RemoteTextureCache] Awaiting in-flight remote texture tiles:', cacheKey);
-        const inflightEntry = await remoteTextureTileInflight.get(cacheKey);
+    if (sessionTextureTileInflight.has(cacheKey)) {
+        console.log('[SessionTextureCache] Awaiting in-flight texture tiles:', cacheKey);
+        const inflightEntry = await sessionTextureTileInflight.get(cacheKey);
         onProgress?.('downloading', inflightEntry.progressTotal, inflightEntry.progressTotal);
         return inflightEntry;
     }
@@ -257,26 +328,20 @@ export async function getOrFetchRemoteTextureTiles(textureSet, { onProgress = nu
     const inflightPromise = downloadRemoteTextureTiles(textureSet, { onProgress })
         .then((entry) => {
             if (entry.isComplete) {
-                entry.lastAccessedAt = Date.now();
-                remoteTextureTileCache.set(cacheKey, entry);
-                evictRemoteTextureCacheIfNeeded(cacheKey);
-                console.log('[RemoteTextureCache] Cached remote texture tiles:', cacheKey, {
-                    tileCount: entry.tileCount,
-                    byteSizeMB: (entry.byteSize / 1024 / 1024).toFixed(2),
-                });
+                return cacheTextureTiles(cacheKey, entry);
             }
 
             return entry;
         })
         .finally(() => {
-            remoteTextureTileInflight.delete(cacheKey);
+            sessionTextureTileInflight.delete(cacheKey);
         });
 
-    remoteTextureTileInflight.set(cacheKey, inflightPromise);
+    sessionTextureTileInflight.set(cacheKey, inflightPromise);
     return inflightPromise;
 }
 
-export function createObjectUrlsFromRemoteTextureTiles(tileEntry) {
+export function createObjectUrlsFromTextureTiles(tileEntry) {
     const urls = {};
 
     if (!tileEntry?.zipFiles) {
@@ -291,7 +356,7 @@ export function createObjectUrlsFromRemoteTextureTiles(tileEntry) {
     return urls;
 }
 
-export function createBlobMapFromRemoteTextureTiles(tileEntry) {
+export function createBlobMapFromTextureTiles(tileEntry) {
     const blobs = {};
 
     if (!tileEntry?.zipFiles) {

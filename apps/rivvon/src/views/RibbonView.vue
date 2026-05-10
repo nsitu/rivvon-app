@@ -2339,7 +2339,7 @@
         console.log('[RibbonView] Loading remote texture:', texture.name);
         return await withTextureLoading('Loading...', async () => {
             try {
-                const { cacheCloudTextureInBackground, getCachedRemoteTextureTiles, resolveTextureLoadTarget } = await import('../services/textureCacheCoordinator.js');
+                const { cacheCloudTextureInBackground, getCachedTextureTiles, resolveTextureLoadTarget } = await import('../services/textureCacheCoordinator.js');
                 const resolvedTexture = await resolveTextureLoadTarget({
                     texture,
                     getLocalTextureSet,
@@ -2350,6 +2350,7 @@
                     },
                     fetchRemoteTextureSet: fetchTextureSetById,
                     includeLocalTiles: true,
+                    preferSessionCache: true,
                 });
 
                 if (resolvedTexture.kind === 'remote' && (!resolvedTexture.textureSet || !resolvedTexture.textureSet.tiles || resolvedTexture.textureSet.tiles.length === 0)) {
@@ -2363,7 +2364,9 @@
                     return false;
                 }
 
-                const success = resolvedTexture.kind === 'remote'
+                const success = resolvedTexture.kind === 'session'
+                    ? await threeCanvasRef.value?.loadTexturesFromSession(resolvedTexture.textureSet, resolvedTexture.sessionTileEntry || null, handleTextureLoadProgress)
+                    : resolvedTexture.kind === 'remote'
                     ? await threeCanvasRef.value?.loadTexturesFromRemote(resolvedTexture.textureSet, handleTextureLoadProgress)
                     : await threeCanvasRef.value?.loadTexturesFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleTextureLoadProgress);
 
@@ -2385,14 +2388,14 @@
 
                 // Cache the downloaded tiles in background
                 if (resolvedTexture.kind === 'remote') {
-                    const remoteTileEntry = getCachedRemoteTextureTiles(resolvedTexture.textureSet);
+                    const tileEntry = getCachedTextureTiles(resolvedTexture.textureSet);
                     const tileManagerRef = threeCanvasRef.value?.tileManager;
                     const tm = tileManagerRef?.value ?? tileManagerRef;
                     cacheCloudTextureInBackground({
                         texture,
                         textureSet: resolvedTexture.textureSet,
                         cacheCloudTexture,
-                        remoteTileEntry,
+                        tileEntry,
                         tileManager: tm,
                         logPrefix: '[RibbonView]',
                     });

@@ -93,6 +93,33 @@ export function useTextureLoader(ctx, deps = {}) {
     }
 
     /**
+     * Load textures from the shared in-memory session cache.
+     * @param {Object} textureSet - Texture set metadata
+     * @param {Object|null} tileEntry - Optional cached tile entry
+     * @param {Function} onProgress - Progress callback (stage, current, total)
+     */
+    async function loadTexturesFromSession(textureSet, tileEntry = null, onProgress = null) {
+        if (!ctx.tileManager.value) {
+            console.error('[ThreeSetup] Cannot load session textures - not initialized');
+            return false;
+        }
+
+        try {
+            const success = await ctx.tileManager.value.loadFromSession(textureSet, tileEntry, onProgress);
+
+            if (success) {
+                console.log(`[ThreeSetup] Session texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
+                await finalizeTextureLoad();
+            }
+
+            return success;
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to load session textures:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Load textures from local IndexedDB storage
      * @param {Object} textureSet - Texture set metadata from localStorage service
      * @param {Function} getTiles - Function to get tiles: (textureSetId) => Promise<Array>
@@ -220,6 +247,7 @@ export function useTextureLoader(ctx, deps = {}) {
         clearMultiTextureState,
         loadTextures,
         loadTexturesFromRemote,
+        loadTexturesFromSession,
         loadTexturesFromLocal,
         loadTexturesFromTileRecords,
         loadMultipleTextures

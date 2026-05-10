@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { acquireKTX2Loader, releaseKTX2Loader } from '../slyce/sharedKTX2Loader.js';
 import { createLazyLoader } from '../shared/lazyLoader.js';
 import { getClonedDecodedTexture, rememberDecodedTexture } from '../shared/decodedTextureCache.js';
-import { getOrFetchRemoteTextureTiles } from '../../services/remoteTextureCache.js';
+import { getCachedTextureTiles, getOrFetchTextureTiles } from '../../services/sessionTextureCache.js';
 
 const loadJSZipModule = createLazyLoader(() => import('jszip').then(module => module.default));
 
@@ -2799,56 +2799,112 @@ export class TileManager {
                 onProgress('downloading', 0, hasFileSizes ? totalBytes : tiles.length);
             }
 
-            const remoteTileEntry = await getOrFetchRemoteTextureTiles(textureSet, { onProgress });
-            this.zipFiles = {};
-
-            for (const [filename, bytes] of Object.entries(remoteTileEntry.zipFiles || {})) {
-                if (bytes instanceof ArrayBuffer) {
-                    this.zipFiles[filename] = new Uint8Array(bytes.slice(0));
-                    continue;
-                }
-
-                if (ArrayBuffer.isView(bytes)) {
-                    this.zipFiles[filename] = new Uint8Array(bytes);
-                }
-            }
-
-            console.log(`[TileManager] Remote tile data ready from shared cache path. Cached bytes: ${(Number(remoteTileEntry.byteSize || 0) / 1024 / 1024).toFixed(2)} MB`);
-
-            // Build materials with cumulative progress tracking
-            let completedBuilds = 0;
-            if (onProgress) {
-                onProgress('building', 0, this.tileCount);
-            }
-
-            const promises = [];
-            for (let i = 0; i < this.tileCount; i++) {
-                const promise = this.#loadKTX2Tile(i).then(result => {
-                    completedBuilds++;
-                    if (onProgress) {
-                        onProgress('building', completedBuilds, this.tileCount);
-                    }
-                    return result;
-                });
-                promises.push(promise);
-            }
-
-            const results = await Promise.all(promises);
-            this.materials = results;
-
-            const parsedTextureCount = this.arrayTextures.filter(Boolean).length;
-            if (parsedTextureCount !== this.tileCount || this.layerCount <= 0) {
-                console.error(`[TileManager] Incomplete remote texture load: parsed ${parsedTextureCount}/${this.tileCount} tiles, layerCount=${this.layerCount}`);
-                this.clearAllTiles();
-                return false;
-            }
-
-            console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from remote, layerCount=${this.layerCount}`);
-            return true;
+            const tileEntry = await getOrFetchTextureTiles(textureSet, { onProgress });
+            return await this.#loadFromSharedTileEntry(textureSet, tileEntry, onProgress, 'remote');
         } catch (error) {
             console.error('[TileManager] Failed to load remote textures:', error);
             return false;
         }
+    }
+
+    async loadFromSession(textureSet, tileEntry = null, onProgress = null) {
+        try {
+            const resolvedTileEntry = tileEntry || getCachedTextureTiles(textureSet);
+            if (!resolvedTileEntry) {
+                console.error('[TileManager] No session tile entry available for texture set');
+                return false;
+            }
+
+            const progressTotal = Number(resolvedTileEntry.progressTotal) || Number(resolvedTileEntry.byteSize) || Number(resolvedTileEntry.tileCount) || Number(textureSet?.tile_count) || 0;
+            if (onProgress) {
+                onProgress('downloading', progressTotal, progressTotal || 1);
+            }
+
+            return await this.#loadFromSharedTileEntry(textureSet, resolvedTileEntry, onProgress, resolvedTileEntry.source || 'session');
+        } catch (error) {
+            console.error('[TileManager] Failed to load session textures:', error);
+            return false;
+        }
+    }
+
+    async #loadFromSharedTileEntry(textureSet, tileEntry, onProgress = null, sourceLabel = 'session') {
+        const { tile_count, cross_section_type, thumbnail_data_url } = textureSet || {};
+
+        if (!tileEntry || !tileEntry.zipFiles || Object.keys(tileEntry.zipFiles).length === 0) {
+            console.error('[TileManager] No cached tile entry payloads available');
+            return false;
+        }
+
+        this.clearAllTiles();
+
+        this.tileCount = Number(tile_count) || Number(tileEntry.tileCount) || Object.keys(tileEntry.zipFiles).length;
+        this.variant = cross_section_type || tileEntry.variant || 'waves';
+        this.isKTX2 = true;
+        this.isZip = true;
+        this.currentTextureSet = {
+            ...textureSet,
+            thumbnail_url: thumbnail_data_url || textureSet?.thumbnail_url || null,
+        };
+
+        this.layerCount = 0;
+        this.currentLayer = 0;
+        this.direction = 1;
+        this.sharedLayerUniform.value = 0;
+
+        this.tileFlowOffset = 0;
+        this.flowAccumulator = 0;
+
+        if (!this._ktx2Loader) {
+            const ok = await this.#initKTX2();
+            if (!ok) {
+                console.error('[TileManager] Failed to initialize KTX2 loader for cached textures');
+                return false;
+            }
+        }
+
+        this.zipFiles = {};
+        for (const [filename, bytes] of Object.entries(tileEntry.zipFiles || {})) {
+            if (bytes instanceof ArrayBuffer) {
+                this.zipFiles[filename] = new Uint8Array(bytes.slice(0));
+                continue;
+            }
+
+            if (ArrayBuffer.isView(bytes)) {
+                this.zipFiles[filename] = new Uint8Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+            }
+        }
+
+        console.log(`[TileManager] ${sourceLabel} tile data ready from shared cache path. Cached bytes: ${(Number(tileEntry.byteSize || 0) / 1024 / 1024).toFixed(2)} MB`);
+
+        let completedBuilds = 0;
+        if (onProgress) {
+            onProgress('building', 0, this.tileCount);
+        }
+
+        const promises = [];
+        for (let i = 0; i < this.tileCount; i++) {
+            const promise = this.#loadKTX2Tile(i).then(result => {
+                completedBuilds++;
+                if (onProgress) {
+                    onProgress('building', completedBuilds, this.tileCount);
+                }
+                return result;
+            });
+            promises.push(promise);
+        }
+
+        const results = await Promise.all(promises);
+        this.materials = results;
+
+        const parsedTextureCount = this.arrayTextures.filter(Boolean).length;
+        if (parsedTextureCount !== this.tileCount || this.layerCount <= 0) {
+            console.error(`[TileManager] Incomplete cached texture load: parsed ${parsedTextureCount}/${this.tileCount} tiles, layerCount=${this.layerCount}`);
+            this.clearAllTiles();
+            return false;
+        }
+
+        console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from ${sourceLabel}, layerCount=${this.layerCount}`);
+        return true;
     }
 
     /**

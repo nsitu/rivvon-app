@@ -19,7 +19,7 @@ For how session byte caching and IndexedDB durable caching fit around this rende
 The current architecture keeps multiple renderer instances, but shares everything that is cheap and safe to share:
 
 - Renderer display policy is centralized in `src/modules/viewer/rendererConfig.js`
-- Remote KTX2 bytes are shared in-session through `src/services/remoteTextureCache.js`
+- Session KTX2 tile bytes are shared in-session through `src/services/sessionTextureCache.js`
 - KTX2 loader/transcoder setup is shared through `src/modules/slyce/sharedKTX2Loader.js`
 
 What is still renderer-local:
@@ -67,7 +67,7 @@ This isolation is one of the main reasons the app has not moved to a single shar
 
 ## What The Current Cache Actually Solves
 
-The shared remote texture cache in `src/services/remoteTextureCache.js` avoids repeated downloads of the same KTX2 tiles when the same texture is shown in multiple surfaces during one session.
+The shared session texture cache in `src/services/sessionTextureCache.js` avoids repeated downloads and repeated local rereads of the same KTX2 tiles when the same texture is shown in multiple surfaces during one session.
 
 That means:
 
@@ -116,7 +116,7 @@ The current design is a pragmatic middle ground:
 
 1. Keep multiple renderer instances because they match the UI structure well.
 2. Centralize display settings so WebGL and WebGPU behavior stay consistent.
-3. Share remote KTX2 bytes so repeated panel opens do not pay full download cost again.
+3. Share session KTX2 bytes so repeated panel opens do not pay the same fetch or reread cost again.
 4. Accept renderer-local GPU uploads as the cost of keeping those surfaces isolated.
 
 This avoids turning a performance optimization into a large compositor rewrite.

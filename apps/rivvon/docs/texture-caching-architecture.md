@@ -18,7 +18,7 @@ This note maps those layers, how they interact today, where there is intentional
 
 | Layer                                   | Scope                      | Survives reload | Stores                                                     | Primary purpose                                                                    |
 | --------------------------------------- | -------------------------- | --------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `src/services/remoteTextureCache.js`    | App session                | No              | Remote KTX2 tile bytes (`Uint8Array`)                      | Reuse and dedupe remote downloads across renderers in the current session          |
+| `src/services/sessionTextureCache.js`   | App session                | No              | Session KTX2 tile bytes (`Uint8Array`)                     | Reuse and dedupe hot KTX2 bytes across renderers in the current session            |
 | `src/services/localStorage.js`          | Browser durable storage    | Yes             | Texture-set metadata plus per-tile KTX2 bytes in IndexedDB | Persistent local texture storage and durable cloud-texture cache                   |
 | `slyceStore.ktx2BlobURLs`               | Slyce session state        | No              | Object URLs for newly encoded tiles                        | Drive the in-progress authoring/output pipeline before save or publish             |
 | `TextureBrowser.previewBlobURLs`        | One preview panel instance | No              | Object URLs for tile-linear preview input                  | Feed `TileLinearViewer` without making it know about IndexedDB or remote byte maps |
@@ -27,8 +27,10 @@ This note maps those layers, how they interact today, where there is intentional
 
 Important distinction:
 
-- `remoteTextureCache.js` and `localStorage.js` are the two real KTX2 data caches.
+- `sessionTextureCache.js` and `localStorage.js` are the two real KTX2 data caches.
 - `previewBlobURLs`, `ktx2BlobURLs`, and `zipFiles` are shorter-lived transport/staging layers.
+
+The session cache lives in `sessionTextureCache.js`. Remote downloads populate it directly, and local/cached-local tile reads can also warm it.
 
 ---
 
@@ -46,9 +48,9 @@ So the durable local cache is not hypothetical. It is already part of the normal
 
 ---
 
-## Why The In-Memory Remote Cache Still Exists
+## Why The In-Memory Session Cache Still Exists
 
-If IndexedDB can already serve the texture, why keep `remoteTextureCache.js` at all?
+If IndexedDB can already serve the texture, why keep `sessionTextureCache.js` at all?
 
 Because it solves a different problem:
 
@@ -64,7 +66,7 @@ Because it solves a different problem:
 4. It is cheaper than a write-then-read roundtrip through IndexedDB for immediate reuse.
    If the goal is to reuse bytes during the current session, memory is still the fastest place to do that.
 
-So the in-memory remote cache is not replacing IndexedDB. It is covering the hot-session gap before or instead of durable persistence.
+So the in-memory session cache is not replacing IndexedDB. It is covering the hot-session gap before or instead of durable persistence.
 
 ---
 
@@ -74,36 +76,40 @@ So the in-memory remote cache is not replacing IndexedDB. It is covering the hot
 
 Current load order for cloud textures:
 
-1. Check IndexedDB durable cache via `getCachedLocalId()`.
-2. If present, load from IndexedDB through `loadFromLocal()`.
-3. Otherwise fetch remote metadata and load through `TileManager.loadFromRemote()`.
-4. `TileManager.loadFromRemote()` uses `remoteTextureCache.js` to reuse or download remote bytes.
-5. After remote success, the viewer writes those bytes to IndexedDB in the background.
+1. Check the shared session cache first when it is enabled for the surface.
+2. If there is no warm session entry, check IndexedDB durable cache via `getCachedLocalId()`.
+3. If IndexedDB is used, those tile bytes can warm the shared session cache.
+4. Otherwise fetch remote metadata and load through `TileManager.loadFromRemote()`.
+5. `TileManager.loadFromRemote()` also populates the same shared session cache.
+6. After remote success, the viewer writes those bytes to IndexedDB in the background.
 
 ### Texture overview
 
 Current load order:
 
-1. If the texture is local, load from IndexedDB/local storage immediately.
-2. If the cloud texture is marked as cached, try IndexedDB.
-3. Otherwise fetch remote metadata and load through `TileManager.loadFromRemote()`.
-4. That remote path also benefits from `remoteTextureCache.js`.
+1. If a session entry is already warm, load through the shared session cache.
+2. Otherwise, if the texture is local, load from IndexedDB/local storage.
+3. If the cloud texture is marked as cached, try IndexedDB.
+4. IndexedDB loads can warm the shared session cache for later reuse.
+5. Otherwise fetch remote metadata and load through `TileManager.loadFromRemote()`.
 
 ### Tile-linear preview
 
 Current load order:
 
-1. If the texture is local, read tiles from IndexedDB and create object URLs.
-2. If the cloud texture is already cached locally, read from IndexedDB and create object URLs.
-3. Otherwise fetch remote metadata and ask `remoteTextureCache.js` for the bytes.
-4. Convert those bytes into object URLs for `TileLinearViewer`.
-5. Persist those blobs to IndexedDB in the background.
+1. If a session entry is already warm, create object URLs directly from it.
+2. Otherwise, if the texture is local, read tiles from IndexedDB and create object URLs.
+3. If the cloud texture is already cached locally, read from IndexedDB and create object URLs.
+4. Those IndexedDB reads can warm the shared session cache.
+5. Otherwise fetch remote metadata and ask `sessionTextureCache.js` for the bytes.
+6. Convert those bytes into object URLs for `TileLinearViewer`.
+7. Persist those blobs to IndexedDB in the background.
 
 ### What this means in practice
 
 The architecture is layered like this:
 
-- Hot remote reuse: `remoteTextureCache.js`
+- Hot session reuse: `sessionTextureCache.js`
 - Durable local reuse: `localStorage.js`
 - Component adapters: object URLs and per-renderer byte staging
 
@@ -115,7 +121,7 @@ These layers do not strictly depend on each other, but they do opportunistically
 
 The same KTX2 bytes may temporarily exist in more than one place at once:
 
-- In `remoteTextureCache.js` as in-memory `Uint8Array`s
+- In `sessionTextureCache.js` as in-memory `Uint8Array`s
 - In IndexedDB as durable tile records
 - In `previewBlobURLs` as object URLs
 - In `TileManager.zipFiles` as per-renderer staging data
@@ -152,7 +158,7 @@ So the architecture has layered caches, but the policy for how to consult them i
 This appears to be the right broad architectural decision.
 
 - IndexedDB is the durable, reload-surviving, user-visible local store.
-- `remoteTextureCache.js` is the hot, session-scoped reuse layer.
+- `sessionTextureCache.js` is the hot, session-scoped reuse layer for bytes regardless of origin.
 
 Those are complementary, not mutually exclusive.
 
@@ -160,7 +166,7 @@ Those are complementary, not mutually exclusive.
 
 If a cloud texture has already been cached locally, it is entirely reasonable to load from IndexedDB instead of the network. The app already does this and should continue to do so.
 
-### 3. The in-memory remote cache is still justified even with IndexedDB present
+### 3. The in-memory session cache is still justified even with IndexedDB present
 
 It covers:
 
@@ -197,19 +203,15 @@ For example:
 
 That would make cache behavior easier to reason about and easier to instrument.
 
-### 2. Consider making the session byte cache source-agnostic
+### 2. Keep the session cache API source-agnostic
 
-Right now `remoteTextureCache.js` only caches remote downloads.
+The rename to `sessionTextureCache.js` is done, but the design constraint still matters: the session cache API should stay generic even when one path to populate it is a remote fetch.
 
-That means if a texture is already in IndexedDB, the app may still reread blobs from IndexedDB and rebuild temporary transport objects without warming a shared in-memory byte cache.
+That means:
 
-A future refinement could treat session memory as a hot cache regardless of whether the bytes originally came from:
-
-- remote network download
-- IndexedDB durable storage
-- perhaps even newly generated local output
-
-That would reduce repeated Blob-to-ArrayBuffer and object-URL churn within one session.
+- keep callers talking about `sessionTileEntry` or generic tile entries rather than remote-only names
+- keep helper names generic, such as `getOrFetchTextureTiles()` and `getCachedTextureTiles()`
+- keep the coordinator as the place that decides when local, durable, or remote paths should warm the session cache
 
 ### 3. Centralize background IndexedDB persistence
 
@@ -241,7 +243,7 @@ That would make future cleanup decisions more evidence-based.
 When reasoning about these caches, the best model is:
 
 - `localStorage.js` is the durable library and durable cloud cache.
-- `remoteTextureCache.js` is the hot session cache for remote bytes.
+- `sessionTextureCache.js` is the hot session cache for tile bytes, even when those bytes originally came from IndexedDB.
 - object URLs and `zipFiles` are adapters/staging, not authoritative caches.
 
 The overlap between the first two is acceptable. The more important architectural goal is to make their interaction explicit and centralized.

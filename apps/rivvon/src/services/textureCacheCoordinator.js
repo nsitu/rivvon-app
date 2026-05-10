@@ -1,9 +1,10 @@
 import {
-    createBlobMapFromRemoteTextureTiles,
-    createObjectUrlsFromRemoteTextureTiles,
-    getCachedRemoteTextureTiles,
-    getOrFetchRemoteTextureTiles,
-} from './remoteTextureCache.js';
+    cacheTextureTiles,
+    createBlobMapFromTextureTiles,
+    createObjectUrlsFromTextureTiles,
+    getCachedTextureTiles,
+    getOrFetchTextureTiles,
+} from './sessionTextureCache.js';
 
 const KTX2_IDENTIFIER = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -94,6 +95,61 @@ async function resolveThumbnailDataUrl(texture, textureSet) {
     }
 }
 
+async function buildSessionTileEntryFromLocalTiles(textureSet, tiles = [], source = 'local') {
+    const zipFiles = {};
+    let byteSize = 0;
+
+    for (const tile of tiles) {
+        const tileIndex = tile?.tile_index ?? tile?.tileIndex ?? tile?.index;
+        if (tileIndex === undefined || tileIndex === null) {
+            continue;
+        }
+
+        let bytes = null;
+        if (tile?.bytes instanceof ArrayBuffer) {
+            bytes = new Uint8Array(tile.bytes.slice(0));
+        } else if (ArrayBuffer.isView(tile?.bytes)) {
+            bytes = new Uint8Array(tile.bytes.buffer.slice(tile.bytes.byteOffset, tile.bytes.byteOffset + tile.bytes.byteLength));
+        } else if (tile?.blob instanceof Blob) {
+            bytes = new Uint8Array(await tile.blob.arrayBuffer());
+        }
+
+        if (!bytes) {
+            continue;
+        }
+
+        zipFiles[`${tileIndex}.ktx2`] = bytes;
+        byteSize += bytes.byteLength;
+    }
+
+    const tileCount = Number(textureSet?.tile_count) || tiles.length;
+    const loadedTileCount = Object.keys(zipFiles).length;
+
+    return {
+        zipFiles,
+        tileCount,
+        layerCount: Number(textureSet?.layer_count) || 0,
+        variant: textureSet?.cross_section_type || 'waves',
+        byteSize,
+        progressTotal: byteSize || loadedTileCount,
+        isComplete: tileCount > 0 && loadedTileCount >= tileCount,
+        source,
+    };
+}
+
+async function warmSessionTextureTiles(cacheId, textureSet, tiles, { source = 'local' } = {}) {
+    if (!cacheId || !Array.isArray(tiles) || tiles.length === 0) {
+        return null;
+    }
+
+    const tileEntry = await buildSessionTileEntryFromLocalTiles(textureSet, tiles, source);
+    if (!tileEntry.isComplete) {
+        return null;
+    }
+
+    return cacheTextureTiles(cacheId, tileEntry, { logPrefix: '[TextureCacheCoordinator]' });
+}
+
 export async function resolveTextureLoadTarget({
     texture,
     isLocal = false,
@@ -103,7 +159,7 @@ export async function resolveTextureLoadTarget({
     onInvalidCachedLocal = null,
     fetchRemoteTextureSet = null,
     includeLocalTiles = false,
-    includeRemoteTileEntry = false,
+    includeSessionTileEntry = false,
     preferSessionCache = false,
     onRemoteProgress = null,
 }) {
@@ -111,19 +167,47 @@ export async function resolveTextureLoadTarget({
         throw new Error('Texture is required');
     }
 
+    const includeTileEntry = includeSessionTileEntry;
+
     if (isLocal) {
+        if (preferSessionCache) {
+            const cachedSessionEntry = getCachedTextureTiles(texture.id);
+            if (cachedSessionEntry) {
+                const localPayload = await resolveLocalTexturePayload(texture, texture.id, {
+                    getLocalTextureSet,
+                    getLocalTiles,
+                    includeLocalTiles: false,
+                });
+
+                return {
+                    kind: 'session',
+                    textureSet: localPayload.textureSet,
+                    localTiles: null,
+                    cachedLocalId: null,
+                    sessionTileEntry: includeTileEntry ? cachedSessionEntry : null,
+                    hasDriveTiles: false,
+                };
+            }
+        }
+
         const localPayload = await resolveLocalTexturePayload(texture, texture.id, {
             getLocalTextureSet,
             getLocalTiles,
             includeLocalTiles,
         });
 
+        if (includeLocalTiles && Array.isArray(localPayload.localTiles) && localPayload.localTiles.length > 0) {
+            await warmSessionTextureTiles(texture.id, localPayload.textureSet, localPayload.localTiles, {
+                source: 'local',
+            });
+        }
+
         return {
             kind: 'local',
             textureSet: localPayload.textureSet,
             localTiles: localPayload.localTiles,
             cachedLocalId: null,
-            remoteTileEntry: null,
+            sessionTileEntry: null,
             hasDriveTiles: false,
         };
     }
@@ -144,17 +228,17 @@ export async function resolveTextureLoadTarget({
     };
 
     if (preferSessionCache) {
-        const cachedRemoteEntry = getCachedRemoteTextureTiles(texture.id);
+        const cachedSessionEntry = getCachedTextureTiles(texture.id);
 
-        if (cachedRemoteEntry) {
+        if (cachedSessionEntry) {
             const remotePayload = await resolveRemoteTextureSet();
 
             return {
-                kind: 'session-remote',
+                kind: 'session',
                 textureSet: remotePayload.textureSet,
                 localTiles: null,
                 cachedLocalId: null,
-                remoteTileEntry: includeRemoteTileEntry ? cachedRemoteEntry : null,
+                sessionTileEntry: includeTileEntry ? cachedSessionEntry : null,
                 hasDriveTiles: remotePayload.hasDriveTiles,
             };
         }
@@ -188,12 +272,16 @@ export async function resolveTextureLoadTarget({
                 );
 
             if (hasUsableLocalTiles) {
+                await warmSessionTextureTiles(texture.id, localPayload.textureSet, localPayload.localTiles, {
+                    source: 'cached-local',
+                });
+
                 return {
                     kind: 'cached-local',
                     textureSet: localPayload.textureSet,
                     localTiles: localPayload.localTiles,
                     cachedLocalId,
-                    remoteTileEntry: null,
+                    sessionTileEntry: null,
                     hasDriveTiles: false,
                 };
             }
@@ -217,11 +305,11 @@ export async function resolveTextureLoadTarget({
     const hasDriveTiles = remotePayload.hasDriveTiles;
 
     let kind = 'remote';
-    let remoteTileEntry = null;
-    if (includeRemoteTileEntry) {
-        const cachedRemoteEntry = getCachedRemoteTextureTiles(textureSet);
-        kind = cachedRemoteEntry ? 'session-remote' : 'remote';
-        remoteTileEntry = await getOrFetchRemoteTextureTiles(textureSet, { onProgress: onRemoteProgress });
+    let sessionTileEntry = null;
+    if (includeTileEntry) {
+        const cachedSessionEntry = getCachedTextureTiles(textureSet);
+        kind = cachedSessionEntry ? 'session' : 'remote';
+        sessionTileEntry = cachedSessionEntry || await getOrFetchTextureTiles(textureSet, { onProgress: onRemoteProgress });
     }
 
     return {
@@ -229,7 +317,7 @@ export async function resolveTextureLoadTarget({
         textureSet,
         localTiles: null,
         cachedLocalId: null,
-        remoteTileEntry,
+        sessionTileEntry,
         hasDriveTiles,
     };
 }
@@ -284,7 +372,7 @@ export function cacheCloudTextureInBackground({
     texture,
     textureSet,
     cacheCloudTexture,
-    remoteTileEntry = null,
+    tileEntry = null,
     tileManager = null,
     ktx2Blobs = null,
     onPersisted = null,
@@ -296,7 +384,7 @@ export function cacheCloudTextureInBackground({
         }
 
         const tileBlobMap = ktx2Blobs
-            || (remoteTileEntry ? createBlobMapFromRemoteTextureTiles(remoteTileEntry) : null)
+            || (tileEntry ? createBlobMapFromTextureTiles(tileEntry) : null)
             || (tileManager ? buildKtx2BlobsFromTileManager(tileManager) : null)
             || {};
         const expectedTileCount = Number(textureSet.tile_count) || Number(texture?.tile_count) || 0;
@@ -305,7 +393,7 @@ export function cacheCloudTextureInBackground({
             return null;
         }
 
-        if (remoteTileEntry && remoteTileEntry.isComplete === false) {
+        if (tileEntry && tileEntry.isComplete === false) {
             return null;
         }
 
@@ -343,6 +431,6 @@ export function cacheCloudTextureInBackground({
 }
 
 export {
-    createObjectUrlsFromRemoteTextureTiles,
-    getCachedRemoteTextureTiles,
+    createObjectUrlsFromTextureTiles,
+    getCachedTextureTiles,
 };
