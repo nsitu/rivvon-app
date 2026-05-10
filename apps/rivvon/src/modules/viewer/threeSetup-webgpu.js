@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
+import { applyRendererDisplayConfig } from './rendererConfig.js';
 
 /**
  * Initialize Three.js with WebGPU renderer
@@ -22,7 +23,7 @@ export async function initThreeWebGPU() {
     const renderer = new THREE.WebGPURenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x000000, 0); // Transparent background
+    applyRendererDisplayConfig(renderer, null, 'webgpu');
 
     // CRITICAL: Wait for WebGPU backend to initialize
     await renderer.init();

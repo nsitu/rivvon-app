@@ -210,6 +210,8 @@ In static mode, Mirror Bounce doubles the logical repeat cycle from `tileCount` 
 
 Each tile is a `DataArrayTexture` with multiple layers. A shared `uLayer` uniform advances independently of flow: ping-pong for planes and wrap-around for waves.
 
+For the renderer/resource-sharing tradeoffs around the ribbon viewer, texture overview, and tile-linear preview, see `renderer-resource-sharing.md`.
+
 ### Dual-Texture Conveyor Flow
 
 When flow is active, each segment material holds two adjacent tiles and a shared `uFlowOffset`:

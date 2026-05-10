@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { applyRendererDisplayConfig } from './rendererConfig.js';
 
 /**
  * Initialize Three.js with WebGL renderer
@@ -20,8 +21,7 @@ export function initThreeWebGL() {
                 preserveDrawingBuffer: true // without this, video rendering fails on ipad
             }); 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-    renderer.setClearColor(0x000000, 0); // Transparent background
+    applyRendererDisplayConfig(renderer, null, 'webgl');
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);

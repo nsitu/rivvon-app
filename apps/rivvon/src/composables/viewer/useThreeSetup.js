@@ -347,6 +347,7 @@ export function useThreeSetup() {
         loadTextures: textures.loadTextures,
         loadTexturesFromRemote: textures.loadTexturesFromRemote,
         loadTexturesFromLocal: textures.loadTexturesFromLocal,
+        loadTexturesFromTileRecords: textures.loadTexturesFromTileRecords,
         loadMultipleTextures: textures.loadMultipleTextures,
         setFlowState: ribbons.setFlowState,
         setFlowSpeed: ribbons.setFlowSpeed,

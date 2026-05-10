@@ -941,11 +941,11 @@ async function getCachedLocalId(cloudTextureId) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
         const store = transaction.objectStore(STORE_TEXTURE_SETS);
-        const request = store.getAll();
+        const index = store.index('cached_from');
+        const request = index.get(cloudTextureId);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
-            const match = request.result.find(ts => ts.cached_from === cloudTextureId);
-            resolve(match ? match.id : null);
+            resolve(request.result?.id || null);
         };
     });
 }
@@ -959,16 +959,11 @@ async function getCachedCloudIds() {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
         const store = transaction.objectStore(STORE_TEXTURE_SETS);
-        const request = store.getAll();
+        const index = store.index('cached_from');
+        const request = index.getAllKeys();
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
-            const ids = new Set();
-            for (const ts of request.result) {
-                if (ts.cached_from) {
-                    ids.add(ts.cached_from);
-                }
-            }
-            resolve(ids);
+            resolve(new Set((request.result || []).filter(Boolean)));
         };
     });
 }

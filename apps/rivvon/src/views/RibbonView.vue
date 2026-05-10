@@ -2103,7 +2103,7 @@
     }, { immediate: true });
 
     // Check for local texture query param
-    const { getTextureSet: getLocalTextureSet, getTiles, cacheCloudTexture, getCachedLocalId } = useLocalStorage();
+    const { getTextureSet: getLocalTextureSet, getTiles, cacheCloudTexture, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
     watch(() => route.query.local, async (localTextureId) => {
         if (localTextureId && threeCanvasRef.value?.isInitialized) {
@@ -2339,52 +2339,33 @@
         console.log('[RibbonView] Loading remote texture:', texture.name);
         return await withTextureLoading('Loading...', async () => {
             try {
-                // Check if this texture is cached locally
-                const cachedLocalId = await getCachedLocalId(texture.id);
-                if (cachedLocalId) {
-                    console.log(`[RibbonView] Using cached version: ${cachedLocalId}`);
-                    const cachedTextureSet = await getLocalTextureSet(cachedLocalId);
-                    if (cachedTextureSet) {
-                        const success = await threeCanvasRef.value?.loadTexturesFromLocal(cachedTextureSet, getTiles, handleTextureLoadProgress);
-                        if (success) {
-                            applyLoadedTextureState({
-                                source: 'cloud',
-                                texture,
-                                isCached: true,
-                                thumbnailUrl: texture.thumbnail_url || null,
-                                metadata: {
-                                    id: texture.id,
-                                    name: cachedTextureSet.name || texture.name || '',
-                                    description: cachedTextureSet.description || texture.description || '',
-                                },
-                            });
-                            console.log('[RibbonView] Loaded from cache successfully');
-                            return true;
-                        }
-                        // If cache load failed, fall through to remote
-                        console.warn('[RibbonView] Cache load failed, falling back to remote');
-                    }
-                }
+                const { cacheCloudTextureInBackground, getCachedRemoteTextureTiles, resolveTextureLoadTarget } = await import('../services/textureCacheCoordinator.js');
+                const resolvedTexture = await resolveTextureLoadTarget({
+                    texture,
+                    getLocalTextureSet,
+                    getLocalTiles: getTiles,
+                    getCachedLocalId,
+                    onInvalidCachedLocal: async ({ cloudTextureId }) => {
+                        await evictCachedTexture(cloudTextureId);
+                    },
+                    fetchRemoteTextureSet: fetchTextureSetById,
+                    includeLocalTiles: true,
+                });
 
-                // Fetch full texture set with tile URLs
-                const textureSet = await fetchTextureSetById(texture.id);
-
-                if (!textureSet || !textureSet.tiles || textureSet.tiles.length === 0) {
+                if (resolvedTexture.kind === 'remote' && (!resolvedTexture.textureSet || !resolvedTexture.textureSet.tiles || resolvedTexture.textureSet.tiles.length === 0)) {
                     throw new Error('No tiles found in texture set');
                 }
 
                 // Check if this is a Google Drive texture that requires authentication
-                const hasDriveTiles = textureSet.tiles.some(tile => tile.driveFileId);
-                if (hasDriveTiles && !isAuthenticated.value) {
+                if (resolvedTexture.hasDriveTiles && !isAuthenticated.value) {
                     // Show beta modal with texture-auth context
                     app.showBetaModal('texture-auth');
                     return false;
                 }
 
-                console.log(`[RibbonView] Fetched texture set: ${textureSet.tiles.length} tiles`);
-
-                // Load textures from remote URLs via TileManager
-                const success = await threeCanvasRef.value?.loadTexturesFromRemote(textureSet, handleTextureLoadProgress);
+                const success = resolvedTexture.kind === 'remote'
+                    ? await threeCanvasRef.value?.loadTexturesFromRemote(resolvedTexture.textureSet, handleTextureLoadProgress)
+                    : await threeCanvasRef.value?.loadTexturesFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleTextureLoadProgress);
 
                 if (!success) {
                     throw new Error('Texture data is incomplete or unreadable.');
@@ -2393,17 +2374,29 @@
                 applyLoadedTextureState({
                     source: 'cloud',
                     texture,
-                    isCached: Boolean(cachedLocalId),
+                    isCached: resolvedTexture.kind === 'cached-local',
                     thumbnailUrl: texture.thumbnail_url || null,
                     metadata: {
                         id: texture.id,
-                        name: textureSet.name || texture.name || '',
-                        description: textureSet.description || texture.description || '',
+                        name: resolvedTexture.textureSet?.name || texture.name || '',
+                        description: resolvedTexture.textureSet?.description || texture.description || '',
                     },
                 });
 
                 // Cache the downloaded tiles in background
-                cacheRemoteTextureInBackground(texture, textureSet);
+                if (resolvedTexture.kind === 'remote') {
+                    const remoteTileEntry = getCachedRemoteTextureTiles(resolvedTexture.textureSet);
+                    const tileManagerRef = threeCanvasRef.value?.tileManager;
+                    const tm = tileManagerRef?.value ?? tileManagerRef;
+                    cacheCloudTextureInBackground({
+                        texture,
+                        textureSet: resolvedTexture.textureSet,
+                        cacheCloudTexture,
+                        remoteTileEntry,
+                        tileManager: tm,
+                        logPrefix: '[RibbonView]',
+                    });
+                }
 
                 console.log('[RibbonView] Remote texture loaded successfully');
                 return true;
@@ -2416,67 +2409,6 @@
                 });
                 return false;
             }
-        });
-    }
-
-    /**
-     * Cache a remotely-loaded texture to IndexedDB in background.
-     * Reads already-downloaded tile data from the TileManager's zipFiles cache.
-     */
-    function cacheRemoteTextureInBackground(texture, textureSet) {
-        const doCache = async () => {
-            // Get the tile data that TileManager already downloaded (stored in zipFiles)
-            const tileManagerRef = threeCanvasRef.value?.tileManager;
-            const tm = tileManagerRef?.value ?? tileManagerRef;
-            if (!tm?.zipFiles) return;
-
-            const ktx2Blobs = {};
-            for (const [filename, data] of Object.entries(tm.zipFiles)) {
-                const index = parseInt(filename.replace('.ktx2', ''), 10);
-                if (!isNaN(index)) {
-                    ktx2Blobs[index] = data;
-                }
-            }
-
-            if (Object.keys(ktx2Blobs).length === 0) return;
-
-            // Convert thumbnail URL to data URL
-            let thumbnailDataUrl = null;
-            if (texture.thumbnail_url) {
-                try {
-                    const resp = await fetch(texture.thumbnail_url);
-                    const blob = await resp.blob();
-                    thumbnailDataUrl = await new Promise(resolve => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result);
-                        reader.readAsDataURL(blob);
-                    });
-                } catch (e) { /* non-critical */ }
-            }
-
-            await cacheCloudTexture({
-                cloudTextureId: texture.id,
-                name: texture.name,
-                description: textureSet.description ?? texture.description ?? '',
-                tileCount: textureSet.tile_count ?? Object.keys(ktx2Blobs).length,
-                tileResolution: textureSet.tile_resolution ?? texture.tile_resolution,
-                layerCount: textureSet.layer_count ?? texture.layer_count,
-                crossSectionType: textureSet.cross_section_type ?? texture.cross_section_type ?? 'waves',
-                sourceMetadata: textureSet.source_metadata ?? texture.source_metadata,
-                thumbnailDataUrl,
-                ktx2Blobs,
-                rootTextureSetId: textureSet.root_texture_id || texture.root_texture_id || texture.id,
-                parentTextureSetId: textureSet.parent_texture_set_id || texture.parent_texture_set_id || null,
-                variantInfo: textureSet.variant_info || texture.variant_info || null,
-                variantSummaries: textureSet.variant_summaries || texture.variant_summaries || null,
-                availableResolutions: textureSet.available_resolutions || texture.available_resolutions || null,
-            });
-
-            console.log(`[RibbonView] Cached texture ${texture.id} locally`);
-        };
-
-        doCache().catch(err => {
-            console.warn('[RibbonView] Background texture cache failed:', err);
         });
     }
 

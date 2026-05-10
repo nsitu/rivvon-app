@@ -61,9 +61,15 @@
     }
 
     .loading-indicator-spinner {
-        width: var(--loading-indicator-spinner-size);
-        height: var(--loading-indicator-spinner-size);
-        border: var(--loading-indicator-spinner-border-width) solid var(--loading-indicator-spinner-track);
+        display: block;
+        width: var(--loading-indicator-spinner-size, 48px);
+        height: var(--loading-indicator-spinner-size, 48px);
+        min-width: var(--loading-indicator-spinner-size, 48px);
+        min-height: var(--loading-indicator-spinner-size, 48px);
+        flex: 0 0 var(--loading-indicator-spinner-size, 48px);
+        aspect-ratio: 1 / 1;
+        box-sizing: border-box;
+        border: var(--loading-indicator-spinner-border-width, 4px) solid var(--loading-indicator-spinner-track, rgba(255, 255, 255, 0.2));
         border-top-color: var(--loading-indicator-spinner-head);
         border-radius: 50%;
         animation: loading-indicator-spin 1s linear infinite;

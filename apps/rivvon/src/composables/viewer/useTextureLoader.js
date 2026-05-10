@@ -120,6 +120,33 @@ export function useTextureLoader(ctx, deps = {}) {
     }
 
     /**
+     * Load textures from already-fetched local tile records.
+     * @param {Object} textureSet - Texture set metadata from localStorage service
+     * @param {Array} tiles - Local tile records
+     * @param {Function} onProgress - Progress callback (stage, current, total)
+     */
+    async function loadTexturesFromTileRecords(textureSet, tiles, onProgress = null) {
+        if (!ctx.tileManager.value) {
+            console.error('[ThreeSetup] Cannot load local tile records - not initialized');
+            return false;
+        }
+
+        try {
+            const success = await ctx.tileManager.value.loadFromTileRecords(textureSet, tiles, onProgress);
+
+            if (success) {
+                console.log(`[ThreeSetup] Local tile records loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
+                await finalizeTextureLoad();
+            }
+
+            return success;
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to load local tile records:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Load multiple texture sets simultaneously (multi-texture mode).
      * Creates one TileManager per texture set, distributes via round-robin to ribbon strands.
      * @param {Array<{textureSet: Object, source: string, tiles?: Array, getTiles?: Function}>} textureSetsWithMeta
@@ -194,6 +221,7 @@ export function useTextureLoader(ctx, deps = {}) {
         loadTextures,
         loadTexturesFromRemote,
         loadTexturesFromLocal,
+        loadTexturesFromTileRecords,
         loadMultipleTextures
     };
 }

@@ -1,81 +1,142 @@
 <template>
-    <!-- Linear Tile Viewer - Document-like KTX2 texture display -->
     <div
         ref="wrapperRef"
         class="tile-linear-viewer"
         :class="{
-            'has-tiles': hasTiles
+            'has-tiles': hasTiles,
+            'is-loading': showLoadingIndicator,
         }"
     >
-        <!-- Canvas container (handles scrolling) -->
         <div
             ref="containerRef"
             class="viewer-container"
         ></div>
 
-        <!-- Tile info overlay -->
+        <LoadingIndicator
+            v-if="showLoadingIndicator"
+            class="loading-message"
+            :message="loadingMessage"
+            :statusText="loadingStatusText"
+        />
+
         <div
-            v-if="hasTiles"
+            v-if="hasTiles && !showLoadingIndicator"
             class="tile-info"
         >
-            {{ tileCount }} tile{{ tileCount > 1 ? 's' : '' }}
+            <template v-if="expectedTileCountComputed > tileCount">
+                {{ tileCount }} / {{ expectedTileCountComputed }} tiles
+            </template>
+            <template v-else>
+                {{ tileCount }} tile{{ tileCount > 1 ? 's' : '' }}
+            </template>
             <span v-if="displayScale < 1">({{ Math.round(displayScale * 100) }}% scale)</span>
         </div>
-
-        <!-- Loading placeholder -->
-        <LoadingIndicator
-            v-if="!hasTiles && !isInitialized"
-            class="loading-message"
-            message="Waiting for tiles..."
-        />
     </div>
 </template>
 
 <script setup>
-    import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+    import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useSlyceStore } from '../../stores/slyceStore';
+    import { useViewerStore } from '../../stores/viewerStore';
     import { createAndInitTileLinearRenderer } from '../../modules/slyce/tileLinearRenderer.js';
-    import { chooseRenderer } from '../../utils/renderer-utils.js';
+    import { readRendererDisplayConfig } from '../../modules/viewer/rendererConfig.js';
 
-    // Props
     const props = defineProps({
         ktx2BlobURLs: {
             type: Object,
-            required: true
+            required: true,
         },
         maxViewportHeight: {
             type: Number,
-            default: 800
+            default: 800,
         },
         expectedTileCount: {
             type: Number,
-            default: 0
-        }
+            default: 0,
+        },
+        textureId: {
+            type: [String, Number],
+            default: null,
+        },
+        sourceLoading: {
+            type: Boolean,
+            default: false,
+        },
     });
 
-    // Access store
-    const app = useSlyceStore();
+    const slyceApp = useSlyceStore();
+    const viewerApp = useViewerStore();
 
-    // Template refs
     const wrapperRef = ref(null);
     const containerRef = ref(null);
 
-    // Renderer instance
     let renderer = null;
     const isInitialized = ref(false);
-    let initializationAttempted = ref(false);
-
-    // State
+    const initializationAttempted = ref(false);
     const displayScale = ref(1);
+    const loadedTileCount = ref(0);
+    const isTileLoadPending = ref(false);
+    const failedTileCount = ref(0);
 
-    // Computed
-    const tileCount = computed(() => Object.keys(props.ktx2BlobURLs).length);
+    const sourceTileCount = computed(() => Object.keys(props.ktx2BlobURLs || {}).length);
+    const expectedTileCountComputed = computed(() => Math.max(Number(props.expectedTileCount) || 0, sourceTileCount.value));
+    const tileCount = computed(() => loadedTileCount.value);
     const hasTiles = computed(() => tileCount.value > 0);
+    const isBusy = computed(() => {
+        if (sourceTileCount.value === 0) {
+            return props.sourceLoading;
+        }
 
-    /**
-     * Initialize renderer
-     */
+        if (isTileLoadPending.value) {
+            return true;
+        }
+
+        const targetCount = expectedTileCountComputed.value || sourceTileCount.value;
+        return tileCount.value < targetCount && (tileCount.value + failedTileCount.value) < targetCount;
+    });
+    const showLoadingIndicator = computed(() => isBusy.value);
+    const loadingMessage = computed(() => {
+        if (sourceTileCount.value > 0) {
+            return 'Building...';
+        }
+
+        if (props.sourceLoading) {
+            return 'Loading...';
+        }
+
+        return 'Loading...';
+    });
+    const loadingStatusText = computed(() => {
+        const targetCount = expectedTileCountComputed.value || sourceTileCount.value;
+        if (targetCount > 0) {
+            return `${tileCount.value} / ${targetCount} tiles`;
+        }
+
+        if (props.sourceLoading) {
+            return 'Preparing tiles';
+        }
+
+        return '';
+    });
+
+    const loadingTiles = new Set();
+
+    function syncLoadedTileCount() {
+        if (!renderer?.tiles) {
+            loadedTileCount.value = 0;
+            return;
+        }
+
+        let count = 0;
+        renderer.tiles.forEach((tile) => {
+            if (tile && !tile.isPlaceholder) {
+                count += 1;
+            }
+        });
+        loadedTileCount.value = count;
+    }
+
     async function initializeRenderer() {
         if (initializationAttempted.value || !containerRef.value) {
             return;
@@ -83,8 +144,6 @@
 
         initializationAttempted.value = true;
         const container = containerRef.value;
-
-        // Check container visibility
         const width = container.clientWidth;
         if (width === 0) {
             console.log('[TileLinearViewer] Container not visible yet, will retry...');
@@ -95,121 +154,143 @@
         console.log('[TileLinearViewer] Initializing with container width:', width);
 
         try {
-            const rendererType = await chooseRenderer();
+            const rendererType = viewerApp.rendererType || slyceApp.rendererType || 'webgl';
+            const displayConfig = readRendererDisplayConfig(viewerApp.threeContext?.renderer ?? null, rendererType);
             renderer = await createAndInitTileLinearRenderer(container, rendererType, {
-                tileSize: app.potResolution || 512,
+                tileSize: slyceApp.potResolution || 512,
                 maxViewportWidth: 2560,
                 maxViewportHeight: props.maxViewportHeight,
-                flowDirection: 'vertical'
+                flowDirection: 'vertical',
+                displayConfig,
+                textureSetId: props.textureId,
             });
 
-            // Start animation loop
             renderer.startAnimation();
-
-            // Start playback with current settings
             renderer.startPlayback({
-                fps: app.ktx2Playback.fps,
-                mode: app.crossSectionType
+                fps: slyceApp.ktx2Playback.fps,
+                mode: slyceApp.crossSectionType,
             });
 
             isInitialized.value = true;
             console.log('[TileLinearViewer] Initialized successfully');
 
-            // Pre-allocate placeholder slots if we know the expected count
-            const expected = props.expectedTileCount || tileCount.value;
+            const expected = expectedTileCountComputed.value || sourceTileCount.value;
             if (expected > 0) {
                 renderer.preallocatePlaceholders(expected);
             }
 
-            // Load any existing tiles
-            loadTiles();
+            await loadTiles();
         } catch (error) {
             console.error('[TileLinearViewer] Initialization failed:', error);
-            app.setStatus('Renderer Error', `Failed to initialize linear renderer: ${error.message}`);
+            slyceApp.setStatus('Renderer Error', `Failed to initialize linear renderer: ${error.message}`);
             initializationAttempted.value = false;
         }
     }
 
-    // Track tiles currently being loaded to avoid duplicate concurrent loads
-    const loadingTiles = new Set();
+    async function loadTiles() {
+        if (!renderer) {
+            return;
+        }
 
-    /**
-     * Load tiles into renderer
-     */
-    function loadTiles() {
-        if (!renderer) return;
+        const tileNumbers = Object.keys(props.ktx2BlobURLs || {}).sort((a, b) => Number(a) - Number(b));
+        if (tileNumbers.length === 0) {
+            syncLoadedTileCount();
+            return;
+        }
 
-        const tileNumbers = Object.keys(props.ktx2BlobURLs).sort((a, b) => Number(a) - Number(b));
-
-        if (tileNumbers.length === 0) return;
-
-        // Load only new tiles (placeholders count as needing load)
-        tileNumbers.forEach(async (tileNumber) => {
+        const loadTasks = [];
+        tileNumbers.forEach((tileNumber) => {
             const existing = renderer.tiles.get(tileNumber);
             const needsLoad = !existing || existing.isPlaceholder;
-            if (needsLoad && !loadingTiles.has(tileNumber)) {
+            if (!needsLoad || loadingTiles.has(tileNumber)) {
+                return;
+            }
+
+            loadTasks.push((async () => {
                 loadingTiles.add(tileNumber);
                 const blobURL = props.ktx2BlobURLs[tileNumber];
                 try {
                     await renderer.upsertTile(tileNumber, blobURL);
                     displayScale.value = renderer.displayScale;
+                    syncLoadedTileCount();
                 } catch (error) {
+                    failedTileCount.value += 1;
                     console.error(`[TileLinearViewer] Failed to load tile ${tileNumber}:`, error);
                 } finally {
                     loadingTiles.delete(tileNumber);
                 }
-            }
+            })());
         });
+
+        if (loadTasks.length === 0) {
+            syncLoadedTileCount();
+            return;
+        }
+
+        isTileLoadPending.value = true;
+        await Promise.allSettled(loadTasks);
+        isTileLoadPending.value = false;
+        syncLoadedTileCount();
+        displayScale.value = renderer.displayScale;
     }
 
-    // Mount
     onMounted(async () => {
         await nextTick();
         console.log('[TileLinearViewer] Component mounted');
 
-        // If we already have tiles, initialize immediately
-        if (tileCount.value > 0) {
+        if (sourceTileCount.value > 0) {
             await initializeRenderer();
         }
     });
 
-    // Cleanup
     onBeforeUnmount(() => {
         if (renderer) {
             renderer.dispose();
             renderer = null;
         }
+        syncLoadedTileCount();
     });
 
-    // Watch for blob URL changes
     watch(() => props.ktx2BlobURLs, async () => {
-        const count = Object.keys(props.ktx2BlobURLs).length;
+        const count = Object.keys(props.ktx2BlobURLs || {}).length;
         console.log('[TileLinearViewer] Blob URLs changed, count:', count);
+        failedTileCount.value = 0;
 
         if (count > 0) {
             if (!isInitialized.value) {
                 await nextTick();
                 await initializeRenderer();
             } else {
-                loadTiles();
+                await loadTiles();
             }
         } else if (isInitialized.value && renderer) {
             renderer.clearAllTiles();
+            syncLoadedTileCount();
         }
     }, { deep: true, immediate: true });
 
-    // Watch for crossSectionType changes (cycling mode)
-    watch(() => app.crossSectionType, (newMode) => {
+    watch(() => props.textureId, (nextTextureId) => {
+        if (renderer) {
+            renderer.textureSetId = nextTextureId;
+        }
+    });
+
+    watch(() => slyceApp.crossSectionType, (newMode) => {
         if (renderer && renderer.isPlaying) {
             renderer.stopPlayback();
             renderer.startPlayback({
                 fps: renderer.fps,
-                mode: newMode
+                mode: newMode,
             });
         }
     });
 
-    defineExpose({ tileCount, displayScale });
+    defineExpose({
+        tileCount,
+        displayScale,
+        isBusy,
+        expectedTileCount: expectedTileCountComputed,
+    });
 </script>
 
 <style scoped>
@@ -219,13 +300,19 @@
         min-height: 100px;
         background: transparent;
         border-radius: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+        justify-items: stretch;
+        overflow: visible;
     }
 
+    .tile-linear-viewer.is-loading .viewer-container :deep(canvas) {
+        opacity: 0.4;
+    }
 
     .viewer-container {
+        grid-area: 1 / 1;
         width: 100%;
         display: flex;
         justify-content: center;
@@ -252,14 +339,22 @@
     }
 
     .loading-message {
-        color: #666;
-        padding: 2rem;
-        --loading-indicator-text-size: 14px;
-        --loading-indicator-spinner-size: 28px;
-        --loading-indicator-spinner-border-width: 3px;
+        grid-area: 1 / 1;
+        position: sticky;
+        top: 0.75rem;
+        justify-self: center;
+        align-self: start;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: max-content;
+        max-width: calc(100% - 2rem);
+        padding: 0.75rem 1rem 0;
+        background: transparent;
+        pointer-events: none;
     }
 
-    /* Scrollbar styling for overflow */
     .viewer-container::-webkit-scrollbar {
         height: 8px;
         width: 8px;

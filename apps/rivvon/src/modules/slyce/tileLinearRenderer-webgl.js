@@ -5,6 +5,8 @@
 
 import * as THREE from 'three';
 import { acquireKTX2Loader, releaseKTX2Loader } from './sharedKTX2Loader.js';
+import { applyRendererDisplayConfig } from '../viewer/rendererConfig.js';
+import { getClonedDecodedTexture, rememberDecodedTexture } from '../shared/decodedTextureCache.js';
 
 export class TileLinearRendererWebGL {
     constructor() {
@@ -16,6 +18,7 @@ export class TileLinearRendererWebGL {
         this.ktx2Loader = null;
         this.animationId = null;
         this.container = null;
+        this.textureSetId = null;
 
         // Layout configuration
         this.tileSize = 512; // Native tile size in pixels
@@ -53,7 +56,9 @@ export class TileLinearRendererWebGL {
             tileSize = 512,
             maxViewportWidth = 2560,
             maxViewportHeight = 800,
-            flowDirection = 'horizontal'
+            flowDirection = 'horizontal',
+            displayConfig = null,
+            textureSetId = null,
         } = options;
 
         this.container = container;
@@ -61,6 +66,7 @@ export class TileLinearRendererWebGL {
         this.maxViewportWidth = maxViewportWidth;
         this.maxViewportHeight = maxViewportHeight;
         this.flowDirection = flowDirection;
+        this.textureSetId = textureSetId;
 
         // Create scene with transparent background (blends with page)
         this.scene = new THREE.Scene();
@@ -73,8 +79,7 @@ export class TileLinearRendererWebGL {
             preserveDrawingBuffer: true
         });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.setClearColor(0x000000, 0); // Transparent clear
-        this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        applyRendererDisplayConfig(this.renderer, displayConfig, 'webgl');
 
         // Setup KTX2 loader (shared instance)
         this.ktx2Loader = acquireKTX2Loader(this.renderer);
@@ -334,6 +339,26 @@ export class TileLinearRendererWebGL {
         return material;
     }
 
+    registerDecodedTile(tileId, texture) {
+        texture.flipY = false;
+        texture.generateMipmaps = false;
+        texture.colorSpace = THREE.LinearSRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+
+        if (this.layerCount === 0) {
+            this.layerCount = texture.image?.depth || 1;
+        }
+
+        const material = this.createArrayMaterial(texture);
+        const geometry = new THREE.PlaneGeometry(this.tileSize, this.tileSize);
+        const mesh = new THREE.Mesh(geometry, material);
+
+        this.scene.add(mesh);
+        this.tiles.set(tileId, { mesh, texture, material, geometry });
+        this.scheduleLayoutUpdate();
+    }
+
     /**
      * Add or update a tile
      * @param {string|number} tileId - Unique tile identifier
@@ -351,29 +376,19 @@ export class TileLinearRendererWebGL {
                 this.tiles.delete(tileId);
             }
 
+            const cachedTexture = getClonedDecodedTexture(this.textureSetId, this.rendererType, tileId);
+            if (cachedTexture) {
+                this.registerDecodedTile(tileId, cachedTexture);
+                console.log(`[TileLinearRenderer] Tile ${tileId} reused from decoded cache`);
+                resolve();
+                return;
+            }
+
             this.ktx2Loader.load(
                 blobURL,
                 (texture) => {
-                    texture.flipY = false;
-                    texture.generateMipmaps = false;
-                    texture.colorSpace = THREE.LinearSRGBColorSpace;
-                    texture.minFilter = THREE.LinearFilter;
-                    texture.magFilter = THREE.LinearFilter;
-
-                    // Get layer count from first real tile
-                    if (this.layerCount === 0) {
-                        this.layerCount = texture.image?.depth || 1;
-                    }
-
-                    const material = this.createArrayMaterial(texture);
-                    const geometry = new THREE.PlaneGeometry(this.tileSize, this.tileSize);
-                    const mesh = new THREE.Mesh(geometry, material);
-
-                    this.scene.add(mesh);
-                    this.tiles.set(tileId, { mesh, texture, material, geometry });
-
-                    // Schedule layout update (batched)
-                    this.scheduleLayoutUpdate();
+                    this.registerDecodedTile(tileId, texture);
+                    rememberDecodedTexture(this.textureSetId, this.rendererType, tileId, texture);
 
                     console.log(`[TileLinearRenderer] Tile ${tileId} loaded (${this.tiles.size} tiles total)`);
                     resolve();

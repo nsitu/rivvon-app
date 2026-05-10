@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { acquireKTX2Loader, releaseKTX2Loader } from '../slyce/sharedKTX2Loader.js';
 import { createLazyLoader } from '../shared/lazyLoader.js';
+import { getClonedDecodedTexture, rememberDecodedTexture } from '../shared/decodedTextureCache.js';
+import { getOrFetchRemoteTextureTiles } from '../../services/remoteTextureCache.js';
 
 const loadJSZipModule = createLazyLoader(() => import('jszip').then(module => module.default));
 
@@ -1390,11 +1392,55 @@ export class TileManager {
         this.webgpuMaterialMode = mode;
     }
 
+    #getDecodedTextureCacheKey() {
+        return this.currentTextureSet?.id || null;
+    }
+
+    #registerDecodedArrayTexture(arrayTexture, tileIndex, label = 'Tile') {
+        arrayTexture.flipY = false;
+        arrayTexture.generateMipmaps = false;
+        const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
+        arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+        arrayTexture.magFilter = THREE.LinearFilter;
+        arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
+        arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+        if (this.rendererType === 'webgl') {
+            arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
+        }
+
+        const depth = arrayTexture.image?.depth || 1;
+        if (this.layerCount === 0) {
+            this.layerCount = depth;
+            this.currentLayer = 0;
+            this.direction = 1;
+            this.sharedLayerUniform.value = 0;
+            this.#syncFlowSpeedAlignment();
+        } else if (depth !== this.layerCount) {
+            console.warn(`[TileManager] ${label} ${tileIndex} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
+        }
+
+        this.arrayTextures[tileIndex] = arrayTexture;
+        return this.#createArrayMaterial(arrayTexture);
+    }
+
     async #loadKTX2Tile(index) {
         return new Promise((resolve, reject) => {
             if (!this._ktx2Loader) {
                 reject(new Error('KTX2Loader not initialized'));
                 return;
+            }
+
+            const cachedTexture = getClonedDecodedTexture(this.#getDecodedTextureCacheKey(), this.rendererType, index);
+            if (cachedTexture) {
+                try {
+                    const material = this.#registerDecodedArrayTexture(cachedTexture, index, 'Cached tile');
+                    resolve(material);
+                    return;
+                } catch (error) {
+                    cachedTexture.dispose?.();
+                    console.warn(`[TileManager] Failed to reuse decoded cache for tile ${index}, falling back to parse`, error);
+                }
             }
 
             // If loading from zip, use the extracted data
@@ -1413,38 +1459,8 @@ export class TileManager {
                 this._ktx2Loader.parse(
                     fileData.buffer,
                     (arrayTexture) => {
-                        // Configure array texture
-                        arrayTexture.flipY = false; // shader flips V
-                        arrayTexture.generateMipmaps = false;
-                        const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
-                        arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
-                        arrayTexture.magFilter = THREE.LinearFilter;
-                        arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
-                        arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
-
-                        // Set color space for WebGL to match WebGPU brightness
-                        if (this.rendererType === 'webgl') {
-                            arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
-                        }
-
-                        if (this.layerCount === 0) {
-                            this.layerCount = arrayTexture.image?.depth || 1;
-                            // Reset cycling state
-                            this.currentLayer = 0;
-                            this.direction = 1;
-                            this.sharedLayerUniform.value = 0;
-                            this.#syncFlowSpeedAlignment();
-                        } else {
-                            const depth = arrayTexture.image?.depth || 1;
-                            if (depth !== this.layerCount) {
-                                console.warn(`[TileManager] Tile ${index} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
-                            }
-                        }
-
-                        // Store raw texture for dual-texture flow materials
-                        this.arrayTextures[index] = arrayTexture;
-
-                        const material = this.#createArrayMaterial(arrayTexture);
+                        const material = this.#registerDecodedArrayTexture(arrayTexture, index);
+                        rememberDecodedTexture(this.#getDecodedTextureCacheKey(), this.rendererType, index, arrayTexture);
                         resolve(material);
                     },
                     (error) => {
@@ -1466,38 +1482,8 @@ export class TileManager {
                 this._ktx2Loader.load(
                     url,
                     (arrayTexture) => {
-                        // Configure array texture
-                        arrayTexture.flipY = false; // shader flips V
-                        arrayTexture.generateMipmaps = false;
-                        const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
-                        arrayTexture.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
-                        arrayTexture.magFilter = THREE.LinearFilter;
-                        arrayTexture.wrapS = THREE.ClampToEdgeWrapping;
-                        arrayTexture.wrapT = THREE.ClampToEdgeWrapping;
-
-                        // Set color space for WebGL to match WebGPU brightness
-                        if (this.rendererType === 'webgl') {
-                            arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
-                        }
-
-                        if (this.layerCount === 0) {
-                            this.layerCount = arrayTexture.image?.depth || 1;
-                            // Reset cycling state
-                            this.currentLayer = 0;
-                            this.direction = 1;
-                            this.sharedLayerUniform.value = 0;
-                            this.#syncFlowSpeedAlignment();
-                        } else {
-                            const depth = arrayTexture.image?.depth || 1;
-                            if (depth !== this.layerCount) {
-                                console.warn(`[TileManager] Tile ${index} depth (${depth}) != layerCount (${this.layerCount}); will clamp when cycling`);
-                            }
-                        }
-
-                        // Store raw texture for dual-texture flow materials
-                        this.arrayTextures[index] = arrayTexture;
-
-                        const material = this.#createArrayMaterial(arrayTexture);
+                        const material = this.#registerDecodedArrayTexture(arrayTexture, index);
+                        rememberDecodedTexture(this.#getDecodedTextureCacheKey(), this.rendererType, index, arrayTexture);
                         resolve(material);
                     },
                     undefined,
@@ -2645,19 +2631,8 @@ export class TileManager {
                     }
 
                     const depth = arrayTexture.image?.depth || 1;
-
-                    if (this.layerCount === 0) {
-                        this.layerCount = depth;
-                        this.currentLayer = 0;
-                        this.direction = 1;
-                        this.sharedLayerUniform.value = 0;
-                        this.#syncFlowSpeedAlignment();
-                    } else if (depth !== this.layerCount) {
-                        console.warn(`[TileManager] Realtime tile ${tileIndex} depth (${depth}) != layerCount (${this.layerCount})`);
-                    }
-
-                    this.arrayTextures[tileIndex] = arrayTexture;
-                    const material = this.#createArrayMaterial(arrayTexture);
+                        const material = this.#registerDecodedArrayTexture(arrayTexture, tileIndex, 'Realtime tile');
+                        rememberDecodedTexture(this.#getDecodedTextureCacheKey(), this.rendererType, tileIndex, arrayTexture);
                     this.materials[tileIndex] = material;
 
                     console.log(`[TileManager] Added tile ${tileIndex} from buffer (depth=${depth})`);
@@ -2782,6 +2757,7 @@ export class TileManager {
             this.variant = cross_section_type || 'waves';
             this.isKTX2 = true;
             this.isZip = true; // Use zip-like flow to parse from downloaded buffers
+            this.currentTextureSet = textureSet;
 
             // Reset layer state
             this.layerCount = 0;
@@ -2823,76 +2799,21 @@ export class TileManager {
                 onProgress('downloading', 0, hasFileSizes ? totalBytes : tiles.length);
             }
 
-            // Download all tile data in parallel with byte-level progress tracking
-            const tileDataArray = await Promise.all(
-                tiles.map(async (tile) => {
-                    try {
-                        const tileIndex = tile.index ?? tile.tileIndex ?? 0;
-                        let data;
-
-                        // Progress callback for byte-level tracking
-                        const onBytesReceived = (bytes) => {
-                            downloadedBytes += bytes;
-                            if (onProgress && hasFileSizes) {
-                                onProgress('downloading', downloadedBytes, totalBytes);
-                            }
-                        };
-
-                        // Check if this is a Google Drive URL (needs API fetch) or direct URL (CDN)
-                        if (tile.driveFileId) {
-                            console.log(`[TileManager] Tile ${tileIndex}: Fetching from Google Drive`);
-                            const { fetchDriveFile } = await import('./auth.js');
-                            // Pass progress callback to test streaming support
-                            data = await fetchDriveFile(tile.driveFileId, onBytesReceived);
-                            console.log(`[TileManager] Tile ${tileIndex} complete (Drive): ${(data.byteLength / 1024).toFixed(1)} KB`);
-                        } else if (tile.url && tile.url.includes('drive.google.com')) {
-                            const fileIdMatch = tile.url.match(/[?&]id=([^&]+)/);
-                            if (fileIdMatch) {
-                                console.log(`[TileManager] Tile ${tileIndex}: Fetching from Google Drive URL`);
-                                const { fetchDriveFile } = await import('./auth.js');
-                                data = await fetchDriveFile(fileIdMatch[1], onBytesReceived);
-                                console.log(`[TileManager] Tile ${tileIndex} complete (Drive URL): ${(data.byteLength / 1024).toFixed(1)} KB`);
-                            } else {
-                                throw new Error('Invalid Drive URL format');
-                            }
-                        } else {
-                            // Direct URL (R2/CDN) - use streaming fetch with byte progress
-                            console.log(`[TileManager] Tile ${tileIndex}: Streaming from CDN`);
-                            data = await this.#fetchWithProgress(tile.url, onBytesReceived);
-                            console.log(`[TileManager] Tile ${tileIndex} complete (CDN): ${(data.byteLength / 1024).toFixed(1)} KB`);
-                        }
-
-                        // For tile-count based progress (fallback when no file sizes)
-                        if (!hasFileSizes && onProgress) {
-                            downloadedBytes++;
-                            onProgress('downloading', downloadedBytes, tiles.length);
-                        }
-
-                        return { index: tileIndex, data: new Uint8Array(data) };
-                    } catch (err) {
-                        const tileIndex = tile.index ?? tile.tileIndex ?? 0;
-                        console.error(`[TileManager] Failed to download tile ${tileIndex}:`, err);
-
-                        // Still increment to avoid stuck progress
-                        if (!hasFileSizes && onProgress) {
-                            downloadedBytes++;
-                            onProgress('downloading', downloadedBytes, tiles.length);
-                        }
-
-                        return { index: tileIndex, data: null };
-                    }
-                })
-            );
-
-            console.log(`[TileManager] Download complete. Total bytes received: ${(downloadedBytes / 1024 / 1024).toFixed(2)} MB`);
-
-            // Store in zipFiles format for compatibility with #loadKTX2Tile
+            const remoteTileEntry = await getOrFetchRemoteTextureTiles(textureSet, { onProgress });
             this.zipFiles = {};
-            for (const { index, data } of tileDataArray) {
-                if (data) {
-                    this.zipFiles[`${index}.ktx2`] = data;
+
+            for (const [filename, bytes] of Object.entries(remoteTileEntry.zipFiles || {})) {
+                if (bytes instanceof ArrayBuffer) {
+                    this.zipFiles[filename] = new Uint8Array(bytes.slice(0));
+                    continue;
+                }
+
+                if (ArrayBuffer.isView(bytes)) {
+                    this.zipFiles[filename] = new Uint8Array(bytes);
                 }
             }
+
+            console.log(`[TileManager] Remote tile data ready from shared cache path. Cached bytes: ${(Number(remoteTileEntry.byteSize || 0) / 1024 / 1024).toFixed(2)} MB`);
 
             // Build materials with cumulative progress tracking
             let completedBuilds = 0;
@@ -2931,23 +2852,17 @@ export class TileManager {
     }
 
     /**
-     * Load textures from local IndexedDB storage.
-     * Reads KTX2 tiles from browser storage and builds materials.
+     * Load textures from already-fetched local tile records.
      * @param {Object} textureSet - Texture set metadata from localStorage service
-     * @param {string} textureSet.id - Texture set ID
-     * @param {number} textureSet.tile_count - Number of tiles
-     * @param {number} textureSet.layer_count - Layers per tile
-     * @param {string} textureSet.cross_section_type - 'planes' or 'waves'
-     * @param {string} textureSet.thumbnail_data_url - Thumbnail for background
-     * @param {Function} getTiles - Function to get tiles from localStorage: (textureSetId) => Promise<Array>
+     * @param {Array} tiles - Array of local tile records with bytes/blob payloads
      * @param {Function} onProgress - Optional progress callback: (stage, current, total) => {}
      * @returns {Promise<boolean>} True if successful, false otherwise
      */
-    async loadFromLocal(textureSet, getTiles, onProgress = null) {
+    async loadFromTileRecords(textureSet, tiles, onProgress = null) {
         try {
-            const { id, tile_count, layer_count, cross_section_type, thumbnail_data_url } = textureSet;
+            const { id, tile_count, cross_section_type, thumbnail_data_url } = textureSet;
 
-            console.log(`[TileManager] Loading local texture set: ${id}, ${tile_count} tiles`);
+            console.log(`[TileManager] Loading local tile records: ${id}, ${tile_count} tiles`);
 
             this.clearAllTiles();
 
@@ -2982,16 +2897,13 @@ export class TileManager {
                 }
             }
 
-            // Fetch tiles from IndexedDB
-            if (onProgress) {
-                onProgress('downloading', 0, tile_count);
-            }
-
-            const tiles = await getTiles(id);
-
             if (!tiles || tiles.length === 0) {
                 console.error('[TileManager] No tiles found in local texture set');
                 return false;
+            }
+
+            if (onProgress) {
+                onProgress('downloading', 0, tile_count);
             }
 
             // Convert blobs to Uint8Arrays and store in zipFiles format
@@ -3072,6 +2984,30 @@ export class TileManager {
 
             console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from local, layerCount=${this.layerCount}`);
             return true;
+        } catch (error) {
+            console.error('[TileManager] Failed to load local textures:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Load textures from local IndexedDB storage.
+     * Reads KTX2 tiles from browser storage and builds materials.
+     * @param {Object} textureSet - Texture set metadata from localStorage service
+     * @param {string} textureSet.id - Texture set ID
+     * @param {number} textureSet.tile_count - Number of tiles
+     * @param {number} textureSet.layer_count - Layers per tile
+     * @param {string} textureSet.cross_section_type - 'planes' or 'waves'
+     * @param {string} textureSet.thumbnail_data_url - Thumbnail for background
+     * @param {Function} getTiles - Function to get tiles from localStorage: (textureSetId) => Promise<Array>
+     * @param {Function} onProgress - Optional progress callback: (stage, current, total) => {}
+     * @returns {Promise<boolean>} True if successful, false otherwise
+     */
+    async loadFromLocal(textureSet, getTiles, onProgress = null) {
+        try {
+            const { id } = textureSet;
+            const tiles = await getTiles(id);
+            return await this.loadFromTileRecords(textureSet, tiles, onProgress);
         } catch (error) {
             console.error('[TileManager] Failed to load local textures:', error);
             return false;

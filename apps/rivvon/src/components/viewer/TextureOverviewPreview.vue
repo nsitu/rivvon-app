@@ -4,6 +4,8 @@
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { TileManager } from '../../modules/viewer/tileManager';
+    import { applyRendererDisplayConfig, readRendererDisplayConfig } from '../../modules/viewer/rendererConfig.js';
+    import { useLocalStorage } from '../../services/localStorage.js';
     import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
@@ -41,12 +43,14 @@
     });
 
     const app = useViewerStore();
+    const { cacheCloudTexture, getTextureSet: getLocalTextureSet, evictCachedTexture } = useLocalStorage();
     const wrapperRef = ref(null);
     const isLoading = ref(false);
     const error = ref('');
     const isReady = ref(false);
     const displayScale = ref(1);
     const tileCount = ref(0);
+    const loadingMessage = ref('Loading...');
     const loadingStatusText = ref('');
     const OVERVIEW_DEV_HELPER_KEY = '__rivvonTextureOverview';
 
@@ -540,6 +544,7 @@
 
     async function createOverviewRenderer() {
         const preferredRendererType = app.rendererType === 'webgpu' ? 'webgpu' : 'webgl';
+        const displayConfig = readRendererDisplayConfig(app.threeContext?.renderer ?? null, preferredRendererType);
 
         if (preferredRendererType === 'webgpu') {
             try {
@@ -554,8 +559,7 @@
                         alpha: true,
                     });
                     webgpuRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-                    webgpuRenderer.setClearColor(0x000000, 0);
-                    webgpuRenderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+                    applyRendererDisplayConfig(webgpuRenderer, displayConfig, 'webgpu');
                     await webgpuRenderer.init();
 
                     return {
@@ -573,8 +577,7 @@
             alpha: true,
             powerPreference: 'high-performance',
         });
-        webglRenderer.setClearColor(0x000000, 0);
-        webglRenderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        applyRendererDisplayConfig(webglRenderer, displayConfig, 'webgl');
 
         return {
             renderer: webglRenderer,
@@ -667,22 +670,28 @@
     function updateLoadingStatus(stage, current, total) {
         const numericTotal = Math.max(0, Number(total) || 0);
         const numericCurrent = Math.max(0, Number(current) || 0);
+        const percent = numericTotal > 0
+            ? `${Math.round((numericCurrent / numericTotal) * 100)}%`
+            : '';
+
+        if (stage === 'building') {
+            loadingMessage.value = 'Building...';
+            loadingStatusText.value = percent;
+            return;
+        }
+
+        if (stage === 'downloading' || stage === 'loading') {
+            loadingMessage.value = 'Loading...';
+            loadingStatusText.value = percent;
+            return;
+        }
 
         if (numericTotal <= 0) {
             loadingStatusText.value = '';
             return;
         }
 
-        const normalized = Math.min(1, numericCurrent / numericTotal);
-        let overallProgress = normalized;
-
-        if (stage === 'downloading') {
-            overallProgress = normalized * 0.5;
-        } else if (stage === 'building') {
-            overallProgress = 0.5 + normalized * 0.5;
-        }
-
-        loadingStatusText.value = `${Math.round(overallProgress * 100)}%`;
+        loadingStatusText.value = percent;
     }
 
     function applyViewerSettings() {
@@ -897,6 +906,7 @@
         isLoading.value = true;
         isReady.value = false;
         error.value = '';
+        loadingMessage.value = 'Loading...';
         loadingStatusText.value = '0%';
         teardownTileManager();
 
@@ -921,26 +931,27 @@
         });
 
         try {
-            let didLoad = false;
+            const { cacheCloudTextureInBackground, getCachedRemoteTextureTiles, resolveTextureLoadTarget } = await import('../../services/textureCacheCoordinator.js');
+            const resolvedTexture = await resolveTextureLoadTarget({
+                texture: props.texture,
+                isLocal: props.isLocal,
+                getLocalTextureSet,
+                getLocalTiles: props.getLocalTiles,
+                getCachedLocalId: props.getCachedLocalId,
+                onInvalidCachedLocal: async ({ cloudTextureId }) => {
+                    await evictCachedTexture(cloudTextureId);
+                },
+                fetchRemoteTextureSet: async (textureId) => {
+                    const { fetchTextureWithTiles } = await loadTextureService();
+                    return fetchTextureWithTiles(textureId);
+                },
+                includeLocalTiles: true,
+                preferSessionCache: true,
+            });
 
-            if (props.isLocal) {
-                didLoad = await nextTileManager.loadFromLocal(props.texture, props.getLocalTiles, handleLoadProgress);
-            } else if (props.isCached && props.getCachedLocalId) {
-                const cachedLocalId = await props.getCachedLocalId(props.texture.id);
-                if (cachedLocalId) {
-                    didLoad = await nextTileManager.loadFromLocal({
-                        ...props.texture,
-                        id: cachedLocalId,
-                        thumbnail_data_url: props.texture.thumbnail_data_url || props.texture.thumbnail_url || null,
-                    }, props.getLocalTiles, handleLoadProgress);
-                }
-            }
-
-            if (!didLoad) {
-                const { fetchTextureWithTiles } = await loadTextureService();
-                const textureSet = await fetchTextureWithTiles(props.texture.id);
-                didLoad = await nextTileManager.loadFromRemote(textureSet, handleLoadProgress);
-            }
+            const didLoad = resolvedTexture.kind === 'remote' || resolvedTexture.kind === 'session-remote'
+                ? await nextTileManager.loadFromRemote(resolvedTexture.textureSet, handleLoadProgress)
+                : await nextTileManager.loadFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleLoadProgress);
 
             if (!didLoad) {
                 throw new Error('Unable to load overview preview tiles.');
@@ -953,10 +964,23 @@
 
             tileManager = nextTileManager;
             tileCount.value = tileManager.getTileCount?.() || props.texture.tile_count || 0;
+            loadingMessage.value = 'Building...';
             loadingStatusText.value = '100%';
             applyViewerSettings();
             rebuildLayout();
             isReady.value = true;
+
+            if (resolvedTexture.kind === 'remote') {
+                const remoteTileEntry = getCachedRemoteTextureTiles(resolvedTexture.textureSet);
+                cacheCloudTextureInBackground({
+                    texture: props.texture,
+                    textureSet: resolvedTexture.textureSet,
+                    cacheCloudTexture,
+                    remoteTileEntry,
+                    tileManager: nextTileManager,
+                    logPrefix: '[TextureOverviewPreview]',
+                });
+            }
         } catch (loadError) {
             nextTileManager.dispose?.();
             if (token !== reloadToken) {
@@ -969,6 +993,7 @@
             if (token === reloadToken) {
                 isLoading.value = false;
                 if (!error.value) {
+                    loadingMessage.value = 'Loading...';
                     loadingStatusText.value = '';
 
                     if (shouldAutoRunDiagnostics()) {
@@ -1267,6 +1292,7 @@
         <LoadingIndicator
             v-else-if="isLoading || !isReady"
             class="texture-overview-preview-message"
+            :message="loadingMessage"
             :status-text="loadingStatusText"
         />
     </div>
