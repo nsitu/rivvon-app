@@ -2721,6 +2721,7 @@
             :viewer-control-mode="app.viewerControlMode"
             :visible="showTechnicalOverlay"
             :fps="threeCanvasRef?.fps ?? 0"
+            :perf-telemetry="threeCanvasRef?.perfTelemetry ?? null"
         />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->

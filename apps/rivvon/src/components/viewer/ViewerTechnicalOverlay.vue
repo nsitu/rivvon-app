@@ -10,6 +10,7 @@
         viewerControlMode: { type: String, default: 'orbit' },
         visible: { type: Boolean, default: false },
         fps: { type: Number, default: 0 },
+        perfTelemetry: { type: Object, default: null },
     });
 
     const activeContext = computed(() => {
@@ -38,6 +39,7 @@
 
     <ViewerStatusOverlay
         :fps="fps"
+        :perf-telemetry="perfTelemetry"
         :visible="visible && activeContext === 'default'"
     />
 </template>

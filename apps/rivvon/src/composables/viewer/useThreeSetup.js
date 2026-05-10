@@ -338,6 +338,7 @@ export function useThreeSetup() {
         pauseRenderLoop: renderLoop.pauseRenderLoop,
         resumeRenderLoop: renderLoop.resumeRenderLoop,
         fps: renderLoop.fps,
+        perfTelemetry: renderLoop.perfTelemetry,
         teardownViewer,
         createRibbon: ribbons.createRibbon,
         createRibbonSeries: ribbons.createRibbonSeries,

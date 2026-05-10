@@ -31,6 +31,18 @@ function logMemoryInfo(stage) {
     return info;
 }
 
+function getJsHeapTelemetry() {
+    if (typeof performance === 'undefined' || !performance.memory) {
+        return null;
+    }
+
+    return {
+        usedMB: performance.memory.usedJSHeapSize / 1024 / 1024,
+        totalMB: performance.memory.totalJSHeapSize / 1024 / 1024,
+        limitMB: performance.memory.jsHeapSizeLimit / 1024 / 1024,
+    };
+}
+
 function isPrivateBrowsingMode() {
     let isPrivate = false;
     try {
@@ -223,5 +235,6 @@ async function runMemoryDiagnostics() {
 
 export {
     estimateAvailableMemory,
+    getJsHeapTelemetry,
     getMemoryConstraints
 };

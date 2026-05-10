@@ -211,7 +211,8 @@ export class TileManager {
         this.requestedFlowSpeed = Math.abs(this.flowSpeed);
         this.flowDirection = this.flowSpeed < 0 ? -1 : 1;
         this.flowEnabled = false;       // Can be toggled
-        this.flowMaterials = [];       // Track all dual-texture materials for uniform updates
+        this.flowMaterials = [];       // Active dual-texture materials currently bound in the scene
+        this.flowMaterialCache = new Map();
         this.flowAlignmentEnabled = !!flowAlignmentEnabled;
         this.flowAlignmentInfo = null;
 
@@ -224,6 +225,7 @@ export class TileManager {
 
         this._ktx2Loader = null;
         this._webgpuDeps = null;
+        this._activeFlowMaterialSet = new Set();
 
         // Per-frame callback
         this._onTick = null;
@@ -547,6 +549,65 @@ export class TileManager {
         };
 
         return material;
+    }
+
+    #buildFlowMaterialCacheKey(currentSample, nextSample, materialOptions = null) {
+        if (this.#hasCapMask(materialOptions)) {
+            return null;
+        }
+
+        return [
+            this.flowDirection < 0 ? 'rev' : 'fwd',
+            currentSample.tileIndex,
+            currentSample.mirrorX ? 1 : 0,
+            nextSample.tileIndex,
+            nextSample.mirrorX ? 1 : 0,
+        ].join(':');
+    }
+
+    #syncFlowMaterialDynamicState(material) {
+        if (!material) {
+            return;
+        }
+
+        if (material._layerUniform) {
+            material._layerUniform.value = this.sharedLayerUniform.value;
+        }
+        if (material._rotateUniform) {
+            material._rotateUniform.value = this.sharedRotateUniform.value;
+        }
+        if (material._flipVerticalUniform) {
+            material._flipVerticalUniform.value = this.sharedFlipVerticalUniform.value;
+        }
+        if (material._flowOffsetUniform) {
+            material._flowOffsetUniform.value = this.sharedFlowOffsetUniform.value;
+        }
+    }
+
+    #trackActiveFlowMaterial(material) {
+        if (!material || this._activeFlowMaterialSet.has(material)) {
+            return material;
+        }
+
+        this.#syncFlowMaterialDynamicState(material);
+        this._activeFlowMaterialSet.add(material);
+        this.flowMaterials.push(material);
+        return material;
+    }
+
+    #disposeFlowMaterial(material) {
+        this.#disposeMaterialExtras(material);
+        material?.dispose?.();
+    }
+
+    #disposeFlowMaterialCache() {
+        this.clearFlowMaterials();
+
+        this.flowMaterialCache.forEach((material) => {
+            this.#disposeFlowMaterial(material);
+        });
+
+        this.flowMaterialCache.clear();
     }
 
     clearEphemeralStaticMaterials() {
@@ -950,6 +1011,14 @@ export class TileManager {
 
         const textureCurrent = this.arrayTextures[currentTileIdx];
         const textureNext = this.arrayTextures[nextTileIdx];
+        const cacheKey = this.#buildFlowMaterialCacheKey(currentSample, nextSample, materialOptions);
+
+        if (cacheKey) {
+            const cachedMaterial = this.flowMaterialCache.get(cacheKey);
+            if (cachedMaterial) {
+                return this.#trackActiveFlowMaterial(cachedMaterial);
+            }
+        }
 
         if (!textureCurrent || !textureNext) {
             console.warn(`[TileManager] Missing textures for flow material: ${currentTileIdx}, ${nextTileIdx}`);
@@ -973,7 +1042,13 @@ export class TileManager {
 
         // Track this material for uniform updates
         if (material) {
-            this.flowMaterials.push(material);
+            material._flowMaterialReusable = !!cacheKey;
+
+            if (cacheKey) {
+                this.flowMaterialCache.set(cacheKey, material);
+            }
+
+            this.#trackActiveFlowMaterial(material);
         }
 
         return material;
@@ -990,14 +1065,25 @@ export class TileManager {
     }
 
     /**
-     * Clear tracked flow materials (call before rebuilding ribbons).
+     * Clear the currently active flow-material bindings.
+     * Reusable cached flow materials are retained for future wraps.
      */
     clearFlowMaterials() {
         this.flowMaterials.forEach(material => {
-            this.#disposeMaterialExtras(material);
-            material?.dispose?.();
+            if (!material?._flowMaterialReusable) {
+                this.#disposeFlowMaterial(material);
+            }
         });
         this.flowMaterials = [];
+        this._activeFlowMaterialSet.clear();
+    }
+
+    getActiveFlowMaterialCount() {
+        return this.flowMaterials.length;
+    }
+
+    getCachedFlowMaterialCount() {
+        return this.flowMaterialCache.size;
     }
 
     #createArrayMaterialWebGL(arrayTexture, options = {}) {
@@ -2405,13 +2491,6 @@ export class TileManager {
         });
         this.arrayTextures = [];
 
-        // Dispose flow materials and their texture uniforms
-        this.flowMaterials.forEach(m => {
-            this.#disposeMaterialExtras(m);
-            if (m?.dispose) m.dispose();
-        });
-        this.flowMaterials = [];
-
         // Release shared KTX2 loader reference
         if (this._ktx2Loader) {
             releaseKTX2Loader();
@@ -2450,6 +2529,7 @@ export class TileManager {
         this.mirroredMaterials.clear();
 
         this.clearEphemeralStaticMaterials();
+        this.#disposeFlowMaterialCache();
 
         // Also dispose tiles (for JPG mode)
         this.tiles.forEach(texture => {
@@ -2501,13 +2581,7 @@ export class TileManager {
         this.mirroredMaterials.clear();
 
         this.clearEphemeralStaticMaterials();
-
-        // Dispose flow materials
-        this.flowMaterials.forEach(m => {
-            this.#disposeMaterialExtras(m);
-            if (m?.dispose) m.dispose();
-        });
-        this.flowMaterials = [];
+        this.#disposeFlowMaterialCache();
 
         // Dispose JPG tiles
         this.tiles.forEach(texture => {
@@ -2547,6 +2621,8 @@ export class TileManager {
             const ok = await this.#initKTX2();
             if (!ok) throw new Error('Failed to initialize KTX2Loader');
         }
+
+        this.#disposeFlowMaterialCache();
 
         return new Promise((resolve, reject) => {
             const buffer = ktx2Buffer instanceof Uint8Array
@@ -2602,6 +2678,8 @@ export class TileManager {
      * @param {number} tileIndex
      */
     removeTile(tileIndex) {
+        this.#disposeFlowMaterialCache();
+
         // Dispose array texture
         if (this.arrayTextures[tileIndex]) {
             this.arrayTextures[tileIndex].dispose();
