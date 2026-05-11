@@ -181,10 +181,30 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="textureAnimationModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('reverse-layer-cycle')"
+                    >
+                        <span class="material-symbols-outlined">fast_rewind</span>
+                        <span>Reverse Layer Cycle</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ reverseLayerCycleModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('reverse-layer-cycle')"
+                            v-model="reverseLayerCycleModel"
                         />
                     </div>
                 </div>
@@ -227,26 +247,6 @@
                 </div>
 
                 <div
-                    v-if="textureAnimationModel"
-                    class="tools-toggle-row"
-                >
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('reverse-layer-cycle')"
-                    >
-                        <span class="material-symbols-outlined">fast_rewind</span>
-                        <span>Reverse Layer Cycle</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ reverseLayerCycleModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('reverse-layer-cycle')"
-                            v-model="reverseLayerCycleModel"
-                        />
-                    </div>
-                </div>
-
-                <div
                     v-if="flowEnabledModel && textureAnimationModel"
                     class="tools-toggle-row"
                 >
@@ -259,7 +259,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
