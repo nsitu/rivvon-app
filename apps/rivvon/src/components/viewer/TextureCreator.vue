@@ -353,6 +353,7 @@
         if (file && file.type.startsWith('video/')) {
             selectedSource.value = 'file';
             cameraStep.value = '1';
+            slyce.resetForNewFileSelection();
             slyce.set('file', file);
             slyce.set('fileURL', URL.createObjectURL(file));
             slyce.set('textureName', file.name.replace(/\.[^.]+$/, '') || 'texture');

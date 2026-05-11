@@ -1,7 +1,6 @@
 <script setup>
     import { computed } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import StatusBox from './StatusBox.vue';
     import OutputActions from './OutputActions.vue';
     import TilePreview from './TilePreview.vue';
@@ -10,14 +9,17 @@
     const app = useSlyceStore();
     const emit = defineEmits(['request-back', 'request-reset', 'request-apply-texture']);
 
-    // Has at least one tile (show preview during processing or when done)
-    const hasTiles = computed(() => Object.keys(app.ktx2BlobURLs).length > 0);
+    // Show the static tile summary as soon as a processing plan exists.
+    const hasTilePlan = computed(() => (app.tilePlan?.tiles?.length ?? 0) > 0);
+
+    // Has at least one encoded tile result.
+    const hasEncodedTiles = computed(() => Object.keys(app.ktx2BlobURLs).length > 0);
 
     // Processing: has status messages but not all tiles encoded yet
     const isProcessing = computed(() => Object.keys(app.status).length > 0 && !app.isComplete);
 
     // Active = processing OR has results (keeps components alive across the transition)
-    const isActive = computed(() => isProcessing.value || hasTiles.value);
+    const isActive = computed(() => isProcessing.value || hasTilePlan.value || hasEncodedTiles.value);
     const isFinalizingOutput = computed(() => app.isSavingLocally || app.isPublishingToCloud);
 
     // Abort processing and go back to settings
@@ -109,16 +111,11 @@
             </div>
         </div>
         <div class="results-main">
-            <!-- Static tile preview (progressively updated during encoding) -->
+            <!-- Static tile summary and preview, visible as soon as the tile plan exists. -->
             <TilePreview
-                v-if="hasTiles"
+                v-if="hasTilePlan"
                 :tilePlan="app.tilePlan"
-            />
-            <!-- No tiles yet — show processing spinner -->
-            <LoadingIndicator
-                v-else
-                class="preview-disabled-placeholder"
-                message="Processing video..."
+                :showTileStatuses="true"
             />
         </div>
     </div>
@@ -184,6 +181,8 @@
 
     .results-main {
         flex: 1;
+        min-height: 0;
+        overflow-y: auto;
     }
 
     /* -- Action bar -- */

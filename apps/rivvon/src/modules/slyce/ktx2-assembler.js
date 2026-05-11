@@ -155,7 +155,7 @@ export class KTX2Assembler {
      * Encode multiple RGBA frames using an existing worker pool (for reuse across multiple tiles)
      * @param {KTX2WorkerPool} workerPool - Existing worker pool to use
      * @param {Array} frames - Array of {rgba: Uint8Array, width: number, height: number} objects
-     * @param {Function} [onProgress] - Progress callback function(layersEncoded, totalLayers)
+    * @param {Function} [onProgress] - Progress callback function(layersEncoded, totalLayers, phase)
      * @returns {Promise<ArrayBuffer>} - KTX2 file buffer with layered texture
      */
     static async encodeParallelWithPool(workerPool, frames, onProgress = null) {
@@ -173,11 +173,26 @@ export class KTX2Assembler {
         // Encode all frames in parallel using the existing pool
         const encodedFramesData = await workerPool.encodeAllFrames(frames, (completed, total, data) => {
             if (onProgress) {
-                onProgress(completed, total);
+                onProgress(completed, total, 'encoding');
             }
         });
 
         console.log(`[Parallel] All ${encodedFramesData.length} frames encoded. Assembling array texture...`);
+
+        if (onProgress) {
+            onProgress(encodedFramesData.length, encodedFramesData.length, 'assembling');
+        }
+
+        // Yield one paint so short-lived assembly status updates can appear
+        // before the synchronous KTX2 container assembly work starts.
+        await new Promise(resolve => {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => resolve());
+                return;
+            }
+
+            setTimeout(resolve, 0);
+        });
 
         // Now process the encoded buffers sequentially to build the final KTX2
         const encodedLayers = [];

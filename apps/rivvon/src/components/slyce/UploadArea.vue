@@ -34,9 +34,12 @@
     const handleFileChange = () => {
         const files = fileInput.value.files;
         if (files && files.length > 0) {
-            app.set('file', files[0])
-            app.set('fileURL', URL.createObjectURL(files[0]))
-            app.set('textureName', getDefaultTextureName(files[0]))
+            const nextFile = files[0];
+
+            app.resetForNewFileSelection();
+            app.set('file', nextFile)
+            app.set('fileURL', URL.createObjectURL(nextFile))
+            app.set('textureName', getDefaultTextureName(nextFile))
             app.set('textureDescription', '')
             emit('request-next');
         }

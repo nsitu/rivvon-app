@@ -130,6 +130,9 @@ export class KTX2WorkerPool {
         // Create array to store results in correct order
         const results = new Array(frames.length);
         let completedCount = 0;
+        let totalWorkerElapsed = 0;
+        let maxWorkerElapsed = 0;
+        let totalEncodedBytes = 0;
 
         // Encode all frames in parallel
         const promises = frames.map((frame, index) =>
@@ -137,6 +140,9 @@ export class KTX2WorkerPool {
                 .then(data => {
                     results[index] = data;
                     completedCount++;
+                    totalWorkerElapsed += data.elapsed || 0;
+                    maxWorkerElapsed = Math.max(maxWorkerElapsed, data.elapsed || 0);
+                    totalEncodedBytes += data.size || 0;
 
                     if (onProgress) {
                         onProgress(completedCount, frames.length, data);
@@ -149,8 +155,14 @@ export class KTX2WorkerPool {
         await Promise.all(promises);
 
         const elapsed = performance.now() - startTime;
-        const avgTime = elapsed / frames.length;
-        console.log(`[KTX2 Worker Pool] Encoded ${frames.length} frames in ${elapsed.toFixed(1)}ms (avg ${avgTime.toFixed(1)}ms/frame)`);
+        const wallAvgTime = elapsed / frames.length;
+        const workerAvgTime = totalWorkerElapsed / frames.length;
+        const totalEncodedMiB = totalEncodedBytes / (1024 * 1024);
+        console.log(
+            `[KTX2 Worker Pool] Encoded ${frames.length} frames in ${elapsed.toFixed(1)}ms ` +
+            `(wall avg ${wallAvgTime.toFixed(1)}ms/frame, worker avg ${workerAvgTime.toFixed(1)}ms/frame, ` +
+            `slowest worker frame ${maxWorkerElapsed.toFixed(1)}ms, output ${totalEncodedMiB.toFixed(1)} MiB)`
+        );
 
         return results;
     }

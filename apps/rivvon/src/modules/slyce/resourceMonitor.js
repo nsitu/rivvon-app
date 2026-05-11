@@ -1,24 +1,43 @@
 import { useSlyceStore } from '../../stores/slyceStore';
+
+function formatMiB(bytes) {
+    const mib = bytes / (1024 * 1024);
+    return mib >= 100 ? `${mib.toFixed(0)} MB` : `${mib.toFixed(1)} MB`;
+}
+
+function buildProcessingResourceStatus(telemetry) {
+    if (!telemetry) {
+        return '';
+    }
+
+    if (telemetry.builderType === 'webgl2' && telemetry.atlasWidth && telemetry.atlasHeight) {
+        // Collapse atlas/source texture math into one user-facing VRAM estimate.
+        // Browsers do not expose actual VRAM, so we estimate RGBA8 texture backing
+        // from the live atlas count maintained by videoProcessor.
+        const estimatedVramBytes = telemetry.estimatedLiveGpuBytes || telemetry.estimatedTotalGpuBytes || 0;
+        if (estimatedVramBytes > 0) {
+            return `<br/>VRAM (estimated) - ${formatMiB(estimatedVramBytes)}`;
+        }
+    }
+
+    return '';
+}
+
 const resourceUsageReport = async () => {
 
     const app = useSlyceStore();
-
-    // Update decoding progress with FPS
-    const effectiveFrameCount = app.framesToSample > 0 ? Math.min(app.framesToSample, app.frameCount) : app.frameCount;
-    const rangeInfo = app.frameStart > 1 ? ` (from frame ${app.frameStart})` : '';
-    const streamStatus = app.readerIsFinished 
-        ? 'Complete' 
-        : `Frame ${app.frameNumber} of ${effectiveFrameCount}${rangeInfo}<br/>${app.fps} FPS`;
-    app.setStatus('Decoding', streamStatus);
+    app.removeStatus('Decoding');
 
     // Update system metrics
-    let systemInfo = `CPU Cores: ${navigator.hardwareConcurrency}`;
+    let systemInfo = `CPU (cores) - ${navigator.hardwareConcurrency}`;
     
     // Add memory usage if available (Chrome only)
     if (performance.memory) {
         const { usedJSHeapSize, jsHeapSizeLimit } = performance.memory;
-        systemInfo += `<br/>Memory: ${(usedJSHeapSize / 1024 / 1024).toFixed(0)} / ${(jsHeapSizeLimit / 1024 / 1024).toFixed(0)} MB`;
+        systemInfo += `<br/>RAM (memory) - ${(usedJSHeapSize / 1024 / 1024).toFixed(0)} / ${(jsHeapSizeLimit / 1024 / 1024).toFixed(0)} MB`;
     }
+
+    systemInfo += buildProcessingResourceStatus(app.processingResourceTelemetry);
     
     app.setStatus('System', systemInfo);
 }

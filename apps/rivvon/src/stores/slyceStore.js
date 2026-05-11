@@ -21,6 +21,7 @@ export const useSlyceStore = defineStore('slyce', {
         autoDeriveResolutions: [],      // optional lower-resolution family variants to auto-generate after root encode
         publishDestination: 'google-drive',
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
+        useWebGL2Builder: true,
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
         fileInfo: null,
@@ -62,6 +63,13 @@ export const useSlyceStore = defineStore('slyce', {
         // Thumbnail blob for CDN upload (captured during processing)
         thumbnailBlob: null,
 
+        // File-mode processing resource telemetry for the System status box.
+        // This is estimated metadata, not direct browser-reported VRAM usage.
+        processingResourceTelemetry: null,
+
+        // Structured progress data for the Processing status box.
+        processingProgress: null,
+
         // File-mode local persistence state
         ...createLocalSaveState(),
 
@@ -95,6 +103,17 @@ export const useSlyceStore = defineStore('slyce', {
         // Set a tile preview blob URL (from TileSnapshotPreview)
         setTilePreviewUrl(tileIndex, blobUrl) {
             this.tilePreviewUrls[tileIndex] = blobUrl;
+        },
+        clearTilePreviewState() {
+            if (this.tileSnapshotPreview) {
+                this.tileSnapshotPreview.dispose();
+            }
+            this.tileSnapshotPreview = null;
+
+            Object.values(this.tilePreviewUrls).forEach(url => {
+                if (url) URL.revokeObjectURL(url);
+            });
+            this.tilePreviewUrls = {};
         },
         // Revoke all KTX2 blob URLs
         revokeBlobURLs() {
@@ -130,6 +149,51 @@ export const useSlyceStore = defineStore('slyce', {
         cancelLocalSave() {
             return this.getLocalSaveController().cancelLocalSave();
         },
+        resetForNewFileSelection() {
+            abortProcessing();
+
+            if (this.fileURL) {
+                URL.revokeObjectURL(this.fileURL);
+            }
+
+            this.revokeBlobURLs();
+            this.clearTilePreviewState();
+
+            this.file = null;
+            this.fileURL = null;
+            this.fileInfo = null;
+            this.frameCount = 0;
+            this.frameStart = 1;
+            this.frameEnd = 0;
+            this.frameNumber = 0;
+            this.readerIsFinished = false;
+            this.samplePixelCount = 0;
+            this.messages = [];
+            this.status = {};
+            this.fpsNow = 0;
+            this.timestamps = [];
+            this.lastFPSUpdate = 0;
+            this.currentStep = '1';
+            this.tilePlan = {};
+            this.thumbnailBlob = null;
+            this.processingResourceTelemetry = null;
+            this.processingProgress = null;
+            this.cropMode = false;
+            this.cropX = 0;
+            this.cropY = 0;
+            this.cropWidth = null;
+            this.cropHeight = null;
+            this.ktx2Playback = {
+                currentLayer: 0,
+                layerCount: 0,
+                isPlaying: false,
+                fps: 30,
+                direction: 1,
+            };
+
+            this.resetLocalSaveState();
+            this.resetPublishState();
+        },
         // Partial reset - clears processing results but keeps video and settings
         resetProcessing() {
             // Abort any ongoing processing
@@ -151,6 +215,8 @@ export const useSlyceStore = defineStore('slyce', {
             this.lastFPSUpdate = 0;
             this.ktx2BlobURLs = {};
             this.thumbnailBlob = null;
+            this.processingResourceTelemetry = null;
+            this.processingProgress = null;
             this.resetLocalSaveState();
             this.resetPublishState();
             this.ktx2Playback = {
@@ -179,6 +245,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.readerIsFinished = false;
             this.autoDeriveResolutions = [];
             this.publishDestination = 'google-drive';
+            this.useWebGL2Builder = true;
             this.fileInfo = null;
             this.textureName = '';
             this.textureDescription = '';
@@ -206,14 +273,11 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropWidth = null;
             this.cropHeight = null;
             this.thumbnailBlob = null;
+            this.processingResourceTelemetry = null;
+            this.processingProgress = null;
             this.resetLocalSaveState();
             this.resetPublishState();
-            // Dispose snapshot preview (revokes blob URLs) before clearing
-            if (this.tileSnapshotPreview) {
-                this.tileSnapshotPreview.dispose();
-            }
-            this.tileSnapshotPreview = null;
-            this.tilePreviewUrls = {};
+            this.clearTilePreviewState();
         },
         trackFrame() {
             // Called each time a frame is processed/decoded

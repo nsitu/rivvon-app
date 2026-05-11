@@ -415,6 +415,12 @@
                 <span>pixels square.</span>
             </p>
 
+            <p class="settings-paragraph">
+                <ToggleSwitch v-model="app.useWebGL2Builder" />
+                <span>Use GPU to assemble tiles.</span>
+                <!-- NOTE: when using GPU we leverage WebGL2, otherwise it will be a canvas based approach.  -->
+            </p>
+
         </div>
 
         <div class="tiles-column">
@@ -450,6 +456,7 @@
                         fileInfo: app.fileInfo,
                         crossSectionCount: app.crossSectionCount,
                         crossSectionType: app.crossSectionType,
+                        useWebGL2Builder: app.useWebGL2Builder,
                     })"
                 />
             </div>

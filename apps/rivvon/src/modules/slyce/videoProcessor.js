@@ -3,6 +3,7 @@ import { useViewerStore } from '../../stores/viewerStore';
 import { resourceUsageReport } from './resourceMonitor.js';
 import { readCanvasSetImages } from './samplingRuntime.js';
 import { TileBuilder } from './tileBuilder.js';
+import { WebGLTileBuilder } from './webglTileBuilder.js';
 import { KTX2Assembler } from './ktx2-assembler.js';
 import { KTX2WorkerPool } from './ktx2-worker-pool.js';
 import { getSharedBackgroundEncodeConfig } from './encodingPolicy.js';
@@ -57,6 +58,99 @@ async function createThumbnailFromRGBA(imageData, options = {}) {
     return blob;
 }
 
+function createCanvasTelemetry(note = null) {
+    return {
+        builderType: 'canvas2d',
+        builderLabel: 'Canvas 2D',
+        note,
+    };
+}
+
+function createWebGL2Telemetry(report, builderSettings) {
+    const layout = report?.layout;
+    const sourceWidth = builderSettings.fileInfo?.width ?? 0;
+    const sourceHeight = builderSettings.fileInfo?.height ?? 0;
+
+    if (!layout) {
+        return {
+            builderType: 'webgl2',
+            builderLabel: 'WebGL2',
+            note: 'Atlas layout unavailable.',
+        };
+    }
+
+    const estimatedAtlasBytes = layout.width * layout.height * 4;
+    const estimatedSourceTextureBytes = sourceWidth * sourceHeight * 4;
+
+    return {
+        builderType: 'webgl2',
+        builderLabel: 'WebGL2 Atlas',
+        atlasWidth: layout.width,
+        atlasHeight: layout.height,
+        atlasColumns: layout.columns,
+        atlasRows: layout.rows,
+        layerCount: builderSettings.crossSectionCount,
+        sourceWidth,
+        sourceHeight,
+        estimatedAtlasBytes,
+        estimatedSourceTextureBytes,
+        estimatedTotalGpuBytes: estimatedAtlasBytes + estimatedSourceTextureBytes,
+        liveAtlasCount: 0,
+        peakAtlasCount: 0,
+        estimatedLiveGpuBytes: 0,
+        estimatedPeakGpuBytes: 0,
+        maxTextureSize: report?.maxTextureSize ?? null,
+    };
+}
+
+function updateWebGL2Telemetry(app, updater) {
+    const current = app.processingResourceTelemetry;
+    if (!current || current.builderType !== 'webgl2') {
+        return;
+    }
+
+    const next = updater(current);
+    if (!next) {
+        return;
+    }
+
+    app.set('processingResourceTelemetry', {
+        ...current,
+        ...next,
+    });
+}
+
+function incrementWebGL2AtlasCount(app) {
+    updateWebGL2Telemetry(app, current => {
+        const liveAtlasCount = (current.liveAtlasCount ?? 0) + 1;
+        const peakAtlasCount = Math.max(current.peakAtlasCount ?? 0, liveAtlasCount);
+        const estimatedPerTileBytes = current.estimatedTotalGpuBytes ?? 0;
+
+        return {
+            liveAtlasCount,
+            peakAtlasCount,
+            estimatedLiveGpuBytes: estimatedPerTileBytes * liveAtlasCount,
+            estimatedPeakGpuBytes: estimatedPerTileBytes * peakAtlasCount,
+        };
+    });
+}
+
+function decrementWebGL2AtlasCount(app) {
+    updateWebGL2Telemetry(app, current => {
+        const liveAtlasCount = Math.max(0, (current.liveAtlasCount ?? 0) - 1);
+        const estimatedPerTileBytes = current.estimatedTotalGpuBytes ?? 0;
+
+        return {
+            liveAtlasCount,
+            estimatedLiveGpuBytes: estimatedPerTileBytes * liveAtlasCount,
+        };
+    });
+}
+
+function formatProgressFps(fps) {
+    return Number.isFinite(fps) && fps > 0 ? ` (${Math.round(fps)} FPS)` : '';
+}
+
 const processVideo = async (settings) => {
 
     // Abort any previous processing
@@ -75,7 +169,6 @@ const processVideo = async (settings) => {
     let absoluteFrameNumber = 0;
 
     const tileBuilders = {};  // to store builder for each tileNumber
-    const encodedTileBlobs = {};
     let completedTiles = 0;  // Track completed tiles 
 
     const {
@@ -84,7 +177,8 @@ const processVideo = async (settings) => {
         samplingMode,
         config,
         crossSectionCount,
-        crossSectionType
+        crossSectionType,
+        useWebGL2Builder = true,
     } = settings
 
     const app = useSlyceStore()  // Pinia store 
@@ -98,37 +192,26 @@ const processVideo = async (settings) => {
     app.set('autoDeriveResolutions', []);
     app.set('publishDestination', 'google-drive');
     app.set('thumbnailBlob', null);
+    app.set('processingResourceTelemetry', null);
+    app.set('processingProgress', null);
 
     // go to the processing tab.
     app.set('currentStep', '3')
     app.set('readerIsFinished', false)
 
     // Calculate how many frames will actually be used vs skipped
-    const lastTileEnd = tilePlan.tiles[tilePlan.tiles.length - 1].end;
+    const totalTiles = tilePlan.tiles.length;
+    const lastTileEnd = tilePlan.tiles[totalTiles - 1].end;
     const framesUsed = lastTileEnd;
-    const effectiveFrameCount = app.framesToSample > 0 ? Math.min(app.framesToSample, app.frameCount) : app.frameCount;
     const frameStart = app.frameStart || 1;
     const frameEnd = app.frameEnd || app.frameCount;
-    const framesSkippedByTiling = effectiveFrameCount - framesUsed;
-    const framesSkippedByLimit = app.frameCount - effectiveFrameCount;
 
-    // Log upfront information about the processing plan
-    if (framesSkippedByLimit > 0) {
-        app.setStatus('Frame Range', `Using frames ${frameStart}–${frameEnd} (${effectiveFrameCount} of ${app.frameCount} total)`);
+    // Initialize status
+    app.removeStatus('Decoding');
+    app.removeStatus('Frame Range');
+    for (let tileIndex = 0; tileIndex < totalTiles; tileIndex++) {
+        app.setStatus(`Tile ${tileIndex + 1}`, 'Queued');
     }
-    if (framesSkippedByTiling > 0) {
-        const skippedStart = lastTileEnd + 1;
-        const skippedEnd = effectiveFrameCount;
-        app.setStatus('Processing',
-            `${tilePlan.tiles.length} tile(s) using frames 1-${lastTileEnd}. ` +
-            `Frames ${skippedStart}-${skippedEnd} (${framesSkippedByTiling} frames) are outside tile boundaries and will be skipped.`);
-    } else {
-        app.setStatus('Processing', `${tilePlan.tiles.length} tile(s) using all ${framesUsed} frames.`);
-    }
-
-    // Initialize encoding status
-    app.setStatus('KTX2 Encoding', `Encoded 0 of ${tilePlan.tiles.length} tiles`);
-    app.setStatus('Tile 1', 'Queued');
 
     const source = new VideoFileFrameSource({
         file: app.file,
@@ -148,53 +231,159 @@ const processVideo = async (settings) => {
     });
 
     const encodeConfig = getSharedBackgroundEncodeConfig();
-    let activeTileEncodeCount = 0;
-    const tileEncodeWaiters = [];
+    let tileEncodeQueue = Promise.resolve();
+    let isTileEncodeActive = false;
+    let queuedTileEncodeCount = 0;
+    let queuedTileHeadroomPromise = null;
+    let resolveQueuedTileHeadroom = null;
+    let sampledTileBuilderType = null;
+    let webglSupportReport = null;
+    let currentEncodingStartedAt = 0;
+    const tileProgress = tilePlan.tiles.map(() => ({
+        decodeProgress: 0,
+        encodeProgress: 0,
+    }));
+    const seenProcessingLegendStates = {
+        queued: false,
+        decoding: false,
+        encoding: false,
+        complete: false,
+    };
+
+    const processingProgressWeights = {
+        decode: 0.35,
+        encode: 0.65,
+    };
 
     console.log(`[VideoProcessor] Encode policy: max ${encodeConfig.maxConcurrentTileEncodes} tile(s), ${encodeConfig.layerWorkerCount} layer worker(s) (${encodeConfig.reason})`);
 
-    function acquireTileEncodeSlot() {
-        if (abortSignal.aborted) {
-            return Promise.reject(new DOMException('Video processing aborted.', 'AbortError'));
+    function getTileFrameProgress(tileNumber, frameNumber) {
+        const tile = tilePlan.tiles[tileNumber];
+        const frameCount = Math.max(1, tile.end - tile.start + 1);
+        const frameIndex = Math.min(frameCount, Math.max(1, frameNumber - tile.start + 1));
+        return { frameIndex, frameCount };
+    }
+
+    function clampProgress(value) {
+        return Math.max(0, Math.min(1, value ?? 0));
+    }
+
+    function updateTileProgress(tileNumber, next) {
+        const tile = tileProgress[tileNumber];
+        if (!tile) {
+            return;
         }
 
-        if (activeTileEncodeCount < encodeConfig.maxConcurrentTileEncodes) {
-            activeTileEncodeCount++;
-            return Promise.resolve();
+        if (typeof next.decodeProgress === 'number') {
+            tile.decodeProgress = clampProgress(next.decodeProgress);
         }
 
-        return new Promise((resolve, reject) => {
-            const resume = () => {
-                cleanupAbort();
-                activeTileEncodeCount++;
-                resolve();
-            };
+        if (typeof next.encodeProgress === 'number') {
+            tile.encodeProgress = clampProgress(next.encodeProgress);
+        }
+    }
 
-            const onAbort = () => {
-                cleanupAbort();
-                const waiterIndex = tileEncodeWaiters.indexOf(resume);
-                if (waiterIndex !== -1) {
-                    tileEncodeWaiters.splice(waiterIndex, 1);
-                }
-                reject(new DOMException('Video processing aborted.', 'AbortError'));
-            };
+    function getVisibleProcessingLegendStates() {
+        return {
+            queued: tileProgress.some(tile => tile.decodeProgress <= 0 && tile.encodeProgress <= 0),
+            decoding: tileProgress.some(tile => tile.decodeProgress > tile.encodeProgress && tile.decodeProgress > 0),
+            encoding: tileProgress.some(tile => tile.encodeProgress > 0 && tile.encodeProgress < 1),
+            complete: tileProgress.some(tile => tile.encodeProgress >= 1),
+        };
+    }
 
-            const cleanupAbort = () => {
-                abortSignal.removeEventListener('abort', onAbort);
-            };
+    function updateProcessingStatus() {
+        const decodedTilesEquivalent = tileProgress.reduce((sum, tile) => sum + tile.decodeProgress, 0);
+        const encodedTilesEquivalent = tileProgress.reduce((sum, tile) => sum + tile.encodeProgress, 0);
+        const decodeProgress = totalTiles > 0 ? decodedTilesEquivalent / totalTiles : 1;
+        const encodeProgress = totalTiles > 0 ? encodedTilesEquivalent / totalTiles : 1;
+        const overallProgress = (decodeProgress * processingProgressWeights.decode)
+            + (encodeProgress * processingProgressWeights.encode);
+        const overallPercent = Math.round(overallProgress * 100);
+        const visibleLegendStates = getVisibleProcessingLegendStates();
 
-            abortSignal.addEventListener('abort', onAbort, { once: true });
-            tileEncodeWaiters.push(resume);
+        seenProcessingLegendStates.queued ||= visibleLegendStates.queued;
+        seenProcessingLegendStates.decoding ||= visibleLegendStates.decoding;
+        seenProcessingLegendStates.encoding ||= visibleLegendStates.encoding;
+        seenProcessingLegendStates.complete ||= visibleLegendStates.complete;
+
+        app.setStatus(
+            'Processing',
+            `${overallPercent}% complete`
+        );
+
+        app.set('processingProgress', {
+            label: `${overallPercent}% complete`,
+            overallPercent,
+            decodedTilesEquivalent,
+            encodedTilesEquivalent,
+            totalTiles,
+            legendStates: { ...seenProcessingLegendStates },
+            tiles: tileProgress.map(tile => ({ ...tile })),
         });
     }
 
-    function releaseTileEncodeSlot() {
-        activeTileEncodeCount = Math.max(0, activeTileEncodeCount - 1);
+    updateProcessingStatus();
 
-        while (tileEncodeWaiters.length > 0 && activeTileEncodeCount < encodeConfig.maxConcurrentTileEncodes) {
-            const resume = tileEncodeWaiters.shift();
-            resume();
+    function incrementQueuedTileEncodeCount() {
+        queuedTileEncodeCount++;
+        if (!queuedTileHeadroomPromise) {
+            queuedTileHeadroomPromise = new Promise(resolve => {
+                resolveQueuedTileHeadroom = resolve;
+            });
         }
+    }
+
+    function decrementQueuedTileEncodeCount() {
+        queuedTileEncodeCount = Math.max(0, queuedTileEncodeCount - 1);
+        if (queuedTileEncodeCount === 0 && resolveQueuedTileHeadroom) {
+            const resolve = resolveQueuedTileHeadroom;
+            resolveQueuedTileHeadroom = null;
+            queuedTileHeadroomPromise = null;
+            resolve();
+        }
+    }
+
+    function enqueueTileEncode(task) {
+        const queuedBehindActiveEncode = isTileEncodeActive || queuedTileEncodeCount > 0;
+
+        if (queuedBehindActiveEncode) {
+            incrementQueuedTileEncodeCount();
+        }
+
+        const queuedTask = tileEncodeQueue
+            .catch(() => { })
+            .then(async () => {
+                if (queuedBehindActiveEncode) {
+                    decrementQueuedTileEncodeCount();
+                }
+
+                if (abortSignal.aborted) {
+                    throw new DOMException('Video processing aborted.', 'AbortError');
+                }
+
+                isTileEncodeActive = true;
+
+                try {
+                    return await task();
+                } finally {
+                    isTileEncodeActive = false;
+                }
+            });
+
+        tileEncodeQueue = queuedTask.catch(() => { });
+        return queuedTask;
+    }
+
+    async function waitForEncodeQueueHeadroomIfNeeded() {
+        // Keep decoding at most one completed tile ahead of KTX2 encode.
+        // If another tile is already waiting behind the active encode, pause
+        // decoding until the queue drains back to zero waiting tiles.
+        if (queuedTileEncodeCount === 0) {
+            return;
+        }
+
+        await queuedTileHeadroomPromise;
     }
 
     // Iterate through decoded video samples
@@ -206,26 +395,71 @@ const processVideo = async (settings) => {
             return item.tileNumber;
         },
         createBuilder(item, tileNumber) {
-            return new TileBuilder({
-                        tileNumber,
-                        tilePlan,
-                        fileInfo: item.effectiveFileInfo,
-                        samplingMode,
-                        crossSectionCount,
-                        crossSectionType,
-                        // Base wavelength on frames we actually process (up to lastTileEnd)
-                        frameCount: framesUsed,
-                        outputFormat: app.outputFormat  // Pass output format to TileBuilder
+            const builderSettings = {
+                tileNumber,
+                tilePlan,
+                fileInfo: item.effectiveFileInfo,
+                samplingMode,
+                crossSectionCount,
+                crossSectionType,
+                // Base wavelength on frames we actually process (up to lastTileEnd)
+                frameCount: framesUsed,
+                outputFormat: app.outputFormat,
+            };
+
+            if (sampledTileBuilderType === null) {
+                if (!useWebGL2Builder) {
+                    sampledTileBuilderType = 'canvas2d';
+                    app.set('processingResourceTelemetry', createCanvasTelemetry('No GPU atlas allocated for tile assembly.'));
+                    console.log('[VideoProcessor] WebGL2 tile builder disabled; using 2D canvas sampling.');
+                } else {
+                    webglSupportReport = WebGLTileBuilder.getSupportReport(builderSettings);
+                    if (webglSupportReport.supported) {
+                        sampledTileBuilderType = 'webgl2';
+                        app.set('processingResourceTelemetry', createWebGL2Telemetry(webglSupportReport, builderSettings));
+                        console.log(`[VideoProcessor] Using WebGL2 tile builder (${webglSupportReport.reason})`);
+                    } else {
+                        sampledTileBuilderType = 'canvas2d';
+                        app.set('processingResourceTelemetry', createCanvasTelemetry(`WebGL2 unavailable: ${webglSupportReport.reason}`));
+                        console.warn(`[VideoProcessor] WebGL2 tile builder unavailable (${webglSupportReport.reason}); falling back to 2D canvas sampling.`);
+                    }
+                }
+            }
+
+            if (sampledTileBuilderType === 'webgl2') {
+                try {
+                    return new WebGLTileBuilder({
+                        ...builderSettings,
+                        supportReport: webglSupportReport,
                     });
+                } catch (error) {
+                    sampledTileBuilderType = 'canvas2d';
+                    app.set('processingResourceTelemetry', createCanvasTelemetry('WebGL2 initialization failed; using canvas assembly.'));
+                    console.warn('[VideoProcessor] Failed to initialize WebGL2 tile builder; falling back to 2D canvas sampling:', error);
+                }
+            }
+
+            return new TileBuilder(builderSettings);
         },
         onBuilderCreated({ builderKey, builder }) {
             tileBuilders[builderKey] = builder;
+
+            if (builder instanceof WebGLTileBuilder) {
+                incrementWebGL2AtlasCount(app);
+            }
         },
         async processItem({ builder, item }) {
             frameNumber = item.frameNumber;
             absoluteFrameNumber = item.absoluteFrameNumber;
             app.frameNumber = frameNumber;
             app.trackFrame();
+
+            const { frameIndex, frameCount } = getTileFrameProgress(item.tileNumber, item.frameNumber);
+            updateTileProgress(item.tileNumber, {
+                decodeProgress: frameCount > 0 ? frameIndex / frameCount : 1,
+            });
+            app.setStatus(`Tile ${item.tileNumber + 1}`, `Decoding frame ${frameIndex}/${frameCount}${formatProgressFps(app.fps)}`);
+            updateProcessingStatus();
 
             builder.processFrame({
                 videoFrame: item.videoFrame,
@@ -234,7 +468,7 @@ const processVideo = async (settings) => {
 
             return true;
         },
-        onItemProcessed({ builderKey, builder }) {
+        async onItemProcessed({ builderKey, builder }) {
             // Snapshot the tile's layer 0 canvas for the static preview.
             // Must be AFTER processFrame so the canvas has the latest pixels.
             if (app.tileSnapshotPreview) {
@@ -249,106 +483,147 @@ const processVideo = async (settings) => {
             }
 
             resourceUsageReport();
+
+            if (queuedTileEncodeCount > 0 && tileBuilders[builderKey] === builder) {
+                app.setStatus(`Tile ${builderKey + 1}`, 'Queued for Decoding');
+            }
+
+            await waitForEncodeQueueHeadroomIfNeeded();
             return true;
         },
-        onTileComplete: async ({ builderKey, payload }) => {
+        onTileComplete: async ({ builderKey, builder, payload }) => {
             delete tileBuilders[builderKey];
 
-            const { tileId = builderKey, canvasSet } = payload;
-            const totalTiles = tilePlan.tiles.length;
-            let images = [];
+            const { tileId = builderKey, canvasSet = null, readImages = null } = payload;
 
-            app.setStatus(`Tile ${tileId + 1}`, 'Queued');
+            updateTileProgress(tileId, { decodeProgress: 1 });
+            updateProcessingStatus();
+            app.setStatus(`Tile ${tileId + 1}`, 'Ready for Encoding');
 
-            try {
-                await acquireTileEncodeSlot();
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    console.error(`[VideoProcessor] Failed to queue tile ${tileId}:`, error);
-                }
+            if (abortSignal.aborted) {
                 return;
             }
 
-            try {
-                if (abortSignal.aborted) return;
-
-                // Bake the live preview canvas to a static blob URL
-                if (app.tileSnapshotPreview) {
-                    try {
-                        await app.tileSnapshotPreview.bake(tileId);
-                    } catch (e) {
-                        // Non-critical
-                    }
-                }
-
+            // Bake the live preview canvas to a static blob URL before the builder is disposed.
+            if (app.tileSnapshotPreview) {
                 try {
-                    images = readCanvasSetImages(canvasSet);
-                } catch (error) {
-                    console.error(`[VideoProcessor] Failed to read back tile ${tileId}:`, error);
+                    await app.tileSnapshotPreview.bake(tileId);
+                } catch (e) {
+                    // Non-critical
+                }
+            }
+
+            try {
+                await enqueueTileEncode(async () => {
+                    if (abortSignal.aborted) return;
+
+                    // Let the KTX2 stage read directly from the completed atlas/canvases.
+                    // The queue headroom rule keeps sampling only one tile ahead.
+                    let images = [];
+                    try {
+                        images = typeof readImages === 'function'
+                            ? await readImages()
+                            : readCanvasSetImages(canvasSet);
+                    } catch (error) {
+                        console.error(`[VideoProcessor] Failed to read back tile ${tileId}:`, error);
+                        app.setStatus(`Tile ${tileId + 1} Error`, error.message);
+                        return;
+                    }
+
+                    if (tileId === 0 && images.length > 0) {
+                        try {
+                            const thumbnailBlob = await createThumbnailFromRGBA(images[0]);
+                            app.set('thumbnailBlob', thumbnailBlob);
+                        } catch (err) {
+                            console.warn('[VideoProcessor] Failed to create thumbnail:', err);
+                        }
+                    }
+
+                    if (images.length > 0) {
+                        try {
+                            console.log(`[KTX2] Encoding tile ${tileId} with ${images.length} layers (parallel)`);
+
+                            let ktx2WorkerPool = getKtx2WorkerPool();
+                            if (!ktx2WorkerPool) {
+                                ktx2WorkerPool = registerKtx2WorkerPool(new KTX2WorkerPool(encodeConfig.layerWorkerCount));
+                                await ktx2WorkerPool.init();
+                                console.log(`[KTX2] Worker pool created with ${encodeConfig.layerWorkerCount} workers and will be reused for all tiles`);
+                            }
+
+                            currentEncodingStartedAt = performance.now();
+                            app.setStatus(`Tile ${tileId + 1}`, `Encoding layer 0/${images.length}`);
+                            updateProcessingStatus();
+
+                            const onProgress = (layersEncoded, totalLayers, phase = 'encoding') => {
+                                if (phase === 'assembling') {
+                                    updateTileProgress(tileId, {
+                                        encodeProgress: totalLayers > 0 ? 0.999 : 0.999,
+                                    });
+                                    app.setStatus(`Tile ${tileId + 1}`, 'Assembling KTX2 Layers');
+                                    updateProcessingStatus();
+                                    return;
+                                }
+
+                                const encodeProgress = totalLayers > 0
+                                    ? (layersEncoded >= totalLayers ? 0.999 : layersEncoded / totalLayers)
+                                    : 1;
+                                updateTileProgress(tileId, {
+                                    encodeProgress,
+                                });
+                                const elapsedSeconds = Math.max((performance.now() - currentEncodingStartedAt) / 1000, 0.001);
+                                const encodingFps = layersEncoded / elapsedSeconds;
+                                app.setStatus(`Tile ${tileId + 1}`, `Encoding layer ${layersEncoded}/${totalLayers}${formatProgressFps(encodingFps)}`);
+                                updateProcessingStatus();
+                            };
+
+                            const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(ktx2WorkerPool, images, onProgress);
+                            updateTileProgress(tileId, { encodeProgress: 1 });
+                            const blob = new Blob([ktx2Buffer], { type: 'image/ktx2' });
+                            app.registerBlobURL(tileId, blob);
+                            app.setStatus(`Tile ${tileId + 1}`, 'Complete');
+                            updateProcessingStatus();
+
+                            console.log(`[KTX2] Tile ${tileId} encoded: ${(blob.size / 1024).toFixed(1)}KB`);
+                        } catch (error) {
+                            updateProcessingStatus();
+                            if (abortSignal.aborted || error.name === 'AbortError') {
+                                return;
+                            }
+                            console.error(`[KTX2] Failed to encode tile ${tileId}:`, error);
+                            app.setStatus(`Tile ${tileId + 1} Error`, error.message);
+                        }
+                    }
+
+                    if (abortSignal.aborted) return;
+
+                    completedTiles++;
+                    updateProcessingStatus();
+
+                    if (completedTiles === totalTiles) {
+                        console.log(`[VideoProcessor] All ${completedTiles} tiles completed`);
+                        app.removeStatus('Processing');
+                        app.set('processingProgress', null);
+                        app.removeStatus('Frame Range');
+                        app.removeStatus('Seeking');
+                        app.removeStatus('Decoding');
+                        app.removeStatus('System');
+                        cleanupKTX2Workers();
+                        const viewerStore = useViewerStore();
+                        viewerStore.resumeViewer();
+                    }
+                });
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error(`[VideoProcessor] Failed to process queued tile ${tileId}:`, error);
                     app.setStatus(`Tile ${tileId + 1} Error`, error.message);
                 }
-
-                if (abortSignal.aborted) return;
-
-                if (tileId === 0 && images.length > 0) {
-                    try {
-                        const thumbnailBlob = await createThumbnailFromRGBA(images[0]);
-                        app.set('thumbnailBlob', thumbnailBlob);
-                    } catch (err) {
-                        console.warn('[VideoProcessor] Failed to create thumbnail:', err);
-                    }
-                }
-
-                if (images.length > 0) {
-                    try {
-                        console.log(`[KTX2] Encoding tile ${tileId} with ${images.length} layers (parallel)`);
-
-                        let ktx2WorkerPool = getKtx2WorkerPool();
-                        if (!ktx2WorkerPool) {
-                            ktx2WorkerPool = registerKtx2WorkerPool(new KTX2WorkerPool(encodeConfig.layerWorkerCount));
-                            await ktx2WorkerPool.init();
-                            console.log(`[KTX2] Worker pool created with ${encodeConfig.layerWorkerCount} workers and will be reused for all tiles`);
-                        }
-
-                        const onProgress = (layersEncoded, totalLayers) => {
-                            app.setStatus(`Tile ${tileId + 1}`, `Encoding layer ${layersEncoded} of ${totalLayers}`);
-                        };
-
-                        const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(ktx2WorkerPool, images, onProgress);
-                        const blob = new Blob([ktx2Buffer], { type: 'image/ktx2' });
-                        encodedTileBlobs[tileId] = blob;
-                        app.registerBlobURL(tileId, blob);
-                        app.removeStatus(`Tile ${tileId + 1}`);
-
-                        console.log(`[KTX2] Tile ${tileId} encoded: ${(blob.size / 1024).toFixed(1)}KB`);
-                    } catch (error) {
-                        if (abortSignal.aborted || error.name === 'AbortError') {
-                            return;
-                        }
-                        console.error(`[KTX2] Failed to encode tile ${tileId}:`, error);
-                        app.setStatus(`Tile ${tileId + 1} Error`, error.message);
-                    }
-                }
-
-                if (abortSignal.aborted) return;
-
-                completedTiles++;
-                app.setStatus('KTX2 Encoding', `Encoded ${completedTiles} of ${totalTiles} tiles`);
-
-                if (completedTiles === totalTiles) {
-                    console.log(`[VideoProcessor] All ${completedTiles} tiles completed`);
-                    app.removeStatus('KTX2 Encoding');
-                    app.removeStatus('Processing');
-                    app.removeStatus('Frame Range');
-                    app.removeStatus('Seeking');
-                    app.removeStatus('Decoding');
-                    app.removeStatus('System');
-                    cleanupKTX2Workers();
-                    const viewerStore = useViewerStore();
-                    viewerStore.resumeViewer();
-                }
             } finally {
-                releaseTileEncodeSlot();
+                if (builder instanceof WebGLTileBuilder) {
+                    decrementWebGL2AtlasCount(app);
+                }
+
+                builder.dispose?.();
+                resourceUsageReport();
             }
         },
         onError(error) {

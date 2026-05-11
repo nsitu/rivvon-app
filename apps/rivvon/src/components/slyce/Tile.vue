@@ -13,8 +13,19 @@
         aspectRatio: { type: String, default: '1/1' },
         skip: { type: Boolean, default: false },
         previewUrl: { type: String, default: null },
-        tileIndex: { type: Number, default: -1 }
+        tileIndex: { type: Number, default: -1 },
+        showOverlayDetails: { type: Boolean, default: true },
+        processingOverlayState: { type: String, default: 'none' }
     });
+
+    const overlayClasses = computed(() => {
+        return [
+            'tile-processing-overlay',
+            `tile-processing-overlay-${props.processingOverlayState || 'none'}`,
+        ];
+    });
+
+    const showCompletionBadge = computed(() => props.processingOverlayState === 'complete');
 
     const canvasRef = ref(null);
 
@@ -62,7 +73,20 @@
             class="tile-preview-canvas"
         ></canvas>
 
-        <div class="tile-labels">
+        <div :class="overlayClasses"></div>
+
+        <div
+            v-if="showCompletionBadge"
+            class="tile-complete-badge"
+            aria-hidden="true"
+        >
+            <span class="tile-complete-badge-check"></span>
+        </div>
+
+        <div
+            v-if="props.showOverlayDetails"
+            class="tile-labels"
+        >
             <div class="flex items-center">
                 <span class="small-icon material-symbols-outlined">crop_free</span>
                 <span>{{ width }}</span>
@@ -120,6 +144,57 @@
         opacity: 1;
     }
 
+    .tile-processing-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 160ms ease, background-color 160ms ease;
+    }
+
+    .tile-processing-overlay-ready {
+        opacity: 1;
+        background: rgba(156, 163, 175, 0.38);
+    }
+
+    .tile-processing-overlay-encoding {
+        opacity: 1;
+        background: rgba(134, 239, 172, 0.3);
+    }
+
+    .tile-processing-overlay-complete,
+    .tile-processing-overlay-none {
+        opacity: 0;
+        background: transparent;
+    }
+
+    .tile-complete-badge {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.96);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+    }
+
+    .tile-complete-badge-check {
+        width: 0.5rem;
+        height: 0.95rem;
+        border-right: 0.18rem solid #ffffff;
+        border-bottom: 0.18rem solid #ffffff;
+        transform: rotate(40deg) translate(-0.05rem, -0.05rem);
+        display: block;
+    }
+
     .tile-row {
         background: repeating-linear-gradient(0deg,
                 var(--bg-secondary),
@@ -149,7 +224,7 @@
         align-items: center;
         gap: 0.125rem;
         position: relative;
-        z-index: 1;
+        z-index: 2;
     }
 
     .tile-has-preview .tile-labels,

@@ -28,7 +28,7 @@ Realtime capture now throttles encoding more aggressively than file-mode process
 
 - While the camera is still sampling, realtime keeps only one tile encode in flight at a time.
 - While the camera is still sampling, realtime uses a single KTX2 worker, so only one layer encode runs at a time.
-- Once sampling stops and the app is only draining queued tiles, realtime disables that extra throttle and switches to the same background encode policy as file mode: up to two concurrent tile encodes, with layer workers sized from `navigator.hardwareConcurrency`.
+- Once sampling stops and the app is only draining queued tiles, realtime disables that extra throttle and switches to the same background encode policy as file mode: one tile encode at a time, with layer workers sized from `navigator.hardwareConcurrency`.
 - File-mode processing uses that same shared background encode policy explicitly, rather than relying on the worker-pool default implicitly.
 
 This split is intentional.
@@ -40,7 +40,7 @@ This split is intentional.
 
 Low-memory mobile devices, especially Apple WebKit on iPad, needed explicit safeguards beyond the basic realtime throttle.
 
-- The shared background encode policy still allows up to two concurrent tile encodes, but it now caps layer-worker count to `2` on Apple WebKit and on clearly memory-constrained devices instead of always using the full reported core count.
+- The shared background encode policy now runs one tile encode at a time, and it still caps layer-worker count to `2` on Apple WebKit and on clearly memory-constrained devices instead of always using the full reported core count.
 - Realtime does not escalate into the larger post-sampling background pool until the in-flight capture-time worker pool has gone idle. This avoids overlapping the old `1`-worker pool with a new larger pool during drain.
 - Completed realtime tiles are retained safely until deferred readback and encode finish, so post-sampling drain does not lose queued tile data while the capture loop is shutting down.
 
