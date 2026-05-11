@@ -5,10 +5,12 @@
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
+    import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import GeometrySettingsControls from './GeometrySettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import ViewerSettingsControls from './ViewerSettingsControls.vue';
+    import { EXPORT_LOGO_CORNER_OPTIONS } from '../../modules/viewer/exportLogoOverlay.js';
     import {
         EXPORT_ASPECT_RATIO_OPTIONS,
         getExportResolutionOptions,
@@ -94,6 +96,21 @@
     });
 
     const exportResolutionOptions = computed(() => getExportResolutionOptions(exportAspectRatioPresetModel.value));
+    const exportLogoCornerOptions = EXPORT_LOGO_CORNER_OPTIONS;
+
+    const exportLogoOverlayEnabledModel = computed({
+        get: () => app.exportLogoOverlayEnabled,
+        set: (value) => {
+            app.setExportLogoOverlayEnabled(value);
+        }
+    });
+
+    const exportLogoOverlayCornerModel = computed({
+        get: () => app.exportLogoOverlayCorner,
+        set: (value) => {
+            app.setExportLogoOverlayCorner(value);
+        }
+    });
 
     const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
@@ -716,6 +733,37 @@
                                     />
                                 </div>
                             </div>
+
+                            <div class="tools-select-block">
+                                <label
+                                    for="exportLogoOverlayToggle"
+                                    class="tools-select-label"
+                                >Logo Overlay</label>
+                                <div class="tools-toggle-row">
+                                    <ToggleSwitch
+                                        inputId="exportLogoOverlayToggle"
+                                        v-model="exportLogoOverlayEnabledModel"
+                                    />
+                                    <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
+                                        }}</span>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="exportLogoOverlayEnabledModel"
+                                class="tools-select-block"
+                            >
+                                <label class="tools-select-label">Logo Corner</label>
+                                <div class="tools-select-wrap">
+                                    <Select
+                                        v-model="exportLogoOverlayCornerModel"
+                                        :options="exportLogoCornerOptions"
+                                        option-label="label"
+                                        option-value="value"
+                                        class="tools-select"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1148,6 +1196,21 @@
 
     .tools-select {
         width: 100%;
+    }
+
+    .tools-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        padding: 0.25rem 0.1rem 0.1rem;
+    }
+
+    .tools-toggle-copy {
+        min-width: 1.8rem;
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.6);
+        text-align: right;
     }
 
     .tools-select-row {

@@ -4,6 +4,7 @@
 import { defineStore } from 'pinia';
 import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capStyle.js';
 import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
+import { EXPORT_LOGO_DEFAULT_CORNER, normalizeExportLogoCorner } from '../modules/viewer/exportLogoOverlay.js';
 import {
     normalizeTextureOverviewLayoutStrategy,
 } from '../modules/viewer/textureOverviewLayout.js';
@@ -180,6 +181,18 @@ function getStoredExportDimensionSettings() {
     return normalizeExportDimensionSettings(readViewerPreferences());
 }
 
+function getStoredExportLogoSettings() {
+    const preferences = readViewerPreferences();
+
+    return {
+        exportLogoOverlayEnabled: normalizeViewerBooleanPreference(preferences.exportLogoOverlayEnabled, true),
+        exportLogoOverlayCorner: normalizeExportLogoCorner(
+            preferences.exportLogoOverlayCorner,
+            EXPORT_LOGO_DEFAULT_CORNER
+        ),
+    };
+}
+
 function getStoredFilterSettings() {
     const preferences = readViewerPreferences();
     const transparentShadowsThresholds = normalizeTransparentShadowsThresholdRange(
@@ -203,6 +216,7 @@ function getStoredFilterSettings() {
 export const useViewerStore = defineStore('viewer', {
     state: () => {
         const exportDimensionSettings = getStoredExportDimensionSettings();
+        const storedExportLogoSettings = getStoredExportLogoSettings();
         const storedFilterSettings = getStoredFilterSettings();
         const panelVisibilityState = createViewerPanelVisibilityState();
 
@@ -316,6 +330,8 @@ export const useViewerStore = defineStore('viewer', {
         exportResolutionPreset: exportDimensionSettings.resolutionPreset,
         exportCustomWidth: exportDimensionSettings.customWidth,
         exportCustomHeight: exportDimensionSettings.customHeight,
+        exportLogoOverlayEnabled: storedExportLogoSettings.exportLogoOverlayEnabled,
+        exportLogoOverlayCorner: storedExportLogoSettings.exportLogoOverlayCorner,
         preferredTextureMaxResolution: normalizePreferredTextureMaxResolution(
             readViewerPreferences().preferredTextureMaxResolution
         ),
@@ -611,6 +627,8 @@ export const useViewerStore = defineStore('viewer', {
                 exportResolutionPreset: this.exportResolutionPreset,
                 exportCustomWidth: this.exportCustomWidth,
                 exportCustomHeight: this.exportCustomHeight,
+                exportLogoOverlayEnabled: this.exportLogoOverlayEnabled,
+                exportLogoOverlayCorner: this.exportLogoOverlayCorner,
                 preferredTextureMaxResolution: this.preferredTextureMaxResolution,
                 renderFilterMode: this.renderFilterMode,
                 transparentShadowsEnabled: this.transparentShadowsEnabled,
@@ -663,6 +681,8 @@ export const useViewerStore = defineStore('viewer', {
                 this.exportResolutionPreset !== original.exportResolutionPreset ||
                 this.exportCustomWidth !== original.exportCustomWidth ||
                 this.exportCustomHeight !== original.exportCustomHeight ||
+                this.exportLogoOverlayEnabled !== original.exportLogoOverlayEnabled ||
+                this.exportLogoOverlayCorner !== original.exportLogoOverlayCorner ||
                 this.preferredTextureMaxResolution !== original.preferredTextureMaxResolution ||
                 this.renderFilterMode !== original.renderFilterMode ||
                 this.transparentShadowsEnabled !== original.transparentShadowsEnabled ||
@@ -803,6 +823,19 @@ export const useViewerStore = defineStore('viewer', {
 
         setExportCustomHeight(customHeight) {
             return this.setExportDimensionSettings({ customHeight });
+        },
+
+        setExportLogoOverlayEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.exportLogoOverlayEnabled = nextValue;
+            writeViewerPreferences({ exportLogoOverlayEnabled: nextValue });
+        },
+
+        setExportLogoOverlayCorner(corner) {
+            const nextCorner = normalizeExportLogoCorner(corner, EXPORT_LOGO_DEFAULT_CORNER);
+            this.exportLogoOverlayCorner = nextCorner;
+            writeViewerPreferences({ exportLogoOverlayCorner: nextCorner });
+            return nextCorner;
         },
 
         setUndulationEnabled(enabled) {

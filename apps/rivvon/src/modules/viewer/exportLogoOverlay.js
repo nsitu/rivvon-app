@@ -2,10 +2,16 @@ import { createLazyLoader } from '../shared/lazyLoader.js';
 
 export const EXPORT_LOGO_SRC = '/made-with-rivvon.svg';
 export const EXPORT_LOGO_AREA_RATIO = 0.005;
+export const EXPORT_LOGO_DEFAULT_CORNER = 'bottomLeft';
+export const EXPORT_LOGO_CORNER_OPTIONS = Object.freeze([
+    { label: 'Top Left', value: 'topLeft' },
+    { label: 'Top Right', value: 'topRight' },
+    { label: 'Bottom Right', value: 'bottomRight' },
+    { label: 'Bottom Left', value: 'bottomLeft' },
+]);
 
 const EXPORT_LOGO_FALLBACK_ASPECT_RATIO = 533.2 / 88.4;
 const EXPORT_LOGO_PADDING_RATIO = 0.025;
-const EXPORT_LOGO_DEFAULT_CORNER = 'bottomRight';
 const EXPORT_LOGO_CORNERS = new Set(['topLeft', 'topRight', 'bottomRight', 'bottomLeft']);
 
 function parsePositiveNumber(value) {

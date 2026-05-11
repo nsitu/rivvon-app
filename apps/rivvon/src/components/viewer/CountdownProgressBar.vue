@@ -52,15 +52,15 @@
 <style scoped>
     .countdown-progress-container {
         position: fixed;
-        top: 4rem;
-        /* Below the header */
+        bottom: var(--viewer-bottom-chrome-height, 6.4rem);
         left: 0;
         right: 0;
         height: 4px;
-        z-index: 99;
+        z-index: 9;
         background: rgba(255, 255, 255, 0.1);
         opacity: 0;
         visibility: hidden;
+        pointer-events: none;
         transition: opacity 0.3s ease, visibility 0.3s ease;
     }
 

@@ -1088,6 +1088,13 @@
         event.target.value = '';
     }
 
+    function resolveImageExportLogoSettings(settings = {}) {
+        return {
+            logoOverlayEnabled: settings.logoOverlayEnabled ?? app.exportLogoOverlayEnabled,
+            logoOverlayCorner: settings.logoOverlayCorner ?? app.exportLogoOverlayCorner,
+        };
+    }
+
     // Image export handler
     async function handleExportImage() {
         ensureOrbitControlsForInteraction(
@@ -1098,16 +1105,17 @@
         showExportDialog.value = false;
 
         const filename = createTimestampedExportFilename('png');
+        const logoSettings = resolveImageExportLogoSettings();
 
         const preview = await threeCanvasRef.value?.captureImagePreviewWithSettings?.({
             format: 'png',
-            logoOverlayEnabled: true,
+            ...logoSettings,
         });
         if (!preview?.dataURL) {
             await threeCanvasRef.value?.exportImageWithSettings?.({
                 format: 'png',
                 filename,
-                logoOverlayEnabled: true,
+                ...logoSettings,
             });
             return;
         }
@@ -1123,6 +1131,7 @@
 
     async function handleDownloadExportImage(settings = {}) {
         const { format, filename } = buildExportImageFilename(settings);
+        const logoSettings = resolveImageExportLogoSettings(settings);
 
         if (threeCanvasRef.value?.exportImageWithSettings) {
             const didStartDownload = await threeCanvasRef.value.exportImageWithSettings({
@@ -1130,7 +1139,7 @@
                 height: settings.height,
                 format,
                 quality: settings.quality,
-                logoOverlayEnabled: settings.logoOverlayEnabled,
+                ...logoSettings,
                 filename,
             });
 
@@ -1249,6 +1258,7 @@
         }
 
         const { format, filename } = buildExportImageFilename(settings);
+        const logoSettings = resolveImageExportLogoSettings(settings);
 
         try {
             let blob = null;
@@ -1259,7 +1269,7 @@
                     height: settings.height,
                     format,
                     quality: settings.quality,
-                    logoOverlayEnabled: settings.logoOverlayEnabled,
+                    ...logoSettings,
                 });
 
                 blob = capture?.blob ?? null;
@@ -1444,12 +1454,13 @@
     async function handleRecaptureExportImagePreview(settings = {}) {
         const width = Math.max(1, Math.round(Number(settings.width) || exportImagePreview.value.width || 1920));
         const height = Math.max(1, Math.round(Number(settings.height) || exportImagePreview.value.height || 1080));
+        const logoSettings = resolveImageExportLogoSettings(settings);
 
         const preview = await threeCanvasRef.value?.captureImagePreviewWithSettings?.({
             width,
             height,
             format: 'png',
-            logoOverlayEnabled: settings.logoOverlayEnabled,
+            ...logoSettings,
         });
 
         if (!preview?.dataURL) {

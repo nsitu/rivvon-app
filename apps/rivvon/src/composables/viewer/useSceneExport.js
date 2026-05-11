@@ -2,7 +2,7 @@
 // Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
 
 import { Quaternion, Vector3 } from 'three';
-import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
+import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 
 const EXPORT_CIRCULAR_TURN_RADIANS = Math.PI * 2;
@@ -84,6 +84,7 @@ export function useSceneExport(ctx, deps = {}) {
         const width = Math.max(1, Math.round(Number(options.width) || renderCanvas.width));
         const height = Math.max(1, Math.round(Number(options.height) || renderCanvas.height));
         const logoOverlayEnabled = options.logoOverlayEnabled !== false;
+        const logoOverlayCorner = options.logoOverlayCorner ?? EXPORT_LOGO_DEFAULT_CORNER;
 
         const savedPixelRatio = renderer.getPixelRatio();
         const savedWidth = renderCanvas.width;
@@ -121,7 +122,8 @@ export function useSceneExport(ctx, deps = {}) {
                         exportLogoAsset.image,
                         width,
                         height,
-                        exportLogoAsset.aspectRatio
+                        exportLogoAsset.aspectRatio,
+                        logoOverlayCorner,
                     );
                 } catch (logoError) {
                     console.warn('[ThreeSetup] Failed to apply image export logo overlay:', logoError);

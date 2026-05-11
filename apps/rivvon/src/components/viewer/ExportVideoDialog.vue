@@ -12,7 +12,6 @@
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { EXPORT_LOGO_SRC, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
     import {
         EXPORT_ASPECT_RATIO_OPTIONS,
         getExportResolutionOptions,
@@ -54,15 +53,6 @@
     const fps = ref(30);
     const cameraMovement = ref('circularTilt');
     const quality = ref('high');
-    const logoOverlayEnabled = ref(true);
-    const logoOverlayCorner = ref('bottomLeft');
-
-    const logoOverlayCornerOptions = [
-        { label: 'Top Left', value: 'topLeft' },
-        { label: 'Top Right', value: 'topRight' },
-        { label: 'Bottom Right', value: 'bottomRight' },
-        { label: 'Bottom Left', value: 'bottomLeft' },
-    ];
 
     const exportModeOptions = computed(() => {
         const options = [];
@@ -158,6 +148,8 @@
         },
     });
     const resolutionOptions = computed(() => getExportResolutionOptions(aspectRatioPreset.value));
+    const exportLogoOverlayEnabled = computed(() => app.exportLogoOverlayEnabled);
+    const exportLogoOverlayCorner = computed(() => app.exportLogoOverlayCorner);
 
     const formatOptions = [
         { label: 'MP4 (H.264)', value: 'mp4' },
@@ -213,28 +205,6 @@
 
     const loopSummaryLabel = computed(() => {
         return activeModeInfo.value?.loopLabel || 'Seamless Material Loop';
-    });
-
-    const logoOverlayLayout = computed(() => {
-        return getExportLogoOverlayLayout(
-            resolvedWidth.value,
-            resolvedHeight.value,
-            undefined,
-            logoOverlayCorner.value,
-        );
-    });
-
-    const logoPreviewCornerClass = computed(() => {
-        switch (logoOverlayCorner.value) {
-            case 'topLeft':
-                return 'logo-corner-top-left';
-            case 'topRight':
-                return 'logo-corner-top-right';
-            case 'bottomRight':
-                return 'logo-corner-bottom-right';
-            default:
-                return 'logo-corner-bottom-left';
-        }
     });
 
     const resolvedDuration = computed(() => {
@@ -380,18 +350,6 @@
         }
     });
 
-    watch(
-        () => [props.visible, props.initialSettings?.logoOverlayCorner],
-        ([visible]) => {
-            if (!visible) {
-                return;
-            }
-
-            logoOverlayCorner.value = props.initialSettings?.logoOverlayCorner || 'bottomLeft';
-        },
-        { immediate: true }
-    );
-
     watch([
         aspectRatioPreset,
         resolutionPreset,
@@ -406,8 +364,8 @@
         fps,
         cameraMovement,
         quality,
-        logoOverlayEnabled,
-        logoOverlayCorner,
+        exportLogoOverlayEnabled,
+        exportLogoOverlayCorner,
         () => app.flowState,
         () => app.flowSpeed,
         () => app.undulationEnabled,
@@ -449,8 +407,8 @@
             loopCount: durationMode.value === 'loop' ? cycleCount.value : 1,
             cameraMovement: textureOnlyMode.value ? 'none' : cameraMovement.value,
             quality: quality.value,
-            logoOverlayEnabled: logoOverlayEnabled.value,
-            logoOverlayCorner: logoOverlayCorner.value,
+            logoOverlayEnabled: exportLogoOverlayEnabled.value,
+            logoOverlayCorner: exportLogoOverlayCorner.value,
         });
     }
 
@@ -574,80 +532,6 @@
                             </div>
                             <div class="field-description">
                                 Snaps tile rows cleanly to the frame height while still filling the full width.
-                            </div>
-                        </div>
-
-                        <div
-                            v-if="aspectRatioPreset === 'custom' || resolutionPreset === 'custom'"
-                            class="form-field form-row"
-                        >
-                            <div class="flex-1">
-                                <label>Width</label>
-                                <InputNumber
-                                    v-model="customWidth"
-                                    :min="320"
-                                    :max="7680"
-                                    :step="2"
-                                    :disabled="isEncoding"
-                                    class="w-full"
-                                />
-                            </div>
-                            <span class="dimension-x">×</span>
-                            <div class="flex-1">
-                                <label>Height</label>
-                                <InputNumber
-                                    v-model="customHeight"
-                                    :min="240"
-                                    :max="4320"
-                                    :step="2"
-                                    :disabled="isEncoding"
-                                    class="w-full"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="logo-overlay-group">
-                            <div class="form-field">
-                                <label for="logoOverlayToggle">Logo Overlay</label>
-                                <div class="toggle-control">
-                                    <ToggleSwitch
-                                        inputId="logoOverlayToggle"
-                                        v-model="logoOverlayEnabled"
-                                        :disabled="isEncoding"
-                                    />
-                                    <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
-                                </div>
-                                <div class="field-description">
-                                    Rivvon logo baked into each frame.
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="logoOverlayEnabled"
-                                class="form-field"
-                            >
-                                <label>Logo Corner</label>
-                                <Select
-                                    v-model="logoOverlayCorner"
-                                    :options="logoOverlayCornerOptions"
-                                    option-label="label"
-                                    option-value="value"
-                                    :disabled="isEncoding"
-                                    class="w-full"
-                                />
-                            </div>
-
-                            <div
-                                v-if="logoOverlayEnabled"
-                                class="logo-preview-frame"
-                                :class="logoPreviewCornerClass"
-                            >
-                                <img
-                                    :src="EXPORT_LOGO_SRC"
-                                    alt="Rivvon export logo preview"
-                                    class="logo-preview-image"
-                                    decoding="async"
-                                >
                             </div>
                         </div>
 
@@ -896,7 +780,7 @@
                             @click="handleExport"
                         >
                             <span class="material-symbols-outlined">videocam</span>
-                            Encode Video
+                            Encode
                         </Button>
                     </template>
                 </PanelActionBar>
@@ -954,6 +838,24 @@
 
     .export-video-panel-footer {
         --panel-action-bar-padding: 0.85rem 0 0;
+    }
+
+    @media (max-width: 767px) {
+        .export-video-panel-footer {
+            --panel-action-bar-gap: 0.5rem;
+            --panel-action-bar-button-min-width: 0;
+            --panel-action-bar-mobile-basis: 0;
+        }
+
+        .export-video-panel-footer :deep(.panel-action-bar-actions) {
+            flex-wrap: nowrap;
+        }
+
+        .export-video-panel-footer :deep(.p-button) {
+            flex: 1 1 0;
+            min-width: 0;
+            padding-inline: 0.7rem;
+        }
     }
 
     .form-grid {

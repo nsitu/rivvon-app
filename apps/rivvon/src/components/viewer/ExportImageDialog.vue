@@ -3,10 +3,8 @@
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
-    import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { EXPORT_LOGO_AREA_RATIO, getExportLogoOverlayLayout } from '../../modules/viewer/exportLogoOverlay';
     import {
         EXPORT_ASPECT_RATIO_OPTIONS,
         getExportResolutionOptions,
@@ -32,7 +30,6 @@
 
     const quality = ref('high');
     const format = ref('png');
-    const logoOverlayEnabled = ref(true);
 
     const aspectRatioOptions = EXPORT_ASPECT_RATIO_OPTIONS;
 
@@ -91,35 +88,19 @@
 
     const resolvedHeight = computed(() => exportDimensionSettings.value.height);
 
+    const logoOverlayEnabled = computed(() => app.exportLogoOverlayEnabled);
+    const logoOverlayCorner = computed(() => app.exportLogoOverlayCorner);
+
     const outputSummary = computed(() => `${resolvedWidth.value} x ${resolvedHeight.value} ${format.value.toUpperCase()}`);
 
-    const isTouchDevice = computed(() => {
-        if (typeof window === 'undefined') return false;
-        return window.matchMedia('(pointer: coarse)').matches;
-    });
-
-    const tip = (text) => isTouchDevice.value ? null : text;
-
-    const logoOverlayLayout = computed(() => {
-        return getExportLogoOverlayLayout(resolvedWidth.value, resolvedHeight.value);
-    });
-
-    const logoOverlaySummary = computed(() => {
-        const { width, height } = logoOverlayLayout.value;
-        return `${Math.round(width)}x${Math.round(height)} px · ${Math.round(EXPORT_LOGO_AREA_RATIO * 100)}% frame area`;
-    });
-
-    const logoOverlayTooltip = computed(() => (
-        `Bottom-right Rivvon logo baked into the exported image. ${logoOverlaySummary.value}.`
-    ));
-
-    watch([resolvedWidth, resolvedHeight, logoOverlayEnabled, () => props.visible], ([width, height, overlayEnabled, visible]) => {
+    watch([resolvedWidth, resolvedHeight, logoOverlayEnabled, logoOverlayCorner, () => props.visible], ([width, height, overlayEnabled, overlayCorner, visible]) => {
         if (!visible) return;
 
         emit('request-recapture-preview', {
             width,
             height,
             logoOverlayEnabled: overlayEnabled,
+            logoOverlayCorner: overlayCorner,
         });
     });
 
@@ -130,6 +111,7 @@
             quality: quality.value,
             format: format.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
+            logoOverlayCorner: logoOverlayCorner.value,
         });
     }
 
@@ -140,6 +122,7 @@
             quality: quality.value,
             format: format.value,
             logoOverlayEnabled: logoOverlayEnabled.value,
+            logoOverlayCorner: logoOverlayCorner.value,
         });
     }
 
@@ -149,6 +132,7 @@
             height: resolvedHeight.value,
             format: 'png',
             logoOverlayEnabled: logoOverlayEnabled.value,
+            logoOverlayCorner: logoOverlayCorner.value,
         });
     }
 </script>
@@ -255,27 +239,6 @@
                                 class="w-full"
                             />
                         </div>
-
-                        <div class="form-field toggle-field">
-                            <div class="toggle-label-row">
-                                <label for="imageLogoOverlayToggle">Logo Overlay</label>
-                                <button
-                                    type="button"
-                                    class="tooltip-icon-button"
-                                    :aria-label="logoOverlayTooltip"
-                                    v-tooltip.bottom="tip(logoOverlayTooltip)"
-                                >
-                                    <span class="material-symbols-outlined">info</span>
-                                </button>
-                            </div>
-                            <div class="toggle-control">
-                                <ToggleSwitch
-                                    inputId="imageLogoOverlayToggle"
-                                    v-model="logoOverlayEnabled"
-                                />
-                                <span class="toggle-copy">{{ logoOverlayEnabled ? 'On' : 'Off' }}</span>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="image-preview-stage">
@@ -337,7 +300,7 @@
                         @click="handleDownload"
                     >
                         <span class="material-symbols-outlined">download_done</span>
-                        <span>Download Image</span>
+                        <span>Download</span>
                     </Button>
                 </PanelActionBar>
             </div>
@@ -591,6 +554,24 @@
     .export-image-panel-footer {
         --panel-action-bar-padding: 1rem 1.25rem;
         --panel-action-bar-border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    @media (max-width: 767px) {
+        .export-image-panel-footer {
+            --panel-action-bar-gap: 0.5rem;
+            --panel-action-bar-button-min-width: 0;
+            --panel-action-bar-mobile-basis: 0;
+        }
+
+        .export-image-panel-footer :deep(.panel-action-bar-actions) {
+            flex-wrap: nowrap;
+        }
+
+        .export-image-panel-footer :deep(.p-button) {
+            flex: 1 1 0;
+            min-width: 0;
+            padding-inline: 0.7rem;
+        }
     }
 
     @media (min-width: 769px) {
