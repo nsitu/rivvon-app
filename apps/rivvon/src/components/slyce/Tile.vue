@@ -155,7 +155,7 @@
 
     .tile-processing-overlay-ready {
         opacity: 1;
-        background: rgba(156, 163, 175, 0.38);
+        background: rgba(156, 163, 175, 0.48);
     }
 
     .tile-processing-overlay-encoding {

@@ -101,8 +101,12 @@
                             <div class="tile-status-content">
                                 <div class="tile-status-heading-group">
                                     <div class="tile-status-heading">Tile {{ index + 1 }}</div>
-                                    <div class="tile-status-heading-range">Frames {{
-                                        tileStatusEntries[index]?.frameRangeText }}</div>
+                                    <div class="tile-status-heading-range"><span
+                                            class="tile-status-heading-range-prefix-full"
+                                        >Frames </span><span
+                                            class="tile-status-heading-range-prefix-mobile">F</span><span
+                                            class="tile-status-heading-range-value"
+                                        >{{ tileStatusEntries[index]?.frameRangeText }}</span></div>
                                 </div>
                                 <div class="tile-status-fields">
                                     <div class="tile-status-progress-line">
@@ -117,7 +121,10 @@
                                             class="tile-status-text"
                                             :class="{ 'tile-status-text-error': tileStatusEntries[index]?.isError }"
                                         >
-                                            {{ tileStatusEntries[index]?.statusText }}
+                                            <span class="tile-status-text-desktop">{{
+                                                tileStatusEntries[index]?.statusText }}</span>
+                                            <span class="tile-status-text-mobile">{{
+                                                tileStatusEntries[index]?.mobileStatusText }}</span>
                                         </span>
                                         <span
                                             v-if="tileStatusEntries[index]?.fpsText"
@@ -213,6 +220,18 @@
         };
     }
 
+    function getMobileStatusText(statusText) {
+        if (statusText.startsWith('Encoding layer ')) {
+            return statusText.replace(/^Encoding layer\s+/, 'Encoding ');
+        }
+
+        if (statusText.startsWith('Decoding frame ')) {
+            return statusText.replace(/^Decoding frame\s+/, 'Decoding ');
+        }
+
+        return statusText;
+    }
+
     const tileStatusEntries = computed(() => {
         return tiles.value.map((tile, index) => {
             const tileNumber = index + 1;
@@ -223,8 +242,9 @@
             return {
                 text: statusText,
                 statusText: parsedStatus.statusText,
+                mobileStatusText: getMobileStatusText(parsedStatus.statusText),
                 fpsText: parsedStatus.fpsText,
-                frameRangeText: `${tile.start.toLocaleString()}-${tile.end.toLocaleString()}`,
+                frameRangeText: `${tile.start}-${tile.end}`,
                 overlayState: getTileOverlayState(parsedStatus.statusText, Boolean(errorText)),
                 isError: Boolean(errorText),
                 progress: app.processingProgress?.tiles?.[index] ?? null,
@@ -441,6 +461,7 @@
         font-weight: 600;
         color: var(--text-primary);
         line-height: 1.3;
+        white-space: pre;
     }
 
     .tile-status-heading-range {
@@ -451,6 +472,10 @@
         font-variant-numeric: tabular-nums;
         flex: 0 0 auto;
         text-align: right;
+    }
+
+    .tile-status-heading-range-prefix-mobile {
+        display: none;
     }
 
     .tile-status-fields {
@@ -493,6 +518,10 @@
         display: block;
         font-variant-numeric: tabular-nums;
         text-wrap: balance;
+    }
+
+    .tile-status-text-mobile {
+        display: none;
     }
 
     .tile-status-fps {
@@ -579,6 +608,43 @@
 
         .tile-status-row {
             align-items: flex-start;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .tile-status-row {
+            width: 100%;
+            padding-right: 0;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .tile-status-row :deep(.tile) {
+            width: 100%;
+            min-width: 0;
+            max-width: none;
+            flex: 0 0 auto;
+        }
+
+        .tile-status-content,
+        .tile-status-heading-group {
+            width: 100%;
+        }
+
+        .tile-status-heading-range-prefix-full {
+            display: none;
+        }
+
+        .tile-status-heading-range-prefix-mobile {
+            display: inline;
+        }
+
+        .tile-status-text-desktop {
+            display: none;
+        }
+
+        .tile-status-text-mobile {
+            display: inline;
         }
     }
 </style>
