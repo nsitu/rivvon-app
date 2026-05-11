@@ -1,5 +1,5 @@
 <script setup>
-    import { computed } from 'vue';
+    import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
     import { resolveViewerHeaderContext } from '../../modules/viewer/viewerHeaderContext.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -76,6 +76,47 @@
     function closeContext() {
         headerContext.value?.close?.();
     }
+
+    const mobileLogoCondensed = ref(false);
+
+    const MOBILE_LOGO_INTERACTION_SELECTOR = '.bottom-toolbar, .viewer-chrome-panel-container';
+
+    function isMobileLogoInteractionTarget(target) {
+        return target instanceof Element && target.closest(MOBILE_LOGO_INTERACTION_SELECTOR);
+    }
+
+    function teardownMobileLogoInteractionListeners() {
+        if (typeof document === 'undefined') {
+            return;
+        }
+
+        document.removeEventListener('pointerdown', handleMobileLogoInteraction, true);
+        document.removeEventListener('focusin', handleMobileLogoInteraction, true);
+        document.removeEventListener('input', handleMobileLogoInteraction, true);
+    }
+
+    function handleMobileLogoInteraction(event) {
+        if (mobileLogoCondensed.value || !isMobileLogoInteractionTarget(event.target)) {
+            return;
+        }
+
+        mobileLogoCondensed.value = true;
+        teardownMobileLogoInteractionListeners();
+    }
+
+    onMounted(() => {
+        if (typeof document === 'undefined') {
+            return;
+        }
+
+        document.addEventListener('pointerdown', handleMobileLogoInteraction, true);
+        document.addEventListener('focusin', handleMobileLogoInteraction, true);
+        document.addEventListener('input', handleMobileLogoInteraction, true);
+    });
+
+    onBeforeUnmount(() => {
+        teardownMobileLogoInteractionListeners();
+    });
 </script>
 
 <template>
@@ -87,20 +128,9 @@
             <a
                 href="/"
                 class="app-logo"
+                :class="{ 'app-logo-condensed': mobileLogoCondensed }"
                 aria-label="Rivvon"
             >
-                <!-- <svg
-                    class="app-logo-mobile-r"
-                    xmlns="http://www.w3.org/2000/svg"
-                    version="1.1"
-                    viewBox="0 0 52.127968 80.1268205"
-                    aria-hidden="true"
-                >
-                    <path
-                        class="rivvon-letter rivvon-letter-r"
-                        d="M52.127968,80.1268205c1.7123052-10.6535267-14.5320353-21.7082759-7.8114051-34.3734003,2.9737408-5.6096528,7.6531712-10.6711012,8.5595207-17.2056873,2.0340342-10.914121-6.08665-23.3010957-16.6667467-25.4791002-3.9511276-.8342246-7.5830336-.7258643-11.7253467-.7192768-4.447824.1107846-9.3905889-.0944819-13.477475.3956819C.0992803,3.4801307.0443535,14.2301714,0,22.8587726c.0412637,11.0550226.4172752,22.3693939.1971724,33.2924599-.0421084,4.3213119-.1711785,8.6639087-.0124134,12.9601431.1043901,3.4070581.6324407,7.7528545,2.4218369,10.2520878,4.7819403,5.7132769,6.2775983-5.8503273,6.0772891-9.762927-.3480126-8.7992486-.7218669-18.3666925,9.6174901-20.8792613,7.6403965-1.7499509,14.0761383,2.2132706,17.4892383,9.5103179,3.4627979,6.5114572,5.6717277,15.2793422,10.4689613,20.692052,2.4640909,2.5951601,4.8719468,3.4035273,5.8341619,1.2885093l.0342314-.0853338ZM35.3056296,37.654377c-6.5143111,1.7335543-13.7694125.5510299-20.4398242-.0213584-5.1819146-.6535857-6.8710771-3.8076637-6.9594186-9.4252004.0074027-3.8015465-.3249502-8.1861992,2.4171204-11.0231413,3.4083381-3.0431915,8.6926976-2.2810458,13.0174104-2.6259677,5.8819419-.2460292,12.3435193-.8331897,17.057688,2.371967,8.3230614,5.8775596,4.4901261,18.209037-4.9072069,20.6668476l-.1857691.0568533Z"
-                    />
-                </svg> -->
                 <span class="app-logo-wordmark-shell">
                     <svg
                         class="app-logo-svg"
@@ -235,6 +265,8 @@
         --app-header-side-padding: 3rem;
         --app-header-top-padding: 2rem;
         --app-logo-height: 1.5rem;
+        --app-logo-wordmark-width: calc(var(--app-logo-height) * 5.9192);
+        --app-logo-mobile-compact-left: 1.25rem;
     }
 
     .app-header {
@@ -283,31 +315,36 @@
         text-decoration: none;
         padding: var(--app-header-top-padding) var(--app-header-side-padding);
         flex-shrink: 0;
+        transition: background-color 0.28s ease;
     }
 
     .app-logo-wordmark-shell {
         display: block;
+        position: relative;
+        width: var(--app-logo-wordmark-width);
+        height: var(--app-logo-height);
         line-height: 0;
         flex-shrink: 0;
-    }
-
-    .app-logo img,
-    .app-logo-svg {
-        display: block;
-        height: var(--app-logo-height);
-        width: auto;
+        overflow: visible;
+        transition: width 0.38s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .app-logo-svg,
-    .app-logo-mobile-r {
+    .rivvon-letter {
         fill: #fff;
     }
 
-    .app-logo-mobile-r {
-        display: none;
+    .app-logo-svg {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        display: block;
         height: var(--app-logo-height);
         width: auto;
-        flex-shrink: 0;
+        transform: translate(-50%, -50%);
+        transform-origin: center;
+        opacity: 1;
+        transition: left 0.38s cubic-bezier(0.4, 0, 0.2, 1), transform 0.38s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.28s ease;
     }
 
     .app-logo:hover {
@@ -478,32 +515,20 @@
         }
 
         .app-logo {
-            gap: 0.4rem;
             padding: 2rem;
+        }
+
+        .app-logo.app-logo-condensed {
             background: rgba(0, 0, 0, 0.75);
         }
 
-        .app-logo-wordmark-shell {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
+        .app-logo.app-logo-condensed .app-logo-wordmark-shell {
             width: 0;
-            height: var(--app-logo-height);
-            overflow: visible;
         }
 
-        .app-logo-svg {
-            position: absolute;
-            top: 50%;
-            left: 1rem;
+        .app-logo.app-logo-condensed .app-logo-svg {
+            left: var(--app-logo-mobile-compact-left);
             transform: translate(-50%, -50%) rotate(-90deg) scale(0.5);
-            transform-origin: center;
-        }
-
-        .app-logo-mobile-r {
-            display: block;
-            height: var(--app-logo-height);
         }
 
         .navigation-summary {
