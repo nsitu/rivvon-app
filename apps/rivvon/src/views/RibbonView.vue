@@ -72,8 +72,46 @@
     const contourPanelVisible = createViewerPanelVisibility('contour');
     const drawingBrowserVisible = createViewerPanelVisibility('drawings');
     const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
+    const texturePreviewVisible = createViewerPanelVisibility('texturePreview');
     const textureCreatorVisible = createViewerPanelVisibility('textureCreator');
     const realtimeSamplerVisible = createViewerPanelVisibility('realtimeSampler');
+    const isNarrowViewport = ref(false);
+
+    let narrowViewportMediaQuery = null;
+
+    function handleNarrowViewportChange(event) {
+        isNarrowViewport.value = Boolean(event.matches);
+    }
+
+    onMounted(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+            return;
+        }
+
+        narrowViewportMediaQuery = window.matchMedia('(max-width: 767px)');
+        isNarrowViewport.value = narrowViewportMediaQuery.matches;
+
+        if (typeof narrowViewportMediaQuery.addEventListener === 'function') {
+            narrowViewportMediaQuery.addEventListener('change', handleNarrowViewportChange);
+            return;
+        }
+
+        narrowViewportMediaQuery.addListener(handleNarrowViewportChange);
+    });
+
+    onUnmounted(() => {
+        if (!narrowViewportMediaQuery) {
+            return;
+        }
+
+        if (typeof narrowViewportMediaQuery.removeEventListener === 'function') {
+            narrowViewportMediaQuery.removeEventListener('change', handleNarrowViewportChange);
+        } else {
+            narrowViewportMediaQuery.removeListener(handleNarrowViewportChange);
+        }
+
+        narrowViewportMediaQuery = null;
+    });
 
     useScreenWakeLock();
 
@@ -1655,20 +1693,29 @@
             };
         }
 
-        if (isTextureOverviewActive.value || textureBrowserVisible.value) {
+        const mobileTexturePreviewActive = texturePreviewVisible.value && isNarrowViewport.value;
+
+        if (isTextureOverviewActive.value || mobileTexturePreviewActive || textureBrowserVisible.value) {
             return {
                 id: 'textures',
                 group: 'texture',
-                breadcrumbs: isTextureOverviewActive.value ? ['Textures', 'Overview'] : ['Textures'],
+                breadcrumbs: isTextureOverviewActive.value
+                    ? ['Textures', 'Overview']
+                    : (mobileTexturePreviewActive ? ['Textures', 'Preview'] : ['Textures']),
                 statusLabel: null,
-                canGoBack: isTextureOverviewActive.value,
+                canGoBack: isTextureOverviewActive.value || mobileTexturePreviewActive,
                 back: () => {
-                    if (!isTextureOverviewActive.value) {
-                        return false;
+                    if (isTextureOverviewActive.value) {
+                        closeTextureOverview({ reopenTextureBrowser: true });
+                        return true;
                     }
 
-                    closeTextureOverview({ reopenTextureBrowser: true });
-                    return true;
+                    if (mobileTexturePreviewActive) {
+                        app.hideTexturePreview();
+                        return true;
+                    }
+
+                    return false;
                 },
                 canExit: true,
                 exit: () => {
@@ -2367,8 +2414,8 @@
                 const success = resolvedTexture.kind === 'session'
                     ? await threeCanvasRef.value?.loadTexturesFromSession(resolvedTexture.textureSet, resolvedTexture.sessionTileEntry || null, handleTextureLoadProgress)
                     : resolvedTexture.kind === 'remote'
-                    ? await threeCanvasRef.value?.loadTexturesFromRemote(resolvedTexture.textureSet, handleTextureLoadProgress)
-                    : await threeCanvasRef.value?.loadTexturesFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleTextureLoadProgress);
+                        ? await threeCanvasRef.value?.loadTexturesFromRemote(resolvedTexture.textureSet, handleTextureLoadProgress)
+                        : await threeCanvasRef.value?.loadTexturesFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleTextureLoadProgress);
 
                 if (!success) {
                     throw new Error('Texture data is incomplete or unreadable.');
@@ -2458,6 +2505,7 @@
             :camera-dismiss-label="cameraDismissLabel"
             :navigation-model="headerNavigationModel"
             :panel-title="activePanelTitle"
+            :viewer-title="app.currentTextureName"
             :toolbar-overlay-title="activeToolbarOverlayTitle"
             @request-navigation-back="handleNavigationBack"
             @request-navigation-exit="handleNavigationExit"

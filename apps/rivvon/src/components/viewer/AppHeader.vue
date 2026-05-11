@@ -17,6 +17,10 @@
             type: String,
             default: null,
         },
+        viewerTitle: {
+            type: String,
+            default: null,
+        },
         toolbarOverlayTitle: {
             type: String,
             default: null,
@@ -72,6 +76,14 @@
         onResetSlyceProcessing: () => slyce.resetProcessing(),
     }));
     const activeContext = computed(() => headerContext.value?.title ?? null);
+    const passiveViewerTitle = computed(() => {
+        if (hasNavigationModel.value || activeContext.value) {
+            return null;
+        }
+
+        const normalizedTitle = typeof props.viewerTitle === 'string' ? props.viewerTitle.trim() : '';
+        return normalizedTitle || null;
+    });
 
     function closeContext() {
         headerContext.value?.close?.();
@@ -203,6 +215,10 @@
                     v-else-if="activeContext"
                     class="context-title"
                 >{{ activeContext }}</span>
+                <span
+                    v-else-if="passiveViewerTitle"
+                    class="context-title"
+                >{{ passiveViewerTitle }}</span>
             </Transition>
         </div>
 

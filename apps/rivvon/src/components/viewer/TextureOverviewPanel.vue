@@ -149,7 +149,10 @@
 
                     <div class="texture-overview-controls">
                         <div class="preview-dimension-grid">
-                            <label class="preview-control-field">
+                            <label
+                                class="preview-control-field"
+                                :class="{ 'preview-control-field-full': aspectRatioPreset === 'custom' }"
+                            >
                                 <span class="preview-control-label">Aspect Ratio</span>
                                 <select
                                     v-model="aspectRatioPreset"
@@ -184,12 +187,12 @@
                                 </select>
                             </label>
 
-                            <label class="preview-control-field">
+                            <label class="preview-control-field preview-control-field-full">
                                 <span class="preview-control-label">Snap Tiles to Frame Height</span>
                                 <div class="preview-control-toggle-row">
                                     <ToggleSwitch v-model="alignTilesToEdge" />
                                     <span class="preview-control-toggle-copy">{{ alignTilesToEdge ? 'On' : 'Off'
-                                    }}</span>
+                                        }}</span>
                                 </div>
                             </label>
 
@@ -222,11 +225,6 @@
                             </div>
                         </div>
 
-                        <div class="preview-dimension-footer">
-                            <span class="preview-dimension-summary">{{ resolvedDimensions.width }}×{{
-                                resolvedDimensions.height }}</span>
-
-                        </div>
                     </div>
 
                     <div class="texture-overview-stage">
@@ -450,27 +448,6 @@
         font-weight: 600;
     }
 
-    .preview-dimension-footer {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: 0.5rem 0.75rem;
-        align-items: center;
-    }
-
-    .preview-dimension-summary {
-        color: #f8fafc;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-    }
-
-    .preview-dimension-hint {
-        color: #9ca3af;
-        font-size: 0.72rem;
-        line-height: 1.4;
-    }
-
     .texture-overview-stage {
         position: relative;
         flex: 1;
@@ -507,7 +484,31 @@
             padding: 0.85rem 0.6rem 1rem;
         }
 
-        .preview-dimension-grid,
+        .preview-dimension-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .preview-control-field-full,
+        .preview-control-custom-row {
+            grid-column: 1 / -1;
+        }
+
+        .texture-overview-panel-footer {
+            --panel-action-bar-gap: 0.5rem;
+            --panel-action-bar-button-min-width: 0;
+            --panel-action-bar-mobile-basis: 0;
+        }
+
+        .texture-overview-panel-footer :deep(.panel-action-bar-actions) {
+            flex-wrap: nowrap;
+        }
+
+        .texture-overview-panel-footer :deep(.p-button) {
+            flex: 1 1 0;
+            min-width: 0;
+            padding-inline: 0.7rem;
+        }
+
         .preview-control-custom-row {
             grid-template-columns: minmax(0, 1fr);
         }
