@@ -605,29 +605,10 @@
             width: 100%;
             max-width: none;
         }
-
-        .tile-status-row {
-            align-items: flex-start;
-        }
     }
 
     @media (max-width: 767px) {
         .tile-status-row {
-            width: 100%;
-            padding-right: 0;
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .tile-status-row :deep(.tile) {
-            width: 100%;
-            min-width: 0;
-            max-width: none;
-            flex: 0 0 auto;
-        }
-
-        .tile-status-content,
-        .tile-status-heading-group {
             width: 100%;
         }
 

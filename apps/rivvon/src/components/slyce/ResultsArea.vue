@@ -140,12 +140,13 @@
         display: flex;
         flex-direction: column;
         gap: 1rem;
-        padding: 1rem;
+        padding: 0;
         min-height: 200px;
     }
 
     @media (min-width: 640px) {
         .results-panel {
+            padding: 1rem;
             min-height: 300px;
         }
     }
