@@ -15,3 +15,15 @@ Future opportunity: reconcile the Cloudflare D1 database with Wrangler's tracked
 When adjusting settings for a given video prior to processing, we might offer the user some sensible defaults based on the type of motion in the video. to support this we could do some initial profiling or analysis so as to categorize whether the video shows a panning motion, or other kinds of motion
 
 There is a popular game called snake, (in MSDOS there was a varriant called "nibbles" that ran in QBASIC). We could build a browser based variant of this that gamifies the creation of ribbons. In multiplayer mode, each player would first upload a video to enable their ribbon to appear as intented. At any chosen moment, or at the moment the game ends, we capture the state of the ribbons, and export a commemorative video to highlight the spirit of the competition. the winner posts the result to their socials as a victorious work of art.
+
+Support gif
+Make camera on off easier and safer
+Make cinematic export more intuitive and guided, it likely needs a separate workflow overlay.
+Or maybe research better patterns for the use case?
+
+Make the drawing canvas composable
+So you can add multiple elements to it including emoji text and hand drawn elements and walks. And then also make it so you can move them around and scale them
+
+Add the ability to describe any given texture with text
+
+Some workflows do well with the full screen but others could be improved by treating them as an overlay. The difference is when we need to see the result in the renderer in real-time.
