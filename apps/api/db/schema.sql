@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS texture_sets (
     source_duration REAL,
     source_frame_count INTEGER,
     sampled_frame_count INTEGER,          -- Actual frames used (may be limited by user)
+    frame_interpolation_factor INTEGER DEFAULT 1,
     
     -- Texture configuration
     tile_resolution INTEGER NOT NULL,     -- 256, 512, 1024, etc.
