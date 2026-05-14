@@ -50,15 +50,29 @@
                     Rotating {{ props.tilePlan.rotate }}°
                 </p>
                 <p
-                    v-if="app.framesToSample > 0 && app.framesToSample < app.frameCount"
+                    v-if="app.selectedSourceFrameCount > 0 && app.selectedSourceFrameCount < app.frameCount"
                     class="note-line"
                 >
                     <span class="material-symbols-outlined note-icon">content_cut</span>
                     Frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString() }}
                 </p>
+                <p
+                    v-if="app.effectiveInterpolationFactor > 1"
+                    class="note-line"
+                >
+                    <span class="material-symbols-outlined note-icon">animation</span>
+                    {{ app.effectiveInterpolationFactor }}x interpolation
+                </p>
                 <p class="note-line">
                     <span class="material-symbols-outlined note-icon">tag</span>
-                    {{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString() }} frames
+                    <template v-if="app.effectiveInterpolationFactor > 1">
+                        {{ app.selectedSourceFrameCount.toLocaleString() }} source → {{
+                            app.effectiveFrameCount.toLocaleString() }} emitted frames
+                    </template>
+                    <template v-else>
+                        {{ app.selectedSourceFrameCount.toLocaleString() }} of {{ app.frameCount.toLocaleString() }}
+                        frames
+                    </template>
                 </p>
                 <p
                     v-if="app.cropMode"

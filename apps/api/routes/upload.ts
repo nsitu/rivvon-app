@@ -147,6 +147,7 @@ uploadRoutes.post('/', async (c) => {
       duration: familyRootTextureSet.source_duration ?? null,
       sourceFrameCount: familyRootTextureSet.source_frame_count ?? null,
       sampledFrameCount: familyRootTextureSet.sampled_frame_count ?? null,
+      frameInterpolationFactor: familyRootTextureSet.frame_interpolation_factor ?? 1,
     };
   }
 
@@ -177,9 +178,9 @@ uploadRoutes.post('/', async (c) => {
       id, owner_id, parent_texture_set_id, name, description, thumbnail_url,
       tile_resolution, tile_count, layer_count, cross_section_type,
       source_filename, source_width, source_height, 
-      source_duration, source_frame_count, sampled_frame_count,
+      source_duration, source_frame_count, sampled_frame_count, frame_interpolation_factor,
       storage_provider, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
   `).bind(
     textureSetId,
     auth.userId,
@@ -197,6 +198,7 @@ uploadRoutes.post('/', async (c) => {
     normalizedSourceMetadata?.duration || null,
     normalizedSourceMetadata?.sourceFrameCount || null,
     normalizedSourceMetadata?.sampledFrameCount || null,
+    normalizedSourceMetadata?.frameInterpolationFactor ?? 1,
     normalizedStorageProvider,
   ).run();
 

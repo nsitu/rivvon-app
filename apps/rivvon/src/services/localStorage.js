@@ -724,7 +724,10 @@ async function exportTextureSetAsZip(textureSetId) {
             width: textureSet.source_metadata?.width,
             height: textureSet.source_metadata?.height,
             duration: textureSet.source_metadata?.duration,
-            sourceFrameCount: textureSet.source_metadata?.frame_count,
+            sourceFrameCount: textureSet.source_metadata?.sourceFrameCount ?? textureSet.source_metadata?.frame_count,
+            selectedSourceFrameCount: textureSet.source_metadata?.selectedSourceFrameCount ?? null,
+            sampledFrameCount: textureSet.source_metadata?.sampledFrameCount ?? textureSet.source_metadata?.frame_count,
+            frameInterpolationFactor: textureSet.source_metadata?.frameInterpolationFactor ?? 1,
         },
         settings: {
             crossSectionType: textureSet.cross_section_type,

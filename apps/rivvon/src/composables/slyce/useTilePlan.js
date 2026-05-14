@@ -40,9 +40,7 @@ export function useTilePlan() {
             return plan;
         }
 
-        // Use the user-limited frame count (framesToSample) if set, otherwise use full frameCount
-        // framesToSample is derived from frameStart/frameEnd range
-        const effectiveFrameCount = app.framesToSample > 0 ? Math.min(app.framesToSample, app.frameCount) : app.frameCount;
+        const effectiveFrameCount = app.effectiveFrameCount;
 
         // Determine effective dimensions based on crop settings
         const effectiveWidth = app.cropMode && app.cropWidth ? app.cropWidth : app.fileInfo.width;

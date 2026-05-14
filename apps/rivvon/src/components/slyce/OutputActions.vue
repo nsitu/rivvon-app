@@ -626,19 +626,59 @@
             .sort((left, right) => left.tileIndex - right.tileIndex);
     }
 
-    function getEffectiveFrameCount(source = {}) {
+    function getSourceFrameCount(source = {}) {
+        return Math.max(0, Number(source.frameCount) || 0);
+    }
+
+    function getSelectedSourceFrameCount(source = {}) {
+        const selectedSourceFrameCount = Number(source.selectedSourceFrameCount) || 0;
+        if (selectedSourceFrameCount > 0) {
+            return selectedSourceFrameCount;
+        }
+
         const framesToSample = Number(source.framesToSample) || 0;
-        const frameCount = Number(source.frameCount) || 0;
+        const frameCount = getSourceFrameCount(source);
         return framesToSample > 0 ? Math.min(framesToSample, frameCount) : frameCount;
     }
 
+    function getInterpolationFactor(source = {}) {
+        const factor = Number(source.frameInterpolationFactor) || 1;
+        return Number.isFinite(factor) && factor >= 1 ? Math.round(factor) : 1;
+    }
+
+    function getEffectiveFrameCount(source = {}) {
+        const explicitEffectiveFrameCount = Number(source.effectiveFrameCount) || 0;
+        if (explicitEffectiveFrameCount > 0) {
+            return explicitEffectiveFrameCount;
+        }
+
+        const selectedSourceFrameCount = getSelectedSourceFrameCount(source);
+        if (selectedSourceFrameCount <= 0) {
+            return 0;
+        }
+
+        if (selectedSourceFrameCount === 1) {
+            return 1;
+        }
+
+        return ((selectedSourceFrameCount - 1) * getInterpolationFactor(source)) + 1;
+    }
+
     function buildSourceMetadata(source = {}, effectiveFrameCount) {
-        return source.sourceMetadata || {
+        const sourceFrameCount = getSourceFrameCount(source);
+        const selectedSourceFrameCount = getSelectedSourceFrameCount(source);
+        const frameInterpolationFactor = getInterpolationFactor(source);
+
+        return {
+            ...(source.sourceMetadata || {}),
             filename: source.fileInfo?.name,
             width: source.fileInfo?.width,
             height: source.fileInfo?.height,
             duration: source.fileInfo?.duration,
-            sourceFrameCount: effectiveFrameCount,
+            sourceFrameCount: source.sourceMetadata?.sourceFrameCount ?? sourceFrameCount,
+            selectedSourceFrameCount: source.sourceMetadata?.selectedSourceFrameCount ?? selectedSourceFrameCount,
+            sampledFrameCount: source.sourceMetadata?.sampledFrameCount ?? effectiveFrameCount,
+            frameInterpolationFactor: source.sourceMetadata?.frameInterpolationFactor ?? frameInterpolationFactor,
             frame_count: effectiveFrameCount,
         };
     }

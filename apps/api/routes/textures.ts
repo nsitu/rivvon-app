@@ -16,7 +16,7 @@ textureRoutes.get('/', async (c) => {
     SELECT 
     ts.id, ts.parent_texture_set_id, ts.name, ts.description, ts.thumbnail_url,
       ts.tile_resolution, ts.tile_count, ts.layer_count,
-    ts.cross_section_type, ts.source_frame_count, ts.sampled_frame_count, ts.created_at, ts.updated_at,
+        ts.cross_section_type, ts.source_frame_count, ts.sampled_frame_count, ts.frame_interpolation_factor, ts.created_at, ts.updated_at,
     ts.storage_provider, ts.status,
       u.id as owner_id,
       u.google_id as owner_google_id,

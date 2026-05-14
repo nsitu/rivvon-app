@@ -61,7 +61,7 @@ app.get('/my-textures', verifySession, async (c) => {
         SELECT 
             ts.id, ts.parent_texture_set_id, ts.name, ts.description, ts.thumbnail_url,
             ts.tile_resolution, ts.tile_count, ts.layer_count,
-            ts.cross_section_type, ts.storage_provider, ts.status, ts.is_public,
+            ts.cross_section_type, ts.frame_interpolation_factor, ts.storage_provider, ts.status, ts.is_public,
             ts.created_at, ts.updated_at,
             u.google_id as owner_google_id,
             (SELECT COALESCE(SUM(file_size), 0) FROM texture_tiles WHERE texture_set_id = ts.id) as total_size_bytes

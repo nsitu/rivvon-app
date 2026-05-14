@@ -209,6 +209,7 @@ const processVideo = async (settings) => {
     // Initialize status
     app.removeStatus('Decoding');
     app.removeStatus('Frame Range');
+    app.removeStatus('Interpolation');
     for (let tileIndex = 0; tileIndex < totalTiles; tileIndex++) {
         app.setStatus(`Tile ${tileIndex + 1}`, 'Queued');
     }
@@ -219,6 +220,7 @@ const processVideo = async (settings) => {
         tilePlan,
         frameStart,
         frameEnd,
+        frameInterpolationFactor: settings.frameInterpolationFactor ?? app.effectiveInterpolationFactor,
         onSeekProgress(currentFrame) {
             const progressText = currentFrame && currentFrame !== frameStart
                 ? `Seeking to frame ${frameStart} (decoder at frame ${currentFrame})`
@@ -227,6 +229,13 @@ const processVideo = async (settings) => {
         },
         onRangeStart() {
             app.removeStatus('Seeking');
+        },
+        onInterpolationStatus(message) {
+            if (message) {
+                app.setStatus('Interpolation', message);
+            } else {
+                app.removeStatus('Interpolation');
+            }
         }
     });
 
@@ -606,6 +615,7 @@ const processVideo = async (settings) => {
                         app.removeStatus('Frame Range');
                         app.removeStatus('Seeking');
                         app.removeStatus('Decoding');
+                        app.removeStatus('Interpolation');
                         app.removeStatus('System');
                         cleanupKTX2Workers();
                         const viewerStore = useViewerStore();

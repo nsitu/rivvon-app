@@ -25,10 +25,8 @@ export async function downloadAllAsZip(blobURLs, fileInfo, format, appStore) {
             height: fileInfo?.height,
             duration: fileInfo?.duration,
             sourceFrameCount: appStore?.frameCount,
-            // Actual frames sampled (may be limited by user via framesToSample setting)
-            sampledFrameCount: appStore?.framesToSample > 0
-                ? Math.min(appStore.framesToSample, appStore.frameCount)
-                : appStore?.frameCount,
+            selectedSourceFrameCount: appStore?.selectedSourceFrameCount,
+            sampledFrameCount: appStore?.effectiveFrameCount,
             frameStart: appStore?.frameStart || 1,
             frameEnd: appStore?.frameEnd || appStore?.frameCount,
         },
@@ -38,6 +36,7 @@ export async function downloadAllAsZip(blobURLs, fileInfo, format, appStore) {
             framesToSample: appStore?.framesToSample,
             frameStart: appStore?.frameStart,
             frameEnd: appStore?.frameEnd,
+            frameInterpolationFactor: appStore?.effectiveInterpolationFactor,
             crossSectionCount: appStore?.crossSectionCount,
             crossSectionType: appStore?.crossSectionType,
             samplingMode: appStore?.samplingAxis,

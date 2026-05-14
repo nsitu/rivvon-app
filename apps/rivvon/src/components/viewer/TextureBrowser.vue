@@ -715,7 +715,8 @@
             || {
             filename: texture?.name,
             sourceFrameCount: texture?.source_frame_count,
-            sampledFrameCount: texture?.sampled_frame_count
+            sampledFrameCount: texture?.sampled_frame_count,
+            frameInterpolationFactor: texture?.frame_interpolation_factor,
         };
     }
 
@@ -2301,6 +2302,14 @@
                                 Saved {{ formatDate(texture.created_at) }}
                             </p>
                             <p
+                                v-else-if="texture.sampled_frame_count && texture.source_frame_count && texture.frame_interpolation_factor > 1"
+                                class="texture-card-frames"
+                            >
+                                {{ texture.frame_interpolation_factor }}x interpolation, {{ texture.sampled_frame_count
+                                }} emitted from
+                                {{ texture.source_frame_count }} source frames
+                            </p>
+                            <p
                                 v-else-if="texture.sampled_frame_count && texture.source_frame_count"
                                 class="texture-card-frames"
                             >
@@ -2425,7 +2434,7 @@
                             (previewTileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewDisplayScale < 1">({{ Math.round(previewDisplayScale * 100)
-                    }}%
+                        }}%
                         scale)</span>
                 </div>
                 <div class="preview-actions">
@@ -2655,7 +2664,7 @@
                             <div class="derive-result-row">
                                 <span>Source tiles</span>
                                 <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
-                                    }})</strong>
+                                }})</strong>
                             </div>
                             <div class="derive-result-row">
                                 <span>Layer count</span>
@@ -2698,7 +2707,7 @@
                             <div class="derive-result-row">
                                 <span>Validation</span>
                                 <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                    }}</strong>
+                                }}</strong>
                             </div>
                         </div>
                     </details>

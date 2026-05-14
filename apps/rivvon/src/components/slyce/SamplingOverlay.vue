@@ -77,9 +77,7 @@
 
     // --- Frames used by the tile plan (same as videoProcessor's framesUsed) ---
     const framesUsed = computed(() => {
-        const effectiveFrameCount = app.framesToSample > 0
-            ? Math.min(app.framesToSample, app.frameCount)
-            : app.frameCount;
+        const effectiveFrameCount = app.effectiveFrameCount;
         const pot = app.potResolution || 256;
         return Math.floor(effectiveFrameCount / pot) * pot;
     });

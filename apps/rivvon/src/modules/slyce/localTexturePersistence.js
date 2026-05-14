@@ -12,10 +12,44 @@ function buildDerivedTextureName(textureName, targetResolution) {
     return `${String(textureName || 'texture').replace(/\s+\(\d+px\)$/i, '').trim()} (${targetResolution}px)`;
 }
 
-function getEffectiveFrameCount(app) {
-    return app.framesToSample > 0
-        ? Math.min(app.framesToSample, app.frameCount)
-        : app.frameCount;
+function getSourceFrameCount(source = {}) {
+    return Math.max(0, Number(source.frameCount) || 0);
+}
+
+function getSelectedSourceFrameCount(source = {}) {
+    const selectedSourceFrameCount = Number(source.selectedSourceFrameCount) || 0;
+    if (selectedSourceFrameCount > 0) {
+        return selectedSourceFrameCount;
+    }
+
+    const framesToSample = Number(source.framesToSample) || 0;
+    const frameCount = getSourceFrameCount(source);
+    return framesToSample > 0
+        ? Math.min(framesToSample, frameCount)
+        : frameCount;
+}
+
+function getInterpolationFactor(source = {}) {
+    const factor = Number(source.frameInterpolationFactor) || 1;
+    return Number.isFinite(factor) && factor >= 1 ? Math.round(factor) : 1;
+}
+
+function getEffectiveFrameCount(source = {}) {
+    const explicitEffectiveFrameCount = Number(source.effectiveFrameCount) || 0;
+    if (explicitEffectiveFrameCount > 0) {
+        return explicitEffectiveFrameCount;
+    }
+
+    const selectedSourceFrameCount = getSelectedSourceFrameCount(source);
+    if (selectedSourceFrameCount <= 0) {
+        return 0;
+    }
+
+    if (selectedSourceFrameCount === 1) {
+        return 1;
+    }
+
+    return ((selectedSourceFrameCount - 1) * getInterpolationFactor(source)) + 1;
 }
 
 async function blobToDataUrl(blob) {
@@ -39,12 +73,19 @@ async function collectKtx2BlobsFromUrls(blobUrls = {}) {
 }
 
 function buildDefaultSourceMetadata(source, effectiveFrameCount) {
+    const sourceFrameCount = getSourceFrameCount(source);
+    const selectedSourceFrameCount = getSelectedSourceFrameCount(source);
+    const frameInterpolationFactor = getInterpolationFactor(source);
+
     return {
         filename: source.fileInfo?.name,
         width: source.fileInfo?.width,
         height: source.fileInfo?.height,
         duration: source.fileInfo?.duration,
-        sourceFrameCount: effectiveFrameCount,
+        sourceFrameCount,
+        selectedSourceFrameCount,
+        sampledFrameCount: effectiveFrameCount,
+        frameInterpolationFactor,
         frame_count: effectiveFrameCount,
     };
 }
@@ -135,6 +176,9 @@ export function buildFileTextureSaveSource(app, overrides = {}) {
         textureName: app.textureName,
         description: app.textureDescription,
         framesToSample: app.framesToSample,
+        selectedSourceFrameCount: app.selectedSourceFrameCount,
+        effectiveFrameCount: app.effectiveFrameCount,
+        frameInterpolationFactor: app.effectiveInterpolationFactor,
         frameCount: app.frameCount,
         tileResolution: app.potResolution,
         layerCount: app.crossSectionCount,

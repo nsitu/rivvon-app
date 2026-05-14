@@ -27,3 +27,11 @@ So you can add multiple elements to it including emoji text and hand drawn eleme
 Add the ability to describe any given texture with text
 
 Some workflows do well with the full screen but others could be improved by treating them as an overlay. The difference is when we need to see the result in the renderer in real-time.
+
+i don't think we need to load the map tiles on pageload. we should delay this until the user actually goes into walk mode. also we can probably switch to a vector based map.
+
+also, double check how the ort wasm is handled. are we using cdn for this? do we need to keep the wasm files areound?
+
+Check whether we can patch the mjs to prevent these warnings:
+
+ort-wasm-simd-threaded.asyncify.mjs:83 2026-05-14 16:19:37.944325 [W:onnxruntime:, session_state.cc:1367 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.

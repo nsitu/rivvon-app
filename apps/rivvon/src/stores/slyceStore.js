@@ -16,6 +16,7 @@ export const useSlyceStore = defineStore('slyce', {
         crossSectionCount: 60,
         crossSectionType: 'waves', // planes, waves
         samplingSide: 'long',       // long, short — resolved to rows/columns via samplingAxis getter
+        frameInterpolationFactor: 1, // 1, 2, 4, 8
         // tileMode removed — always 'tile' by convention (full-size mode unused)
         potResolution: 256,             // 32, 64, 128, 256, 512, 1024
         autoDeriveResolutions: [],      // optional lower-resolution family variants to auto-generate after root encode
@@ -246,6 +247,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.autoDeriveResolutions = [];
             this.publishDestination = 'google-drive';
             this.useWebGL2Builder = true;
+            this.frameInterpolationFactor = 1;
             this.fileInfo = null;
             this.textureName = '';
             this.textureDescription = '';
@@ -316,6 +318,44 @@ export const useSlyceStore = defineStore('slyce', {
                 return this.frameEnd - this.frameStart + 1;
             }
             return 0;
+        },
+        selectedSourceFrameCount() {
+            if (this.framesToSample > 0) {
+                return Math.min(this.framesToSample, this.frameCount);
+            }
+
+            return this.frameCount;
+        },
+        effectiveInterpolationFactor() {
+            const factor = Number(this.frameInterpolationFactor);
+
+            if (!Number.isFinite(factor) || factor < 1) {
+                return 1;
+            }
+
+            return Math.round(factor);
+        },
+        insertedFrameCount() {
+            const sourceFrameCount = this.selectedSourceFrameCount;
+
+            if (sourceFrameCount <= 1) {
+                return 0;
+            }
+
+            return (sourceFrameCount - 1) * (this.effectiveInterpolationFactor - 1);
+        },
+        effectiveFrameCount() {
+            const sourceFrameCount = this.selectedSourceFrameCount;
+
+            if (sourceFrameCount <= 0) {
+                return 0;
+            }
+
+            if (sourceFrameCount === 1) {
+                return 1;
+            }
+
+            return ((sourceFrameCount - 1) * this.effectiveInterpolationFactor) + 1;
         },
         // True when all expected tiles have been encoded
         isComplete() {

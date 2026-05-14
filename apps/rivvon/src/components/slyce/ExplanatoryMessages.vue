@@ -18,7 +18,7 @@
 <template>
 
     <div
-        v-if="app.cropMode || plan.rotate !== 0 || plan.skipping || plan.isScaled || plan.notices || plan.length > 0 || (app.framesToSample > 0 && app.framesToSample < app.frameCount)"
+        v-if="app.cropMode || plan.rotate !== 0 || plan.skipping || plan.isScaled || plan.notices || plan.length > 0 || (app.selectedSourceFrameCount > 0 && app.selectedSourceFrameCount < app.frameCount) || app.effectiveInterpolationFactor > 1"
         class="explanatory-messages w-full"
     >
 
@@ -70,25 +70,46 @@
             </AccordionPanel>
             <AccordionPanel
                 value="0.5"
-                v-if="app.framesToSample > 0 && app.framesToSample < app.frameCount"
+                v-if="app.selectedSourceFrameCount > 0 && app.selectedSourceFrameCount < app.frameCount"
             >
                 <AccordionHeader>
                     <div class="flex items-center gap-1 cursor-default">
                         <span class="material-symbols-outlined">filter_alt</span>
                         <span>Using frames {{ app.frameStart.toLocaleString() }}–{{ app.frameEnd.toLocaleString()
-                            }}</span>
-                        <span>({{ app.framesToSample.toLocaleString() }} of {{ app.frameCount.toLocaleString()
-                            }})</span>
+                        }}</span>
+                        <span>({{ app.selectedSourceFrameCount.toLocaleString() }} of {{ app.frameCount.toLocaleString()
+                        }})</span>
                     </div>
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left">
                         Sampling frames {{ app.frameStart.toLocaleString() }} through {{ app.frameEnd.toLocaleString()
                         }}
-                        ({{ app.framesToSample.toLocaleString() }} frames).
-                        The remaining {{ (app.frameCount - app.framesToSample).toLocaleString() }} frames
-                        ({{ Math.round((app.frameCount - app.framesToSample) / app.frameCount * 100) }}% of the video)
+                        ({{ app.selectedSourceFrameCount.toLocaleString() }} frames).
+                        The remaining {{ (app.frameCount - app.selectedSourceFrameCount).toLocaleString() }} frames
+                        ({{ Math.round((app.frameCount - app.selectedSourceFrameCount) / app.frameCount * 100) }}% of
+                        the video)
                         will not be processed.
+                    </p>
+                </AccordionContent>
+            </AccordionPanel>
+            <AccordionPanel
+                value="0.75"
+                v-if="app.effectiveInterpolationFactor > 1"
+            >
+                <AccordionHeader>
+                    <div class="flex items-center gap-1 cursor-default">
+                        <span class="material-symbols-outlined">animation</span>
+                        <span>Interpolating at {{ app.effectiveInterpolationFactor }}x</span>
+                        <span>({{ app.selectedSourceFrameCount.toLocaleString() }} → {{
+                            app.effectiveFrameCount.toLocaleString() }})</span>
+                    </div>
+                </AccordionHeader>
+                <AccordionContent>
+                    <p class="m-0 text-left">
+                        The selected source range yields {{ app.insertedFrameCount.toLocaleString() }} generated
+                        in-between frames,
+                        for {{ app.effectiveFrameCount.toLocaleString() }} emitted frames total.
                     </p>
                 </AccordionContent>
             </AccordionPanel>
@@ -108,11 +129,12 @@
                         {{ plan.length }} square {{ plan.length == 1 ? 'tile' : 'tiles' }} at full
                         resolution
                         ({{ plan.width }}x{{ plan.height }}) {{ plan.length == 1 ? 'takes' : 'take' }} up {{
-                            app.frameCount -
+                            app.effectiveFrameCount -
                             plan.skipping }} of {{
-                            app.frameCount }}
+                            app.effectiveFrameCount }}
                         possible pixel arrays. {{ plan.skipping }} pixel arrays from frames
-                        {{ app.frameCount - plan.skipping + 1 }}-{{ app.frameCount }} do not form a full tile and will
+                        {{ app.effectiveFrameCount - plan.skipping + 1 }}-{{ app.effectiveFrameCount }} do not form a
+                        full tile and will
                         be
                         skipped.
                     </p>
@@ -167,7 +189,7 @@
                 <AccordionContent>
                     <p class="m-0 text-left">
                         This video has sufficient data for {{ plan.length }} {{ plan.length == 1 ? 'tile' : 'tiles' }}.
-                        <br /> {{ app.framesToSample.toLocaleString() }} frames ÷ {{
+                        <br /> {{ app.effectiveFrameCount.toLocaleString() }} frames ÷ {{
                             plan.height }}px per tile = {{ plan.length }}
                     </p>
                 </AccordionContent>
@@ -185,7 +207,7 @@
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="m-0 text-left">
-                        {{ app.frameCount }} sampled pixel arrays is not adequate to fill a tile.
+                        {{ app.effectiveFrameCount }} sampled pixel arrays is not adequate to fill a tile.
                     </p>
                 </AccordionContent>
             </AccordionPanel>

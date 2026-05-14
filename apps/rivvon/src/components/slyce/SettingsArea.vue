@@ -91,6 +91,29 @@
         return app.file && !app.fileInfo?.name;
     });
 
+    const interpolationOptions = [
+        { name: '2x', value: 2 },
+        { name: '4x', value: 4 },
+        { name: '8x', value: 8 },
+    ];
+
+    const lastEnabledInterpolationFactor = ref(
+        app.frameInterpolationFactor > 1 ? app.frameInterpolationFactor : 2
+    );
+
+    watch(() => app.frameInterpolationFactor, (newFactor) => {
+        if (newFactor > 1) {
+            lastEnabledInterpolationFactor.value = newFactor;
+        }
+    }, { immediate: true });
+
+    const interpolationEnabled = computed({
+        get: () => app.frameInterpolationFactor > 1,
+        set: (enabled) => {
+            app.frameInterpolationFactor = enabled ? lastEnabledInterpolationFactor.value : 1;
+        },
+    });
+
     // Compute perceived long/short side pixel counts (accounting for rotation)
     const sideOptions = computed(() => {
         const w = app.cropMode && app.cropWidth ? app.cropWidth : app.fileInfo?.width;
@@ -325,6 +348,27 @@
                 </template>
             </p>
 
+            <p class="settings-paragraph">
+                <ToggleSwitch v-model="interpolationEnabled" />
+                <template v-if="!interpolationEnabled">
+                    <span>Interpolate frames before tile generation.</span>
+                </template>
+                <template v-else>
+                    <span>Interpolate frames at</span>
+                    <Select
+                        v-model="app.frameInterpolationFactor"
+                        :options="interpolationOptions"
+                        optionValue="value"
+                        optionLabel="name"
+                        class="inline-select"
+                    />
+                    <span>
+                        to emit {{ app.effectiveFrameCount.toLocaleString() }} frames from {{
+                            app.selectedSourceFrameCount.toLocaleString() }} source frames.
+                    </span>
+                </template>
+            </p>
+
             <Slider
                 v-if="isTrimmed"
                 v-model="frameRange"
@@ -456,6 +500,7 @@
                         fileInfo: app.fileInfo,
                         crossSectionCount: app.crossSectionCount,
                         crossSectionType: app.crossSectionType,
+                        frameInterpolationFactor: app.effectiveInterpolationFactor,
                         useWebGL2Builder: app.useWebGL2Builder,
                     })"
                 />
