@@ -18,6 +18,7 @@ jobs:
       rivvon: ${{ steps.filter.outputs.rivvon }}
       api: ${{ steps.filter.outputs.api }}
       packages: ${{ steps.filter.outputs.packages }}
+      runtime_assets: ${{ steps.filter.outputs.runtime_assets }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,14 +34,51 @@ jobs:
               - 'apps/api/**'
             packages:
               - 'packages/**'
+            runtime_assets:
+              - 'apps/rivvon/config/runtimeAssets.mjs'
+              - 'apps/rivvon/runtime-assets/**'
+              - 'apps/rivvon/scripts/publish-runtime-assets.mjs'
+
+  publish-runtime-assets:
+    needs: detect-changes
+    if: |
+      github.event_name == 'push' &&
+      needs.detect-changes.outputs.runtime_assets == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish runtime assets to R2
+        run: pnpm --filter rivvon publish:runtime-assets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   # Deploy Rivvon frontend
   deploy-rivvon:
-    needs: detect-changes
+    needs:
+      - detect-changes
+      - publish-runtime-assets
     if: |
-      github.event_name == 'push' && 
+      github.event_name == 'push' &&
       (needs.detect-changes.outputs.rivvon == 'true' || 
-       needs.detect-changes.outputs.packages == 'true')
+       needs.detect-changes.outputs.packages == 'true') &&
+      (needs.publish-runtime-assets.result == 'success' ||
+       needs.publish-runtime-assets.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +101,7 @@ jobs:
         run: pnpm --filter rivvon build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_ASSET_BASE_URL: https://cdn.rivvon.ca/
 
       - name: Deploy to Cloudflare Pages
         run: pnpm dlx wrangler@4.86.0 pages deploy dist --project-name=rivvon --branch=main --commit-dirty=true
@@ -129,6 +168,7 @@ jobs:
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_API_URL: ${{ secrets.VITE_API_URL_PREVIEW }}
+          VITE_ASSET_BASE_URL: https://cdn.rivvon.ca/
 
       - name: Deploy Rivvon Preview
         run: pnpm dlx wrangler@4.86.0 pages deploy dist --project-name=rivvon --branch=${{ github.head_ref }} --commit-dirty=true

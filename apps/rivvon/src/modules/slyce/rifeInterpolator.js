@@ -5,8 +5,9 @@ import {
     cropToOriginal,
     resizeImageData,
 } from './rifePadding.js';
+import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
 
-const DEFAULT_MODEL_PATH = '/rife422_v2_ensembleFalse_op20_clamp.onnx';
+const DEFAULT_MODEL_PATH = getRuntimeAssetUrl('rife422Model');
 const DEFAULT_WASM_PATH = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1/dist/';
 
 export class RIFEInterpolator {

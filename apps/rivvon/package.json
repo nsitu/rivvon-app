@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "preview:vanilla": "vite preview --config vite.config.vanilla.mjs",
     "lint": "echo 'No linter configured'",
-    "generate:sprites": "node scripts/build-emoji-sprites.mjs"
+    "generate:sprites": "node scripts/build-emoji-sprites.mjs",
+    "publish:runtime-assets": "node scripts/publish-runtime-assets.mjs"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.24",

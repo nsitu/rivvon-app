@@ -14,12 +14,12 @@
  *   { type: 'infer-error', id, error }
  */
 
+import { getRuntimeAssetUrls } from '../modules/shared/runtimeAssets.js';
+
 const MODEL_INPUT_SIZE = 320;
 const MEAN = [0.485, 0.456, 0.406];
 const STD  = [0.229, 0.224, 0.225];
-const BASE_URL = import.meta.env.BASE_URL || '/';
-const MODEL_PATH = `${import.meta.env.BASE_URL || '/'}u2net.quant.onnx`;
-const MODEL_ZIP_PATH = `${BASE_URL}u2net.quant.onnx.zip`;
+const MODEL_ZIP_PATHS = getRuntimeAssetUrls('u2netModelZip');
 const MODEL_FILE_NAME = 'u2net.quant.onnx';
 
 function createStickyPromiseLoader(load) {
@@ -41,32 +41,39 @@ function emitPreloadStatus(postStatus, stage, message) {
 }
 
 async function loadModelBufferFromZip(postStatus) {
-    emitPreloadStatus(postStatus, 'loading', 'Loading model archive…');
-    const response = await fetch(MODEL_ZIP_PATH);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch zipped model (${response.status})`);
+    let lastError = null;
+
+    for (const modelZipPath of MODEL_ZIP_PATHS) {
+        emitPreloadStatus(postStatus, 'loading', 'Loading model archive…');
+
+        const response = await fetch(modelZipPath);
+        if (!response.ok) {
+            lastError = new Error(`Failed to fetch zipped model (${response.status}) from ${modelZipPath}`);
+            continue;
+        }
+
+        const zipBytes = await response.arrayBuffer();
+        emitPreloadStatus(postStatus, 'extracting', 'Extracting model…');
+        const JSZip = (await import('jszip')).default;
+        const zip = await JSZip.loadAsync(zipBytes);
+
+        const modelFile = zip.file(MODEL_FILE_NAME) || Object.values(zip.files).find((entry) => !entry.dir && entry.name.endsWith('.onnx'));
+        if (!modelFile) {
+            throw new Error(`Model file not found in zip: ${MODEL_FILE_NAME}`);
+        }
+
+        // onnxruntime-web accepts model bytes directly.
+        return await modelFile.async('arraybuffer');
     }
 
-    const zipBytes = await response.arrayBuffer();
-    emitPreloadStatus(postStatus, 'extracting', 'Extracting model…');
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(zipBytes);
-
-    const modelFile = zip.file(MODEL_FILE_NAME) || Object.values(zip.files).find((entry) => !entry.dir && entry.name.endsWith('.onnx'));
-    if (!modelFile) {
-        throw new Error(`Model file not found in zip: ${MODEL_FILE_NAME}`);
-    }
-
-    // onnxruntime-web accepts model bytes directly.
-    return await modelFile.async('arraybuffer');
+    throw lastError || new Error('No zipped U2Net model path succeeded.');
 }
 
 const getModelBuffer = createStickyPromiseLoader(async (postStatus) => {
     try {
         return await loadModelBufferFromZip(postStatus);
     } catch (zipErr) {
-        console.warn('[ContourWorker] ZIP model load failed, falling back to plain ONNX path.', zipErr);
-        emitPreloadStatus(postStatus, 'loading', 'Loading model…');
+        console.warn('[ContourWorker] ZIP model load failed.', zipErr);
         return null;
     }
 });
@@ -77,9 +84,11 @@ const getSession = createStickyPromiseLoader(async (postStatus) => {
     ort.env.wasm.numThreads = 1;
 
     const modelBuffer = await getModelBuffer(postStatus);
-    const modelSource = modelBuffer ?? MODEL_PATH;
+    if (!modelBuffer) {
+        throw new Error('No U2Net model bytes were available from configured runtime asset URLs.');
+    }
 
-    const session = await ort.InferenceSession.create(modelSource, {
+    const session = await ort.InferenceSession.create(modelBuffer, {
         executionProviders: ['wasm'],
     });
 
