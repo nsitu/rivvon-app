@@ -19,8 +19,7 @@ import { getRuntimeAssetUrls } from '../modules/shared/runtimeAssets.js';
 const MODEL_INPUT_SIZE = 320;
 const MEAN = [0.485, 0.456, 0.406];
 const STD  = [0.229, 0.224, 0.225];
-const MODEL_ZIP_PATHS = getRuntimeAssetUrls('u2netModelZip');
-const MODEL_FILE_NAME = 'u2net.quant.onnx';
+const MODEL_PATHS = getRuntimeAssetUrls('u2netModel');
 
 function createStickyPromiseLoader(load) {
     let promise = null;
@@ -40,40 +39,30 @@ function emitPreloadStatus(postStatus, stage, message) {
     }
 }
 
-async function loadModelBufferFromZip(postStatus) {
+async function loadModelBuffer(postStatus) {
     let lastError = null;
 
-    for (const modelZipPath of MODEL_ZIP_PATHS) {
-        emitPreloadStatus(postStatus, 'loading', 'Loading model archive…');
+    for (const modelPath of MODEL_PATHS) {
+        emitPreloadStatus(postStatus, 'loading', 'Loading model…');
 
-        const response = await fetch(modelZipPath);
+        const response = await fetch(modelPath);
         if (!response.ok) {
-            lastError = new Error(`Failed to fetch zipped model (${response.status}) from ${modelZipPath}`);
+            lastError = new Error(`Failed to fetch model (${response.status}) from ${modelPath}`);
             continue;
         }
 
-        const zipBytes = await response.arrayBuffer();
-        emitPreloadStatus(postStatus, 'extracting', 'Extracting model…');
-        const JSZip = (await import('jszip')).default;
-        const zip = await JSZip.loadAsync(zipBytes);
-
-        const modelFile = zip.file(MODEL_FILE_NAME) || Object.values(zip.files).find((entry) => !entry.dir && entry.name.endsWith('.onnx'));
-        if (!modelFile) {
-            throw new Error(`Model file not found in zip: ${MODEL_FILE_NAME}`);
-        }
-
-        // onnxruntime-web accepts model bytes directly.
-        return await modelFile.async('arraybuffer');
+        // Browser fetch transparently decodes Content-Encoding for gzip/brotli assets.
+        return await response.arrayBuffer();
     }
 
-    throw lastError || new Error('No zipped U2Net model path succeeded.');
+    throw lastError || new Error('No U2Net model path succeeded.');
 }
 
 const getModelBuffer = createStickyPromiseLoader(async (postStatus) => {
     try {
-        return await loadModelBufferFromZip(postStatus);
-    } catch (zipErr) {
-        console.warn('[ContourWorker] ZIP model load failed.', zipErr);
+        return await loadModelBuffer(postStatus);
+    } catch (loadErr) {
+        console.warn('[ContourWorker] Model load failed.', loadErr);
         return null;
     }
 });

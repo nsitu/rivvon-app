@@ -7,6 +7,7 @@
     import Select from 'primevue/select';
     import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
+    import AboutPanel from './AboutPanel.vue';
     import GeometrySettingsControls from './GeometrySettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import ViewerSettingsControls from './ViewerSettingsControls.vue';
@@ -56,6 +57,12 @@
         emit('request-toolbar-overlay-change', null);
     }
 
+    function hideAboutIfActive() {
+        if (isToolbarContextActive('about')) {
+            app.hideAboutPanel();
+        }
+    }
+
     function toggleLauncher(name) {
         const nextLauncher = props.activeToolbarOverlay === name ? null : name;
 
@@ -68,6 +75,7 @@
             return;
         }
 
+        hideAboutIfActive();
         app.hideToolsPanel();
         emit('request-toolbar-overlay-change', nextLauncher);
     }
@@ -381,6 +389,7 @@
         }
 
         closeLaunchers();
+        hideAboutIfActive();
         app.showToolsPanel();
     }
 
@@ -745,7 +754,7 @@
                                         v-model="exportLogoOverlayEnabledModel"
                                     />
                                     <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
-                                        }}</span>
+                                    }}</span>
                                 </div>
                             </div>
 
@@ -836,67 +845,13 @@
         </div>
     </div>
 
-    <!-- About Rivvon Panel (full-screen overlay) -->
-    <div
-        class="about-panel"
-        :class="{ active: isToolbarContextActive('about') }"
-    >
-        <div class="about-panel-container viewer-chrome-panel-container">
-            <div class="about-panel-content">
-                <div class="info-content">
-                    <p>
-                        Rivvon renders animated ribbons via GPU shaders using multi-layered KTX2 texture tiles.
-                    </p>
-                    <p>
-                        Textures are created by extracting
-                        <a
-                            target="_blank"
-                            href="https://en.wikipedia.org/wiki/Slit-scan_photography"
-                        >cross sections</a>
-                        from video files using
-                        <a
-                            target="_blank"
-                            href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API"
-                        >WebCodecs</a>,
-                        <a
-                            target="_blank"
-                            href="https://github.com/Vanilagy/mediabunny"
-                        >mediabunny</a>, and
-                        <a
-                            target="_blank"
-                            href="https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API"
-                        >Canvas</a>.
-                        Textures are encoded using
-                        <a
-                            target="_blank"
-                            href="https://github.com/BinomialLLC/basis_universal"
-                        >Basis Encoder</a>.
-                    </p>
-                    <p>
-                        Animations are achieved by taking multiple cross sections of the same video.
-                        Each cross section samples pixels from each frame.
-                        This can be done using one of two strategies: a linear sampling pattern that stays on the same
-                        row
-                        for each sample (planar cross section), or a periodic function that achieves a wave-based,
-                        directly loopable animation.
-                    </p>
-                    <p class="info-build">
-                        Build: {{ buildTimestampDisplay }}
-                    </p>
-                    <p class="info-credit">
-                        Created by <a
-                            target="_blank"
-                            href="https://nsitu.ca"
-                        >Harold Sikkema</a>
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <AboutPanel
+        :active="isToolbarContextActive('about')"
+        :build-timestamp-display="buildTimestampDisplay"
+    />
 </template>
 
 <style scoped>
-
     .bottom-toolbar {
         position: absolute;
         bottom: 0;
@@ -1284,74 +1239,4 @@
         background: transparent;
     }
 
-    /* Info panel content */
-    .about-panel {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 8;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .about-panel.active {
-        pointer-events: auto;
-        opacity: 1;
-    }
-
-    .about-panel-container {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        width: 100%;
-        background: #1a1a1a;
-    }
-
-    .about-panel-content {
-        flex: 1;
-        overflow-y: auto;
-        padding: 2rem 1.5rem;
-        width: 100%;
-        max-width: 600px;
-        margin: 0 auto;
-        display: flex;
-        align-items: center;
-    }
-
-    .info-content {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        font-size: 0.9rem;
-        line-height: 1.6;
-        color: var(--text-secondary);
-    }
-
-    .info-build {
-        margin-top: 0.5rem;
-        font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.58);
-    }
-
-    .info-content a {
-        color: var(--text-primary);
-        text-decoration: underline;
-        transition: opacity 0.2s;
-    }
-
-    .info-content a:hover {
-        opacity: 0.8;
-    }
-
-    .info-credit {
-        margin-top: 0.5rem;
-        padding-top: 1rem;
-        border-top: 1px solid var(--border-primary);
-        font-size: 0.85rem;
-    }
 </style>

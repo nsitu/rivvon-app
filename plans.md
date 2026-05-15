@@ -33,3 +33,5 @@ also, double check how the ort wasm is handled. are we using cdn for this? do we
 Check whether we can patch the mjs to prevent these warnings:
 
 ort-wasm-simd-threaded.asyncify.mjs:83 2026-05-14 16:19:37.944325 [W:onnxruntime:, session_state.cc:1367 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.
+
+currently we use a texture atlas as a way to write pixel data to the GPU. however i wonder if it's efficient to write directly to a texture array instead, given that all our tiles have the same size?

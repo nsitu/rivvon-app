@@ -78,6 +78,10 @@ for (const asset of assets) {
         asset.cacheControl,
     ];
 
+    if (asset.contentEncoding) {
+        commandArgs.push('--content-encoding', asset.contentEncoding);
+    }
+
     if (dryRun) {
         console.log(`[dry-run] ${asset.assetId} -> ${objectPath}`);
         continue;

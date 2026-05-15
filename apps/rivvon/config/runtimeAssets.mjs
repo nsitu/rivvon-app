@@ -6,11 +6,13 @@ export const runtimeAssetManifest = Object.freeze({
         contentType: 'application/octet-stream',
         cacheControl: 'public, max-age=31536000, immutable',
     }),
-    u2netModelZip: Object.freeze({
-        sourcePath: 'runtime-assets/source/models/u2net.quant.onnx.zip',
-        objectKey: 'runtime-assets/models/u2net.quant/u2net.quant.onnx.zip',
-        localPath: '/u2net.quant.onnx.zip',
-        contentType: 'application/zip',
+    u2netModel: Object.freeze({
+        sourcePath: 'runtime-assets/source/models/u2net.quant.onnx.br',
+        localSourcePath: 'runtime-assets/source/models/u2net.quant.onnx',
+        objectKey: 'runtime-assets/models/u2net.quant/u2net.quant.onnx',
+        localPath: '/u2net.quant.onnx',
+        contentType: 'application/octet-stream',
+        contentEncoding: 'br',
         cacheControl: 'public, max-age=31536000, immutable',
     }),
 });

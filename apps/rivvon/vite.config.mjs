@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
     if (shouldCopyRuntimeAssets) {
         staticCopyTargets.push(
             ...getRuntimeAssetEntries().map((entry) => ({
-                src: normalizePath(resolve(__dirname, entry.sourcePath)),
+                src: normalizePath(resolve(__dirname, entry.localSourcePath || entry.sourcePath)),
                 dest: RUNTIME_ASSET_COPY_DEST,
             }))
         );
