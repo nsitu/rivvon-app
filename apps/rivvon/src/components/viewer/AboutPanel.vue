@@ -161,7 +161,7 @@
                                     >WebCodecs</a>. Configuration allows video export to follow a loopable format by
                                     aligning
                                     animation cycles. </p>
-                                <h3>Slit Scan Technique</h3>
+                                <h3>Slit Scan Techniques</h3>
                                 <p>
                                     Rivvon textures employ a variation on the classic slit-scan technique.
                                     In a simple slit scan, you sample one row of pixels from each frame, and then stich
