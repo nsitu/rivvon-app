@@ -49,6 +49,27 @@ function createPerfTelemetrySnapshot() {
         flowAligned: false,
         flowAlignmentEnabled: false,
         flowAlignmentCapable: false,
+        viewerControlMode: 'orbit',
+        textureAnimationEnabled: false,
+        scrollDrivenTiltEnabled: false,
+        scrollDrivenLayerCycleEnabled: false,
+        scrollDrivenFlowEnabled: false,
+        suppressLayerAnimation: false,
+        suppressFlowAnimation: false,
+        scrollTiltActive: false,
+        scrollTiltBlockingContext: false,
+        scrollTiltVelocity: 0,
+        scrollTiltLayerDriverEnabled: false,
+        textureSourceLabel: 'default',
+        textureVariant: 'unknown',
+        expectedLayerCount: 0,
+        decodedDepthLabel: 'n/a',
+        metadataFallbackCount: 0,
+        arrayTextureCount: 0,
+        nonArrayTextureCount: 0,
+        layerCycleFrame: 0,
+        layerCycleFrameCount: 0,
+        layerDirection: 1,
     };
 }
 
@@ -170,6 +191,16 @@ export function useRenderLoop(ctx, deps = {}) {
             : perfLastRenderMs;
         const flowSpeed = primaryTileManager?.getFlowSpeed?.() ?? 0;
         const effectiveTileCount = primaryTileManager?.getEffectiveTileCount?.() ?? 0;
+        const layerDebug = primaryTileManager?.getLayerDebugInfo?.() ?? null;
+        const scrollTiltDebug = ctx.scrollTilt?.getDebugState?.() ?? null;
+        const suppressLayerAnimation = ctx.app.viewerControlMode === 'scrollTilt'
+            && !ctx.cinematicCamera.isPlaying.value
+            && ctx.app.textureAnimationEnabled
+            && ctx.app.scrollDrivenLayerCycleEnabled;
+        const suppressFlowAnimation = ctx.app.viewerControlMode === 'scrollTilt'
+            && !ctx.cinematicCamera.isPlaying.value
+            && ctx.app.flowState !== 'off'
+            && ctx.app.scrollDrivenFlowEnabled;
 
         perfTelemetry.value = {
             ...perfTelemetry.value,
@@ -221,6 +252,29 @@ export function useRenderLoop(ctx, deps = {}) {
             flowAligned: !!flowAlignmentInfo?.aligned,
             flowAlignmentEnabled: !!flowAlignmentInfo?.enabled,
             flowAlignmentCapable: !!flowAlignmentInfo?.canAlign,
+            viewerControlMode: ctx.app.viewerControlMode || 'orbit',
+            textureAnimationEnabled: !!ctx.app.textureAnimationEnabled,
+            scrollDrivenTiltEnabled: !!ctx.app.scrollDrivenTiltEnabled,
+            scrollDrivenLayerCycleEnabled: !!ctx.app.scrollDrivenLayerCycleEnabled,
+            scrollDrivenFlowEnabled: !!ctx.app.scrollDrivenFlowEnabled,
+            suppressLayerAnimation,
+            suppressFlowAnimation,
+            scrollTiltActive: !!scrollTiltDebug?.active,
+            scrollTiltBlockingContext: !!scrollTiltDebug?.blockingContext,
+            scrollTiltVelocity: roundMetric(scrollTiltDebug?.scrollVelocity ?? 0, 4),
+            scrollTiltLayerDriverEnabled: !!scrollTiltDebug?.layerDriverEnabled,
+            textureSourceLabel: layerDebug?.textureSourceLabel || 'default',
+            textureVariant: layerDebug?.variant || 'unknown',
+            expectedLayerCount: layerDebug?.expectedLayerCount || 0,
+            decodedDepthLabel: Array.isArray(layerDebug?.decodedDepths) && layerDebug.decodedDepths.length > 0
+                ? layerDebug.decodedDepths.join(',')
+                : 'n/a',
+            metadataFallbackCount: layerDebug?.metadataFallbackCount || 0,
+            arrayTextureCount: layerDebug?.arrayTextureCount || 0,
+            nonArrayTextureCount: layerDebug?.nonArrayTextureCount || 0,
+            layerCycleFrame: layerDebug?.layerCycleFrame || 0,
+            layerCycleFrameCount: layerDebug?.layerCycleFrameCount || 0,
+            layerDirection: layerDebug?.direction || 1,
         };
 
         resetPerfWindow(now);
@@ -418,10 +472,12 @@ export function useRenderLoop(ctx, deps = {}) {
 
             const scrollTiltDrivesTextureLayers = ctx.app.viewerControlMode === 'scrollTilt'
                 && !ctx.cinematicCamera.isPlaying.value
-                && ctx.app.textureAnimationEnabled;
+                && ctx.app.textureAnimationEnabled
+                && ctx.app.scrollDrivenLayerCycleEnabled;
             const scrollTiltDrivesFlow = ctx.app.viewerControlMode === 'scrollTilt'
                 && !ctx.cinematicCamera.isPlaying.value
-                && ctx.app.flowState !== 'off';
+                && ctx.app.flowState !== 'off'
+                && ctx.app.scrollDrivenFlowEnabled;
             const scrollTiltDrivesUndulation = ctx.app.viewerControlMode === 'scrollTilt'
                 && !ctx.cinematicCamera.isPlaying.value
                 && ctx.app.undulationEnabled;

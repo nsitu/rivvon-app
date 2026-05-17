@@ -225,6 +225,11 @@ export class TileManager {
         // Current texture set metadata (for CDN-loaded textures)
         this.currentTextureSet = null;
         this.lastLoadError = null;
+        this.expectedLayerCount = 0;
+        this.textureSourceLabel = 'default';
+        this.decodedTileDepths = [];
+        this.decodedTileKinds = [];
+        this.decodedTileLayerSources = [];
 
         this._ktx2Loader = null;
         this._webgpuDeps = null;
@@ -1410,7 +1415,29 @@ export class TileManager {
             arrayTexture.colorSpace = THREE.LinearSRGBColorSpace;
         }
 
-        const depth = arrayTexture.image?.depth || 1;
+        const rawDepth = Number(arrayTexture.image?.depth) || 0;
+        const isCompressedArrayTexture = arrayTexture?.isCompressedArrayTexture === true;
+        const canUseExpectedLayerCount = isCompressedArrayTexture
+            && this.expectedLayerCount > 1
+            && rawDepth <= 1;
+        const depth = canUseExpectedLayerCount
+            ? this.expectedLayerCount
+            : (rawDepth > 0 ? rawDepth : 1);
+
+        this.decodedTileDepths[tileIndex] = rawDepth > 0 ? rawDepth : null;
+        this.decodedTileKinds[tileIndex] = isCompressedArrayTexture
+            ? 'compressed-array'
+            : (arrayTexture?.isCompressedTexture ? 'compressed' : (arrayTexture?.constructor?.name || 'unknown'));
+        this.decodedTileLayerSources[tileIndex] = canUseExpectedLayerCount
+            ? 'metadata-fallback'
+            : (rawDepth > 0 ? 'decoded' : 'default');
+
+        if (canUseExpectedLayerCount) {
+            console.warn(
+                `[TileManager] ${label} ${tileIndex} reported depth ${rawDepth || 'n/a'}; using expected metadata layer_count=${this.expectedLayerCount}`
+            );
+        }
+
         if (this.layerCount === 0) {
             this.layerCount = depth;
             this.currentLayer = 0;
@@ -1642,6 +1669,37 @@ export class TileManager {
 
     getLayerCount() {
         return this.layerCount || 0;
+    }
+
+    getLayerDebugInfo() {
+        const decodedDepths = this.decodedTileDepths
+            .filter((value) => Number.isFinite(value) && value > 0)
+            .sort((left, right) => left - right);
+        const uniqueDecodedDepths = [...new Set(decodedDepths)];
+        const parsedTextureCount = this.arrayTextures.filter(Boolean).length;
+        const arrayTextureCount = this.decodedTileKinds.filter((kind) => kind === 'compressed-array').length;
+        const nonArrayTextureCount = this.decodedTileKinds.filter(Boolean).length - arrayTextureCount;
+        const metadataFallbackCount = this.decodedTileLayerSources
+            .filter((source) => source === 'metadata-fallback')
+            .length;
+
+        return {
+            textureSourceLabel: this.textureSourceLabel || 'default',
+            variant: this.variant || 'unknown',
+            expectedLayerCount: this.expectedLayerCount || Number(this.currentTextureSet?.layer_count) || 0,
+            resolvedLayerCount: this.layerCount || 0,
+            decodedDepths: uniqueDecodedDepths,
+            parsedTextureCount,
+            arrayTextureCount,
+            nonArrayTextureCount,
+            metadataFallbackCount,
+            currentLayer: this.currentLayer,
+            layerCycleFrame: this.#getCurrentLayerCycleFrame(),
+            layerCycleFrameCount: this.#getLayerSequenceFrameCount(),
+            direction: this.direction,
+            layerAnimationEnabled: this.layerAnimationEnabled,
+            layerAnimationReversed: this.layerAnimationReversed,
+        };
     }
 
     #getLayerSequenceFrameCount() {
@@ -2591,6 +2649,11 @@ export class TileManager {
         this._deterministicAccum = 0;
         this.sharedFlowOffsetUniform.value = 0.0;
         this.currentTextureSet = null;
+        this.expectedLayerCount = 0;
+        this.textureSourceLabel = 'default';
+        this.decodedTileDepths = [];
+        this.decodedTileKinds = [];
+        this.decodedTileLayerSources = [];
 
         console.log('[TileManager] Cleared all tiles');
     }
@@ -2761,6 +2824,8 @@ export class TileManager {
             this.isKTX2 = true;
             this.isZip = true; // Use zip-like flow to parse from downloaded buffers
             this.currentTextureSet = textureSet;
+            this.expectedLayerCount = Number(layer_count) || 0;
+            this.textureSourceLabel = 'remote';
 
             // Reset layer state
             this.layerCount = 0;
@@ -2860,6 +2925,8 @@ export class TileManager {
             ...textureSet,
             thumbnail_url: thumbnail_data_url || textureSet?.thumbnail_url || null,
         };
+        this.expectedLayerCount = Number(textureSet?.layer_count) || Number(tileEntry?.layerCount) || 0;
+        this.textureSourceLabel = sourceLabel;
 
         this.layerCount = 0;
         this.currentLayer = 0;
@@ -2950,6 +3017,8 @@ export class TileManager {
                 ...textureSet,
                 thumbnail_url: thumbnail_data_url
             };
+            this.expectedLayerCount = Number(textureSet?.layer_count) || 0;
+            this.textureSourceLabel = 'local';
 
             // Reset layer state
             this.layerCount = 0;

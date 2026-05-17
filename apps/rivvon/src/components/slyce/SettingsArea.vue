@@ -11,6 +11,7 @@
 
     import { getMetaData } from '../../modules/slyce/metaDataExtractor';
     import { processVideo } from '../../modules/slyce/videoProcessor';
+    import { isLikelyIOSDevice } from '../../modules/slyce/encodingPolicy';
 
     import TilePreview from './TilePreview.vue';
 
@@ -125,10 +126,17 @@
         { name: '4x', value: 4 },
         { name: '8x', value: 8 },
     ];
+    const frameInterpolationSupported = !isLikelyIOSDevice();
 
     const lastEnabledInterpolationFactor = ref(
         app.frameInterpolationFactor > 1 ? app.frameInterpolationFactor : 2
     );
+
+    watchEffect(() => {
+        if (!frameInterpolationSupported && app.frameInterpolationFactor > 1) {
+            app.frameInterpolationFactor = 1;
+        }
+    });
 
     watch(() => app.frameInterpolationFactor, (newFactor) => {
         if (newFactor > 1) {
@@ -378,8 +386,14 @@
             </p>
 
             <p class="settings-paragraph">
-                <ToggleSwitch v-model="interpolationEnabled" />
-                <template v-if="!interpolationEnabled">
+                <ToggleSwitch
+                    v-model="interpolationEnabled"
+                    :disabled="!frameInterpolationSupported"
+                />
+                <template v-if="!frameInterpolationSupported">
+                    <span>Frame interpolation is currently unavailable on iPhone and iPad. The shipped ONNX model cannot initialize reliably within mobile runtime limits yet.</span>
+                </template>
+                <template v-else-if="!interpolationEnabled">
                     <span>Interpolate frames before tile generation.</span>
                 </template>
                 <template v-else>
@@ -390,6 +404,7 @@
                         optionValue="value"
                         optionLabel="name"
                         class="inline-select"
+                        :disabled="!frameInterpolationSupported"
                     />
                     <span>
                         to emit {{ app.effectiveFrameCount.toLocaleString() }} frames from {{

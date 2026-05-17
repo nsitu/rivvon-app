@@ -33,12 +33,14 @@
 <style scoped>
     .technical-overlay {
         position: fixed;
-        bottom: 6.5rem;
-        right: 16px;
+        bottom: calc(var(--viewer-bottom-chrome-height, 6.4rem) + 0.5rem);
+        right: 12px;
         z-index: 4;
         display: flex;
         flex-direction: column;
         gap: 8px;
+        width: min(26rem, calc(100vw - 24px));
+        max-width: calc(100vw - 24px);
         pointer-events: auto;
         user-select: none;
     }
@@ -75,8 +77,24 @@
         backdrop-filter: blur(6px);
 
         border-radius: 8px;
-        white-space: pre;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        max-width: 100%;
         pointer-events: none;
+    }
+
+    @media (max-width: 640px) {
+        .technical-overlay {
+            left: 12px;
+            right: 12px;
+            width: auto;
+            max-width: none;
+        }
+
+        .technical-overlay-header {
+            align-self: stretch;
+            justify-content: space-between;
+        }
     }
 
     .fade-enter-active,

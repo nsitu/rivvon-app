@@ -6,7 +6,7 @@ import { TileBuilder } from './tileBuilder.js';
 import { WebGLTileBuilder } from './webglTileBuilder.js';
 import { KTX2Assembler } from './ktx2-assembler.js';
 import { KTX2WorkerPool } from './ktx2-worker-pool.js';
-import { getSharedBackgroundEncodeConfig } from './encodingPolicy.js';
+import { getSharedBackgroundEncodeConfig, isLikelyIOSDevice } from './encodingPolicy.js';
 import { runSamplingPipeline } from './samplingPipeline.js';
 import { VideoFileFrameSource } from './samplingSources.js';
 import {
@@ -181,6 +181,16 @@ const processVideo = async (settings) => {
         return false;
     }
 
+    const requestedInterpolationFactor = Math.max(1, Math.round(Number(settings.frameInterpolationFactor ?? app.effectiveInterpolationFactor) || 1));
+    if (requestedInterpolationFactor > 1 && isLikelyIOSDevice()) {
+        const interpolationUnsupportedMessage = 'Frame interpolation is currently unavailable on iPhone and iPad. The shipped ONNX model cannot initialize reliably within mobile runtime limits yet.';
+        app.set('tilePlan', resolvedTilePlan);
+        app.clearAllStatus();
+        app.setStatus('Interpolation', interpolationUnsupportedMessage);
+        console.warn(`[VideoProcessor] ${interpolationUnsupportedMessage}`);
+        return false;
+    }
+
     // Abort any previous processing
     abortProcessing();
 
@@ -236,7 +246,7 @@ const processVideo = async (settings) => {
         tilePlan: resolvedTilePlan,
         frameStart,
         frameEnd,
-        frameInterpolationFactor: settings.frameInterpolationFactor ?? app.effectiveInterpolationFactor,
+        frameInterpolationFactor: requestedInterpolationFactor,
         onSeekProgress(currentFrame) {
             const progressText = currentFrame && currentFrame !== frameStart
                 ? `Seeking to frame ${frameStart} (decoder at frame ${currentFrame})`

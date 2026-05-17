@@ -15,12 +15,19 @@ function getDeviceMemory() {
     return memory;
 }
 
+export function isLikelyIOSDevice() {
+    if (typeof navigator === 'undefined') return false;
+
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua)
+        || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 0);
+}
+
 export function isLikelyIOSOrSafari() {
     if (typeof navigator === 'undefined') return false;
 
     const ua = navigator.userAgent || '';
-    const isIOSDevice = /iPad|iPhone|iPod/.test(ua)
-        || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 0);
+    const isIOSDevice = isLikelyIOSDevice();
     const isSafariBrowser = /Safari/.test(ua)
         && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS)/.test(ua);
 

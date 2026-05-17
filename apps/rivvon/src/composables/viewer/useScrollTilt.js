@@ -478,6 +478,18 @@ export function useScrollTilt(ctx) {
         }
     }
 
+    function getDebugState() {
+        return {
+            active: !!(isActive && cameraController.isActive),
+            blockingContext: hasBlockingViewerContext(),
+            hasEnabledResponse: hasEnabledScrollDrivenResponse(),
+            layerDriverEnabled: !!(ctx.app.textureAnimationEnabled && ctx.app.scrollDrivenLayerCycleEnabled),
+            scrollVelocity,
+            texturePhaseTurns,
+            texturePhasePrimed,
+        };
+    }
+
     watch(
         () => ctx.ribbonSeries.value,
         () => {
@@ -570,5 +582,6 @@ export function useScrollTilt(ctx) {
         activate,
         deactivate,
         syncWithMode,
+        getDebugState,
     };
 }
