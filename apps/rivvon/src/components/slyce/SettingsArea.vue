@@ -108,7 +108,7 @@
 
         processVideo({
             file: app.file,
-            tilePlan: tilePlan,
+            tilePlan: tilePlan.value,
             samplingMode: app.samplingAxis,
             config: app.config,
             frameCount: app.frameCount,

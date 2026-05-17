@@ -164,14 +164,17 @@ const processVideo = async (settings) => {
     } = settings;
 
     const app = useSlyceStore();
-    const tileEntries = Array.isArray(tilePlan?.tiles) ? tilePlan.tiles : [];
+    const resolvedTilePlan = tilePlan && typeof tilePlan === 'object' && 'value' in tilePlan
+        ? tilePlan.value
+        : tilePlan;
+    const tileEntries = Array.isArray(resolvedTilePlan?.tiles) ? resolvedTilePlan.tiles : [];
     const tilePlanError = tileEntries.length > 0
         ? null
-        : tilePlan?.notices?.find(notice => typeof notice === 'string' && notice.trim())
+        : resolvedTilePlan?.notices?.find(notice => typeof notice === 'string' && notice.trim())
             || 'Adjust the current settings so at least one tile can be generated before processing.';
 
     if (tilePlanError) {
-        app.set('tilePlan', tilePlan);
+        app.set('tilePlan', resolvedTilePlan);
         app.clearAllStatus();
         app.setStatus('Tile Plan', tilePlanError);
         console.warn(`[VideoProcessor] ${tilePlanError}`);
@@ -199,7 +202,7 @@ const processVideo = async (settings) => {
     const publish = app.getPublishController();
 
     // Store tilePlan so TilePreview and other consumers can access it
-    app.set('tilePlan', tilePlan);
+    app.set('tilePlan', resolvedTilePlan);
     localSave.resetLocalSaveState();
     publish.resetPublishState();
     app.set('autoDeriveResolutions', []);
@@ -230,7 +233,7 @@ const processVideo = async (settings) => {
     const source = new VideoFileFrameSource({
         file: app.file,
         fileInfo,
-        tilePlan,
+        tilePlan: resolvedTilePlan,
         frameStart,
         frameEnd,
         frameInterpolationFactor: settings.frameInterpolationFactor ?? app.effectiveInterpolationFactor,
@@ -261,7 +264,7 @@ const processVideo = async (settings) => {
     let sampledTileBuilderType = null;
     let webglSupportReport = null;
     let currentEncodingStartedAt = 0;
-    const tileProgress = tilePlan.tiles.map(() => ({
+    const tileProgress = resolvedTilePlan.tiles.map(() => ({
         decodeProgress: 0,
         encodeProgress: 0,
     }));
@@ -280,7 +283,7 @@ const processVideo = async (settings) => {
     console.log(`[VideoProcessor] Encode policy: max ${encodeConfig.maxConcurrentTileEncodes} tile(s), ${encodeConfig.layerWorkerCount} layer worker(s) (${encodeConfig.reason})`);
 
     function getTileFrameProgress(tileNumber, frameNumber) {
-        const tile = tilePlan.tiles[tileNumber];
+        const tile = resolvedTilePlan.tiles[tileNumber];
         const frameCount = Math.max(1, tile.end - tile.start + 1);
         const frameIndex = Math.min(frameCount, Math.max(1, frameNumber - tile.start + 1));
         return { frameIndex, frameCount };
@@ -419,7 +422,7 @@ const processVideo = async (settings) => {
         createBuilder(item, tileNumber) {
             const builderSettings = {
                 tileNumber,
-                tilePlan,
+                tilePlan: resolvedTilePlan,
                 fileInfo: item.effectiveFileInfo,
                 samplingMode,
                 crossSectionCount,
