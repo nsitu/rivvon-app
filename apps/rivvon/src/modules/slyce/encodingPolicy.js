@@ -15,7 +15,7 @@ function getDeviceMemory() {
     return memory;
 }
 
-function isLikelyIOSOrSafari() {
+export function isLikelyIOSOrSafari() {
     if (typeof navigator === 'undefined') return false;
 
     const ua = navigator.userAgent || '';
@@ -25,6 +25,10 @@ function isLikelyIOSOrSafari() {
         && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS)/.test(ua);
 
     return isIOSDevice || isSafariBrowser;
+}
+
+export function shouldUseWebGL2BuilderByDefault() {
+    return !isLikelyIOSOrSafari();
 }
 
 function getLogicalCoreCount() {

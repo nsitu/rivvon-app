@@ -5,6 +5,9 @@ import { defineStore } from 'pinia';
 import { abortProcessing } from '../modules/slyce/videoProcessingControl.js';
 import { createLocalSaveState, createObjectLocalSaveController } from '../modules/slyce/localSaveController.js';
 import { createPublishState, createObjectPublishController } from '../modules/slyce/publishController.js';
+import { shouldUseWebGL2BuilderByDefault } from '../modules/slyce/encodingPolicy.js';
+
+const DEFAULT_USE_WEBGL2_BUILDER = shouldUseWebGL2BuilderByDefault();
 
 export const useSlyceStore = defineStore('slyce', {
     state: () => ({
@@ -22,7 +25,7 @@ export const useSlyceStore = defineStore('slyce', {
         autoDeriveResolutions: [],      // optional lower-resolution family variants to auto-generate after root encode
         publishDestination: 'google-drive',
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
-        useWebGL2Builder: true,
+        useWebGL2Builder: DEFAULT_USE_WEBGL2_BUILDER,
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
         fileInfo: null,
@@ -246,7 +249,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.readerIsFinished = false;
             this.autoDeriveResolutions = [];
             this.publishDestination = 'google-drive';
-            this.useWebGL2Builder = true;
+            this.useWebGL2Builder = DEFAULT_USE_WEBGL2_BUILDER;
             this.frameInterpolationFactor = 1;
             this.fileInfo = null;
             this.textureName = '';

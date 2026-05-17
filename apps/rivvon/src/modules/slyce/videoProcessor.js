@@ -153,12 +153,36 @@ function formatProgressFps(fps) {
 
 const processVideo = async (settings) => {
 
+    const {
+        tilePlan,
+        fileInfo,
+        samplingMode,
+        config,
+        crossSectionCount,
+        crossSectionType,
+        useWebGL2Builder = true,
+    } = settings;
+
+    const app = useSlyceStore();
+    const tileEntries = Array.isArray(tilePlan?.tiles) ? tilePlan.tiles : [];
+    const tilePlanError = tileEntries.length > 0
+        ? null
+        : tilePlan?.notices?.find(notice => typeof notice === 'string' && notice.trim())
+            || 'Adjust the current settings so at least one tile can be generated before processing.';
+
+    if (tilePlanError) {
+        app.set('tilePlan', tilePlan);
+        app.clearAllStatus();
+        app.setStatus('Tile Plan', tilePlanError);
+        console.warn(`[VideoProcessor] ${tilePlanError}`);
+        return false;
+    }
+
     // Abort any previous processing
     abortProcessing();
 
     // Suspend the viewer to free GPU/CPU resources for encoding
     const viewerStore = useViewerStore();
-    const slyceStore = useSlyceStore();
     viewerStore.suspendViewer(true);
 
     // Create new abort controller for this processing run
@@ -171,17 +195,6 @@ const processVideo = async (settings) => {
     const tileBuilders = {};  // to store builder for each tileNumber
     let completedTiles = 0;  // Track completed tiles 
 
-    const {
-        tilePlan,
-        fileInfo,
-        samplingMode,
-        config,
-        crossSectionCount,
-        crossSectionType,
-        useWebGL2Builder = true,
-    } = settings
-
-    const app = useSlyceStore()  // Pinia store 
     const localSave = app.getLocalSaveController();
     const publish = app.getPublishController();
 
@@ -200,8 +213,8 @@ const processVideo = async (settings) => {
     app.set('readerIsFinished', false)
 
     // Calculate how many frames will actually be used vs skipped
-    const totalTiles = tilePlan.tiles.length;
-    const lastTileEnd = tilePlan.tiles[totalTiles - 1].end;
+    const totalTiles = tileEntries.length;
+    const lastTileEnd = tileEntries[totalTiles - 1].end;
     const framesUsed = lastTileEnd;
     const frameStart = app.frameStart || 1;
     const frameEnd = app.frameEnd || app.frameCount;

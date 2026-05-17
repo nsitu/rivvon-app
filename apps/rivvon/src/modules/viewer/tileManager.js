@@ -224,6 +224,7 @@ export class TileManager {
 
         // Current texture set metadata (for CDN-loaded textures)
         this.currentTextureSet = null;
+        this.lastLoadError = null;
 
         this._ktx2Loader = null;
         this._webgpuDeps = null;
@@ -2740,6 +2741,8 @@ export class TileManager {
      * @returns {Promise<boolean>} True if successful, false otherwise
      */
     async loadFromRemote(textureSet, onProgress = null) {
+        this.lastLoadError = null;
+
         try {
             const { tiles, tile_count, layer_count, cross_section_type } = textureSet;
 
@@ -2802,12 +2805,15 @@ export class TileManager {
             const tileEntry = await getOrFetchTextureTiles(textureSet, { onProgress });
             return await this.#loadFromSharedTileEntry(textureSet, tileEntry, onProgress, 'remote');
         } catch (error) {
+            this.lastLoadError = error;
             console.error('[TileManager] Failed to load remote textures:', error);
             return false;
         }
     }
 
     async loadFromSession(textureSet, tileEntry = null, onProgress = null) {
+        this.lastLoadError = null;
+
         try {
             const resolvedTileEntry = tileEntry || getCachedTextureTiles(textureSet);
             if (!resolvedTileEntry) {
@@ -2822,6 +2828,7 @@ export class TileManager {
 
             return await this.#loadFromSharedTileEntry(textureSet, resolvedTileEntry, onProgress, resolvedTileEntry.source || 'session');
         } catch (error) {
+            this.lastLoadError = error;
             console.error('[TileManager] Failed to load session textures:', error);
             return false;
         }
@@ -2829,10 +2836,18 @@ export class TileManager {
 
     async #loadFromSharedTileEntry(textureSet, tileEntry, onProgress = null, sourceLabel = 'session') {
         const { tile_count, cross_section_type, thumbnail_data_url } = textureSet || {};
+        const cachedTileCount = Object.keys(tileEntry?.zipFiles || {}).length;
+        const expectedTileCount = Number(tile_count) || Number(tileEntry?.tileCount) || cachedTileCount;
 
         if (!tileEntry || !tileEntry.zipFiles || Object.keys(tileEntry.zipFiles).length === 0) {
             console.error('[TileManager] No cached tile entry payloads available');
             return false;
+        }
+
+        if (typeof tileEntry.isComplete === 'boolean' && !tileEntry.isComplete) {
+            throw new Error(
+                `Only ${cachedTileCount}/${expectedTileCount} texture tiles were available from the ${sourceLabel} source. Try loading the texture again or choosing a lower-resolution variant on this device.`
+            );
         }
 
         this.clearAllTiles();
@@ -2915,6 +2930,8 @@ export class TileManager {
      * @returns {Promise<boolean>} True if successful, false otherwise
      */
     async loadFromTileRecords(textureSet, tiles, onProgress = null) {
+        this.lastLoadError = null;
+
         try {
             const { id, tile_count, cross_section_type, thumbnail_data_url } = textureSet;
 
@@ -3041,6 +3058,7 @@ export class TileManager {
             console.log(`[TileManager] Loaded ${this.materials.length} KTX2 materials from local, layerCount=${this.layerCount}`);
             return true;
         } catch (error) {
+            this.lastLoadError = error;
             console.error('[TileManager] Failed to load local textures:', error);
             return false;
         }
@@ -3060,11 +3078,14 @@ export class TileManager {
      * @returns {Promise<boolean>} True if successful, false otherwise
      */
     async loadFromLocal(textureSet, getTiles, onProgress = null) {
+        this.lastLoadError = null;
+
         try {
             const { id } = textureSet;
             const tiles = await getTiles(id);
             return await this.loadFromTileRecords(textureSet, tiles, onProgress);
         } catch (error) {
+            this.lastLoadError = error;
             console.error('[TileManager] Failed to load local textures:', error);
             return false;
         }

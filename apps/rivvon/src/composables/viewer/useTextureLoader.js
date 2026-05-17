@@ -80,6 +80,10 @@ export function useTextureLoader(ctx, deps = {}) {
         try {
             const success = await ctx.tileManager.value.loadFromRemote(textureSet, onProgress);
 
+            if (!success && ctx.tileManager.value?.lastLoadError) {
+                throw ctx.tileManager.value.lastLoadError;
+            }
+
             if (success) {
                 console.log(`[ThreeSetup] Remote texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
                 await finalizeTextureLoad();
@@ -106,6 +110,10 @@ export function useTextureLoader(ctx, deps = {}) {
 
         try {
             const success = await ctx.tileManager.value.loadFromSession(textureSet, tileEntry, onProgress);
+
+            if (!success && ctx.tileManager.value?.lastLoadError) {
+                throw ctx.tileManager.value.lastLoadError;
+            }
 
             if (success) {
                 console.log(`[ThreeSetup] Session texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
@@ -134,6 +142,10 @@ export function useTextureLoader(ctx, deps = {}) {
         try {
             const success = await ctx.tileManager.value.loadFromLocal(textureSet, getTiles, onProgress);
 
+            if (!success && ctx.tileManager.value?.lastLoadError) {
+                throw ctx.tileManager.value.lastLoadError;
+            }
+
             if (success) {
                 console.log(`[ThreeSetup] Local texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
                 await finalizeTextureLoad();
@@ -160,6 +172,10 @@ export function useTextureLoader(ctx, deps = {}) {
 
         try {
             const success = await ctx.tileManager.value.loadFromTileRecords(textureSet, tiles, onProgress);
+
+            if (!success && ctx.tileManager.value?.lastLoadError) {
+                throw ctx.tileManager.value.lastLoadError;
+            }
 
             if (success) {
                 console.log(`[ThreeSetup] Local tile records loaded: ${ctx.tileManager.value.getTileCount()} tiles`);

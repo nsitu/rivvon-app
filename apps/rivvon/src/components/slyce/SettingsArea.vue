@@ -91,6 +91,35 @@
         return app.file && !app.fileInfo?.name;
     });
 
+    const canProcessVideo = computed(() => (tilePlan.value?.tiles?.length ?? 0) > 0);
+    const processDisabledReason = computed(() => {
+        if (canProcessVideo.value) {
+            return '';
+        }
+
+        return tilePlan.value?.notices?.find(notice => typeof notice === 'string' && notice.trim())
+            || 'Adjust the current settings so at least one tile can be generated before processing.';
+    });
+
+    function handleProcessClick() {
+        if (!canProcessVideo.value) {
+            return;
+        }
+
+        processVideo({
+            file: app.file,
+            tilePlan: tilePlan,
+            samplingMode: app.samplingAxis,
+            config: app.config,
+            frameCount: app.frameCount,
+            fileInfo: app.fileInfo,
+            crossSectionCount: app.crossSectionCount,
+            crossSectionType: app.crossSectionType,
+            frameInterpolationFactor: app.effectiveInterpolationFactor,
+            useWebGL2Builder: app.useWebGL2Builder,
+        });
+    }
+
     const interpolationOptions = [
         { name: '2x', value: 2 },
         { name: '4x', value: 4 },
@@ -474,6 +503,13 @@
                 :tilePlan="tilePlan"
             />
 
+            <p
+                v-else-if="processDisabledReason"
+                class="tile-plan-notice"
+            >
+                {{ processDisabledReason }}
+            </p>
+
 
             <div class="action-buttons">
                 <Button
@@ -491,18 +527,9 @@
                     type="button"
                     class="process-button"
                     label="Process"
-                    @click="processVideo({
-                        file: app.file,
-                        tilePlan: tilePlan,
-                        samplingMode: app.samplingAxis,
-                        config: app.config,
-                        frameCount: app.frameCount,
-                        fileInfo: app.fileInfo,
-                        crossSectionCount: app.crossSectionCount,
-                        crossSectionType: app.crossSectionType,
-                        frameInterpolationFactor: app.effectiveInterpolationFactor,
-                        useWebGL2Builder: app.useWebGL2Builder,
-                    })"
+                    :disabled="!canProcessVideo"
+                    :title="processDisabledReason || null"
+                    @click="handleProcessClick"
                 />
             </div>
         </div>
@@ -738,6 +765,13 @@
     .process-button {
         width: 100%;
         min-height: 44px;
+    }
+
+    .tile-plan-notice {
+        margin: 0;
+        color: #b45309;
+        font-size: 0.95rem;
+        line-height: 1.5;
     }
 
     @media (min-width: 640px) {
