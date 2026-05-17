@@ -1,4 +1,4 @@
-import * as ort from 'onnxruntime-web/webgpu';
+import * as ort from 'onnxruntime-web/all';
 import {
     calculateProcessingSize,
     createPaddedCanvas,
@@ -6,9 +6,40 @@ import {
     resizeImageData,
 } from './rifePadding.js';
 import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
+import { createRealtimeCanvas, shouldUseDomCanvasForRealtime } from './realtimeCanvasSupport.js';
 
 const DEFAULT_MODEL_PATH = getRuntimeAssetUrl('rife422Model');
-const DEFAULT_WASM_PATH = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1/dist/';
+const DEFAULT_ORT_VERSION = ort.env?.versions?.common || '1';
+const DEFAULT_WASM_PATH = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${DEFAULT_ORT_VERSION}/dist/`;
+
+function getExecutionProviderAttempts() {
+    if (shouldUseDomCanvasForRealtime()) {
+        return [
+            ['webgl'],
+            ['wasm'],
+        ];
+    }
+
+    return [
+        ['webgpu'],
+        ['webgl'],
+        ['wasm'],
+    ];
+}
+
+function createSessionOptions(executionProviders) {
+    const usesWebGPU = executionProviders.includes('webgpu');
+
+    return {
+        executionProviders,
+        logSeverityLevel: 2,
+        ...(usesWebGPU ? { preferredOutputLocation: 'gpu-buffer' } : {}),
+    };
+}
+
+function formatExecutionProviderAttempt(executionProviders) {
+    return executionProviders.join(' -> ');
+}
 
 export class RIFEInterpolator {
     constructor(options = {}) {
@@ -20,6 +51,7 @@ export class RIFEInterpolator {
         this.outputNames = [];
         this.singleInputChannelCount = null;
         this.useFP16 = options.useFP16 ?? null;
+        this.activeExecutionProvider = null;
     }
 
     float32ToFloat16(value) {
@@ -67,11 +99,30 @@ export class RIFEInterpolator {
         ort.env.wasm.wasmPaths = DEFAULT_WASM_PATH;
         ort.env.wasm.numThreads = 1;
 
-        this.session = await ort.InferenceSession.create(this.modelPath, {
-            executionProviders: ['webgpu', 'wasm'],
-            preferredOutputLocation: 'gpu-buffer',
-            logSeverityLevel: 2,
-        });
+        const attemptErrors = [];
+        for (const executionProviders of getExecutionProviderAttempts()) {
+            try {
+                this.session = await ort.InferenceSession.create(
+                    this.modelPath,
+                    createSessionOptions(executionProviders)
+                );
+                this.activeExecutionProvider = executionProviders[0] || null;
+                break;
+            } catch (error) {
+                attemptErrors.push({ executionProviders, error });
+                console.warn(
+                    `[RIFEInterpolator] Failed to initialize ${formatExecutionProviderAttempt(executionProviders)} backend:`,
+                    error
+                );
+            }
+        }
+
+        if (!this.session) {
+            const reason = attemptErrors
+                .map(({ executionProviders, error }) => `${formatExecutionProviderAttempt(executionProviders)}: ${error?.message || error}`)
+                .join('; ');
+            throw new Error(`Unable to initialize ONNX Runtime backends. ${reason}`);
+        }
 
         this.inputNames = this.session.inputNames;
         this.outputNames = this.session.outputNames;
@@ -103,20 +154,19 @@ export class RIFEInterpolator {
     reset() {
         this.session?.release?.();
         this.session = null;
+        this.activeExecutionProvider = null;
     }
 
     async videoFrameToImageData(videoFrame) {
         const width = videoFrame.displayWidth || videoFrame.codedWidth || videoFrame.width;
         const height = videoFrame.displayHeight || videoFrame.codedHeight || videoFrame.height;
-        const canvas = new OffscreenCanvas(width, height);
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { ctx } = createRealtimeCanvas(width, height);
         ctx.drawImage(videoFrame, 0, 0);
         return ctx.getImageData(0, 0, width, height);
     }
 
     imageDataToVideoFrame(imageData, timestamp = 0) {
-        const canvas = new OffscreenCanvas(imageData.width, imageData.height);
-        const ctx = canvas.getContext('2d');
+        const { canvas, ctx } = createRealtimeCanvas(imageData.width, imageData.height);
         ctx.putImageData(imageData, 0, 0);
         return new VideoFrame(canvas, { timestamp });
     }

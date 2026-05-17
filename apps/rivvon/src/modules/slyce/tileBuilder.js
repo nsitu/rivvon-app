@@ -1,6 +1,7 @@
 // tileBuilder.js 
 import { EventEmitter } from 'events';  // https://www.npmjs.com/package/events
 import { getCached2dContext } from './samplingRuntime.js';
+import { createRealtimeCanvas } from './realtimeCanvasSupport.js';
 
 export class TileBuilder extends EventEmitter {
     constructor(settings) {
@@ -41,11 +42,10 @@ export class TileBuilder extends EventEmitter {
 
     createCanvasses() {
         const canvasses = [];
-        const { tilePlan, crossSectionCount, samplingMode } = this.settings;
+        const { tilePlan, crossSectionCount } = this.settings;
 
         for (let i = 0; i < crossSectionCount; i++) {
-            const canvas = new OffscreenCanvas(tilePlan.width, tilePlan.height);
-            const ctx = getCached2dContext(canvas);
+            const { canvas, ctx } = createRealtimeCanvas(tilePlan.width, tilePlan.height);
             // When sampling columns but outputting rows, rotate the canvas
             // so column data is written in the row direction
             if (tilePlan.rotate !== 0) {
