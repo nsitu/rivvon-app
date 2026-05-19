@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent, nextTick } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
+    import { useSlyceStore } from '../stores/slyceStore';
     import { useViewerStore } from '../stores/viewerStore';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
@@ -45,6 +46,7 @@
     const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
+    const slyce = useSlyceStore();
     const toast = useToast();
     const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
@@ -212,10 +214,29 @@
         app.showSlyce();
     }
 
-    function openCreateTextureFileMode() {
+    function openTextureVideoPicker() {
+        textureVideoInputRef.value?.click();
+    }
+
+    function openCreateTextureFileMode(options = {}) {
+        const {
+            directBrowse = false,
+            file = null,
+        } = options;
+
+        if (directBrowse && !file) {
+            openTextureVideoPicker();
+            return;
+        }
+
         returnToCreateTextureOnRealtimeClose.value = false;
         textureCreatorLaunchSource.value = 'file';
         textureCreatorReturnOverlay.value = 'texture';
+
+        if (file) {
+            slyce.beginFileWorkflowWithFile(file);
+        }
+
         app.showSlyce();
     }
 
@@ -433,6 +454,7 @@
     const walkCanvasRef = ref(null);
     const textureCreatorRef = ref(null);
     const fileInputRef = ref(null);
+    const textureVideoInputRef = ref(null);
 
     // Local state
     const isReady = ref(false);
@@ -1051,6 +1073,17 @@
     // File import handler
     function openFileImport() {
         fileInputRef.value?.click();
+    }
+
+    function handleTextureVideoImport(event) {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+
+        if (!file || !file.type.startsWith('video/')) {
+            return;
+        }
+
+        openCreateTextureFileMode({ file });
     }
 
     async function handleFileImport(event) {
@@ -2605,6 +2638,14 @@
             accept=".svg,.zip"
             style="display: none"
             @change="handleFileImport"
+        />
+
+        <input
+            ref="textureVideoInputRef"
+            type="file"
+            accept="video/*"
+            style="display: none"
+            @change="handleTextureVideoImport"
         />
 
         <!-- Modals -->

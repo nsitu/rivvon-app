@@ -20,6 +20,10 @@ Use `pnpm --filter rivvon publish:runtime-assets` to upload manifest-managed run
 
 See [docs/realtime-sampling.md](./docs/realtime-sampling.md) for the current realtime webcam sampling design, why staging is now used everywhere, and why we intentionally do not enable `willReadFrequently` on the active sampling canvases.
 
+## Tile Builder Backends
+
+See [docs/webgl2-tile-builder.md](./docs/webgl2-tile-builder.md) for the current file-mode tile builder backends, why the GPU paths use a 2D atlas today, and the tradeoffs versus a transient texture-array builder.
+
 ## Head Tracking / MediaPipe
 
 See [docs/head-tracking-mediapipe-patch.md](./docs/head-tracking-mediapipe-patch.md) for the rationale behind the version-pinned `@mediapipe/tasks-vision` patch, how the local wasm override works, and the workflow for updating the patch during a future library bump.

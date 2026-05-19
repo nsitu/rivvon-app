@@ -2,6 +2,10 @@ const DEFAULT_LAYER_WORKER_COUNT = 4;
 const MAX_CONCURRENT_TILE_ENCODES = 1;
 const MEMORY_SAFE_LAYER_WORKER_CAP = 2;
 
+export const TILE_BUILDER_BACKEND_CANVAS = 'canvas';
+export const TILE_BUILDER_BACKEND_WEBGL = 'webgl';
+export const TILE_BUILDER_BACKEND_WEBGPU = 'webgpu';
+
 function getDeviceMemory() {
     if (typeof navigator === 'undefined') {
         return null;
@@ -36,6 +40,12 @@ export function isLikelyIOSOrSafari() {
 
 export function shouldUseWebGL2BuilderByDefault() {
     return !isLikelyIOSOrSafari();
+}
+
+export function getDefaultTileBuilderBackend() {
+    return shouldUseWebGL2BuilderByDefault()
+        ? TILE_BUILDER_BACKEND_WEBGL
+        : TILE_BUILDER_BACKEND_CANVAS;
 }
 
 function getLogicalCoreCount() {

@@ -4,6 +4,13 @@
     import { useSlyceStore } from '../../stores/slyceStore';
     const app = useSlyceStore()  // Pinia store
 
+    const props = defineProps({
+        showActionButtons: {
+            type: Boolean,
+            default: true,
+        },
+    });
+
     const emit = defineEmits(['request-back']);
 
     import { useTilePlan } from '../../composables/slyce/useTilePlan';
@@ -11,7 +18,15 @@
 
     import { getMetaData } from '../../modules/slyce/metaDataExtractor';
     import { processVideo } from '../../modules/slyce/videoProcessor';
-    import { isLikelyIOSDevice } from '../../modules/slyce/encodingPolicy';
+    import {
+        getDefaultTileBuilderBackend,
+        isLikelyIOSDevice,
+        TILE_BUILDER_BACKEND_CANVAS,
+        TILE_BUILDER_BACKEND_WEBGL,
+        TILE_BUILDER_BACKEND_WEBGPU,
+    } from '../../modules/slyce/encodingPolicy';
+    import { WebGLTileBuilder } from '../../modules/slyce/webglTileBuilder';
+    import { WebGPUTileBuilder } from '../../modules/slyce/webgpuTileBuilder';
 
     import TilePreview from './TilePreview.vue';
 
@@ -21,7 +36,7 @@
         if (newFile) {
             getMetaData();
         }
-    })
+    }, { immediate: true })
 
     import FileInfo from './FileInfo.vue';
     import Button from 'primevue/button';
@@ -31,9 +46,9 @@
 
     import InputGroup from 'primevue/inputgroup';
     import InputGroupAddon from 'primevue/inputgroupaddon';
+    import ToggleSwitch from 'primevue/toggleswitch';
 
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
-    import ToggleSwitch from 'primevue/toggleswitch';
 
     // Watch for changes in samplingSide and adjust samplePixelCount accordingly
     watchEffect(() => {
@@ -117,7 +132,7 @@
             crossSectionCount: app.crossSectionCount,
             crossSectionType: app.crossSectionType,
             frameInterpolationFactor: app.effectiveInterpolationFactor,
-            useWebGL2Builder: app.useWebGL2Builder,
+            tileBuilderBackend: app.tileBuilderBackend,
         });
     }
 
@@ -126,7 +141,217 @@
         { name: '4x', value: 4 },
         { name: '8x', value: 8 },
     ];
+    const tileBuilderBackendOptions = [
+        { name: 'Canvas', value: TILE_BUILDER_BACKEND_CANVAS },
+        { name: 'WebGL', value: TILE_BUILDER_BACKEND_WEBGL },
+        { name: 'WebGPU', value: TILE_BUILDER_BACKEND_WEBGPU },
+    ];
     const frameInterpolationSupported = !isLikelyIOSDevice();
+    const defaultTileBuilderBackend = getDefaultTileBuilderBackend();
+    const gpuTileAssemblyInfoOpen = ref(false);
+
+    function formatPixelSize(width, height) {
+        if (!Number.isFinite(width) || !Number.isFinite(height)) {
+            return 'n/a';
+        }
+
+        return `${width.toLocaleString()}x${height.toLocaleString()} px`;
+    }
+
+    function getTileBuilderBackendLabel(backend) {
+        return tileBuilderBackendOptions.find(option => option.value === backend)?.name || backend;
+    }
+
+    function buildTileBuilderDefaultLine(selectedBackend) {
+        const selectedLabel = getTileBuilderBackendLabel(selectedBackend);
+        const defaultLabel = getTileBuilderBackendLabel(defaultTileBuilderBackend);
+
+        if (selectedBackend === defaultTileBuilderBackend) {
+            return `This device family defaults to ${selectedLabel} tile assembly.`;
+        }
+
+        return `This device family defaults to ${defaultLabel} tile assembly; ${selectedLabel} is a manual override.`;
+    }
+
+    function buildTextureLimitLine(apiLabel, maxTextureSize) {
+        if (!Number.isFinite(maxTextureSize) || maxTextureSize <= 0) {
+            return `The browser did not report a usable ${apiLabel} texture-size limit.`;
+        }
+
+        const limitLabel = maxTextureSize.toLocaleString();
+        return `${apiLabel} texture limit: ${limitLabel} px per side for a single texture or render target. In practice that means up to about ${limitLabel}x${limitLabel} px when both width and height stay within the limit.`;
+    }
+
+    function getEffectiveGpuAssemblySourceSize(plan) {
+        const baseWidth = plan?.isCropping ? plan.cropWidth : app.fileInfo?.width;
+        const baseHeight = plan?.isCropping ? plan.cropHeight : app.fileInfo?.height;
+
+        if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight) || baseWidth <= 0 || baseHeight <= 0) {
+            return null;
+        }
+
+        if (plan?.isScaled && Number.isFinite(plan.scaleFrom) && plan.scaleFrom > 0 && Number.isFinite(plan.scaleTo) && plan.scaleTo > 0) {
+            const scaleFactor = plan.scaleTo / plan.scaleFrom;
+            return {
+                width: Math.floor(baseWidth * scaleFactor),
+                height: Math.floor(baseHeight * scaleFactor),
+            };
+        }
+
+        return {
+            width: Math.floor(baseWidth),
+            height: Math.floor(baseHeight),
+        };
+    }
+
+    function createTileBuilderStatus({ available = null, icon = 'info', summary, detailLines = [] }) {
+        return {
+            available,
+            icon,
+            summary,
+            detailLines,
+        };
+    }
+
+    function buildGpuBuilderStatus({ apiLabel, baseExplanation, report, sourceLabel, atlasCellLabel, defaultLine }) {
+        const textureLimitLine = buildTextureLimitLine(apiLabel, report?.maxTextureSize);
+
+        if (!report?.supported || !report?.layout) {
+            return createTileBuilderStatus({
+                available: false,
+                icon: 'warning',
+                summary: `Current settings do not fit within GPU capacity for ${apiLabel} tile assembly.`,
+                detailLines: [
+                    baseExplanation,
+                    report?.reason || `${apiLabel} tile assembly is unavailable.`,
+                    `Effective source frame for this check: ${sourceLabel} after crop and tile-plan scaling.`,
+                    `Each layer needs one ${atlasCellLabel} atlas cell. Increasing output tile size makes every atlas cell larger, and increasing cross-section count adds more cells to the atlas.`,
+                    textureLimitLine,
+                    defaultLine,
+                ],
+            });
+        }
+
+        return createTileBuilderStatus({
+            available: true,
+            icon: 'check_circle',
+            summary: `Current settings fit within GPU capacity for ${apiLabel} tile assembly.`,
+            detailLines: [
+                baseExplanation,
+                `Effective source frame for this check: ${sourceLabel} after crop and tile-plan scaling.`,
+                `Each layer uses one ${atlasCellLabel} atlas cell. With ${app.crossSectionCount} layers, the current atlas is ${formatPixelSize(report.layout.width, report.layout.height)} arranged as ${report.layout.columns} columns by ${report.layout.rows} rows.`,
+                textureLimitLine,
+                defaultLine,
+            ],
+        });
+    }
+
+    const tileBuilderStatus = ref(createTileBuilderStatus({
+        summary: 'Tile builder details will appear here when a backend is selected.',
+    }));
+
+    watchEffect((onCleanup) => {
+        let cancelled = false;
+        onCleanup(() => {
+            cancelled = true;
+        });
+
+        const selectedBackend = app.tileBuilderBackend;
+        const defaultLine = buildTileBuilderDefaultLine(selectedBackend);
+        const plan = tilePlan.value;
+
+        if (selectedBackend === TILE_BUILDER_BACKEND_CANVAS) {
+            tileBuilderStatus.value = createTileBuilderStatus({
+                available: true,
+                icon: 'info',
+                summary: 'Canvas tile assembly uses 2D canvases instead of GPU render targets.',
+                detailLines: [
+                    'Canvas is the most compatible path and avoids GPU atlas limits, but it usually has lower throughput than WebGL or WebGPU assembly.',
+                    defaultLine,
+                ],
+            });
+            return;
+        }
+
+        const apiLabel = selectedBackend === TILE_BUILDER_BACKEND_WEBGPU ? 'WebGPU' : 'WebGL2';
+        const baseExplanation = `${apiLabel} assembly packs all layers into one 2D atlas before KTX2 encoding.`;
+
+        if (!plan?.width || !plan?.height || !app.crossSectionCount || !app.fileInfo?.width || !app.fileInfo?.height) {
+            tileBuilderStatus.value = createTileBuilderStatus({
+                available: null,
+                icon: 'info',
+                summary: `${apiLabel} tile assembly availability depends on the current crop, output tile size, layer count, and browser support.`,
+                detailLines: [
+                    baseExplanation,
+                    'Larger output tiles create larger atlas cells, and more cross-sections add more cells to the atlas.',
+                    defaultLine,
+                ],
+            });
+            return;
+        }
+
+        const sourceSize = getEffectiveGpuAssemblySourceSize(plan);
+        if (!sourceSize) {
+            tileBuilderStatus.value = createTileBuilderStatus({
+                available: null,
+                icon: 'info',
+                summary: `${apiLabel} tile assembly availability depends on the current crop, output tile size, layer count, and browser support.`,
+                detailLines: [
+                    baseExplanation,
+                    'Larger output tiles create larger atlas cells, and more cross-sections add more cells to the atlas.',
+                    defaultLine,
+                ],
+            });
+            return;
+        }
+
+        const builderSettings = {
+            tilePlan: plan,
+            fileInfo: sourceSize,
+            crossSectionCount: app.crossSectionCount,
+        };
+        const sourceLabel = formatPixelSize(sourceSize.width, sourceSize.height);
+        const atlasCellLabel = formatPixelSize(plan.width, plan.height);
+
+        if (selectedBackend === TILE_BUILDER_BACKEND_WEBGL) {
+            const report = WebGLTileBuilder.getSupportReport(builderSettings);
+            tileBuilderStatus.value = buildGpuBuilderStatus({
+                apiLabel,
+                baseExplanation,
+                report,
+                sourceLabel,
+                atlasCellLabel,
+                defaultLine,
+            });
+            return;
+        }
+
+        tileBuilderStatus.value = createTileBuilderStatus({
+            available: null,
+            icon: 'info',
+            summary: 'Checking WebGPU support for the current settings.',
+            detailLines: [
+                baseExplanation,
+                defaultLine,
+            ],
+        });
+
+        void (async () => {
+            const report = await WebGPUTileBuilder.getSupportReport(builderSettings);
+            if (cancelled) {
+                return;
+            }
+
+            tileBuilderStatus.value = buildGpuBuilderStatus({
+                apiLabel,
+                baseExplanation,
+                report,
+                sourceLabel,
+                atlasCellLabel,
+                defaultLine,
+            });
+        })();
+    });
 
     const lastEnabledInterpolationFactor = ref(
         app.frameInterpolationFactor > 1 ? app.frameInterpolationFactor : 2
@@ -391,7 +616,8 @@
                     :disabled="!frameInterpolationSupported"
                 />
                 <template v-if="!frameInterpolationSupported">
-                    <span>Frame interpolation is currently unavailable on iPhone and iPad. The shipped ONNX model cannot initialize reliably within mobile runtime limits yet.</span>
+                    <span>Frame interpolation is currently unavailable on iPhone and iPad. The shipped ONNX model cannot
+                        initialize reliably within mobile runtime limits yet.</span>
                 </template>
                 <template v-else-if="!interpolationEnabled">
                     <span>Interpolate frames before tile generation.</span>
@@ -504,10 +730,49 @@
             </p>
 
             <p class="settings-paragraph">
-                <ToggleSwitch v-model="app.useWebGL2Builder" />
-                <span>Use GPU to assemble tiles.</span>
-                <!-- NOTE: when using GPU we leverage WebGL2, otherwise it will be a canvas based approach.  -->
+                <span>Assemble tiles with</span>
+                <Select
+                    v-model="app.tileBuilderBackend"
+                    :options="tileBuilderBackendOptions"
+                    optionValue="value"
+                    optionLabel="name"
+                    class="inline-select"
+                />
+                <span>backend.</span>
+                <button
+                    type="button"
+                    class="info-toggle-button"
+                    :aria-expanded="gpuTileAssemblyInfoOpen ? 'true' : 'false'"
+                    :aria-label="gpuTileAssemblyInfoOpen ? 'Hide tile builder details' : 'Show tile builder details'"
+                    @click="gpuTileAssemblyInfoOpen = !gpuTileAssemblyInfoOpen"
+                >
+                    <span class="material-symbols-outlined">info</span>
+                </button>
             </p>
+            <div
+                v-if="gpuTileAssemblyInfoOpen"
+                class="gpu-assembly-details"
+            >
+                <p
+                    class="settings-paragraph subordinate setting-note gpu-assembly-summary"
+                    :class="{
+                        'gpu-assembly-summary-supported': tileBuilderStatus.available === true,
+                        'gpu-assembly-summary-unsupported': tileBuilderStatus.available === false,
+                        'gpu-assembly-summary-unknown': tileBuilderStatus.available == null,
+                    }"
+                >
+                    <span class="material-symbols-outlined gpu-assembly-summary-icon">{{ tileBuilderStatus.icon
+                    }}</span>
+                    <span class="setting-note-text">{{ tileBuilderStatus.summary }}</span>
+                </p>
+                <p
+                    v-for="(line, index) in tileBuilderStatus.detailLines"
+                    :key="`${index}-${line}`"
+                    class="settings-paragraph subordinate setting-note"
+                >
+                    <span class="setting-note-text">{{ line }}</span>
+                </p>
+            </div>
 
         </div>
 
@@ -526,7 +791,10 @@
             </p>
 
 
-            <div class="action-buttons">
+            <div
+                v-if="props.showActionButtons"
+                class="action-buttons"
+            >
                 <Button
                     type="button"
                     class="back-button"
@@ -699,6 +967,80 @@
         margin-top: 0;
         padding-left: 1.25rem;
         border-left: 2px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .settings-paragraph.setting-note {
+        align-items: flex-start;
+        margin-top: 0.1rem;
+    }
+
+    .gpu-assembly-summary {
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+    }
+
+    .gpu-assembly-summary .setting-note-text {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .gpu-assembly-summary-icon {
+        flex-shrink: 0;
+        font-size: 1rem;
+        line-height: 1;
+        margin-top: 0.1rem;
+    }
+
+    .gpu-assembly-summary-supported .gpu-assembly-summary-icon {
+        color: rgba(74, 222, 128, 0.95);
+    }
+
+    .gpu-assembly-summary-unsupported .gpu-assembly-summary-icon {
+        color: rgba(251, 191, 36, 0.95);
+    }
+
+    .gpu-assembly-summary-unknown .gpu-assembly-summary-icon {
+        color: rgba(148, 163, 184, 0.95);
+    }
+
+    .gpu-assembly-details {
+        width: 100%;
+    }
+
+    .settings-paragraph .setting-note-text {
+        white-space: normal;
+        line-height: 1.4;
+    }
+
+    .info-toggle-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5rem;
+        height: 1.5rem;
+        margin-left: 0.1rem;
+        padding: 0;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.55);
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .info-toggle-button:hover {
+        color: rgba(255, 255, 255, 0.85);
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .info-toggle-button[aria-expanded="true"] {
+        color: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .info-toggle-button .material-symbols-outlined {
+        font-size: 1rem;
+        line-height: 1;
     }
 
 

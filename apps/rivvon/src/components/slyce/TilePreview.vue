@@ -1,6 +1,6 @@
 <template>
     <div class="tile-preview">
-        <h3 class="text-xl mb-3">Summary of Tiles to be Created</h3>
+        <h3 class="text-xl mb-3">Tile Summary</h3>
         <div
             v-if="tiles?.length"
             class="tile-preview-row"
@@ -22,6 +22,20 @@
                 >
                     <span class="material-symbols-outlined note-icon">layers</span>
                     {{ app.crossSectionCount }} layers per tile
+                </p>
+                <p
+                    v-if="processingPhaseSummary?.decodeSummaryText"
+                    class="note-line note-summary"
+                >
+                    <span class="material-symbols-outlined note-icon">animation</span>
+                    Decode {{ processingPhaseSummary.decodeSummaryText }}
+                </p>
+                <p
+                    v-if="processingPhaseSummary?.encodeSummaryText"
+                    class="note-line note-summary"
+                >
+                    <span class="material-symbols-outlined note-icon">layers</span>
+                    Encode {{ processingPhaseSummary.encodeSummaryText }}
                 </p>
                 <p
                     v-if="props.tilePlan.skipping"
@@ -208,6 +222,14 @@
         return Object.keys(app.status).length > 0;
     });
 
+    const processingPhaseSummary = computed(() => {
+        if (!app.isComplete) {
+            return null;
+        }
+
+        return app.processingPhaseSummary || null;
+    });
+
     function parseTileStatusText(text, isError = false) {
         const normalizedText = typeof text === 'string' && text.trim()
             ? text.trim()
@@ -246,6 +268,19 @@
         return statusText;
     }
 
+    function isTileReadyStatus(statusText) {
+        return statusText === 'Ready for Encoding'
+            || statusText.includes('Ready for Encoding');
+    }
+
+    function isTileEncodeCompleteStatus(statusText) {
+        return statusText === 'Complete'
+            || statusText.includes('Encode completed in ')
+            || statusText.startsWith('Encoded ')
+            || statusText.includes('\nEncoded ')
+            || /(^|\n)\d[\d,]*\s+(?:layer|layers)\s+\/\s+/.test(statusText);
+    }
+
     const tileStatusEntries = computed(() => {
         return tiles.value.map((tile, index) => {
             const tileNumber = index + 1;
@@ -271,7 +306,7 @@
             return 'none';
         }
 
-        if (statusText === 'Ready for Encoding') {
+        if (isTileReadyStatus(statusText)) {
             return 'ready';
         }
 
@@ -279,7 +314,7 @@
             return 'encoding';
         }
 
-        if (statusText === 'Complete') {
+        if (isTileEncodeCompleteStatus(statusText)) {
             return 'complete';
         }
 
@@ -314,7 +349,7 @@
             };
         }
 
-        if (entry.text === 'Complete') {
+        if (isTileEncodeCompleteStatus(entry.text)) {
             return { background: 'var(--processing-encoded)' };
         }
 
@@ -322,7 +357,7 @@
             return { background: 'var(--processing-encoding)' };
         }
 
-        if (entry.text.startsWith('Decoding') || entry.text === 'Ready for Encoding') {
+        if (entry.text.startsWith('Decoding') || isTileReadyStatus(entry.text)) {
             return { background: 'var(--processing-decoding)' };
         }
 
@@ -525,13 +560,14 @@
     }
 
     .tile-status-text {
-        font-size: 0.95rem;
+        font-size: 0.82rem;
         color: var(--text-primary);
         line-height: 1.35;
         min-width: 0;
         display: block;
         font-variant-numeric: tabular-nums;
         text-wrap: balance;
+        white-space: pre-line;
     }
 
     .tile-status-text-mobile {
@@ -542,7 +578,7 @@
         display: block;
         min-width: 0;
         color: var(--text-secondary);
-        font-size: 0.9rem;
+        font-size: 0.82rem;
         line-height: 1.25;
         font-variant-numeric: tabular-nums;
     }
@@ -601,6 +637,11 @@
 
     .note-warning {
         color: rgba(255, 180, 80, 0.7);
+    }
+
+    .note-summary {
+        color: rgba(255, 255, 255, 0.82);
+        font-weight: 500;
     }
 
     /* Progress info */

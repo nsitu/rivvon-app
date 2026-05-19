@@ -23,6 +23,10 @@
             type: Boolean,
             default: false,
         },
+        showActions: {
+            type: Boolean,
+            default: true,
+        },
         savingFallbackTitle: {
             type: String,
             default: 'Saving locally...',
@@ -99,6 +103,7 @@
     });
 
     const hasSuccessActions = computed(() => state.value === 'success' && !!slots['success-actions']);
+    const hasVisibleActions = computed(() => props.showActions && (state.value === 'error' || hasSuccessActions.value));
 </script>
 
 <template>
@@ -152,7 +157,7 @@
         </div>
 
         <div
-            v-if="state === 'error' || hasSuccessActions"
+            v-if="hasVisibleActions"
             class="local-save-actions"
         >
             <Button

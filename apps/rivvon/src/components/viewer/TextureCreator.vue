@@ -3,10 +3,16 @@
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
+    import Button from 'primevue/button';
     import UploadArea from '../slyce/UploadArea.vue';
     import SettingsArea from '../slyce/SettingsArea.vue';
     import ResultsArea from '../slyce/ResultsArea.vue';
+    import OutputActions from '../slyce/OutputActions.vue';
     import RealtimeSampler from '../slyce/RealtimeSampler.vue';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
+
+    import { useTilePlan } from '../../composables/slyce/useTilePlan';
+    import { processVideo } from '../../modules/slyce/videoProcessor';
 
     import Stepper from 'primevue/stepper';
     import StepList from 'primevue/steplist';
@@ -34,12 +40,14 @@
 
     const slyce = useSlyceStore();
     const realtime = useRealtimeSlyce();
+    const { tilePlan } = useTilePlan();
 
     // Check if processing is in progress
     const isProcessing = computed(() => Object.keys(slyce.status).length > 0);
     const selectedSource = ref(null);
     const cameraStep = ref('1');
     const suppressRealtimeAutoStart = ref(false);
+    const outputActionsRef = ref(null);
 
     const hasExistingFileFlow = computed(() =>
         !!slyce.file
@@ -66,6 +74,7 @@
     );
 
     const fileDisplayStep = computed(() => {
+        if (slyce.currentStep === '1') return '2';
         if (slyce.currentStep !== '3') return slyce.currentStep;
         return isFileFinished.value ? '4' : '3';
     });
@@ -79,11 +88,23 @@
 
     const stepperValue = computed(() => {
         if (selectedSource.value === 'camera') return cameraDisplayStep.value;
-        if (selectedSource.value === 'file') return fileDisplayStep.value;
-        return '1';
+        return fileDisplayStep.value;
     });
-    const stepLabels = { '1': 'Start', '2': 'Config', '3': 'Process', '4': 'Done' };
-    const currentStepLabel = computed(() => stepLabels[stepperValue.value] || '');
+    const currentStepLabel = computed(() => {
+        if (stepperValue.value === '2') {
+            return selectedSource.value === 'camera' ? 'Setup' : 'Config';
+        }
+
+        if (stepperValue.value === '3') {
+            return 'Process';
+        }
+
+        if (stepperValue.value === '4') {
+            return 'Done';
+        }
+
+        return '';
+    });
 
     const cameraWorkflowPhase = computed(() => {
         if (cameraDisplayStep.value === '2') return 'setup';
@@ -95,6 +116,52 @@
         if (selectedSource.value === 'file') return slyce.isSavingLocally;
         return false;
     });
+    const canGoBack = computed(() => {
+        if (selectedSource.value === 'camera') {
+            return cameraDisplayStep.value !== '2';
+        }
+
+        if (selectedSource.value === 'file') {
+            return !!slyce.file || Object.keys(slyce.ktx2BlobURLs).length > 0 || slyce.currentStep === '3';
+        }
+
+        return false;
+    });
+    const showFileSettingsFooter = computed(() => (
+        selectedSource.value === 'file'
+        && slyce.currentStep === '2'
+        && Boolean(slyce.file)
+    ));
+    const showFileResultsFooter = computed(() => (
+        selectedSource.value === 'file'
+        && slyce.currentStep === '3'
+    ));
+    const showFileCompletedFooter = computed(() => showFileResultsFooter.value && slyce.isComplete);
+    const canProcessVideo = computed(() => (tilePlan.value?.tiles?.length ?? 0) > 0);
+    const isFinalizingOutput = computed(() => slyce.isSavingLocally || slyce.isPublishingToCloud);
+    const processDisabledReason = computed(() => {
+        if (canProcessVideo.value) {
+            return '';
+        }
+
+        return tilePlan.value?.notices?.find(notice => typeof notice === 'string' && notice.trim())
+            || 'Adjust the current settings so at least one tile can be generated before processing.';
+    });
+    const footerBrowserButtonLabel = computed(() => slyce.publishedCloudRootId ? 'Open My Published' : 'Open Drafts');
+    const canOpenTextureBrowser = computed(() => (
+        showFileCompletedFooter.value
+        && Boolean(slyce.savedLocalTextureId || slyce.publishLocalDraftId || slyce.publishedCloudRootId)
+    ));
+    const showApplyDraftAction = computed(() => (
+        showFileCompletedFooter.value
+        && !slyce.publishedCloudRootId
+        && Boolean(slyce.savedLocalTextureId)
+    ));
+    const showRetryLocalSaveAction = computed(() => (
+        showFileCompletedFooter.value
+        && Boolean(slyce.saveLocalError)
+        && !slyce.isSavingLocally
+    ));
 
     function selectFileMode() {
         selectedSource.value = 'file';
@@ -141,11 +208,6 @@
     }
 
     function handleCameraStepClick(targetStep) {
-        if (targetStep === '1') {
-            returnToSourceChooser();
-            return;
-        }
-
         if (targetStep === '2' && cameraDisplayStep.value !== '2') {
             if (hasRealtimeWork.value) {
                 const confirmed = confirm(
@@ -158,28 +220,6 @@
             suppressRealtimeAutoStart.value = false;
             cameraStep.value = '2';
         }
-    }
-
-    function returnToSourceChooser() {
-        if (selectedSource.value === 'file' && isProcessing.value) {
-            const confirmed = confirm(
-                'Video processing is in progress. Switching source will cancel the current process and clear any generated results. Continue?'
-            );
-            if (!confirmed) return;
-            slyce.resetProcessing();
-        }
-
-        if (selectedSource.value === 'camera' && hasRealtimeWork.value) {
-            const confirmed = confirm(
-                'Current camera capture will be cleared when you switch sources. Continue?'
-            );
-            if (!confirmed) return;
-            clearRealtimeFlow();
-        }
-
-        selectedSource.value = null;
-        cameraStep.value = '1';
-        suppressRealtimeAutoStart.value = false;
     }
 
     function handleEmbeddedRealtimeClose() {
@@ -213,7 +253,7 @@
         return {
             breadcrumbs: navigationBreadcrumbs.value,
             statusLabel: null,
-            canGoBack: selectedSource.value !== null,
+            canGoBack: canGoBack.value,
             canExit: true,
         };
     });
@@ -222,20 +262,77 @@
         return Number(value) <= Number(stepperValue.value);
     }
 
-    function handleSourceStepClick(activateCallback) {
-        if (isSourceNavigationLocked.value) return;
+    function handleBackFromSettings(activateCallback) {
+        slyce.resetForNewFileSelection();
+        activateCallback('2');
+    }
 
-        if (selectedSource.value === null) {
-            activateCallback();
+    function handleSettingsFooterBack() {
+        slyce.resetForNewFileSelection();
+    }
+
+    function handleSettingsFooterProcess() {
+        if (!canProcessVideo.value) {
             return;
         }
 
-        returnToSourceChooser();
+        processVideo({
+            file: slyce.file,
+            tilePlan: tilePlan.value,
+            samplingMode: slyce.samplingAxis,
+            config: slyce.config,
+            frameCount: slyce.frameCount,
+            fileInfo: slyce.fileInfo,
+            crossSectionCount: slyce.crossSectionCount,
+            crossSectionType: slyce.crossSectionType,
+            frameInterpolationFactor: slyce.effectiveInterpolationFactor,
+            tileBuilderBackend: slyce.tileBuilderBackend,
+        });
     }
 
-    function handleBackFromSettings(activateCallback) {
-        returnToSourceChooser();
-        activateCallback('1');
+    function handleResultsFooterBack() {
+        if (isFinalizingOutput.value) {
+            return;
+        }
+
+        stepBackFromFileResults();
+    }
+
+    function handleAbortProcessing() {
+        const confirmed = confirm('Abort processing? Any progress will be lost.');
+        if (!confirmed) {
+            return;
+        }
+
+        slyce.resetProcessing();
+    }
+
+    function handleStartOver() {
+        if (isFinalizingOutput.value) {
+            return;
+        }
+
+        const confirmed = confirm('Are you sure you want to start over? All current results will be cleared.');
+        if (!confirmed) {
+            return;
+        }
+
+        selectedSource.value = 'file';
+        cameraStep.value = '1';
+        suppressRealtimeAutoStart.value = false;
+        slyce.reset();
+    }
+
+    function handleApplyTextureAction() {
+        outputActionsRef.value?.applyTexture?.();
+    }
+
+    function handleOpenTextureBrowserAction() {
+        outputActionsRef.value?.openTextureBrowser?.();
+    }
+
+    function handleRetryLocalSave() {
+        outputActionsRef.value?.retrySaveLocally?.();
     }
 
     function stepBackFromFileResults() {
@@ -263,9 +360,11 @@
 
     // Handle reset (Start Over)
     function handleReset(activateCallback) {
-        selectedSource.value = null;
+        selectedSource.value = 'file';
         cameraStep.value = '1';
-        activateCallback('1');
+        suppressRealtimeAutoStart.value = false;
+        slyce.resetForNewFileSelection();
+        activateCallback('2');
     }
 
     /**
@@ -289,12 +388,29 @@
     }
 
     function handleNavigationBack() {
-        if (selectedSource.value === null) {
-            return false;
+        if (selectedSource.value === 'camera') {
+            if (cameraDisplayStep.value === '2') {
+                return false;
+            }
+
+            handleCameraStepClick('2');
+            return true;
         }
 
-        returnToSourceChooser();
-        return selectedSource.value === null;
+        if (selectedSource.value === 'file') {
+            if (slyce.currentStep === '3') {
+                return stepBackFromFileResults();
+            }
+
+            if (!slyce.file && Object.keys(slyce.ktx2BlobURLs).length === 0) {
+                return false;
+            }
+
+            slyce.resetForNewFileSelection();
+            return true;
+        }
+
+        return false;
     }
 
     function handleNavigationExit() {
@@ -353,25 +469,27 @@
         if (file && file.type.startsWith('video/')) {
             selectedSource.value = 'file';
             cameraStep.value = '1';
-            slyce.resetForNewFileSelection();
-            slyce.set('file', file);
-            slyce.set('fileURL', URL.createObjectURL(file));
-            slyce.set('textureName', file.name.replace(/\.[^.]+$/, '') || 'texture');
-            slyce.set('textureDescription', '');
-            slyce.set('currentStep', '2');
+            slyce.beginFileWorkflowWithFile(file);
         }
     }
 
     function applyLaunchSource(source) {
-        if (!props.active || !source) return;
+        if (!props.active) return;
 
-        if (source === 'file' && selectedSource.value !== 'file') {
+        if (source === 'camera') {
+            if (selectedSource.value !== 'camera') {
+                selectWebcamMode();
+            }
+            return;
+        }
+
+        if (selectedSource.value !== 'file') {
             selectFileMode();
             return;
         }
 
-        if (source === 'camera' && selectedSource.value !== 'camera') {
-            selectWebcamMode();
+        if (!hasExistingFileFlow.value) {
+            slyce.set('currentStep', '1');
         }
     }
 
@@ -403,31 +521,6 @@
                         <Step
                             v-slot="{ activateCallback, value, a11yAttrs, class: stepClass }"
                             asChild
-                            value="1"
-                        >
-                            <div
-                                :class="[stepClass, 'step-item']"
-                                v-bind="a11yAttrs.root"
-                            >
-                                <button
-                                    class="step-button"
-                                    :class="{ active: isStepActive(value) }"
-                                    :disabled="selectedSource !== null && isSourceNavigationLocked"
-                                    @click="handleSourceStepClick(activateCallback)"
-                                    v-bind="a11yAttrs.header"
-                                >
-                                    <span class="material-symbols-outlined">video_camera_back_add</span>
-                                </button>
-                                <span
-                                    class="step-label"
-                                    :class="{ active: isStepActive(value) }"
-                                >Start</span>
-                                <div class="step-separator"></div>
-                            </div>
-                        </Step>
-                        <Step
-                            v-slot="{ activateCallback, value, a11yAttrs, class: stepClass }"
-                            asChild
                             value="2"
                         >
                             <div
@@ -446,7 +539,7 @@
                                 <span
                                     class="step-label"
                                     :class="{ active: isStepActive(value) }"
-                                >Config</span>
+                                >{{ selectedSource === 'camera' ? 'Setup' : 'Config' }}</span>
                                 <div class="step-separator"></div>
                             </div>
                         </Step>
@@ -500,15 +593,6 @@
                     </StepList>
                     <div class="mobile-step-label">{{ currentStepLabel }}</div>
                     <StepPanels>
-                        <StepPanel value="1">
-                            <UploadArea
-                                :can-resume-file-flow="hasExistingFileFlow"
-                                @request-resume-file-flow="selectFileMode"
-                                @request-next="handleFileSelected"
-                                @choose-camera="selectWebcamMode"
-                            />
-                        </StepPanel>
-
                         <template v-if="selectedSource === 'camera'">
                             <div class="camera-flow-panel">
                                 <RealtimeSampler
@@ -528,32 +612,145 @@
                                 v-slot="{ activateCallback }"
                                 value="2"
                             >
-                                <SettingsArea @request-back="handleBackFromSettings(activateCallback)" />
-                            </StepPanel>
-                            <StepPanel
-                                v-slot="{ activateCallback }"
-                                value="3"
-                            >
-                                <ResultsArea
-                                    @request-back="handleBackFromResults(activateCallback)"
-                                    @request-reset="handleReset(activateCallback)"
-                                    @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
+                                <UploadArea
+                                    v-if="!slyce.file"
+                                    :can-resume-file-flow="hasExistingFileFlow"
+                                    @request-resume-file-flow="selectFileMode"
+                                    @request-next="handleFileSelected"
+                                />
+                                <SettingsArea
+                                    v-else
+                                    :show-action-buttons="false"
+                                    @request-back="handleBackFromSettings(activateCallback)"
                                 />
                             </StepPanel>
-                            <StepPanel
-                                v-slot="{ activateCallback }"
-                                value="4"
-                            >
-                                <ResultsArea
-                                    @request-back="handleBackFromResults(activateCallback)"
-                                    @request-reset="handleReset(activateCallback)"
-                                    @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
-                                />
+                            <StepPanel value="3">
+                                <ResultsArea />
+                            </StepPanel>
+                            <StepPanel value="4">
+                                <ResultsArea />
                             </StepPanel>
                         </template>
                     </StepPanels>
                 </Stepper>
             </div>
+
+            <PanelActionBar
+                v-if="showFileSettingsFooter || showFileResultsFooter"
+                class="texture-creator-footer"
+            >
+                <template
+                    v-if="showFileSettingsFooter && !canProcessVideo && processDisabledReason"
+                    #leading
+                >
+                    <p class="texture-creator-footer-note">{{ processDisabledReason }}</p>
+                </template>
+
+                <template
+                    v-else-if="showFileCompletedFooter"
+                    #leading
+                >
+                    <OutputActions
+                        ref="outputActionsRef"
+                        :show-inline-actions="false"
+                        @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
+                    />
+                </template>
+
+                <template v-if="showFileSettingsFooter">
+                    <Button
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        @click="handleSettingsFooterBack"
+                    >
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        Back
+                    </Button>
+                    <Button
+                        id="process-button-footer"
+                        type="button"
+                        :disabled="!canProcessVideo"
+                        :title="processDisabledReason || null"
+                        @click="handleSettingsFooterProcess"
+                    >
+                        <span class="material-symbols-outlined">play_arrow</span>
+                        Process
+                    </Button>
+                </template>
+
+                <template v-else-if="showFileResultsFooter && !showFileCompletedFooter">
+                    <Button
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        @click="handleResultsFooterBack"
+                    >
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        Back
+                    </Button>
+                    <Button
+                        type="button"
+                        severity="danger"
+                        variant="outlined"
+                        @click="handleAbortProcessing"
+                    >
+                        <span class="material-symbols-outlined">cancel</span>
+                        Abort
+                    </Button>
+                </template>
+
+                <template v-else-if="showFileCompletedFooter">
+                    <Button
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        :disabled="isFinalizingOutput"
+                        @click="handleResultsFooterBack"
+                    >
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        Back
+                    </Button>
+                    <Button
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        :disabled="isFinalizingOutput"
+                        @click="handleStartOver"
+                    >
+                        <span class="material-symbols-outlined">restart_alt</span>
+                        Start Over
+                    </Button>
+                    <Button
+                        v-if="showRetryLocalSaveAction"
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        @click="handleRetryLocalSave"
+                    >
+                        <span class="material-symbols-outlined">refresh</span>
+                        Retry Save
+                    </Button>
+                    <Button
+                        v-if="canOpenTextureBrowser"
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        @click="handleOpenTextureBrowserAction"
+                    >
+                        <span class="material-symbols-outlined">folder</span>
+                        {{ footerBrowserButtonLabel }}
+                    </Button>
+                    <Button
+                        v-if="showApplyDraftAction"
+                        type="button"
+                        @click="handleApplyTextureAction"
+                    >
+                        <span class="material-symbols-outlined">check</span>
+                        Apply Draft
+                    </Button>
+                </template>
+            </PanelActionBar>
         </div>
     </div>
 </template>
@@ -612,6 +809,24 @@
     .camera-flow-panel {
         max-width: 920px;
         margin: 0 auto;
+    }
+
+    .texture-creator-footer {
+        --panel-action-bar-padding: 0.9rem 1.25rem 1rem;
+        --panel-action-bar-border-color: rgba(255, 255, 255, 0.1);
+        --panel-action-bar-background: rgba(26, 26, 26, 0.96);
+        flex-shrink: 0;
+    }
+
+    .texture-creator-footer-note {
+        margin: 0;
+        padding: 0.85rem 1rem;
+        border-radius: 0.8rem;
+        border: 1px solid rgba(245, 158, 11, 0.28);
+        background: rgba(120, 53, 15, 0.2);
+        color: rgba(255, 237, 213, 0.92);
+        font-size: 0.9rem;
+        line-height: 1.45;
     }
 
     .slyce-content :deep(.p-steplist) {
@@ -714,6 +929,13 @@
             letter-spacing: 0.06em;
             text-transform: uppercase;
             padding-bottom: 0.75rem;
+        }
+
+        .texture-creator-footer {
+            --panel-action-bar-gap: 0.5rem;
+            --panel-action-bar-button-min-width: 0;
+            --panel-action-bar-mobile-basis: 0;
+            --panel-action-bar-padding: 0.8rem 1rem 0.95rem;
         }
     }
 </style>

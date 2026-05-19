@@ -2,12 +2,9 @@
     import { computed } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
     import StatusBox from './StatusBox.vue';
-    import OutputActions from './OutputActions.vue';
     import TilePreview from './TilePreview.vue';
-    import Button from 'primevue/button';
 
     const app = useSlyceStore();
-    const emit = defineEmits(['request-back', 'request-reset', 'request-apply-texture']);
 
     // Show the static tile summary as soon as a processing plan exists.
     const hasTilePlan = computed(() => (app.tilePlan?.tiles?.length ?? 0) > 0);
@@ -20,95 +17,20 @@
 
     // Active = processing OR has results (keeps components alive across the transition)
     const isActive = computed(() => isProcessing.value || hasTilePlan.value || hasEncodedTiles.value);
-    const isFinalizingOutput = computed(() => app.isSavingLocally || app.isPublishingToCloud);
-
-    // Abort processing and go back to settings
-    function handleAbort() {
-        const confirmed = confirm('Abort processing? Any progress will be lost.');
-        if (!confirmed) return;
-        app.resetProcessing();
-        emit('request-back');
-    }
-
-    // Reset app and return to upload screen
-    function handleReset() {
-        if (isFinalizingOutput.value) {
-            return;
-        }
-
-        if (confirm('Are you sure you want to start over? All current results will be cleared.')) {
-            app.reset();
-            emit('request-reset');
-        }
-    }
-
-    // Go back to settings
-    function handleBack() {
-        if (isFinalizingOutput.value) {
-            return;
-        }
-
-        emit('request-back');
-    }
 </script>
 
 <template>
     <!-- Active: processing in progress or has results -->
     <div
         class="results-panel"
+        :class="{ 'results-panel-processing': isProcessing }"
         v-if="isActive"
     >
-        <div class="results-sidebar">
-            <!-- Processing phase: status -->
-            <template v-if="isProcessing">
-                <StatusBox />
-            </template>
-
-            <!-- Complete phase: output actions (upload, save, download, apply) -->
-            <OutputActions
-                v-if="app.isComplete"
-                @request-apply-texture="(texture) => emit('request-apply-texture', texture)"
-            />
-
-            <!-- Action bar — always visible, content changes by phase -->
-            <div class="sidebar-actions">
-                <Button
-                    type="button"
-                    @click="handleBack"
-                    class="action-button action-back"
-                    severity="secondary"
-                    variant="outlined"
-                    :disabled="isFinalizingOutput"
-                >
-                    <span class="material-symbols-outlined">arrow_back</span>
-                    Back
-                </Button>
-
-                <Button
-                    v-if="isProcessing"
-                    type="button"
-                    @click="handleAbort"
-                    class="action-button action-abort"
-                    severity="danger"
-                    variant="outlined"
-                >
-                    <span class="material-symbols-outlined">cancel</span>
-                    Abort
-                </Button>
-
-                <Button
-                    v-if="app.isComplete"
-                    type="button"
-                    @click="handleReset"
-                    class="action-button action-reset"
-                    severity="secondary"
-                    variant="outlined"
-                    :disabled="isFinalizingOutput"
-                >
-                    <span class="material-symbols-outlined">restart_alt</span>
-                    Start Over
-                </Button>
-            </div>
+        <div
+            v-if="isProcessing"
+            class="results-sidebar"
+        >
+            <StatusBox />
         </div>
         <div class="results-main">
             <!-- Static tile summary and preview, visible as soon as the tile plan exists. -->
@@ -125,12 +47,7 @@
         class="results-panel results-placeholder"
     >
         <div class="results-main">
-            <p>No results available. Please <a
-                    href="#"
-                    @click.prevent="emit('request-back')"
-                >go back</a> and process a
-                video to see
-                results here.</p>
+            <p>No results available yet.</p>
         </div>
     </div>
 </template>
@@ -152,7 +69,7 @@
     }
 
     @media (min-width: 1024px) {
-        .results-panel {
+        .results-panel.results-panel-processing {
             flex-direction: row;
             gap: 1.5rem;
             min-height: 450px;
@@ -186,42 +103,10 @@
         overflow-y: auto;
     }
 
-    /* -- Action bar -- */
-    .sidebar-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid #333;
-    }
-
-    .action-button {
-        font-size: 0.85rem;
-        min-height: 44px;
-    }
-
-    .action-button .material-symbols-outlined {
-        font-size: 1.1rem;
-    }
-
-    .action-back {
-        margin-right: auto;
-    }
-
     .results-placeholder {
         align-items: center;
         justify-content: center;
         color: var(--text-tertiary);
-    }
-
-    .results-placeholder a {
-        color: #3b82f6;
-        text-decoration: underline;
-        cursor: pointer;
-    }
-
-    .results-placeholder a:hover {
-        color: #2563eb;
     }
 
     .preview-disabled-placeholder {

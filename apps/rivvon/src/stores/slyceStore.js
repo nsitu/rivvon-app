@@ -5,9 +5,9 @@ import { defineStore } from 'pinia';
 import { abortProcessing } from '../modules/slyce/videoProcessingControl.js';
 import { createLocalSaveState, createObjectLocalSaveController } from '../modules/slyce/localSaveController.js';
 import { createPublishState, createObjectPublishController } from '../modules/slyce/publishController.js';
-import { shouldUseWebGL2BuilderByDefault } from '../modules/slyce/encodingPolicy.js';
+import { getDefaultTileBuilderBackend } from '../modules/slyce/encodingPolicy.js';
 
-const DEFAULT_USE_WEBGL2_BUILDER = shouldUseWebGL2BuilderByDefault();
+const DEFAULT_TILE_BUILDER_BACKEND = getDefaultTileBuilderBackend();
 
 export const useSlyceStore = defineStore('slyce', {
     state: () => ({
@@ -25,7 +25,7 @@ export const useSlyceStore = defineStore('slyce', {
         autoDeriveResolutions: [],      // optional lower-resolution family variants to auto-generate after root encode
         publishDestination: 'google-drive',
         downsampleStrategy: 'upfront', // always upfront — see docs/downsampling-strategy.md
-        useWebGL2Builder: DEFAULT_USE_WEBGL2_BUILDER,
+        tileBuilderBackend: DEFAULT_TILE_BUILDER_BACKEND,
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
         fileInfo: null,
@@ -73,6 +73,9 @@ export const useSlyceStore = defineStore('slyce', {
 
         // Structured progress data for the Processing status box.
         processingProgress: null,
+
+        // Aggregate decode/encode totals for the completed file-mode summary.
+        processingPhaseSummary: null,
 
         // File-mode local persistence state
         ...createLocalSaveState(),
@@ -153,6 +156,19 @@ export const useSlyceStore = defineStore('slyce', {
         cancelLocalSave() {
             return this.getLocalSaveController().cancelLocalSave();
         },
+        beginFileWorkflowWithFile(file) {
+            if (!file) {
+                return false;
+            }
+
+            this.resetForNewFileSelection();
+            this.file = file;
+            this.fileURL = URL.createObjectURL(file);
+            this.textureName = file.name?.replace(/\.[^.]+$/, '') || 'texture';
+            this.textureDescription = '';
+            this.currentStep = '2';
+            return true;
+        },
         resetForNewFileSelection() {
             abortProcessing();
 
@@ -181,6 +197,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.tilePlan = {};
             this.thumbnailBlob = null;
             this.processingResourceTelemetry = null;
+            this.processingPhaseSummary = null;
             this.processingProgress = null;
             this.cropMode = false;
             this.cropX = 0;
@@ -220,6 +237,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.ktx2BlobURLs = {};
             this.thumbnailBlob = null;
             this.processingResourceTelemetry = null;
+            this.processingPhaseSummary = null;
             this.processingProgress = null;
             this.resetLocalSaveState();
             this.resetPublishState();
@@ -249,7 +267,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.readerIsFinished = false;
             this.autoDeriveResolutions = [];
             this.publishDestination = 'google-drive';
-            this.useWebGL2Builder = DEFAULT_USE_WEBGL2_BUILDER;
+            this.tileBuilderBackend = DEFAULT_TILE_BUILDER_BACKEND;
             this.frameInterpolationFactor = 1;
             this.fileInfo = null;
             this.textureName = '';
@@ -279,6 +297,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.cropHeight = null;
             this.thumbnailBlob = null;
             this.processingResourceTelemetry = null;
+            this.processingPhaseSummary = null;
             this.processingProgress = null;
             this.resetLocalSaveState();
             this.resetPublishState();

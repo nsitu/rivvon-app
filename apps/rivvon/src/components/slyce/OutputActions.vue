@@ -1,54 +1,21 @@
 <template>
     <div class="output-actions-stack">
-        <section class="texture-metadata-panel">
-            <div class="texture-metadata-header">
-                <h4>Texture Metadata</h4>
-                <p>Set the title and optional caption for this texture. The caption can be surfaced later as a viewer
-                    overlay.</p>
-            </div>
-
-            <label class="metadata-field">
-                <span class="metadata-label">Title</span>
-                <input
-                    v-model="textureNameInput"
-                    type="text"
-                    class="metadata-text-input"
-                    placeholder="Texture title"
-                    :disabled="metadataInputsDisabled"
-                    maxlength="120"
-                />
-            </label>
-
-            <label class="metadata-field">
-                <span class="metadata-label">Description / caption</span>
-                <textarea
-                    v-model="textureDescriptionInput"
-                    rows="4"
-                    class="metadata-textarea"
-                    placeholder="Optional context or caption for the viewer overlay"
-                    :disabled="metadataInputsDisabled"
-                    maxlength="500"
-                ></textarea>
-            </label>
-
-            <p
-                v-if="app.publishedCloudRootId"
-                class="metadata-hint"
-            >Published metadata can still be edited later from My Published.</p>
-        </section>
-
         <LocalSaveStatus
             :is-saving-locally="app.isSavingLocally"
             :save-local-progress="app.saveLocalProgress"
             :save-local-error="app.saveLocalError"
             :saved-local-texture-id="app.savedLocalTextureId"
+            :show-actions="showInlineActions"
             saving-detail="The finished root texture is being persisted to browser storage as a draft."
             :success-title="localSaveSuccessTitle"
             :success-detail="localSaveSuccessDetail"
             :show-pending="true"
             @request-retry="retrySaveLocally"
         >
-            <template #success-actions>
+            <template
+                v-if="showInlineActions"
+                #success-actions
+            >
                 <Button
                     v-if="showDraftApplyAction"
                     type="button"
@@ -78,191 +45,6 @@
             class="local-save-note"
         >
             {{ app.saveLocalNotice }}
-        </p>
-
-        <section
-            v-if="canShowPublishPanel"
-            class="publish-config-panel"
-        >
-            <div class="publish-panel-header">
-                <h4>Publish Draft</h4>
-                <p>Publish the saved draft now, and optionally derive lower-resolution cloud variants as part of the
-                    same
-                    publish workflow.</p>
-            </div>
-
-            <div
-                v-if="!isAuthenticated"
-                class="publish-panel-login"
-            >
-                <p>Sign in to choose a destination and publish this draft.</p>
-                <Button
-                    type="button"
-                    @click="login"
-                >
-                    <span class="material-symbols-outlined">login</span>
-                    Sign In
-                </Button>
-            </div>
-
-            <div
-                v-else
-                class="publish-panel-body"
-            >
-                <p class="publish-config-row">
-                    <span>Upload the root texture to</span>
-                    <Select
-                        v-if="publishDestinationOptions.length > 1"
-                        v-model="app.publishDestination"
-                        :options="publishDestinationOptions"
-                        optionValue="value"
-                        optionLabel="label"
-                        class="publish-inline-select"
-                    />
-                    <span v-else>{{ publishDestinationLabel }}</span>
-                    <span>after encoding.</span>
-                </p>
-
-                <p class="publish-config-row">
-                    <span>Also derive</span>
-                    <MultiSelect
-                        v-model="app.autoDeriveResolutions"
-                        :options="autoDeriveResolutionOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        display="chip"
-                        placeholder="none"
-                        selectedItemsLabel="{0} variants"
-                        class="publish-inline-select publish-inline-multiselect"
-                    />
-                    <span>after the root texture is published.</span>
-                </p>
-
-                <p class="publish-config-row subordinate">
-                    <span>{{ autoDeriveSummary }}</span>
-                </p>
-
-                <p
-                    v-if="autoDeriveAssessment.message"
-                    class="publish-config-row subordinate derive-notice"
-                    :class="{
-                        'derive-warning': autoDeriveAssessment.severity === 'warning',
-                        'derive-danger': autoDeriveAssessment.severity === 'danger'
-                    }"
-                >
-                    {{ autoDeriveAssessment.message }}
-                </p>
-
-                <div class="publish-panel-actions">
-                    <Button
-                        type="button"
-                        :disabled="!canStartPublish"
-                        @click="startPublishFamily"
-                    >
-                        <span class="material-symbols-outlined">cloud_upload</span>
-                        {{ publishButtonLabel }}
-                    </Button>
-                </div>
-            </div>
-        </section>
-
-        <section
-            v-if="showPublishStatus"
-            class="publish-status"
-            :class="`is-${publishState}`"
-        >
-            <div class="publish-icon-wrap">
-                <svg
-                    v-if="publishState === 'publishing'"
-                    class="publish-spinner"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                >
-                    <circle
-                        class="spinner-track"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                    ></circle>
-                    <path
-                        class="spinner-head"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                </svg>
-
-                <span
-                    v-else-if="publishState === 'error'"
-                    class="material-symbols-outlined publish-icon error"
-                >error</span>
-
-                <span
-                    v-else
-                    class="material-symbols-outlined publish-icon success"
-                >cloud_done</span>
-            </div>
-
-            <div class="publish-copy">
-                <p class="publish-title">{{ publishTitle }}</p>
-                <p class="publish-detail">{{ publishDetail }}</p>
-            </div>
-
-            <div
-                v-if="showPublishActions"
-                class="publish-actions"
-            >
-                <Button
-                    v-if="publishState === 'error' && !isAuthenticated"
-                    type="button"
-                    severity="secondary"
-                    variant="outlined"
-                    @click="login"
-                >
-                    <span class="material-symbols-outlined">login</span>
-                    Sign In
-                </Button>
-
-                <Button
-                    v-if="publishState === 'error'"
-                    type="button"
-                    @click="retryPublishFamily"
-                >
-                    <span class="material-symbols-outlined">refresh</span>
-                    Retry Publish
-                </Button>
-
-                <Button
-                    v-if="publishState === 'success'"
-                    type="button"
-                    @click="applyTexture"
-                    class="apply-texture-btn"
-                    severity="success"
-                >
-                    <span class="material-symbols-outlined">check</span>
-                    Apply Published
-                </Button>
-
-                <Button
-                    type="button"
-                    @click="openTextureBrowser"
-                    class="view-local-btn"
-                    severity="secondary"
-                    variant="outlined"
-                >
-                    <span class="material-symbols-outlined">folder</span>
-                    {{ app.publishedCloudRootId ? 'My Published' : 'Drafts' }}
-                </Button>
-            </div>
-        </section>
-
-        <p
-            v-if="app.publishNotice"
-            class="publish-note"
-        >
-            {{ app.publishNotice }}
         </p>
     </div>
 </template>
@@ -300,6 +82,12 @@
     } = useLocalStorage();
 
     const emit = defineEmits(['request-apply-texture']);
+    const props = defineProps({
+        showInlineActions: {
+            type: Boolean,
+            default: true,
+        },
+    });
 
     const publishDestinationOptions = computed(() => {
         if (!isAuthenticated.value) {
@@ -376,9 +164,9 @@
     const localSaveSuccessDetail = computed(() => {
         return app.publishedCloudRootId
             ? 'The published root is cached locally for immediate use.'
-            : 'Apply the draft now or open the browser to manage it later.';
+            : 'Apply the draft now, or open Drafts to edit metadata and publish later.';
     });
-    const browserButtonLabel = computed(() => app.publishedCloudRootId ? 'My Published' : 'Drafts');
+    const browserButtonLabel = computed(() => app.publishedCloudRootId ? 'Open My Published' : 'Open Drafts');
     const showDraftApplyAction = computed(() => !app.publishedCloudRootId);
     const canShowPublishPanel = computed(() => {
         return Boolean(app.savedLocalTextureId)
@@ -1091,6 +879,12 @@
         if (metadataSyncTimer) {
             clearTimeout(metadataSyncTimer);
         }
+    });
+
+    defineExpose({
+        applyTexture,
+        openTextureBrowser,
+        retrySaveLocally,
     });
 </script>
 

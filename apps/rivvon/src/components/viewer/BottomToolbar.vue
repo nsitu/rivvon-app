@@ -203,6 +203,11 @@
 
     // Check if Slyce processing is active (has status messages)
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
+    const hasExistingTextureFileFlow = computed(() => (
+        !!slyce.file
+        || Object.keys(slyce.ktx2BlobURLs).length > 0
+        || slyce.currentStep !== '1'
+    ));
 
     const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
         order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'tools', 'about', 'realtimeSampler'],
@@ -517,20 +522,26 @@
                 handleImport('zip');
             }
         }, {
-            label: 'From Camera',
+            label: 'Create From Camera',
             icon: 'camera_video',
             active: isToolbarContextActive('realtimeSampler'),
             command: () => activateContext(() => emit('request-open-texture-camera'))
         }, {
-            label: 'From Video',
+            contextLabel: 'Video File',
+            label: hasExistingTextureFileFlow.value ? 'Continue...' : 'Browse...',
+            description: hasExistingTextureFileFlow.value
+                ? 'Return to the current video workflow.'
+                : 'Create texture from video file.',
             icon: 'video_file',
             active: isToolbarContextActive('textureCreator'),
-            command: () => activateContext(() => emit('request-open-texture-file'))
+            command: () => activateContext(() => emit('request-open-texture-file', {
+                directBrowse: !hasExistingTextureFileFlow.value,
+            }))
         },
 
 
         {
-            label: 'Browse',
+            label: 'Texture Library',
             icon: 'grid_view',
             active: isToolbarContextActive('textureBrowser'),
             command: () => toggleContextItem('textureBrowser', () => emit('request-open-texture-browser'))
@@ -650,12 +661,25 @@
                             :key="`${props.activeToolbarOverlay}-${item.label}`"
                             type="button"
                             class="tools-option launcher-menu-action"
-                            :class="{ selected: item.active }"
+                            :class="{
+                                selected: item.active,
+                                'launcher-menu-action-rich': item.contextLabel || item.description,
+                            }"
                             role="menuitem"
                             @click="item.command()"
                         >
                             <span class="material-symbols-outlined">{{ item.icon }}</span>
-                            <span>{{ item.label }}</span>
+                            <span class="launcher-menu-copy">
+                                <span
+                                    v-if="item.contextLabel"
+                                    class="launcher-menu-context-label"
+                                >{{ item.contextLabel }}</span>
+                                <span class="launcher-menu-primary-label">{{ item.label }}</span>
+                                <span
+                                    v-if="item.description"
+                                    class="launcher-menu-description"
+                                >{{ item.description }}</span>
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -981,6 +1005,39 @@
     .launcher-menu-action {
         width: 100%;
         pointer-events: auto;
+    }
+
+    .launcher-menu-action-rich {
+        align-items: flex-start;
+    }
+
+    .launcher-menu-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.12rem;
+        min-width: 0;
+        text-align: left;
+    }
+
+    .launcher-menu-context-label {
+        font-size: 0.68rem;
+        line-height: 1.15;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.54);
+    }
+
+    .launcher-menu-primary-label {
+        font-size: 0.95rem;
+        line-height: 1.25;
+    }
+
+    .launcher-menu-description {
+        font-size: 0.78rem;
+        line-height: 1.35;
+        color: rgba(255, 255, 255, 0.66);
+        text-wrap: balance;
     }
 
     .toolbar-button-label {

@@ -65,7 +65,7 @@ export async function runSamplingPipeline({
                 let builder = builders.get(builderKey);
 
                 if (!builder) {
-                    builder = createBuilder(item, builderKey);
+                    builder = await createBuilder(item, builderKey);
                     builders.set(builderKey, builder);
                     registerBuilder(builderKey, builder);
 
