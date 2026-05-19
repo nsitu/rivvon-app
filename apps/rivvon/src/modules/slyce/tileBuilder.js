@@ -38,6 +38,7 @@ export class TileBuilder extends EventEmitter {
         }
 
         this.canvasses = this.createCanvasses();
+        this.sourceFrameSurface = this.createSourceFrameSurface();
     }
 
     createCanvasses() {
@@ -62,6 +63,11 @@ export class TileBuilder extends EventEmitter {
         return canvasses;
     }
 
+    createSourceFrameSurface() {
+        const { fileInfo } = this.settings;
+        return createRealtimeCanvas(fileInfo.width, fileInfo.height);
+    }
+
     releaseCanvasSet() {
         // Offline processing does not pool canvas sets yet, but expose the
         // same surface as the realtime builder so orchestrators can share it.
@@ -73,6 +79,7 @@ export class TileBuilder extends EventEmitter {
 
     dispose() {
         this.canvasses = null;
+        this.sourceFrameSurface = null;
         this.removeAllListeners();
     }
 
@@ -100,6 +107,15 @@ export class TileBuilder extends EventEmitter {
         // so we know where to draw the sample to in the destination tile  
         let drawLocation = frameNumber - tilePlan.tiles[tileNumber].start;
         // NOTE: ↓ Later we also have a sampleLocation  (unique to each canvas)
+        const sourceCanvas = this.sourceFrameSurface?.canvas ?? videoFrame;
+        const sourceCtx = this.sourceFrameSurface?.ctx ?? null;
+
+        if (sourceCtx && sourceCanvas) {
+            // Safari can collapse all layer reads when sampling directly from VideoFrame
+            // with a source rectangle, so normalize through a plain 2D canvas first.
+            sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+            sourceCtx.drawImage(videoFrame, 0, 0, sourceCanvas.width, sourceCanvas.height);
+        }
 
         for (let canvasNumber = 0; canvasNumber < this.canvasses.length; canvasNumber++) {
             const canvas = this.canvasses[canvasNumber];
@@ -129,7 +145,7 @@ export class TileBuilder extends EventEmitter {
                     const dy = 0                        // Destination y
                     const dw = 1                        // Destination width
                     const dh = tilePlan.width           // Destination height (width because rotated)
-                    ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
+                    ctx.drawImage(sourceCanvas, sx, sy, sw, sh, dx, dy, dw, dh);
                 }
                 else if (samplingMode === 'rows') {
                     const sx = 0                        // Source x
@@ -140,7 +156,7 @@ export class TileBuilder extends EventEmitter {
                     const dy = drawLocation             // Destination y
                     const dw = tilePlan.width           // Destination width
                     const dh = 1                        // Destination height
-                    ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
+                    ctx.drawImage(sourceCanvas, sx, sy, sw, sh, dx, dy, dw, dh);
                 }
             }
             else if (crossSectionType === 'waves') {
@@ -177,7 +193,7 @@ export class TileBuilder extends EventEmitter {
                 }
 
                 // Draw the sampled pixels onto the canvas
-                ctx.drawImage(videoFrame, sx, sy, sw, sh, dx, dy, dw, dh);
+                ctx.drawImage(sourceCanvas, sx, sy, sw, sh, dx, dy, dw, dh);
 
 
 
