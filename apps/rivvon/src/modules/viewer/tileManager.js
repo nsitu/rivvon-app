@@ -239,6 +239,8 @@ export class TileManager {
         this._onTick = null;
         this._onLayerChange = null;
         this._lastNotifiedLayer = 0;
+        this._layerChangeCount = 0;
+        this._lastLayerChangeTimeMs = 0;
 
         this.#syncFlowSpeedAlignment();
     }
@@ -1699,6 +1701,10 @@ export class TileManager {
             direction: this.direction,
             layerAnimationEnabled: this.layerAnimationEnabled,
             layerAnimationReversed: this.layerAnimationReversed,
+            layerChangeCount: this._layerChangeCount,
+            lastLayerChangeAgeMs: this._lastLayerChangeTimeMs
+                ? Math.max(0, (typeof performance !== 'undefined' ? performance.now() : Date.now()) - this._lastLayerChangeTimeMs)
+                : null,
         };
     }
 
@@ -1775,6 +1781,8 @@ export class TileManager {
         }
 
         this._lastNotifiedLayer = normalizedLayer;
+        this._layerChangeCount += 1;
+        this._lastLayerChangeTimeMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
         this._onLayerChange?.(normalizedLayer);
     }
 
@@ -2654,6 +2662,8 @@ export class TileManager {
         this.decodedTileDepths = [];
         this.decodedTileKinds = [];
         this.decodedTileLayerSources = [];
+        this._layerChangeCount = 0;
+        this._lastLayerChangeTimeMs = 0;
 
         console.log('[TileManager] Cleared all tiles');
     }

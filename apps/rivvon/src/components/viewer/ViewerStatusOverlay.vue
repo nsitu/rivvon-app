@@ -147,6 +147,7 @@
         const layerControlState = perf.suppressLayerAnimation
             ? 'scroll'
             : (perf.textureAnimationEnabled ? 'auto' : 'off');
+        const layerRuntimeState = perf.internalLayerAnimationEnabled ? 'tm-on' : 'tm-off';
         const lines = [
             `FPS       ${props.fps}`,
             `Frame     ${formatMs(perf.avgFrameMs)} avg | ${formatMs(perf.maxFrameMs)} max`,
@@ -154,7 +155,8 @@
             `Wrap      ${wrapSummary}${wrapCadence}`,
             `Period    tile ${formatSeconds(perf.tileWrapPeriod)} | tex ${formatSeconds(perf.textureCyclePeriod)} | flow ${formatSeconds(perf.flowCyclePeriod)}${cycleMultiple}`,
             `Texture   ${perf.effectiveTileCount || 0} cycle tiles | ${perf.layerCount || 0} layers | ${perf.repeatMode || 'wrap'}`,
-            `Cycle     ${layerControlState} | layer ${perf.currentLayer || 0}/${Math.max((perf.layerCount || 1) - 1, 0)} | frame ${perf.layerCycleFrame || 0}/${Math.max((perf.layerCycleFrameCount || 1) - 1, 0)} | ${formatDirection(perf.layerDirection)}`,
+            `Cycle     ${layerControlState} ${layerRuntimeState} | layer ${perf.currentLayer || 0}/${Math.max((perf.layerCount || 1) - 1, 0)} | frame ${perf.layerCycleFrame || 0}/${Math.max((perf.layerCycleFrameCount || 1) - 1, 0)} | ${formatDirection(perf.layerDirection)}`,
+            `Changes   ${perf.layerChangeCount || 0} total | last ${formatAge(perf.lastLayerChangeAgeMs)}`,
             `Source    ${perf.textureSourceLabel || 'default'} | ${perf.textureVariant || 'unknown'} | expected ${perf.expectedLayerCount || 0} | decoded ${perf.decodedDepthLabel || 'n/a'}`,
             `Decode    array ${perf.arrayTextureCount || 0} | other ${perf.nonArrayTextureCount || 0} | metadata fallback ${perf.metadataFallbackCount || 0}`,
             `Control   ${perf.viewerControlMode || 'orbit'} | tilt ${perf.scrollDrivenTiltEnabled ? 'on' : 'off'} | layer ${perf.scrollDrivenLayerCycleEnabled ? 'on' : 'off'} | flow ${perf.scrollDrivenFlowEnabled ? 'on' : 'off'}`,

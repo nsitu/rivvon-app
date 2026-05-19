@@ -10,17 +10,23 @@ function buildProcessingResourceStatus(telemetry) {
         return '';
     }
 
+    let status = '';
+
     if (telemetry.builderType === 'webgl2' && telemetry.atlasWidth && telemetry.atlasHeight) {
         // Collapse atlas/source texture math into one user-facing VRAM estimate.
         // Browsers do not expose actual VRAM, so we estimate RGBA8 texture backing
         // from the live atlas count maintained by videoProcessor.
         const estimatedVramBytes = telemetry.estimatedLiveGpuBytes || telemetry.estimatedTotalGpuBytes || 0;
         if (estimatedVramBytes > 0) {
-            return `<br/>VRAM (estimated) - ${formatMiB(estimatedVramBytes)}`;
+            status += `<br/>VRAM (estimated) - ${formatMiB(estimatedVramBytes)}`;
         }
     }
 
-    return '';
+    if (telemetry.layerFingerprintSummary) {
+        status += `<br/>Layer fingerprints - ${telemetry.layerFingerprintSummary}`;
+    }
+
+    return status;
 }
 
 const resourceUsageReport = async () => {

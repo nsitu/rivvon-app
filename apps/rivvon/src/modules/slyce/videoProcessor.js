@@ -120,6 +120,95 @@ function updateWebGL2Telemetry(app, updater) {
     });
 }
 
+function mergeProcessingTelemetry(app, patch = {}) {
+    const current = app.processingResourceTelemetry || {};
+    app.set('processingResourceTelemetry', {
+        ...current,
+        ...patch,
+    });
+}
+
+function computeLayerFingerprint(image) {
+    const rgba = image?.rgba;
+    if (!rgba || rgba.length < 4) {
+        return null;
+    }
+
+    const totalPixels = Math.max(1, Math.floor(rgba.length / 4));
+    const pixelStep = Math.max(1, Math.floor(totalPixels / 512));
+    const byteStep = pixelStep * 4;
+    let checksum = 2166136261 >>> 0;
+    let luminanceSum = 0;
+    let alphaSum = 0;
+    let sampleCount = 0;
+
+    for (let byteIndex = 0; byteIndex < rgba.length; byteIndex += byteStep) {
+        const r = rgba[byteIndex] ?? 0;
+        const g = rgba[byteIndex + 1] ?? 0;
+        const b = rgba[byteIndex + 2] ?? 0;
+        const a = rgba[byteIndex + 3] ?? 0;
+
+        checksum ^= r;
+        checksum = Math.imul(checksum, 16777619) >>> 0;
+        checksum ^= g;
+        checksum = Math.imul(checksum, 16777619) >>> 0;
+        checksum ^= b;
+        checksum = Math.imul(checksum, 16777619) >>> 0;
+        checksum ^= a;
+        checksum = Math.imul(checksum, 16777619) >>> 0;
+
+        luminanceSum += (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+        alphaSum += a;
+        sampleCount += 1;
+    }
+
+    return {
+        checksumHex: checksum.toString(16).padStart(8, '0'),
+        avgLuma: sampleCount > 0 ? Number((luminanceSum / sampleCount).toFixed(1)) : 0,
+        avgAlpha: sampleCount > 0 ? Number((alphaSum / sampleCount).toFixed(1)) : 0,
+    };
+}
+
+function summarizeLayerFingerprints(images = []) {
+    const fingerprints = images
+        .map((image, index) => {
+            const fingerprint = computeLayerFingerprint(image);
+            return fingerprint ? { index, ...fingerprint } : null;
+        })
+        .filter(Boolean);
+
+    if (fingerprints.length === 0) {
+        return null;
+    }
+
+    const uniqueChecksumCount = new Set(fingerprints.map((entry) => entry.checksumHex)).size;
+    let adjacentDifferenceCount = 0;
+    for (let index = 1; index < fingerprints.length; index++) {
+        if (fingerprints[index].checksumHex !== fingerprints[index - 1].checksumHex) {
+            adjacentDifferenceCount += 1;
+        }
+    }
+
+    const lumaValues = fingerprints.map((entry) => entry.avgLuma);
+    const minLuma = Math.min(...lumaValues);
+    const maxLuma = Math.max(...lumaValues);
+    const sampleIndexes = [...new Set([
+        0,
+        Math.floor((fingerprints.length - 1) / 2),
+        fingerprints.length - 1,
+    ])];
+    const samples = sampleIndexes.map((index) => fingerprints[index]);
+
+    return {
+        layerCount: fingerprints.length,
+        uniqueChecksumCount,
+        adjacentDifferenceCount,
+        lumaRange: Number((maxLuma - minLuma).toFixed(1)),
+        sampleFingerprints: samples.map((entry) => `L${entry.index}:${entry.checksumHex}/${entry.avgLuma}`),
+        summaryText: `${uniqueChecksumCount}/${fingerprints.length} unique | adjacent ${adjacentDifferenceCount}/${Math.max(fingerprints.length - 1, 0)} | luma Δ ${Number((maxLuma - minLuma).toFixed(1))}`,
+    };
+}
+
 function incrementWebGL2AtlasCount(app) {
     updateWebGL2Telemetry(app, current => {
         const liveAtlasCount = (current.liveAtlasCount ?? 0) + 1;
@@ -576,6 +665,18 @@ const processVideo = async (settings) => {
 
                     if (images.length > 0) {
                         try {
+                            if (tileId === 0) {
+                                const layerFingerprintSummary = summarizeLayerFingerprints(images);
+                                if (layerFingerprintSummary) {
+                                    console.log('[VideoProcessor] Tile 0 layer fingerprint summary:', layerFingerprintSummary);
+                                    mergeProcessingTelemetry(app, {
+                                        layerFingerprintSummary: layerFingerprintSummary.summaryText,
+                                        layerFingerprintSamples: layerFingerprintSummary.sampleFingerprints,
+                                    });
+                                    resourceUsageReport();
+                                }
+                            }
+
                             console.log(`[KTX2] Encoding tile ${tileId} with ${images.length} layers (parallel)`);
 
                             let ktx2WorkerPool = getKtx2WorkerPool();

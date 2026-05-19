@@ -70,6 +70,9 @@ function createPerfTelemetrySnapshot() {
         layerCycleFrame: 0,
         layerCycleFrameCount: 0,
         layerDirection: 1,
+        internalLayerAnimationEnabled: false,
+        layerChangeCount: 0,
+        lastLayerChangeAgeMs: null,
     };
 }
 
@@ -275,6 +278,11 @@ export function useRenderLoop(ctx, deps = {}) {
             layerCycleFrame: layerDebug?.layerCycleFrame || 0,
             layerCycleFrameCount: layerDebug?.layerCycleFrameCount || 0,
             layerDirection: layerDebug?.direction || 1,
+            internalLayerAnimationEnabled: !!layerDebug?.layerAnimationEnabled,
+            layerChangeCount: layerDebug?.layerChangeCount || 0,
+            lastLayerChangeAgeMs: layerDebug?.lastLayerChangeAgeMs == null
+                ? null
+                : Math.round(layerDebug.lastLayerChangeAgeMs),
         };
 
         resetPerfWindow(now);
