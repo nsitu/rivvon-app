@@ -108,19 +108,6 @@ async function loadBasisForSlyce() {
     }
 }
 
-async function installTextureVariantDevHelpers() {
-    if (!import.meta.env.DEV || typeof window === 'undefined') {
-        return;
-    }
-
-    try {
-        const { installKtx2RoundtripDevHelpers } = await import('./modules/slyce/ktx2RoundtripVariant.js');
-        installKtx2RoundtripDevHelpers(window);
-    } catch (error) {
-        console.warn('[Main] Failed to install texture variant dev helpers:', error);
-    }
-}
-
 // Initialize app
 (async () => {
     try {
@@ -149,8 +136,6 @@ async function installTextureVariantDevHelpers() {
         
         // Also initialize vanilla auth module (used by TileManager for Drive API)
         await initAuth();
-
-        await installTextureVariantDevHelpers();
 
         // Preload BASIS module if starting on Slyce route
         if (window.location.pathname.startsWith('/slyce')) {

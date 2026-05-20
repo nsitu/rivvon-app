@@ -151,6 +151,10 @@ export function useThreeSetup() {
                 flowAlignmentEnabled: app.flowCycleAlignmentEnabled,
                 layerAnimationEnabled: app.textureAnimationEnabled,
                 layerAnimationReversed: app.textureAnimationReversed,
+                edgeDriftEnabled: app.edgeDriftEnabled,
+                edgeNoiseTransparencyMax: app.edgeNoiseTransparencyMax,
+                edgeNoisePatternLength: app.edgeNoisePatternLength,
+                edgeNoiseMirrored: app.edgeNoiseMirrored,
                 webgpuMaterialMode: 'node'
             });
             await tileManager.value.loadAllTiles();
@@ -356,6 +360,10 @@ export function useThreeSetup() {
         setTextureAnimationReversed: ribbons.setTextureAnimationReversed,
         setTextureRepeatMode: ribbons.setTextureRepeatMode,
         setTextureFlipVertical: ribbons.setTextureFlipVertical,
+        setEdgeDriftEnabled: ribbons.setEdgeDriftEnabled,
+        setEdgeNoiseTransparencyMax: ribbons.setEdgeNoiseTransparencyMax,
+        setEdgeNoisePatternLength: ribbons.setEdgeNoisePatternLength,
+        setEdgeNoiseMirrored: ribbons.setEdgeNoiseMirrored,
         setHelixMode: ribbons.setHelixMode,
         captureImagePreview: exporter.captureImagePreview,
         captureImagePreviewWithSettings: exporter.captureImagePreviewWithSettings,

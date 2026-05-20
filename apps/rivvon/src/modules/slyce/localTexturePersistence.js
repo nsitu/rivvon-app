@@ -248,7 +248,7 @@ export async function saveProcessedTextureFamilyLocally(controller, source = {})
         controller.set('savedLocalTextureFamilyIds', [...savedTextureFamilyIds]);
 
         if (targetResolutions.length > 0) {
-            const { deriveKtx2TextureFamily } = await import('./ktx2RoundtripVariant.js');
+            const { deriveKtx2TextureFamily } = await import('./textureVariantDerivation.js');
             const familyResult = await deriveKtx2TextureFamily({
                 sourceTiles: buildSourceTilesFromBlobs(blobs),
                 sourceResolution: plan.tileResolution,

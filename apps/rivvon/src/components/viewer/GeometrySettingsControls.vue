@@ -10,7 +10,6 @@
 
     const capOptions = [
         { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
-        { label: 'Organic Brush Caps', value: 'organic', icon: 'draw' },
         { label: 'Pointed Caps', value: 'pointed', icon: 'change_history' },
         { label: 'Swallowtail Caps', value: 'swallowtail', icon: 'content_cut' },
         { label: 'Square Caps', value: 'square', icon: 'crop' }
@@ -72,7 +71,7 @@
             <div class="tools-section-items">
                 <div class="tools-slider">
                     <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                            }}x</span></label>
+                    }}x</span></label>
                     <input
                         type="range"
                         min="0.1"
@@ -107,7 +106,7 @@
                         </label>
                         <div class="tools-toggle-control">
                             <span class="tools-hint tools-toggle-hint">{{ sphericalProjectionModel ? 'On' : 'Off'
-                            }}</span>
+                                }}</span>
                             <ToggleSwitch
                                 :inputId="getInputId('spherical-projection')"
                                 v-model="sphericalProjectionModel"
@@ -156,7 +155,7 @@
                     >
                         <div class="tools-slider">
                             <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                    }}</span></label>
+                            }}</span></label>
                             <input
                                 type="range"
                                 min="0.1"
@@ -181,7 +180,7 @@
 
                         <div class="tools-slider">
                             <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                    }}</span></label>
+                            }}</span></label>
                             <input
                                 type="range"
                                 min="0.05"
@@ -209,7 +208,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -217,7 +216,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>

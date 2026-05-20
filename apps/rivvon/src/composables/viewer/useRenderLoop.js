@@ -30,9 +30,7 @@ function createPerfTelemetrySnapshot() {
         lastWrapTiles: 0,
         lastWrapFlowUpdateMs: 0,
         lastWrapFrameMs: 0,
-        lastWrapMaterialCount: 0,
-        activeFlowMaterialCount: 0,
-        cachedFlowMaterialCount: 0,
+        lastWrapSegmentCount: 0,
         flowEnabled: false,
         flowSpeed: 0,
         requestedFlowSpeed: 0,
@@ -138,7 +136,7 @@ export function useRenderLoop(ctx, deps = {}) {
     let perfLastWrapTiles = 0;
     let perfLastWrapFlowUpdateMs = 0;
     let perfLastWrapFrameMs = 0;
-    let perfLastWrapMaterialCount = 0;
+    let perfLastWrapSegmentCount = 0;
 
     function resetPerfWindow(now = 0) {
         perfWindowStart = now;
@@ -167,7 +165,7 @@ export function useRenderLoop(ctx, deps = {}) {
         perfLastWrapTiles = 0;
         perfLastWrapFlowUpdateMs = 0;
         perfLastWrapFrameMs = 0;
-        perfLastWrapMaterialCount = 0;
+        perfLastWrapSegmentCount = 0;
         resetPerfWindow(now);
     }
 
@@ -232,13 +230,7 @@ export function useRenderLoop(ctx, deps = {}) {
             lastWrapTiles: perfLastWrapTiles,
             lastWrapFlowUpdateMs: roundMetric(perfLastWrapFlowUpdateMs),
             lastWrapFrameMs: roundMetric(perfLastWrapFrameMs),
-            lastWrapMaterialCount: perfLastWrapMaterialCount,
-            activeFlowMaterialCount: primaryTileManager?.getActiveFlowMaterialCount?.()
-                ?? primaryTileManager?.flowMaterials?.length
-                ?? 0,
-            cachedFlowMaterialCount: primaryTileManager?.getCachedFlowMaterialCount?.()
-                ?? primaryTileManager?.flowMaterialCache?.size
-                ?? 0,
+            lastWrapSegmentCount: perfLastWrapSegmentCount,
             flowEnabled: primaryTileManager?.isFlowEnabled?.() ?? false,
             flowSpeed: roundMetric(flowSpeed, 4),
             requestedFlowSpeed: roundMetric(primaryTileManager?.getRequestedFlowSpeed?.() ?? 0, 4),
@@ -297,7 +289,7 @@ export function useRenderLoop(ctx, deps = {}) {
         controlsMs,
         renderMs,
         wrapTiles = 0,
-        wrapMaterialCount = 0,
+        wrapStats = null,
     }) {
         if (!perfWindowStart) {
             perfWindowStart = now;
@@ -327,7 +319,7 @@ export function useRenderLoop(ctx, deps = {}) {
             perfLastWrapTiles = wrapTiles;
             perfLastWrapFlowUpdateMs = flowUpdateMs;
             perfLastWrapFrameMs = totalFrameMs;
-            perfLastWrapMaterialCount = wrapMaterialCount;
+            perfLastWrapSegmentCount = wrapStats?.segmentEntries ?? 0;
         }
 
         if (now - perfWindowStart >= PERF_SAMPLE_WINDOW_MS) {
@@ -512,8 +504,9 @@ export function useRenderLoop(ctx, deps = {}) {
             
             // Update ribbon materials for tile flow effect (conveyor belt animation)
             const flowUpdateStartMs = performance.now();
+            let flowWrapStats = null;
             if (ctx.ribbonSeries.value?.updateFlowMaterials) {
-                ctx.ribbonSeries.value.updateFlowMaterials();
+                flowWrapStats = ctx.ribbonSeries.value.updateFlowMaterials();
             }
             flowUpdateMs = performance.now() - flowUpdateStartMs;
             
@@ -578,7 +571,7 @@ export function useRenderLoop(ctx, deps = {}) {
                 controlsMs,
                 renderMs,
                 wrapTiles: pendingFlowWrapTiles,
-                wrapMaterialCount: ctx.ribbonSeries.value?._flowMaterials?.length ?? 0,
+                wrapStats: flowWrapStats,
             });
         }
         

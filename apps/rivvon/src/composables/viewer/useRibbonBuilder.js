@@ -316,6 +316,58 @@ export function useRibbonBuilder(ctx) {
     }
 
     /**
+     * Set the maximum shader edge-noise cut-in across all active TileManagers.
+     * @param {number} value - Fraction of total ribbon width, 0..0.5
+     */
+    function setEdgeNoiseTransparencyMax(value) {
+        const normalized = ctx.app.setEdgeNoiseTransparencyMax(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setEdgeNoiseTransparencyMax?.(normalized);
+        }
+    }
+
+    /**
+     * Set whether Edge Drift is active across all TileManagers.
+     * @param {boolean} enabled
+     */
+    function setEdgeDriftEnabled(enabled) {
+        const normalized = ctx.app.setEdgeDriftEnabled(enabled);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setEdgeDriftEnabled?.(normalized);
+        }
+    }
+
+    /**
+     * Set the shader edge-noise pattern length across all active TileManagers.
+     * @param {number} value - Ribbon segments per full noise loop
+     */
+    function setEdgeNoisePatternLength(value) {
+        const normalized = ctx.app.setEdgeNoisePatternLength(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setEdgeNoisePatternLength?.(normalized);
+        }
+    }
+
+    /**
+     * Set whether the edge-noise shape mirrors across both ribbon edges.
+     * @param {boolean} enabled
+     */
+    function setEdgeNoiseMirrored(enabled) {
+        const normalized = ctx.app.setEdgeNoiseMirrored(enabled);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setEdgeNoiseMirrored?.(normalized);
+        }
+    }
+
+    /**
      * Apply helix mode options and rebuild ribbons
      * Called when helix toggle or parameters change in the store
      * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
@@ -346,6 +398,10 @@ export function useRibbonBuilder(ctx) {
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        setEdgeDriftEnabled,
+        setEdgeNoiseTransparencyMax,
+        setEdgeNoisePatternLength,
+        setEdgeNoiseMirrored,
         setHelixMode
     };
 }

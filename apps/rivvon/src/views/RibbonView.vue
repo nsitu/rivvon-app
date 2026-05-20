@@ -2757,6 +2757,7 @@
             :visible="showTechnicalOverlay"
             :fps="threeCanvasRef?.fps ?? 0"
             :perf-telemetry="threeCanvasRef?.perfTelemetry ?? null"
+            @dismiss="showTechnicalOverlay = false"
         />
 
         <!-- Loading overlay for texture loading or viewer reinitialization -->

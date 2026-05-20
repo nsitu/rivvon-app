@@ -13,6 +13,8 @@
         perfTelemetry: { type: Object, default: null },
     });
 
+    const emit = defineEmits(['dismiss']);
+
     const storageMB = ref(null);
     const heapTelemetry = ref(null);
     let pollTimer = null;
@@ -124,8 +126,6 @@
         return {
             points,
             latest,
-            minLabel: Math.round(minValue),
-            maxLabel: Math.round(maxValue),
             targetY: valueToY(60),
             warningY: valueToY(45),
             state,
@@ -135,10 +135,10 @@
     const metricsText = computed(() => {
         const perf = props.perfTelemetry ?? {};
         const wrapSummary = perf.wrapEventsTotal
-            ? `${formatAge(perf.lastWrapAgeMs)} ago | ${perf.lastWrapTiles > 0 ? '+' : ''}${perf.lastWrapTiles} tile | ${perf.lastWrapMaterialCount || 0} seg | ${formatMs(perf.lastWrapFlowUpdateMs)}`
+            ? `${formatAge(perf.lastWrapAgeMs)} ago | ${perf.lastWrapTiles > 0 ? '+' : ''}${perf.lastWrapTiles} tile | ${perf.lastWrapSegmentCount || 0} seg | ${formatMs(perf.lastWrapFlowUpdateMs)}`
             : 'none yet';
         const wrapCadence = perf.lastWrapIntervalMs
-            ? ` | cadence ${formatAge(perf.lastWrapIntervalMs)}`
+            ? ` | every ${formatAge(perf.lastWrapIntervalMs)}`
             : '';
         const cycleMultiple = perf.flowCycleMultiple ? ` | x${perf.flowCycleMultiple}` : '';
         const flowAlignState = perf.flowAlignmentEnabled
@@ -149,7 +149,6 @@
             : (perf.textureAnimationEnabled ? 'auto' : 'off');
         const layerRuntimeState = perf.internalLayerAnimationEnabled ? 'tm-on' : 'tm-off';
         const lines = [
-            `FPS       ${props.fps}`,
             `Frame     ${formatMs(perf.avgFrameMs)} avg | ${formatMs(perf.maxFrameMs)} max`,
             `Phases    tick ${formatMs(perf.avgTileTickMs)} | flow ${formatMs(perf.avgFlowUpdateMs)} | render ${formatMs(perf.avgRenderMs)}`,
             `Wrap      ${wrapSummary}${wrapCadence}`,
@@ -162,7 +161,7 @@
             `Control   ${perf.viewerControlMode || 'orbit'} | tilt ${perf.scrollDrivenTiltEnabled ? 'on' : 'off'} | layer ${perf.scrollDrivenLayerCycleEnabled ? 'on' : 'off'} | flow ${perf.scrollDrivenFlowEnabled ? 'on' : 'off'}`,
             `Scroll    ${perf.scrollTiltActive ? 'active' : 'idle'} | block ${perf.scrollTiltBlockingContext ? 'yes' : 'no'} | vel ${formatTurnsPerSecond(perf.scrollTiltVelocity)}`,
             `Flow      ${perf.flowEnabled ? 'on' : 'off'} ${formatFlowSpeed(perf.flowSpeed)} | frac ${formatFlowOffset(perf.flowOffset)} | tile ${perf.tileFlowOffset ?? 0}`,
-            `Align     ${flowAlignState} | wraps ${perf.wrapEventsTotal || 0} total | ${perf.activeFlowMaterialCount || 0} active | ${perf.cachedFlowMaterialCount || 0} cached`,
+            `Align     ${flowAlignState} | wraps ${perf.wrapEventsTotal || 0} total`,
             `Heap      ${formatHeapTelemetry(heapTelemetry.value)}`,
             `Renderer  ${app.rendererType.toUpperCase()}`
         ];
@@ -177,14 +176,30 @@
     <TechnicalOverlayFrame
         :visible="visible"
         :metrics-text="metricsText"
+        unified
     >
         <div
             v-if="sparkline"
             class="fps-sparkline"
         >
             <div class="fps-sparkline-header">
-                <span class="fps-sparkline-title">FPS Trend</span>
-                <span class="fps-sparkline-value">{{ sparkline.latest }}</span>
+                <div class="fps-sparkline-heading">
+                    <span class="fps-sparkline-title">FPS</span>
+                    <span class="fps-sparkline-value">{{ sparkline.latest }}</span>
+                </div>
+                <div class="fps-sparkline-actions">
+                    <button
+                        type="button"
+                        class="technical-overlay-close"
+                        aria-label="Dismiss technical overlay"
+                        @click="emit('dismiss')"
+                    >
+                        <span
+                            class="material-symbols-outlined"
+                            aria-hidden="true"
+                        >close</span>
+                    </button>
+                </div>
             </div>
 
             <svg
@@ -212,11 +227,6 @@
                     :points="sparkline.points"
                 />
             </svg>
-
-            <div class="fps-sparkline-scale">
-                <span>{{ sparkline.maxLabel }}</span>
-                <span>{{ sparkline.minLabel }}</span>
-            </div>
         </div>
     </TechnicalOverlayFrame>
 </template>
@@ -228,14 +238,10 @@
         gap: 0.35rem;
         min-width: 0;
         width: 100%;
-        padding: 0.55rem 0.7rem 0.6rem;
-        border-radius: 8px;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(6px);
+        padding: 0 0 0.15rem;
     }
 
-    .fps-sparkline-header,
-    .fps-sparkline-scale {
+    .fps-sparkline-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -251,10 +257,52 @@
         color: rgba(255, 255, 255, 0.82);
     }
 
+    .fps-sparkline-heading {
+        display: inline-grid;
+        grid-template-columns: 4.4rem auto;
+        align-items: baseline;
+        min-width: 0;
+    }
+
     .fps-sparkline-value {
         font-size: 12px;
         font-weight: 700;
         color: rgba(255, 255, 255, 0.92);
+    }
+
+    .fps-sparkline-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        min-width: 0;
+    }
+
+    .technical-overlay-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.76);
+        cursor: pointer;
+        pointer-events: auto;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .technical-overlay-close:hover,
+    .technical-overlay-close:focus-visible {
+        border-color: rgba(255, 255, 255, 0.24);
+        background: rgba(255, 255, 255, 0.16);
+        color: rgba(255, 255, 255, 0.94);
+    }
+
+    .technical-overlay-close .material-symbols-outlined {
+        font-size: 15px;
+        line-height: 1;
     }
 
     .fps-sparkline-chart {

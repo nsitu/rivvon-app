@@ -13,6 +13,8 @@
         perfTelemetry: { type: Object, default: null },
     });
 
+    const emit = defineEmits(['dismiss']);
+
     const activeContext = computed(() => {
         if (props.cinematicCamera?.isPlaying?.value) {
             return 'cinematic';
@@ -41,5 +43,6 @@
         :fps="fps"
         :perf-telemetry="perfTelemetry"
         :visible="visible && activeContext === 'default'"
+        @dismiss="emit('dismiss')"
     />
 </template>

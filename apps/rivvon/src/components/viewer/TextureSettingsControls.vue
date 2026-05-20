@@ -88,6 +88,44 @@
         () => `${Math.round(app.transparentShadowsThresholdMax * 100)}%`
     );
 
+    const edgeNoiseTransparencyModel = computed({
+        get: () => Math.round(app.edgeNoiseTransparencyMax * 100),
+        set: (value) => {
+            app.setEdgeNoiseTransparencyMax(Number(value) / 100);
+        }
+    });
+
+    const edgeNoiseTransparencyLabel = computed(
+        () => `${Math.round(app.edgeNoiseTransparencyMax * 100)}%`
+    );
+
+    const edgeDriftEnabledModel = computed({
+        get: () => app.edgeDriftEnabled,
+        set: (value) => {
+            app.setEdgeDriftEnabled(!!value);
+        }
+    });
+
+    const edgeNoisePatternLengthModel = computed({
+        get: () => Number(app.edgeNoisePatternLength.toFixed(2)),
+        set: (value) => {
+            app.setEdgeNoisePatternLength(Number(value));
+        }
+    });
+
+    const edgeNoisePatternLengthLabel = computed(() => {
+        const value = app.edgeNoisePatternLength;
+        const formatted = value < 1 ? value.toFixed(2) : value.toFixed(1);
+        return `${formatted} seg`;
+    });
+
+    const edgeNoiseMirroredModel = computed({
+        get: () => app.edgeNoiseMirrored,
+        set: (value) => {
+            app.setEdgeNoiseMirrored(!!value);
+        }
+    });
+
     const transparencyThresholdMinCaption = computed(
         () => transparencyHighlightsModel.value
             ? `Opaque at ${transparentShadowsThresholdMinLabel.value}`
@@ -341,6 +379,75 @@
                         <span>{{ transparencyThresholdMaxCaption }}</span>
                     </div>
                 </div>
+
+                <label
+                    class="tools-toggle-row"
+                    :for="getInputId('edge-drift-enabled')"
+                >
+                    <span class="tools-toggle-copy">
+                        <span class="tools-toggle-title">Edge Drift</span>
+                    </span>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ edgeDriftEnabledModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('edge-drift-enabled')"
+                            v-model="edgeDriftEnabledModel"
+                        />
+                    </div>
+                </label>
+
+                <div v-if="edgeDriftEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Edge Variation</label>
+                        <span class="tools-hint tools-slider-hint">{{ edgeNoiseTransparencyLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="edgeNoiseTransparencyModel"
+                        :min="0"
+                        :max="50"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>No cut-in</span>
+                        <span>Half width</span>
+                    </div>
+                </div>
+
+                <div v-if="edgeDriftEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Pattern Length</label>
+                        <span class="tools-hint tools-slider-hint">{{ edgeNoisePatternLengthLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="edgeNoisePatternLengthModel"
+                        :min="0.1"
+                        :max="2"
+                        :step="0.1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Short repeat</span>
+                        <span>Long repeat</span>
+                    </div>
+                </div>
+
+                <label
+                    v-if="edgeDriftEnabledModel"
+                    class="tools-toggle-row"
+                    :for="getInputId('edge-noise-mirrored')"
+                >
+                    <span class="tools-toggle-copy">
+                        <span class="tools-toggle-title">Mirror Shape</span>
+                    </span>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ edgeNoiseMirroredModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('edge-noise-mirrored')"
+                            v-model="edgeNoiseMirroredModel"
+                        />
+                    </div>
+                </label>
 
             </div>
         </div>

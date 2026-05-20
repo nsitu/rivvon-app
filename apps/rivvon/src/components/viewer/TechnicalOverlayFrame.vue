@@ -3,6 +3,7 @@
         visible: { type: Boolean, default: false },
         title: { type: String, default: '' },
         metricsText: { type: String, default: '' },
+        unified: { type: Boolean, default: false },
     });
 </script>
 
@@ -11,6 +12,7 @@
         <div
             v-if="visible"
             class="technical-overlay"
+            :class="{ 'technical-overlay--unified': unified }"
         >
             <div
                 v-if="title"
@@ -81,6 +83,23 @@
         overflow-wrap: anywhere;
         max-width: 100%;
         pointer-events: none;
+    }
+
+    .technical-overlay--unified {
+        gap: 0;
+        padding: 10px 12px 12px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(6px);
+    }
+
+    .technical-overlay--unified .technical-overlay-metrics {
+        margin-top: 8px;
+        padding: 10px 0 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 0;
+        background: transparent;
+        backdrop-filter: none;
     }
 
     @media (max-width: 640px) {

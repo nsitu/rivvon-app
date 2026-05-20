@@ -72,7 +72,6 @@ export class WalkingManager {
             measurementNoise: 25
         });
 
-        this.createMap();
         this.emitState();
     }
 
@@ -249,6 +248,7 @@ export class WalkingManager {
         this.isActive = active;
 
         if (active) {
+            this.createMap();
             this.clearWalk({ resetView: false });
             requestAnimationFrame(() => this.map?.invalidateSize(false));
             this.startTracking();

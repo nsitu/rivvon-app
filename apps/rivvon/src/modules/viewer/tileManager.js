@@ -12,10 +12,202 @@ const loadTSLModule = createLazyLoader(() => import('three/tsl'));
 
 // Default texture ID from CDN (used when no source specified)
 export const DEFAULT_TEXTURE_ID = 'wv-ywyV14qYSbrzgYga4l';
-const CAP_MASK_SDF_AA_SCALE = 0.7;
-const CAP_MASK_SDF_MIN_AA = 1 / 4096;
+const CAP_ALPHA_AA_SCALE = 0.7;
+const CAP_ALPHA_MIN_AA = 1 / 4096;
 const TRANSPARENT_SHADOWS_LUMA_MIN = 0.2;
 const TRANSPARENT_SHADOWS_LUMA_MAX = 0.5;
+const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
+const MAX_EDGE_NOISE_TRANSPARENCY = 0.5;
+const DEFAULT_EDGE_DRIFT_ENABLED = true;
+const DEFAULT_EDGE_NOISE_PATTERN_LENGTH = 0.5;
+const MIN_EDGE_NOISE_PATTERN_LENGTH = 0.1;
+const MAX_EDGE_NOISE_PATTERN_LENGTH = 2;
+const EDGE_NOISE_TIME_CELLS = 5;
+const EDGE_NOISE_AA_SCALE = 1.5;
+const EDGE_NOISE_MIN_AA = 0.001;
+
+const CAP_ALPHA_GLSL = /* glsl */`
+                float computeCapSignedDistance(float style, vec2 capUv) {
+                    if (style < 0.5) {
+                        return 1.0;
+                    }
+
+                    if (style < 1.5) {
+                        float circleDistance = 0.5 - length(capUv - vec2(0.5, 0.5));
+                        return max(circleDistance, capUv.x - 0.5);
+                    }
+
+                    if (style < 2.5) {
+                        return capUv.x * 0.5 - abs(capUv.y - 0.5);
+                    }
+
+                    float centerWeight = 1.0 - abs(capUv.y * 2.0 - 1.0);
+                    float biteBoundary = 0.05 + 0.26 * centerWeight;
+                    return capUv.x - biteBoundary;
+                }
+
+                float computeCapAlpha(vec2 uv, float startStyle, float endStyle) {
+                    float startSignedDistance = computeCapSignedDistance(startStyle, uv);
+                    float endSignedDistance = computeCapSignedDistance(endStyle, vec2(1.0 - uv.x, uv.y));
+                    float signedDistance = min(startSignedDistance, endSignedDistance);
+                    float aa = max(fwidth(signedDistance) * ${CAP_ALPHA_AA_SCALE.toFixed(1)}, ${CAP_ALPHA_MIN_AA});
+                    return smoothstep(-aa, aa, signedDistance);
+                }
+`;
+
+const EDGE_NOISE_GLSL = /* glsl */`
+                const float EDGE_NOISE_TIME_CELLS = ${EDGE_NOISE_TIME_CELLS.toFixed(1)};
+
+                float edgeNoiseHash(vec3 p) {
+                    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+                }
+
+                float edgeNoiseFade(float t) {
+                    return t * t * (3.0 - 2.0 * t);
+                }
+
+                float edgeNoiseValueLattice(float x, float y, float seed) {
+                    float x0 = floor(x);
+                    float y0 = floor(y);
+                    float xf = fract(x);
+                    float yf = fract(y);
+                    float y0Wrapped = mod(y0, EDGE_NOISE_TIME_CELLS);
+                    float y1Wrapped = mod(y0 + 1.0, EDGE_NOISE_TIME_CELLS);
+
+                    float h00 = edgeNoiseHash(vec3(x0, y0Wrapped, seed));
+                    float h10 = edgeNoiseHash(vec3(x0 + 1.0, y0Wrapped, seed));
+                    float h01 = edgeNoiseHash(vec3(x0, y1Wrapped, seed));
+                    float h11 = edgeNoiseHash(vec3(x0 + 1.0, y1Wrapped, seed));
+                    float ux = edgeNoiseFade(xf);
+                    float uy = edgeNoiseFade(yf);
+
+                    return mix(mix(h00, h10, ux), mix(h01, h11, ux), uy);
+                }
+
+                float edgeNoiseValue(float edgeNoiseU, float phase, float edgeSide, float spatialFrequency) {
+                    float x = edgeNoiseU * spatialFrequency;
+                    float y = phase * EDGE_NOISE_TIME_CELLS + edgeSide * 1.731;
+                    float seed = 17.0 + edgeSide * 23.0;
+                    float baseNoise = edgeNoiseValueLattice(x, y, seed);
+                    float detailNoise = edgeNoiseValueLattice(x * 2.13 + 19.17, y * 2.0 + 7.31, seed + 41.0);
+
+                    return clamp(baseNoise * 0.74 + detailNoise * 0.26, 0.0, 1.0);
+                }
+
+                float computeEdgeNoiseAlpha(vec2 uv, float edgeNoiseU, float maxCutWidth, float phase, float spatialFrequency, float mirrorShape) {
+                    if (maxCutWidth <= 0.0001) {
+                        return 1.0;
+                    }
+
+                    float edgeSide = step(0.5, uv.y);
+                    float sampleEdgeSide = mix(edgeSide, 0.0, step(0.5, mirrorShape));
+                    float noiseSignal = edgeNoiseValue(edgeNoiseU, phase, sampleEdgeSide, spatialFrequency);
+                    float edgeDistance = min(uv.y, 1.0 - uv.y);
+                    float cutWidth = maxCutWidth * noiseSignal;
+                    float aa = max(fwidth(edgeDistance) * ${EDGE_NOISE_AA_SCALE.toFixed(1)}, ${EDGE_NOISE_MIN_AA});
+                    return smoothstep(cutWidth, cutWidth + aa, edgeDistance);
+                }
+`;
+
+function normalizeEdgeNoiseTransparencyMax(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX;
+    }
+
+    return Math.min(MAX_EDGE_NOISE_TRANSPARENCY, Math.max(0, parsed));
+}
+
+function normalizeEdgeNoisePatternLength(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_EDGE_NOISE_PATTERN_LENGTH;
+    }
+
+    return Math.min(MAX_EDGE_NOISE_PATTERN_LENGTH, Math.max(MIN_EDGE_NOISE_PATTERN_LENGTH, parsed));
+}
+
+function edgeNoisePatternLengthToFrequency(value) {
+    return 1 / normalizeEdgeNoisePatternLength(value);
+}
+
+function createEdgeNoiseAlphaNode(threeTSL, baseUV, edgeNoiseU, maxUniform, phaseUniform, spatialFrequencyUniform, mirrorUniform) {
+    const { float, vec3, dot, floor, fract, min, mix, mod, smoothstep } = threeTSL;
+    const fade = (value) => value.mul(value).mul(float(3.0).sub(value.mul(float(2.0))));
+    const hash = (x, y, seed) => fract(dot(vec3(x, y, seed), vec3(127.1, 311.7, 74.7)).sin().mul(float(43758.5453123)));
+    const valueNoise = (x, y, seed) => {
+        const x0 = floor(x);
+        const y0 = floor(y);
+        const xf = fract(x);
+        const yf = fract(y);
+        const y0Wrapped = mod(y0, float(EDGE_NOISE_TIME_CELLS));
+        const y1Wrapped = mod(y0.add(float(1.0)), float(EDGE_NOISE_TIME_CELLS));
+        const h00 = hash(x0, y0Wrapped, seed);
+        const h10 = hash(x0.add(float(1.0)), y0Wrapped, seed);
+        const h01 = hash(x0, y1Wrapped, seed);
+        const h11 = hash(x0.add(float(1.0)), y1Wrapped, seed);
+        const ux = fade(xf);
+        const uy = fade(yf);
+
+        return mix(mix(h00, h10, ux), mix(h01, h11, ux), uy);
+    };
+    const edgeNoiseValue = (edgeSide) => {
+        const x = edgeNoiseU.mul(spatialFrequencyUniform);
+        const y = phaseUniform.mul(float(EDGE_NOISE_TIME_CELLS)).add(edgeSide.mul(float(1.731)));
+        const seed = float(17.0).add(edgeSide.mul(float(23.0)));
+        const baseNoise = valueNoise(x, y, seed);
+        const detailNoise = valueNoise(
+            x.mul(float(2.13)).add(float(19.17)),
+            y.mul(float(2.0)).add(float(7.31)),
+            seed.add(float(41.0))
+        );
+
+        return baseNoise.mul(float(0.74)).add(detailNoise.mul(float(0.26))).max(float(0.0)).min(float(1.0));
+    };
+
+    const edgeSide = baseUV.y.greaterThanEqual(float(0.5)).select(float(1.0), float(0.0));
+    const sampleEdgeSide = mirrorUniform.greaterThanEqual(float(0.5)).select(float(0.0), edgeSide);
+    const noiseSignal = edgeNoiseValue(sampleEdgeSide);
+    const edgeDistance = min(baseUV.y, float(1.0).sub(baseUV.y));
+    const cutWidth = maxUniform.mul(noiseSignal);
+    const aa = edgeDistance.fwidth().mul(float(EDGE_NOISE_AA_SCALE)).max(float(EDGE_NOISE_MIN_AA));
+    const edgeAlpha = smoothstep(cutWidth, cutWidth.add(aa), edgeDistance);
+
+    return maxUniform.lessThanEqual(float(0.0001)).select(float(1.0), edgeAlpha);
+}
+
+function createCapAlphaNode(threeTSL, baseUV) {
+    const { attribute, float, vec2, abs, length, min, max, smoothstep } = threeTSL;
+    const startStyle = attribute('capStartStyle', 'float');
+    const endStyle = attribute('capEndStyle', 'float');
+
+    const capSignedDistance = (style, capUv) => {
+        const roundedCircleDistance = float(0.5).sub(length(vec2(
+            capUv.x.sub(float(0.5)),
+            capUv.y.sub(float(0.5))
+        )));
+        const roundedSignedDistance = max(roundedCircleDistance, capUv.x.sub(float(0.5)));
+        const pointedSignedDistance = capUv.x.mul(float(0.5)).sub(abs(capUv.y.sub(float(0.5))));
+        const centerWeight = float(1.0).sub(abs(capUv.y.mul(float(2.0)).sub(float(1.0))));
+        const swallowBoundary = float(0.05).add(centerWeight.mul(float(0.26)));
+        const swallowSignedDistance = capUv.x.sub(swallowBoundary);
+        const shapedDistance = style.lessThan(float(1.5)).select(
+            roundedSignedDistance,
+            style.lessThan(float(2.5)).select(pointedSignedDistance, swallowSignedDistance)
+        );
+
+        return style.lessThan(float(0.5)).select(float(1.0), shapedDistance);
+    };
+
+    const startSignedDistance = capSignedDistance(startStyle, baseUV);
+    const endSignedDistance = capSignedDistance(endStyle, vec2(float(1.0).sub(baseUV.x), baseUV.y));
+    const signedDistance = min(startSignedDistance, endSignedDistance);
+    const aa = signedDistance.fwidth().mul(float(CAP_ALPHA_AA_SCALE)).max(float(CAP_ALPHA_MIN_AA));
+
+    return smoothstep(aa.negate(), aa, signedDistance);
+}
 
 function positiveModulo(value, modulus) {
     if (modulus <= 0) return 0;
@@ -145,6 +337,10 @@ export class TileManager {
             flowAlignmentEnabled = true,
             layerAnimationEnabled = true,
             layerAnimationReversed = false,
+            edgeDriftEnabled = DEFAULT_EDGE_DRIFT_ENABLED,
+            edgeNoiseTransparencyMax = DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX,
+            edgeNoisePatternLength = DEFAULT_EDGE_NOISE_PATTERN_LENGTH,
+            edgeNoiseMirrored = false,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -192,6 +388,14 @@ export class TileManager {
         this.sharedLayerUniform = { value: 0 };
         this.sharedRotateUniform = { value: rotate90 ? 1 : 0 };
         this.sharedFlipVerticalUniform = { value: flipVertical ? 1 : 0 };
+        this.edgeDriftEnabled = !!edgeDriftEnabled;
+        this.edgeNoiseTransparencyMax = normalizeEdgeNoiseTransparencyMax(edgeNoiseTransparencyMax);
+        this.edgeNoisePatternLength = normalizeEdgeNoisePatternLength(edgeNoisePatternLength);
+        this.edgeNoiseMirrored = !!edgeNoiseMirrored;
+        this.sharedEdgeNoiseMaxUniform = { value: this.#getEffectiveEdgeNoiseMax() };
+        this.sharedEdgeNoiseSpatialFrequencyUniform = { value: edgeNoisePatternLengthToFrequency(this.edgeNoisePatternLength) };
+        this.sharedEdgeNoiseMirrorUniform = { value: this.edgeNoiseMirrored ? 1.0 : 0.0 };
+        this.sharedEdgeNoisePhaseUniform = { value: 0.0 };
         this.currentLayer = 0;
         this.layerCount = 0;
         this.direction = 1; // for ping-pong in planes mode
@@ -530,10 +734,6 @@ export class TileManager {
         });
     }
 
-    #hasCapMask(options = {}) {
-        return !!(options?.capMaskStart?.texture || options?.capMaskEnd?.texture);
-    }
-
     #disposeMaterialExtras(material) {
         if (!material?._ownedCapTextures?.length) {
             return;
@@ -561,11 +761,7 @@ export class TileManager {
         return material;
     }
 
-    #buildFlowMaterialCacheKey(currentSample, nextSample, materialOptions = null) {
-        if (this.#hasCapMask(materialOptions)) {
-            return null;
-        }
-
+    #buildFlowMaterialCacheKey(currentSample, nextSample) {
         return [
             this.flowDirection < 0 ? 'rev' : 'fwd',
             currentSample.tileIndex,
@@ -592,6 +788,88 @@ export class TileManager {
         if (material._flowOffsetUniform) {
             material._flowOffsetUniform.value = this.sharedFlowOffsetUniform.value;
         }
+        if (material._edgeNoiseMaxUniform) {
+            material._edgeNoiseMaxUniform.value = this.sharedEdgeNoiseMaxUniform.value;
+        }
+        if (material._edgeNoiseSpatialFrequencyUniform) {
+            material._edgeNoiseSpatialFrequencyUniform.value = this.sharedEdgeNoiseSpatialFrequencyUniform.value;
+        }
+        if (material._edgeNoiseMirrorUniform) {
+            material._edgeNoiseMirrorUniform.value = this.sharedEdgeNoiseMirrorUniform.value;
+        }
+        if (material._edgeNoisePhaseUniform) {
+            material._edgeNoisePhaseUniform.value = this.sharedEdgeNoisePhaseUniform.value;
+        }
+        this.#syncEdgeNoiseMaterialState(material);
+    }
+
+    #syncEdgeNoiseMaterialState(material) {
+        if (!material) {
+            return;
+        }
+
+        const alphaToCoverage = !!material._hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
+        if (material._transparentShadowsOriginalState) {
+            material._transparentShadowsOriginalState.alphaToCoverage = alphaToCoverage;
+        }
+
+        if (material._transparentShadowsUniform?.value === 1) {
+            return;
+        }
+
+        if (material.alphaToCoverage !== alphaToCoverage) {
+            material.alphaToCoverage = alphaToCoverage;
+            material.needsUpdate = true;
+        }
+    }
+
+    #syncEdgeNoiseUniforms({ phaseOnly = false } = {}) {
+        const syncMaterial = (material) => {
+            if (!material) return;
+
+            if (!phaseOnly && material._edgeNoiseMaxUniform) {
+                material._edgeNoiseMaxUniform.value = this.sharedEdgeNoiseMaxUniform.value;
+            }
+            if (!phaseOnly && material._edgeNoiseSpatialFrequencyUniform) {
+                material._edgeNoiseSpatialFrequencyUniform.value = this.sharedEdgeNoiseSpatialFrequencyUniform.value;
+            }
+            if (!phaseOnly && material._edgeNoiseMirrorUniform) {
+                material._edgeNoiseMirrorUniform.value = this.sharedEdgeNoiseMirrorUniform.value;
+            }
+            if (material._edgeNoisePhaseUniform) {
+                material._edgeNoisePhaseUniform.value = this.sharedEdgeNoisePhaseUniform.value;
+            }
+            if (!phaseOnly) {
+                this.#syncEdgeNoiseMaterialState(material);
+            }
+        };
+
+        if (this.rendererType === 'webgpu' || !phaseOnly) {
+            this.#forEachStaticMaterial(syncMaterial);
+            for (const material of this.flowMaterials) {
+                syncMaterial(material);
+            }
+        }
+    }
+
+    #getEffectiveEdgeNoiseMax() {
+        return this.edgeDriftEnabled ? this.edgeNoiseTransparencyMax : 0;
+    }
+
+    #getEdgeNoiseCyclePeriod() {
+        // Use the same short, layer-aligned cadence as ribbon undulation so
+        // the edge pattern visibly travels while still landing on a clean loop.
+        const undulationPeriod = this.getOptimalUndulationPeriod?.(3.0);
+        if (Number.isFinite(undulationPeriod) && undulationPeriod > 0) {
+            return undulationPeriod;
+        }
+
+        const layerCyclePeriod = this.getLayerCyclePeriod?.();
+        if (Number.isFinite(layerCyclePeriod) && layerCyclePeriod > 0) {
+            return layerCyclePeriod;
+        }
+
+        return 3.0;
     }
 
     #trackActiveFlowMaterial(material) {
@@ -618,6 +896,10 @@ export class TileManager {
         });
 
         this.flowMaterialCache.clear();
+    }
+
+    clearFlowMaterialCache() {
+        this.#disposeFlowMaterialCache();
     }
 
     clearEphemeralStaticMaterials() {
@@ -673,13 +955,7 @@ export class TileManager {
         const mirrorCurrent = options.mirrorCurrent ? 1 : 0;
         const mirrorNext = options.mirrorNext ? 1 : 0;
         const reverseFlow = this.flowDirection < 0;
-        const hasStartMask = !!options.capMaskStart?.texture;
-        const hasEndMask = !!options.capMaskEnd?.texture;
-        const hasCapMask = hasStartMask || hasEndMask;
-        const startSpread = options.capMaskStart?.spread ?? 0.08;
-        const endSpread = options.capMaskEnd?.spread ?? 0.08;
-        const startTipFadeWidth = options.capMaskStart?.tipFadeWidth ?? 0;
-        const endTipFadeWidth = options.capMaskEnd?.tipFadeWidth ?? 0;
+        const hasCapMask = true;
 
         const material = new THREE.ShaderMaterial({
             glslVersion: THREE.GLSL3,
@@ -697,17 +973,24 @@ export class TileManager {
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
-                ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
-                ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
-                ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
-                ...(hasEndMask ? { uCapMaskEnd: { value: options.capMaskEnd.texture } } : {}),
-                ...(hasEndMask ? { uCapMaskEndSpread: { value: endSpread } } : {}),
-                ...(hasEndMask ? { uCapMaskEndTipFadeWidth: { value: endTipFadeWidth } } : {}),
+                uEdgeNoiseMax: this.sharedEdgeNoiseMaxUniform,
+                uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
+                uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
+                uEdgeNoisePhase: this.sharedEdgeNoisePhaseUniform,
             },
             vertexShader: /* glsl */`
+                in float edgeNoiseU;
+                in float capStartStyle;
+                in float capEndStyle;
                 out vec2 vUv;
+                out float vEdgeNoiseU;
+                out float vCapStartStyle;
+                out float vCapEndStyle;
                 void main() {
                     vUv = uv;
+                    vEdgeNoiseU = edgeNoiseU;
+                    vCapStartStyle = capStartStyle;
+                    vCapEndStyle = capEndStyle;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
@@ -715,6 +998,9 @@ export class TileManager {
                 precision highp float;
                 precision highp sampler2DArray;
                 in vec2 vUv;
+                in float vEdgeNoiseU;
+                in float vCapStartStyle;
+                in float vCapEndStyle;
                 uniform sampler2DArray uTexArrayCurrent;
                 uniform sampler2DArray uTexArrayNext;
                 uniform int uLayer;
@@ -727,26 +1013,14 @@ export class TileManager {
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
-                ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
-                ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
-                ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
-                ${hasEndMask ? 'uniform sampler2D uCapMaskEnd;' : ''}
-                ${hasEndMask ? 'uniform float uCapMaskEndSpread;' : ''}
-                ${hasEndMask ? 'uniform float uCapMaskEndTipFadeWidth;' : ''}
+                uniform float uEdgeNoiseMax;
+                uniform float uEdgeNoiseSpatialFrequency;
+                uniform float uEdgeNoiseMirror;
+                uniform float uEdgeNoisePhase;
                 out vec4 outColor;
 
-                float sampleCapSdf(sampler2D maskTexture, vec2 maskUv, float spread, float tipFadeWidth) {
-                    float sdf = texture(maskTexture, maskUv).a;
-                    float signedDistance = (sdf * 2.0 - 1.0) * spread;
-                    float aa = max(fwidth(signedDistance) * ${CAP_MASK_SDF_AA_SCALE}, ${CAP_MASK_SDF_MIN_AA});
-                    float alpha = smoothstep(-aa, aa, signedDistance);
-
-                    if (tipFadeWidth > 0.0) {
-                        alpha *= smoothstep(0.0, tipFadeWidth, maskUv.x);
-                    }
-
-                    return alpha;
-                }
+${CAP_ALPHA_GLSL}
+${EDGE_NOISE_GLSL}
 
                 void main() {
                     // Apply flow offset to U coordinate (slides along ribbon)
@@ -800,11 +1074,9 @@ export class TileManager {
                         ? 'shiftedU < 0.0 ? texColorNext : texColorCurrent'
                         : 'shiftedU >= 1.0 ? texColorNext : texColorCurrent'};
 
-                    ${hasCapMask ? 'float capAlpha = 1.0;' : ''}
-                    ${hasStartMask ? 'capAlpha *= sampleCapSdf(uCapMaskStart, vec2(vUv.x, 1.0 - vUv.y), uCapMaskStartSpread, uCapMaskStartTipFadeWidth);' : ''}
-                    ${hasEndMask ? 'capAlpha *= sampleCapSdf(uCapMaskEnd, vec2(1.0 - vUv.x, 1.0 - vUv.y), uCapMaskEndSpread, uCapMaskEndTipFadeWidth);' : ''}
-                    ${hasCapMask ? 'texColor.a *= capAlpha;' : ''}
-                    ${hasCapMask ? 'if (texColor.a <= 0.001) discard;' : ''}
+                    texColor.a *= computeCapAlpha(vUv, vCapStartStyle, vCapEndStyle);
+                    texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
+                    if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001) && texColor.a <= 0.001) discard;
 
                     if (uTransparentShadows == 1) {
                         float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -835,18 +1107,21 @@ export class TileManager {
         // Store texture references for swapping
         material._textureCurrent = textureCurrent;
         material._textureNext = textureNext;
-        material._ownedCapTextures = [];
-        if (options.capMaskStart?.owned) {
-            material._ownedCapTextures.push(options.capMaskStart.texture);
-        }
-        if (options.capMaskEnd?.owned) {
-            material._ownedCapTextures.push(options.capMaskEnd.texture);
-        }
+        material.defaultAttributeValues = {
+            ...(material.defaultAttributeValues || {}),
+            capStartStyle: [0],
+            capEndStyle: [0],
+        };
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
         material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
+        material._edgeNoiseMaxUniform = material.uniforms.uEdgeNoiseMax;
+        material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
+        material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
+        material._edgeNoisePhaseUniform = material.uniforms.uEdgeNoisePhase;
+        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -860,12 +1135,10 @@ export class TileManager {
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, float, vec2, vec3, vec4, dot, smoothstep } = threeTSL;
+        const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
         const reverseFlow = this.flowDirection < 0;
-        const hasStartMask = !!options.capMaskStart?.texture;
-        const hasEndMask = !!options.capMaskEnd?.texture;
-        const hasCapMask = hasStartMask || hasEndMask;
+        const hasCapMask = true;
 
         // Create uniforms
         const layerUniform = uniform(this.sharedLayerUniform.value);
@@ -878,11 +1151,16 @@ export class TileManager {
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
+        const edgeNoiseMaxUniform = uniform(float(this.sharedEdgeNoiseMaxUniform.value));
+        const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
+        const edgeNoiseMirrorUniform = uniform(float(this.sharedEdgeNoiseMirrorUniform.value));
+        const edgeNoisePhaseUniform = uniform(float(this.sharedEdgeNoisePhaseUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
             .sub(transparentShadowsMinUniform)
             .max(float(0.00001));
 
         const baseUV = uv();
+        const edgeNoiseU = attribute('edgeNoiseU', 'float');
         
         // Apply flow offset
         const shiftedU = baseUV.x.add(flowOffsetUniform);
@@ -921,41 +1199,20 @@ export class TileManager {
             ? shiftedU.lessThan(float(0.0)).select(colorNext, colorCurrent)
             : shiftedU.greaterThanEqual(1.0).select(colorNext, colorCurrent);
 
-        let capAlpha = float(1.0);
-        if (hasStartMask) {
-            const startMaskUv = vec2(baseUV.x, float(1.0).sub(baseUV.y));
-            const startSdf = texture(options.capMaskStart.texture, startMaskUv).a;
-            const startSignedDistance = startSdf.mul(2.0).sub(1.0).mul(float(options.capMaskStart.spread ?? 0.08));
-            const startAa = startSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
-            let startAlpha = smoothstep(startAa.negate(), startAa, startSignedDistance);
+        const capAlpha = createCapAlphaNode(threeTSL, baseUV);
 
-            if ((options.capMaskStart.tipFadeWidth ?? 0) > 0) {
-                startAlpha = startAlpha.mul(
-                    smoothstep(float(0.0), float(options.capMaskStart.tipFadeWidth), startMaskUv.x)
-                );
-            }
-
-            capAlpha = capAlpha.mul(startAlpha);
-        }
-        if (hasEndMask) {
-            const endMaskUv = vec2(float(1.0).sub(baseUV.x), float(1.0).sub(baseUV.y));
-            const endSdf = texture(options.capMaskEnd.texture, endMaskUv).a;
-            const endSignedDistance = endSdf.mul(2.0).sub(1.0).mul(float(options.capMaskEnd.spread ?? 0.08));
-            const endAa = endSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
-            let endAlpha = smoothstep(endAa.negate(), endAa, endSignedDistance);
-
-            if ((options.capMaskEnd.tipFadeWidth ?? 0) > 0) {
-                endAlpha = endAlpha.mul(
-                    smoothstep(float(0.0), float(options.capMaskEnd.tipFadeWidth), endMaskUv.x)
-                );
-            }
-
-            capAlpha = capAlpha.mul(endAlpha);
-        }
-
+        const edgeNoiseAlpha = createEdgeNoiseAlphaNode(
+            threeTSL,
+            baseUV,
+            edgeNoiseU,
+            edgeNoiseMaxUniform,
+            edgeNoisePhaseUniform,
+            edgeNoiseSpatialFrequencyUniform,
+            edgeNoiseMirrorUniform
+        );
         const finalColor = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
-            : sampledColor;
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha))
+            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha));
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
             .div(transparentShadowsSpan)
@@ -975,7 +1232,7 @@ export class TileManager {
         material.colorNode = outputColor;
         material.transparent = false;
         material.depthWrite = true;
-        material.alphaToCoverage = hasCapMask;
+        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
         material.side = THREE.DoubleSide;
 
         // Store references for updates
@@ -985,18 +1242,20 @@ export class TileManager {
         material._flowOffsetUniform = flowOffsetUniform;
         material._textureCurrent = textureCurrent;
         material._textureNext = textureNext;
-        material._ownedCapTextures = [];
-        if (options.capMaskStart?.owned) {
-            material._ownedCapTextures.push(options.capMaskStart.texture);
-        }
-        if (options.capMaskEnd?.owned) {
-            material._ownedCapTextures.push(options.capMaskEnd.texture);
-        }
+        material.defaultAttributeValues = {
+            ...(material.defaultAttributeValues || {}),
+            capStartStyle: [0],
+            capEndStyle: [0],
+        };
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
         material._transparentHighlightsUniform = transparentHighlightsUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
+        material._edgeNoiseMaxUniform = edgeNoiseMaxUniform;
+        material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
+        material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
+        material._edgeNoisePhaseUniform = edgeNoisePhaseUniform;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1021,7 +1280,7 @@ export class TileManager {
 
         const textureCurrent = this.arrayTextures[currentTileIdx];
         const textureNext = this.arrayTextures[nextTileIdx];
-        const cacheKey = this.#buildFlowMaterialCacheKey(currentSample, nextSample, materialOptions);
+        const cacheKey = this.#buildFlowMaterialCacheKey(currentSample, nextSample);
 
         if (cacheKey) {
             const cachedMaterial = this.flowMaterialCache.get(cacheKey);
@@ -1088,24 +1347,10 @@ export class TileManager {
         this._activeFlowMaterialSet.clear();
     }
 
-    getActiveFlowMaterialCount() {
-        return this.flowMaterials.length;
-    }
-
-    getCachedFlowMaterialCount() {
-        return this.flowMaterialCache.size;
-    }
-
     #createArrayMaterialWebGL(arrayTexture, options = {}) {
         const layerCount = arrayTexture.image?.depth || 1;
         const mirrorX = options.mirrorX ? 1 : 0;
-        const hasStartMask = !!options.capMaskStart?.texture;
-        const hasEndMask = !!options.capMaskEnd?.texture;
-        const hasCapMask = hasStartMask || hasEndMask;
-        const startSpread = options.capMaskStart?.spread ?? 0.08;
-        const endSpread = options.capMaskEnd?.spread ?? 0.08;
-        const startTipFadeWidth = options.capMaskStart?.tipFadeWidth ?? 0;
-        const endTipFadeWidth = options.capMaskEnd?.tipFadeWidth ?? 0;
+        const hasCapMask = true;
 
         const material = new THREE.ShaderMaterial({
             glslVersion: THREE.GLSL3,
@@ -1120,17 +1365,24 @@ export class TileManager {
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
-                ...(hasStartMask ? { uCapMaskStart: { value: options.capMaskStart.texture } } : {}),
-                ...(hasStartMask ? { uCapMaskStartSpread: { value: startSpread } } : {}),
-                ...(hasStartMask ? { uCapMaskStartTipFadeWidth: { value: startTipFadeWidth } } : {}),
-                ...(hasEndMask ? { uCapMaskEnd: { value: options.capMaskEnd.texture } } : {}),
-                ...(hasEndMask ? { uCapMaskEndSpread: { value: endSpread } } : {}),
-                ...(hasEndMask ? { uCapMaskEndTipFadeWidth: { value: endTipFadeWidth } } : {}),
+                uEdgeNoiseMax: this.sharedEdgeNoiseMaxUniform,
+                uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
+                uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
+                uEdgeNoisePhase: this.sharedEdgeNoisePhaseUniform,
             },
             vertexShader: /* glsl */`
+                in float edgeNoiseU;
+                in float capStartStyle;
+                in float capEndStyle;
                 out vec2 vUv;
+                out float vEdgeNoiseU;
+                out float vCapStartStyle;
+                out float vCapEndStyle;
                 void main() {
                     vUv = uv;
+                    vEdgeNoiseU = edgeNoiseU;
+                    vCapStartStyle = capStartStyle;
+                    vCapEndStyle = capEndStyle;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
@@ -1138,6 +1390,9 @@ export class TileManager {
                 precision highp float;
                 precision highp sampler2DArray;
                 in vec2 vUv;
+                in float vEdgeNoiseU;
+                in float vCapStartStyle;
+                in float vCapEndStyle;
                 uniform sampler2DArray uTexArray;
                 uniform int uLayer;
                 uniform int uRotate90;
@@ -1147,26 +1402,14 @@ export class TileManager {
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
-                ${hasStartMask ? 'uniform sampler2D uCapMaskStart;' : ''}
-                ${hasStartMask ? 'uniform float uCapMaskStartSpread;' : ''}
-                ${hasStartMask ? 'uniform float uCapMaskStartTipFadeWidth;' : ''}
-                ${hasEndMask ? 'uniform sampler2D uCapMaskEnd;' : ''}
-                ${hasEndMask ? 'uniform float uCapMaskEndSpread;' : ''}
-                ${hasEndMask ? 'uniform float uCapMaskEndTipFadeWidth;' : ''}
+                uniform float uEdgeNoiseMax;
+                uniform float uEdgeNoiseSpatialFrequency;
+                uniform float uEdgeNoiseMirror;
+                uniform float uEdgeNoisePhase;
                 out vec4 outColor;
 
-                float sampleCapSdf(sampler2D maskTexture, vec2 maskUv, float spread, float tipFadeWidth) {
-                    float sdf = texture(maskTexture, maskUv).a;
-                    float signedDistance = (sdf * 2.0 - 1.0) * spread;
-                    float aa = max(fwidth(signedDistance) * ${CAP_MASK_SDF_AA_SCALE}, ${CAP_MASK_SDF_MIN_AA});
-                    float alpha = smoothstep(-aa, aa, signedDistance);
-
-                    if (tipFadeWidth > 0.0) {
-                        alpha *= smoothstep(0.0, tipFadeWidth, maskUv.x);
-                    }
-
-                    return alpha;
-                }
+${CAP_ALPHA_GLSL}
+${EDGE_NOISE_GLSL}
 
                 void main() {
                     float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
@@ -1177,11 +1420,9 @@ export class TileManager {
                     // Flip V to match texture orientation
                     vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
                     vec4 texColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
-                    ${hasCapMask ? 'float capAlpha = 1.0;' : ''}
-                    ${hasStartMask ? 'capAlpha *= sampleCapSdf(uCapMaskStart, vec2(vUv.x, 1.0 - vUv.y), uCapMaskStartSpread, uCapMaskStartTipFadeWidth);' : ''}
-                    ${hasEndMask ? 'capAlpha *= sampleCapSdf(uCapMaskEnd, vec2(1.0 - vUv.x, 1.0 - vUv.y), uCapMaskEndSpread, uCapMaskEndTipFadeWidth);' : ''}
-                    ${hasCapMask ? 'texColor.a *= capAlpha;' : ''}
-                    ${hasCapMask ? 'if (texColor.a <= 0.001) discard;' : ''}
+                    texColor.a *= computeCapAlpha(vUv, vCapStartStyle, vCapEndStyle);
+                    texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
+                    if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001) && texColor.a <= 0.001) discard;
 
                     if (uTransparentShadows == 1) {
                         float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -1205,18 +1446,16 @@ export class TileManager {
             side: THREE.DoubleSide
         });
 
-        material._ownedCapTextures = [];
-        if (options.capMaskStart?.owned) {
-            material._ownedCapTextures.push(options.capMaskStart.texture);
-        }
-        if (options.capMaskEnd?.owned) {
-            material._ownedCapTextures.push(options.capMaskEnd.texture);
-        }
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
         material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
+        material._edgeNoiseMaxUniform = material.uniforms.uEdgeNoiseMax;
+        material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
+        material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
+        material._edgeNoisePhaseUniform = material.uniforms.uEdgeNoisePhase;
+        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1224,11 +1463,9 @@ export class TileManager {
     #createArrayMaterialWebGPU(arrayTexture, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { NodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, float, vec2, vec3, vec4, dot, smoothstep } = threeTSL;
+        const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
-        const hasStartMask = !!options.capMaskStart?.texture;
-        const hasEndMask = !!options.capMaskEnd?.texture;
-        const hasCapMask = hasStartMask || hasEndMask;
+        const hasCapMask = true;
 
         // Simple fallback path: use a non-array texture in a MeshBasicMaterial
         // for debugging, instead of the KTX2 array texture.
@@ -1268,12 +1505,17 @@ export class TileManager {
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
+        const edgeNoiseMaxUniform = uniform(float(this.sharedEdgeNoiseMaxUniform.value));
+        const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
+        const edgeNoiseMirrorUniform = uniform(float(this.sharedEdgeNoiseMirrorUniform.value));
+        const edgeNoisePhaseUniform = uniform(float(this.sharedEdgeNoisePhaseUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
             .sub(transparentShadowsMinUniform)
             .max(float(0.00001));
 
         // Get base UV coordinates
         const baseUV = uv();
+        const edgeNoiseU = attribute('edgeNoiseU', 'float');
         const sampleUV = vec2(
             mirrorUniform.equal(1).select(float(1).sub(baseUV.x), baseUV.x),
             flipVerticalUniform.equal(1).select(float(1).sub(baseUV.y), baseUV.y)
@@ -1298,41 +1540,20 @@ export class TileManager {
         // Create NodeMaterial with texture array sampling using .depth()
         const material = new NodeMaterial();
         const sampledColor = texture(arrayTexture, finalUV).depth(layerUniform);
-        let capAlpha = float(1.0);
-        if (hasStartMask) {
-            const startMaskUv = vec2(baseUV.x, float(1.0).sub(baseUV.y));
-            const startSdf = texture(options.capMaskStart.texture, startMaskUv).a;
-            const startSignedDistance = startSdf.mul(2.0).sub(1.0).mul(float(options.capMaskStart.spread ?? 0.08));
-            const startAa = startSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
-            let startAlpha = smoothstep(startAa.negate(), startAa, startSignedDistance);
+        const capAlpha = createCapAlphaNode(threeTSL, baseUV);
 
-            if ((options.capMaskStart.tipFadeWidth ?? 0) > 0) {
-                startAlpha = startAlpha.mul(
-                    smoothstep(float(0.0), float(options.capMaskStart.tipFadeWidth), startMaskUv.x)
-                );
-            }
-
-            capAlpha = capAlpha.mul(startAlpha);
-        }
-        if (hasEndMask) {
-            const endMaskUv = vec2(float(1.0).sub(baseUV.x), float(1.0).sub(baseUV.y));
-            const endSdf = texture(options.capMaskEnd.texture, endMaskUv).a;
-            const endSignedDistance = endSdf.mul(2.0).sub(1.0).mul(float(options.capMaskEnd.spread ?? 0.08));
-            const endAa = endSignedDistance.fwidth().mul(float(CAP_MASK_SDF_AA_SCALE)).max(float(CAP_MASK_SDF_MIN_AA));
-            let endAlpha = smoothstep(endAa.negate(), endAa, endSignedDistance);
-
-            if ((options.capMaskEnd.tipFadeWidth ?? 0) > 0) {
-                endAlpha = endAlpha.mul(
-                    smoothstep(float(0.0), float(options.capMaskEnd.tipFadeWidth), endMaskUv.x)
-                );
-            }
-
-            capAlpha = capAlpha.mul(endAlpha);
-        }
-
+        const edgeNoiseAlpha = createEdgeNoiseAlphaNode(
+            threeTSL,
+            baseUV,
+            edgeNoiseU,
+            edgeNoiseMaxUniform,
+            edgeNoisePhaseUniform,
+            edgeNoiseSpatialFrequencyUniform,
+            edgeNoiseMirrorUniform
+        );
         const finalColor = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha))
-            : sampledColor;
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha))
+            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha));
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
             .div(transparentShadowsSpan)
@@ -1355,7 +1576,7 @@ export class TileManager {
             );
         material.transparent = false;
         material.depthWrite = true;
-        material.alphaToCoverage = hasCapMask;
+        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
         material.side = THREE.DoubleSide;
 
         // Store references to uniforms for updates
@@ -1363,18 +1584,15 @@ export class TileManager {
         material._rotateUniform = rotateUniform;
         material._flipVerticalUniform = flipVerticalUniform;
         material._mirrorUniform = mirrorUniform;
-        material._ownedCapTextures = [];
-        if (options.capMaskStart?.owned) {
-            material._ownedCapTextures.push(options.capMaskStart.texture);
-        }
-        if (options.capMaskEnd?.owned) {
-            material._ownedCapTextures.push(options.capMaskEnd.texture);
-        }
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
         material._transparentHighlightsUniform = transparentHighlightsUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
+        material._edgeNoiseMaxUniform = edgeNoiseMaxUniform;
+        material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
+        material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
+        material._edgeNoisePhaseUniform = edgeNoisePhaseUniform;
 
         console.log('[TileManager] WebGPU material created:', {
             layerCount,
@@ -1583,24 +1801,9 @@ export class TileManager {
         if (!this.isKTX2) return undefined;
         const sample = this.resolveSegmentToTile(index);
         const baseMaterial = this.materials[sample.tileIndex];
-        const hasCapMask = this.#hasCapMask(materialOptions);
 
-        if (!hasCapMask && (!sample.mirrorX || !baseMaterial)) {
+        if (!sample.mirrorX || !baseMaterial) {
             return baseMaterial;
-        }
-
-        if (hasCapMask) {
-            const arrayTexture = this.arrayTextures[sample.tileIndex];
-            if (!arrayTexture) {
-                return baseMaterial;
-            }
-
-            const material = this.#createArrayMaterial(arrayTexture, {
-                mirrorX: sample.mirrorX,
-                ...materialOptions,
-            });
-            this.ephemeralStaticMaterials.push(material);
-            return material;
         }
 
         let mirroredMaterial = this.mirroredMaterials.get(sample.tileIndex);
@@ -1820,6 +2023,17 @@ export class TileManager {
         }
     }
 
+    #syncEdgeNoisePhase(nowMs) {
+        const period = this.#getEdgeNoiseCyclePeriod();
+        const nowSeconds = Number(nowMs) / 1000;
+        const phase = Number.isFinite(nowSeconds) && period > 0
+            ? positiveModulo(nowSeconds / period, 1)
+            : 0;
+
+        this.sharedEdgeNoisePhaseUniform.value = phase;
+        this.#syncEdgeNoiseUniforms({ phaseOnly: true });
+    }
+
     setLayerAnimationEnabled(enabled) {
         const nextEnabled = !!enabled;
         if (this.layerAnimationEnabled === nextEnabled) {
@@ -2035,6 +2249,8 @@ export class TileManager {
         const elapsed = nowMs - this.lastFrameTime;
         const elapsedSec = elapsed / 1000;
 
+        this.#syncEdgeNoisePhase(nowMs);
+
         // --- Flow animation (continuous dual-texture approach) ---
         if (!suppressFlowAnimation && this.flowEnabled && this.flowSpeed !== 0) {
             // Accumulate fractional offset based on elapsed time
@@ -2111,6 +2327,70 @@ export class TileManager {
                 }
             }
         }
+    }
+
+    /**
+     * Set the maximum shader edge-noise cut-in as a fraction of total ribbon width.
+     * @param {number} value 0..0.5
+     */
+    setEdgeNoiseTransparencyMax(value) {
+        const nextValue = normalizeEdgeNoiseTransparencyMax(value);
+        if (this.edgeNoiseTransparencyMax === nextValue) {
+            return false;
+        }
+
+        this.edgeNoiseTransparencyMax = nextValue;
+        this.sharedEdgeNoiseMaxUniform.value = this.#getEffectiveEdgeNoiseMax();
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set whether Edge Drift affects ribbon-edge transparency.
+     * @param {boolean} enabled
+     */
+    setEdgeDriftEnabled(enabled) {
+        const nextValue = !!enabled;
+        if (this.edgeDriftEnabled === nextValue) {
+            return false;
+        }
+
+        this.edgeDriftEnabled = nextValue;
+        this.sharedEdgeNoiseMaxUniform.value = this.#getEffectiveEdgeNoiseMax();
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set the edge-noise pattern length in ribbon segments per full loop.
+     * @param {number} value 0.1..2
+     */
+    setEdgeNoisePatternLength(value) {
+        const nextValue = normalizeEdgeNoisePatternLength(value);
+        if (this.edgeNoisePatternLength === nextValue) {
+            return false;
+        }
+
+        this.edgeNoisePatternLength = nextValue;
+        this.sharedEdgeNoiseSpatialFrequencyUniform.value = edgeNoisePatternLengthToFrequency(nextValue);
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set whether the same edge-noise shape is used on both ribbon edges.
+     * @param {boolean} enabled
+     */
+    setEdgeNoiseMirrored(enabled) {
+        const nextValue = !!enabled;
+        if (this.edgeNoiseMirrored === nextValue) {
+            return false;
+        }
+
+        this.edgeNoiseMirrored = nextValue;
+        this.sharedEdgeNoiseMirrorUniform.value = nextValue ? 1.0 : 0.0;
+        this.#syncEdgeNoiseUniforms();
+        return true;
     }
 
     /**

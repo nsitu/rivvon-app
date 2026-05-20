@@ -24,6 +24,10 @@ export function useTextureLoader(ctx, deps = {}) {
             flowAlignmentEnabled: ctx.app.flowCycleAlignmentEnabled,
             layerAnimationEnabled: ctx.app.textureAnimationEnabled,
             layerAnimationReversed: ctx.app.textureAnimationReversed,
+            edgeDriftEnabled: ctx.app.edgeDriftEnabled,
+            edgeNoiseTransparencyMax: ctx.app.edgeNoiseTransparencyMax,
+            edgeNoisePatternLength: ctx.app.edgeNoisePatternLength,
+            edgeNoiseMirrored: ctx.app.edgeNoiseMirrored,
             webgpuMaterialMode: 'node',
             ...options,
         });

@@ -235,6 +235,9 @@ function createOverviewScene(tileManager, width, height, options = {}) {
         strategy: viewerSettings?.textureOverviewLayoutStrategy,
     });
     const geometry = new THREE.PlaneGeometry(layout.tileWidth, layout.tileHeight);
+    const vertexCount = geometry.getAttribute('position')?.count ?? 0;
+    geometry.setAttribute('capStartStyle', new THREE.Float32BufferAttribute(new Float32Array(vertexCount), 1));
+    geometry.setAttribute('capEndStyle', new THREE.Float32BufferAttribute(new Float32Array(vertexCount), 1));
     const cells = layout.positions.map((position) => {
         const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
         mesh.position.set(position.x, position.y, 0);

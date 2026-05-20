@@ -25,6 +25,12 @@ const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX = 0.5;
 const MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP = 0.01;
 const MIN_RIBBON_WIDTH_SCALE = 0.1;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
+const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
+const MAX_EDGE_NOISE_TRANSPARENCY = 0.5;
+const DEFAULT_EDGE_DRIFT_ENABLED = true;
+const DEFAULT_EDGE_NOISE_PATTERN_LENGTH = 0.5;
+const MIN_EDGE_NOISE_PATTERN_LENGTH = 0.1;
+const MAX_EDGE_NOISE_PATTERN_LENGTH = 2;
 const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
 
 function getDefaultPreferredTextureMaxResolution() {
@@ -119,6 +125,26 @@ function normalizeRibbonWidthScale(value) {
     }
 
     return Math.min(MAX_RIBBON_WIDTH_SCALE, Math.max(MIN_RIBBON_WIDTH_SCALE, parsed));
+}
+
+function normalizeEdgeNoiseTransparencyMax(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX;
+    }
+
+    return Math.min(MAX_EDGE_NOISE_TRANSPARENCY, Math.max(0, parsed));
+}
+
+function normalizeEdgeNoisePatternLength(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_EDGE_NOISE_PATTERN_LENGTH;
+    }
+
+    return Math.min(MAX_EDGE_NOISE_PATTERN_LENGTH, Math.max(MIN_EDGE_NOISE_PATTERN_LENGTH, parsed));
 }
 
 function normalizeRibbonPathAlignmentMode(value) {
@@ -340,6 +366,20 @@ export const useViewerStore = defineStore('viewer', {
         transparencyMode: storedFilterSettings.transparencyMode,
         transparentShadowsThresholdMin: storedFilterSettings.transparentShadowsThresholdMin,
         transparentShadowsThresholdMax: storedFilterSettings.transparentShadowsThresholdMax,
+        edgeDriftEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().edgeDriftEnabled,
+            DEFAULT_EDGE_DRIFT_ENABLED
+        ),
+        edgeNoiseTransparencyMax: normalizeEdgeNoiseTransparencyMax(
+            readViewerPreferences().edgeNoiseTransparencyMax
+        ),
+        edgeNoisePatternLength: normalizeEdgeNoisePatternLength(
+            readViewerPreferences().edgeNoisePatternLength
+        ),
+        edgeNoiseMirrored: normalizeViewerBooleanPreference(
+            readViewerPreferences().edgeNoiseMirrored,
+            false
+        ),
         duotoneColor: storedFilterSettings.duotoneColor,
         currentTextureId: null,
         currentTextureName: '',
@@ -635,6 +675,10 @@ export const useViewerStore = defineStore('viewer', {
                 transparencyMode: this.transparencyMode,
                 transparentShadowsThresholdMin: this.transparentShadowsThresholdMin,
                 transparentShadowsThresholdMax: this.transparentShadowsThresholdMax,
+                edgeDriftEnabled: this.edgeDriftEnabled,
+                edgeNoiseTransparencyMax: this.edgeNoiseTransparencyMax,
+                edgeNoisePatternLength: this.edgeNoisePatternLength,
+                edgeNoiseMirrored: this.edgeNoiseMirrored,
                 duotoneColor: this.duotoneColor,
                 ribbonWidthScale: this.ribbonWidthScale,
                 ribbonPathAlignmentMode: this.ribbonPathAlignmentMode,
@@ -689,6 +733,10 @@ export const useViewerStore = defineStore('viewer', {
                 this.transparencyMode !== original.transparencyMode ||
                 this.transparentShadowsThresholdMin !== original.transparentShadowsThresholdMin ||
                 this.transparentShadowsThresholdMax !== original.transparentShadowsThresholdMax ||
+                this.edgeDriftEnabled !== original.edgeDriftEnabled ||
+                this.edgeNoiseTransparencyMax !== original.edgeNoiseTransparencyMax ||
+                this.edgeNoisePatternLength !== original.edgeNoisePatternLength ||
+                this.edgeNoiseMirrored !== original.edgeNoiseMirrored ||
                 this.duotoneColor !== original.duotoneColor ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
                 this.ribbonPathAlignmentMode !== original.ribbonPathAlignmentMode ||
@@ -880,6 +928,34 @@ export const useViewerStore = defineStore('viewer', {
             });
 
             return normalized;
+        },
+
+        setEdgeNoiseTransparencyMax(value) {
+            const nextValue = normalizeEdgeNoiseTransparencyMax(value);
+            this.edgeNoiseTransparencyMax = nextValue;
+            writeViewerPreferences({ edgeNoiseTransparencyMax: nextValue });
+            return nextValue;
+        },
+
+        setEdgeDriftEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.edgeDriftEnabled = nextValue;
+            writeViewerPreferences({ edgeDriftEnabled: nextValue });
+            return nextValue;
+        },
+
+        setEdgeNoisePatternLength(value) {
+            const nextValue = normalizeEdgeNoisePatternLength(value);
+            this.edgeNoisePatternLength = nextValue;
+            writeViewerPreferences({ edgeNoisePatternLength: nextValue });
+            return nextValue;
+        },
+
+        setEdgeNoiseMirrored(enabled) {
+            const nextValue = !!enabled;
+            this.edgeNoiseMirrored = nextValue;
+            writeViewerPreferences({ edgeNoiseMirrored: nextValue });
+            return nextValue;
         },
 
         setDuotoneColor(color) {

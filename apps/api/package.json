@@ -9,6 +9,8 @@
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
+    "test": "vitest",
+    "test:run": "vitest run",
     "lint": "echo 'No linter configured'"
   },
   "dependencies": {
@@ -17,7 +19,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260131.0",
-    "wrangler": "^4.61.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7",
+    "wrangler": "^4.61.1"
   }
 }

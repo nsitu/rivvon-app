@@ -11,6 +11,8 @@
         "build:slyce": "pnpm --filter slyce build",
         "build:rivvon": "pnpm --filter rivvon build",
         "build:api": "pnpm --filter api build",
+        "test": "turbo test",
+        "test:run": "turbo test -- --run",
         "lint": "turbo lint",
         "clean": "turbo clean && rm -rf node_modules"
     },

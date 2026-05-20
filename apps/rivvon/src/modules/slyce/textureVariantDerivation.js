@@ -11,9 +11,6 @@ export {
     normalizeTextureVariantTargetResolutions,
 } from './textureFamilyPlanning.js';
 
-const DEFAULT_SAMPLE_SOURCE = '/tiles-ktx2-waves/0.ktx2';
-const MEMORY_GUARD_FRACTION = 0.75;
-
 function generateJobId() {
     return `texture_variant_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -293,7 +290,7 @@ class Ktx2TranscodeWorkerClient {
 }
 
 async function deriveKtx2Tile({
-    source = DEFAULT_SAMPLE_SOURCE,
+    source,
     targetResolution = 256,
     workerCount = null,
     onProgress = null,
@@ -482,24 +479,6 @@ async function deriveKtx2Tile({
             localEncodeWorkerPool.terminate();
         }
     }
-}
-
-export async function runKtx2RoundtripDerivation({
-    source = DEFAULT_SAMPLE_SOURCE,
-    targetResolution = 256,
-    workerCount = null,
-    onProgress = null,
-    keepOutputBlobUrl = true,
-    signal = null,
-} = {}) {
-    return deriveKtx2Tile({
-        source,
-        targetResolution,
-        workerCount,
-        onProgress,
-        keepOutputBlobUrl,
-        signal,
-    });
 }
 
 export async function deriveKtx2TextureSet({
@@ -738,34 +717,3 @@ export async function deriveKtx2TextureFamily({
     };
 }
 
-export async function runSampleKtx2RoundtripDerivation(options = {}) {
-    return runKtx2RoundtripDerivation({
-        source: DEFAULT_SAMPLE_SOURCE,
-        ...options
-    });
-}
-
-export function revokeRoundtripOutputBlobUrl(resultOrUrl) {
-    const url = typeof resultOrUrl === 'string'
-        ? resultOrUrl
-        : resultOrUrl?.output?.outputBlobUrl;
-
-    if (url) {
-        URL.revokeObjectURL(url);
-    }
-}
-
-export function installKtx2RoundtripDevHelpers(target = window) {
-    if (!target) return;
-
-    target.__rivvonTextureVariants = {
-        deriveKtx2TextureSet,
-        runKtx2RoundtripDerivation,
-        runSampleKtx2RoundtripDerivation,
-        revokeRoundtripOutputBlobUrl
-    };
-
-    console.info(
-        '[Texture Variant] Installed dev helpers on window.__rivvonTextureVariants. Try runSampleKtx2RoundtripDerivation({ targetResolution: 256 }).'
-    );
-}

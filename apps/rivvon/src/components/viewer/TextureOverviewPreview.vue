@@ -852,6 +852,9 @@
         });
 
         cellGeometry = new THREE.PlaneGeometry(currentLayout.tileWidth, currentLayout.tileHeight);
+        const vertexCount = cellGeometry.getAttribute('position')?.count ?? 0;
+        cellGeometry.setAttribute('capStartStyle', new THREE.Float32BufferAttribute(new Float32Array(vertexCount), 1));
+        cellGeometry.setAttribute('capEndStyle', new THREE.Float32BufferAttribute(new Float32Array(vertexCount), 1));
         cellEntries = currentLayout.positions.map((position) => {
             const mesh = new THREE.Mesh(cellGeometry, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
             mesh.position.set(position.x, position.y, 0);
@@ -952,8 +955,8 @@
             const didLoad = resolvedTexture.kind === 'session'
                 ? await nextTileManager.loadFromSession(resolvedTexture.textureSet, resolvedTexture.sessionTileEntry || null, handleLoadProgress)
                 : resolvedTexture.kind === 'remote'
-                ? await nextTileManager.loadFromRemote(resolvedTexture.textureSet, handleLoadProgress)
-                : await nextTileManager.loadFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleLoadProgress);
+                    ? await nextTileManager.loadFromRemote(resolvedTexture.textureSet, handleLoadProgress)
+                    : await nextTileManager.loadFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleLoadProgress);
 
             if (!didLoad) {
                 throw new Error('Unable to load overview preview tiles.');

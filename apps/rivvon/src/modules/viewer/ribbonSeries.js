@@ -23,6 +23,7 @@ export class RibbonSeries {
         this.lastWidth = 1;
         this._flowMaterials = [];    // Track materials for flow updates
         this._flowWasActive = null;  // Track last flow state (null = not yet initialized)
+        this._lastFlowWrapStats = null;
         this._resolvedSphericalProjectionRadius = null;
 
         // Round-robin mapping: each entry is { ribbon, strand, tileManager }
@@ -304,6 +305,7 @@ export class RibbonSeries {
 
         // Clear any existing flow materials tracked by all TileManagers
         for (const tm of this.tileManagers) {
+            tm.clearFlowMaterialCache?.();
             tm.clearFlowMaterials?.();
             tm.clearEphemeralStaticMaterials?.();
         }
@@ -323,8 +325,7 @@ export class RibbonSeries {
 
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
-                const materialOptions = mesh?.userData?.capMask || null;
-                const material = tmA.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive, materialOptions);
+                const material = tmA.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
                 
                 if (material) {
                     mesh.material = material;
@@ -333,14 +334,12 @@ export class RibbonSeries {
                         material,
                         baseIndex: globalSegmentIndex,
                         tileManager: tmA,
-                        materialOptions,
                     });
 
                     // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
-                        const materialOptionsB = meshB?.userData?.capMask || null;
-                        const materialB = tmB.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive, materialOptionsB);
+                        const materialB = tmB.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
 
                         if (materialB) {
                             meshB.material = materialB;
@@ -349,7 +348,6 @@ export class RibbonSeries {
                                 material: materialB,
                                 baseIndex: globalSegmentIndex,
                                 tileManager: tmB,
-                                materialOptions: materialOptionsB,
                             });
                         }
                     }
@@ -372,7 +370,7 @@ export class RibbonSeries {
      * Call this from the animation loop after tileManager.tick().
      */
     updateFlowMaterials() {
-        if (!this.tileManager || !this._flowMaterials) return;
+        if (!this.tileManager || !this._flowMaterials) return null;
 
         // Check if flow state has changed (enabled/disabled)
         const flowActive = this.tileManager.isFlowEnabled?.() && this.tileManager.getFlowSpeed?.() !== 0;
@@ -382,15 +380,21 @@ export class RibbonSeries {
             // Flow state changed - reinitialize with appropriate material type
             console.log(`[RibbonSeries] Flow state changed, reinitializing materials`);
             this.initFlowMaterials();
-            return;
+            return null;
         }
 
         // If flow is not active, nothing to update each frame
-        if (!flowActive) return;
+        if (!flowActive) return null;
 
         const wholeTiles = this.tileManager.getPendingFlowWrapTiles?.() || 0;
 
         if (wholeTiles !== 0) {
+            const stats = {
+                wrapped: true,
+                wholeTiles,
+                segmentEntries: this._flowMaterials.length,
+            };
+
             // Need to swap texture pairs and wrap the offset
 
             // Update tile offset in all TileManagers
@@ -399,23 +403,28 @@ export class RibbonSeries {
                 tm.clearFlowMaterials?.();
             }
 
-            // Create new materials for each segment with updated tile pairs
+            // Rebind each segment to the already-cached material for its updated tile pair.
             for (const entry of this._flowMaterials) {
-                const { mesh, baseIndex, tileManager: entryTm, materialOptions } = entry;
+                const { mesh, baseIndex, tileManager: entryTm } = entry;
                 const tm = entryTm || this.tileManager;
                 
-                // Create a new material for this segment with the updated tile pair
-                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true, materialOptions);
+                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true);
                 
                 if (newMaterial) {
-                    mesh.material = newMaterial;
+                    if (mesh.material !== newMaterial) {
+                        mesh.material = newMaterial;
+                    }
                     entry.material = newMaterial;
                 }
             }
+
+            this._lastFlowWrapStats = stats;
+            return stats;
         }
 
         // The continuous flow offset is handled by the shared uniform in shaders
         // WebGPU uniforms are updated in TileManager.tick()
+        return null;
     }
 
     /**
@@ -455,6 +464,10 @@ export class RibbonSeries {
      * Clean up all ribbons and clear cached path data
      */
     cleanup() {
+        for (const tm of this.tileManagers) {
+            tm.clearFlowMaterialCache?.();
+        }
+
         this.ribbons.forEach(ribbon => ribbon.dispose());
         this.ribbons = [];
         this._flowMaterials = [];

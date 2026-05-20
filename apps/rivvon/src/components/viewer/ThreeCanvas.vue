@@ -50,6 +50,10 @@
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        setEdgeDriftEnabled,
+        setEdgeNoiseTransparencyMax,
+        setEdgeNoisePatternLength,
+        setEdgeNoiseMirrored,
         setHelixMode,
         captureImagePreview,
         captureImagePreviewWithSettings,
@@ -199,6 +203,22 @@
         setTextureFlipVertical(enabled);
     });
 
+    watch(() => app.edgeDriftEnabled, (enabled) => {
+        setEdgeDriftEnabled(enabled);
+    });
+
+    watch(() => app.edgeNoiseTransparencyMax, (value) => {
+        setEdgeNoiseTransparencyMax(value);
+    });
+
+    watch(() => app.edgeNoisePatternLength, (value) => {
+        setEdgeNoisePatternLength(value);
+    });
+
+    watch(() => app.edgeNoiseMirrored, (enabled) => {
+        setEdgeNoiseMirrored(enabled);
+    });
+
     // Watch for helix mode/option changes and rebuild ribbons
     watch(() => app.helixOptions, (options) => {
         setHelixMode(options);
@@ -232,6 +252,10 @@
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        setEdgeDriftEnabled,
+        setEdgeNoiseTransparencyMax,
+        setEdgeNoisePatternLength,
+        setEdgeNoiseMirrored,
         setHelixMode,
         captureImagePreview,
         captureImagePreviewWithSettings,

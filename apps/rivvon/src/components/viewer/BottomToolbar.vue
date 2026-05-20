@@ -507,7 +507,7 @@
             command: () => toggleContextItem('contour', () => emit('request-enter-contour-mode'))
         },
         {
-            label: 'Browse',
+            label: 'Shape Library',
             icon: 'grid_view',
             active: isToolbarContextActive('drawings'),
             command: () => toggleContextItem('drawings', () => emit('request-open-drawing-browser'))
@@ -778,7 +778,7 @@
                                         v-model="exportLogoOverlayEnabledModel"
                                     />
                                     <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
-                                    }}</span>
+                                        }}</span>
                                 </div>
                             </div>
 

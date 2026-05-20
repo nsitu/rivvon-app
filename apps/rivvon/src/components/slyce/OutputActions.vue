@@ -630,7 +630,7 @@
             return [];
         }
 
-        const { deriveKtx2TextureFamily } = await import('../../modules/slyce/ktx2RoundtripVariant.js');
+        const { deriveKtx2TextureFamily } = await import('../../modules/slyce/textureVariantDerivation.js');
         controller.set('publishProgress', 'Preparing lower-resolution cloud variants...');
 
         const familyResult = await deriveKtx2TextureFamily({

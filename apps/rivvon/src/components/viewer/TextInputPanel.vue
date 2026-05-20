@@ -1,5 +1,5 @@
 <script setup>
-    import { computed, onMounted, ref, watch } from 'vue';
+    import { computed, ref, watch } from 'vue';
     import Accordion from 'primevue/accordion';
     import AccordionContent from 'primevue/accordioncontent';
     import AccordionHeader from 'primevue/accordionheader';
@@ -12,7 +12,7 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useTextToSvg } from '../../composables/viewer/useTextToSvg';
 
-    defineProps({
+    const props = defineProps({
         visible: {
             type: Boolean,
             default: false
@@ -40,6 +40,8 @@
     const fontPreviewSvgByName = ref({});
     const enteredTextPreviewSvg = ref('');
     const isPreviewLoading = ref(false);
+    const hasInitialized = ref(false);
+    let initPromise = null;
     let textPreviewRequestId = 0;
 
     const canGenerate = computed(() => textInput.value.trim().length > 0);
@@ -175,7 +177,7 @@
     async function updateEnteredTextPreview() {
         const requestId = ++textPreviewRequestId;
 
-        if (!canGenerate.value || !selectedFont.value) {
+        if (!hasInitialized.value || !canGenerate.value || !selectedFont.value) {
             enteredTextPreviewSvg.value = '';
             isPreviewLoading.value = false;
             return;
@@ -208,6 +210,25 @@
         }
     }
 
+    async function ensureInitialized() {
+        if (hasInitialized.value) {
+            return;
+        }
+
+        if (!initPromise) {
+            initPromise = (async () => {
+                await init();
+                hasInitialized.value = true;
+                await buildFontPreviews();
+                await updateEnteredTextPreview();
+            })().finally(() => {
+                initPromise = null;
+            });
+        }
+
+        await initPromise;
+    }
+
     watch(isMultiline, (multiline, previousValue) => {
         if (!multiline && previousValue) {
             textInput.value = collapseLineBreaks(textInput.value);
@@ -221,11 +242,11 @@
         }
     );
 
-    onMounted(async () => {
-        await init();
-        await buildFontPreviews();
-        await updateEnteredTextPreview();
-    });
+    watch(() => props.visible, (visible) => {
+        if (visible) {
+            ensureInitialized();
+        }
+    }, { immediate: true });
 
     function close() {
         emit('update:visible', false);
@@ -237,6 +258,7 @@
         }
 
         try {
+            await ensureInitialized();
             const sourceText = textInput.value;
             const selectedLineHeight = lineHeightPercent.value / 100;
             const points = await textToPoints(textInput.value, {
