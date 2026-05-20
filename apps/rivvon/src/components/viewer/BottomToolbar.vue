@@ -179,6 +179,7 @@
         'request-toggle-flow',
         'request-open-text-panel',
         'request-open-emoji-picker',
+        'request-open-procedural-panel',
         'request-open-texture-file',
         'request-open-texture-camera',
         'request-open-texture-browser',
@@ -210,7 +211,7 @@
     ));
 
     const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
-        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'tools', 'about', 'realtimeSampler'],
+        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'procedural', 'tools', 'about', 'realtimeSampler'],
         onCloseRealtimeMode: (payload) => emit('request-close-realtime-mode', payload),
         onResetSlyceProcessing: () => slyce.resetProcessing(),
         isSlyceProcessing: isSlyceProcessing.value,
@@ -262,6 +263,7 @@
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
         viewerToolbarContextMap.value.contour,
+        viewerToolbarContextMap.value.procedural,
         viewerToolbarContextMap.value.realtimeSampler,
         viewerToolbarContextMap.value.about,
     ].filter(Boolean)));
@@ -285,6 +287,7 @@
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
         viewerToolbarContextMap.value.contour,
+        viewerToolbarContextMap.value.procedural,
         viewerToolbarContextMap.value.about,
         viewerToolbarContextMap.value.realtimeSampler,
     ]));
@@ -332,6 +335,7 @@
         || isToolbarContextActive('text')
         || isToolbarContextActive('emoji')
         || isToolbarContextActive('contour')
+        || isToolbarContextActive('procedural')
     ));
 
     const textureGroupActive = computed(() => (
@@ -477,6 +481,12 @@
             }
         },
         {
+            label: 'Waveform',
+            icon: 'airwave',
+            active: isToolbarContextActive('procedural'),
+            command: () => toggleContextItem('procedural', () => emit('request-open-procedural-panel'))
+        },
+        {
             label: 'Walk',
             icon: 'directions_walk',
             active: isToolbarContextActive('walk'),
@@ -506,6 +516,7 @@
             active: isToolbarContextActive('contour'),
             command: () => toggleContextItem('contour', () => emit('request-enter-contour-mode'))
         },
+
         {
             label: 'Shape Library',
             icon: 'grid_view',

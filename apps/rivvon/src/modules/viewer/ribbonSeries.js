@@ -6,6 +6,12 @@ import { Box3, Group, Vector3 } from 'three';
 import { Ribbon } from './ribbon.js';
 import { DEFAULT_CAP_STYLE } from './capStyle.js';
 import { projectPathsToSphere } from './sphericalProjection.js';
+import {
+    calculatePolylineLength,
+    estimateMaxSineWavePathLength,
+    generateSineWavePoints,
+    normalizeSineWaveSettings,
+} from './proceduralPaths.js';
 
 export class RibbonSeries {
     /**
@@ -25,6 +31,9 @@ export class RibbonSeries {
         this._flowWasActive = null;  // Track last flow state (null = not yet initialized)
         this._lastFlowWrapStats = null;
         this._resolvedSphericalProjectionRadius = null;
+        this.proceduralSource = null;
+        this._proceduralDebug = null;
+        this._layoutDebug = null;
 
         // Round-robin mapping: each entry is { ribbon, strand, tileManager }
         this._strandTileManagerMap = [];
@@ -165,6 +174,8 @@ export class RibbonSeries {
 
         // Clean up existing ribbons first
         this.cleanup();
+        this.proceduralSource = null;
+        this._proceduralDebug = null;
 
         // Store both the original source geometry and the resolved build geometry.
         this.sourcePathsPoints = this._clonePaths(sourcePaths);
@@ -232,6 +243,7 @@ export class RibbonSeries {
         }
 
         this.totalSegmentCount = segmentOffset;
+        this._layoutDebug = this._collectLayoutDebugInfo();
         //console.log(`[RibbonSeries] Total segments across all ribbons: ${this.totalSegmentCount}`);
 
         return this.ribbons;
@@ -246,6 +258,200 @@ export class RibbonSeries {
      */
     buildFromPoints(points, width = 1, time = 0) {
         return this.buildFromMultiplePaths([points], width, time);
+    }
+
+    _getEffectiveRibbonWidth(width = 1) {
+        const ribbonWidthScale = Number.isFinite(this._helixOptions.ribbonWidthScale)
+            ? this._helixOptions.ribbonWidthScale
+            : 1;
+
+        return width * ribbonWidthScale;
+    }
+
+    _getProceduralSegmentCounts(points, effectiveWidth, maxPathLength) {
+        const pathLength = calculatePolylineLength(points);
+        const safeWidth = Math.max(0.01, effectiveWidth || 1);
+
+        return {
+            pathLength,
+            activeSegmentCount: Math.max(1, Math.ceil(pathLength / safeWidth)),
+            maxSegmentCount: Math.max(1, Math.ceil(maxPathLength / safeWidth)),
+        };
+    }
+
+    buildPooledSinglePath(points, width = 1, time = 0, options = {}) {
+        if (!points || points.length < 2) {
+            console.warn('[RibbonSeries] Procedural path has insufficient points');
+            return [];
+        }
+
+        this.cleanup();
+
+        const sourcePaths = [points.map(point => point.clone())];
+        this.sourcePathsPoints = this._clonePaths(sourcePaths);
+        this.lastPathsPoints = this._clonePaths(sourcePaths);
+        this.lastWidth = width;
+        this._resolvedSphericalProjectionRadius = null;
+        this._updateTransformRoot(this.lastPathsPoints);
+
+        const ribbon = new Ribbon(this._contentGroup);
+        const tmA = this.tileManagers[0] || this.tileManager;
+        if (tmA) {
+            ribbon.setTileManager(tmA);
+        }
+
+        ribbon.setHelixOptions({
+            ...this._helixOptions,
+            helixMode: false,
+            sphericalProjectionEnabled: false,
+        });
+        ribbon.setSegmentOffset(0);
+        ribbon.buildPooledSegmentedRibbon(points, this._getEffectiveRibbonWidth(width), time, options);
+
+        this.ribbons.push(ribbon);
+        this._strandTileManagerMap.push({ ribbon, strand: 'A', tileManager: tmA });
+        this.totalSegmentCount = ribbon.meshSegments.length;
+        this._layoutDebug = this._collectLayoutDebugInfo();
+
+        return this.ribbons;
+    }
+
+    updatePooledSinglePath(points, width = 1, time = 0, options = {}) {
+        if (!points || points.length < 2 || this.ribbons.length === 0) {
+            return this.buildPooledSinglePath(points, width, time, options);
+        }
+
+        const sourcePaths = [points.map(point => point.clone())];
+        this.sourcePathsPoints = this._clonePaths(sourcePaths);
+        this.lastPathsPoints = this._clonePaths(sourcePaths);
+        this.lastWidth = width;
+        this._updateTransformRoot(this.lastPathsPoints);
+
+        const ribbon = this.ribbons[0];
+        ribbon.updatePooledSegmentedRibbon(points, this._getEffectiveRibbonWidth(width), time, options);
+        this.totalSegmentCount = ribbon.meshSegments.length;
+        this._layoutDebug = this._collectLayoutDebugInfo();
+
+        return this.ribbons;
+    }
+
+    buildFromProceduralSource(sourceConfig = {}, width = 1, time = 0) {
+        const type = sourceConfig.type || 'sineWave';
+
+        if (type !== 'sineWave') {
+            console.warn(`[RibbonSeries] Unsupported procedural source: ${type}`);
+            return [];
+        }
+
+        const settings = normalizeSineWaveSettings(sourceConfig.settings || {});
+        const points = generateSineWavePoints(settings, time);
+        const effectiveWidth = this._getEffectiveRibbonWidth(width);
+        const maxPathLength = estimateMaxSineWavePathLength(settings);
+        const counts = this._getProceduralSegmentCounts(points, effectiveWidth, maxPathLength);
+        const maxSegmentCount = Math.max(counts.activeSegmentCount, counts.maxSegmentCount);
+
+        this.proceduralSource = {
+            type,
+            settings,
+            width,
+            maxObservedPathLength: Math.max(maxPathLength, counts.pathLength),
+            maxSegmentCount,
+            lastTime: time,
+        };
+        const ribbons = this.buildPooledSinglePath(points, width, time, {
+            activeSegmentCount: counts.activeSegmentCount,
+            maxSegmentCount,
+        });
+        this._proceduralDebug = {
+            pathLength: counts.pathLength,
+            maxPathLength: this.proceduralSource.maxObservedPathLength,
+            activeSegmentCount: counts.activeSegmentCount,
+            maxSegmentCount,
+            inactiveSegmentCount: Math.max(0, maxSegmentCount - counts.activeSegmentCount),
+            layout: this._layoutDebug,
+        };
+        this.initFlowMaterials();
+        return ribbons;
+    }
+
+    updateProcedural(time = 0) {
+        if (!this.proceduralSource) {
+            return null;
+        }
+
+        const source = this.proceduralSource;
+        const points = generateSineWavePoints(source.settings, time);
+        const effectiveWidth = this._getEffectiveRibbonWidth(source.width);
+        const pathLength = calculatePolylineLength(points);
+        const activeSegmentCount = Math.max(1, Math.ceil(pathLength / Math.max(0.01, effectiveWidth)));
+        let maxSegmentCount = source.maxSegmentCount;
+        let poolGrew = false;
+
+        if (pathLength > source.maxObservedPathLength * 1.02 || activeSegmentCount > maxSegmentCount) {
+            source.maxObservedPathLength = pathLength;
+            maxSegmentCount = Math.max(maxSegmentCount, activeSegmentCount);
+            source.maxSegmentCount = maxSegmentCount;
+            poolGrew = true;
+        }
+
+        if (poolGrew) {
+            this.buildPooledSinglePath(points, source.width, time, {
+                activeSegmentCount,
+                maxSegmentCount,
+            });
+            this.initFlowMaterials();
+        } else {
+            this.updatePooledSinglePath(points, source.width, time, {
+                activeSegmentCount,
+                maxSegmentCount,
+            });
+        }
+
+        source.lastTime = time;
+        this._proceduralDebug = {
+            pathLength,
+            maxPathLength: source.maxObservedPathLength,
+            activeSegmentCount,
+            maxSegmentCount,
+            inactiveSegmentCount: Math.max(0, maxSegmentCount - activeSegmentCount),
+            layout: this._layoutDebug,
+        };
+
+        return this._proceduralDebug;
+    }
+
+    getProceduralDebugInfo() {
+        return this._proceduralDebug;
+    }
+
+    _collectLayoutDebugInfo() {
+        const ribbonLayouts = this.ribbons
+            .map((ribbon, index) => ({
+                ribbonIndex: index,
+                ...(ribbon.layoutMetadata || {}),
+            }))
+            .filter(layout => layout.layoutMode);
+
+        if (ribbonLayouts.length === 0) {
+            return null;
+        }
+
+        return {
+            layoutMode: ribbonLayouts[0].layoutMode,
+            pathLength: ribbonLayouts.reduce((sum, layout) => sum + (layout.pathLength || 0), 0),
+            tileWorldLength: ribbonLayouts[0].tileWorldLength,
+            visibleTileCount: ribbonLayouts.reduce((sum, layout) => sum + (layout.visibleTileCount || 0), 0),
+            totalAllocatedSegmentCount: ribbonLayouts.reduce((sum, layout) => sum + (layout.totalAllocatedSegmentCount || 0), 0),
+            partialFinalTileU: ribbonLayouts[ribbonLayouts.length - 1]?.partialFinalTileU || 0,
+            capWorldLength: ribbonLayouts[0].capWorldLength,
+            capSegmentsTouched: ribbonLayouts.reduce((sum, layout) => sum + (layout.capSegmentsTouched || 0), 0),
+            ribbons: ribbonLayouts,
+        };
+    }
+
+    getLayoutDebugInfo() {
+        this._layoutDebug = this._collectLayoutDebugInfo();
+        return this._layoutDebug;
     }
 
     /**
@@ -325,28 +531,30 @@ export class RibbonSeries {
 
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
-                const material = tmA.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
+                const baseIndex = mesh.userData?.tapeTileIndex ?? globalSegmentIndex;
+                const material = tmA.getOrCreateMaterialForSegment(baseIndex, flowActive);
                 
                 if (material) {
                     mesh.material = material;
                     this._flowMaterials.push({
                         mesh,
                         material,
-                        baseIndex: globalSegmentIndex,
+                        baseIndex,
                         tileManager: tmA,
                     });
 
                     // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
-                        const materialB = tmB.getOrCreateMaterialForSegment(globalSegmentIndex, flowActive);
+                        const baseIndexB = meshB.userData?.tapeTileIndex ?? baseIndex;
+                        const materialB = tmB.getOrCreateMaterialForSegment(baseIndexB, flowActive);
 
                         if (materialB) {
                             meshB.material = materialB;
                             this._flowMaterials.push({
                                 mesh: meshB,
                                 material: materialB,
-                                baseIndex: globalSegmentIndex,
+                                baseIndex: baseIndexB,
                                 tileManager: tmB,
                             });
                         }
@@ -479,6 +687,7 @@ export class RibbonSeries {
         this.lastPathsPoints = [];
         this.lastWidth = 1;
         this._resolvedSphericalProjectionRadius = null;
+        this._layoutDebug = null;
     }
 
     /**

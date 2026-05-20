@@ -9,6 +9,7 @@ import {
     normalizeCapStyle,
 } from './capStyle.js';
 import { reprojectPointToSphere } from './sphericalProjection.js';
+import { buildRibbonTileIntervals, summarizeRibbonTileIntervals } from './ribbonTileLayout.js';
 
 const CURVATURE_LOOKAHEAD_SAMPLES = 4;
 const CURVATURE_SMOOTHING_RADIUS = 4;
@@ -61,6 +62,8 @@ export class Ribbon {
         this.lastWidth = 1;
         this.segmentOffset = 0;
         this.pathLength = 0;
+        this.layoutMode = 'measuringTape';
+        this.layoutMetadata = null;
 
         this.waveAmplitude = 0.075;
         this.waveFrequency = 0.25;
@@ -167,6 +170,179 @@ export class Ribbon {
 
         geometry.setAttribute('capStartStyle', new THREE.BufferAttribute(startValues, 1));
         geometry.setAttribute('capEndStyle', new THREE.BufferAttribute(endValues, 1));
+    }
+
+    _getCapWorldLength(pathLength, width) {
+        const visualCapLength = Math.max(0, width);
+
+        if (!Number.isFinite(pathLength) || pathLength <= 0) {
+            return visualCapLength;
+        }
+
+        return Math.min(visualCapLength, pathLength * 0.5);
+    }
+
+    _distanceToGlobalT(distance, pathLength) {
+        if (!Number.isFinite(pathLength) || pathLength <= 0) {
+            return 0;
+        }
+
+        return clamp01(distance / pathLength);
+    }
+
+    _assignIntervalMetadata(mesh, interval, pathLength, tileWorldLength, capWorldLength) {
+        if (!mesh || !interval) return;
+
+        const tapeTileIndex = this.segmentOffset + interval.tileIndex;
+        mesh.userData.tapeTileIndex = tapeTileIndex;
+        mesh.userData.localTapeTileIndex = interval.tileIndex;
+        mesh.userData.tileStartDistance = interval.tileStartDistance;
+        mesh.userData.tileEndDistance = interval.tileEndDistance;
+        mesh.userData.visibleStartDistance = interval.visibleStartDistance;
+        mesh.userData.visibleEndDistance = interval.visibleEndDistance;
+        mesh.userData.uStart = interval.uStart;
+        mesh.userData.uEnd = interval.uEnd;
+        mesh.userData.pathLength = pathLength;
+        mesh.userData.tileWorldLength = tileWorldLength;
+        mesh.userData.capWorldLength = capWorldLength;
+        mesh.userData.layoutMode = this.layoutMode;
+    }
+
+    _getIntervalCapOptions(interval, pathLength, capWorldLength) {
+        const hasStyledCaps = this.capStyle !== CAP_STYLE_SQUARE && capWorldLength > 0 && interval.visible;
+
+        if (!hasStyledCaps) {
+            return { start: false, end: false };
+        }
+
+        return {
+            start: interval.visibleStartDistance < capWorldLength,
+            end: pathLength - interval.visibleEndDistance < capWorldLength,
+        };
+    }
+
+    _setLayoutMetadata({ pathLength, tileWorldLength, intervals, capWorldLength }) {
+        const summary = summarizeRibbonTileIntervals(intervals);
+        const capSegmentsTouched = intervals.reduce((count, interval) => {
+            const capOptions = this._getIntervalCapOptions(interval, pathLength, capWorldLength);
+            return count + ((capOptions.start || capOptions.end) ? 1 : 0);
+        }, 0);
+
+        this.layoutMetadata = {
+            layoutMode: this.layoutMode,
+            pathLength,
+            tileWorldLength,
+            visibleTileCount: summary.visibleTileCount,
+            totalAllocatedSegmentCount: summary.totalAllocatedSegmentCount,
+            partialFinalTileU: summary.partialFinalTileU,
+            capWorldLength,
+            capSegmentsTouched,
+        };
+
+        return this.layoutMetadata;
+    }
+
+    _buildRibbonSegmentFromInterval({
+        curve,
+        interval,
+        width,
+        time,
+        frameSamples,
+        pointsPerSegment,
+        capWorldLength,
+        tileWorldLength,
+        strandOffset = 0,
+        overrideTileManager = null,
+        widthScaleFn = null,
+        masked = false,
+    }) {
+        const startT = this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength);
+        const endT = this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength);
+        const segmentIndex = interval.tileIndex;
+        const geometryOptions = {
+            uStart: interval.uStart,
+            uEnd: interval.uEnd,
+            capWorldLength,
+            pathLength: this.pathLength,
+            tileWorldLength,
+        };
+
+        const segmentMesh = masked
+            ? this.createMaskedRibbonSegmentWithCache(
+                curve,
+                startT,
+                endT,
+                width,
+                time,
+                segmentIndex,
+                frameSamples,
+                pointsPerSegment,
+                widthScaleFn,
+                strandOffset,
+                overrideTileManager,
+                geometryOptions
+            )
+            : this.createStripRibbonSegmentWithCache(
+                curve,
+                startT,
+                endT,
+                width,
+                time,
+                segmentIndex,
+                frameSamples,
+                pointsPerSegment,
+                strandOffset,
+                overrideTileManager,
+                widthScaleFn,
+                geometryOptions
+            );
+
+        if (segmentMesh) {
+            this._assignIntervalMetadata(segmentMesh, interval, this.pathLength, tileWorldLength, capWorldLength);
+            this._assignCapAttributesToMesh(
+                segmentMesh,
+                this._getIntervalCapOptions(interval, this.pathLength, capWorldLength)
+            );
+        }
+
+        return segmentMesh;
+    }
+
+    _updateRibbonSegmentFromInterval(mesh, {
+        curve,
+        interval,
+        width,
+        time,
+        frameSamples,
+        pointsPerSegment,
+        capWorldLength,
+        tileWorldLength,
+    }) {
+        const geometry = this.createStripRibbonSegmentGeometryWithCache(
+            curve,
+            this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength),
+            this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength),
+            width,
+            time,
+            interval.tileIndex,
+            frameSamples,
+            pointsPerSegment,
+            0,
+            null,
+            {
+                uStart: interval.uStart,
+                uEnd: interval.uEnd,
+                capWorldLength,
+                pathLength: this.pathLength,
+                tileWorldLength,
+            }
+        );
+
+        mesh.geometry?.dispose?.();
+        mesh.geometry = geometry;
+        mesh.visible = interval.visible;
+        this._assignIntervalMetadata(mesh, interval, this.pathLength, tileWorldLength, capWorldLength);
+        this._assignCapAttributesToMesh(mesh, this._getIntervalCapOptions(interval, this.pathLength, capWorldLength));
     }
 
     _projectCurvePointOntoSphere(point, target = new THREE.Vector3()) {
@@ -285,11 +461,21 @@ export class Ribbon {
     }
 
     buildSegmentedRibbon(points, width, time) {
-        // Calculate total path length to determine segment count
         const totalLength = this.calculatePathLength(points);
         this.pathLength = totalLength; // Store for use in wave calculations
-        const segmentLength = width; // Each segment roughly square (width ≈ height)
-        const segmentCount = Math.max(1, Math.ceil(totalLength / segmentLength));
+        const tileWorldLength = Math.max(0.0001, width);
+        const intervals = buildRibbonTileIntervals({
+            pathLength: totalLength,
+            tileWorldLength,
+        });
+        const segmentCount = intervals.length;
+        const capWorldLength = this._getCapWorldLength(totalLength, width);
+        this._setLayoutMetadata({
+            pathLength: totalLength,
+            tileWorldLength,
+            intervals,
+            capWorldLength,
+        });
 
         // console.log('[Ribbon] buildSegmentedRibbon starting', {
         //     totalLength: totalLength.toFixed(2),
@@ -318,72 +504,46 @@ export class Ribbon {
             )
             : null;
 
-        // Build each segment using the pre-calculated normals
-        for (let segIdx = 0; segIdx < segmentCount; segIdx++) {
-            const startT = segIdx / segmentCount;
-            const endT = (segIdx + 1) / segmentCount;
-            const hasStartCapStyle = this.capStyle !== CAP_STYLE_SQUARE && segIdx === 0;
-            const hasEndCapStyle = this.capStyle !== CAP_STYLE_SQUARE && segIdx === segmentCount - 1;
+        for (const interval of intervals) {
+            if (!interval.visible) continue;
 
-            // Strand A (or Standard Ribbon in non-helix mode)
-            const segmentMesh = useCornerNarrowing
-                    ? this.createMaskedRibbonSegmentWithCache(
-                        curve,
-                        startT,
-                        endT,
-                        width,
-                        time,
-                        segIdx,
-                        frameSamples,
-                        pointsPerSegment,
-                        cornerIntervalFn,
-                        0
-                    )
-                : this.createStripRibbonSegmentWithCache(
-                    curve,
-                    startT,
-                    endT,
-                    width,
-                    time,
-                    segIdx,
-                    frameSamples,
-                    pointsPerSegment,
-                    0,
-                    null,
-                    null
-                );
+            const segmentMesh = this._buildRibbonSegmentFromInterval({
+                curve,
+                interval,
+                width,
+                time,
+                frameSamples,
+                pointsPerSegment,
+                capWorldLength,
+                tileWorldLength,
+                strandOffset: 0,
+                widthScaleFn: cornerIntervalFn,
+                masked: useCornerNarrowing,
+            });
 
             if (segmentMesh) {
-                this._assignCapAttributesToMesh(segmentMesh, {
-                    start: hasStartCapStyle,
-                    end: hasEndCapStyle,
-                });
                 this.meshSegments.push(segmentMesh);
                 this.scene.add(segmentMesh);
             }
 
-            // Strand B (helix mode only — offset by π)
             if (this.helixMode) {
                 const strandBTileManager = this.tileManagerB || this.tileManager;
-                const segmentMeshB = this.createStripRibbonSegmentWithCache(
-                        curve,
-                        startT,
-                        endT,
-                        width,
-                        time,
-                        segIdx,
-                        frameSamples,
-                        pointsPerSegment,
-                        Math.PI,
-                        strandBTileManager,
-                        null
-                    );
+                const segmentMeshB = this._buildRibbonSegmentFromInterval({
+                    curve,
+                    interval,
+                    width,
+                    time,
+                    frameSamples,
+                    pointsPerSegment,
+                    capWorldLength,
+                    tileWorldLength,
+                    strandOffset: Math.PI,
+                    overrideTileManager: strandBTileManager,
+                    widthScaleFn: null,
+                    masked: false,
+                });
 
                 if (segmentMeshB) {
-                    this._assignCapAttributesToMesh(segmentMeshB, {
-                        start: hasStartCapStyle,
-                        end: hasEndCapStyle,
-                    });
                     this.helixMeshSegmentsB.push(segmentMeshB);
                     this.scene.add(segmentMeshB);
                 }
@@ -393,6 +553,119 @@ export class Ribbon {
         // console.log('[Ribbon] All segments created and added to scene', {
         //     totalSegments: this.meshSegments.length
         // });
+
+        return this.meshSegments;
+    }
+
+    buildPooledSegmentedRibbon(points, width, time, options = {}) {
+        const maxSegmentCount = Math.max(1, Math.ceil(Number(options.maxSegmentCount) || 1));
+
+        this.cleanupOldMesh();
+        this.lastPoints = points.map(p => p.clone());
+        this.lastWidth = width;
+        this.pathLength = this.calculatePathLength(points);
+        const tileWorldLength = Math.max(0.0001, width);
+        const intervals = buildRibbonTileIntervals({
+            pathLength: this.pathLength,
+            tileWorldLength,
+            maxSegmentCount,
+        });
+        const capWorldLength = this._getCapWorldLength(this.pathLength, width);
+        this._setLayoutMetadata({
+            pathLength: this.pathLength,
+            tileWorldLength,
+            intervals,
+            capWorldLength,
+        });
+
+        const curve = this.createCurveFromPoints(points);
+        const pointsPerSegment = this._getBasePointsPerSegment();
+        const activeSegmentCount = Math.max(1, intervals.filter(interval => interval.visible).length);
+        const frameSamples = this.createFrameSamples(
+            curve,
+            Math.max(2, activeSegmentCount * pointsPerSegment + 1)
+        );
+
+        for (const interval of intervals) {
+            const geometry = this.createStripRibbonSegmentGeometryWithCache(
+                curve,
+                this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength),
+                this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength),
+                width,
+                time,
+                interval.tileIndex,
+                frameSamples,
+                pointsPerSegment,
+                0,
+                null,
+                {
+                    uStart: interval.uStart,
+                    uEnd: interval.uEnd,
+                    capWorldLength,
+                    pathLength: this.pathLength,
+                    tileWorldLength,
+                }
+            );
+            const segmentMesh = this._createSegmentMesh(geometry, interval.tileIndex, null);
+
+            segmentMesh.visible = interval.visible;
+            this._assignIntervalMetadata(segmentMesh, interval, this.pathLength, tileWorldLength, capWorldLength);
+            this._assignCapAttributesToMesh(segmentMesh, this._getIntervalCapOptions(interval, this.pathLength, capWorldLength));
+            this.meshSegments.push(segmentMesh);
+            this.scene.add(segmentMesh);
+        }
+
+        return this.meshSegments;
+    }
+
+    updatePooledSegmentedRibbon(points, width, time, options = {}) {
+        const maxSegmentCount = Math.max(1, Math.ceil(Number(options.maxSegmentCount) || this.meshSegments.length || 1));
+        if (this.meshSegments.length !== maxSegmentCount || this.helixMode) {
+            return this.buildPooledSegmentedRibbon(points, width, time, {
+                maxSegmentCount,
+            });
+        }
+
+        this.lastPoints = points.map(p => p.clone());
+        this.lastWidth = width;
+        this.pathLength = this.calculatePathLength(points);
+        const tileWorldLength = Math.max(0.0001, width);
+        const intervals = buildRibbonTileIntervals({
+            pathLength: this.pathLength,
+            tileWorldLength,
+            maxSegmentCount,
+        });
+        const capWorldLength = this._getCapWorldLength(this.pathLength, width);
+        this._setLayoutMetadata({
+            pathLength: this.pathLength,
+            tileWorldLength,
+            intervals,
+            capWorldLength,
+        });
+
+        const curve = this.createCurveFromPoints(points);
+        const pointsPerSegment = this._getBasePointsPerSegment();
+        const activeSegmentCount = Math.max(1, intervals.filter(interval => interval.visible).length);
+        const frameSamples = this.createFrameSamples(
+            curve,
+            Math.max(2, activeSegmentCount * pointsPerSegment + 1)
+        );
+
+        for (const interval of intervals) {
+            const mesh = this.meshSegments[interval.tileIndex];
+            if (!mesh) continue;
+
+            this._updateRibbonSegmentFromInterval(mesh, {
+                curve,
+                interval,
+                width,
+                time,
+                frameSamples,
+                pointsPerSegment,
+                capWorldLength,
+                tileWorldLength,
+            });
+        }
 
         return this.meshSegments;
     }
@@ -743,12 +1016,37 @@ export class Ribbon {
         return [0.5 - halfWidth, 0.5 + halfWidth];
     }
 
-    createStripRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, overrideTileManager = null, widthScaleFn = null) {
+    createStripRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, overrideTileManager = null, widthScaleFn = null, geometryOptions = {}) {
+        const geometry = this.createStripRibbonSegmentGeometryWithCache(
+            curve,
+            startT,
+            endT,
+            width,
+            time,
+            segmentIndex,
+            frameSamples,
+            pointsPerSegment,
+            strandOffset,
+            widthScaleFn,
+            geometryOptions
+        );
+
+        return this._createSegmentMesh(geometry, segmentIndex, overrideTileManager);
+    }
+
+    createStripRibbonSegmentGeometryWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, widthScaleFn = null, geometryOptions = {}) {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
         const edgeNoiseUs = [];
+        const capStartUs = [];
+        const capEndUs = [];
         const indices = [];
+        const uStart = Number.isFinite(geometryOptions.uStart) ? geometryOptions.uStart : 0;
+        const uEnd = Number.isFinite(geometryOptions.uEnd) ? geometryOptions.uEnd : 1;
+        const capWorldLength = Math.max(0.0001, Number(geometryOptions.capWorldLength) || 0.0001);
+        const pathLength = Math.max(0, Number(geometryOptions.pathLength) || this.pathLength || 0);
+        const tileWorldLength = Math.max(0.0001, Number(geometryOptions.tileWorldLength) || width || 1);
 
         const basePositions = [];
         const normals = [];
@@ -776,10 +1074,18 @@ export class Ribbon {
 
             positions.push(left.x, left.y, left.z);
             positions.push(right.x, right.y, right.z);
-            uvs.push(localT, 0);
-            uvs.push(localT, 1);
-            edgeNoiseUs.push(this.segmentOffset + segmentIndex + localT);
-            edgeNoiseUs.push(this.segmentOffset + segmentIndex + localT);
+            const sampleU = uStart + localT * (uEnd - uStart);
+            const edgeNoiseU = this.segmentOffset + frame.arcLength / tileWorldLength;
+            const capStartU = frame.arcLength / capWorldLength;
+            const capEndU = (pathLength - frame.arcLength) / capWorldLength;
+            uvs.push(sampleU, 0);
+            uvs.push(sampleU, 1);
+            edgeNoiseUs.push(edgeNoiseU);
+            edgeNoiseUs.push(edgeNoiseU);
+            capStartUs.push(capStartU);
+            capStartUs.push(capStartU);
+            capEndUs.push(capEndU);
+            capEndUs.push(capEndU);
 
             for (const acrossValue of [-0.5, 0.5]) {
                 basePositions.push(frame.point.clone());
@@ -818,18 +1124,27 @@ export class Ribbon {
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geometry.setAttribute('edgeNoiseU', new THREE.Float32BufferAttribute(edgeNoiseUs, 1));
+        geometry.setAttribute('capStartU', new THREE.Float32BufferAttribute(capStartUs, 1));
+        geometry.setAttribute('capEndU', new THREE.Float32BufferAttribute(capEndUs, 1));
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        return this._createSegmentMesh(geometry, segmentIndex, overrideTileManager);
+        return geometry;
     }
 
-    createMaskedRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, intervalFn, strandOffset = 0, overrideTileManager = null) {
+    createMaskedRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, intervalFn, strandOffset = 0, overrideTileManager = null, geometryOptions = {}) {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
         const edgeNoiseUs = [];
+        const capStartUs = [];
+        const capEndUs = [];
         const indices = [];
+        const uStart = Number.isFinite(geometryOptions.uStart) ? geometryOptions.uStart : 0;
+        const uEnd = Number.isFinite(geometryOptions.uEnd) ? geometryOptions.uEnd : 1;
+        const capWorldLength = Math.max(0.0001, Number(geometryOptions.capWorldLength) || 0.0001);
+        const pathLength = Math.max(0, Number(geometryOptions.pathLength) || this.pathLength || 0);
+        const tileWorldLength = Math.max(0.0001, Number(geometryOptions.tileWorldLength) || width || 1);
 
         const basePositions = [];
         const normals = [];
@@ -861,10 +1176,18 @@ export class Ribbon {
 
             positions.push(left.x, left.y, left.z);
             positions.push(right.x, right.y, right.z);
-            uvs.push(localT, vStart);
-            uvs.push(localT, vEnd);
-            edgeNoiseUs.push(this.segmentOffset + segmentIndex + localT);
-            edgeNoiseUs.push(this.segmentOffset + segmentIndex + localT);
+            const sampleU = uStart + localT * (uEnd - uStart);
+            const edgeNoiseU = this.segmentOffset + frame.arcLength / tileWorldLength;
+            const capStartU = frame.arcLength / capWorldLength;
+            const capEndU = (pathLength - frame.arcLength) / capWorldLength;
+            uvs.push(sampleU, vStart);
+            uvs.push(sampleU, vEnd);
+            edgeNoiseUs.push(edgeNoiseU);
+            edgeNoiseUs.push(edgeNoiseU);
+            capStartUs.push(capStartU);
+            capStartUs.push(capStartU);
+            capEndUs.push(capEndU);
+            capEndUs.push(capEndU);
 
             for (const acrossValue of [acrossStart, acrossEnd]) {
                 basePositions.push(frame.point.clone());
@@ -903,6 +1226,8 @@ export class Ribbon {
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geometry.setAttribute('edgeNoiseU', new THREE.Float32BufferAttribute(edgeNoiseUs, 1));
+        geometry.setAttribute('capStartU', new THREE.Float32BufferAttribute(capStartUs, 1));
+        geometry.setAttribute('capEndU', new THREE.Float32BufferAttribute(capEndUs, 1));
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 

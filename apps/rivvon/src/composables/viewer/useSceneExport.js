@@ -618,6 +618,7 @@ export function useSceneExport(ctx, deps = {}) {
 
         // 3. Update wave undulation at the exact synthetic time
         if (ctx.ribbonSeries.value) {
+            ctx.ribbonSeries.value.updateProcedural?.(waveTime);
             ctx.ribbonSeries.value.update(waveTime);
         }
 

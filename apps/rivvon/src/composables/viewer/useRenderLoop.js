@@ -512,6 +512,9 @@ export function useRenderLoop(ctx, deps = {}) {
             
             // Update ribbon with current time for wave animation
             const ribbonUpdateStartMs = performance.now();
+            if (ctx.ribbonSeries.value) {
+                ctx.ribbonSeries.value.updateProcedural?.(elapsedTime);
+            }
             if (ctx.ribbonSeries.value && !scrollTiltDrivesUndulation) {
                 ctx.ribbonSeries.value.update(elapsedTime);
             }

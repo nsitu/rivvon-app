@@ -13,6 +13,7 @@ const DEFAULT_VIEWER_CONTEXT_ORDER = [
     'emoji',
     'text',
     'contour',
+    'procedural',
     'tools',
     'about',
 ];
@@ -112,6 +113,14 @@ const VIEWER_CONTEXT_DEFINITIONS = {
         isActive: (app) => isViewerPanelVisible(app, 'contour'),
         close: (app) => {
             app.hideContourPanel();
+            return true;
+        },
+    },
+    procedural: {
+        title: 'Procedural Path',
+        isActive: (app) => isViewerPanelVisible(app, 'procedural'),
+        close: (app) => {
+            app.hideProceduralPanel();
             return true;
         },
     },

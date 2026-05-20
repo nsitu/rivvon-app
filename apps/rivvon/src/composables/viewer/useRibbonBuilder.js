@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Ribbon } from '../../modules/viewer/ribbon';
 import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
+import { DEFAULT_SINE_WAVE_SETTINGS } from '../../modules/viewer/proceduralPaths';
 
 /**
  * Manages ribbon geometry lifecycle: creation from points / drawings,
@@ -56,6 +57,7 @@ export function useRibbonBuilder(ctx) {
         // Build from single path (wrapped in array)
         ctx.ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
         ctx.ribbonSeries.value.initFlowMaterials();
+        ctx.app.setProceduralPathMode?.(null);
 
         // New geometry invalidates all previous ROIs
         ctx.cinematicCamera.clearROIs();
@@ -94,6 +96,7 @@ export function useRibbonBuilder(ctx) {
         // Build from multiple paths
         ctx.ribbonSeries.value.buildFromMultiplePaths(pointsArray, options.width || 1.2);
         ctx.ribbonSeries.value.initFlowMaterials();
+        ctx.app.setProceduralPathMode?.(null);
 
         // New geometry invalidates all previous ROIs
         ctx.cinematicCamera.clearROIs();
@@ -149,6 +152,7 @@ export function useRibbonBuilder(ctx) {
         // Build from processed points
         ctx.ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
         ctx.ribbonSeries.value.initFlowMaterials();
+        ctx.app.setProceduralPathMode?.(null);
 
         // New geometry invalidates all previous ROIs
         ctx.cinematicCamera.clearROIs();
@@ -156,6 +160,78 @@ export function useRibbonBuilder(ctx) {
         console.log('[ThreeSetup] Created ribbon from drawing (via series) with', drawPoints.length, 'input points');
 
         return ctx.ribbonSeries.value;
+    }
+
+    async function createProceduralRibbon(sourceConfig = {}) {
+        if (!ctx.scene.value || !ctx.tileManager.value) {
+            console.error('[ThreeSetup] Cannot create procedural ribbon - not initialized');
+            return null;
+        }
+
+        if (ctx.ribbon.value) {
+            ctx.ribbon.value.dispose();
+            ctx.ribbon.value = null;
+        }
+
+        if (ctx.ribbonSeries.value) {
+            ctx.ribbonSeries.value.dispose();
+            ctx.ribbonSeries.value = null;
+        }
+
+        const type = sourceConfig.type || 'sineWave';
+        const settings = type === 'sineWave'
+            ? { ...DEFAULT_SINE_WAVE_SETTINGS, ...(sourceConfig.settings || {}) }
+            : (sourceConfig.settings || {});
+
+        ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
+        applyTileManagersToSeries(ctx.ribbonSeries.value);
+        ctx.ribbonSeries.value.setHelixOptions({
+            ...ctx.app.helixOptions,
+            helixMode: false,
+            sphericalProjectionEnabled: false,
+        });
+        ctx.ribbonSeries.value.buildFromProceduralSource({ type, settings }, sourceConfig.width || 1.2, 0);
+
+        ctx.cinematicCamera.clearROIs();
+        ctx.app.setProceduralPathMode?.(type);
+        ctx.app.setSineWaveSettings?.(settings);
+
+        console.log('[ThreeSetup] Created procedural ribbon:', type, ctx.ribbonSeries.value.getProceduralDebugInfo?.());
+
+        return ctx.ribbonSeries.value;
+    }
+
+    function updateProceduralRibbon(time = 0) {
+        return ctx.ribbonSeries.value?.updateProcedural?.(time) ?? null;
+    }
+
+    async function updateProceduralRibbonSettings(settings = {}) {
+        if (!ctx.scene.value || !ctx.tileManager.value) {
+            return null;
+        }
+
+        const series = ctx.ribbonSeries.value;
+        const proceduralSource = series?.proceduralSource;
+
+        if (!series || !proceduralSource) {
+            return createProceduralRibbon({
+                type: 'sineWave',
+                settings,
+            });
+        }
+
+        const type = proceduralSource.type || 'sineWave';
+        const nextSettings = type === 'sineWave'
+            ? { ...DEFAULT_SINE_WAVE_SETTINGS, ...settings }
+            : settings;
+        const width = proceduralSource.width || series.lastWidth || 1.2;
+        const time = proceduralSource.lastTime || 0;
+
+        series.buildFromProceduralSource({ type, settings: nextSettings }, width, time);
+        ctx.app.setProceduralPathMode?.(type);
+        ctx.app.setSineWaveSettings?.(nextSettings);
+
+        return series;
     }
 
     /**
@@ -175,7 +251,22 @@ export function useRibbonBuilder(ctx) {
         }
         if (ctx.ribbonSeries.value) {
             applyTileManagersToSeries(ctx.ribbonSeries.value);
-            ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
+            const proceduralSource = ctx.ribbonSeries.value.proceduralSource;
+            ctx.ribbonSeries.value.setHelixOptions(proceduralSource
+                ? { ...ctx.app.helixOptions, helixMode: false, sphericalProjectionEnabled: false }
+                : ctx.app.helixOptions
+            );
+
+            if (proceduralSource) {
+                ctx.ribbonSeries.value.buildFromProceduralSource(
+                    { type: proceduralSource.type, settings: proceduralSource.settings },
+                    proceduralSource.width || ctx.ribbonSeries.value.lastWidth || 1.2,
+                    proceduralSource.lastTime || 0
+                );
+                console.log(`[ThreeSetup] Rebuilt procedural ribbon texture bindings: ${ctx.ribbonSeries.value.getTotalSegmentCount()} pooled segments`);
+                return;
+            }
+
             // Rebuild ribbon series with new textures
             const sourcePaths = ctx.ribbonSeries.value.sourcePathsPoints?.length
                 ? ctx.ribbonSeries.value.sourcePathsPoints
@@ -375,6 +466,15 @@ export function useRibbonBuilder(ctx) {
     function setHelixMode(options) {
         if (!ctx.ribbonSeries.value) return;
 
+        if (ctx.ribbonSeries.value.proceduralSource) {
+            ctx.ribbonSeries.value.setHelixOptions({
+                ...options,
+                helixMode: false,
+                sphericalProjectionEnabled: false,
+            });
+            return;
+        }
+
         ctx.ribbonSeries.value.setHelixOptions(options);
 
         // Rebuild geometry with new helix params
@@ -390,6 +490,9 @@ export function useRibbonBuilder(ctx) {
         createRibbon,
         createRibbonSeries,
         createRibbonFromDrawing,
+        createProceduralRibbon,
+        updateProceduralRibbon,
+        updateProceduralRibbonSettings,
         rebuildRibbonsWithNewTextures,
         setFlowState,
         setFlowSpeed,

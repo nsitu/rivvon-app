@@ -5,9 +5,7 @@ Review the folder and file structure of the project. update naming conventions t
 
 it will be nice to create a grid of rendered sample videos that help to illustrate the behaviour of rivvon in terms of the various settings controls and modes. we could then ask targetted questions e.g. how does tile resolution affect aesthetics? and many other such questions, and we would enjoy a visual explanation of all the tradeoffs involved. one of those variables is of course the type of footage we are working with, so it may be interesting in this regard to draw from a variety of source videos that serve as examples of various kinds of shots e.g. panning, angular, moving to horizon, etc. It may be possible to find a common subject matter that is amenable to this kind of demo, or maybe you have a different subject to exemplify each type of shot.
 
-introduce a testing framework that can be help us catch bugs.
-
-Process notes for making videos that lend themselves to rivvon processing. If you have a video that is backlit, eg. smoke rising to cover the sun, then the shifts in lighting result in blips on the lighting spectrum. the camera adjusts for this with auto exposure. you could also set the exposure manually. or you could lean into the subtlety or those auto exposure shifts, and make those shifts the entire point. Similarly when shooting indoors there may be a flicker at high framerate due to the nature of household current. one would need to either compensate for this or roll with it.
+Process note: to make videos that lend themselves to rivvon processing-- If you have a video that is backlit, eg. smoke rising to cover the sun, then the shifts in lighting result in blips on the lighting spectrum. the camera adjusts for this with auto exposure. you could also set the exposure manually. or you could lean into the subtlety or those auto exposure shifts, and make those shifts the entire point. Similarly when shooting indoors there may be a flicker at high framerate due to the nature of household current. one would need to either compensate for this or roll with it.
 
 Review whether you want emojii and text to appear in the drawing history. shouldn't they have their own history, given that they are unique modes?
 
@@ -31,10 +29,21 @@ So you can add multiple elements to it including emoji text and hand drawn eleme
 
 Some workflows do well with the full screen but others could be improved by treating them as an overlay. The difference is when we need to see the result in the renderer in real-time.
 
-i don't think we need to load the map tiles on pageload. we should delay this until the user actually goes into walk mode. also we can probably switch to a vector based map.
+we may benefit from switching to a vector based map.
 Carto publishes vector basemaps that can be used with maplibre GL
 https://github.com/cartodb/basemap-styles
+maplibre is a bit heavier and uses webgl, while leaflet is quite light. it may be possible to get leaflet to render vector tiles with a plugin?
+there is also protomaps which is open source, look into it.
 
-also, double check how the ort wasm is handled. are we using cdn for this? do we need to keep the wasm files areound?
+also, double check how the ort wasm is handled. are we using cdn for this? do we need to keep the wasm files around?
 
 Check whether we can patch the mjs to prevent these warnings: ort-wasm-simd-threaded.asyncify.mjs:83 2026-05-14 16:19:37.944325 [W:onnxruntime:, session_state.cc:1367 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.
+
+some current animation targets the geometry and other animation targets texture / transparency
+look into adding a geometry animation as follows.
+instead of creating a ribbon from an input drawing we would have an input signal (e.g. a sine wave) that animates over time, the effective drawing is the plot of that function, and it would change on every frame. the implication is that the tiles would flow along that plot line instead of along a fixed drawing. place it in the draw menu as a "Sine Wave" option.
+
+given the input drawing, use a cyclical noise to cause the lines to vibrate (this is similar to what we already do with edge noise / edge drift). The result is that on every frame we get a different variation on the drawing, but it these variations are loopable such that we will always return to our starting point. we may need to recalculate tiles as the input artwork evolves. this is where it gets tricky because it's an open question what continuity should look like here. if there's an index of tiles, and they map onto the drawing in a given way, then on the subsequent frame, all the tiles will shift in their position, and we might also gain or loose tiles as the vibrating drawing expands and contracts. when the number of tiles that are needed to fill the ribbon. add a feture that animates the geometry itself rather than the textures
+
+explore using the webcam to generate an animating ribbon based on the user's profile. inspiration via https://github.com/nsitu/bodychalk
+note that the pose landmarker is likely different from the face landmarker which we are already using.

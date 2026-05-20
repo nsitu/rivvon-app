@@ -6,6 +6,10 @@ import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capStyle
 import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, normalizeExportLogoCorner } from '../modules/viewer/exportLogoOverlay.js';
 import {
+    DEFAULT_SINE_WAVE_SETTINGS,
+    normalizeSineWaveSettings,
+} from '../modules/viewer/proceduralPaths.js';
+import {
     normalizeTextureOverviewLayoutStrategy,
 } from '../modules/viewer/textureOverviewLayout.js';
 import {
@@ -32,7 +36,6 @@ const DEFAULT_EDGE_NOISE_PATTERN_LENGTH = 0.5;
 const MIN_EDGE_NOISE_PATTERN_LENGTH = 0.1;
 const MAX_EDGE_NOISE_PATTERN_LENGTH = 2;
 const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
-
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
         return window.matchMedia('(pointer: coarse)').matches ? 256 : 512;
@@ -256,6 +259,8 @@ export const useViewerStore = defineStore('viewer', {
         countdownSeconds: null,
         countdownProgress: 0,
         inFinalCountdown: false,
+        proceduralPathMode: null,
+        sineWaveSettings: { ...DEFAULT_SINE_WAVE_SETTINGS },
 
         // Walk capture state
         isWalkMode: false,
@@ -447,6 +452,21 @@ export const useViewerStore = defineStore('viewer', {
             } else {
                 this.walkPointCount = 0;
             }
+        },
+
+        setProceduralPathMode(mode) {
+            this.proceduralPathMode = mode === 'sineWave' ? 'sineWave' : null;
+        },
+
+        setSineWaveSettings(settings = {}) {
+            this.sineWaveSettings = normalizeSineWaveSettings({
+                ...this.sineWaveSettings,
+                ...settings,
+            });
+        },
+
+        resetSineWaveSettings() {
+            this.sineWaveSettings = { ...DEFAULT_SINE_WAVE_SETTINGS };
         },
 
         setViewerControlMode(mode) {
@@ -767,6 +787,14 @@ export const useViewerStore = defineStore('viewer', {
 
         hideContourPanel() {
             hideViewerFlag(this, VIEWER_PANEL_KEYS.contour);
+        },
+
+        showProceduralPanel() {
+            showViewerFlag(this, VIEWER_PANEL_KEYS.procedural);
+        },
+
+        hideProceduralPanel() {
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.procedural);
         },
 
         showAboutPanel() {

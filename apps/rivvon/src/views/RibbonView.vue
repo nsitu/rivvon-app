@@ -29,6 +29,7 @@
     const TextInputPanel = defineAsyncComponent(() => import('../components/viewer/TextInputPanel.vue'));
     const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
     const ContourPanel = defineAsyncComponent(() => import('../components/viewer/ContourPanel.vue'));
+    const ProceduralPathPanel = defineAsyncComponent(() => import('../components/viewer/ProceduralPathPanel.vue'));
     const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
@@ -72,6 +73,7 @@
     const textPanelVisible = createViewerPanelModel('text');
     const emojiPickerVisible = createViewerPanelModel('emoji');
     const contourPanelVisible = createViewerPanelVisibility('contour');
+    const proceduralPanelVisible = createViewerPanelVisibility('procedural');
     const drawingBrowserVisible = createViewerPanelVisibility('drawings');
     const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
     const texturePreviewVisible = createViewerPanelVisibility('texturePreview');
@@ -1070,6 +1072,53 @@
         });
     }
 
+    async function handleCreateSineWave(settings = app.sineWaveSettings, options = {}) {
+        if (!threeCanvasRef.value?.createProceduralRibbon) {
+            return;
+        }
+
+        ensureOrbitControlsForInteraction(
+            'procedural-source',
+            'Head tracking switched back to OrbitControls for procedural source creation.',
+        );
+
+        await threeCanvasRef.value.createProceduralRibbon({
+            type: 'sineWave',
+            settings,
+        });
+        applyTextureResetState({ clearThumbnail: true });
+
+        if (options.resetCamera !== false && threeCanvasRef.value.resetCamera) {
+            threeCanvasRef.value.resetCamera();
+        }
+    }
+
+    async function openProceduralPanel() {
+        app.showProceduralPanel();
+
+        if (app.proceduralPathMode !== 'sineWave') {
+            await handleCreateSineWave(app.sineWaveSettings);
+        }
+    }
+
+    async function handleProceduralSettingsChange(settings) {
+        if (!threeCanvasRef.value?.updateProceduralRibbonSettings) {
+            return;
+        }
+
+        ensureOrbitControlsForInteraction(
+            'procedural-source',
+            'Head tracking switched back to OrbitControls for procedural source editing.',
+        );
+
+        await threeCanvasRef.value.updateProceduralRibbonSettings(settings);
+        applyTextureResetState({ clearThumbnail: true });
+    }
+
+    async function handleProceduralCreate(settings) {
+        await handleCreateSineWave(settings);
+    }
+
     // File import handler
     function openFileImport() {
         fileInputRef.value?.click();
@@ -1835,6 +1884,17 @@
                 label: 'Tools',
                 close: () => {
                     app.hideToolsPanel();
+                    return true;
+                },
+            };
+        }
+
+        if (proceduralPanelVisible.value) {
+            return {
+                id: 'procedural',
+                label: 'Procedural Path',
+                close: () => {
+                    app.hideProceduralPanel();
                     return true;
                 },
             };
@@ -2608,6 +2668,7 @@
             @request-toggle-flow="toggleFlow"
             @request-open-text-panel="app.showTextPanel"
             @request-open-emoji-picker="app.showEmojiPicker"
+            @request-open-procedural-panel="openProceduralPanel"
             @request-open-texture-browser="openTextureBrowser"
             @request-import-file="openFileImport"
             @request-close-export-image="handleExportPanelClose"
@@ -2661,6 +2722,13 @@
             v-if="contourPanelVisible"
             :active="contourPanelVisible"
             @contour-complete="handleContourGenerate"
+        />
+        <ProceduralPathPanel
+            v-if="proceduralPanelVisible"
+            :active="proceduralPanelVisible"
+            @request-close="app.hideProceduralPanel"
+            @settings-change="handleProceduralSettingsChange"
+            @request-create="handleProceduralCreate"
         />
         <DrawingBrowser
             v-if="drawingBrowserVisible"

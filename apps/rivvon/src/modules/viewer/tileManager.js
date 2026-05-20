@@ -46,9 +46,9 @@ const CAP_ALPHA_GLSL = /* glsl */`
                     return capUv.x - biteBoundary;
                 }
 
-                float computeCapAlpha(vec2 uv, float startStyle, float endStyle) {
-                    float startSignedDistance = computeCapSignedDistance(startStyle, uv);
-                    float endSignedDistance = computeCapSignedDistance(endStyle, vec2(1.0 - uv.x, uv.y));
+                float computeCapAlpha(vec2 startCapUv, vec2 endCapUv, float startStyle, float endStyle) {
+                    float startSignedDistance = computeCapSignedDistance(startStyle, startCapUv);
+                    float endSignedDistance = computeCapSignedDistance(endStyle, endCapUv);
                     float signedDistance = min(startSignedDistance, endSignedDistance);
                     float aa = max(fwidth(signedDistance) * ${CAP_ALPHA_AA_SCALE.toFixed(1)}, ${CAP_ALPHA_MIN_AA});
                     return smoothstep(-aa, aa, signedDistance);
@@ -182,6 +182,8 @@ function createCapAlphaNode(threeTSL, baseUV) {
     const { attribute, float, vec2, abs, length, min, max, smoothstep } = threeTSL;
     const startStyle = attribute('capStartStyle', 'float');
     const endStyle = attribute('capEndStyle', 'float');
+    const capStartU = attribute('capStartU', 'float');
+    const capEndU = attribute('capEndU', 'float');
 
     const capSignedDistance = (style, capUv) => {
         const roundedCircleDistance = float(0.5).sub(length(vec2(
@@ -201,8 +203,8 @@ function createCapAlphaNode(threeTSL, baseUV) {
         return style.lessThan(float(0.5)).select(float(1.0), shapedDistance);
     };
 
-    const startSignedDistance = capSignedDistance(startStyle, baseUV);
-    const endSignedDistance = capSignedDistance(endStyle, vec2(float(1.0).sub(baseUV.x), baseUV.y));
+    const startSignedDistance = capSignedDistance(startStyle, vec2(capStartU, baseUV.y));
+    const endSignedDistance = capSignedDistance(endStyle, vec2(capEndU, baseUV.y));
     const signedDistance = min(startSignedDistance, endSignedDistance);
     const aa = signedDistance.fwidth().mul(float(CAP_ALPHA_AA_SCALE)).max(float(CAP_ALPHA_MIN_AA));
 
@@ -982,15 +984,21 @@ export class TileManager {
                 in float edgeNoiseU;
                 in float capStartStyle;
                 in float capEndStyle;
+                in float capStartU;
+                in float capEndU;
                 out vec2 vUv;
                 out float vEdgeNoiseU;
                 out float vCapStartStyle;
                 out float vCapEndStyle;
+                out float vCapStartU;
+                out float vCapEndU;
                 void main() {
                     vUv = uv;
                     vEdgeNoiseU = edgeNoiseU;
                     vCapStartStyle = capStartStyle;
                     vCapEndStyle = capEndStyle;
+                    vCapStartU = capStartU;
+                    vCapEndU = capEndU;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
@@ -1001,6 +1009,8 @@ export class TileManager {
                 in float vEdgeNoiseU;
                 in float vCapStartStyle;
                 in float vCapEndStyle;
+                in float vCapStartU;
+                in float vCapEndU;
                 uniform sampler2DArray uTexArrayCurrent;
                 uniform sampler2DArray uTexArrayNext;
                 uniform int uLayer;
@@ -1074,7 +1084,7 @@ ${EDGE_NOISE_GLSL}
                         ? 'shiftedU < 0.0 ? texColorNext : texColorCurrent'
                         : 'shiftedU >= 1.0 ? texColorNext : texColorCurrent'};
 
-                    texColor.a *= computeCapAlpha(vUv, vCapStartStyle, vCapEndStyle);
+                    texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
                     texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
                     if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001) && texColor.a <= 0.001) discard;
 
@@ -1111,6 +1121,8 @@ ${EDGE_NOISE_GLSL}
             ...(material.defaultAttributeValues || {}),
             capStartStyle: [0],
             capEndStyle: [0],
+            capStartU: [1],
+            capEndU: [1],
         };
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
@@ -1246,6 +1258,8 @@ ${EDGE_NOISE_GLSL}
             ...(material.defaultAttributeValues || {}),
             capStartStyle: [0],
             capEndStyle: [0],
+            capStartU: [1],
+            capEndU: [1],
         };
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
@@ -1374,15 +1388,21 @@ ${EDGE_NOISE_GLSL}
                 in float edgeNoiseU;
                 in float capStartStyle;
                 in float capEndStyle;
+                in float capStartU;
+                in float capEndU;
                 out vec2 vUv;
                 out float vEdgeNoiseU;
                 out float vCapStartStyle;
                 out float vCapEndStyle;
+                out float vCapStartU;
+                out float vCapEndU;
                 void main() {
                     vUv = uv;
                     vEdgeNoiseU = edgeNoiseU;
                     vCapStartStyle = capStartStyle;
                     vCapEndStyle = capEndStyle;
+                    vCapStartU = capStartU;
+                    vCapEndU = capEndU;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
@@ -1393,6 +1413,8 @@ ${EDGE_NOISE_GLSL}
                 in float vEdgeNoiseU;
                 in float vCapStartStyle;
                 in float vCapEndStyle;
+                in float vCapStartU;
+                in float vCapEndU;
                 uniform sampler2DArray uTexArray;
                 uniform int uLayer;
                 uniform int uRotate90;
@@ -1420,7 +1442,7 @@ ${EDGE_NOISE_GLSL}
                     // Flip V to match texture orientation
                     vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
                     vec4 texColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
-                    texColor.a *= computeCapAlpha(vUv, vCapStartStyle, vCapEndStyle);
+                    texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
                     texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
                     if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001) && texColor.a <= 0.001) discard;
 
@@ -1455,6 +1477,13 @@ ${EDGE_NOISE_GLSL}
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
         material._edgeNoisePhaseUniform = material.uniforms.uEdgeNoisePhase;
+        material.defaultAttributeValues = {
+            ...(material.defaultAttributeValues || {}),
+            capStartStyle: [0],
+            capEndStyle: [0],
+            capStartU: [1],
+            capEndU: [1],
+        };
         material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
@@ -1593,6 +1622,13 @@ ${EDGE_NOISE_GLSL}
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
         material._edgeNoisePhaseUniform = edgeNoisePhaseUniform;
+        material.defaultAttributeValues = {
+            ...(material.defaultAttributeValues || {}),
+            capStartStyle: [0],
+            capEndStyle: [0],
+            capStartU: [1],
+            capEndU: [1],
+        };
 
         console.log('[TileManager] WebGPU material created:', {
             layerCount,
