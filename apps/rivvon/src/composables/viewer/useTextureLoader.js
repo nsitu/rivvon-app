@@ -28,6 +28,11 @@ export function useTextureLoader(ctx, deps = {}) {
             edgeNoiseTransparencyMax: ctx.app.edgeNoiseTransparencyMax,
             edgeNoisePatternLength: ctx.app.edgeNoisePatternLength,
             edgeNoiseMirrored: ctx.app.edgeNoiseMirrored,
+            filmstripStyleEnabled: ctx.app.filmstripStyleEnabled,
+            filmstripGapLength: ctx.app.filmstripGapLength,
+            filmstripHoleLength: ctx.app.filmstripHoleLength,
+            filmstripAperture: ctx.app.filmstripAperture,
+            filmstripHoleRoundedness: ctx.app.filmstripHoleRoundedness,
             webgpuMaterialMode: 'node',
             ...options,
         });

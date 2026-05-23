@@ -57,6 +57,11 @@
         setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength,
         setEdgeNoiseMirrored,
+        setFilmstripStyleEnabled,
+        setFilmstripGapLength,
+        setFilmstripHoleLength,
+        setFilmstripAperture,
+        setFilmstripHoleRoundedness,
         setHelixMode,
         captureImagePreview,
         captureImagePreviewWithSettings,
@@ -222,6 +227,26 @@
         setEdgeNoiseMirrored(enabled);
     });
 
+    watch(() => app.filmstripStyleEnabled, (enabled) => {
+        setFilmstripStyleEnabled(enabled);
+    });
+
+    watch(() => app.filmstripGapLength, (value) => {
+        setFilmstripGapLength(value);
+    });
+
+    watch(() => app.filmstripHoleLength, (value) => {
+        setFilmstripHoleLength(value);
+    });
+
+    watch(() => app.filmstripAperture, (value) => {
+        setFilmstripAperture(value);
+    });
+
+    watch(() => app.filmstripHoleRoundedness, (value) => {
+        setFilmstripHoleRoundedness(value);
+    });
+
     // Watch for helix mode/option changes and rebuild ribbons
     watch(() => app.helixOptions, (options) => {
         setHelixMode(options);
@@ -262,6 +287,11 @@
         setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength,
         setEdgeNoiseMirrored,
+        setFilmstripStyleEnabled,
+        setFilmstripGapLength,
+        setFilmstripHoleLength,
+        setFilmstripAperture,
+        setFilmstripHoleRoundedness,
         setHelixMode,
         captureImagePreview,
         captureImagePreviewWithSettings,

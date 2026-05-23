@@ -31,10 +31,23 @@ const MIN_RIBBON_WIDTH_SCALE = 0.1;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
 const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
 const MAX_EDGE_NOISE_TRANSPARENCY = 0.5;
-const DEFAULT_EDGE_DRIFT_ENABLED = true;
+const DEFAULT_EDGE_DRIFT_ENABLED = false;
 const DEFAULT_EDGE_NOISE_PATTERN_LENGTH = 0.5;
 const MIN_EDGE_NOISE_PATTERN_LENGTH = 0.1;
 const MAX_EDGE_NOISE_PATTERN_LENGTH = 2;
+const DEFAULT_FILMSTRIP_STYLE_ENABLED = false;
+const DEFAULT_FILMSTRIP_GAP_LENGTH = 0.4;
+const MIN_FILMSTRIP_GAP_LENGTH = 0.05;
+const MAX_FILMSTRIP_GAP_LENGTH = 2;
+const DEFAULT_FILMSTRIP_HOLE_LENGTH = 0.4;
+const MIN_FILMSTRIP_HOLE_LENGTH = 0.05;
+const MAX_FILMSTRIP_HOLE_LENGTH = 1;
+const DEFAULT_FILMSTRIP_APERTURE = 0.45;
+const MIN_FILMSTRIP_APERTURE = 0.1;
+const MAX_FILMSTRIP_APERTURE = 0.95;
+const DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS = 0.7;
+const MIN_FILMSTRIP_HOLE_ROUNDEDNESS = 0;
+const MAX_FILMSTRIP_HOLE_ROUNDEDNESS = 1;
 const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -148,6 +161,46 @@ function normalizeEdgeNoisePatternLength(value) {
     }
 
     return Math.min(MAX_EDGE_NOISE_PATTERN_LENGTH, Math.max(MIN_EDGE_NOISE_PATTERN_LENGTH, parsed));
+}
+
+function normalizeFilmstripGapLength(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_GAP_LENGTH;
+    }
+
+    return Math.min(MAX_FILMSTRIP_GAP_LENGTH, Math.max(MIN_FILMSTRIP_GAP_LENGTH, parsed));
+}
+
+function normalizeFilmstripHoleLength(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_HOLE_LENGTH;
+    }
+
+    return Math.min(MAX_FILMSTRIP_HOLE_LENGTH, Math.max(MIN_FILMSTRIP_HOLE_LENGTH, parsed));
+}
+
+function normalizeFilmstripAperture(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_APERTURE;
+    }
+
+    return Math.min(MAX_FILMSTRIP_APERTURE, Math.max(MIN_FILMSTRIP_APERTURE, parsed));
+}
+
+function normalizeFilmstripHoleRoundedness(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
+    }
+
+    return Math.min(MAX_FILMSTRIP_HOLE_ROUNDEDNESS, Math.max(MIN_FILMSTRIP_HOLE_ROUNDEDNESS, parsed));
 }
 
 function normalizeRibbonPathAlignmentMode(value) {
@@ -278,7 +331,7 @@ export const useViewerStore = defineStore('viewer', {
         ),
         scrollDrivenFlowEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().scrollDrivenFlowEnabled,
-            true
+            false
         ),
         headTrackingSupported: null,
         headTrackingActive: false,
@@ -296,7 +349,7 @@ export const useViewerStore = defineStore('viewer', {
         screenWakeLockErrorMessage: '',
         
         // Ribbon/3D state
-        flowState: 'forward', // 'off' | 'forward' | 'backward'
+        flowState: 'off', // 'off' | 'forward' | 'backward'
         flowSpeed: 0.25, // Base flow speed (positive value)
         flowCycleAlignmentEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().flowCycleAlignmentEnabled,
@@ -384,6 +437,22 @@ export const useViewerStore = defineStore('viewer', {
         edgeNoiseMirrored: normalizeViewerBooleanPreference(
             readViewerPreferences().edgeNoiseMirrored,
             false
+        ),
+        filmstripStyleEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().filmstripStyleEnabled,
+            DEFAULT_FILMSTRIP_STYLE_ENABLED
+        ),
+        filmstripGapLength: normalizeFilmstripGapLength(
+            readViewerPreferences().filmstripGapLength ?? readViewerPreferences().filmstripHoleSpacing
+        ),
+        filmstripHoleLength: normalizeFilmstripHoleLength(
+            readViewerPreferences().filmstripHoleLength ?? readViewerPreferences().filmstripHoleSpacing
+        ),
+        filmstripAperture: normalizeFilmstripAperture(
+            readViewerPreferences().filmstripAperture ?? readViewerPreferences().filmstripHoleSize
+        ),
+        filmstripHoleRoundedness: normalizeFilmstripHoleRoundedness(
+            readViewerPreferences().filmstripHoleRoundedness
         ),
         duotoneColor: storedFilterSettings.duotoneColor,
         currentTextureId: null,
@@ -475,6 +544,105 @@ export const useViewerStore = defineStore('viewer', {
             } else {
                 this.viewerControlMode = 'orbit';
             }
+        },
+
+        resetToolbarSettingsToDefaults() {
+            const defaultExportDimensions = normalizeExportDimensionSettings({});
+
+            this.viewerControlMode = 'orbit';
+            this.scrollDrivenTiltEnabled = true;
+            this.scrollDrivenLayerCycleEnabled = true;
+            this.scrollDrivenFlowEnabled = false;
+            this.flowState = 'off';
+            this.flowSpeed = 0.25;
+            this.undulationEnabled = true;
+            this.flowCycleAlignmentEnabled = true;
+            this.textureAnimationEnabled = true;
+            this.animatedBackgroundEnabled = false;
+            this.backgroundBlurEnabled = true;
+            this.textureAnimationReversed = false;
+            this.textureRepeatMode = 'mirrorTile';
+            this.textureFlipVertical = false;
+            this.textureOverviewLayoutStrategy = normalizeTextureOverviewLayoutStrategy(undefined);
+            this.exportAspectRatioPreset = defaultExportDimensions.aspectRatioPreset;
+            this.exportResolutionPreset = defaultExportDimensions.resolutionPreset;
+            this.exportCustomWidth = defaultExportDimensions.customWidth;
+            this.exportCustomHeight = defaultExportDimensions.customHeight;
+            this.exportLogoOverlayEnabled = true;
+            this.exportLogoOverlayCorner = EXPORT_LOGO_DEFAULT_CORNER;
+            this.preferredTextureMaxResolution = getDefaultPreferredTextureMaxResolution();
+            this.renderFilterMode = 'none';
+            this.transparentShadowsEnabled = false;
+            this.transparencyMode = DEFAULT_TRANSPARENCY_MODE;
+            this.transparentShadowsThresholdMin = DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN;
+            this.transparentShadowsThresholdMax = DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX;
+            this.edgeDriftEnabled = DEFAULT_EDGE_DRIFT_ENABLED;
+            this.edgeNoiseTransparencyMax = DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX;
+            this.edgeNoisePatternLength = DEFAULT_EDGE_NOISE_PATTERN_LENGTH;
+            this.edgeNoiseMirrored = false;
+            this.filmstripStyleEnabled = DEFAULT_FILMSTRIP_STYLE_ENABLED;
+            this.filmstripGapLength = DEFAULT_FILMSTRIP_GAP_LENGTH;
+            this.filmstripHoleLength = DEFAULT_FILMSTRIP_HOLE_LENGTH;
+            this.filmstripAperture = DEFAULT_FILMSTRIP_APERTURE;
+            this.filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
+            this.duotoneColor = DEFAULT_DUOTONE_COLOR;
+            this.ribbonWidthScale = 1;
+            this.ribbonPathAlignmentMode = 'center';
+            this.helixMode = false;
+            this.helixRadius = 0.20;
+            this.helixPitch = 9.0;
+            this.helixStrandWidth = 0.50;
+            this.capStyle = CAP_STYLE_ROUNDED;
+            this.roundedCaps = true;
+            this.cornerNarrowingEnabled = false;
+            this.sphericalProjectionEnabled = false;
+            this.sphericalProjectionWrapDegrees = DEFAULT_SPHERICAL_WRAP_DEGREES;
+            this.showTextureMetadataOverlay = false;
+            this.screenWakeLockEnabled = true;
+            this.clearHeadTrackingFeedback();
+
+            writeViewerPreferences({
+                scrollDrivenTiltEnabled: true,
+                scrollDrivenLayerCycleEnabled: true,
+                scrollDrivenFlowEnabled: false,
+                flowCycleAlignmentEnabled: true,
+                textureAnimationEnabled: true,
+                animatedBackgroundEnabled: false,
+                backgroundBlurEnabled: true,
+                textureAnimationReversed: false,
+                textureFlipVertical: false,
+                textureOverviewFlipVertical: false,
+                textureOverviewLayoutStrategy: this.textureOverviewLayoutStrategy,
+                exportAspectRatioPreset: this.exportAspectRatioPreset,
+                exportResolutionPreset: this.exportResolutionPreset,
+                exportCustomWidth: this.exportCustomWidth,
+                exportCustomHeight: this.exportCustomHeight,
+                exportLogoOverlayEnabled: true,
+                exportLogoOverlayCorner: EXPORT_LOGO_DEFAULT_CORNER,
+                preferredTextureMaxResolution: this.preferredTextureMaxResolution,
+                renderFilterMode: 'none',
+                transparentShadowsEnabled: false,
+                transparencyMode: DEFAULT_TRANSPARENCY_MODE,
+                transparentShadowsThresholdMin: DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN,
+                transparentShadowsThresholdMax: DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX,
+                edgeDriftEnabled: DEFAULT_EDGE_DRIFT_ENABLED,
+                edgeNoiseTransparencyMax: DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX,
+                edgeNoisePatternLength: DEFAULT_EDGE_NOISE_PATTERN_LENGTH,
+                edgeNoiseMirrored: false,
+                filmstripStyleEnabled: DEFAULT_FILMSTRIP_STYLE_ENABLED,
+                filmstripGapLength: DEFAULT_FILMSTRIP_GAP_LENGTH,
+                filmstripHoleLength: DEFAULT_FILMSTRIP_HOLE_LENGTH,
+                filmstripAperture: DEFAULT_FILMSTRIP_APERTURE,
+                filmstripHoleRoundedness: DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS,
+                filmstripHoleSpacing: DEFAULT_FILMSTRIP_GAP_LENGTH,
+                filmstripHoleSize: DEFAULT_FILMSTRIP_APERTURE,
+                duotoneColor: DEFAULT_DUOTONE_COLOR,
+                undulationEnabled: true,
+                sphericalProjectionEnabled: false,
+                sphericalProjectionWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
+                showTextureMetadataOverlay: false,
+                screenWakeLockEnabled: true,
+            });
         },
 
         setScrollDrivenTiltEnabled(enabled) {
@@ -699,6 +867,11 @@ export const useViewerStore = defineStore('viewer', {
                 edgeNoiseTransparencyMax: this.edgeNoiseTransparencyMax,
                 edgeNoisePatternLength: this.edgeNoisePatternLength,
                 edgeNoiseMirrored: this.edgeNoiseMirrored,
+                filmstripStyleEnabled: this.filmstripStyleEnabled,
+                filmstripGapLength: this.filmstripGapLength,
+                filmstripHoleLength: this.filmstripHoleLength,
+                filmstripAperture: this.filmstripAperture,
+                filmstripHoleRoundedness: this.filmstripHoleRoundedness,
                 duotoneColor: this.duotoneColor,
                 ribbonWidthScale: this.ribbonWidthScale,
                 ribbonPathAlignmentMode: this.ribbonPathAlignmentMode,
@@ -757,6 +930,11 @@ export const useViewerStore = defineStore('viewer', {
                 this.edgeNoiseTransparencyMax !== original.edgeNoiseTransparencyMax ||
                 this.edgeNoisePatternLength !== original.edgeNoisePatternLength ||
                 this.edgeNoiseMirrored !== original.edgeNoiseMirrored ||
+                this.filmstripStyleEnabled !== original.filmstripStyleEnabled ||
+                this.filmstripGapLength !== original.filmstripGapLength ||
+                this.filmstripHoleLength !== original.filmstripHoleLength ||
+                this.filmstripAperture !== original.filmstripAperture ||
+                this.filmstripHoleRoundedness !== original.filmstripHoleRoundedness ||
                 this.duotoneColor !== original.duotoneColor ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
                 this.ribbonPathAlignmentMode !== original.ribbonPathAlignmentMode ||
@@ -984,6 +1162,50 @@ export const useViewerStore = defineStore('viewer', {
             this.edgeNoiseMirrored = nextValue;
             writeViewerPreferences({ edgeNoiseMirrored: nextValue });
             return nextValue;
+        },
+
+        setFilmstripStyleEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.filmstripStyleEnabled = nextValue;
+            writeViewerPreferences({ filmstripStyleEnabled: nextValue });
+            return nextValue;
+        },
+
+        setFilmstripGapLength(value) {
+            const nextValue = normalizeFilmstripGapLength(value);
+            this.filmstripGapLength = nextValue;
+            writeViewerPreferences({ filmstripGapLength: nextValue });
+            return nextValue;
+        },
+
+        setFilmstripHoleLength(value) {
+            const nextValue = normalizeFilmstripHoleLength(value);
+            this.filmstripHoleLength = nextValue;
+            writeViewerPreferences({ filmstripHoleLength: nextValue });
+            return nextValue;
+        },
+
+        setFilmstripAperture(value) {
+            const nextValue = normalizeFilmstripAperture(value);
+            this.filmstripAperture = nextValue;
+            writeViewerPreferences({ filmstripAperture: nextValue });
+            return nextValue;
+        },
+
+        setFilmstripHoleRoundedness(value) {
+            const nextValue = normalizeFilmstripHoleRoundedness(value);
+            this.filmstripHoleRoundedness = nextValue;
+            writeViewerPreferences({ filmstripHoleRoundedness: nextValue });
+            return nextValue;
+        },
+
+        // Backward-compatible aliases for older callsites/preferences migration.
+        setFilmstripHoleSpacing(value) {
+            return this.setFilmstripGapLength(value);
+        },
+
+        setFilmstripHoleSize(value) {
+            return this.setFilmstripAperture(value);
         },
 
         setDuotoneColor(color) {

@@ -340,32 +340,13 @@
             return;
         }
 
-        const activeMode = app.viewerControlMode;
         const headTrackingController = canvas.headTracking?.cameraController?.value
             ?? canvas.headTracking?.cameraController
             ?? null;
 
-        if (activeMode === 'mouseTilt') {
-            canvas.mouseTilt?.deactivate?.();
-            canvas.resetCamera();
-            canvas.mouseTilt?.activate?.();
-            return;
-        }
-
-        if (activeMode === 'scrollTilt') {
-            canvas.scrollTilt?.deactivate?.();
-            canvas.resetCamera();
-            canvas.scrollTilt?.activate?.();
-            return;
-        }
-
-        if (activeMode === 'headTracking') {
-            headTrackingController?.restoreBaseline?.();
-            canvas.resetCamera();
-            canvas.headTracking?.recenter?.();
-            return;
-        }
-
+        app.resetToolbarSettingsToDefaults();
+        handleViewerControlModeChange('orbit');
+        headTrackingController?.restoreBaseline?.();
         canvas.resetCamera();
     }
 

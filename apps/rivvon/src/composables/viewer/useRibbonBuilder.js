@@ -459,6 +459,71 @@ export function useRibbonBuilder(ctx) {
     }
 
     /**
+     * Set whether Filmstrip Style cutouts are active across all TileManagers.
+     * @param {boolean} enabled
+     */
+    function setFilmstripStyleEnabled(enabled) {
+        const normalized = ctx.app.setFilmstripStyleEnabled(enabled);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setFilmstripStyleEnabled?.(normalized);
+        }
+    }
+
+    /**
+     * Set filmstrip hole spacing across all TileManagers.
+     * @param {number} value
+     */
+    function setFilmstripGapLength(value) {
+        const normalized = ctx.app.setFilmstripGapLength(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setFilmstripGapLength?.(normalized);
+        }
+    }
+
+    /**
+     * Set filmstrip hole length across all TileManagers.
+     * @param {number} value
+     */
+    function setFilmstripHoleLength(value) {
+        const normalized = ctx.app.setFilmstripHoleLength(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setFilmstripHoleLength?.(normalized);
+        }
+    }
+
+    /**
+     * Set filmstrip aperture across all TileManagers.
+     * @param {number} value
+     */
+    function setFilmstripAperture(value) {
+        const normalized = ctx.app.setFilmstripAperture(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setFilmstripAperture?.(normalized);
+        }
+    }
+
+    /**
+     * Set filmstrip hole roundedness across all TileManagers.
+     * @param {number} value
+     */
+    function setFilmstripHoleRoundedness(value) {
+        const normalized = ctx.app.setFilmstripHoleRoundedness(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+
+        for (const tm of targets) {
+            tm.setFilmstripHoleRoundedness?.(normalized);
+        }
+    }
+
+    /**
      * Apply helix mode options and rebuild ribbons
      * Called when helix toggle or parameters change in the store
      * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
@@ -505,6 +570,11 @@ export function useRibbonBuilder(ctx) {
         setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength,
         setEdgeNoiseMirrored,
+        setFilmstripStyleEnabled,
+        setFilmstripGapLength,
+        setFilmstripHoleLength,
+        setFilmstripAperture,
+        setFilmstripHoleRoundedness,
         setHelixMode
     };
 }

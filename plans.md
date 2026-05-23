@@ -3,6 +3,14 @@ https://rivvon.ca/wiki
 
 Review the folder and file structure of the project. update naming conventions to reflect actual features instead of branding (e.g. references to "Slyce" could be replaced with "VideoProcessor"). Where applicable create subfolders that organize related code. Ensure that each file has a name that is sufficiently descriptive of purpose. refactor long files (1000+ lines) into manageable composable separate responsibilities.
 
+you may be able to adjust drawing mode so that it generates a ribbon continuously in 3d rather than as a separate upfront process. the wave pattern generator already updates the length of the ribbon in realtime, so we ought to be able to extend that logic to a drawing as well. this mode may have pros and cons. e.g. if would feel more immediate but might also feel less accurate
+
+On iPad The default tile builder can be webgl Atlas
+However there remains memory pressure. So we should not be decoding too far ahead. On low memory devices a better approach is to alternate between encoding and decoding. The goal is no longer to avoid waiting for decoding in this context
+Instead the goal should be reliability. The old iPad is capable of all these things but maybe not all at once.
+
+Investigate whether we are waiting for all tiles to encode prior to persisting them to the browser. We could perhaps persist the tiles as soon as they are done. Otherwise it's a long wait at the end.
+
 it will be nice to create a grid of rendered sample videos that help to illustrate the behaviour of rivvon in terms of the various settings controls and modes. we could then ask targetted questions e.g. how does tile resolution affect aesthetics? and many other such questions, and we would enjoy a visual explanation of all the tradeoffs involved. one of those variables is of course the type of footage we are working with, so it may be interesting in this regard to draw from a variety of source videos that serve as examples of various kinds of shots e.g. panning, angular, moving to horizon, etc. It may be possible to find a common subject matter that is amenable to this kind of demo, or maybe you have a different subject to exemplify each type of shot.
 
 Process note: to make videos that lend themselves to rivvon processing-- If you have a video that is backlit, eg. smoke rising to cover the sun, then the shifts in lighting result in blips on the lighting spectrum. the camera adjusts for this with auto exposure. you could also set the exposure manually. or you could lean into the subtlety or those auto exposure shifts, and make those shifts the entire point. Similarly when shooting indoors there may be a flicker at high framerate due to the nature of household current. one would need to either compensate for this or roll with it.

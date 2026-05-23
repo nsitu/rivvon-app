@@ -18,10 +18,26 @@ const TRANSPARENT_SHADOWS_LUMA_MIN = 0.2;
 const TRANSPARENT_SHADOWS_LUMA_MAX = 0.5;
 const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
 const MAX_EDGE_NOISE_TRANSPARENCY = 0.5;
-const DEFAULT_EDGE_DRIFT_ENABLED = true;
+const DEFAULT_EDGE_DRIFT_ENABLED = false;
 const DEFAULT_EDGE_NOISE_PATTERN_LENGTH = 0.5;
 const MIN_EDGE_NOISE_PATTERN_LENGTH = 0.1;
 const MAX_EDGE_NOISE_PATTERN_LENGTH = 2;
+const DEFAULT_FILMSTRIP_STYLE_ENABLED = false;
+const DEFAULT_FILMSTRIP_GAP_LENGTH = 0.4;
+const MIN_FILMSTRIP_GAP_LENGTH = 0.05;
+const MAX_FILMSTRIP_GAP_LENGTH = 2;
+const DEFAULT_FILMSTRIP_HOLE_LENGTH = 0.4;
+const MIN_FILMSTRIP_HOLE_LENGTH = 0.05;
+const MAX_FILMSTRIP_HOLE_LENGTH = 1;
+const DEFAULT_FILMSTRIP_APERTURE = 0.45;
+const MIN_FILMSTRIP_APERTURE = 0.1;
+const MAX_FILMSTRIP_APERTURE = 0.95;
+const DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS = 0.7;
+const MIN_FILMSTRIP_HOLE_ROUNDEDNESS = 0;
+const MAX_FILMSTRIP_HOLE_ROUNDEDNESS = 1;
+const FILMSTRIP_EDGE_BAND_WIDTH = 0.18;
+const FILMSTRIP_AA_SCALE = 1.5;
+const FILMSTRIP_MIN_AA = 0.001;
 const EDGE_NOISE_TIME_CELLS = 5;
 const EDGE_NOISE_AA_SCALE = 1.5;
 const EDGE_NOISE_MIN_AA = 0.001;
@@ -109,6 +125,42 @@ const EDGE_NOISE_GLSL = /* glsl */`
                 }
 `;
 
+const FILMSTRIP_GLSL = /* glsl */`
+                float computeRoundedRectSignedDistance(vec2 point, vec2 halfSize, float radius) {
+                    vec2 safeHalfSize = max(halfSize, vec2(0.0001));
+                    float safeRadius = clamp(radius, 0.0, min(safeHalfSize.x, safeHalfSize.y));
+                    vec2 innerHalfSize = max(safeHalfSize - vec2(safeRadius), vec2(0.0001));
+                    vec2 q = abs(point) - innerHalfSize;
+                    vec2 qMax = max(q, vec2(0.0));
+                    float outside = length(qMax) - safeRadius;
+                    float inside = min(max(q.x, q.y), 0.0);
+                    return outside + inside;
+                }
+
+                float computeFilmstripAlpha(vec2 uv, float edgeNoiseU, float enabled, float gapLength, float holeLength, float aperture, float roundedness) {
+                    if (enabled < 0.5) {
+                        return 1.0;
+                    }
+
+                    float safeGapLength = max(gapLength, 0.0001);
+                    float safeHoleLength = clamp(holeLength, ${MIN_FILMSTRIP_HOLE_LENGTH.toFixed(2)}, ${MAX_FILMSTRIP_HOLE_LENGTH.toFixed(2)});
+                    float holeAperture = clamp(aperture, ${MIN_FILMSTRIP_APERTURE.toFixed(2)}, ${MAX_FILMSTRIP_APERTURE.toFixed(2)});
+                    float holeRoundedness = clamp(roundedness, 0.0, 1.0);
+                    float cycleLength = safeHoleLength + safeGapLength;
+                    float edgeDistance = min(uv.y, 1.0 - uv.y);
+                    float bandWidth = ${FILMSTRIP_EDGE_BAND_WIDTH.toFixed(2)};
+                    float localX = (fract(edgeNoiseU / max(cycleLength, 0.0001)) - 0.5) * cycleLength;
+                    float localY = edgeDistance - bandWidth * 0.5;
+                    float halfWidth = max(0.01, safeHoleLength * 0.5);
+                    float halfHeight = bandWidth * (0.18 + holeAperture * 0.38);
+                    float radius = min(halfWidth, halfHeight) * holeRoundedness * 0.95;
+                    float holeDistance = computeRoundedRectSignedDistance(vec2(localX, localY), vec2(halfWidth, halfHeight), radius);
+                    float aa = max(fwidth(holeDistance) * ${FILMSTRIP_AA_SCALE.toFixed(1)}, ${FILMSTRIP_MIN_AA});
+                    float holeMask = 1.0 - smoothstep(-aa, aa, holeDistance);
+                    return 1.0 - holeMask;
+                }
+`;
+
 function normalizeEdgeNoiseTransparencyMax(value) {
     const parsed = Number(value);
 
@@ -127,6 +179,46 @@ function normalizeEdgeNoisePatternLength(value) {
     }
 
     return Math.min(MAX_EDGE_NOISE_PATTERN_LENGTH, Math.max(MIN_EDGE_NOISE_PATTERN_LENGTH, parsed));
+}
+
+function normalizeFilmstripGapLength(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_GAP_LENGTH;
+    }
+
+    return Math.min(MAX_FILMSTRIP_GAP_LENGTH, Math.max(MIN_FILMSTRIP_GAP_LENGTH, parsed));
+}
+
+function normalizeFilmstripHoleLength(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_HOLE_LENGTH;
+    }
+
+    return Math.min(MAX_FILMSTRIP_HOLE_LENGTH, Math.max(MIN_FILMSTRIP_HOLE_LENGTH, parsed));
+}
+
+function normalizeFilmstripAperture(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_APERTURE;
+    }
+
+    return Math.min(MAX_FILMSTRIP_APERTURE, Math.max(MIN_FILMSTRIP_APERTURE, parsed));
+}
+
+function normalizeFilmstripHoleRoundedness(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
+    }
+
+    return Math.min(MAX_FILMSTRIP_HOLE_ROUNDEDNESS, Math.max(MIN_FILMSTRIP_HOLE_ROUNDEDNESS, parsed));
 }
 
 function edgeNoisePatternLengthToFrequency(value) {
@@ -176,6 +268,40 @@ function createEdgeNoiseAlphaNode(threeTSL, baseUV, edgeNoiseU, maxUniform, phas
     const edgeAlpha = smoothstep(cutWidth, cutWidth.add(aa), edgeDistance);
 
     return maxUniform.lessThanEqual(float(0.0001)).select(float(1.0), edgeAlpha);
+}
+
+function createFilmstripAlphaNode(threeTSL, baseUV, edgeNoiseU, enabledUniform, gapLengthUniform, holeLengthUniform, apertureUniform, roundednessUniform) {
+    const { float, vec2, abs, max, min, fract, smoothstep, length } = threeTSL;
+    const safeGapLength = gapLengthUniform.max(float(0.0001));
+    const safeHoleLength = holeLengthUniform.max(float(MIN_FILMSTRIP_HOLE_LENGTH)).min(float(MAX_FILMSTRIP_HOLE_LENGTH));
+    const holeAperture = apertureUniform.max(float(MIN_FILMSTRIP_APERTURE)).min(float(MAX_FILMSTRIP_APERTURE));
+    const holeRoundedness = roundednessUniform.max(float(0.0)).min(float(1.0));
+    const cycleLength = safeHoleLength.add(safeGapLength);
+    const edgeDistance = min(baseUV.y, float(1.0).sub(baseUV.y));
+    const bandWidth = float(FILMSTRIP_EDGE_BAND_WIDTH);
+    const localX = fract(edgeNoiseU.div(cycleLength.max(float(0.0001)))).sub(float(0.5)).mul(cycleLength);
+    const localY = edgeDistance.sub(bandWidth.mul(float(0.5)));
+    const halfWidth = safeHoleLength.mul(float(0.5)).max(float(0.01));
+    const halfHeight = bandWidth.mul(float(0.18).add(holeAperture.mul(float(0.38))));
+    const radius = min(halfWidth, halfHeight).mul(holeRoundedness).mul(float(0.95));
+    const innerHalfX = max(halfWidth.sub(radius), float(0.0001));
+    const innerHalfY = max(halfHeight.sub(radius), float(0.0001));
+    const q = vec2(
+        abs(localX).sub(innerHalfX),
+        abs(localY).sub(innerHalfY)
+    );
+    const qMax = vec2(
+        max(q.x, float(0.0)),
+        max(q.y, float(0.0))
+    );
+    const outside = length(qMax).sub(radius);
+    const inside = min(max(q.x, q.y), float(0.0));
+    const holeDistance = outside.add(inside);
+    const aa = holeDistance.fwidth().mul(float(FILMSTRIP_AA_SCALE)).max(float(FILMSTRIP_MIN_AA));
+    const holeMask = float(1.0).sub(smoothstep(aa.negate(), aa, holeDistance));
+    const filmstripAlpha = float(1.0).sub(holeMask);
+
+    return enabledUniform.greaterThan(float(0.5)).select(filmstripAlpha, float(1.0));
 }
 
 function createCapAlphaNode(threeTSL, baseUV) {
@@ -343,6 +469,11 @@ export class TileManager {
             edgeNoiseTransparencyMax = DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX,
             edgeNoisePatternLength = DEFAULT_EDGE_NOISE_PATTERN_LENGTH,
             edgeNoiseMirrored = false,
+            filmstripStyleEnabled = DEFAULT_FILMSTRIP_STYLE_ENABLED,
+            filmstripGapLength = DEFAULT_FILMSTRIP_GAP_LENGTH,
+            filmstripHoleLength = DEFAULT_FILMSTRIP_HOLE_LENGTH,
+            filmstripAperture = DEFAULT_FILMSTRIP_APERTURE,
+            filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -394,10 +525,20 @@ export class TileManager {
         this.edgeNoiseTransparencyMax = normalizeEdgeNoiseTransparencyMax(edgeNoiseTransparencyMax);
         this.edgeNoisePatternLength = normalizeEdgeNoisePatternLength(edgeNoisePatternLength);
         this.edgeNoiseMirrored = !!edgeNoiseMirrored;
+        this.filmstripStyleEnabled = !!filmstripStyleEnabled;
+        this.filmstripGapLength = normalizeFilmstripGapLength(filmstripGapLength);
+        this.filmstripHoleLength = normalizeFilmstripHoleLength(filmstripHoleLength);
+        this.filmstripAperture = normalizeFilmstripAperture(filmstripAperture);
+        this.filmstripHoleRoundedness = normalizeFilmstripHoleRoundedness(filmstripHoleRoundedness);
         this.sharedEdgeNoiseMaxUniform = { value: this.#getEffectiveEdgeNoiseMax() };
         this.sharedEdgeNoiseSpatialFrequencyUniform = { value: edgeNoisePatternLengthToFrequency(this.edgeNoisePatternLength) };
         this.sharedEdgeNoiseMirrorUniform = { value: this.edgeNoiseMirrored ? 1.0 : 0.0 };
         this.sharedEdgeNoisePhaseUniform = { value: 0.0 };
+        this.sharedFilmstripEnabledUniform = { value: this.filmstripStyleEnabled ? 1.0 : 0.0 };
+        this.sharedFilmstripGapLengthUniform = { value: this.filmstripGapLength };
+        this.sharedFilmstripHoleLengthUniform = { value: this.filmstripHoleLength };
+        this.sharedFilmstripApertureUniform = { value: this.filmstripAperture };
+        this.sharedFilmstripRoundednessUniform = { value: this.filmstripHoleRoundedness };
         this.currentLayer = 0;
         this.layerCount = 0;
         this.direction = 1; // for ping-pong in planes mode
@@ -802,6 +943,21 @@ export class TileManager {
         if (material._edgeNoisePhaseUniform) {
             material._edgeNoisePhaseUniform.value = this.sharedEdgeNoisePhaseUniform.value;
         }
+        if (material._filmstripEnabledUniform) {
+            material._filmstripEnabledUniform.value = this.sharedFilmstripEnabledUniform.value;
+        }
+        if (material._filmstripGapLengthUniform) {
+            material._filmstripGapLengthUniform.value = this.sharedFilmstripGapLengthUniform.value;
+        }
+        if (material._filmstripHoleLengthUniform) {
+            material._filmstripHoleLengthUniform.value = this.sharedFilmstripHoleLengthUniform.value;
+        }
+        if (material._filmstripApertureUniform) {
+            material._filmstripApertureUniform.value = this.sharedFilmstripApertureUniform.value;
+        }
+        if (material._filmstripRoundednessUniform) {
+            material._filmstripRoundednessUniform.value = this.sharedFilmstripRoundednessUniform.value;
+        }
         this.#syncEdgeNoiseMaterialState(material);
     }
 
@@ -810,7 +966,7 @@ export class TileManager {
             return;
         }
 
-        const alphaToCoverage = !!material._hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
+        const alphaToCoverage = !!material._hasCapMask || this.#hasEdgeAlphaEffects();
         if (material._transparentShadowsOriginalState) {
             material._transparentShadowsOriginalState.alphaToCoverage = alphaToCoverage;
         }
@@ -838,6 +994,21 @@ export class TileManager {
             if (!phaseOnly && material._edgeNoiseMirrorUniform) {
                 material._edgeNoiseMirrorUniform.value = this.sharedEdgeNoiseMirrorUniform.value;
             }
+            if (!phaseOnly && material._filmstripEnabledUniform) {
+                material._filmstripEnabledUniform.value = this.sharedFilmstripEnabledUniform.value;
+            }
+            if (!phaseOnly && material._filmstripGapLengthUniform) {
+                material._filmstripGapLengthUniform.value = this.sharedFilmstripGapLengthUniform.value;
+            }
+            if (!phaseOnly && material._filmstripHoleLengthUniform) {
+                material._filmstripHoleLengthUniform.value = this.sharedFilmstripHoleLengthUniform.value;
+            }
+            if (!phaseOnly && material._filmstripApertureUniform) {
+                material._filmstripApertureUniform.value = this.sharedFilmstripApertureUniform.value;
+            }
+            if (!phaseOnly && material._filmstripRoundednessUniform) {
+                material._filmstripRoundednessUniform.value = this.sharedFilmstripRoundednessUniform.value;
+            }
             if (material._edgeNoisePhaseUniform) {
                 material._edgeNoisePhaseUniform.value = this.sharedEdgeNoisePhaseUniform.value;
             }
@@ -856,6 +1027,10 @@ export class TileManager {
 
     #getEffectiveEdgeNoiseMax() {
         return this.edgeDriftEnabled ? this.edgeNoiseTransparencyMax : 0;
+    }
+
+    #hasEdgeAlphaEffects() {
+        return this.#getEffectiveEdgeNoiseMax() > 0 || this.filmstripStyleEnabled;
     }
 
     #getEdgeNoiseCyclePeriod() {
@@ -979,6 +1154,11 @@ export class TileManager {
                 uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
                 uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
                 uEdgeNoisePhase: this.sharedEdgeNoisePhaseUniform,
+                uFilmstripEnabled: this.sharedFilmstripEnabledUniform,
+                uFilmstripGapLength: this.sharedFilmstripGapLengthUniform,
+                uFilmstripHoleLength: this.sharedFilmstripHoleLengthUniform,
+                uFilmstripAperture: this.sharedFilmstripApertureUniform,
+                uFilmstripRoundedness: this.sharedFilmstripRoundednessUniform,
             },
             vertexShader: /* glsl */`
                 in float edgeNoiseU;
@@ -1027,10 +1207,16 @@ export class TileManager {
                 uniform float uEdgeNoiseSpatialFrequency;
                 uniform float uEdgeNoiseMirror;
                 uniform float uEdgeNoisePhase;
+                uniform float uFilmstripEnabled;
+                uniform float uFilmstripGapLength;
+                uniform float uFilmstripHoleLength;
+                uniform float uFilmstripAperture;
+                uniform float uFilmstripRoundedness;
                 out vec4 outColor;
 
 ${CAP_ALPHA_GLSL}
 ${EDGE_NOISE_GLSL}
+${FILMSTRIP_GLSL}
 
                 void main() {
                     // Apply flow offset to U coordinate (slides along ribbon)
@@ -1086,7 +1272,8 @@ ${EDGE_NOISE_GLSL}
 
                     texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
                     texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
-                    if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001) && texColor.a <= 0.001) discard;
+                    texColor.a *= computeFilmstripAlpha(vUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
+                    if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001 || uFilmstripEnabled > 0.5) && texColor.a <= 0.001) discard;
 
                     if (uTransparentShadows == 1) {
                         float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -1133,7 +1320,12 @@ ${EDGE_NOISE_GLSL}
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
         material._edgeNoisePhaseUniform = material.uniforms.uEdgeNoisePhase;
-        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
+        material._filmstripEnabledUniform = material.uniforms.uFilmstripEnabled;
+        material._filmstripGapLengthUniform = material.uniforms.uFilmstripGapLength;
+        material._filmstripHoleLengthUniform = material.uniforms.uFilmstripHoleLength;
+        material._filmstripApertureUniform = material.uniforms.uFilmstripAperture;
+        material._filmstripRoundednessUniform = material.uniforms.uFilmstripRoundedness;
+        material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1167,6 +1359,11 @@ ${EDGE_NOISE_GLSL}
         const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
         const edgeNoiseMirrorUniform = uniform(float(this.sharedEdgeNoiseMirrorUniform.value));
         const edgeNoisePhaseUniform = uniform(float(this.sharedEdgeNoisePhaseUniform.value));
+        const filmstripEnabledUniform = uniform(float(this.sharedFilmstripEnabledUniform.value));
+        const filmstripGapLengthUniform = uniform(float(this.sharedFilmstripGapLengthUniform.value));
+        const filmstripHoleLengthUniform = uniform(float(this.sharedFilmstripHoleLengthUniform.value));
+        const filmstripApertureUniform = uniform(float(this.sharedFilmstripApertureUniform.value));
+        const filmstripRoundednessUniform = uniform(float(this.sharedFilmstripRoundednessUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
             .sub(transparentShadowsMinUniform)
             .max(float(0.00001));
@@ -1222,9 +1419,19 @@ ${EDGE_NOISE_GLSL}
             edgeNoiseSpatialFrequencyUniform,
             edgeNoiseMirrorUniform
         );
+        const filmstripAlpha = createFilmstripAlphaNode(
+            threeTSL,
+            baseUV,
+            edgeNoiseU,
+            filmstripEnabledUniform,
+            filmstripGapLengthUniform,
+            filmstripHoleLengthUniform,
+            filmstripApertureUniform,
+            filmstripRoundednessUniform
+        );
         const finalColor = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha))
-            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha));
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
+            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha).mul(filmstripAlpha));
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
             .div(transparentShadowsSpan)
@@ -1244,7 +1451,7 @@ ${EDGE_NOISE_GLSL}
         material.colorNode = outputColor;
         material.transparent = false;
         material.depthWrite = true;
-        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
+        material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
         material.side = THREE.DoubleSide;
 
         // Store references for updates
@@ -1270,6 +1477,11 @@ ${EDGE_NOISE_GLSL}
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
         material._edgeNoisePhaseUniform = edgeNoisePhaseUniform;
+        material._filmstripEnabledUniform = filmstripEnabledUniform;
+        material._filmstripGapLengthUniform = filmstripGapLengthUniform;
+        material._filmstripHoleLengthUniform = filmstripHoleLengthUniform;
+        material._filmstripApertureUniform = filmstripApertureUniform;
+        material._filmstripRoundednessUniform = filmstripRoundednessUniform;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1383,6 +1595,11 @@ ${EDGE_NOISE_GLSL}
                 uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
                 uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
                 uEdgeNoisePhase: this.sharedEdgeNoisePhaseUniform,
+                uFilmstripEnabled: this.sharedFilmstripEnabledUniform,
+                uFilmstripGapLength: this.sharedFilmstripGapLengthUniform,
+                uFilmstripHoleLength: this.sharedFilmstripHoleLengthUniform,
+                uFilmstripAperture: this.sharedFilmstripApertureUniform,
+                uFilmstripRoundedness: this.sharedFilmstripRoundednessUniform,
             },
             vertexShader: /* glsl */`
                 in float edgeNoiseU;
@@ -1428,10 +1645,16 @@ ${EDGE_NOISE_GLSL}
                 uniform float uEdgeNoiseSpatialFrequency;
                 uniform float uEdgeNoiseMirror;
                 uniform float uEdgeNoisePhase;
+                uniform float uFilmstripEnabled;
+                uniform float uFilmstripGapLength;
+                uniform float uFilmstripHoleLength;
+                uniform float uFilmstripAperture;
+                uniform float uFilmstripRoundedness;
                 out vec4 outColor;
 
 ${CAP_ALPHA_GLSL}
 ${EDGE_NOISE_GLSL}
+${FILMSTRIP_GLSL}
 
                 void main() {
                     float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
@@ -1444,7 +1667,8 @@ ${EDGE_NOISE_GLSL}
                     vec4 texColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
                     texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
                     texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
-                    if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001) && texColor.a <= 0.001) discard;
+                    texColor.a *= computeFilmstripAlpha(vUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
+                    if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001 || uFilmstripEnabled > 0.5) && texColor.a <= 0.001) discard;
 
                     if (uTransparentShadows == 1) {
                         float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -1477,6 +1701,11 @@ ${EDGE_NOISE_GLSL}
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
         material._edgeNoisePhaseUniform = material.uniforms.uEdgeNoisePhase;
+        material._filmstripEnabledUniform = material.uniforms.uFilmstripEnabled;
+        material._filmstripGapLengthUniform = material.uniforms.uFilmstripGapLength;
+        material._filmstripHoleLengthUniform = material.uniforms.uFilmstripHoleLength;
+        material._filmstripApertureUniform = material.uniforms.uFilmstripAperture;
+        material._filmstripRoundednessUniform = material.uniforms.uFilmstripRoundedness;
         material.defaultAttributeValues = {
             ...(material.defaultAttributeValues || {}),
             capStartStyle: [0],
@@ -1484,7 +1713,7 @@ ${EDGE_NOISE_GLSL}
             capStartU: [1],
             capEndU: [1],
         };
-        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
+        material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1538,6 +1767,11 @@ ${EDGE_NOISE_GLSL}
         const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
         const edgeNoiseMirrorUniform = uniform(float(this.sharedEdgeNoiseMirrorUniform.value));
         const edgeNoisePhaseUniform = uniform(float(this.sharedEdgeNoisePhaseUniform.value));
+        const filmstripEnabledUniform = uniform(float(this.sharedFilmstripEnabledUniform.value));
+        const filmstripGapLengthUniform = uniform(float(this.sharedFilmstripGapLengthUniform.value));
+        const filmstripHoleLengthUniform = uniform(float(this.sharedFilmstripHoleLengthUniform.value));
+        const filmstripApertureUniform = uniform(float(this.sharedFilmstripApertureUniform.value));
+        const filmstripRoundednessUniform = uniform(float(this.sharedFilmstripRoundednessUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
             .sub(transparentShadowsMinUniform)
             .max(float(0.00001));
@@ -1580,9 +1814,19 @@ ${EDGE_NOISE_GLSL}
             edgeNoiseSpatialFrequencyUniform,
             edgeNoiseMirrorUniform
         );
+        const filmstripAlpha = createFilmstripAlphaNode(
+            threeTSL,
+            baseUV,
+            edgeNoiseU,
+            filmstripEnabledUniform,
+            filmstripGapLengthUniform,
+            filmstripHoleLengthUniform,
+            filmstripApertureUniform,
+            filmstripRoundednessUniform
+        );
         const finalColor = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha))
-            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha));
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
+            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha).mul(filmstripAlpha));
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
             .div(transparentShadowsSpan)
@@ -1605,7 +1849,7 @@ ${EDGE_NOISE_GLSL}
             );
         material.transparent = false;
         material.depthWrite = true;
-        material.alphaToCoverage = hasCapMask || this.#getEffectiveEdgeNoiseMax() > 0;
+        material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
         material.side = THREE.DoubleSide;
 
         // Store references to uniforms for updates
@@ -1622,6 +1866,11 @@ ${EDGE_NOISE_GLSL}
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
         material._edgeNoisePhaseUniform = edgeNoisePhaseUniform;
+        material._filmstripEnabledUniform = filmstripEnabledUniform;
+        material._filmstripGapLengthUniform = filmstripGapLengthUniform;
+        material._filmstripHoleLengthUniform = filmstripHoleLengthUniform;
+        material._filmstripApertureUniform = filmstripApertureUniform;
+        material._filmstripRoundednessUniform = filmstripRoundednessUniform;
         material.defaultAttributeValues = {
             ...(material.defaultAttributeValues || {}),
             capStartStyle: [0],
@@ -2425,6 +2674,86 @@ ${EDGE_NOISE_GLSL}
 
         this.edgeNoiseMirrored = nextValue;
         this.sharedEdgeNoiseMirrorUniform.value = nextValue ? 1.0 : 0.0;
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set whether Filmstrip Style edge holes are active.
+     * @param {boolean} enabled
+     */
+    setFilmstripStyleEnabled(enabled) {
+        const nextValue = !!enabled;
+        if (this.filmstripStyleEnabled === nextValue) {
+            return false;
+        }
+
+        this.filmstripStyleEnabled = nextValue;
+        this.sharedFilmstripEnabledUniform.value = nextValue ? 1.0 : 0.0;
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set filmstrip gap length in ribbon-segment units.
+     * @param {number} value 0.05..2
+     */
+    setFilmstripGapLength(value) {
+        const nextValue = normalizeFilmstripGapLength(value);
+        if (this.filmstripGapLength === nextValue) {
+            return false;
+        }
+
+        this.filmstripGapLength = nextValue;
+        this.sharedFilmstripGapLengthUniform.value = nextValue;
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set filmstrip hole length.
+     * @param {number} value 0.05..2
+     */
+    setFilmstripHoleLength(value) {
+        const nextValue = normalizeFilmstripHoleLength(value);
+        if (this.filmstripHoleLength === nextValue) {
+            return false;
+        }
+
+        this.filmstripHoleLength = nextValue;
+        this.sharedFilmstripHoleLengthUniform.value = nextValue;
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set filmstrip aperture.
+     * @param {number} value 0.1..0.95
+     */
+    setFilmstripAperture(value) {
+        const nextValue = normalizeFilmstripAperture(value);
+        if (this.filmstripAperture === nextValue) {
+            return false;
+        }
+
+        this.filmstripAperture = nextValue;
+        this.sharedFilmstripApertureUniform.value = nextValue;
+        this.#syncEdgeNoiseUniforms();
+        return true;
+    }
+
+    /**
+     * Set filmstrip hole roundedness.
+     * @param {number} value 0..1
+     */
+    setFilmstripHoleRoundedness(value) {
+        const nextValue = normalizeFilmstripHoleRoundedness(value);
+        if (this.filmstripHoleRoundedness === nextValue) {
+            return false;
+        }
+
+        this.filmstripHoleRoundedness = nextValue;
+        this.sharedFilmstripRoundednessUniform.value = nextValue;
         this.#syncEdgeNoiseUniforms();
         return true;
     }

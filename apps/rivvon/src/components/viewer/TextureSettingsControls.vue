@@ -126,6 +126,61 @@
         }
     });
 
+    const filmstripStyleEnabledModel = computed({
+        get: () => app.filmstripStyleEnabled,
+        set: (value) => {
+            app.setFilmstripStyleEnabled(!!value);
+        }
+    });
+
+    const filmstripGapLengthModel = computed({
+        get: () => Math.round(app.filmstripGapLength * 100),
+        set: (value) => {
+            app.setFilmstripGapLength(Number(value) / 100);
+        }
+    });
+
+    const filmstripGapLengthLabel = computed(() => {
+        const value = app.filmstripGapLength;
+        const formatted = value < 1 ? value.toFixed(2) : value.toFixed(1);
+        return `${formatted} seg`;
+    });
+
+    const filmstripHoleLengthModel = computed({
+        get: () => Math.round(app.filmstripHoleLength * 100),
+        set: (value) => {
+            app.setFilmstripHoleLength(Number(value) / 100);
+        }
+    });
+
+    const filmstripHoleLengthLabel = computed(() => {
+        const value = app.filmstripHoleLength;
+        const formatted = value < 1 ? value.toFixed(2) : value.toFixed(1);
+        return `${formatted} seg`;
+    });
+
+    const filmstripApertureModel = computed({
+        get: () => Math.round(app.filmstripAperture * 100),
+        set: (value) => {
+            app.setFilmstripAperture(Number(value) / 100);
+        }
+    });
+
+    const filmstripApertureLabel = computed(
+        () => `${Math.round(app.filmstripAperture * 100)}%`
+    );
+
+    const filmstripHoleRoundednessModel = computed({
+        get: () => Math.round(app.filmstripHoleRoundedness * 100),
+        set: (value) => {
+            app.setFilmstripHoleRoundedness(Number(value) / 100);
+        }
+    });
+
+    const filmstripHoleRoundednessLabel = computed(
+        () => `${Math.round(app.filmstripHoleRoundedness * 100)}%`
+    );
+
     const transparencyThresholdMinCaption = computed(
         () => transparencyHighlightsModel.value
             ? `Opaque at ${transparentShadowsThresholdMinLabel.value}`
@@ -448,6 +503,94 @@
                         />
                     </div>
                 </label>
+
+                <label
+                    class="tools-toggle-row"
+                    :for="getInputId('filmstrip-style-enabled')"
+                >
+                    <span class="tools-toggle-copy">
+                        <span class="tools-toggle-title">Filmstrip Style</span>
+                    </span>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ filmstripStyleEnabledModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('filmstrip-style-enabled')"
+                            v-model="filmstripStyleEnabledModel"
+                        />
+                    </div>
+                </label>
+
+                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Gap Length</label>
+                        <span class="tools-hint tools-slider-hint">{{ filmstripGapLengthLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="filmstripGapLengthModel"
+                        :min="5"
+                        :max="200"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Tight gap</span>
+                        <span>Wide gap</span>
+                    </div>
+                </div>
+
+                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Hole Length</label>
+                        <span class="tools-hint tools-slider-hint">{{ filmstripHoleLengthLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="filmstripHoleLengthModel"
+                        :min="5"
+                        :max="100"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Short hole</span>
+                        <span>Long hole</span>
+                    </div>
+                </div>
+
+                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Aperture</label>
+                        <span class="tools-hint tools-slider-hint">{{ filmstripApertureLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="filmstripApertureModel"
+                        :min="10"
+                        :max="95"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Narrow opening</span>
+                        <span>Wide opening</span>
+                    </div>
+                </div>
+
+                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Hole Roundedness</label>
+                        <span class="tools-hint tools-slider-hint">{{ filmstripHoleRoundednessLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="filmstripHoleRoundednessModel"
+                        :min="0"
+                        :max="100"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Square</span>
+                        <span>Rounded</span>
+                    </div>
+                </div>
 
             </div>
         </div>
