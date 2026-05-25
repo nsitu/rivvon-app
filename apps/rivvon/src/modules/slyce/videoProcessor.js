@@ -4,6 +4,7 @@ import { resourceUsageReport } from './resourceMonitor.js';
 import { readCanvasSetImages } from './samplingRuntime.js';
 import { TileBuilder } from './tileBuilder.js';
 import { WebGLTileBuilder } from './webglTileBuilder.js';
+import { WebGPUDirectArrayTileBuilder } from './webgpuDirectArrayTileBuilder.js';
 import { WebGPUTileBuilder } from './webgpuTileBuilder.js';
 import { KTX2Assembler } from './ktx2-assembler.js';
 import { KTX2WorkerPool } from './ktx2-worker-pool.js';
@@ -14,6 +15,7 @@ import {
     TILE_BUILDER_BACKEND_CANVAS,
     TILE_BUILDER_BACKEND_WEBGL,
     TILE_BUILDER_BACKEND_WEBGPU,
+    TILE_BUILDER_BACKEND_WEBGPU_ARRAY,
 } from './encodingPolicy.js';
 import { runSamplingPipeline } from './samplingPipeline.js';
 import { VideoFileFrameSource } from './samplingSources.js';
@@ -111,17 +113,61 @@ function createGpuAtlasTelemetry(builderType, builderLabel, report, builderSetti
     };
 }
 
+function createGpuArrayTelemetry(builderType, builderLabel, report, builderSettings) {
+    const arrayTexture = report?.arrayTexture;
+    const sourceWidth = builderSettings.fileInfo?.width ?? 0;
+    const sourceHeight = builderSettings.fileInfo?.height ?? 0;
+
+    if (!arrayTexture) {
+        return {
+            builderType,
+            builderLabel,
+            note: 'Array texture layout unavailable.',
+        };
+    }
+
+    const estimatedArrayBytes = arrayTexture.width * arrayTexture.height * arrayTexture.layerCount * 4;
+    const estimatedSourceTextureBytes = sourceWidth * sourceHeight * 4;
+
+    return {
+        builderType,
+        builderLabel,
+        arrayWidth: arrayTexture.width,
+        arrayHeight: arrayTexture.height,
+        layerCount: arrayTexture.layerCount,
+        sourceWidth,
+        sourceHeight,
+        estimatedArrayBytes,
+        estimatedSourceTextureBytes,
+        estimatedTotalGpuBytes: estimatedArrayBytes + estimatedSourceTextureBytes,
+        liveAtlasCount: 0,
+        peakAtlasCount: 0,
+        estimatedLiveGpuBytes: 0,
+        estimatedPeakGpuBytes: 0,
+        maxTextureSize: report?.maxTextureSize ?? null,
+        maxTextureArrayLayers: report?.maxTextureArrayLayers ?? null,
+    };
+}
+
 function createWebGLTelemetry(report, builderSettings) {
     return createGpuAtlasTelemetry(TILE_BUILDER_BACKEND_WEBGL, 'WebGL2 Atlas', report, builderSettings);
 }
 
 function createWebGPUTelemetry(report, builderSettings) {
-    return createGpuAtlasTelemetry(TILE_BUILDER_BACKEND_WEBGPU, 'WebGPU Atlas', report, builderSettings);
+    return createGpuAtlasTelemetry(TILE_BUILDER_BACKEND_WEBGPU, 'WebGPU Atlas (Fallback)', report, builderSettings);
+}
+
+function createWebGPUDirectArrayTelemetry(report, builderSettings) {
+    return createGpuArrayTelemetry(TILE_BUILDER_BACKEND_WEBGPU_ARRAY, 'WebGPU', report, builderSettings);
 }
 
 function updateGpuAtlasTelemetry(app, updater) {
     const current = app.processingResourceTelemetry;
-    if (!current || (current.builderType !== TILE_BUILDER_BACKEND_WEBGL && current.builderType !== TILE_BUILDER_BACKEND_WEBGPU)) {
+    if (!current || ![
+        TILE_BUILDER_BACKEND_WEBGL,
+        TILE_BUILDER_BACKEND_WEBGPU,
+        TILE_BUILDER_BACKEND_WEBGPU_ARRAY,
+    ].includes(current.builderType)) {
         return;
     }
 
@@ -227,6 +273,24 @@ function buildEncodeSummaryLine({ encodeDurationMs = null, encodedLayerCount = n
         : `${roundedLayerCount.toLocaleString()} ${layerLabel} / ${encodeDurationLabel}`;
 }
 
+function buildAssemblySummaryLine({ assemblyDurationMs = null, assembledLayerCount = null } = {}) {
+    const assemblyDurationLabel = formatPhaseDuration(assemblyDurationMs);
+    if (!assemblyDurationLabel) {
+        return null;
+    }
+
+    if (!Number.isFinite(assembledLayerCount) || assembledLayerCount <= 0) {
+        return assemblyDurationLabel;
+    }
+
+    const assemblyRateLabel = formatPhaseRate(assembledLayerCount, assemblyDurationMs);
+    const roundedLayerCount = Math.max(1, Math.round(assembledLayerCount));
+    const layerLabel = roundedLayerCount === 1 ? 'layer' : 'layers';
+    return assemblyRateLabel
+        ? `${roundedLayerCount.toLocaleString()} ${layerLabel} / ${assemblyDurationLabel} (${assemblyRateLabel})`
+        : `${roundedLayerCount.toLocaleString()} ${layerLabel} / ${assemblyDurationLabel}`;
+}
+
 function buildDecodeCompletedStatus({ decodeDurationMs = null, decodedFrameCount = null } = {}) {
     const decodeSummaryLine = buildDecodeSummaryLine({
         decodeDurationMs,
@@ -241,14 +305,20 @@ function buildDecodeCompletedStatus({ decodeDurationMs = null, decodedFrameCount
 
 function buildTilePhaseSummaryStatus({
     decodeDurationMs = null,
+    assemblyDurationMs = null,
     encodeDurationMs = null,
     decodedFrameCount = null,
+    assembledLayerCount = null,
     encodedLayerCount = null,
 } = {}) {
     const lines = [];
     const decodeSummaryLine = buildDecodeSummaryLine({
         decodeDurationMs,
         decodedFrameCount,
+    });
+    const assemblySummaryLine = buildAssemblySummaryLine({
+        assemblyDurationMs,
+        assembledLayerCount,
     });
     const encodeSummaryLine = buildEncodeSummaryLine({
         encodeDurationMs,
@@ -257,6 +327,10 @@ function buildTilePhaseSummaryStatus({
 
     if (decodeSummaryLine) {
         lines.push(decodeSummaryLine);
+    }
+
+    if (assemblySummaryLine) {
+        lines.push(assemblySummaryLine);
     }
 
     if (encodeSummaryLine) {
@@ -269,6 +343,7 @@ function buildTilePhaseSummaryStatus({
 function buildProcessingPhaseSummary(tilePhaseTimings = []) {
     const completedTimings = tilePhaseTimings.filter((tileTiming) => tileTiming && (
         Number.isFinite(tileTiming.decodeDurationMs)
+        || Number.isFinite(tileTiming.assemblyDurationMs)
         || Number.isFinite(tileTiming.encodeDurationMs)
     ));
 
@@ -284,8 +359,16 @@ function buildProcessingPhaseSummary(tilePhaseTimings = []) {
         (sum, tileTiming) => sum + (Number.isFinite(tileTiming.encodedLayerCount) ? tileTiming.encodedLayerCount : 0),
         0
     );
+    const assembledLayerCount = completedTimings.reduce(
+        (sum, tileTiming) => sum + (Number.isFinite(tileTiming.assembledLayerCount) ? tileTiming.assembledLayerCount : 0),
+        0
+    );
     const decodeDurationMs = completedTimings.reduce(
         (sum, tileTiming) => sum + (Number.isFinite(tileTiming.decodeDurationMs) ? tileTiming.decodeDurationMs : 0),
+        0
+    );
+    const assemblyDurationMs = completedTimings.reduce(
+        (sum, tileTiming) => sum + (Number.isFinite(tileTiming.assemblyDurationMs) ? tileTiming.assemblyDurationMs : 0),
         0
     );
     const encodeDurationMs = completedTimings.reduce(
@@ -296,12 +379,18 @@ function buildProcessingPhaseSummary(tilePhaseTimings = []) {
     return {
         completedTileCount: completedTimings.length,
         decodedFrameCount,
+        assembledLayerCount,
         encodedLayerCount,
         decodeDurationMs,
+        assemblyDurationMs,
         encodeDurationMs,
         decodeSummaryText: buildDecodeSummaryLine({
             decodeDurationMs,
             decodedFrameCount,
+        }),
+        assemblySummaryText: buildAssemblySummaryLine({
+            assemblyDurationMs,
+            assembledLayerCount,
         }),
         encodeSummaryText: buildEncodeSummaryLine({
             encodeDurationMs,
@@ -363,6 +452,7 @@ const processVideo = async (settings) => {
         TILE_BUILDER_BACKEND_CANVAS,
         TILE_BUILDER_BACKEND_WEBGL,
         TILE_BUILDER_BACKEND_WEBGPU,
+        TILE_BUILDER_BACKEND_WEBGPU_ARRAY,
     ].includes(tileBuilderBackend)
         ? tileBuilderBackend
         : getDefaultTileBuilderBackend();
@@ -495,6 +585,9 @@ const processVideo = async (settings) => {
         decodeAccumulatedMs: 0,
         decodeDurationMs: null,
         decodedFrameCount: null,
+        assemblyStartedAt: null,
+        assemblyDurationMs: null,
+        assembledLayerCount: null,
         encodeStartedAt: null,
         encodeDurationMs: null,
         encodedLayerCount: null,
@@ -671,16 +764,27 @@ const processVideo = async (settings) => {
                     sampledTileBuilderBackend = TILE_BUILDER_BACKEND_CANVAS;
                     app.set('processingResourceTelemetry', createCanvasTelemetry('Canvas tile builder selected; no GPU atlas allocated.'));
                     console.log('[VideoProcessor] Canvas tile builder selected; using 2D canvas sampling.');
+                } else if (requestedTileBuilderBackend === TILE_BUILDER_BACKEND_WEBGPU_ARRAY) {
+                    gpuSupportReport = await WebGPUDirectArrayTileBuilder.getSupportReport(builderSettings);
+                    if (gpuSupportReport.supported) {
+                        sampledTileBuilderBackend = TILE_BUILDER_BACKEND_WEBGPU_ARRAY;
+                        app.set('processingResourceTelemetry', createWebGPUDirectArrayTelemetry(gpuSupportReport, builderSettings));
+                        console.log(`[VideoProcessor] Using WebGPU tile builder (direct-array, ${gpuSupportReport.reason})`);
+                    } else {
+                        sampledTileBuilderBackend = TILE_BUILDER_BACKEND_CANVAS;
+                        app.set('processingResourceTelemetry', createCanvasTelemetry(`Preferred WebGPU path unavailable: ${gpuSupportReport.reason}`));
+                        console.warn(`[VideoProcessor] Preferred WebGPU tile builder unavailable (${gpuSupportReport.reason}); falling back to 2D canvas sampling.`);
+                    }
                 } else if (requestedTileBuilderBackend === TILE_BUILDER_BACKEND_WEBGPU) {
                     gpuSupportReport = await WebGPUTileBuilder.getSupportReport(builderSettings);
                     if (gpuSupportReport.supported) {
                         sampledTileBuilderBackend = TILE_BUILDER_BACKEND_WEBGPU;
                         app.set('processingResourceTelemetry', createWebGPUTelemetry(gpuSupportReport, builderSettings));
-                        console.log(`[VideoProcessor] Using WebGPU tile builder (${gpuSupportReport.reason})`);
+                        console.log(`[VideoProcessor] Using WebGPU atlas fallback tile builder (${gpuSupportReport.reason})`);
                     } else {
                         sampledTileBuilderBackend = TILE_BUILDER_BACKEND_CANVAS;
-                        app.set('processingResourceTelemetry', createCanvasTelemetry(`WebGPU unavailable: ${gpuSupportReport.reason}`));
-                        console.warn(`[VideoProcessor] WebGPU tile builder unavailable (${gpuSupportReport.reason}); falling back to 2D canvas sampling.`);
+                        app.set('processingResourceTelemetry', createCanvasTelemetry(`WebGPU atlas fallback unavailable: ${gpuSupportReport.reason}`));
+                        console.warn(`[VideoProcessor] WebGPU atlas fallback tile builder unavailable (${gpuSupportReport.reason}); falling back to 2D canvas sampling.`);
                     }
                 } else {
                     gpuSupportReport = WebGLTileBuilder.getSupportReport(builderSettings);
@@ -696,6 +800,19 @@ const processVideo = async (settings) => {
                 }
             }
 
+            if (sampledTileBuilderBackend === TILE_BUILDER_BACKEND_WEBGPU_ARRAY) {
+                try {
+                    return new WebGPUDirectArrayTileBuilder({
+                        ...builderSettings,
+                        supportReport: gpuSupportReport,
+                    });
+                } catch (error) {
+                    sampledTileBuilderBackend = TILE_BUILDER_BACKEND_CANVAS;
+                    app.set('processingResourceTelemetry', createCanvasTelemetry('Preferred WebGPU initialization failed; using canvas assembly.'));
+                    console.warn('[VideoProcessor] Failed to initialize preferred WebGPU tile builder; falling back to 2D canvas sampling:', error);
+                }
+            }
+
             if (sampledTileBuilderBackend === TILE_BUILDER_BACKEND_WEBGPU) {
                 try {
                     return new WebGPUTileBuilder({
@@ -704,8 +821,8 @@ const processVideo = async (settings) => {
                     });
                 } catch (error) {
                     sampledTileBuilderBackend = TILE_BUILDER_BACKEND_CANVAS;
-                    app.set('processingResourceTelemetry', createCanvasTelemetry('WebGPU initialization failed; using canvas assembly.'));
-                    console.warn('[VideoProcessor] Failed to initialize WebGPU tile builder; falling back to 2D canvas sampling:', error);
+                    app.set('processingResourceTelemetry', createCanvasTelemetry('WebGPU atlas fallback initialization failed; using canvas assembly.'));
+                    console.warn('[VideoProcessor] Failed to initialize WebGPU atlas fallback tile builder; falling back to 2D canvas sampling:', error);
                 }
             }
 
@@ -727,7 +844,11 @@ const processVideo = async (settings) => {
         onBuilderCreated({ builderKey, builder }) {
             tileBuilders[builderKey] = builder;
 
-            if (builder instanceof WebGLTileBuilder || builder instanceof WebGPUTileBuilder) {
+            if (
+                builder instanceof WebGLTileBuilder
+                || builder instanceof WebGPUTileBuilder
+                || builder instanceof WebGPUDirectArrayTileBuilder
+            ) {
                 incrementGpuAtlasCount(app);
             }
         },
@@ -814,17 +935,24 @@ const processVideo = async (settings) => {
                 await enqueueTileEncode(async () => {
                     if (abortSignal.aborted) return;
 
-                    if (tileTiming) {
-                        tileTiming.encodeStartedAt = performance.now();
-                    }
-
                     // Let the KTX2 stage read directly from the completed atlas/canvases.
                     // The queue headroom rule keeps sampling only one tile ahead.
                     let images = [];
                     try {
+                        if (tileTiming) {
+                            tileTiming.assemblyStartedAt = performance.now();
+                        }
+                        app.setStatus(`Tile ${tileId + 1}`, 'Reading tile layers');
+                        updateProcessingStatus();
+
                         images = typeof readImages === 'function'
                             ? await readImages()
                             : readCanvasSetImages(canvasSet);
+
+                        if (tileTiming && Number.isFinite(tileTiming.assemblyStartedAt)) {
+                            tileTiming.assemblyDurationMs = Math.max(0, performance.now() - tileTiming.assemblyStartedAt);
+                            tileTiming.assembledLayerCount = images.length;
+                        }
                     } catch (error) {
                         console.error(`[VideoProcessor] Failed to read back tile ${tileId}:`, error);
                         app.setStatus(`Tile ${tileId + 1} Error`, error.message);
@@ -851,6 +979,9 @@ const processVideo = async (settings) => {
                                 console.log(`[KTX2] Worker pool created with ${encodeConfig.layerWorkerCount} workers and will be reused for all tiles`);
                             }
 
+                            if (tileTiming) {
+                                tileTiming.encodeStartedAt = performance.now();
+                            }
                             currentEncodingStartedAt = performance.now();
                             app.setStatus(`Tile ${tileId + 1}`, `Encoding layer 0/${images.length}`);
                             updateProcessingStatus();
@@ -890,6 +1021,7 @@ const processVideo = async (settings) => {
                             app.setStatus(`Tile ${tileId + 1}`, buildTilePhaseSummaryStatus({
                                 ...tileTiming,
                                 decodedFrameCount,
+                                assembledLayerCount: images.length,
                                 encodedLayerCount: images.length,
                             }));
                             app.set('processingPhaseSummary', buildProcessingPhaseSummary(tilePhaseTimings));
@@ -931,7 +1063,11 @@ const processVideo = async (settings) => {
                     app.setStatus(`Tile ${tileId + 1} Error`, error.message);
                 }
             } finally {
-                if (builder instanceof WebGLTileBuilder || builder instanceof WebGPUTileBuilder) {
+                if (
+                    builder instanceof WebGLTileBuilder
+                    || builder instanceof WebGPUTileBuilder
+                    || builder instanceof WebGPUDirectArrayTileBuilder
+                ) {
                     decrementGpuAtlasCount(app);
                 }
 
