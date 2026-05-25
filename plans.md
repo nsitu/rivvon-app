@@ -61,3 +61,6 @@ given the input drawing, use a cyclical noise to cause the lines to vibrate (thi
 
 explore using the webcam to generate an animating ribbon based on the user's profile. inspiration via https://github.com/nsitu/bodychalk
 note that the pose landmarker is likely different from the face landmarker which we are already using.
+
+Check if you can Get Bliss Symbols to work as a Single Line font.
+https://en.wikipedia.org/wiki/Blissymbols

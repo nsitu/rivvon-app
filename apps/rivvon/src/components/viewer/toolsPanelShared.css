@@ -41,3 +41,62 @@
     border-radius: 10px;
     padding: 0.25rem;
 }
+
+.tools-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem 0.625rem;
+    color: var(--p-text-color, #fff);
+}
+
+.tools-slider label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.tools-slider-icon {
+    font-size: 1rem;
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+.tools-slider-value {
+    margin-left: auto;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: monospace;
+    font-size: 0.75rem;
+}
+
+.tools-slider input[type="range"] {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.tools-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--p-primary-color, #10b981);
+    cursor: pointer;
+}
+
+.tools-slider input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--p-primary-color, #10b981);
+    border: none;
+    cursor: pointer;
+}

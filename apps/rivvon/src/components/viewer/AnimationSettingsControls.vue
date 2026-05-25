@@ -181,7 +181,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
@@ -259,7 +259,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
@@ -327,51 +327,4 @@
         margin-left: 0;
     }
 
-    .tools-slider {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        padding: 0.5rem 1rem 0.625rem;
-    }
-
-    .tools-slider label {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.6);
-    }
-
-    .tools-slider-icon {
-        font-size: 1rem;
-        opacity: 0.75;
-        flex-shrink: 0;
-    }
-
-    .tools-slider-value {
-        margin-left: auto;
-        color: rgba(255, 255, 255, 0.85);
-        font-family: monospace;
-        font-size: 0.75rem;
-    }
-
-    .tools-slider input[type='range'] {
-        width: 100%;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.15);
-        border-radius: 2px;
-        outline: none;
-        -webkit-appearance: none;
-        appearance: none;
-        cursor: pointer;
-    }
-
-    .tools-slider input[type='range']::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: var(--p-primary-color, #10b981);
-        cursor: pointer;
-    }
 </style>

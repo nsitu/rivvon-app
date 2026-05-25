@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, watch } from 'vue';
+    import { nextTick, ref, watch } from 'vue';
     import Tabs from 'primevue/tabs';
     import TabList from 'primevue/tablist';
     import Tab from 'primevue/tab';
@@ -25,11 +25,14 @@
         error,
         loadEmojiData,
         ensureGroupLoaded,
+        normalizeEmojiHexcode,
         selectEmoji,
     } = useEmojiPicker();
 
     const spriteContainerRef = ref(null);
     const activeTab = ref(0);
+    const highlightedEmojiHexcode = ref('');
+    const emojiButtonRefs = new Map();
 
     // Load emoji data lazily when panel first becomes visible,
     // then preload all group sprites so tab icons render immediately
@@ -37,6 +40,11 @@
         if (visible && !isDataLoaded.value) {
             await loadEmojiData();
             loadAllSprites();
+            return;
+        }
+
+        if (!visible) {
+            highlightedEmojiHexcode.value = '';
         }
     }, { immediate: true });
 
@@ -49,8 +57,83 @@
     }
 
     function close() {
+        highlightedEmojiHexcode.value = '';
         emit('update:visible', false);
     }
+
+    function setEmojiButtonRef(hexcode, element) {
+        const normalizedHexcode = normalizeEmojiHexcode(hexcode);
+        if (!normalizedHexcode) {
+            return;
+        }
+
+        if (element) {
+            emojiButtonRefs.set(normalizedHexcode, element);
+            return;
+        }
+
+        emojiButtonRefs.delete(normalizedHexcode);
+    }
+
+    function isHighlightedEmoji(hexcode) {
+        return normalizeEmojiHexcode(hexcode) === highlightedEmojiHexcode.value;
+    }
+
+    function findEmojiLocation(hexcode) {
+        const normalizedHexcode = normalizeEmojiHexcode(hexcode);
+        if (!normalizedHexcode || !Array.isArray(emojiGroups.value)) {
+            return null;
+        }
+
+        for (const [groupIndex, group] of emojiGroups.value.entries()) {
+            const entryIndex = Array.isArray(group?.emojis)
+                ? group.emojis.findIndex((entry) => normalizeEmojiHexcode(entry?.h) === normalizedHexcode)
+                : -1;
+
+            if (entryIndex >= 0) {
+                return {
+                    group,
+                    groupIndex,
+                    entry: group.emojis[entryIndex],
+                };
+            }
+        }
+
+        return null;
+    }
+
+    async function focusEmojiFromHeader(source = null) {
+        const normalizedHexcode = normalizeEmojiHexcode(source?.hexcode);
+        if (!normalizedHexcode) {
+            return false;
+        }
+
+        await loadEmojiData();
+        loadAllSprites();
+
+        const location = findEmojiLocation(normalizedHexcode);
+        if (!location) {
+            highlightedEmojiHexcode.value = '';
+            return false;
+        }
+
+        activeTab.value = location.groupIndex;
+        highlightedEmojiHexcode.value = normalizedHexcode;
+
+        if (spriteContainerRef.value) {
+            await ensureGroupLoaded(location.group.slug, spriteContainerRef.value);
+        }
+
+        await nextTick();
+        const button = emojiButtonRefs.get(normalizedHexcode);
+        button?.scrollIntoView?.({ block: 'center', inline: 'center' });
+        button?.focus?.();
+        return true;
+    }
+
+    defineExpose({
+        focusEmojiFromHeader,
+    });
 
     async function handleEmojiClick(entry) {
         const points = await selectEmoji(entry.h);
@@ -141,8 +224,10 @@
                                     v-for="entry in group.emojis"
                                     :key="entry.h"
                                     class="emoji-btn"
+                                    :class="{ 'emoji-btn--highlighted': isHighlightedEmoji(entry.h) }"
                                     :title="entry.n"
                                     :disabled="isLoading"
+                                    :ref="(element) => setEmojiButtonRef(entry.h, element)"
                                     @click="handleEmojiClick(entry)"
                                 >
                                     <svg
@@ -290,6 +375,16 @@
 
     .emoji-btn:hover:not(:disabled) {
         background: #333;
+    }
+
+    .emoji-btn--highlighted {
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.14);
+        box-shadow: inset 0 0 0 2px rgba(74, 222, 128, 0.9);
+    }
+
+    .emoji-btn--highlighted:hover:not(:disabled) {
+        background: rgba(34, 197, 94, 0.22);
     }
 
     .emoji-btn:active:not(:disabled) {

@@ -2109,7 +2109,7 @@
                 <LoadingIndicator
                     v-if="isLoading"
                     class="texture-browser-loading"
-                    message="Loading textures..."
+                    message="Loading..."
                 />
 
                 <!-- Error state -->
@@ -2434,7 +2434,7 @@
                             (previewTileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewDisplayScale < 1">({{ Math.round(previewDisplayScale * 100)
-                    }}%
+                        }}%
                         scale)</span>
                 </div>
                 <div class="preview-actions">
@@ -2664,7 +2664,7 @@
                             <div class="derive-result-row">
                                 <span>Source tiles</span>
                                 <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
-                                    }})</strong>
+                                }})</strong>
                             </div>
                             <div class="derive-result-row">
                                 <span>Layer count</span>
@@ -2707,7 +2707,7 @@
                             <div class="derive-result-row">
                                 <span>Validation</span>
                                 <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                    }}</strong>
+                                }}</strong>
                             </div>
                         </div>
                     </details>

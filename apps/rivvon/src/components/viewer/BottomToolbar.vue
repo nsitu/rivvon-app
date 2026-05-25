@@ -154,12 +154,19 @@
         emit('request-export-video');
     }
 
+    function handleShareViewUrl() {
+        closeLaunchers();
+        app.hideToolsPanel();
+        emit('request-share-view-url');
+    }
+
     // Cinematic camera props (reactive state from composable)
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
         technicalOverlay: { type: Boolean, default: false },
         activeToolbarOverlay: { type: String, default: null },
+        canShareViewUrl: { type: Boolean, default: false },
         exportImageVisible: { type: Boolean, default: false },
         exportVideoVisible: { type: Boolean, default: false },
         navigationCanGoBack: { type: Boolean, default: false },
@@ -187,6 +194,7 @@
         'request-import-file',
         'request-export-image',
         'request-export-video',
+        'request-share-view-url',
         'request-finish-drawing',
         'request-finish-walk',
         'request-viewer-control-mode-change',
@@ -568,6 +576,17 @@
             }
         },
         {
+            label: 'Share View URL',
+            icon: 'link',
+            description: props.canShareViewUrl
+                ? 'Copy or share a link that recreates the current view.'
+                : 'Unavailable for local textures, multi-texture scenes, and custom drawing states.',
+            disabled: !props.canShareViewUrl,
+            command: () => {
+                handleShareViewUrl();
+            }
+        },
+        {
             label: 'Export Video',
             icon: 'videocam',
             command: () => {
@@ -677,6 +696,7 @@
                                 'launcher-menu-action-rich': item.contextLabel || item.description,
                             }"
                             role="menuitem"
+                            :disabled="item.disabled"
                             @click="item.command()"
                         >
                             <span class="material-symbols-outlined">{{ item.icon }}</span>
@@ -789,7 +809,7 @@
                                         v-model="exportLogoOverlayEnabledModel"
                                     />
                                     <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
-                                        }}</span>
+                                    }}</span>
                                 </div>
                             </div>
 

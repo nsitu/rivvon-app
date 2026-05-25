@@ -71,7 +71,7 @@
             <div class="tools-section-items">
                 <div class="tools-slider">
                     <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                    }}x</span></label>
+                            }}x</span></label>
                     <input
                         type="range"
                         min="0.1"
@@ -106,7 +106,7 @@
                         </label>
                         <div class="tools-toggle-control">
                             <span class="tools-hint tools-toggle-hint">{{ sphericalProjectionModel ? 'On' : 'Off'
-                                }}</span>
+                            }}</span>
                             <ToggleSwitch
                                 :inputId="getInputId('spherical-projection')"
                                 v-model="sphericalProjectionModel"
@@ -155,7 +155,7 @@
                     >
                         <div class="tools-slider">
                             <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                            }}</span></label>
+                                    }}</span></label>
                             <input
                                 type="range"
                                 min="0.1"
@@ -180,7 +180,7 @@
 
                         <div class="tools-slider">
                             <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                            }}</span></label>
+                                    }}</span></label>
                             <input
                                 type="range"
                                 min="0.05"
@@ -208,7 +208,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                    }}</span>
+                                        }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -216,7 +216,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                    }}</span>
+                                        }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>
@@ -347,52 +347,4 @@
         margin-left: 0;
     }
 
-    .tools-slider {
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        padding: 0.5rem 1rem 0.625rem;
-    }
-
-    .tools-slider label {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.6);
-    }
-
-    .tools-slider-value {
-        color: rgba(255, 255, 255, 0.85);
-        font-family: monospace;
-        font-size: 0.75rem;
-    }
-
-    .tools-slider input[type="range"] {
-        width: 100%;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.15);
-        border-radius: 2px;
-        outline: none;
-        -webkit-appearance: none;
-        appearance: none;
-        cursor: pointer;
-    }
-
-    .tools-slider input[type="range"]::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: var(--p-primary-color, #10b981);
-        cursor: pointer;
-    }
-
-    .tools-slider input[type="range"]::-moz-range-thumb {
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: var(--p-primary-color, #10b981);
-        border: none;
-        cursor: pointer;
-    }
 </style>

@@ -21,6 +21,10 @@
             type: String,
             default: null,
         },
+        viewerTitleModel: {
+            type: Object,
+            default: null,
+        },
         toolbarOverlayTitle: {
             type: String,
             default: null,
@@ -37,6 +41,9 @@
         'request-close-toolbar-overlay',
         'request-navigation-back',
         'request-navigation-exit',
+        'request-viewer-title-kind-activate',
+        'request-viewer-title-drawing-activate',
+        'request-viewer-title-texture-activate',
         'request-turn-off-camera'
     ]);
 
@@ -76,13 +83,53 @@
         onResetSlyceProcessing: () => slyce.resetProcessing(),
     }));
     const activeContext = computed(() => headerContext.value?.title ?? null);
-    const passiveViewerTitle = computed(() => {
+    const passiveViewerTitleModel = computed(() => {
         if (hasNavigationModel.value || activeContext.value) {
             return null;
         }
 
+        const structuredTitle = props.viewerTitleModel;
+        if (structuredTitle && typeof structuredTitle === 'object') {
+            const text = typeof structuredTitle.text === 'string' ? structuredTitle.text.trim() : '';
+            if (text) {
+                const kindLabel = typeof structuredTitle.kindLabel === 'string'
+                    ? structuredTitle.kindLabel.trim()
+                    : '';
+                const drawingTitle = typeof structuredTitle.drawingTitle === 'string'
+                    ? structuredTitle.drawingTitle.trim()
+                    : '';
+                const textureLabel = typeof structuredTitle.textureLabel === 'string'
+                    ? structuredTitle.textureLabel.trim()
+                    : (!kindLabel && !drawingTitle ? text : '');
+
+                return {
+                    text,
+                    kindLabel: kindLabel || null,
+                    drawingTitle: drawingTitle || null,
+                    textureLabel: textureLabel || null,
+                    kindInteractive: structuredTitle.kindInteractive === true && Boolean(kindLabel),
+                    titleInteractive: structuredTitle.titleInteractive === true && Boolean(drawingTitle),
+                    textureInteractive: structuredTitle.textureInteractive === true && Boolean(textureLabel),
+                    structured: Boolean(kindLabel || drawingTitle || textureLabel),
+                };
+            }
+        }
+
         const normalizedTitle = typeof props.viewerTitle === 'string' ? props.viewerTitle.trim() : '';
-        return normalizedTitle || null;
+        if (!normalizedTitle) {
+            return null;
+        }
+
+        return {
+            text: normalizedTitle,
+            kindLabel: null,
+            drawingTitle: null,
+            textureLabel: null,
+            kindInteractive: false,
+            titleInteractive: false,
+            textureInteractive: false,
+            structured: false,
+        };
     });
 
     function closeContext() {
@@ -178,10 +225,63 @@
                     v-else-if="activeContext"
                     class="context-title"
                 >{{ activeContext }}</span>
-                <span
-                    v-else-if="passiveViewerTitle"
+                <div
+                    v-else-if="passiveViewerTitleModel"
                     class="context-title"
-                >{{ passiveViewerTitle }}</span>
+                    :class="{ 'context-title-rich': passiveViewerTitleModel.structured }"
+                >
+                    <template v-if="passiveViewerTitleModel.structured">
+                        <template v-if="passiveViewerTitleModel.kindLabel">
+                            <button
+                                v-if="passiveViewerTitleModel.kindInteractive"
+                                type="button"
+                                class="context-title-segment-link"
+                                @click="emit('request-viewer-title-kind-activate')"
+                            >{{ passiveViewerTitleModel.kindLabel }}</button>
+                            <span
+                                v-else
+                                class="context-title-segment-label"
+                            >{{ passiveViewerTitleModel.kindLabel }}</span>
+                        </template>
+
+                        <template v-if="passiveViewerTitleModel.drawingTitle">
+                            <span
+                                v-if="passiveViewerTitleModel.kindLabel"
+                                class="context-title-separator"
+                                aria-hidden="true"
+                            >/</span>
+                            <button
+                                v-if="passiveViewerTitleModel.titleInteractive"
+                                type="button"
+                                class="context-title-segment-link"
+                                @click="emit('request-viewer-title-drawing-activate')"
+                            >{{ passiveViewerTitleModel.drawingTitle }}</button>
+                            <span
+                                v-else
+                                class="context-title-segment-label"
+                            >{{ passiveViewerTitleModel.drawingTitle }}</span>
+                        </template>
+
+                        <template v-if="passiveViewerTitleModel.textureLabel">
+                            <span
+                                v-if="passiveViewerTitleModel.kindLabel || passiveViewerTitleModel.drawingTitle"
+                                class="context-title-separator"
+                                aria-hidden="true"
+                            >/</span>
+                            <button
+                                v-if="passiveViewerTitleModel.textureInteractive"
+                                type="button"
+                                class="context-title-segment-link"
+                                @click="emit('request-viewer-title-texture-activate')"
+                            >{{ passiveViewerTitleModel.textureLabel }}</button>
+                            <span
+                                v-else
+                                class="context-title-segment-label"
+                            >{{ passiveViewerTitleModel.textureLabel }}</span>
+                        </template>
+                    </template>
+                    <template v-else>{{ passiveViewerTitleModel.text }}</template>
+                </div>
             </Transition>
         </div>
 
@@ -441,6 +541,11 @@
 
     .context-title {
         margin-left: auto;
+        display: block;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
         font-size: 0.85rem;
         font-weight: 500;
         letter-spacing: 0.04em;
@@ -448,6 +553,42 @@
         text-transform: uppercase;
         pointer-events: none;
         white-space: nowrap;
+    }
+
+    .context-title-rich {
+        pointer-events: auto;
+    }
+
+    .context-title-segment-link,
+    .context-title-segment-label {
+        font: inherit;
+        letter-spacing: inherit;
+        text-transform: inherit;
+    }
+
+    .context-title-segment-link {
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.86);
+        text-decoration: none;
+        text-decoration-thickness: 0.08em;
+        text-underline-offset: 0.18em;
+        cursor: pointer;
+        transition: color 0.15s ease;
+    }
+
+    .context-title-segment-link:hover {
+        color: #fff;
+        text-decoration: underline;
+    }
+
+    .context-title-segment-link:focus-visible {
+        color: #fff;
+    }
+
+    .context-title-separator {
+        color: rgba(255, 255, 255, 0.42);
     }
 
     .header-action {

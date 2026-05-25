@@ -27,6 +27,38 @@ export function useEmojiPicker() {
     /** Track which group sprites have been loaded (slug → true) */
     const loadedSprites = ref(new Set());
 
+    function normalizeEmojiHexcode(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+
+        return value
+            .trim()
+            .replace(/^u\+/i, '')
+            .replace(/_/g, '-')
+            .replace(/\s+/g, '')
+            .toUpperCase();
+    }
+
+    function findEmojiEntryByHexcode(hexcode) {
+        const normalizedHexcode = normalizeEmojiHexcode(hexcode);
+        if (!normalizedHexcode || !Array.isArray(emojiGroups.value)) {
+            return null;
+        }
+
+        for (const group of emojiGroups.value) {
+            const match = Array.isArray(group?.emojis)
+                ? group.emojis.find((entry) => normalizeEmojiHexcode(entry?.h) === normalizedHexcode)
+                : null;
+
+            if (match) {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Lazily load the OpenMoji catalog on first panel open.
      * Fetches the compact `/openmoji-index.json` from static assets.
@@ -91,10 +123,21 @@ export function useEmojiPicker() {
      */
     async function selectEmoji(hexcode) {
         return runAsyncWithState(async () => {
+            const normalizedHexcode = normalizeEmojiHexcode(hexcode);
+            if (!normalizedHexcode) {
+                error.value = 'This emoji isn\'t available as a shape.';
+                return null;
+            }
+
+            if (isDataLoaded.value && !findEmojiEntryByHexcode(normalizedHexcode)) {
+                error.value = 'This emoji isn\'t available as a shape.';
+                return null;
+            }
+
             // Try local sprite extraction first, fall back to CDN
-            let svgString = extractSvgFromSprite(hexcode);
+            let svgString = extractSvgFromSprite(normalizedHexcode);
             if (!svgString) {
-                svgString = await fetchOpenMojiSvg(hexcode);
+                svgString = await fetchOpenMojiSvg(normalizedHexcode);
             }
 
             if (!svgString) {
@@ -131,6 +174,8 @@ export function useEmojiPicker() {
         error,
         loadEmojiData,
         ensureGroupLoaded,
+        normalizeEmojiHexcode,
+        findEmojiEntryByHexcode,
         selectEmoji,
     };
 }

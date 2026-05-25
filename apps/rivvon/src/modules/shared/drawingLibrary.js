@@ -45,7 +45,7 @@ function toPlainPoint(point) {
     return { x, y, z };
 }
 
-function getKindLabel(kind) {
+export function getKindLabel(kind) {
     switch (normalizeDrawingKind(kind)) {
         case 'gesture':
             return 'Gesture';

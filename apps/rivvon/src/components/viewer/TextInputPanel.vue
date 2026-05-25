@@ -1,5 +1,5 @@
 <script setup>
-    import { computed, ref, watch } from 'vue';
+    import { computed, nextTick, ref, watch } from 'vue';
     import Accordion from 'primevue/accordion';
     import AccordionContent from 'primevue/accordioncontent';
     import AccordionHeader from 'primevue/accordionheader';
@@ -27,6 +27,8 @@
     const textInput = ref('');
     const isMultiline = ref(false);
     const lineHeightPercent = ref(110);
+    const singleLineInputRef = ref(null);
+    const multilineInputRef = ref(null);
     const {
         fonts,
         selectedFont,
@@ -286,6 +288,64 @@
             generate();
         }
     }
+
+    function clampLineHeightPercent(value) {
+        if (!Number.isFinite(value)) {
+            return 110;
+        }
+
+        return Math.max(30, Math.min(160, Math.round(value / 5) * 5));
+    }
+
+    function resolveTextFieldElement() {
+        if (!isMultiline.value) {
+            return singleLineInputRef.value;
+        }
+
+        const componentOrElement = multilineInputRef.value;
+        if (!componentOrElement) {
+            return null;
+        }
+
+        if (componentOrElement instanceof HTMLTextAreaElement) {
+            return componentOrElement;
+        }
+
+        const rootElement = componentOrElement.$el ?? componentOrElement;
+        if (rootElement instanceof HTMLTextAreaElement) {
+            return rootElement;
+        }
+
+        return rootElement?.querySelector?.('textarea') || null;
+    }
+
+    async function prepareFromHeader(source = null) {
+        await ensureInitialized();
+
+        const nextText = typeof source?.text === 'string' ? source.text : '';
+        const nextIsMultiline = typeof source?.multiline === 'boolean'
+            ? source.multiline
+            : nextText.includes('\n');
+        const nextLineHeightPercent = clampLineHeightPercent(Number(source?.lineHeight) * 100);
+        const nextFontId = typeof source?.font === 'string' ? source.font.trim() : '';
+
+        textInput.value = nextText;
+        isMultiline.value = nextIsMultiline;
+        lineHeightPercent.value = nextLineHeightPercent;
+
+        if (nextFontId && fonts.value.some((font) => font.id === nextFontId) && nextFontId !== selectedFont.value) {
+            await setFont(nextFontId);
+        }
+
+        await nextTick();
+        const field = resolveTextFieldElement();
+        field?.focus?.();
+        field?.select?.();
+    }
+
+    defineExpose({
+        prepareFromHeader,
+    });
 </script>
 
 <template>
@@ -317,6 +377,7 @@
                             </div>
                             <input
                                 v-if="!isMultiline"
+                                ref="singleLineInputRef"
                                 id="textInputField"
                                 v-model="textInput"
                                 type="text"
@@ -326,6 +387,7 @@
                             />
                             <Textarea
                                 v-else
+                                ref="multilineInputRef"
                                 id="textInputField"
                                 v-model="textInput"
                                 rows="5"

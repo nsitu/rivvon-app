@@ -166,7 +166,7 @@
                             <div
                                 v-for="row in settingRows"
                                 :key="row.key"
-                                class="tools-slider procedural-slider"
+                                class="tools-slider"
                             >
                                 <label>
                                     <span class="material-symbols-outlined tools-slider-icon">{{ row.icon }}</span>
@@ -283,7 +283,10 @@
         width: 100%;
         display: flex;
         flex-direction: column;
+        gap: 1.25rem;
+        min-height: 100%;
         justify-content: flex-end;
+        background: var(--viewer-toolbar-panel-background);
     }
 
     .procedural-panel-footer {
@@ -324,10 +327,6 @@
         color: rgba(255, 255, 255, 0.62);
         font-size: 0.78rem;
         line-height: 1.35;
-    }
-
-    .procedural-slider {
-        padding: 0.625rem 1rem;
     }
 
     @media (min-width: 769px) {

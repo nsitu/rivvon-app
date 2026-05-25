@@ -4,9 +4,10 @@
     import { useSlyceStore } from '../stores/slyceStore';
     import { useViewerStore } from '../stores/viewerStore';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
+    import { useEmojiPicker } from '../composables/viewer/useEmojiPicker';
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
-    import { createDefaultDrawingName, createDrawingDocument, inflateDrawingPaths } from '../modules/shared/drawingLibrary.js';
+    import { createDefaultDrawingName, createDrawingDocument, getKindLabel, inflateDrawingPaths, normalizeDrawingKind } from '../modules/shared/drawingLibrary.js';
     import { createLazyLoader } from '../modules/shared/lazyLoader.js';
     import { resolveOrderedContext } from '../modules/viewer/viewerHeaderContext.js';
     import { isViewerPanelVisible, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
@@ -54,6 +55,13 @@
     const router = useRouter();
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
+    const {
+        isDataLoaded: isEmojiDataLoaded,
+        loadEmojiData,
+        normalizeEmojiHexcode,
+        findEmojiEntryByHexcode,
+        selectEmoji,
+    } = useEmojiPicker();
 
     function createViewerPanelModel(panelId) {
         const stateKey = VIEWER_PANEL_KEYS[panelId];
@@ -189,6 +197,19 @@
         return fetchTextureSet(textureId);
     }
 
+    function syncCurrentTextureMetadataFromTextureSet(textureSet = null) {
+        if (!textureSet || typeof textureSet !== 'object') {
+            setCurrentTextureMetadata(null);
+            return;
+        }
+
+        setCurrentTextureMetadata({
+            id: textureSet.id ?? null,
+            name: textureSet.name ?? '',
+            description: textureSet.description ?? '',
+        });
+    }
+
     const ensureTextToSvg = createLazyLoader(async () => {
         const { useTextToSvg } = await import('../composables/viewer/useTextToSvg.js');
         const instance = useTextToSvg();
@@ -205,6 +226,18 @@
         return typeof value === 'string' ? value : '';
     }
 
+    function getRequestedCloudTextureId() {
+        const routeTextureId = typeof route.params.textureId === 'string'
+            ? route.params.textureId.trim()
+            : '';
+
+        if (routeTextureId) {
+            return routeTextureId;
+        }
+
+        return getQueryStringValue(route.query.texture).trim();
+    }
+
     const returnToCreateTextureOnRealtimeClose = ref(false);
     const textureCreatorLaunchSource = ref(null);
     const textureCreatorReturnOverlay = ref(null);
@@ -215,6 +248,8 @@
         textureCreatorReturnOverlay.value = null;
         app.showSlyce();
     }
+
+    const INVALID_QUERY_EMOJI_FALLBACK_HEXCODE = '26A0';
 
     function openTextureVideoPicker() {
         textureVideoInputRef.value?.click();
@@ -435,6 +470,8 @@
     const threeCanvasRef = ref(null);
     const drawCanvasRef = ref(null);
     const walkCanvasRef = ref(null);
+    const textInputPanelRef = ref(null);
+    const emojiPickerPanelRef = ref(null);
     const textureCreatorRef = ref(null);
     const fileInputRef = ref(null);
     const textureVideoInputRef = ref(null);
@@ -443,6 +480,10 @@
     const isReady = ref(false);
     const showTechnicalOverlay = ref(false);
     const currentTextureSelection = ref(null);
+    const currentDrawingKind = ref(null);
+    const currentDrawingTitle = ref(null);
+    const currentDrawingSource = ref(null);
+    const currentViewShareState = ref({ kind: 'default' });
     const textureOverviewSelection = ref(null);
     const textureCreatorNavigationState = ref(null);
     const isTextureOverviewActive = computed(() => Boolean(textureOverviewSelection.value?.texture));
@@ -452,8 +493,362 @@
         && Boolean(app.currentTextureName || app.currentTextureDescription)
     ));
 
+    function getViewerHeaderKindTarget(kind) {
+        const normalizedKind = typeof kind === 'string' && kind.trim()
+            ? normalizeDrawingKind(kind.trim())
+            : null;
+
+        switch (normalizedKind) {
+            case 'emoji':
+                return 'emoji';
+            case 'text':
+                return 'text';
+            case 'contour':
+                return 'contour';
+            case 'walk':
+                return 'walk';
+            case 'svg':
+                return 'drawings';
+            case 'gesture':
+                return 'draw';
+            default:
+                return null;
+        }
+    }
+
+    const viewerHeaderTitleModel = computed(() => {
+        const textureName = typeof app.currentTextureName === 'string' ? app.currentTextureName.trim() : '';
+        if (!textureName) {
+            return null;
+        }
+
+        const currentKind = currentDrawingKind.value;
+        const kindLabel = currentKind ? getKindLabel(currentKind) : '';
+        const drawingTitle = typeof currentDrawingTitle.value === 'string' ? currentDrawingTitle.value.trim() : '';
+        const textureTarget = 'texture';
+
+        if (!kindLabel) {
+            return {
+                text: textureName,
+                kindLabel: null,
+                drawingTitle: null,
+                textureLabel: textureName,
+                kindTarget: null,
+                kindInteractive: false,
+                titleInteractive: false,
+                textureTarget,
+                textureInteractive: true,
+            };
+        }
+
+        const kindTarget = getViewerHeaderKindTarget(currentKind);
+        const text = drawingTitle
+            ? `${kindLabel} / ${drawingTitle} / ${textureName}`
+            : `${kindLabel} / ${textureName}`;
+
+        return {
+            text,
+            kindLabel,
+            drawingTitle: drawingTitle || null,
+            textureLabel: textureName,
+            kindTarget,
+            kindInteractive: Boolean(kindTarget),
+            titleInteractive: Boolean(kindTarget && drawingTitle),
+            textureTarget,
+            textureInteractive: true,
+        };
+    });
+    const viewerHeaderTitle = computed(() => viewerHeaderTitleModel.value?.text || '');
+    const currentViewShareUrl = computed(() => {
+        const shareState = currentViewShareState.value;
+        if (!shareState || shareState.kind === 'unshareable' || app.multiTextureActive) {
+            return null;
+        }
+
+        const query = {};
+
+        if (shareState.kind === 'emoji') {
+            if (!shareState.hexcode) {
+                return null;
+            }
+
+            query.emoji = shareState.hexcode;
+        } else if (shareState.kind === 'text') {
+            if (typeof shareState.text !== 'string' || !shareState.text.trim()) {
+                return null;
+            }
+
+            query.text = shareState.text;
+        }
+
+        const selectedTexture = currentTextureSelection.value;
+        if (selectedTexture) {
+            if (selectedTexture.source !== 'cloud') {
+                return null;
+            }
+
+            const textureId = typeof selectedTexture.texture?.id === 'string'
+                ? selectedTexture.texture.id.trim()
+                : '';
+            if (!textureId) {
+                return null;
+            }
+
+            query.texture = textureId;
+        }
+
+        const resolvedLocation = router.resolve({
+            path: '/',
+            query,
+        });
+
+        if (typeof window === 'undefined') {
+            return resolvedLocation.href || null;
+        }
+
+        return new URL(resolvedLocation.href, window.location.origin).toString();
+    });
+    const canShareCurrentViewUrl = computed(() => Boolean(currentViewShareUrl.value));
+
+    function normalizeDrawingTitleValue(value, { collapseWhitespace = true, stripSvgExtension = false } = {}) {
+        if (typeof value !== 'string') {
+            return null;
+        }
+
+        let normalizedValue = value.trim();
+        if (!normalizedValue) {
+            return null;
+        }
+
+        if (collapseWhitespace) {
+            normalizedValue = normalizedValue.replace(/\s+/g, ' ').trim();
+        }
+
+        if (stripSvgExtension) {
+            normalizedValue = normalizedValue.replace(/\.svg$/i, '').trim();
+        }
+
+        return normalizedValue || null;
+    }
+
+    function normalizeEmojiHeaderTitle(value) {
+        const normalizedValue = normalizeDrawingTitleValue(value);
+        if (!normalizedValue) {
+            return null;
+        }
+
+        return normalizedValue
+            .replace(/^emoji\s*[:\-]\s*/i, '')
+            .replace(/^emoji\s+/i, '')
+            .trim() || null;
+    }
+
+    function getDrawingHeaderTitle({ kind = null, name = '', source = null } = {}) {
+        const normalizedKind = typeof kind === 'string' && kind.trim()
+            ? normalizeDrawingKind(kind.trim())
+            : null;
+
+        if (!normalizedKind) {
+            return null;
+        }
+
+        if (normalizedKind === 'text') {
+            const nameTitle = normalizeDrawingTitleValue(name);
+            const sourceTitle = normalizeDrawingTitleValue(source?.text);
+
+            if (nameTitle && sourceTitle && nameTitle !== sourceTitle && nameTitle !== sourceTitle.slice(0, 48)) {
+                return nameTitle;
+            }
+
+            return sourceTitle || nameTitle;
+        }
+
+        if (normalizedKind === 'emoji') {
+            const nameTitle = normalizeEmojiHeaderTitle(name);
+            const sourceLabel = normalizeDrawingTitleValue(source?.label);
+            const sourceHexcode = normalizeDrawingTitleValue(source?.hexcode);
+
+            if (nameTitle && sourceLabel && nameTitle.toLowerCase() !== sourceLabel.toLowerCase()) {
+                return nameTitle;
+            }
+
+            return sourceLabel || nameTitle || sourceHexcode;
+        }
+
+        if (normalizedKind === 'svg') {
+            const nameTitle = normalizeDrawingTitleValue(name, { stripSvgExtension: true });
+            const sourceTitle = normalizeDrawingTitleValue(source?.fileName, { stripSvgExtension: true });
+
+            if (nameTitle && sourceTitle && nameTitle.toLowerCase() !== sourceTitle.toLowerCase()) {
+                return nameTitle;
+            }
+
+            return sourceTitle || nameTitle;
+        }
+
+        return null;
+    }
+
+    function normalizeShareableTextQueryValue(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+
+        const normalizedValue = value.replace(/\r\n?/g, '\n');
+        return normalizedValue.trim() ? normalizedValue : '';
+    }
+
+    function buildCurrentViewShareState({ kind = null, source = null, useDefaultShape = false } = {}) {
+        if (useDefaultShape) {
+            return { kind: 'default' };
+        }
+
+        const normalizedKind = typeof kind === 'string' && kind.trim()
+            ? normalizeDrawingKind(kind.trim())
+            : null;
+
+        if (normalizedKind === 'emoji') {
+            const emojiHexcode = normalizeEmojiHexcode(source?.hexcode);
+            if (emojiHexcode) {
+                return {
+                    kind: 'emoji',
+                    hexcode: emojiHexcode,
+                };
+            }
+        }
+
+        if (normalizedKind === 'text') {
+            const textValue = normalizeShareableTextQueryValue(source?.text);
+            if (textValue) {
+                return {
+                    kind: 'text',
+                    text: textValue,
+                };
+            }
+        }
+
+        return { kind: 'unshareable' };
+    }
+
+    function setCurrentViewShareState(nextState = { kind: 'unshareable' }) {
+        if (!nextState || typeof nextState !== 'object') {
+            currentViewShareState.value = { kind: 'unshareable' };
+            return;
+        }
+
+        currentViewShareState.value = nextState;
+    }
+
+    function setCurrentDrawingHeader({ kind = null, title = null, source = null } = {}) {
+        if (typeof kind !== 'string') {
+            currentDrawingKind.value = null;
+            currentDrawingTitle.value = null;
+            currentDrawingSource.value = null;
+            return;
+        }
+
+        const normalizedKind = kind.trim();
+        currentDrawingKind.value = normalizedKind ? normalizeDrawingKind(normalizedKind) : null;
+        currentDrawingTitle.value = normalizeDrawingTitleValue(title);
+        currentDrawingSource.value = source && typeof source === 'object'
+            ? { ...source }
+            : null;
+    }
+
     function setCurrentTextureSelection(selection = null) {
         currentTextureSelection.value = selection;
+    }
+
+    async function activateViewerHeaderDrawingTarget({ useTitleContext = false } = {}) {
+        const target = viewerHeaderTitleModel.value?.kindTarget;
+        if (!target) {
+            return;
+        }
+
+        const drawingKind = currentDrawingKind.value;
+        const drawingSource = currentDrawingSource.value;
+
+        if (useTitleContext && target === 'text' && drawingKind === 'text' && typeof drawingSource?.text === 'string' && drawingSource.text.trim()) {
+            app.showTextPanel();
+            await nextTick();
+            await textInputPanelRef.value?.prepareFromHeader?.(drawingSource);
+            return;
+        }
+
+        if (useTitleContext && target === 'emoji' && drawingKind === 'emoji' && typeof drawingSource?.hexcode === 'string' && drawingSource.hexcode.trim()) {
+            app.showEmojiPicker();
+            await nextTick();
+            await emojiPickerPanelRef.value?.focusEmojiFromHeader?.(drawingSource);
+            return;
+        }
+
+        switch (target) {
+            case 'emoji':
+                app.showEmojiPicker();
+                return;
+            case 'text':
+                app.showTextPanel();
+                return;
+            case 'contour':
+                enterContourMode();
+                return;
+            case 'walk':
+                enterWalkMode();
+                return;
+            case 'drawings':
+                openDrawingBrowser();
+                return;
+            case 'draw':
+                enterDrawMode();
+                return;
+            default:
+                return;
+        }
+    }
+
+    async function handleViewerTitleKindActivate() {
+        await activateViewerHeaderDrawingTarget({ useTitleContext: false });
+    }
+
+    async function handleViewerTitleDrawingActivate() {
+        await activateViewerHeaderDrawingTarget({ useTitleContext: true });
+    }
+
+    function handleViewerTitleTextureActivate() {
+        const target = viewerHeaderTitleModel.value?.textureTarget;
+        if (target !== 'texture') {
+            return;
+        }
+
+        openTextureBrowser();
+    }
+
+    async function copyTextToClipboard(text) {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return;
+        }
+
+        if (typeof document === 'undefined') {
+            throw new Error('Clipboard API is unavailable.');
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '-1000px';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        const didCopy = document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        if (!didCopy) {
+            throw new Error('Clipboard copy command failed.');
+        }
     }
 
     function setCurrentTextureMetadata(metadata = null) {
@@ -640,14 +1035,21 @@
 
         await withTextureLoading('Loading...', async () => {
             // Initialize default ribbon
-            const initializedFromQueryText = await initializeTextRibbonFromQuery();
-            if (!initializedFromQueryText) {
+            const initializedFromQueryEmoji = await initializeEmojiRibbonFromQuery();
+            const initializedFromQueryText = initializedFromQueryEmoji
+                ? false
+                : await initializeTextRibbonFromQuery();
+
+            if (!initializedFromQueryEmoji && !initializedFromQueryText) {
                 await initializeDefaultRibbon();
             }
 
+            syncCurrentTextureMetadataFromTextureSet(context?.tileManager?.currentTextureSet ?? null);
+
             // Check for texture deep link
-            if (route.params.textureId) {
-                await loadTextureFromRoute(route.params.textureId);
+            const requestedTextureId = getRequestedCloudTextureId();
+            if (requestedTextureId) {
+                await loadTextureFromRoute(requestedTextureId);
             }
 
             isReady.value = true;
@@ -684,7 +1086,16 @@
                 console.log('[RibbonView] Normalized paths:', normalizedPaths.length);
                 console.log('[RibbonView] First path sample:', normalizedPaths[0]?.slice(0, 3));
 
-                await threeCanvasRef.value.createRibbonSeries(normalizedPaths);
+                await applyDrawingPathsToViewer(normalizedPaths, {
+                    kind: 'svg',
+                    title: getDrawingHeaderTitle({
+                        kind: 'svg',
+                        source: {
+                            fileName: 'spiral.svg',
+                        },
+                    }),
+                    shareState: buildCurrentViewShareState({ useDefaultShape: true }),
+                });
                 applyTextureResetState({ clearThumbnail: true });
                 console.log('[RibbonView] Default ribbon created with', paths.length, 'paths');
             } else {
@@ -692,6 +1103,97 @@
             }
         } catch (error) {
             logRibbonViewFailure('[RibbonView] Failed to load default ribbon:', error);
+        }
+    }
+
+    async function initializeEmojiRibbonFromQuery() {
+        if (!threeCanvasRef.value) {
+            return false;
+        }
+
+        const emojiHexcode = normalizeEmojiHexcode(getQueryStringValue(route.query.emoji));
+        if (!emojiHexcode) {
+            return false;
+        }
+
+        setTextureLoadingDisplay('Loading...', '');
+
+        try {
+            await loadEmojiData();
+
+            if (!isEmojiDataLoaded.value) {
+                return false;
+            }
+
+            const emojiEntry = findEmojiEntryByHexcode(emojiHexcode);
+            if (!emojiEntry) {
+                console.warn('[RibbonView] Emoji query parameter did not match a local emoji:', emojiHexcode);
+                const fallbackEmojiEntry = findEmojiEntryByHexcode(INVALID_QUERY_EMOJI_FALLBACK_HEXCODE);
+                if (!fallbackEmojiEntry) {
+                    return false;
+                }
+
+                const fallbackPoints = await selectEmoji(INVALID_QUERY_EMOJI_FALLBACK_HEXCODE);
+                if (!Array.isArray(fallbackPoints) || fallbackPoints.length === 0) {
+                    return false;
+                }
+
+                await applyDrawingPathsToViewer(fallbackPoints, {
+                    kind: 'emoji',
+                    title: getDrawingHeaderTitle({
+                        kind: 'emoji',
+                        source: {
+                            hexcode: INVALID_QUERY_EMOJI_FALLBACK_HEXCODE,
+                            label: fallbackEmojiEntry?.n || '',
+                        },
+                    }),
+                    source: {
+                        hexcode: INVALID_QUERY_EMOJI_FALLBACK_HEXCODE,
+                        label: fallbackEmojiEntry?.n || '',
+                    },
+                    shareState: buildCurrentViewShareState({
+                        kind: 'emoji',
+                        source: {
+                            hexcode: INVALID_QUERY_EMOJI_FALLBACK_HEXCODE,
+                        },
+                    }),
+                });
+                applyTextureResetState({ clearThumbnail: true });
+                console.log('[RibbonView] Fallback warning emoji created for invalid emoji query parameter:', emojiHexcode);
+                return true;
+            }
+
+            const points = await selectEmoji(emojiHexcode);
+            if (!Array.isArray(points) || points.length === 0) {
+                return false;
+            }
+
+            await applyDrawingPathsToViewer(points, {
+                kind: 'emoji',
+                title: getDrawingHeaderTitle({
+                    kind: 'emoji',
+                    source: {
+                        hexcode: emojiHexcode,
+                        label: emojiEntry?.n || '',
+                    },
+                }),
+                source: {
+                    hexcode: emojiHexcode,
+                    label: emojiEntry?.n || '',
+                },
+                shareState: buildCurrentViewShareState({
+                    kind: 'emoji',
+                    source: {
+                        hexcode: emojiHexcode,
+                    },
+                }),
+            });
+            applyTextureResetState({ clearThumbnail: true });
+            console.log('[RibbonView] Emoji ribbon created from query parameter:', emojiHexcode);
+            return true;
+        } catch (error) {
+            logRibbonViewFailure('[RibbonView] Failed to render emoji from query parameter:', error);
+            return false;
         }
     }
 
@@ -722,7 +1224,27 @@
                 return false;
             }
 
-            await applyDrawingPathsToViewer(paths);
+            await applyDrawingPathsToViewer(paths, {
+                kind: 'text',
+                title: getDrawingHeaderTitle({
+                    kind: 'text',
+                    source: {
+                        text: sourceText,
+                    },
+                }),
+                source: {
+                    text: sourceText,
+                    font: selectedFontId,
+                    multiline,
+                    lineHeight,
+                },
+                shareState: buildCurrentViewShareState({
+                    kind: 'text',
+                    source: {
+                        text: sourceText,
+                    },
+                }),
+            });
             applyTextureResetState({ clearThumbnail: true });
             console.log('[RibbonView] Text ribbon created from query parameter');
             return true;
@@ -734,35 +1256,13 @@
 
     // Load texture from route parameter
     async function loadTextureFromRoute(textureId) {
-        if (!threeCanvasRef.value) return;
-
-        try {
-            setTextureLoadingDisplay('Loading texture...', '');
-            console.log('[RibbonView] Loading texture:', textureId);
-            await threeCanvasRef.value.loadTextures(textureId);
-
-            try {
-                const textureSet = await fetchTextureSetById(textureId);
-                applyLoadedTextureState({
-                    source: 'cloud',
-                    texture: {
-                        ...(textureSet || {}),
-                        id: textureId,
-                    },
-                    isCached: false,
-                    thumbnailUrl: textureSet?.thumbnail_url || null,
-                    metadata: {
-                        id: textureId,
-                        name: textureSet?.name || '',
-                        description: textureSet?.description || '',
-                    },
-                });
-            } catch (metadataError) {
-                console.warn('[RibbonView] Loaded texture but failed to resolve metadata:', metadataError);
-            }
-        } catch (error) {
-            logRibbonViewFailure('[RibbonView] Failed to load texture:', error);
+        if (!threeCanvasRef.value || !textureId) {
+            return false;
         }
+
+        setTextureLoadingDisplay('Loading...', '');
+        console.log('[RibbonView] Loading texture:', textureId);
+        return await performCloudTextureLoad({ id: textureId });
     }
 
     // Drawing mode handlers
@@ -853,17 +1353,21 @@
         return fallbackName;
     }
 
-    async function applyDrawingPathsToViewer(paths) {
+    async function applyDrawingPathsToViewer(paths, { kind = null, title = null, source = null, shareState = { kind: 'unshareable' } } = {}) {
         if (!threeCanvasRef.value || !Array.isArray(paths) || paths.length === 0) {
             return false;
         }
 
         if (paths.length === 1) {
             await threeCanvasRef.value.createRibbon(paths[0]);
+            setCurrentDrawingHeader({ kind, title, source });
+            setCurrentViewShareState(shareState);
             return true;
         }
 
         await threeCanvasRef.value.createRibbonSeries(paths);
+        setCurrentDrawingHeader({ kind, title, source });
+        setCurrentViewShareState(shareState);
         return true;
     }
 
@@ -899,12 +1403,24 @@
     }
 
     async function createDrawingAndAutosave({ kind, paths, source = null, description = '' } = {}) {
-        const applied = await applyDrawingPathsToViewer(paths);
+        const drawingDraft = buildDrawingDraft({ kind, paths, source, description });
+        const applied = await applyDrawingPathsToViewer(paths, {
+            kind,
+            title: getDrawingHeaderTitle({
+                kind,
+                name: drawingDraft.name,
+                source,
+            }),
+            source,
+            shareState: buildCurrentViewShareState({
+                kind,
+                source,
+            }),
+        });
         if (!applied) {
             return null;
         }
 
-        const drawingDraft = buildDrawingDraft({ kind, paths, source, description });
         return autosaveDrawingLocally(drawingDraft);
     }
 
@@ -1067,6 +1583,8 @@
             type: 'sineWave',
             settings,
         });
+        setCurrentDrawingHeader();
+        setCurrentViewShareState({ kind: 'unshareable' });
         applyTextureResetState({ clearThumbnail: true });
 
         if (options.resetCamera !== false && threeCanvasRef.value.resetCamera) {
@@ -1093,6 +1611,8 @@
         );
 
         await threeCanvasRef.value.updateProceduralRibbonSettings(settings);
+        setCurrentDrawingHeader();
+        setCurrentViewShareState({ kind: 'unshareable' });
         applyTextureResetState({ clearThumbnail: true });
     }
 
@@ -1499,6 +2019,61 @@
                 severity: 'error',
                 summary: 'Share Failed',
                 detail: 'Could not open the native share sheet on this device.',
+                life: 3600,
+            });
+        }
+    }
+
+    async function handleShareCurrentViewUrl() {
+        const shareUrl = currentViewShareUrl.value;
+        if (!shareUrl) {
+            toast.add({
+                severity: 'warn',
+                summary: 'URL Not Available',
+                detail: 'This view cannot be shared as a URL yet. Try a default, text, emoji, or cloud-texture view.',
+                life: 3600,
+            });
+            return;
+        }
+
+        const shareTitle = viewerHeaderTitle.value || app.currentTextureName || 'Rivvon view';
+
+        if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && isMobileDevice.value) {
+            try {
+                await navigator.share({
+                    title: shareTitle,
+                    url: shareUrl,
+                });
+                toast.add({
+                    severity: 'success',
+                    summary: 'Shared',
+                    detail: 'View URL shared successfully.',
+                    life: 2400,
+                });
+                return;
+            } catch (error) {
+                if (error?.name === 'AbortError') {
+                    return;
+                }
+
+                console.warn('[RibbonView] Native URL share failed, falling back to clipboard copy:', error);
+            }
+        }
+
+        try {
+            await copyTextToClipboard(shareUrl);
+            toast.add({
+                severity: 'success',
+                summary: 'Link Copied',
+                detail: 'A shareable URL for the current view has been copied to your clipboard.',
+                life: 3200,
+            });
+        } catch (error) {
+            console.error('[RibbonView] Failed to copy current view URL:', error);
+            toast.add({
+                severity: 'error',
+                summary: 'Copy Failed',
+                detail: 'Could not copy the current view URL to your clipboard.',
                 life: 3600,
             });
         }
@@ -2198,7 +2773,19 @@
             threeCanvasRef.value.resetCamera();
         }
 
-        await applyDrawingPathsToViewer(paths);
+        await applyDrawingPathsToViewer(paths, {
+            kind: drawing?.kind,
+            title: getDrawingHeaderTitle({
+                kind: drawing?.kind,
+                name: drawing?.name,
+                source: drawing?.source,
+            }),
+            source: drawing?.source ?? null,
+            shareState: buildCurrentViewShareState({
+                kind: drawing?.kind,
+                source: drawing?.source,
+            }),
+        });
     }
 
     // Track the initial tab for the texture browser
@@ -2466,84 +3053,95 @@
         }
     }
 
-    // Handle texture selection from browser
-    async function handleTextureSelect(texture) {
-        console.log('[RibbonView] Loading remote texture:', texture.name);
-        return await withTextureLoading('Loading...', async () => {
-            try {
-                const { cacheCloudTextureInBackground, getCachedTextureTiles, resolveTextureLoadTarget } = await import('../services/textureCacheCoordinator.js');
-                const resolvedTexture = await resolveTextureLoadTarget({
-                    texture,
-                    getLocalTextureSet,
-                    getLocalTiles: getTiles,
-                    getCachedLocalId,
-                    onInvalidCachedLocal: async ({ cloudTextureId }) => {
-                        await evictCachedTexture(cloudTextureId);
-                    },
-                    fetchRemoteTextureSet: fetchTextureSetById,
-                    includeLocalTiles: true,
-                    preferSessionCache: true,
-                });
+    async function performCloudTextureLoad(texture) {
+        try {
+            if (!texture?.id) {
+                throw new Error('Texture id is required');
+            }
 
-                if (resolvedTexture.kind === 'remote' && (!resolvedTexture.textureSet || !resolvedTexture.textureSet.tiles || resolvedTexture.textureSet.tiles.length === 0)) {
-                    throw new Error('No tiles found in texture set');
-                }
+            const { cacheCloudTextureInBackground, getCachedTextureTiles, resolveTextureLoadTarget } = await import('../services/textureCacheCoordinator.js');
+            const resolvedTexture = await resolveTextureLoadTarget({
+                texture,
+                getLocalTextureSet,
+                getLocalTiles: getTiles,
+                getCachedLocalId,
+                onInvalidCachedLocal: async ({ cloudTextureId }) => {
+                    await evictCachedTexture(cloudTextureId);
+                },
+                fetchRemoteTextureSet: fetchTextureSetById,
+                includeLocalTiles: true,
+                preferSessionCache: true,
+            });
 
-                // Check if this is a Google Drive texture that requires authentication
-                if (resolvedTexture.hasDriveTiles && !isAuthenticated.value) {
-                    // Show beta modal with texture-auth context
-                    app.showBetaModal('texture-auth');
-                    return false;
-                }
+            if (resolvedTexture.kind === 'remote' && (!resolvedTexture.textureSet || !resolvedTexture.textureSet.tiles || resolvedTexture.textureSet.tiles.length === 0)) {
+                throw new Error('No tiles found in texture set');
+            }
 
-                const success = resolvedTexture.kind === 'session'
-                    ? await threeCanvasRef.value?.loadTexturesFromSession(resolvedTexture.textureSet, resolvedTexture.sessionTileEntry || null, handleTextureLoadProgress)
-                    : resolvedTexture.kind === 'remote'
-                        ? await threeCanvasRef.value?.loadTexturesFromRemote(resolvedTexture.textureSet, handleTextureLoadProgress)
-                        : await threeCanvasRef.value?.loadTexturesFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleTextureLoadProgress);
-
-                if (!success) {
-                    throw new Error('Texture data is incomplete or unreadable.');
-                }
-
-                applyLoadedTextureState({
-                    source: 'cloud',
-                    texture,
-                    isCached: resolvedTexture.kind === 'cached-local',
-                    thumbnailUrl: texture.thumbnail_url || null,
-                    metadata: {
-                        id: texture.id,
-                        name: resolvedTexture.textureSet?.name || texture.name || '',
-                        description: resolvedTexture.textureSet?.description || texture.description || '',
-                    },
-                });
-
-                // Cache the downloaded tiles in background
-                if (resolvedTexture.kind === 'remote') {
-                    const tileEntry = getCachedTextureTiles(resolvedTexture.textureSet);
-                    const tileManagerRef = threeCanvasRef.value?.tileManager;
-                    const tm = tileManagerRef?.value ?? tileManagerRef;
-                    cacheCloudTextureInBackground({
-                        texture,
-                        textureSet: resolvedTexture.textureSet,
-                        cacheCloudTexture,
-                        tileEntry,
-                        tileManager: tm,
-                        logPrefix: '[RibbonView]',
-                    });
-                }
-
-                console.log('[RibbonView] Remote texture loaded successfully');
-                return true;
-            } catch (error) {
-                handleTextureLoadFailure({
-                    error,
-                    consoleMessage: '[RibbonView] Failed to load remote texture:',
-                    alertPrefix: 'Failed to load texture: ',
-                    showAccessDeniedModal: true,
-                });
+            if (resolvedTexture.hasDriveTiles && !isAuthenticated.value) {
+                app.showBetaModal('texture-auth');
                 return false;
             }
+
+            const textureRecord = {
+                ...(resolvedTexture.textureSet || {}),
+                ...(texture || {}),
+                id: texture?.id || resolvedTexture.textureSet?.id || null,
+            };
+
+            const success = resolvedTexture.kind === 'session'
+                ? await threeCanvasRef.value?.loadTexturesFromSession(resolvedTexture.textureSet, resolvedTexture.sessionTileEntry || null, handleTextureLoadProgress)
+                : resolvedTexture.kind === 'remote'
+                    ? await threeCanvasRef.value?.loadTexturesFromRemote(resolvedTexture.textureSet, handleTextureLoadProgress)
+                    : await threeCanvasRef.value?.loadTexturesFromTileRecords(resolvedTexture.textureSet, resolvedTexture.localTiles, handleTextureLoadProgress);
+
+            if (!success) {
+                throw new Error('Texture data is incomplete or unreadable.');
+            }
+
+            applyLoadedTextureState({
+                source: 'cloud',
+                texture: textureRecord,
+                isCached: resolvedTexture.kind === 'cached-local',
+                thumbnailUrl: resolvedTexture.textureSet?.thumbnail_url || textureRecord.thumbnail_url || null,
+                metadata: {
+                    id: textureRecord.id,
+                    name: resolvedTexture.textureSet?.name || textureRecord.name || '',
+                    description: resolvedTexture.textureSet?.description || textureRecord.description || '',
+                },
+            });
+
+            if (resolvedTexture.kind === 'remote') {
+                const tileEntry = getCachedTextureTiles(resolvedTexture.textureSet);
+                const tileManagerRef = threeCanvasRef.value?.tileManager;
+                const tm = tileManagerRef?.value ?? tileManagerRef;
+                cacheCloudTextureInBackground({
+                    texture: textureRecord,
+                    textureSet: resolvedTexture.textureSet,
+                    cacheCloudTexture,
+                    tileEntry,
+                    tileManager: tm,
+                    logPrefix: '[RibbonView]',
+                });
+            }
+
+            console.log('[RibbonView] Remote texture loaded successfully');
+            return true;
+        } catch (error) {
+            handleTextureLoadFailure({
+                error,
+                consoleMessage: '[RibbonView] Failed to load remote texture:',
+                alertPrefix: 'Failed to load texture: ',
+                showAccessDeniedModal: true,
+            });
+            return false;
+        }
+    }
+
+    // Handle texture selection from browser
+    async function handleTextureSelect(texture) {
+        console.log('[RibbonView] Loading remote texture:', texture?.name || texture?.id);
+        return await withTextureLoading('Loading...', async () => {
+            return await performCloudTextureLoad(texture);
         });
     }
 
@@ -2590,13 +3188,17 @@
             :camera-dismiss-label="cameraDismissLabel"
             :navigation-model="headerNavigationModel"
             :panel-title="activePanelTitle"
-            :viewer-title="app.currentTextureName"
+            :viewer-title="viewerHeaderTitle"
+            :viewer-title-model="viewerHeaderTitleModel"
             :toolbar-overlay-title="activeToolbarOverlayTitle"
             @request-navigation-back="handleNavigationBack"
             @request-navigation-exit="handleNavigationExit"
             @request-close-realtime-mode="handleRealtimeClose"
             @request-close-panel="handleHeaderPanelClose"
             @request-close-toolbar-overlay="handleToolbarOverlayClose"
+            @request-viewer-title-kind-activate="handleViewerTitleKindActivate"
+            @request-viewer-title-drawing-activate="handleViewerTitleDrawingActivate"
+            @request-viewer-title-texture-activate="handleViewerTitleTextureActivate"
             @request-turn-off-camera="handleTurnOffCamera"
         />
 
@@ -2631,6 +3233,7 @@
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :technical-overlay="showTechnicalOverlay"
             :active-toolbar-overlay="activeToolbarOverlay"
+            :can-share-view-url="canShareCurrentViewUrl"
             :export-image-visible="showExportImageDialog"
             :export-video-visible="showExportDialog"
             :navigation-can-go-back="navigationCanGoBack"
@@ -2654,6 +3257,7 @@
             @request-import-file="openFileImport"
             @request-close-export-image="handleExportPanelClose"
             @request-close-export-video="handleExportPanelClose"
+            @request-share-view-url="handleShareCurrentViewUrl"
             @request-navigation-back="handleNavigationBack"
             @request-navigation-exit="handleNavigationExit"
             @request-toolbar-overlay-change="handleToolbarOverlayChange"
@@ -2692,10 +3296,12 @@
 
         <!-- Modals -->
         <TextInputPanel
+            ref="textInputPanelRef"
             v-model:visible="textPanelVisible"
             @request-generate="handleTextGenerate"
         />
         <EmojiPickerPanel
+            ref="emojiPickerPanelRef"
             v-model:visible="emojiPickerVisible"
             @request-generate="handleEmojiGenerate"
         />
