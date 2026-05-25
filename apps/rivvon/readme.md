@@ -22,7 +22,7 @@ See [docs/realtime-sampling.md](./docs/realtime-sampling.md) for the current rea
 
 ## Tile Builder Backends
 
-See [docs/webgl2-tile-builder.md](./docs/webgl2-tile-builder.md) for the current file-mode tile builder backends, why the GPU paths use a 2D atlas today, and the tradeoffs versus a transient texture-array builder.
+See [docs/webgl2-tile-builder.md](./docs/webgl2-tile-builder.md) for the current file-mode tile builder backends, the preferred WebGPU direct-array path, and when atlas-based fallbacks still matter.
 
 ## Head Tracking / MediaPipe
 

@@ -2,139 +2,119 @@
 
 ## Current Backends
 
-File-mode Slyce now exposes a `tileBuilderBackend` selector with three options:
+File-mode Slyce now exposes a `tileBuilderBackend` selector with four options:
 
 - `canvas` for the legacy 2D canvas path in [src/modules/slyce/tileBuilder.js](../src/modules/slyce/tileBuilder.js)
 - `webgl` for the WebGL2 atlas builder in [src/modules/slyce/webglTileBuilder.js](../src/modules/slyce/webglTileBuilder.js)
-- `webgpu` for the WebGPU atlas builder in [src/modules/slyce/webgpuTileBuilder.js](../src/modules/slyce/webgpuTileBuilder.js)
+- `webgpu-array` for the preferred WebGPU direct-array builder in [src/modules/slyce/webgpuDirectArrayTileBuilder.js](../src/modules/slyce/webgpuDirectArrayTileBuilder.js)
+- `webgpu` for the WebGPU atlas fallback builder in [src/modules/slyce/webgpuTileBuilder.js](../src/modules/slyce/webgpuTileBuilder.js)
 
-The WebGL2 and WebGPU builders mirror the same file-mode contract used by `videoProcessor`:
+All GPU builders mirror the same file-mode contract used by `videoProcessor`:
 
 - accept decoded frames one at a time
 - maintain a live layer-0 preview canvas
 - emit `complete` with a `readImages()` callback that returns per-layer RGBA buffers for KTX2 encoding
 
-Canvas remains the widest-compatibility fallback. WebGL2 remains the default GPU path today. WebGPU is now available as an explicit opt-in backend.
+Canvas remains the widest-compatibility fallback. The default selection now prefers `webgpu-array` whenever WebGPU is exposed by the browser, then falls back to `webgl` on non-Apple/WebKit browsers and `canvas` on Apple/WebKit.
 
 ## Current Design
 
-Both GPU builders currently use a 2D atlas as the transient GPU target.
+The file-mode pipeline now ships with two transient GPU storage models.
 
-The WebGL2 implementation lives in [src/modules/slyce/webglTileBuilder.js](../src/modules/slyce/webglTileBuilder.js).
-The WebGPU implementation lives in [src/modules/slyce/webgpuTileBuilder.js](../src/modules/slyce/webgpuTileBuilder.js).
+### Preferred WebGPU Direct-Array Path
+
+The preferred WebGPU implementation lives in [src/modules/slyce/webgpuDirectArrayTileBuilder.js](../src/modules/slyce/webgpuDirectArrayTileBuilder.js).
 
 The write path is:
 
-1. Draw the decoded source frame into a 2D upload canvas.
-2. Upload that canvas into a single `TEXTURE_2D` source texture.
-3. Run one instanced draw call for the current frame row.
-4. Write every layer's sampled strip into its own cell in one atlas texture.
-5. After the tile is complete, read back each atlas cell with `gl.readPixels()` and hand the RGBA buffers to the KTX2 encoder.
+1. Copy the decoded `VideoFrame` directly into one sampled source texture.
+2. Run one compute dispatch for the current output row.
+3. Fan that row out across all cross-section layers into one `rgba8unorm` 2D array texture.
+4. When the tile completes, read back the whole array texture in one `copyTextureToBuffer()` operation.
+5. Unpack the GPU rows into per-layer `{ rgba, width, height }` buffers for KTX2 encoding.
 
-The important property is the batching in step 3. For each source frame, the builder issues one GPU draw that populates all cross-section layers for that row.
+The important property is still batching. For each decoded source frame, the builder issues one dispatch that populates every layer for that row.
 
-That batching argument matters most for the WebGL2 path, which is why the atlas-versus-array discussion below focuses primarily on WebGL2 tradeoffs.
+### Atlas Paths
 
-## Why Atlas Storage Was Chosen
+The atlas implementations live in [src/modules/slyce/webglTileBuilder.js](../src/modules/slyce/webglTileBuilder.js) and [src/modules/slyce/webgpuTileBuilder.js](../src/modules/slyce/webgpuTileBuilder.js).
 
-The atlas is not just a storage format. It is what makes the current WebGL2 builder efficient.
+Their write path is:
+
+1. Upload the decoded frame into one sampled source texture.
+2. Run one instanced draw for the current output row.
+3. Write each layer's sampled strip into its own atlas cell.
+4. When the tile completes, read atlas cells back layer by layer and hand the RGBA buffers to the KTX2 encoder.
+
+## Why WebGPU Direct-Array Is Preferred
+
+The direct-array WebGPU path is now the preferred file-mode implementation because it improves the builder model without introducing a structural performance regression.
+
+- The transient storage matches the final KTX2 array representation.
+- Support checks are based on per-layer size plus `maxTextureArrayLayers`, not atlas packing.
+- The builder performs one whole-array readback instead of layer-by-layer atlas cell copies.
+- Preview and `readImages()` still preserve the existing `videoProcessor` and KTX2 encode contract.
+
+Manual A/B runs on the same clips showed the direct-array path in the same performance class as the atlas path, with builder assembly/readback typically at about 0.2s to 0.4s per 240-layer tile while encode still dominated wall-clock time.
+
+## Why Atlas Still Exists
+
+Atlas storage is still the right fallback story for two cases.
+
+### WebGL2 Fast Path
+
+The atlas remains the best known WebGL2 write path.
 
 - All layers for a frame can be written in one instanced draw call.
 - The shader can map `gl_InstanceID` directly to an atlas cell.
 - The framebuffer stays attached to one color target instead of being rebound for each layer.
-- Readback is straightforward because each layer already occupies a rectangular region in one 2D texture.
 
-This is why the current support probe is framed around atlas fit, not just generic WebGL2 availability.
+That batching advantage is why the WebGL2 builder remains atlas-based instead of switching to a WebGL2 texture-array path.
 
-- Tile width and height must fit the GPU texture-size limit.
-- The packed atlas width and height must also fit that limit.
-- The scaled source frame must fit that same limit for the upload texture.
+### WebGPU Fallback and Debugging
 
-If any of those checks fail, the builder falls back to the CPU/canvas path.
+The WebGPU atlas builder remains available as `WebGPU Atlas (Fallback)`.
 
-## Texture Array Alternative
+- It provides an A/B baseline against the direct-array path.
+- It remains useful for debugging browser-specific WebGPU issues.
+- It keeps the older atlas implementation available without reopening the file-mode contract.
 
-Using a `TEXTURE_2D_ARRAY` as the transient builder target is feasible in WebGL2.
+## Support Checks
 
-Relevant WebGL2 features already exist:
+The support gates now depend on the selected backend.
 
-- `TEXTURE_2D_ARRAY`
-- `SAMPLER_2D_ARRAY`
-- `framebufferTextureLayer()`
-- `MAX_ARRAY_TEXTURE_LAYERS`
+### `webgpu-array`
 
-That makes the idea architecturally appealing because the final asset is already assembled as a layered KTX2 texture, and the viewer already consumes array textures.
+- source width and height must fit `maxTextureDimension2D`
+- tile width and height must fit `maxTextureDimension2D`
+- cross-section count must fit `maxTextureArrayLayers`
+- `rgba8unorm` source upload, storage-texture writes, and readback must be supported
 
-## What A Texture Array Would Improve
+### `webgpu`
 
-An array-backed builder would improve the conceptual model and some capability checks.
+- source width and height must fit `maxTextureDimension2D`
+- tile width and height must fit `maxTextureDimension2D`
+- the packed atlas width and height must also fit `maxTextureDimension2D`
 
-- The transient storage would match the final KTX2 array representation more closely.
-- Width and height limits would stay per-layer instead of being inflated by atlas packing.
-- Layer count would be governed by `MAX_ARRAY_TEXTURE_LAYERS` instead of only by atlas packing into `MAX_TEXTURE_SIZE`.
-- The last row of a partially filled atlas would no longer waste cells.
+### `webgl`
 
-This means some configurations that fail atlas packing could still fit in an array texture.
+- the scaled source frame must fit the WebGL texture-size limit
+- the output tile must fit that limit
+- the packed atlas must fit the same limit
 
-Example:
+If any of those checks fail, the builder falls back to the next available backend or to canvas.
 
-- A large output tile with many layers can exceed atlas width or height even though each individual layer slice is still small enough to fit on the GPU.
+## Readback and Encode Boundary
 
-## What A Texture Array Would Not Fix
+None of the file-mode backends remove the current GPU-to-CPU boundary before KTX2 encode.
 
-An array does not remove the main CPU boundary in the current pipeline.
-
-- The builder still needs CPU-side RGBA buffers for KTX2 encoding.
-- Readback would still happen layer by layer before Basis compression.
-- The expensive handoff is still GPU transient storage to CPU encode inputs.
-
-So the value of an array is not that it avoids readback or makes KTX2 assembly inherently cheaper.
-
-## Why A Texture Array Is Not An Obvious WebGL2 Win
-
-In the current WebGL2 architecture, a texture array would likely reduce batching efficiency.
-
-The atlas path can write all layers for a frame in one instanced draw because every layer lands in a different part of the same 2D render target.
-
-With a texture array, WebGL2 does not provide a simple equivalent path that writes each instance into a different array layer in one pass. In practice, the builder would likely need one of these approaches:
-
-1. Reattach a different layer with `framebufferTextureLayer()` and draw once per layer.
-2. Use multiple color attachments in chunks, still limited by `MAX_COLOR_ATTACHMENTS` and `MAX_DRAW_BUFFERS`.
-
-Both approaches are less attractive than the current atlas write path.
-
-- Per-layer attachment changes add framebuffer churn.
-- Per-layer or chunked draws increase draw count significantly.
-- WebGL guidance generally favors fewer attachment mutations and fewer draw passes.
-
-For a representative tile, the difference is substantial:
-
-- Atlas path: roughly one draw per source frame.
-- Array path: likely one draw per source frame per layer, or at best several chunked draws per frame.
-
-That tradeoff is the main reason the atlas remains the better WebGL2 fast path today.
-
-## Memory Implications
-
-Atlas and array storage are broadly similar in raw RGBA8 footprint.
-
-- Atlas: about `tileWidth * tileHeight * layerCount * 4`, plus small waste from unused cells in the last row.
-- Array: about `tileWidth * tileHeight * layerCount * 4`, without the partial-row waste.
-
-The array representation is cleaner, but it should not be expected to deliver a major VRAM reduction by itself.
-
-## Recommendation
-
-For the current codebase:
-
-- Keep the atlas as the primary WebGL2 builder target.
-- Treat a texture-array builder as a possible compatibility or capability-expansion path, not as an assumed performance upgrade.
-- If array support is explored later, the most plausible justification is handling settings that fail atlas packing but still fit per-layer size and `MAX_ARRAY_TEXTURE_LAYERS`.
-- Texture arrays are a better fit for future WebGPU builder work than for replacing the current WebGL2 atlas path outright.
+- Every backend still ends at per-layer RGBA buffers for `KTX2Assembler.encodeParallelWithPool()`.
+- The main difference is builder command shape and readback organization, not whether CPU-side encode inputs still exist.
+- In current real-world runs, KTX2 encode remains the dominant wall-clock phase.
 
 ## Practical Summary
 
-- Atlas storage is currently the fastest known WebGL2 write path because it preserves one-pass instanced batching.
-- Texture-array storage is feasible and more elegant, but it likely trades away that batching advantage in plain WebGL2.
-- Arrays may broaden the support envelope for some high-layer or large-tile settings.
-- Arrays do not remove the current GPU-to-CPU readback boundary before KTX2 encoding.
+- Use `WebGPU` when available. This is the preferred direct-array builder.
+- Use `WebGPU Atlas (Fallback)` only for troubleshooting or comparison.
+- Use `WebGL` when WebGPU is unavailable but GPU assembly is still desirable.
+- Use `Canvas` for widest compatibility or as the last fallback.

@@ -5,6 +5,12 @@ Review the folder and file structure of the project. update naming conventions t
 
 you may be able to adjust drawing mode so that it generates a ribbon continuously in 3d rather than as a separate upfront process. the wave pattern generator already updates the length of the ribbon in realtime, so we ought to be able to extend that logic to a drawing as well. this mode may have pros and cons. e.g. if would feel more immediate but might also feel less accurate
 
+in realtime we may be able to separate the encoding use case from the realtime diisplay use case. if we remove the encod requirement, we could go straight from the camera into a texture atlas or a ktx2 array, we can also render that same texture in real time, assuming that we are actually able to render a texture atlas while simultaneously writing to it.
+
+Detailed implementation plan: see `plan-webcamLiveTextureAndKtx2Capture.prompt.md`.
+
+Prerequisite rendering-architecture plan for shared atlas/array ownership: see `plan-deviceScopedTextureCoordinator.prompt.md`.
+
 On iPad The default tile builder can be webgl Atlas
 However there remains memory pressure. So we should not be decoding too far ahead. On low memory devices a better approach is to alternate between encoding and decoding. The goal is no longer to avoid waiting for decoding in this context
 Instead the goal should be reliability. The old iPad is capable of all these things but maybe not all at once.
