@@ -744,6 +744,7 @@
                     <Button
                         v-if="showApplyDraftAction"
                         type="button"
+                        class="texture-creator-footer-apply-draft"
                         @click="handleApplyTextureAction"
                     >
                         <span class="material-symbols-outlined">check</span>
@@ -936,6 +937,14 @@
             --panel-action-bar-button-min-width: 0;
             --panel-action-bar-mobile-basis: 0;
             --panel-action-bar-padding: 0.8rem 1rem 0.95rem;
+        }
+
+    }
+
+    @media (max-width: 767px) {
+        .texture-creator-footer :deep(.texture-creator-footer-apply-draft) {
+            flex: 1 0 100%;
+            width: 100%;
         }
     }
 </style>
