@@ -82,6 +82,7 @@
     const deriveResult = ref(null);
     const loadDeriveModule = createLazyLoader(() => import('../../modules/slyce/textureVariantDerivation.js'));
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
+    const loadTextureCacheCoordinator = createLazyLoader(() => import('../../services/textureCacheCoordinator.js'));
 
     // Edit state
     const textureToEdit = ref(null);
@@ -1529,7 +1530,17 @@
             });
 
             if (!isLocalTexture(textureToDerive.value) && sourceBundle.downloadedSourceBlobs) {
-                cacheCloudTextureFromBlobs(sourceTexture, sourceBundle.sourceTextureSet, sourceBundle.downloadedSourceBlobs);
+                const { cacheCloudTextureInBackground } = await loadTextureCacheCoordinator();
+                cacheCloudTextureInBackground({
+                    texture: sourceTexture,
+                    textureSet: sourceBundle.sourceTextureSet,
+                    cacheCloudTexture,
+                    ktx2Blobs: sourceBundle.downloadedSourceBlobs,
+                    onPersisted: () => {
+                        cachedCloudIds.value = new Set([...cachedCloudIds.value, sourceTexture.id]);
+                    },
+                    logPrefix: '[TextureBrowser]',
+                });
             }
 
             const publishedVariants = [];
@@ -2434,7 +2445,7 @@
                             (previewTileCount || previewTexture?.tile_count) > 1 ? 's' : '' }}
                     </template>
                     <span v-if="previewDisplayScale < 1">({{ Math.round(previewDisplayScale * 100)
-                        }}%
+                    }}%
                         scale)</span>
                 </div>
                 <div class="preview-actions">
@@ -2664,7 +2675,7 @@
                             <div class="derive-result-row">
                                 <span>Source tiles</span>
                                 <strong>{{ deriveResult.source.tileCount }} ({{ deriveResult.sourceFetchOrigin
-                                }})</strong>
+                                    }})</strong>
                             </div>
                             <div class="derive-result-row">
                                 <span>Layer count</span>
@@ -2707,7 +2718,7 @@
                             <div class="derive-result-row">
                                 <span>Validation</span>
                                 <strong :class="deriveValidationStatus.className">{{ deriveValidationStatus.label
-                                }}</strong>
+                                    }}</strong>
                             </div>
                         </div>
                     </details>
