@@ -715,6 +715,7 @@
                         type="button"
                         severity="secondary"
                         variant="outlined"
+                        class="texture-creator-footer-no-wrap"
                         :disabled="isFinalizingOutput"
                         @click="handleStartOver"
                     >
@@ -726,6 +727,7 @@
                         type="button"
                         severity="secondary"
                         variant="outlined"
+                        class="texture-creator-footer-no-wrap"
                         @click="handleRetryLocalSave"
                     >
                         <span class="material-symbols-outlined">refresh</span>
@@ -817,6 +819,10 @@
         --panel-action-bar-border-color: rgba(255, 255, 255, 0.1);
         --panel-action-bar-background: rgba(26, 26, 26, 0.96);
         flex-shrink: 0;
+    }
+
+    .texture-creator-footer :deep(.texture-creator-footer-no-wrap) {
+        white-space: pre;
     }
 
     .texture-creator-footer-note {
