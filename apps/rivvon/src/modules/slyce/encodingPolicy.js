@@ -5,6 +5,7 @@ const MEMORY_SAFE_LAYER_WORKER_CAP = 2;
 export const TILE_BUILDER_BACKEND_CANVAS = 'canvas';
 export const TILE_BUILDER_BACKEND_WEBGL = 'webgl';
 export const TILE_BUILDER_BACKEND_WEBGPU = 'webgpu';
+export const TILE_BUILDER_BACKEND_WEBGPU_ARRAY = 'webgpu-array';
 
 function getDeviceMemory() {
     if (typeof navigator === 'undefined') {
@@ -42,7 +43,17 @@ export function shouldUseWebGL2BuilderByDefault() {
     return !isLikelyIOSOrSafari();
 }
 
+export function hasWebGPUSupport() {
+    return typeof navigator !== 'undefined'
+        && 'gpu' in navigator
+        && typeof navigator.gpu?.requestAdapter === 'function';
+}
+
 export function getDefaultTileBuilderBackend() {
+    if (hasWebGPUSupport()) {
+        return TILE_BUILDER_BACKEND_WEBGPU_ARRAY;
+    }
+
     return shouldUseWebGL2BuilderByDefault()
         ? TILE_BUILDER_BACKEND_WEBGL
         : TILE_BUILDER_BACKEND_CANVAS;

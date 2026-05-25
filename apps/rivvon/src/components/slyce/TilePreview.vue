@@ -31,6 +31,13 @@
                     Decode {{ processingPhaseSummary.decodeSummaryText }}
                 </p>
                 <p
+                    v-if="processingPhaseSummary?.assemblySummaryText"
+                    class="note-line note-summary"
+                >
+                    <span class="material-symbols-outlined note-icon">grid_view</span>
+                    Assembly {{ processingPhaseSummary.assemblySummaryText }}
+                </p>
+                <p
                     v-if="processingPhaseSummary?.encodeSummaryText"
                     class="note-line note-summary"
                 >

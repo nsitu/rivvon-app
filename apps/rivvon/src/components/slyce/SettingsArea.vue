@@ -24,7 +24,9 @@
         TILE_BUILDER_BACKEND_CANVAS,
         TILE_BUILDER_BACKEND_WEBGL,
         TILE_BUILDER_BACKEND_WEBGPU,
+        TILE_BUILDER_BACKEND_WEBGPU_ARRAY,
     } from '../../modules/slyce/encodingPolicy';
+    import { WebGPUDirectArrayTileBuilder } from '../../modules/slyce/webgpuDirectArrayTileBuilder';
     import { WebGLTileBuilder } from '../../modules/slyce/webglTileBuilder';
     import { WebGPUTileBuilder } from '../../modules/slyce/webgpuTileBuilder';
 
@@ -144,7 +146,8 @@
     const tileBuilderBackendOptions = [
         { name: 'Canvas', value: TILE_BUILDER_BACKEND_CANVAS },
         { name: 'WebGL', value: TILE_BUILDER_BACKEND_WEBGL },
-        { name: 'WebGPU', value: TILE_BUILDER_BACKEND_WEBGPU },
+        { name: 'WebGPU', value: TILE_BUILDER_BACKEND_WEBGPU_ARRAY },
+        { name: 'WebGPU Atlas (Fallback)', value: TILE_BUILDER_BACKEND_WEBGPU },
     ];
     const frameInterpolationSupported = !isLikelyIOSDevice();
     const defaultTileBuilderBackend = getDefaultTileBuilderBackend();
@@ -180,6 +183,14 @@
 
         const limitLabel = maxTextureSize.toLocaleString();
         return `${apiLabel} texture limit: ${limitLabel} px per side for a single texture or render target. In practice that means up to about ${limitLabel}x${limitLabel} px when both width and height stay within the limit.`;
+    }
+
+    function buildArrayLayerLimitLine(maxTextureArrayLayers) {
+        if (!Number.isFinite(maxTextureArrayLayers) || maxTextureArrayLayers <= 0) {
+            return 'The browser did not report a usable WebGPU array-layer limit.';
+        }
+
+        return `WebGPU array-layer limit: ${maxTextureArrayLayers.toLocaleString()} layers per array texture.`;
     }
 
     function getEffectiveGpuAssemblySourceSize(plan) {
@@ -246,6 +257,42 @@
         });
     }
 
+    function buildWebGPUArrayBuilderStatus({ report, sourceLabel, tileLabel, defaultLine }) {
+        const textureLimitLine = buildTextureLimitLine('WebGPU', report?.maxTextureSize);
+        const layerLimitLine = buildArrayLayerLimitLine(report?.maxTextureArrayLayers);
+
+        if (!report?.supported || !report?.arrayTexture) {
+            return createTileBuilderStatus({
+                available: false,
+                icon: 'warning',
+                summary: 'Current settings do not fit within GPU capacity for WebGPU assembly.',
+                detailLines: [
+                    'WebGPU assembly writes samples straight into a 2D array texture before KTX2 encoding. This is the preferred WebGPU path.',
+                    report?.reason || 'WebGPU assembly is unavailable.',
+                    `Effective source frame for this check: ${sourceLabel} after crop and tile-plan scaling.`,
+                    `The direct-array path needs the output tile ${tileLabel} to fit within the texture-size limit and the current cross-section count to fit within the array-layer limit.`,
+                    textureLimitLine,
+                    layerLimitLine,
+                    defaultLine,
+                ],
+            });
+        }
+
+        return createTileBuilderStatus({
+            available: true,
+            icon: 'check_circle',
+            summary: 'Current settings fit within GPU capacity for WebGPU assembly.',
+            detailLines: [
+                'WebGPU assembly writes samples straight into a 2D array texture before KTX2 encoding. This is the preferred WebGPU path.',
+                `Effective source frame for this check: ${sourceLabel} after crop and tile-plan scaling.`,
+                `The current output array texture is ${tileLabel} across ${report.arrayTexture.layerCount} layers.`,
+                textureLimitLine,
+                layerLimitLine,
+                defaultLine,
+            ],
+        });
+    }
+
     const tileBuilderStatus = ref(createTileBuilderStatus({
         summary: 'Tile builder details will appear here when a backend is selected.',
     }));
@@ -273,8 +320,14 @@
             return;
         }
 
-        const apiLabel = selectedBackend === TILE_BUILDER_BACKEND_WEBGPU ? 'WebGPU' : 'WebGL2';
-        const baseExplanation = `${apiLabel} assembly packs all layers into one 2D atlas before KTX2 encoding.`;
+        const isWebGPUArray = selectedBackend === TILE_BUILDER_BACKEND_WEBGPU_ARRAY;
+        const isWebGPUAtlasFallback = selectedBackend === TILE_BUILDER_BACKEND_WEBGPU;
+        const apiLabel = selectedBackend === TILE_BUILDER_BACKEND_WEBGL ? 'WebGL2' : 'WebGPU';
+        const baseExplanation = isWebGPUArray
+            ? 'WebGPU assembly writes samples straight into a 2D array texture before KTX2 encoding. This is the preferred WebGPU path.'
+            : isWebGPUAtlasFallback
+                ? 'WebGPU atlas fallback packs all layers into one 2D atlas before KTX2 encoding.'
+            : `${apiLabel} assembly packs all layers into one 2D atlas before KTX2 encoding.`;
 
         if (!plan?.width || !plan?.height || !app.crossSectionCount || !app.fileInfo?.width || !app.fileInfo?.height) {
             tileBuilderStatus.value = createTileBuilderStatus({
@@ -283,7 +336,9 @@
                 summary: `${apiLabel} tile assembly availability depends on the current crop, output tile size, layer count, and browser support.`,
                 detailLines: [
                     baseExplanation,
-                    'Larger output tiles create larger atlas cells, and more cross-sections add more cells to the atlas.',
+                    isWebGPUArray
+                        ? 'The direct-array path is constrained by the output tile size and the maximum WebGPU array-layer count.'
+                        : 'Larger output tiles create larger atlas cells, and more cross-sections add more cells to the atlas.',
                     defaultLine,
                 ],
             });
@@ -298,7 +353,9 @@
                 summary: `${apiLabel} tile assembly availability depends on the current crop, output tile size, layer count, and browser support.`,
                 detailLines: [
                     baseExplanation,
-                    'Larger output tiles create larger atlas cells, and more cross-sections add more cells to the atlas.',
+                    isWebGPUArray
+                        ? 'The direct-array path is constrained by the output tile size and the maximum WebGPU array-layer count.'
+                        : 'Larger output tiles create larger atlas cells, and more cross-sections add more cells to the atlas.',
                     defaultLine,
                 ],
             });
@@ -311,7 +368,7 @@
             crossSectionCount: app.crossSectionCount,
         };
         const sourceLabel = formatPixelSize(sourceSize.width, sourceSize.height);
-        const atlasCellLabel = formatPixelSize(plan.width, plan.height);
+        const tileLabel = formatPixelSize(plan.width, plan.height);
 
         if (selectedBackend === TILE_BUILDER_BACKEND_WEBGL) {
             const report = WebGLTileBuilder.getSupportReport(builderSettings);
@@ -320,9 +377,36 @@
                 baseExplanation,
                 report,
                 sourceLabel,
-                atlasCellLabel,
+                atlasCellLabel: tileLabel,
                 defaultLine,
             });
+            return;
+        }
+
+        if (selectedBackend === TILE_BUILDER_BACKEND_WEBGPU_ARRAY) {
+            tileBuilderStatus.value = createTileBuilderStatus({
+                available: null,
+                icon: 'info',
+                summary: 'Checking WebGPU support for the preferred array-texture path.',
+                detailLines: [
+                    baseExplanation,
+                    defaultLine,
+                ],
+            });
+
+            void (async () => {
+                const report = await WebGPUDirectArrayTileBuilder.getSupportReport(builderSettings);
+                if (cancelled) {
+                    return;
+                }
+
+                tileBuilderStatus.value = buildWebGPUArrayBuilderStatus({
+                    report,
+                    sourceLabel,
+                    tileLabel,
+                    defaultLine,
+                });
+            })();
             return;
         }
 
@@ -347,7 +431,7 @@
                 baseExplanation,
                 report,
                 sourceLabel,
-                atlasCellLabel,
+                atlasCellLabel: tileLabel,
                 defaultLine,
             });
         })();
@@ -762,7 +846,7 @@
                     }"
                 >
                     <span class="material-symbols-outlined gpu-assembly-summary-icon">{{ tileBuilderStatus.icon
-                    }}</span>
+                        }}</span>
                     <span class="setting-note-text">{{ tileBuilderStatus.summary }}</span>
                 </p>
                 <p

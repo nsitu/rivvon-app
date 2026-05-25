@@ -20,10 +20,14 @@ function buildProcessingResourceStatus(telemetry) {
         status += `<br/>${telemetry.note}`;
     }
 
-    if ((telemetry.builderType === 'webgl' || telemetry.builderType === 'webgpu') && telemetry.atlasWidth && telemetry.atlasHeight) {
+    if (telemetry.builderType === 'webgpu-array' && telemetry.arrayWidth && telemetry.arrayHeight && telemetry.layerCount) {
+        status += `<br/>Array target - ${telemetry.arrayWidth}x${telemetry.arrayHeight} x ${telemetry.layerCount}`;
+    }
+
+    if ((telemetry.builderType === 'webgl' || telemetry.builderType === 'webgpu' || telemetry.builderType === 'webgpu-array') && ((telemetry.atlasWidth && telemetry.atlasHeight) || (telemetry.arrayWidth && telemetry.arrayHeight))) {
         // Collapse atlas/source texture math into one user-facing VRAM estimate.
         // Browsers do not expose actual VRAM, so we estimate RGBA8 texture backing
-        // from the live atlas count maintained by videoProcessor.
+        // from the live tile-builder count maintained by videoProcessor.
         const estimatedVramBytes = telemetry.estimatedLiveGpuBytes || telemetry.estimatedTotalGpuBytes || 0;
         if (estimatedVramBytes > 0) {
             status += `<br/>VRAM (estimated) - ${formatMiB(estimatedVramBytes)}`;
