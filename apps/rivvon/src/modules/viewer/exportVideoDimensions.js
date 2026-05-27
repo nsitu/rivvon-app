@@ -29,6 +29,7 @@ export const EXPORT_RESOLUTION_OPTIONS_BY_ASPECT = {
     ],
     'instagram-5x4': [
         { label: 'Post (1080×1350)', value: 'ig-5x4-1080' },
+        { label: 'Post XL (1440×1800)', value: 'ig-5x4-1440' },
         { label: 'Post HD (1920×2400)', value: 'ig-5x4-1920' },
         { label: 'Post Pro (2160×2700)', value: 'ig-5x4-2160' },
         { label: 'Post Max (3840×4800)', value: 'ig-5x4-3840' },
@@ -59,6 +60,7 @@ export function resolveExportDimensions(options = {}) {
         case '480p': return { width: 854, height: 480 };
         case '4k': return { width: 3840, height: 2160 };
         case 'ig-5x4-1080': return { width: 1080, height: 1350 };
+        case 'ig-5x4-1440': return { width: 1440, height: 1800 };
         case 'ig-5x4-1920': return { width: 1920, height: 2400 };
         case 'ig-5x4-2160': return { width: 2160, height: 2700 };
         case 'ig-5x4-3840': return { width: 3840, height: 4800 };
