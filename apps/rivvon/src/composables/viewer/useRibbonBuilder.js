@@ -4,7 +4,11 @@
 import * as THREE from 'three';
 import { Ribbon } from '../../modules/viewer/ribbon';
 import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
-import { DEFAULT_SINE_WAVE_SETTINGS } from '../../modules/viewer/proceduralPaths';
+import {
+    DEFAULT_CLOCK_SETTINGS,
+    DEFAULT_SINE_WAVE_SETTINGS,
+    normalizeProceduralSourceType,
+} from '../../modules/viewer/proceduralPaths';
 
 /**
  * Manages ribbon geometry lifecycle: creation from points / drawings,
@@ -13,6 +17,38 @@ import { DEFAULT_SINE_WAVE_SETTINGS } from '../../modules/viewer/proceduralPaths
  * @param {Object} ctx - Shared context refs from useThreeSetup
  */
 export function useRibbonBuilder(ctx) {
+
+    function getDefaultProceduralSettings(type) {
+        return type === 'clock'
+            ? DEFAULT_CLOCK_SETTINGS
+            : DEFAULT_SINE_WAVE_SETTINGS;
+    }
+
+    function getStoredProceduralSettings(type) {
+        return type === 'clock'
+            ? (ctx.app.clockSettings || DEFAULT_CLOCK_SETTINGS)
+            : (ctx.app.sineWaveSettings || DEFAULT_SINE_WAVE_SETTINGS);
+    }
+
+    function getMergedProceduralSettings(type, overrides = {}) {
+        return {
+            ...getDefaultProceduralSettings(type),
+            ...getStoredProceduralSettings(type),
+            ...overrides,
+        };
+    }
+
+    function syncProceduralSourceToStore(type, settings) {
+        ctx.app.setProceduralSourceType?.(type);
+        ctx.app.setProceduralPathMode?.(type);
+
+        if (type === 'clock') {
+            ctx.app.setClockSettings?.(settings);
+            return;
+        }
+
+        ctx.app.setSineWaveSettings?.(settings);
+    }
 
     /**
      * Apply the current TileManager(s) to a RibbonSeries.
@@ -178,10 +214,8 @@ export function useRibbonBuilder(ctx) {
             ctx.ribbonSeries.value = null;
         }
 
-        const type = sourceConfig.type || 'sineWave';
-        const settings = type === 'sineWave'
-            ? { ...DEFAULT_SINE_WAVE_SETTINGS, ...(sourceConfig.settings || {}) }
-            : (sourceConfig.settings || {});
+        const type = normalizeProceduralSourceType(sourceConfig.type || ctx.app.proceduralSourceType);
+        const settings = getMergedProceduralSettings(type, sourceConfig.settings || {});
 
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
@@ -193,8 +227,7 @@ export function useRibbonBuilder(ctx) {
         ctx.ribbonSeries.value.buildFromProceduralSource({ type, settings }, sourceConfig.width || 1.2, 0);
 
         ctx.cinematicCamera.clearROIs();
-        ctx.app.setProceduralPathMode?.(type);
-        ctx.app.setSineWaveSettings?.(settings);
+        syncProceduralSourceToStore(type, settings);
 
         console.log('[ThreeSetup] Created procedural ribbon:', type, ctx.ribbonSeries.value.getProceduralDebugInfo?.());
 
@@ -205,31 +238,37 @@ export function useRibbonBuilder(ctx) {
         return ctx.ribbonSeries.value?.updateProcedural?.(time) ?? null;
     }
 
-    async function updateProceduralRibbonSettings(settings = {}) {
+    async function updateProceduralRibbonSettings(input = {}) {
         if (!ctx.scene.value || !ctx.tileManager.value) {
             return null;
         }
 
         const series = ctx.ribbonSeries.value;
         const proceduralSource = series?.proceduralSource;
+        const payload = input && (
+            Object.prototype.hasOwnProperty.call(input, 'type')
+            || Object.prototype.hasOwnProperty.call(input, 'settings')
+        )
+            ? input
+            : { settings: input };
+        const type = normalizeProceduralSourceType(
+            payload.type || proceduralSource?.type || ctx.app.proceduralSourceType
+        );
+        const nextSettings = getMergedProceduralSettings(type, payload.settings || {});
 
-        if (!series || !proceduralSource) {
+        if (!series || !proceduralSource || proceduralSource.type !== type) {
             return createProceduralRibbon({
-                type: 'sineWave',
-                settings,
+                type,
+                settings: nextSettings,
+                width: proceduralSource?.width || series?.lastWidth || 1.2,
             });
         }
 
-        const type = proceduralSource.type || 'sineWave';
-        const nextSettings = type === 'sineWave'
-            ? { ...DEFAULT_SINE_WAVE_SETTINGS, ...settings }
-            : settings;
         const width = proceduralSource.width || series.lastWidth || 1.2;
         const time = proceduralSource.lastTime || 0;
 
         series.buildFromProceduralSource({ type, settings: nextSettings }, width, time);
-        ctx.app.setProceduralPathMode?.(type);
-        ctx.app.setSineWaveSettings?.(nextSettings);
+        syncProceduralSourceToStore(type, nextSettings);
 
         return series;
     }

@@ -8,7 +8,8 @@ export const VIEWER_PANEL_KEYS = Object.freeze({
     tools: 'toolsPanelVisible',
     emoji: 'emojiPickerVisible',
     contour: 'contourPanelVisible',
-    procedural: 'proceduralPanelVisible',
+    sineWave: 'sineWavePanelVisible',
+    clock: 'clockPanelVisible',
     about: 'aboutPanelVisible',
 });
 

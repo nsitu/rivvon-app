@@ -30,7 +30,8 @@
     const TextInputPanel = defineAsyncComponent(() => import('../components/viewer/TextInputPanel.vue'));
     const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
     const ContourPanel = defineAsyncComponent(() => import('../components/viewer/ContourPanel.vue'));
-    const ProceduralPathPanel = defineAsyncComponent(() => import('../components/viewer/ProceduralPathPanel.vue'));
+    const SineWavePanel = defineAsyncComponent(() => import('../components/viewer/SineWavePanel.vue'));
+    const ClockPanel = defineAsyncComponent(() => import('../components/viewer/ClockPanel.vue'));
     const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
@@ -81,7 +82,8 @@
     const textPanelVisible = createViewerPanelModel('text');
     const emojiPickerVisible = createViewerPanelModel('emoji');
     const contourPanelVisible = createViewerPanelVisibility('contour');
-    const proceduralPanelVisible = createViewerPanelVisibility('procedural');
+    const sineWavePanelVisible = createViewerPanelVisibility('sineWave');
+    const clockPanelVisible = createViewerPanelVisibility('clock');
     const drawingBrowserVisible = createViewerPanelVisibility('drawings');
     const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
     const texturePreviewVisible = createViewerPanelVisibility('texturePreview');
@@ -1569,10 +1571,19 @@
         });
     }
 
-    async function handleCreateSineWave(settings = app.sineWaveSettings, options = {}) {
+    function getProceduralSettingsForType(type = app.proceduralSourceType) {
+        return type === 'clock'
+            ? app.clockSettings
+            : app.sineWaveSettings;
+    }
+
+    async function handleCreateProceduralSource(source = {}, options = {}) {
         if (!threeCanvasRef.value?.createProceduralRibbon) {
             return;
         }
+
+        const type = source.type || app.proceduralSourceType || app.proceduralPathMode || 'sineWave';
+        const settings = source.settings || getProceduralSettingsForType(type);
 
         ensureOrbitControlsForInteraction(
             'procedural-source',
@@ -1580,7 +1591,7 @@
         );
 
         await threeCanvasRef.value.createProceduralRibbon({
-            type: 'sineWave',
+            type,
             settings,
         });
         setCurrentDrawingHeader();
@@ -1592,15 +1603,46 @@
         }
     }
 
-    async function openProceduralPanel() {
-        app.showProceduralPanel();
+    function normalizeProceduralSourceRequest(type) {
+        return type === 'clock' ? 'clock' : 'sineWave';
+    }
 
-        if (app.proceduralPathMode !== 'sineWave') {
-            await handleCreateSineWave(app.sineWaveSettings);
+    function showProceduralSourcePanel(type) {
+        if (type === 'clock') {
+            app.hideSineWavePanel();
+            app.showClockPanel();
+            return;
+        }
+
+        app.hideClockPanel();
+        app.showSineWavePanel();
+    }
+
+    async function openProceduralPanel(requestedType = null) {
+        const type = normalizeProceduralSourceRequest(
+            requestedType || app.proceduralSourceType || app.proceduralPathMode || 'sineWave'
+        );
+
+        app.setProceduralSourceType(type);
+        showProceduralSourcePanel(type);
+
+        if (app.proceduralPathMode !== type) {
+            await handleCreateProceduralSource({
+                type,
+                settings: getProceduralSettingsForType(type),
+            });
         }
     }
 
-    async function handleProceduralSettingsChange(settings) {
+    async function openSineWavePanel() {
+        await openProceduralPanel('sineWave');
+    }
+
+    async function openClockPanel() {
+        await openProceduralPanel('clock');
+    }
+
+    async function handleProceduralSettingsChange(source) {
         if (!threeCanvasRef.value?.updateProceduralRibbonSettings) {
             return;
         }
@@ -1610,14 +1652,14 @@
             'Head tracking switched back to OrbitControls for procedural source editing.',
         );
 
-        await threeCanvasRef.value.updateProceduralRibbonSettings(settings);
+        await threeCanvasRef.value.updateProceduralRibbonSettings(source);
         setCurrentDrawingHeader();
         setCurrentViewShareState({ kind: 'unshareable' });
         applyTextureResetState({ clearThumbnail: true });
     }
 
-    async function handleProceduralCreate(settings) {
-        await handleCreateSineWave(settings);
+    async function handleProceduralCreate(source) {
+        await handleCreateProceduralSource(source);
     }
 
     // File import handler
@@ -2445,12 +2487,23 @@
             };
         }
 
-        if (proceduralPanelVisible.value) {
+        if (sineWavePanelVisible.value) {
             return {
-                id: 'procedural',
-                label: 'Procedural Path',
+                id: 'sineWave',
+                label: 'Sine Wave',
                 close: () => {
-                    app.hideProceduralPanel();
+                    app.hideSineWavePanel();
+                    return true;
+                },
+            };
+        }
+
+        if (clockPanelVisible.value) {
+            return {
+                id: 'clock',
+                label: 'Clock',
+                close: () => {
+                    app.hideClockPanel();
                     return true;
                 },
             };
@@ -3252,7 +3305,8 @@
             @request-toggle-flow="toggleFlow"
             @request-open-text-panel="app.showTextPanel"
             @request-open-emoji-picker="app.showEmojiPicker"
-            @request-open-procedural-panel="openProceduralPanel"
+            @request-open-sine-wave-panel="openSineWavePanel"
+            @request-open-clock-panel="openClockPanel"
             @request-open-texture-browser="openTextureBrowser"
             @request-import-file="openFileImport"
             @request-close-export-image="handleExportPanelClose"
@@ -3310,10 +3364,17 @@
             :active="contourPanelVisible"
             @contour-complete="handleContourGenerate"
         />
-        <ProceduralPathPanel
-            v-if="proceduralPanelVisible"
-            :active="proceduralPanelVisible"
-            @request-close="app.hideProceduralPanel"
+        <SineWavePanel
+            v-if="sineWavePanelVisible"
+            :active="sineWavePanelVisible"
+            @request-close="app.hideSineWavePanel"
+            @settings-change="handleProceduralSettingsChange"
+            @request-create="handleProceduralCreate"
+        />
+        <ClockPanel
+            v-if="clockPanelVisible"
+            :active="clockPanelVisible"
+            @request-close="app.hideClockPanel"
             @settings-change="handleProceduralSettingsChange"
             @request-create="handleProceduralCreate"
         />

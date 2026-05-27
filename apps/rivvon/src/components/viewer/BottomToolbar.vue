@@ -186,7 +186,8 @@
         'request-toggle-flow',
         'request-open-text-panel',
         'request-open-emoji-picker',
-        'request-open-procedural-panel',
+        'request-open-sine-wave-panel',
+        'request-open-clock-panel',
         'request-open-texture-file',
         'request-open-texture-camera',
         'request-open-texture-browser',
@@ -210,8 +211,9 @@
         'request-toolbar-overlay-change'
     ]);
 
-    // Check if Slyce processing is active (has status messages)
     const isSlyceProcessing = computed(() => Object.keys(slyce.status).length > 0);
+
+    // Check if Slyce processing is active (has status messages)
     const hasExistingTextureFileFlow = computed(() => (
         !!slyce.file
         || Object.keys(slyce.ktx2BlobURLs).length > 0
@@ -219,7 +221,7 @@
     ));
 
     const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
-        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'procedural', 'tools', 'about', 'realtimeSampler'],
+        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'tools', 'about', 'realtimeSampler'],
         onCloseRealtimeMode: (payload) => emit('request-close-realtime-mode', payload),
         onResetSlyceProcessing: () => slyce.resetProcessing(),
         isSlyceProcessing: isSlyceProcessing.value,
@@ -271,7 +273,8 @@
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
         viewerToolbarContextMap.value.contour,
-        viewerToolbarContextMap.value.procedural,
+        viewerToolbarContextMap.value.sineWave,
+        viewerToolbarContextMap.value.clock,
         viewerToolbarContextMap.value.realtimeSampler,
         viewerToolbarContextMap.value.about,
     ].filter(Boolean)));
@@ -295,7 +298,8 @@
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
         viewerToolbarContextMap.value.contour,
-        viewerToolbarContextMap.value.procedural,
+        viewerToolbarContextMap.value.sineWave,
+        viewerToolbarContextMap.value.clock,
         viewerToolbarContextMap.value.about,
         viewerToolbarContextMap.value.realtimeSampler,
     ]));
@@ -343,7 +347,8 @@
         || isToolbarContextActive('text')
         || isToolbarContextActive('emoji')
         || isToolbarContextActive('contour')
-        || isToolbarContextActive('procedural')
+        || isToolbarContextActive('sineWave')
+        || isToolbarContextActive('clock')
     ));
 
     const textureGroupActive = computed(() => (
@@ -489,10 +494,16 @@
             }
         },
         {
-            label: 'Waveform',
+            label: 'Sine Wave',
             icon: 'airwave',
-            active: isToolbarContextActive('procedural'),
-            command: () => toggleContextItem('procedural', () => emit('request-open-procedural-panel'))
+            active: isToolbarContextActive('sineWave'),
+            command: () => toggleContextItem('sineWave', () => emit('request-open-sine-wave-panel'))
+        },
+        {
+            label: 'Clock',
+            icon: 'schedule',
+            active: isToolbarContextActive('clock'),
+            command: () => toggleContextItem('clock', () => emit('request-open-clock-panel'))
         },
         {
             label: 'Walk',
@@ -809,7 +820,7 @@
                                         v-model="exportLogoOverlayEnabledModel"
                                     />
                                     <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
-                                    }}</span>
+                                        }}</span>
                                 </div>
                             </div>
 

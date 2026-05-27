@@ -15,7 +15,7 @@
     const app = useViewerStore();
 
     const functionLabel = computed(() => (app.proceduralPathMode === 'sineWave' ? 'Live sine wave' : 'Sine wave'));
-    const hasActiveProceduralPath = computed(() => app.proceduralPathMode === 'sineWave');
+    const hasActiveSineWave = computed(() => app.proceduralPathMode === 'sineWave');
 
     const settingRows = [
         {
@@ -119,6 +119,13 @@
         },
     ];
 
+    function buildPayload() {
+        return {
+            type: 'sineWave',
+            settings: { ...app.sineWaveSettings },
+        };
+    }
+
     function getSettingValue(key) {
         return app.sineWaveSettings[key] ?? DEFAULT_SINE_WAVE_SETTINGS[key];
     }
@@ -129,35 +136,35 @@
             : Number(rawValue);
 
         app.setSineWaveSettings({ [key]: nextValue });
-        emit('settings-change', { ...app.sineWaveSettings });
+        emit('settings-change', buildPayload());
     }
 
     function resetSettings() {
         app.resetSineWaveSettings();
-        emit('settings-change', { ...app.sineWaveSettings });
+        emit('settings-change', buildPayload());
     }
 
     function createOrRefresh() {
-        emit('request-create', { ...app.sineWaveSettings });
+        emit('request-create', buildPayload());
     }
 </script>
 
 <template>
     <div
-        class="procedural-panel"
+        class="sine-wave-panel"
         :class="{ active: props.active }"
     >
-        <div class="procedural-panel-container viewer-chrome-panel-container">
-            <ScrollPanel class="procedural-panel-scrollpanel">
-                <div class="procedural-panel-content">
+        <div class="sine-wave-panel-container viewer-chrome-panel-container">
+            <ScrollPanel class="sine-wave-panel-scrollpanel">
+                <div class="sine-wave-panel-content">
                     <div class="tools-section">
-                        <div class="tools-section-label">Function</div>
+                        <div class="tools-section-label">Wave</div>
                         <div class="tools-section-items">
-                            <div class="procedural-summary">
+                            <div class="sine-wave-summary">
                                 <span class="material-symbols-outlined">airwave</span>
-                                <div class="procedural-summary-copy">
-                                    <span class="procedural-summary-title">{{ functionLabel }}</span>
-                                    <span class="procedural-summary-meta">
+                                <div class="sine-wave-summary-copy">
+                                    <span class="sine-wave-summary-title">{{ functionLabel }}</span>
+                                    <span class="sine-wave-summary-meta">
                                         y = offset + amplitude(t) * sin(progress * frequency(t) * 2pi + phase(t))
                                     </span>
                                 </div>
@@ -187,7 +194,7 @@
                 </div>
             </ScrollPanel>
 
-            <PanelActionBar class="procedural-panel-footer">
+            <PanelActionBar class="sine-wave-panel-footer">
                 <Button
                     type="button"
                     severity="secondary"
@@ -200,8 +207,8 @@
                     type="button"
                     @click="createOrRefresh"
                 >
-                    <span class="material-symbols-outlined">{{ hasActiveProceduralPath ? 'refresh' : 'airwave' }}</span>
-                    <span>{{ hasActiveProceduralPath ? 'Refresh' : 'Create' }}</span>
+                    <span class="material-symbols-outlined">{{ hasActiveSineWave ? 'refresh' : 'airwave' }}</span>
+                    <span>{{ hasActiveSineWave ? 'Refresh' : 'Create' }}</span>
                 </Button>
                 <Button
                     type="button"
@@ -217,7 +224,7 @@
 </template>
 
 <style scoped>
-    .procedural-panel {
+    .sine-wave-panel {
         position: absolute;
         top: 0;
         left: 0;
@@ -231,12 +238,12 @@
         flex-direction: column;
     }
 
-    .procedural-panel.active {
+    .sine-wave-panel.active {
         pointer-events: auto;
         opacity: 1;
     }
 
-    .procedural-panel-container {
+    .sine-wave-panel-container {
         display: flex;
         flex-direction: column;
         position: relative;
@@ -246,7 +253,7 @@
         background: transparent;
     }
 
-    .procedural-panel-scrollpanel {
+    .sine-wave-panel-scrollpanel {
         --p-scrollpanel-bar-size: 0.55rem;
         --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
         flex: 1;
@@ -255,29 +262,29 @@
         width: 100%;
     }
 
-    :deep(.procedural-panel-scrollpanel .p-scrollpanel-content-container) {
+    :deep(.sine-wave-panel-scrollpanel .p-scrollpanel-content-container) {
         height: 100%;
         min-height: 0;
     }
 
-    :deep(.procedural-panel-scrollpanel .p-scrollpanel-content) {
+    :deep(.sine-wave-panel-scrollpanel .p-scrollpanel-content) {
         height: 100%;
         min-height: 100%;
         overflow-x: hidden;
         padding-bottom: 0;
     }
 
-    :deep(.procedural-panel-scrollpanel .p-scrollpanel-bar) {
+    :deep(.sine-wave-panel-scrollpanel .p-scrollpanel-bar) {
         opacity: 0.55;
     }
 
-    :deep(.procedural-panel-scrollpanel:hover .p-scrollpanel-bar),
-    :deep(.procedural-panel-scrollpanel:active .p-scrollpanel-bar),
-    :deep(.procedural-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
+    :deep(.sine-wave-panel-scrollpanel:hover .p-scrollpanel-bar),
+    :deep(.sine-wave-panel-scrollpanel:active .p-scrollpanel-bar),
+    :deep(.sine-wave-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
         opacity: 0.9;
     }
 
-    .procedural-panel-content {
+    .sine-wave-panel-content {
         box-sizing: border-box;
         padding: 1.5rem 1.25rem;
         width: 100%;
@@ -289,13 +296,13 @@
         background: var(--viewer-toolbar-panel-background);
     }
 
-    .procedural-panel-footer {
+    .sine-wave-panel-footer {
         --panel-action-bar-background: var(--viewer-toolbar-panel-background);
         --panel-action-bar-border-color: #374151;
         --panel-action-bar-padding: 1rem 1.25rem;
     }
 
-    .procedural-summary {
+    .sine-wave-summary {
         display: flex;
         gap: 0.875rem;
         align-items: flex-start;
@@ -305,36 +312,36 @@
         background: rgba(255, 255, 255, 0.06);
     }
 
-    .procedural-summary>.material-symbols-outlined {
+    .sine-wave-summary>.material-symbols-outlined {
         font-size: 1.45rem;
         opacity: 0.9;
     }
 
-    .procedural-summary-copy {
+    .sine-wave-summary-copy {
         display: flex;
         flex-direction: column;
         gap: 0.18rem;
         min-width: 0;
     }
 
-    .procedural-summary-title {
+    .sine-wave-summary-title {
         font-size: 0.95rem;
         font-weight: 600;
         line-height: 1.25;
     }
 
-    .procedural-summary-meta {
+    .sine-wave-summary-meta {
         color: rgba(255, 255, 255, 0.62);
         font-size: 0.78rem;
         line-height: 1.35;
     }
 
     @media (min-width: 769px) {
-        .procedural-panel-content {
+        .sine-wave-panel-content {
             align-items: center;
         }
 
-        .procedural-panel-content .tools-section {
+        .sine-wave-panel-content .tools-section {
             width: min(44rem, 100%);
         }
     }

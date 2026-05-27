@@ -13,7 +13,8 @@ const DEFAULT_VIEWER_CONTEXT_ORDER = [
     'emoji',
     'text',
     'contour',
-    'procedural',
+    'sineWave',
+    'clock',
     'tools',
     'about',
 ];
@@ -116,11 +117,19 @@ const VIEWER_CONTEXT_DEFINITIONS = {
             return true;
         },
     },
-    procedural: {
-        title: 'Procedural Path',
-        isActive: (app) => isViewerPanelVisible(app, 'procedural'),
+    sineWave: {
+        title: 'Sine Wave',
+        isActive: (app) => isViewerPanelVisible(app, 'sineWave'),
         close: (app) => {
-            app.hideProceduralPanel();
+            app.hideSineWavePanel();
+            return true;
+        },
+    },
+    clock: {
+        title: 'Clock',
+        isActive: (app) => isViewerPanelVisible(app, 'clock'),
+        close: (app) => {
+            app.hideClockPanel();
             return true;
         },
     },

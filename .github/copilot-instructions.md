@@ -34,13 +34,13 @@ There are **no tests or linters configured** — `pnpm lint` stubs to `echo`. De
 
 ## Frontend Conventions (`apps/rivvon/`)
 
+- **Google Material Symbols** for icons, loaded via a custom CDN loader (`modules/shared/iconLoader.js`). To use an icon, its name must be added to the `loadMaterialSymbols()` array in `main.js`
 - **Vue 3 Composition API** with `<script setup>` in `.vue` files; plain `.js` elsewhere (no TypeScript in frontend)
 - **Pinia stores** (`stores/`) hold global state; three stores: `authStore`, `viewerStore`, `slyceStore`
 - **Composables** (`composables/`) are `use*()` functions that combine reactive state + logic; they may depend on stores
 - **Modules** (`modules/`) are **non-reactive** utility classes/functions (e.g., `TileManager`, `Ribbon`, `videoProcessor`). They do NOT import Vue reactivity — composables bridge between modules and Vue
 - **Services** (`services/`) wrap external APIs: `api.js` (`useRivvonAPI()` composable-style), `googleDrive.js`, `textureService.js`, `localStorage.js` (IndexedDB)
 - **PrimeVue** is the UI component library (with Aura theme); **Tailwind CSS v4** for utility classes
-- **Icons** are Google Material Symbols, loaded via a custom CDN loader (`modules/shared/iconLoader.js`). To use an icon, its name must be added to the `loadMaterialSymbols()` array in `main.js`
 - **Three.js** canvas is appended to `document.body` at z-index 0; Vue `#app` sits above with `pointer-events: none` in viewer mode. Interactive UI elements opt back in with `pointer-events: auto` (see `RibbonView.vue`)
 - WebGPU support exists alongside WebGL with fallback: `threeSetup-webgl.js` / `threeSetup-webgpu.js`
 - `shallowRef` is used for Three.js objects to avoid deep reactivity overhead

@@ -8,9 +8,7 @@ import { DEFAULT_CAP_STYLE } from './capStyle.js';
 import { projectPathsToSphere } from './sphericalProjection.js';
 import {
     calculatePolylineLength,
-    estimateMaxSineWavePathLength,
-    generateSineWavePoints,
-    normalizeSineWaveSettings,
+    getProceduralSourceFrame,
 } from './proceduralPaths.js';
 
 export class RibbonSeries {
@@ -268,14 +266,47 @@ export class RibbonSeries {
         return width * ribbonWidthScale;
     }
 
-    _getProceduralSegmentCounts(points, effectiveWidth, maxPathLength) {
-        const pathLength = calculatePolylineLength(points);
+    _getProceduralPathMetrics(pathsPoints, effectiveWidth, maxPathLengths = [], pathLengths = []) {
         const safeWidth = Math.max(0.01, effectiveWidth || 1);
+
+        return pathsPoints.map((points, index) => {
+            const pathLength = Number.isFinite(pathLengths[index])
+                ? pathLengths[index]
+                : calculatePolylineLength(points);
+            const maxPathLength = Math.max(pathLength, Number(maxPathLengths[index]) || pathLength);
+
+            return {
+                pathIndex: index,
+                pathLength,
+                maxPathLength,
+                activeSegmentCount: Math.max(1, Math.ceil(pathLength / safeWidth)),
+                maxSegmentCount: Math.max(1, Math.ceil(maxPathLength / safeWidth)),
+            };
+        });
+    }
+
+    _createProceduralDebug(pathMetrics, sourceDebug = null) {
+        const pathLength = pathMetrics.reduce((sum, metrics) => sum + metrics.pathLength, 0);
+        const maxPathLength = pathMetrics.reduce((sum, metrics) => sum + metrics.maxPathLength, 0);
+        const activeSegmentCount = pathMetrics.reduce((sum, metrics) => sum + metrics.activeSegmentCount, 0);
+        const maxSegmentCount = pathMetrics.reduce((sum, metrics) => sum + metrics.maxSegmentCount, 0);
 
         return {
             pathLength,
-            activeSegmentCount: Math.max(1, Math.ceil(pathLength / safeWidth)),
-            maxSegmentCount: Math.max(1, Math.ceil(maxPathLength / safeWidth)),
+            maxPathLength,
+            activeSegmentCount,
+            maxSegmentCount,
+            inactiveSegmentCount: Math.max(0, maxSegmentCount - activeSegmentCount),
+            paths: pathMetrics.map((metrics) => ({
+                pathIndex: metrics.pathIndex,
+                pathLength: metrics.pathLength,
+                maxPathLength: metrics.maxPathLength,
+                activeSegmentCount: metrics.activeSegmentCount,
+                maxSegmentCount: metrics.maxSegmentCount,
+                inactiveSegmentCount: Math.max(0, metrics.maxSegmentCount - metrics.activeSegmentCount),
+            })),
+            layout: this._layoutDebug,
+            source: sourceDebug,
         };
     }
 
@@ -316,6 +347,62 @@ export class RibbonSeries {
         return this.ribbons;
     }
 
+    buildPooledMultiplePaths(pathsPoints, width = 1, time = 0, options = {}) {
+        if (!pathsPoints || pathsPoints.length === 0) {
+            console.warn('[RibbonSeries] No procedural paths provided');
+            return [];
+        }
+
+        this.cleanup();
+
+        const sourcePaths = this._clonePaths(pathsPoints);
+        this.sourcePathsPoints = this._clonePaths(sourcePaths);
+        this.lastPathsPoints = this._clonePaths(sourcePaths);
+        this.lastWidth = width;
+        this._resolvedSphericalProjectionRadius = null;
+        this._updateTransformRoot(this.lastPathsPoints);
+
+        const pathOptions = Array.isArray(options.pathOptions) ? options.pathOptions : [];
+        const effectiveWidth = this._getEffectiveRibbonWidth(width);
+        const N = this.tileManagers.length;
+        let textureIndex = 0;
+        let segmentOffset = 0;
+
+        for (let index = 0; index < this.lastPathsPoints.length; index += 1) {
+            const points = this.lastPathsPoints[index];
+
+            if (!points || points.length < 2) {
+                console.warn(`[RibbonSeries] Procedural path ${index} has insufficient points, skipping`);
+                continue;
+            }
+
+            const ribbon = new Ribbon(this._contentGroup);
+            const tmA = N > 0 ? this.tileManagers[textureIndex % N] : this.tileManager;
+            if (tmA) {
+                ribbon.setTileManager(tmA);
+            }
+            this._strandTileManagerMap.push({ ribbon, strand: 'A', tileManager: tmA });
+            textureIndex += 1;
+
+            ribbon.setHelixOptions({
+                ...this._helixOptions,
+                helixMode: false,
+                sphericalProjectionEnabled: false,
+                sphericalProjectionRadius: null,
+            });
+            ribbon.setSegmentOffset(segmentOffset);
+            ribbon.buildPooledSegmentedRibbon(points, effectiveWidth, time, pathOptions[index] || {});
+
+            segmentOffset += ribbon.meshSegments.length;
+            this.ribbons.push(ribbon);
+        }
+
+        this.totalSegmentCount = segmentOffset;
+        this._layoutDebug = this._collectLayoutDebugInfo();
+
+        return this.ribbons;
+    }
+
     updatePooledSinglePath(points, width = 1, time = 0, options = {}) {
         if (!points || points.length < 2 || this.ribbons.length === 0) {
             return this.buildPooledSinglePath(points, width, time, options);
@@ -335,41 +422,84 @@ export class RibbonSeries {
         return this.ribbons;
     }
 
-    buildFromProceduralSource(sourceConfig = {}, width = 1, time = 0) {
-        const type = sourceConfig.type || 'sineWave';
+    updatePooledMultiplePaths(pathsPoints, width = 1, time = 0, options = {}) {
+        const validPathCount = Array.isArray(pathsPoints)
+            ? pathsPoints.filter((points) => Array.isArray(points) && points.length >= 2).length
+            : 0;
 
-        if (type !== 'sineWave') {
-            console.warn(`[RibbonSeries] Unsupported procedural source: ${type}`);
-            return [];
+        if (validPathCount === 0 || this.ribbons.length !== validPathCount || this._helixOptions.helixMode) {
+            return this.buildPooledMultiplePaths(pathsPoints, width, time, options);
         }
 
-        const settings = normalizeSineWaveSettings(sourceConfig.settings || {});
-        const points = generateSineWavePoints(settings, time);
+        const sourcePaths = this._clonePaths(pathsPoints);
+        this.sourcePathsPoints = this._clonePaths(sourcePaths);
+        this.lastPathsPoints = this._clonePaths(sourcePaths);
+        this.lastWidth = width;
+        this._resolvedSphericalProjectionRadius = null;
+        this._updateTransformRoot(this.lastPathsPoints);
+
+        const pathOptions = Array.isArray(options.pathOptions) ? options.pathOptions : [];
         const effectiveWidth = this._getEffectiveRibbonWidth(width);
-        const maxPathLength = estimateMaxSineWavePathLength(settings);
-        const counts = this._getProceduralSegmentCounts(points, effectiveWidth, maxPathLength);
-        const maxSegmentCount = Math.max(counts.activeSegmentCount, counts.maxSegmentCount);
+        let segmentOffset = 0;
+        let ribbonIndex = 0;
+
+        for (let index = 0; index < this.lastPathsPoints.length; index += 1) {
+            const points = this.lastPathsPoints[index];
+
+            if (!points || points.length < 2) {
+                continue;
+            }
+
+            const ribbon = this.ribbons[ribbonIndex];
+            const pathOption = pathOptions[index] || {};
+            const expectedMaxSegmentCount = Math.max(
+                1,
+                Math.ceil(Number(pathOption.maxSegmentCount) || ribbon?.meshSegments.length || 1)
+            );
+
+            if (!ribbon || ribbon.meshSegments.length !== expectedMaxSegmentCount) {
+                return this.buildPooledMultiplePaths(pathsPoints, width, time, options);
+            }
+
+            ribbon.setSegmentOffset(segmentOffset);
+            ribbon.updatePooledSegmentedRibbon(points, effectiveWidth, time, pathOption);
+            segmentOffset += ribbon.meshSegments.length;
+            ribbonIndex += 1;
+        }
+
+        this.totalSegmentCount = segmentOffset;
+        this._layoutDebug = this._collectLayoutDebugInfo();
+
+        return this.ribbons;
+    }
+
+    buildFromProceduralSource(sourceConfig = {}, width = 1, time = 0) {
+        const frame = getProceduralSourceFrame(sourceConfig, time);
+        const effectiveWidth = this._getEffectiveRibbonWidth(width);
+        const pathMetrics = this._getProceduralPathMetrics(
+            frame.paths,
+            effectiveWidth,
+            frame.maxPathLengths,
+            frame.pathLengths,
+        );
+        const pathOptions = pathMetrics.map((metrics) => ({
+            activeSegmentCount: metrics.activeSegmentCount,
+            maxSegmentCount: metrics.maxSegmentCount,
+        }));
 
         this.proceduralSource = {
-            type,
-            settings,
+            type: frame.type,
+            settings: frame.settings,
             width,
-            maxObservedPathLength: Math.max(maxPathLength, counts.pathLength),
-            maxSegmentCount,
+            runtimeState: frame.runtimeState,
+            maxObservedPathLengths: pathMetrics.map((metrics) => metrics.maxPathLength),
+            maxSegmentCounts: pathMetrics.map((metrics) => metrics.maxSegmentCount),
             lastTime: time,
         };
-        const ribbons = this.buildPooledSinglePath(points, width, time, {
-            activeSegmentCount: counts.activeSegmentCount,
-            maxSegmentCount,
-        });
-        this._proceduralDebug = {
-            pathLength: counts.pathLength,
-            maxPathLength: this.proceduralSource.maxObservedPathLength,
-            activeSegmentCount: counts.activeSegmentCount,
-            maxSegmentCount,
-            inactiveSegmentCount: Math.max(0, maxSegmentCount - counts.activeSegmentCount),
-            layout: this._layoutDebug,
-        };
+        const ribbons = frame.paths.length > 1
+            ? this.buildPooledMultiplePaths(frame.paths, width, time, { pathOptions })
+            : this.buildPooledSinglePath(frame.paths[0], width, time, pathOptions[0] || {});
+        this._proceduralDebug = this._createProceduralDebug(pathMetrics, frame.debug);
         this.initFlowMaterials();
         return ribbons;
     }
@@ -380,42 +510,80 @@ export class RibbonSeries {
         }
 
         const source = this.proceduralSource;
-        const points = generateSineWavePoints(source.settings, time);
+        const frame = getProceduralSourceFrame({
+            type: source.type,
+            settings: source.settings,
+        }, time, source.runtimeState);
         const effectiveWidth = this._getEffectiveRibbonWidth(source.width);
-        const pathLength = calculatePolylineLength(points);
-        const activeSegmentCount = Math.max(1, Math.ceil(pathLength / Math.max(0.01, effectiveWidth)));
-        let maxSegmentCount = source.maxSegmentCount;
-        let poolGrew = false;
+        const previousMaxObservedPathLengths = Array.isArray(source.maxObservedPathLengths)
+            && source.maxObservedPathLengths.length > 0
+            ? source.maxObservedPathLengths
+            : frame.maxPathLengths;
+        const previousMaxSegmentCounts = Array.isArray(source.maxSegmentCounts)
+            ? source.maxSegmentCounts
+            : [];
 
-        if (pathLength > source.maxObservedPathLength * 1.02 || activeSegmentCount > maxSegmentCount) {
-            source.maxObservedPathLength = pathLength;
-            maxSegmentCount = Math.max(maxSegmentCount, activeSegmentCount);
-            source.maxSegmentCount = maxSegmentCount;
-            poolGrew = true;
+        const pathMetrics = this._getProceduralPathMetrics(
+            frame.paths,
+            effectiveWidth,
+            previousMaxObservedPathLengths,
+            frame.pathLengths,
+        );
+        const nextMaxObservedPathLengths = [];
+        const nextMaxSegmentCounts = [];
+        let poolGrew = frame.paths.length !== this.ribbons.length;
+
+        for (const metrics of pathMetrics) {
+            const previousMaxObservedPathLength = Math.max(
+                metrics.maxPathLength,
+                Number(previousMaxObservedPathLengths[metrics.pathIndex]) || 0
+            );
+            const previousMaxSegmentCount = Math.max(
+                metrics.maxSegmentCount,
+                Number(previousMaxSegmentCounts[metrics.pathIndex]) || 0
+            );
+            const pathGrew = metrics.pathLength > previousMaxObservedPathLength * 1.02
+                || metrics.activeSegmentCount > previousMaxSegmentCount;
+
+            const nextMaxObservedPathLength = pathGrew
+                ? metrics.pathLength
+                : previousMaxObservedPathLength;
+            const nextMaxSegmentCount = pathGrew
+                ? Math.max(previousMaxSegmentCount, metrics.activeSegmentCount)
+                : previousMaxSegmentCount;
+
+            metrics.maxPathLength = Math.max(metrics.pathLength, nextMaxObservedPathLength);
+            metrics.maxSegmentCount = Math.max(metrics.activeSegmentCount, nextMaxSegmentCount);
+            nextMaxObservedPathLengths[metrics.pathIndex] = metrics.maxPathLength;
+            nextMaxSegmentCounts[metrics.pathIndex] = metrics.maxSegmentCount;
+            poolGrew = poolGrew || pathGrew;
         }
+
+        const pathOptions = pathMetrics.map((metrics) => ({
+            activeSegmentCount: metrics.activeSegmentCount,
+            maxSegmentCount: metrics.maxSegmentCount,
+        }));
 
         if (poolGrew) {
-            this.buildPooledSinglePath(points, source.width, time, {
-                activeSegmentCount,
-                maxSegmentCount,
-            });
+            if (frame.paths.length > 1) {
+                this.buildPooledMultiplePaths(frame.paths, source.width, time, { pathOptions });
+            } else {
+                this.buildPooledSinglePath(frame.paths[0], source.width, time, pathOptions[0] || {});
+            }
             this.initFlowMaterials();
         } else {
-            this.updatePooledSinglePath(points, source.width, time, {
-                activeSegmentCount,
-                maxSegmentCount,
-            });
+            if (frame.paths.length > 1) {
+                this.updatePooledMultiplePaths(frame.paths, source.width, time, { pathOptions });
+            } else {
+                this.updatePooledSinglePath(frame.paths[0], source.width, time, pathOptions[0] || {});
+            }
         }
 
+        source.runtimeState = frame.runtimeState;
+        source.maxObservedPathLengths = nextMaxObservedPathLengths;
+        source.maxSegmentCounts = nextMaxSegmentCounts;
         source.lastTime = time;
-        this._proceduralDebug = {
-            pathLength,
-            maxPathLength: source.maxObservedPathLength,
-            activeSegmentCount,
-            maxSegmentCount,
-            inactiveSegmentCount: Math.max(0, maxSegmentCount - activeSegmentCount),
-            layout: this._layoutDebug,
-        };
+        this._proceduralDebug = this._createProceduralDebug(pathMetrics, frame.debug);
 
         return this._proceduralDebug;
     }

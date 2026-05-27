@@ -6,7 +6,10 @@ import { CAP_STYLE_ROUNDED, normalizeCapStyle } from '../modules/viewer/capStyle
 import { normalizeExportDimensionSettings } from '../modules/viewer/exportVideoDimensions.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, normalizeExportLogoCorner } from '../modules/viewer/exportLogoOverlay.js';
 import {
+    DEFAULT_CLOCK_SETTINGS,
     DEFAULT_SINE_WAVE_SETTINGS,
+    normalizeClockSettings,
+    normalizeProceduralSourceType,
     normalizeSineWaveSettings,
 } from '../modules/viewer/proceduralPaths.js';
 import {
@@ -313,7 +316,9 @@ export const useViewerStore = defineStore('viewer', {
         countdownProgress: 0,
         inFinalCountdown: false,
         proceduralPathMode: null,
+        proceduralSourceType: 'sineWave',
         sineWaveSettings: { ...DEFAULT_SINE_WAVE_SETTINGS },
+        clockSettings: { ...DEFAULT_CLOCK_SETTINGS },
 
         // Walk capture state
         isWalkMode: false,
@@ -524,7 +529,18 @@ export const useViewerStore = defineStore('viewer', {
         },
 
         setProceduralPathMode(mode) {
-            this.proceduralPathMode = mode === 'sineWave' ? 'sineWave' : null;
+            if (mode == null) {
+                this.proceduralPathMode = null;
+                return;
+            }
+
+            const nextType = normalizeProceduralSourceType(mode);
+            this.proceduralPathMode = nextType;
+            this.proceduralSourceType = nextType;
+        },
+
+        setProceduralSourceType(type) {
+            this.proceduralSourceType = normalizeProceduralSourceType(type);
         },
 
         setSineWaveSettings(settings = {}) {
@@ -534,8 +550,19 @@ export const useViewerStore = defineStore('viewer', {
             });
         },
 
+        setClockSettings(settings = {}) {
+            this.clockSettings = normalizeClockSettings({
+                ...this.clockSettings,
+                ...settings,
+            });
+        },
+
         resetSineWaveSettings() {
             this.sineWaveSettings = { ...DEFAULT_SINE_WAVE_SETTINGS };
+        },
+
+        resetClockSettings() {
+            this.clockSettings = { ...DEFAULT_CLOCK_SETTINGS };
         },
 
         setViewerControlMode(mode) {
@@ -967,12 +994,22 @@ export const useViewerStore = defineStore('viewer', {
             hideViewerFlag(this, VIEWER_PANEL_KEYS.contour);
         },
 
-        showProceduralPanel() {
-            showViewerFlag(this, VIEWER_PANEL_KEYS.procedural);
+        showSineWavePanel() {
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.clock);
+            showViewerFlag(this, VIEWER_PANEL_KEYS.sineWave);
         },
 
-        hideProceduralPanel() {
-            hideViewerFlag(this, VIEWER_PANEL_KEYS.procedural);
+        hideSineWavePanel() {
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.sineWave);
+        },
+
+        showClockPanel() {
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.sineWave);
+            showViewerFlag(this, VIEWER_PANEL_KEYS.clock);
+        },
+
+        hideClockPanel() {
+            hideViewerFlag(this, VIEWER_PANEL_KEYS.clock);
         },
 
         showAboutPanel() {
