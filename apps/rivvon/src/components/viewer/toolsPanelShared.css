@@ -12,11 +12,11 @@
     --viewer-toolbar-panel-background: rgba(0,0,0,0.75);
     --viewer-tools-section-background: rgba(0, 0, 0, 0.75);
 }
-
+/* 
 .launcher-panel-content,
 .tools-panel-content {
     background: var(--viewer-toolbar-panel-background);
-}
+} */
 
 .tools-section {
     display: flex;

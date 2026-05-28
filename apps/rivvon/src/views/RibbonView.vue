@@ -485,6 +485,33 @@
     const currentDrawingKind = ref(null);
     const currentDrawingTitle = ref(null);
     const currentDrawingSource = ref(null);
+
+    // Live clock time shown in header when clock mode is active
+    const clockHeaderTime = ref('');
+    let _clockTickerId = null;
+
+    function _formatClockTime(date) {
+        const h = String(date.getHours()).padStart(2, '0');
+        const m = String(date.getMinutes()).padStart(2, '0');
+        const s = String(date.getSeconds()).padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    }
+
+    watch(currentDrawingKind, (kind) => {
+        if (kind === 'clock') {
+            if (_clockTickerId !== null) return;
+            clockHeaderTime.value = _formatClockTime(new Date());
+            _clockTickerId = setInterval(() => {
+                clockHeaderTime.value = _formatClockTime(new Date());
+            }, 1000);
+        } else {
+            if (_clockTickerId !== null) {
+                clearInterval(_clockTickerId);
+                _clockTickerId = null;
+            }
+            clockHeaderTime.value = '';
+        }
+    });
     const currentViewShareState = ref({ kind: 'default' });
     const textureOverviewSelection = ref(null);
     const textureCreatorNavigationState = ref(null);
@@ -513,6 +540,10 @@
                 return 'drawings';
             case 'gesture':
                 return 'draw';
+            case 'clock':
+                return 'clock';
+            case 'sineWave':
+                return 'sineWave';
             default:
                 return null;
         }
@@ -520,11 +551,33 @@
 
     const viewerHeaderTitleModel = computed(() => {
         const textureName = typeof app.currentTextureName === 'string' ? app.currentTextureName.trim() : '';
+        const currentKind = currentDrawingKind.value;
+
+        // Procedural modes (clock, sineWave): show even without a texture
+        if (currentKind === 'clock' || currentKind === 'sineWave') {
+            const kindLabel = getKindLabel(currentKind);
+            const timeLabel = currentKind === 'clock' ? clockHeaderTime.value : '';
+            const textureTarget = 'texture';
+            const text = textureName
+                ? (timeLabel ? `${kindLabel} / ${timeLabel} / ${textureName}` : `${kindLabel} / ${textureName}`)
+                : (timeLabel ? `${kindLabel} / ${timeLabel}` : kindLabel);
+            return {
+                text,
+                kindLabel,
+                drawingTitle: timeLabel || null,
+                textureLabel: textureName || null,
+                kindTarget: currentKind,
+                kindInteractive: true,
+                titleInteractive: false,
+                textureTarget,
+                textureInteractive: Boolean(textureName),
+            };
+        }
+
         if (!textureName) {
             return null;
         }
 
-        const currentKind = currentDrawingKind.value;
         const kindLabel = currentKind ? getKindLabel(currentKind) : '';
         const drawingTitle = typeof currentDrawingTitle.value === 'string' ? currentDrawingTitle.value.trim() : '';
         const textureTarget = 'texture';
@@ -803,6 +856,12 @@
             case 'draw':
                 enterDrawMode();
                 return;
+            case 'clock':
+                openClockPanel();
+                return;
+            case 'sineWave':
+                openSineWavePanel();
+                return;
             default:
                 return;
         }
@@ -968,6 +1027,10 @@
 
     onUnmounted(() => {
         window.removeEventListener('keydown', handleCinematicKeydown);
+        if (_clockTickerId !== null) {
+            clearInterval(_clockTickerId);
+            _clockTickerId = null;
+        }
     });
 
     // Watch overlay modes to control renderer visibility
@@ -1594,7 +1657,7 @@
             type,
             settings,
         });
-        setCurrentDrawingHeader();
+        setCurrentDrawingHeader({ kind: type });
         setCurrentViewShareState({ kind: 'unshareable' });
         applyTextureResetState({ clearThumbnail: true });
 
@@ -1653,7 +1716,7 @@
         );
 
         await threeCanvasRef.value.updateProceduralRibbonSettings(source);
-        setCurrentDrawingHeader();
+        setCurrentDrawingHeader({ kind: app.proceduralPathMode });
         setCurrentViewShareState({ kind: 'unshareable' });
         applyTextureResetState({ clearThumbnail: true });
     }
