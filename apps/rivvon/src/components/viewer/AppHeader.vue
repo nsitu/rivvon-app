@@ -1,5 +1,5 @@
 <script setup>
-    import { computed } from 'vue';
+    import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
     import { resolveViewerHeaderContext } from '../../modules/viewer/viewerHeaderContext.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -49,6 +49,17 @@
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
+
+    // Track viewport breakpoint to drive ribbon animations
+    const isMobile = ref(false);
+    let _mq = null;
+    function _onMqChange(e) { isMobile.value = e.matches; }
+    onMounted(() => {
+        _mq = window.matchMedia('(max-width: 768px)');
+        isMobile.value = _mq.matches;
+        _mq.addEventListener('change', _onMqChange);
+    });
+    onBeforeUnmount(() => { _mq?.removeEventListener('change', _onMqChange); });
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
@@ -147,23 +158,66 @@
             <a
                 href="/"
                 class="app-logo"
+                :class="{ 'logo-is-mobile': isMobile }"
                 aria-label="Rivvon"
             >
+                <!-- Desktop ribbon: flies in/out from the left via translateX -->
                 <svg
-                    class="app-logo-rivvon"
+                    class="app-logo-rivvon app-logo-ribbon app-logo-ribbon-desktop"
+                    xmlns="http://www.w3.org/2000/svg"
+                    version="1.1"
+                    viewBox="0 0 634 188.1999969"
+                    aria-hidden="true"
+                    focusable="false"
+                >
+                    <polygon
+                        class="rivvon-ribbon"
+                        points="0 0 634 0 594 94.1000031 634 187 0 187"
+                    />
+                </svg>
+
+                <!-- Mobile ribbon: square viewBox — no rotation needed, flies in from top -->
+                <svg
+                    class="app-logo-rivvon app-logo-ribbon app-logo-ribbon-mobile"
+                    xmlns="http://www.w3.org/2000/svg"
+                    version="1.1"
+                    viewBox="0 0 188.1999969 188.1999969"
+                    overflow="visible"
+                    aria-hidden="true"
+                    focusable="false"
+                >
+                    <polygon
+                        class="rivvon-ribbon"
+                        points="0 0 188.1999969 0 188.1999969 228.1999969 94.0999985 188.1999969 0 228.1999969"
+                    />
+                </svg>
+
+                <img
+                    class="app-logo-rivvon app-logo-letters app-logo-letters-desktop"
+                    src="/rivvon-clean-white.svg"
+                    alt=""
+                    aria-hidden="true"
+                />
+
+                <img
+                    class="app-logo-rivvon app-logo-letters app-logo-letters-mobile"
+                    src="/rivvon-clean-round-whitesvg.svg"
+                    alt=""
+                    aria-hidden="true"
+                />
+
+                <!-- inline letters kept for reference, hidden via CSS -->
+                <svg
+                    class="app-logo-rivvon app-logo-letters app-logo-letters-inline"
                     xmlns="http://www.w3.org/2000/svg"
                     version="1.1"
                     viewBox="0 0 856.4000244 188.1999969"
                     aria-hidden="true"
                     focusable="false"
+                    style="display:none"
                 >
-
-                    <polygon
-                        class="rivvon-ribbon"
-                        points="0 0 856.4000244 0 796.4000244 94.1000031 856.4000244 187 0 187 60 94.1000031 0 0"
-                    />
                     <path
-                        class="rivvon-letter"
+                        class="rivvon-letter rivvon-letter-r"
                         d="M246.7655539,123.3843284c1.5286119-9.5106236-12.9730494-19.3794266-6.9734032-30.6858477,2.654719-5.0078539,6.8321448-9.5263126,7.6412615-15.3598728,1.8158249-9.7432625-5.4336793-20.801371-14.8787512-22.7457197-3.5272521-.7447297-6.769532-.6479942-10.4674589-.6421134-3.970665.0988996-8.3831731-.084346-12.0316213.3532334-9.737114.6562299-9.7861482,10.2530137-9.8257435,17.9559447.036837,9.8690482.3725102,19.96962.1760199,29.7208699-.037591,3.8577247-.1528146,7.7344484-.0110817,11.5697856.0931912,3.0415519.5645929,6.9211328,2.1620238,9.1522535,4.2689375,5.1003632,5.6041423-5.2227077,5.4253217-8.7155647-.3106783-7.8552707-.6444257-16.396326,8.5857324-18.6393488,6.8207399-1.562217,12.5660613,1.9758338,15.613004,8.4900586,3.0913125,5.8129146,5.0632675,13.6401857,9.3458607,18.4722259,2.1997462,2.3167544,4.3492891,3.0383984,5.2082754,1.1502756l.0305606-.0761801ZM231.7479042,85.4682956c-5.8154602,1.5475803-12.2922402.4919152-18.2470552-.0190672-4.6260031-.583471-6.1339528-3.3991796-6.2128173-8.4140725.0066087-3.3937189-.2900898-7.3079896,2.1578135-9.8405854,3.0426936-2.7167205,7.760152-2.0363369,11.620911-2.344256,5.2509321-.2196351,11.0193136-.7438059,15.2277529,2.1175035,7.4301673,5.2470193,4.0084299,16.2555852-4.3807658,18.4497226l-.1658391.050755Z"
                     />
                     <path
@@ -347,7 +401,7 @@
         --app-header-height: calc((var(--app-header-top-padding) * 2) + var(--app-logo-height));
         --app-logo-aspect-ratio: 4.5505;
         --app-logo-image-width: calc(var(--app-header-height) * var(--app-logo-aspect-ratio));
-        --app-logo-width: calc(var(--app-logo-image-width) + (var(--app-header-side-padding) * 2));
+        --app-logo-width: 20rem;
         --app-logo-mobile-scale: 0.5;
         --app-logo-condensed-width: calc((var(--app-header-height) * var(--app-logo-mobile-scale)) + (var(--app-header-side-padding) * 2));
     }
@@ -365,7 +419,7 @@
         pointer-events: none;
         transition: opacity 0.3s ease, transform 0.3s ease;
         background: #000000;
-        background: linear-gradient(90deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.37) 35%, rgba(0, 0, 0, 0.68) 100%);
+        background: linear-gradient(90deg, rgb(0 0 0 / 0%) 15%, rgba(0, 0, 0, 0.37) 50%, rgba(0, 0, 0, 0.68) 100%);
     }
 
     .header-main {
@@ -395,7 +449,7 @@
 
     .app-logo {
         position: relative;
-        margin-left: -2rem;
+
         display: inline-flex;
         align-items: center;
         width: var(--app-logo-width);
@@ -414,6 +468,92 @@
         max-width: none;
         transform-origin: top left;
         transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .app-logo-ribbon {
+        z-index: 0;
+        pointer-events: none;
+        transform-origin: top left;
+    }
+
+    /* Desktop ribbon: sits in its natural position, ready to fly left */
+    .app-logo-ribbon-desktop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: auto;
+        transform: translateX(0);
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Mobile ribbon: square SVG, parked fully above the container by default.
+     * No rotation — the polygon is already portrait-oriented.
+     * top: -100% = off screen above (equal to its own height = --app-header-height).
+     */
+    .app-logo-ribbon-mobile {
+        position: absolute;
+        top: -150%;
+        left: 0;
+        height: 100%;
+        width: auto;
+        transition: top 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* --- JS-driven breakpoint state (.logo-is-mobile bound by matchMedia) --- */
+
+    /* Desktop ribbon flies off to the left */
+    .app-logo.logo-is-mobile .app-logo-ribbon-desktop {
+        transform: translateX(calc(-1 * var(--app-logo-image-width)));
+    }
+
+    /* Logo container rotates as it switches to mobile — removed, rotation now on letters-mobile */
+
+    /* Desktop letters: synchronized with the ribbon — same timing, no delay */
+    .app-logo-letters-desktop {
+        transform: translateX(0);
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .app-logo.logo-is-mobile .app-logo-letters-desktop {
+        transform: translateX(-18rem);
+    }
+
+    /* Mobile ribbon slides in to top: 0; left: 0 */
+    .app-logo.logo-is-mobile .app-logo-ribbon-mobile {
+        top: 0;
+    }
+
+    .app-logo-letters {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 12rem;
+        left: 2rem;
+
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    .app-logo-letters-mobile {
+        display: block;
+        top: 10%;
+        left: calc(var(--app-header-height) * 0.1);
+        height: 80%;
+        width: auto;
+        opacity: 0;
+        pointer-events: none;
+        transform: rotate(-90deg);
+        transform-origin: center center;
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+            opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        width: auto;
+    }
+
+    .app-logo.logo-is-mobile .app-logo-letters-mobile {
+        opacity: 1;
+        transform: rotate(0deg);
     }
 
     .rivvon-ribbon {
@@ -541,6 +681,7 @@
 
     .context-title {
         margin-left: auto;
+        margin-right: 1rem;
         display: block;
         min-width: 0;
         max-width: 100%;
@@ -553,6 +694,8 @@
         text-transform: uppercase;
         pointer-events: none;
         white-space: nowrap;
+        display: flex;
+        gap: 0.5rem;
     }
 
     .context-title-rich {
@@ -631,16 +774,8 @@
         }
 
         .app-logo {
-            width: var(--app-logo-condensed-width);
-            padding: 0 var(--app-header-side-padding);
+            width: var(--app-header-height);
             margin-left: 0px;
-        }
-
-        .app-logo-rivvon {
-            position: absolute;
-            top: 11rem;
-            left: 1rem;
-            transform: rotate(-90deg) scale(var(--app-logo-mobile-scale));
         }
 
         .navigation-summary {
@@ -660,5 +795,11 @@
         .header-action {
             padding: 2rem 1.5rem;
         }
+
+        /* On mobile show the round logo, hide the desktop one */
+        .app-logo-letters-desktop {
+            display: none;
+        }
+
     }
 </style>

@@ -462,17 +462,17 @@
         window.removeEventListener('keydown', handleGlobalKeydown);
     });
 
-    const activeLauncherItems = computed(() => {
+    const activeLauncherSections = computed(() => {
         if (props.activeToolbarOverlay === 'draw') {
-            return drawLauncherItems.value;
+            return drawLauncherSections.value;
         }
 
         if (props.activeToolbarOverlay === 'texture') {
-            return textureLauncherItems.value;
+            return textureLauncherSections.value;
         }
 
         if (props.activeToolbarOverlay === 'share') {
-            return shareLauncherItems.value;
+            return [{ label: 'Actions', items: shareLauncherItems.value }];
         }
 
         return [];
@@ -485,98 +485,150 @@
         return '';
     });
 
-    const drawLauncherItems = computed(() => ([
+    const drawLauncherSections = computed(() => [
         {
-            label: 'Import SVG',
-            icon: 'polyline',
-            command: () => {
-                handleImport('svg');
-            }
+            label: 'Create',
+            items: [
+                {
+                    contextLabel: 'SVG File',
+                    label: 'Import',
+                    description: 'Create vector paths from SVG artwork.',
+                    icon: 'polyline',
+                    command: () => {
+                        handleImport('svg');
+                    }
+                },
+                {
+                    contextLabel: 'GPS Route',
+                    label: 'Walk',
+                    description: 'Track the shape of a journey on a map.',
+                    icon: 'directions_walk',
+                    active: isToolbarContextActive('walk'),
+                    command: () => toggleContextItem('walk', () => emit('request-enter-walk-mode'))
+                },
+                {
+                    label: 'Write',
+                    contextLabel: 'Text',
+                    description: 'Use single-line fonts to make word-art.',
+                    icon: 'text_fields',
+                    active: isToolbarContextActive('text'),
+                    command: () => toggleContextItem('text', () => emit('request-open-text-panel'))
+                },
+                {
+                    contextLabel: 'Emoji',
+                    label: 'Express',
+                    description: 'Use OpenMoji to make expressive ribbons.',
+                    icon: 'mood',
+                    active: isToolbarContextActive('emoji'),
+                    command: () => toggleContextItem('emoji', () => emit('request-open-emoji-picker'))
+                },
+                {
+                    label: 'Trace',
+                    contextLabel: 'Contour',
+                    description: 'Use AI to outline the subject in a picture.',
+                    icon: 'vr180_create2d',
+                    active: isToolbarContextActive('contour'),
+                    command: () => toggleContextItem('contour', () => emit('request-enter-contour-mode'))
+                },
+                {
+                    contextLabel: 'Freehand',
+                    label: 'Gesture',
+                    description: 'Draw on screen with touch or mouse.',
+                    icon: 'gesture',
+                    active: isToolbarContextActive('draw'),
+                    command: () => toggleContextItem('draw', () => emit('request-enter-draw-mode'))
+                },
+            ]
         },
         {
-            label: 'Sine Wave',
-            icon: 'airwave',
-            active: isToolbarContextActive('sineWave'),
-            command: () => toggleContextItem('sineWave', () => emit('request-open-sine-wave-panel'))
-        },
-        {
-            label: 'Clock',
-            icon: 'schedule',
-            active: isToolbarContextActive('clock'),
-            command: () => toggleContextItem('clock', () => emit('request-open-clock-panel'))
-        },
-        {
-            label: 'Walk',
-            icon: 'directions_walk',
-            active: isToolbarContextActive('walk'),
-            command: () => toggleContextItem('walk', () => emit('request-enter-walk-mode'))
-        },
-        {
-            label: 'Write',
-            icon: 'text_fields',
-            active: isToolbarContextActive('text'),
-            command: () => toggleContextItem('text', () => emit('request-open-text-panel'))
-        },
-        {
-            label: 'Emoji',
-            icon: 'mood',
-            active: isToolbarContextActive('emoji'),
-            command: () => toggleContextItem('emoji', () => emit('request-open-emoji-picker'))
-        },
-        {
-            label: 'Gesture',
-            icon: 'gesture',
-            active: isToolbarContextActive('draw'),
-            command: () => toggleContextItem('draw', () => emit('request-enter-draw-mode'))
-        },
-        {
-            label: 'Contour',
-            icon: 'vr180_create2d',
-            active: isToolbarContextActive('contour'),
-            command: () => toggleContextItem('contour', () => emit('request-enter-contour-mode'))
-        },
-
-        {
-            label: 'Shape Library',
-            icon: 'grid_view',
-            active: isToolbarContextActive('drawings'),
-            command: () => toggleContextItem('drawings', () => emit('request-open-drawing-browser'))
+            type: 'column-group',
+            sections: [
+                {
+                    label: 'Procedural',
+                    items: [
+                        {
+                            label: 'Generate',
+                            contextLabel: 'Waveform',
+                            description: 'Animate a parametric sine oscillation.',
+                            icon: 'airwave',
+                            active: isToolbarContextActive('sineWave'),
+                            command: () => toggleContextItem('sineWave', () => emit('request-open-sine-wave-panel'))
+                        },
+                        {
+                            label: 'Temporal',
+                            contextLabel: 'Clock',
+                            description: 'Animate clock hands to mark the moment.',
+                            icon: 'schedule',
+                            active: isToolbarContextActive('clock'),
+                            command: () => toggleContextItem('clock', () => emit('request-open-clock-panel'))
+                        },
+                    ]
+                },
+                {
+                    label: 'Explore',
+                    items: [
+                        {
+                            label: 'Shape Library',
+                            description: 'Browse and load saved drawing shapes.',
+                            icon: 'grid_view',
+                            active: isToolbarContextActive('drawings'),
+                            command: () => toggleContextItem('drawings', () => emit('request-open-drawing-browser'))
+                        }
+                    ]
+                },
+            ]
         }
-    ]));
+    ]);
 
-    const textureLauncherItems = computed(() => ([
+    const textureLauncherSections = computed(() => [
         {
-            label: 'Import ZIP',
-            icon: 'folder_zip',
-            command: () => {
-                handleImport('zip');
-            }
-        }, {
-            label: 'Create From Camera',
-            icon: 'camera_video',
-            active: isToolbarContextActive('realtimeSampler'),
-            command: () => activateContext(() => emit('request-open-texture-camera'))
-        }, {
-            contextLabel: 'Video File',
-            label: hasExistingTextureFileFlow.value ? 'Continue...' : 'Browse...',
-            description: hasExistingTextureFileFlow.value
-                ? 'Return to the current video workflow.'
-                : 'Create texture from video file.',
-            icon: 'video_file',
-            active: isToolbarContextActive('textureCreator'),
-            command: () => activateContext(() => emit('request-open-texture-file', {
-                directBrowse: !hasExistingTextureFileFlow.value,
-            }))
+            label: 'Create',
+            items: [
+                {
+                    contextLabel: 'Import ZIP',
+                    label: 'Upload...',
+                    description: 'Load a previously exported texture archive.',
+                    icon: 'folder_zip',
+                    command: () => {
+                        handleImport('zip');
+                    }
+                },
+                {
+                    contextLabel: 'Live Camera',
+                    label: 'Sample...',
+                    description: 'Capture texture slices from a live camera feed.',
+                    icon: 'camera_video',
+                    active: isToolbarContextActive('realtimeSampler'),
+                    command: () => activateContext(() => emit('request-open-texture-camera'))
+                },
+                {
+                    contextLabel: 'Video File',
+                    label: hasExistingTextureFileFlow.value ? 'Continue...' : 'Browse...',
+                    description: hasExistingTextureFileFlow.value
+                        ? 'Return to the current video workflow.'
+                        : 'Create texture from video file.',
+                    icon: 'video_file',
+                    active: isToolbarContextActive('textureCreator'),
+                    command: () => activateContext(() => emit('request-open-texture-file', {
+                        directBrowse: !hasExistingTextureFileFlow.value,
+                    }))
+                },
+            ]
         },
-
-
         {
-            label: 'Texture Library',
-            icon: 'grid_view',
-            active: isToolbarContextActive('textureBrowser'),
-            command: () => toggleContextItem('textureBrowser', () => emit('request-open-texture-browser'))
+            label: 'Explore',
+            items: [
+                {
+                    contextLabel: 'Texture Library',
+                    label: 'Browse...',
+                    description: 'Explore and load saved textures from your library.',
+                    icon: 'grid_view',
+                    active: isToolbarContextActive('textureBrowser'),
+                    command: () => toggleContextItem('textureBrowser', () => emit('request-open-texture-browser'))
+                }
+            ]
         }
-    ]));
+    ]);
 
     const shareLauncherItems = computed(() => ([
         {
@@ -693,39 +745,94 @@
         :aria-label="`${activeLauncherTitle} actions`"
     >
         <div class="launcher-panel-container viewer-chrome-panel-container">
-            <div class="launcher-panel-content">
-                <div class="tools-section">
-                    <div class="tools-section-label">Actions</div>
-                    <div class="tools-section-items">
-                        <button
-                            v-for="item in activeLauncherItems"
-                            :key="`${props.activeToolbarOverlay}-${item.label}`"
-                            type="button"
-                            class="tools-option launcher-menu-action"
-                            :class="{
-                                selected: item.active,
-                                'launcher-menu-action-rich': item.contextLabel || item.description,
-                            }"
-                            role="menuitem"
-                            :disabled="item.disabled"
-                            @click="item.command()"
+            <ScrollPanel class="launcher-panel-scrollpanel">
+                <div class="launcher-panel-content">
+                    <template
+                        v-for="entry in activeLauncherSections"
+                        :key="entry.type === 'column-group' ? entry.sections.map(s => s.label).join('-') : entry.label"
+                    >
+                        <!-- Column group: multiple sections share one flex column -->
+                        <div
+                            v-if="entry.type === 'column-group'"
+                            class="launcher-column-group"
                         >
-                            <span class="material-symbols-outlined">{{ item.icon }}</span>
-                            <span class="launcher-menu-copy">
-                                <span
-                                    v-if="item.contextLabel"
-                                    class="launcher-menu-context-label"
-                                >{{ item.contextLabel }}</span>
-                                <span class="launcher-menu-primary-label">{{ item.label }}</span>
-                                <span
-                                    v-if="item.description"
-                                    class="launcher-menu-description"
-                                >{{ item.description }}</span>
-                            </span>
-                        </button>
-                    </div>
+                            <div
+                                v-for="section in entry.sections"
+                                :key="section.label"
+                                class="tools-section"
+                            >
+                                <div class="tools-section-label">{{ section.label }}</div>
+                                <div class="tools-section-items">
+                                    <button
+                                        v-for="item in section.items"
+                                        :key="`${props.activeToolbarOverlay}-${item.label}`"
+                                        type="button"
+                                        class="tools-option launcher-menu-action"
+                                        :class="{
+                                            selected: item.active,
+                                            'launcher-menu-action-rich': item.contextLabel || item.description,
+                                        }"
+                                        role="menuitem"
+                                        :disabled="item.disabled"
+                                        @click="item.command()"
+                                    >
+                                        <span class="material-symbols-outlined">{{ item.icon }}</span>
+                                        <span class="launcher-menu-copy">
+                                            <span
+                                                v-if="item.contextLabel"
+                                                class="launcher-menu-context-label"
+                                            >{{ item.label }}</span>
+                                            <span class="launcher-menu-primary-label">{{ item.contextLabel ?? item.label
+                                            }}</span>
+                                            <span
+                                                v-if="item.description"
+                                                class="launcher-menu-description"
+                                            >{{ item.description }}</span>
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Regular section -->
+                        <div
+                            v-else
+                            class="tools-section"
+                        >
+                            <div class="tools-section-label">{{ entry.label }}</div>
+                            <div class="tools-section-items">
+                                <button
+                                    v-for="item in entry.items"
+                                    :key="`${props.activeToolbarOverlay}-${item.label}`"
+                                    type="button"
+                                    class="tools-option launcher-menu-action"
+                                    :class="{
+                                        selected: item.active,
+                                        'launcher-menu-action-rich': item.contextLabel || item.description,
+                                    }"
+                                    role="menuitem"
+                                    :disabled="item.disabled"
+                                    @click="item.command()"
+                                >
+                                    <span class="material-symbols-outlined">{{ item.icon }}</span>
+                                    <span class="launcher-menu-copy">
+                                        <span
+                                            v-if="item.contextLabel"
+                                            class="launcher-menu-context-label"
+                                        >{{ item.label }}</span>
+                                        <span class="launcher-menu-primary-label">{{ item.contextLabel ?? item.label
+                                        }}</span>
+                                        <span
+                                            v-if="item.description"
+                                            class="launcher-menu-description"
+                                        >{{ item.description }}</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
                 </div>
-            </div>
+            </ScrollPanel>
         </div>
     </div>
 
@@ -1002,31 +1109,76 @@
     .launcher-panel-container {
         display: flex;
         flex-direction: column;
+        position: relative;
         height: 100%;
+        min-height: 0;
         width: 100%;
         background: transparent;
     }
 
-    .launcher-panel-content {
+    .launcher-panel-scrollpanel {
+        --p-scrollpanel-bar-size: 0.55rem;
+        --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
         flex: 1;
-        overflow-y: auto;
+        height: 100%;
+        min-height: 0;
+        width: 100%;
+        margin: 0 auto;
+    }
+
+    :deep(.launcher-panel-scrollpanel .p-scrollpanel-content-container) {
+        height: 100%;
+        min-height: 0;
+    }
+
+    :deep(.launcher-panel-scrollpanel .p-scrollpanel-content) {
+        height: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+        padding-bottom: 0px;
+    }
+
+    :deep(.launcher-panel-scrollpanel .p-scrollpanel-bar) {
+        opacity: 0.55;
+    }
+
+    :deep(.launcher-panel-scrollpanel:hover .p-scrollpanel-bar),
+    :deep(.launcher-panel-scrollpanel:active .p-scrollpanel-bar),
+    :deep(.launcher-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
+        opacity: 0.9;
+    }
+
+    .launcher-panel-content {
+        box-sizing: border-box;
         padding: 1.5rem 1.25rem;
         width: 100%;
-        /* max-width: 480px; */
-        margin: 0 auto;
         display: flex;
         flex-direction: column;
-        justify-content: end;
+        justify-content: flex-end;
         gap: 1.5rem;
+        min-height: 100%;
     }
 
     @media (min-width: 769px) {
         .launcher-panel-content {
-            max-width: none;
-            flex-direction: column;
+            flex-direction: row;
             flex-wrap: wrap;
-            align-content: center;
-            gap: 1.25rem 2rem;
+            justify-content: center;
+            align-content: flex-end;
+            align-items: flex-start;
+            gap: 1.5rem 2rem;
+        }
+
+        .launcher-panel-content>.tools-section,
+        .launcher-panel-content>.launcher-column-group {
+            flex: 0 1 22rem;
+            min-width: 15rem;
+        }
+
+        .launcher-column-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
     }
 

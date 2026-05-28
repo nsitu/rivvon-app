@@ -10,12 +10,11 @@
         active: { type: Boolean, default: false },
     });
 
-    const emit = defineEmits(['request-close', 'settings-change', 'request-create']);
+    const emit = defineEmits(['request-close', 'settings-change']);
 
     const app = useViewerStore();
 
     const functionLabel = computed(() => (app.proceduralPathMode === 'sineWave' ? 'Live sine wave' : 'Sine wave'));
-    const hasActiveSineWave = computed(() => app.proceduralPathMode === 'sineWave');
 
     const settingRows = [
         {
@@ -144,9 +143,6 @@
         emit('settings-change', buildPayload());
     }
 
-    function createOrRefresh() {
-        emit('request-create', buildPayload());
-    }
 </script>
 
 <template>
@@ -205,14 +201,7 @@
                 </Button>
                 <Button
                     type="button"
-                    @click="createOrRefresh"
-                >
-                    <span class="material-symbols-outlined">{{ hasActiveSineWave ? 'refresh' : 'airwave' }}</span>
-                    <span>{{ hasActiveSineWave ? 'Refresh' : 'Create' }}</span>
-                </Button>
-                <Button
-                    type="button"
-                    severity="secondary"
+                    severity="success"
                     @click="emit('request-close')"
                 >
                     <span class="material-symbols-outlined">check</span>

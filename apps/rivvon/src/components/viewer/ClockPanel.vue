@@ -10,12 +10,11 @@
         active: { type: Boolean, default: false },
     });
 
-    const emit = defineEmits(['request-close', 'settings-change', 'request-create']);
+    const emit = defineEmits(['request-close', 'settings-change']);
 
     const app = useViewerStore();
 
     const functionLabel = computed(() => (app.proceduralPathMode === 'clock' ? 'Live clock' : 'Clock'));
-    const hasActiveClock = computed(() => app.proceduralPathMode === 'clock');
 
     const handSettingRows = [
         {
@@ -77,9 +76,6 @@
         emit('settings-change', buildPayload());
     }
 
-    function createOrRefresh() {
-        emit('request-create', buildPayload());
-    }
 </script>
 
 <template>
@@ -144,14 +140,7 @@
                 </Button>
                 <Button
                     type="button"
-                    @click="createOrRefresh"
-                >
-                    <span class="material-symbols-outlined">{{ hasActiveClock ? 'refresh' : 'schedule' }}</span>
-                    <span>{{ hasActiveClock ? 'Refresh' : 'Create' }}</span>
-                </Button>
-                <Button
-                    type="button"
-                    severity="secondary"
+                    severity="success"
                     @click="emit('request-close')"
                 >
                     <span class="material-symbols-outlined">check</span>

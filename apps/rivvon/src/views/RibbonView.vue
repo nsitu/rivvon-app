@@ -1658,10 +1658,6 @@
         applyTextureResetState({ clearThumbnail: true });
     }
 
-    async function handleProceduralCreate(source) {
-        await handleCreateProceduralSource(source);
-    }
-
     // File import handler
     function openFileImport() {
         fileInputRef.value?.click();
@@ -3369,14 +3365,12 @@
             :active="sineWavePanelVisible"
             @request-close="app.hideSineWavePanel"
             @settings-change="handleProceduralSettingsChange"
-            @request-create="handleProceduralCreate"
         />
         <ClockPanel
             v-if="clockPanelVisible"
             :active="clockPanelVisible"
             @request-close="app.hideClockPanel"
             @settings-change="handleProceduralSettingsChange"
-            @request-create="handleProceduralCreate"
         />
         <DrawingBrowser
             v-if="drawingBrowserVisible"
