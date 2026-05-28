@@ -568,7 +568,8 @@
                     label: 'Explore',
                     items: [
                         {
-                            label: 'Shape Library',
+                            label: 'Browse',
+                            contextLabel: 'Shape Library',
                             description: 'Browse and load saved drawing shapes.',
                             icon: 'grid_view',
                             active: isToolbarContextActive('drawings'),
@@ -783,7 +784,7 @@
                                                 class="launcher-menu-context-label"
                                             >{{ item.label }}</span>
                                             <span class="launcher-menu-primary-label">{{ item.contextLabel ?? item.label
-                                            }}</span>
+                                                }}</span>
                                             <span
                                                 v-if="item.description"
                                                 class="launcher-menu-description"
@@ -821,7 +822,7 @@
                                             class="launcher-menu-context-label"
                                         >{{ item.label }}</span>
                                         <span class="launcher-menu-primary-label">{{ item.contextLabel ?? item.label
-                                        }}</span>
+                                            }}</span>
                                         <span
                                             v-if="item.description"
                                             class="launcher-menu-description"
@@ -927,7 +928,7 @@
                                         v-model="exportLogoOverlayEnabledModel"
                                     />
                                     <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
-                                        }}</span>
+                                    }}</span>
                                 </div>
                             </div>
 

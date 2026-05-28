@@ -696,7 +696,7 @@
                         @click="handleAbortProcessing"
                     >
                         <span class="material-symbols-outlined">cancel</span>
-                        Abort
+                        Cancel
                     </Button>
                 </template>
 
