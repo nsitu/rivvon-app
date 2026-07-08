@@ -3491,6 +3491,7 @@
 
         <!-- Export Video Dialog -->
         <ExportVideoDialog
+            v-if="showExportDialog"
             :visible="showExportDialog"
             :export-info="exportInfo"
             :initial-settings="exportDialogInitialSettings"
