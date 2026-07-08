@@ -23,7 +23,7 @@ import { createViewerPanelVisibilityState, VIEWER_PANEL_KEYS } from '../modules/
 
 const VIEWER_PREFERENCES_STORAGE_KEY = 'rivvon.viewer.preferences';
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
-const VIEWER_FILTER_MODES = ['none', 'blackAndWhite', 'duotone'];
+const VIEWER_FILTER_MODES = ['none', 'duotone'];
 const DEFAULT_DUOTONE_COLOR = '#ff7a00';
 const TRANSPARENCY_MODES = ['shadows', 'highlights'];
 const DEFAULT_TRANSPARENCY_MODE = 'shadows';
@@ -51,6 +51,12 @@ const MAX_FILMSTRIP_APERTURE = 0.95;
 const DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS = 0.7;
 const MIN_FILMSTRIP_HOLE_ROUNDEDNESS = 0;
 const MAX_FILMSTRIP_HOLE_ROUNDEDNESS = 1;
+const DEFAULT_CONTRAST = 1.0;
+const MIN_CONTRAST = 0.0;
+const MAX_CONTRAST = 2.0;
+const DEFAULT_SATURATION = 1.0;
+const MIN_SATURATION = 0.0;
+const MAX_SATURATION = 2.0;
 const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -96,6 +102,18 @@ function normalizeTransparencyMode(value) {
     return TRANSPARENCY_MODES.includes(value)
         ? value
         : DEFAULT_TRANSPARENCY_MODE;
+}
+
+function normalizeContrast(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return DEFAULT_CONTRAST;
+    return Math.min(MAX_CONTRAST, Math.max(MIN_CONTRAST, parsed));
+}
+
+function normalizeSaturation(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return DEFAULT_SATURATION;
+    return Math.min(MAX_SATURATION, Math.max(MIN_SATURATION, parsed));
 }
 
 function normalizeTransparentShadowsThresholdValue(value, fallback) {
@@ -295,6 +313,8 @@ function getStoredFilterSettings() {
         transparentShadowsThresholdMin: transparentShadowsThresholds.min,
         transparentShadowsThresholdMax: transparentShadowsThresholds.max,
         duotoneColor: normalizeDuotoneColor(preferences.duotoneColor),
+        contrast: normalizeContrast(preferences.contrast),
+        saturation: normalizeSaturation(preferences.saturation),
     };
 }
 
@@ -460,6 +480,8 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().filmstripHoleRoundedness
         ),
         duotoneColor: storedFilterSettings.duotoneColor,
+        contrast: storedFilterSettings.contrast,
+        saturation: storedFilterSettings.saturation,
         currentTextureId: null,
         currentTextureName: '',
         currentTextureDescription: '',
@@ -613,6 +635,8 @@ export const useViewerStore = defineStore('viewer', {
             this.filmstripAperture = DEFAULT_FILMSTRIP_APERTURE;
             this.filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
             this.duotoneColor = DEFAULT_DUOTONE_COLOR;
+            this.contrast = DEFAULT_CONTRAST;
+            this.saturation = DEFAULT_SATURATION;
             this.ribbonWidthScale = 1;
             this.ribbonPathAlignmentMode = 'center';
             this.helixMode = false;
@@ -664,6 +688,8 @@ export const useViewerStore = defineStore('viewer', {
                 filmstripHoleSpacing: DEFAULT_FILMSTRIP_GAP_LENGTH,
                 filmstripHoleSize: DEFAULT_FILMSTRIP_APERTURE,
                 duotoneColor: DEFAULT_DUOTONE_COLOR,
+                contrast: DEFAULT_CONTRAST,
+                saturation: DEFAULT_SATURATION,
                 undulationEnabled: true,
                 sphericalProjectionEnabled: false,
                 sphericalProjectionWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
@@ -900,6 +926,8 @@ export const useViewerStore = defineStore('viewer', {
                 filmstripAperture: this.filmstripAperture,
                 filmstripHoleRoundedness: this.filmstripHoleRoundedness,
                 duotoneColor: this.duotoneColor,
+                contrast: this.contrast,
+                saturation: this.saturation,
                 ribbonWidthScale: this.ribbonWidthScale,
                 ribbonPathAlignmentMode: this.ribbonPathAlignmentMode,
                 helixMode: this.helixMode,
@@ -963,6 +991,8 @@ export const useViewerStore = defineStore('viewer', {
                 this.filmstripAperture !== original.filmstripAperture ||
                 this.filmstripHoleRoundedness !== original.filmstripHoleRoundedness ||
                 this.duotoneColor !== original.duotoneColor ||
+                this.contrast !== original.contrast ||
+                this.saturation !== original.saturation ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
                 this.ribbonPathAlignmentMode !== original.ribbonPathAlignmentMode ||
                 this.helixMode !== original.helixMode ||
@@ -1249,6 +1279,18 @@ export const useViewerStore = defineStore('viewer', {
             const nextColor = normalizeDuotoneColor(color);
             this.duotoneColor = nextColor;
             writeViewerPreferences({ duotoneColor: nextColor });
+        },
+
+        setContrast(value) {
+            const nextValue = normalizeContrast(value);
+            this.contrast = nextValue;
+            writeViewerPreferences({ contrast: nextValue });
+        },
+
+        setSaturation(value) {
+            const nextValue = normalizeSaturation(value);
+            this.saturation = nextValue;
+            writeViewerPreferences({ saturation: nextValue });
         },
 
         setShowTextureMetadataOverlay(enabled) {
