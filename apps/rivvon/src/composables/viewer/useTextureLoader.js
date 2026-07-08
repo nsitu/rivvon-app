@@ -33,6 +33,8 @@ export function useTextureLoader(ctx, deps = {}) {
             filmstripHoleLength: ctx.app.filmstripHoleLength,
             filmstripAperture: ctx.app.filmstripAperture,
             filmstripHoleRoundedness: ctx.app.filmstripHoleRoundedness,
+            contrast: ctx.app.renderFilterMode === 'duotone' ? 1 : ctx.app.contrast,
+            saturation: ctx.app.renderFilterMode === 'duotone' ? 1 : ctx.app.saturation,
             webgpuMaterialMode: 'node',
             ...options,
         });
