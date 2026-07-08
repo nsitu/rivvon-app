@@ -1,14 +1,17 @@
 <script setup>
-    import { computed, getCurrentInstance } from 'vue';
+    import { computed, ref, watch, getCurrentInstance } from 'vue';
     import ColorPicker from 'primevue/colorpicker';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
+    import {
+        applyLiveContrast,
+        applyLiveSaturation,
+    } from '../../modules/viewer/rendererAdjustmentBus';
 
     defineProps({
         showPreferredResolution: { type: Boolean, default: false },
-        showBlackAndWhiteFilter: { type: Boolean, default: false },
         showDuotoneFilter: { type: Boolean, default: false },
         showTransparentShadowsFilter: { type: Boolean, default: false },
         showVerticalFlip: { type: Boolean, default: true },
@@ -30,13 +33,6 @@
         set: (option) => {
             if (!option?.value) return;
             app.setPreferredTextureMaxResolution(option.value);
-        }
-    });
-
-    const blackAndWhiteFilterModel = computed({
-        get: () => app.renderFilterMode === 'blackAndWhite',
-        set: (value) => {
-            app.setRenderFilterMode(value ? 'blackAndWhite' : 'none');
         }
     });
 
@@ -209,6 +205,72 @@
 
     const duotoneColorLabel = computed(() => duotoneColorModel.value.toUpperCase());
 
+    // Contrast / saturation use native <input type="range"> + imperative DOM updates
+    // during drag, bypassing Vue reactivity entirely on @input. We only touch
+    // reactive state on @change (commit), so PrimeVue / TextureSettingsControls
+    // do not re-render at 60Hz during the drag.
+    const contrastInputRef = ref(null);
+    const contrastLabelRef = ref(null);
+    const saturationInputRef = ref(null);
+    const saturationLabelRef = ref(null);
+
+    const initialContrast = Math.round(app.contrast * 100);
+    const initialSaturation = Math.round(app.saturation * 100);
+
+    // Keep DOM in sync with external Pinia changes (reset, restore, etc.).
+    watch(() => app.contrast, (value) => {
+        const next = Math.round(value * 100);
+        if (contrastInputRef.value && Number(contrastInputRef.value.value) !== next) {
+            contrastInputRef.value.value = String(next);
+        }
+        if (contrastLabelRef.value) {
+            contrastLabelRef.value.textContent = `${next}%`;
+        }
+    });
+
+    watch(() => app.saturation, (value) => {
+        const next = Math.round(value * 100);
+        if (saturationInputRef.value && Number(saturationInputRef.value.value) !== next) {
+            saturationInputRef.value.value = String(next);
+        }
+        if (saturationLabelRef.value) {
+            saturationLabelRef.value.textContent = `${next}%`;
+        }
+    });
+
+    function onContrastInput(event) {
+        const numeric = Number(event?.target?.value);
+        if (!Number.isFinite(numeric)) return;
+        // Imperative label update — no Vue re-render.
+        if (contrastLabelRef.value) {
+            contrastLabelRef.value.textContent = `${Math.round(numeric)}%`;
+        }
+        // Bypass Pinia/Vue reactivity during drag — hit the renderer directly.
+        applyLiveContrast(numeric / 100);
+    }
+
+    function onContrastCommit(event) {
+        const numeric = Number(event?.target?.value);
+        if (!Number.isFinite(numeric)) return;
+        // Commit to Pinia (persists to localStorage, updates "has changes", etc.).
+        app.setContrast(numeric / 100);
+    }
+
+    function onSaturationInput(event) {
+        const numeric = Number(event?.target?.value);
+        if (!Number.isFinite(numeric)) return;
+        if (saturationLabelRef.value) {
+            saturationLabelRef.value.textContent = `${Math.round(numeric)}%`;
+        }
+        applyLiveSaturation(numeric / 100);
+    }
+
+    function onSaturationCommit(event) {
+        const numeric = Number(event?.target?.value);
+        if (!Number.isFinite(numeric)) return;
+        app.setSaturation(numeric / 100);
+    }
+
     const mirrorTilesModel = computed({
         get: () => app.textureRepeatMode === 'mirrorTile',
         set: (value) => {
@@ -231,7 +293,7 @@
 <template>
     <div class="texture-settings-controls">
         <div class="tools-section">
-            <div class="tools-section-label">Texture</div>
+            <div class="tools-section-label">Texture and Materials</div>
 
             <div class="tools-section-items">
                 <div class="tools-toggle-row">
@@ -306,71 +368,6 @@
                 </div>
 
                 <div
-                    v-if="showBlackAndWhiteFilter"
-                    class="tools-toggle-row"
-                >
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('black-and-white-filter')"
-                    >
-                        <span class="material-symbols-outlined">filter_b_and_w</span>
-                        <span>Black and White</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ blackAndWhiteFilterModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('black-and-white-filter')"
-                            v-model="blackAndWhiteFilterModel"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-if="showDuotoneFilter"
-                    class="tools-toggle-row"
-                >
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('duotone-filter')"
-                    >
-                        <span class="material-symbols-outlined">palette</span>
-                        <span>Duotone</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ duotoneFilterModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('duotone-filter')"
-                            v-model="duotoneFilterModel"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-if="showDuotoneFilter && duotoneFilterModel"
-                    class="tools-color-row"
-                >
-                    <label
-                        class="tools-color-main"
-                        :for="getInputId('duotone-color')"
-                    >
-                        <span
-                            class="tools-color-swatch"
-                            :style="{ backgroundColor: duotoneColorModel }"
-                        ></span>
-                        <span>Duotone Color</span>
-                    </label>
-                    <div class="tools-color-control">
-                        <span class="tools-hint tools-color-hint">{{ duotoneColorLabel }}</span>
-                        <ColorPicker
-                            :inputId="getInputId('duotone-color')"
-                            v-model="duotoneColorPickerModel"
-                            format="hex"
-                            class="tools-color-picker"
-                        />
-                    </div>
-                </div>
-
-                <div
                     v-if="showTransparentShadowsFilter"
                     class="tools-toggle-row"
                 >
@@ -378,7 +375,7 @@
                         class="tools-toggle-main"
                         :for="getInputId('transparent-shadows-filter')"
                     >
-                        <span class="material-symbols-outlined">filter_alt</span>
+                        <span class="material-symbols-outlined">opacity</span>
                         <span>Transparency</span>
                     </label>
                     <div class="tools-toggle-control">
@@ -399,7 +396,7 @@
                         class="tools-toggle-main"
                         :for="getInputId('transparency-highlights-mode')"
                     >
-                        <span class="material-symbols-outlined">filter_alt</span>
+                        <span class="material-symbols-outlined">opacity</span>
                         <span>Highlights</span>
                     </label>
                     <div class="tools-toggle-control">
@@ -439,7 +436,8 @@
                     class="tools-toggle-row"
                     :for="getInputId('edge-drift-enabled')"
                 >
-                    <span class="tools-toggle-copy">
+                    <span class="tools-toggle-main">
+                        <span class="material-symbols-outlined">vital_signs</span>
                         <span class="tools-toggle-title">Edge Drift</span>
                     </span>
                     <div class="tools-toggle-control">
@@ -508,7 +506,8 @@
                     class="tools-toggle-row"
                     :for="getInputId('filmstrip-style-enabled')"
                 >
-                    <span class="tools-toggle-copy">
+                    <span class="tools-toggle-main">
+                        <span class="material-symbols-outlined">theaters</span>
                         <span class="tools-toggle-title">Filmstrip Style</span>
                     </span>
                     <div class="tools-toggle-control">
@@ -591,7 +590,109 @@
                         <span>Rounded</span>
                     </div>
                 </div>
+            </div>
+        </div>
 
+        <div class="tools-section">
+            <div class="tools-section-label">Scene</div>
+
+            <div class="tools-section-items">
+                <div
+                    v-if="showDuotoneFilter"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('duotone-filter')"
+                    >
+                        <span class="material-symbols-outlined">palette</span>
+                        <span>Duotone</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ duotoneFilterModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('duotone-filter')"
+                            v-model="duotoneFilterModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showDuotoneFilter && duotoneFilterModel"
+                    class="tools-color-row"
+                >
+                    <label
+                        class="tools-color-main"
+                        :for="getInputId('duotone-color')"
+                    >
+                        <span
+                            class="tools-color-swatch"
+                            :style="{ backgroundColor: duotoneColorModel }"
+                        ></span>
+                        <span>Duotone Color</span>
+                    </label>
+                    <div class="tools-color-control">
+                        <span class="tools-hint tools-color-hint">{{ duotoneColorLabel }}</span>
+                        <ColorPicker
+                            :inputId="getInputId('duotone-color')"
+                            v-model="duotoneColorPickerModel"
+                            format="hex"
+                            class="tools-color-picker"
+                        />
+                    </div>
+                </div>
+
+                <div class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">
+                            <span class="material-symbols-outlined">contrast</span>
+                            <span>Contrast</span>
+                        </label>
+                        <span ref="contrastLabelRef" class="tools-hint tools-slider-hint">{{ initialContrast }}%</span>
+                    </div>
+                    <input
+                        ref="contrastInputRef"
+                        type="range"
+                        :value="initialContrast"
+                        @input="onContrastInput"
+                        @change="onContrastCommit"
+                        min="0"
+                        max="200"
+                        step="1"
+                        class="tools-native-range"
+                        aria-label="Contrast"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Low</span>
+                        <span>High</span>
+                    </div>
+                </div>
+
+                <div class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">
+                            <span class="material-symbols-outlined">colors</span>
+                            <span>Saturation</span>
+                        </label>
+                        <span ref="saturationLabelRef" class="tools-hint tools-slider-hint">{{ initialSaturation }}%</span>
+                    </div>
+                    <input
+                        ref="saturationInputRef"
+                        type="range"
+                        :value="initialSaturation"
+                        @input="onSaturationInput"
+                        @change="onSaturationCommit"
+                        min="0"
+                        max="200"
+                        step="1"
+                        class="tools-native-range"
+                        aria-label="Saturation"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Grayscale</span>
+                        <span>Vivid</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -600,6 +701,9 @@
 <style scoped>
     .texture-settings-controls {
         width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
     }
 
     .tools-toggle-row {
@@ -708,8 +812,17 @@
     }
 
     .tools-slider-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
         font-size: 0.85rem;
         color: rgba(255, 255, 255, 0.78);
+    }
+
+    .tools-slider-label .material-symbols-outlined {
+        font-size: 1.1rem;
+        line-height: 1;
+        opacity: 0.85;
     }
 
     .tools-slider-hint {
@@ -788,5 +901,71 @@
 
     :deep(.tools-range-slider .p-slider-handle::before) {
         background: var(--p-primary-color, #10b981) !important;
+    }
+
+    /* Native range input used for contrast/saturation — bypasses Vue/PrimeVue
+       re-renders during drag for smooth 60fps interaction. */
+    .tools-native-range {
+        -webkit-appearance: none;
+        appearance: none;
+        width: calc(100% - 1rem);
+        margin: 0.5rem;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        outline: none;
+        cursor: pointer;
+    }
+
+    .tools-native-range::-webkit-slider-runnable-track {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+    }
+
+    .tools-native-range::-moz-range-track {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        border: none;
+    }
+
+    .tools-native-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        margin-top: -7px;
+        background: var(--p-primary-color, #10b981);
+        border: 2px solid var(--p-primary-color, #10b981);
+        border-radius: 50%;
+        cursor: grab;
+        box-shadow: 0 0 0 6px transparent;
+        transition: box-shadow 0.15s ease;
+    }
+
+    .tools-native-range:hover::-webkit-slider-thumb,
+    .tools-native-range:focus::-webkit-slider-thumb {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.18);
+    }
+
+    .tools-native-range:active::-webkit-slider-thumb {
+        cursor: grabbing;
+    }
+
+    .tools-native-range::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        background: var(--p-primary-color, #10b981);
+        border: 2px solid var(--p-primary-color, #10b981);
+        border-radius: 50%;
+        cursor: grab;
+        box-shadow: 0 0 0 6px transparent;
+        transition: box-shadow 0.15s ease;
+    }
+
+    .tools-native-range:hover::-moz-range-thumb,
+    .tools-native-range:focus::-moz-range-thumb {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.18);
     }
 </style>
