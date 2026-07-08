@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+    import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
     import Button from 'primevue/button';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
@@ -456,11 +456,76 @@
 
     onMounted(() => {
         window.addEventListener('keydown', handleGlobalKeydown);
+        setupToolsPanelMasonry();
     });
 
     onBeforeUnmount(() => {
         window.removeEventListener('keydown', handleGlobalKeydown);
+        teardownToolsPanelMasonry();
     });
+
+    // --- Tools panel masonry (span trick) ----------------------------------
+    // The desktop tools panel uses CSS Grid (`repeat(auto-fill, minmax(24rem, 1fr))`)
+    // for performance: CSS multi-column with `column-fill: balance` triggered a full
+    // column reflow on every text mutation (~60ms per slider drag tick). A row-based
+    // grid is free during mutations but leaves vertical gaps because every grid row
+    // is sized to the tallest item across all columns.
+    //
+    // The span trick: a tiny base row height (`--masonry-row: 8px`) plus a JS
+    // observer that sets each child's `grid-row: span N` to ceil(height / row).
+    // This packs each column independently, eliminating the gaps without giving up
+    // grid's performance characteristics.
+    const toolsPanelContentRef = ref(null);
+    // Smaller row size → smaller worst-case gap overhead. Final gaps land in
+    // [MASONRY_GAP_PX, MASONRY_GAP_PX + MASONRY_ROW_PX + MASONRY_GAP_PX).
+    const MASONRY_ROW_PX = 2;
+    const MASONRY_GAP_PX = 20; // matches row-gap: 1.25rem (20px @ default font size)
+    let masonryResizeObserver = null;
+    let masonryRecomputePending = false;
+
+    function recomputeToolsPanelMasonry() {
+        masonryRecomputePending = false;
+        const root = toolsPanelContentRef.value;
+        if (!root) return;
+        // Only apply the trick when the grid is actually a multi-column grid.
+        const cs = getComputedStyle(root);
+        if (cs.display !== 'grid') {
+            for (const child of root.children) child.style.gridRow = '';
+            return;
+        }
+        const totalRow = MASONRY_ROW_PX + MASONRY_GAP_PX;
+        for (const child of root.children) {
+            // Measure intrinsic height excluding the span we previously set.
+            child.style.gridRow = '';
+            const h = child.getBoundingClientRect().height;
+            const span = Math.max(1, Math.ceil((h + MASONRY_GAP_PX) / totalRow));
+            child.style.gridRow = `span ${span}`;
+        }
+    }
+
+    function scheduleToolsPanelMasonry() {
+        if (masonryRecomputePending) return;
+        masonryRecomputePending = true;
+        requestAnimationFrame(recomputeToolsPanelMasonry);
+    }
+
+    function setupToolsPanelMasonry() {
+        nextTick(() => {
+            const root = toolsPanelContentRef.value;
+            if (!root) return;
+            masonryResizeObserver = new ResizeObserver(() => scheduleToolsPanelMasonry());
+            masonryResizeObserver.observe(root);
+            for (const child of root.children) masonryResizeObserver.observe(child);
+            scheduleToolsPanelMasonry();
+        });
+    }
+
+    function teardownToolsPanelMasonry() {
+        if (masonryResizeObserver) {
+            masonryResizeObserver.disconnect();
+            masonryResizeObserver = null;
+        }
+    }
 
     const activeLauncherSections = computed(() => {
         if (props.activeToolbarOverlay === 'draw') {
@@ -844,7 +909,7 @@
     >
         <div class="tools-panel-container viewer-chrome-panel-container">
             <ScrollPanel class="tools-panel-scrollpanel">
-                <div class="tools-panel-content">
+                <div ref="toolsPanelContentRef" class="tools-panel-content">
                     <div class="tools-section-host">
                         <ViewerSettingsControls
                             :technical-overlay="props.technicalOverlay"
@@ -861,7 +926,6 @@
                     <div class="tools-section-host">
                         <TextureSettingsControls
                             :show-preferred-resolution="true"
-                            :show-black-and-white-filter="true"
                             :show-duotone-filter="true"
                             :show-transparent-shadows-filter="true"
                         />
@@ -918,17 +982,22 @@
                             </div>
 
                             <div class="tools-select-block">
-                                <label
-                                    for="exportLogoOverlayToggle"
-                                    class="tools-select-label"
-                                >Logo Overlay</label>
                                 <div class="tools-toggle-row">
-                                    <ToggleSwitch
-                                        inputId="exportLogoOverlayToggle"
-                                        v-model="exportLogoOverlayEnabledModel"
-                                    />
-                                    <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
-                                    }}</span>
+                                    <label
+                                        for="exportLogoOverlayToggle"
+                                        class="tools-toggle-main"
+                                    >
+                                        <span class="material-symbols-outlined">branding_watermark</span>
+                                        <span>Logo Overlay</span>
+                                    </label>
+                                    <div class="tools-toggle-control">
+                                        <span class="tools-toggle-copy">{{ exportLogoOverlayEnabledModel ? 'On' : 'Off'
+                                        }}</span>
+                                        <ToggleSwitch
+                                            inputId="exportLogoOverlayToggle"
+                                            v-model="exportLogoOverlayEnabledModel"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1354,32 +1423,30 @@
         min-height: 100%;
     }
 
-    /* Desktop: width-driven multi-column layout with vertical scrolling preserved */
+    /* Desktop: width-driven multi-column layout with vertical scrolling preserved.
+       Uses CSS Grid (not CSS multi-column) because CSS multi-column with
+       `column-fill: balance` triggers a full column-flow reflow on every
+       descendant text mutation (~60ms per slider tick). Grid has no
+       fragmentation context, so per-tick mutations stay free.
+
+       To eliminate the per-row vertical gaps that a row-based grid produces
+       (rows size to the tallest item across all columns), each child's
+       `grid-row` span is set imperatively by `recomputeToolsPanelMasonry()`
+       based on its measured height. The grid auto-rows are tiny (8px) so the
+       span math gives near-pixel-accurate packing per column. */
     @media (min-width: 769px) {
         .tools-panel-content {
-            display: block;
-            column-width: 24rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+            grid-auto-rows: 2px;
             column-gap: 2rem;
-            column-fill: balance;
+            row-gap: 20px;
+            align-items: start;
+            align-content: start;
         }
 
-        .tools-section {
-            break-inside: avoid;
-            margin-bottom: 1.25rem;
-            page-break-inside: avoid;
-        }
-
-        .tools-section:last-child {
-            margin-bottom: 0;
-        }
-
+        .tools-section,
         .tools-section-host {
-            break-inside: avoid;
-            margin-bottom: 1.25rem;
-            page-break-inside: avoid;
-        }
-
-        .tools-section-host:last-child {
             margin-bottom: 0;
         }
     }
@@ -1408,8 +1475,31 @@
     .tools-toggle-row {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 0.625rem;
         padding: 0.25rem 0.1rem 0.1rem;
+    }
+
+    .tools-toggle-main {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        min-width: 0;
+        color: inherit;
+        cursor: pointer;
+    }
+
+    .tools-toggle-main .material-symbols-outlined {
+        font-size: 1.35rem;
+        opacity: 0.85;
+        flex-shrink: 0;
+    }
+
+    .tools-toggle-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.625rem;
+        flex-shrink: 0;
     }
 
     .tools-toggle-copy {
