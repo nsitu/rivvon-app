@@ -446,6 +446,52 @@ export function useRibbonBuilder(ctx) {
     }
 
     /**
+     * Sync the current scene color-adjustment spike state into ribbon materials.
+     * While duotone is active, the fullscreen path remains authoritative.
+     */
+    function syncSceneColorAdjustments() {
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        const useRibbonAdjustments = ctx.app.renderFilterMode !== 'duotone';
+        const contrast = useRibbonAdjustments ? ctx.app.contrast : 1;
+        const saturation = useRibbonAdjustments ? ctx.app.saturation : 1;
+
+        for (const tm of targets) {
+            tm.setContrast?.(contrast);
+            tm.setSaturation?.(saturation);
+        }
+    }
+
+    /**
+     * Set ribbon-local contrast for the current spike path.
+     * @param {number} value
+     */
+    function setContrast(value) {
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        const normalized = Number.isFinite(Number(value)) ? Number(value) : ctx.app.contrast;
+
+        for (const tm of targets) {
+            tm.setContrast?.(ctx.app.renderFilterMode !== 'duotone' ? normalized : 1);
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Set ribbon-local saturation for the current spike path.
+     * @param {number} value
+     */
+    function setSaturation(value) {
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        const normalized = Number.isFinite(Number(value)) ? Number(value) : ctx.app.saturation;
+
+        for (const tm of targets) {
+            tm.setSaturation?.(ctx.app.renderFilterMode !== 'duotone' ? normalized : 1);
+        }
+
+        return normalized;
+    }
+
+    /**
      * Set the maximum shader edge-noise cut-in across all active TileManagers.
      * @param {number} value - Fraction of total ribbon width, 0..0.5
      */
@@ -605,6 +651,9 @@ export function useRibbonBuilder(ctx) {
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        syncSceneColorAdjustments,
+        setContrast,
+        setSaturation,
         setEdgeDriftEnabled,
         setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength,
