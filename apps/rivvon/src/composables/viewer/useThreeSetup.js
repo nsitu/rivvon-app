@@ -160,6 +160,8 @@ export function useThreeSetup() {
                 filmstripHoleLength: app.filmstripHoleLength,
                 filmstripAperture: app.filmstripAperture,
                 filmstripHoleRoundedness: app.filmstripHoleRoundedness,
+                contrast: app.renderFilterMode === 'duotone' ? 1 : app.contrast,
+                saturation: app.renderFilterMode === 'duotone' ? 1 : app.saturation,
                 webgpuMaterialMode: 'node'
             });
             await tileManager.value.loadAllTiles();
@@ -368,6 +370,9 @@ export function useThreeSetup() {
         setTextureAnimationReversed: ribbons.setTextureAnimationReversed,
         setTextureRepeatMode: ribbons.setTextureRepeatMode,
         setTextureFlipVertical: ribbons.setTextureFlipVertical,
+        syncSceneColorAdjustments: ribbons.syncSceneColorAdjustments,
+        setContrast: ribbons.setContrast,
+        setSaturation: ribbons.setSaturation,
         setEdgeDriftEnabled: ribbons.setEdgeDriftEnabled,
         setEdgeNoiseTransparencyMax: ribbons.setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength: ribbons.setEdgeNoisePatternLength,
