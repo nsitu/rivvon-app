@@ -221,6 +221,41 @@ function normalizeFilmstripHoleRoundedness(value) {
     return Math.min(MAX_FILMSTRIP_HOLE_ROUNDEDNESS, Math.max(MIN_FILMSTRIP_HOLE_ROUNDEDNESS, parsed));
 }
 
+function normalizeSceneContrast(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return 1.0;
+    }
+
+    return Math.min(2.0, Math.max(0.0, parsed));
+}
+
+function normalizeSceneSaturation(value) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+        return 1.0;
+    }
+
+    return Math.min(2.0, Math.max(0.0, parsed));
+}
+
+const SCENE_COLOR_ADJUST_GLSL = /* glsl */`
+                vec3 applySceneColorAdjustments(vec3 color, float contrast, float saturation) {
+                    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                    vec3 saturated = mix(vec3(luminance), color, saturation);
+                    return (saturated - 0.5) * contrast + 0.5;
+                }
+`;
+
+function createSceneColorAdjustmentNode(threeTSL, colorNode, contrastUniform, saturationUniform) {
+    const { vec3, dot, mix } = threeTSL;
+    const luminance = dot(colorNode, vec3(0.2126, 0.7152, 0.0722));
+    const saturated = mix(vec3(luminance, luminance, luminance), colorNode, saturationUniform);
+    return saturated.sub(vec3(0.5)).mul(contrastUniform).add(vec3(0.5));
+}
+
 function edgeNoisePatternLengthToFrequency(value) {
     return 1 / normalizeEdgeNoisePatternLength(value);
 }
@@ -474,6 +509,8 @@ export class TileManager {
             filmstripHoleLength = DEFAULT_FILMSTRIP_HOLE_LENGTH,
             filmstripAperture = DEFAULT_FILMSTRIP_APERTURE,
             filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS,
+            contrast = 1.0,
+            saturation = 1.0,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -539,6 +576,10 @@ export class TileManager {
         this.sharedFilmstripHoleLengthUniform = { value: this.filmstripHoleLength };
         this.sharedFilmstripApertureUniform = { value: this.filmstripAperture };
         this.sharedFilmstripRoundednessUniform = { value: this.filmstripHoleRoundedness };
+        this.sceneContrast = normalizeSceneContrast(contrast);
+        this.sceneSaturation = normalizeSceneSaturation(saturation);
+        this.sharedContrastUniform = { value: this.sceneContrast };
+        this.sharedSaturationUniform = { value: this.sceneSaturation };
         this.currentLayer = 0;
         this.layerCount = 0;
         this.direction = 1; // for ping-pong in planes mode
@@ -958,6 +999,12 @@ export class TileManager {
         if (material._filmstripRoundednessUniform) {
             material._filmstripRoundednessUniform.value = this.sharedFilmstripRoundednessUniform.value;
         }
+        if (material._contrastUniform) {
+            material._contrastUniform.value = this.sharedContrastUniform.value;
+        }
+        if (material._saturationUniform) {
+            material._saturationUniform.value = this.sharedSaturationUniform.value;
+        }
         this.#syncEdgeNoiseMaterialState(material);
     }
 
@@ -978,6 +1025,31 @@ export class TileManager {
         if (material.alphaToCoverage !== alphaToCoverage) {
             material.alphaToCoverage = alphaToCoverage;
             material.needsUpdate = true;
+        }
+    }
+
+    #syncSceneColorAdjustmentUniforms() {
+        if (this.rendererType !== 'webgpu') {
+            return;
+        }
+
+        const syncMaterial = (material) => {
+            if (!material) {
+                return;
+            }
+
+            if (material._contrastUniform) {
+                material._contrastUniform.value = this.sharedContrastUniform.value;
+            }
+
+            if (material._saturationUniform) {
+                material._saturationUniform.value = this.sharedSaturationUniform.value;
+            }
+        };
+
+        this.#forEachStaticMaterial(syncMaterial);
+        for (const material of this.flowMaterials) {
+            syncMaterial(material);
         }
     }
 
@@ -1150,6 +1222,8 @@ export class TileManager {
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
+                uContrast: this.sharedContrastUniform,
+                uSaturation: this.sharedSaturationUniform,
                 uEdgeNoiseMax: this.sharedEdgeNoiseMaxUniform,
                 uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
                 uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
@@ -1203,6 +1277,8 @@ export class TileManager {
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
+                uniform float uContrast;
+                uniform float uSaturation;
                 uniform float uEdgeNoiseMax;
                 uniform float uEdgeNoiseSpatialFrequency;
                 uniform float uEdgeNoiseMirror;
@@ -1217,6 +1293,7 @@ export class TileManager {
 ${CAP_ALPHA_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
+${SCENE_COLOR_ADJUST_GLSL}
 
                 void main() {
                     // Apply flow offset to U coordinate (slides along ribbon)
@@ -1288,8 +1365,8 @@ ${FILMSTRIP_GLSL}
                         }
                         texColor.a *= alphaScale;
                     }
-                    
-                    outColor = texColor;
+
+                    outColor = vec4(applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation), texColor.a);
                 }
             `,
             // Cap masks are cutouts, not translucent surfaces. Keep them in the
@@ -1364,6 +1441,8 @@ ${FILMSTRIP_GLSL}
         const filmstripHoleLengthUniform = uniform(float(this.sharedFilmstripHoleLengthUniform.value));
         const filmstripApertureUniform = uniform(float(this.sharedFilmstripApertureUniform.value));
         const filmstripRoundednessUniform = uniform(float(this.sharedFilmstripRoundednessUniform.value));
+        const contrastUniform = uniform(float(this.sharedContrastUniform.value));
+        const saturationUniform = uniform(float(this.sharedSaturationUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
             .sub(transparentShadowsMinUniform)
             .max(float(0.00001));
@@ -1446,9 +1525,13 @@ ${FILMSTRIP_GLSL}
             vec4(finalColor.rgb, mappedTransparencyAlpha),
             finalColor
         );
+        const adjustedOutputColor = vec4(
+            createSceneColorAdjustmentNode(threeTSL, outputColor.rgb, contrastUniform, saturationUniform),
+            outputColor.a
+        );
 
         const material = new NodeMaterial();
-        material.colorNode = outputColor;
+        material.colorNode = adjustedOutputColor;
         material.transparent = false;
         material.depthWrite = true;
         material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
@@ -1482,6 +1565,8 @@ ${FILMSTRIP_GLSL}
         material._filmstripHoleLengthUniform = filmstripHoleLengthUniform;
         material._filmstripApertureUniform = filmstripApertureUniform;
         material._filmstripRoundednessUniform = filmstripRoundednessUniform;
+        material._contrastUniform = contrastUniform;
+        material._saturationUniform = saturationUniform;
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
     }
@@ -1591,6 +1676,8 @@ ${FILMSTRIP_GLSL}
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
+                uContrast: this.sharedContrastUniform,
+                uSaturation: this.sharedSaturationUniform,
                 uEdgeNoiseMax: this.sharedEdgeNoiseMaxUniform,
                 uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
                 uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
@@ -1641,6 +1728,8 @@ ${FILMSTRIP_GLSL}
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
+                uniform float uContrast;
+                uniform float uSaturation;
                 uniform float uEdgeNoiseMax;
                 uniform float uEdgeNoiseSpatialFrequency;
                 uniform float uEdgeNoiseMirror;
@@ -1655,6 +1744,7 @@ ${FILMSTRIP_GLSL}
 ${CAP_ALPHA_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
+${SCENE_COLOR_ADJUST_GLSL}
 
                 void main() {
                     float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
@@ -1681,7 +1771,7 @@ ${FILMSTRIP_GLSL}
                         if (uTransparentHighlights == 1) {
                             alphaScale = 1.0 - alphaScale;
                         }
-                        texColor.a *= alphaScale;
+                    outColor = vec4(applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation), texColor.a);
                     }
                     outColor = texColor;
                 }
@@ -1772,6 +1862,8 @@ ${FILMSTRIP_GLSL}
         const filmstripHoleLengthUniform = uniform(float(this.sharedFilmstripHoleLengthUniform.value));
         const filmstripApertureUniform = uniform(float(this.sharedFilmstripApertureUniform.value));
         const filmstripRoundednessUniform = uniform(float(this.sharedFilmstripRoundednessUniform.value));
+        const contrastUniform = uniform(float(this.sharedContrastUniform.value));
+        const saturationUniform = uniform(float(this.sharedSaturationUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
             .sub(transparentShadowsMinUniform)
             .max(float(0.00001));
@@ -1838,7 +1930,7 @@ ${FILMSTRIP_GLSL}
         );
         const mappedTransparencyAlpha = finalColor.a.mul(mappedTransparencyFactor);
 
-        material.colorNode = hasCapMask
+        const outputColor = hasCapMask
             ? transparentShadowsUniform.equal(1).select(
                 vec4(finalColor.rgb, mappedTransparencyAlpha),
                 finalColor
@@ -1847,6 +1939,10 @@ ${FILMSTRIP_GLSL}
                 vec4(finalColor.rgb, mappedTransparencyAlpha),
                 finalColor
             );
+        material.colorNode = vec4(
+            createSceneColorAdjustmentNode(threeTSL, outputColor.rgb, contrastUniform, saturationUniform),
+            outputColor.a
+        );
         material.transparent = false;
         material.depthWrite = true;
         material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
@@ -1871,6 +1967,8 @@ ${FILMSTRIP_GLSL}
         material._filmstripHoleLengthUniform = filmstripHoleLengthUniform;
         material._filmstripApertureUniform = filmstripApertureUniform;
         material._filmstripRoundednessUniform = filmstripRoundednessUniform;
+        material._contrastUniform = contrastUniform;
+        material._saturationUniform = saturationUniform;
         material.defaultAttributeValues = {
             ...(material.defaultAttributeValues || {}),
             capStartStyle: [0],
@@ -2612,6 +2710,38 @@ ${FILMSTRIP_GLSL}
                 }
             }
         }
+    }
+
+    /**
+     * Set a ribbon-local contrast multiplier for the current scene-filter spike.
+     * @param {number} value 0..2
+     */
+    setContrast(value) {
+        const nextValue = normalizeSceneContrast(value);
+        if (this.sceneContrast === nextValue) {
+            return false;
+        }
+
+        this.sceneContrast = nextValue;
+        this.sharedContrastUniform.value = nextValue;
+        this.#syncSceneColorAdjustmentUniforms();
+        return true;
+    }
+
+    /**
+     * Set a ribbon-local saturation multiplier for the current scene-filter spike.
+     * @param {number} value 0..2
+     */
+    setSaturation(value) {
+        const nextValue = normalizeSceneSaturation(value);
+        if (this.sceneSaturation === nextValue) {
+            return false;
+        }
+
+        this.sceneSaturation = nextValue;
+        this.sharedSaturationUniform.value = nextValue;
+        this.#syncSceneColorAdjustmentUniforms();
+        return true;
     }
 
     /**
