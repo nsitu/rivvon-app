@@ -379,9 +379,15 @@
         () => app.transparentShadowsThresholdMin,
         () => app.transparentShadowsThresholdMax,
         () => app.duotoneColor,
+        () => app.contrast,
+        () => app.saturation,
         () => app.textureRepeatMode,
         () => app.textureFlipVertical,
     ], () => {
+        if (!props.visible) {
+            return;
+        }
+
         emit('settings-change');
     });
 
