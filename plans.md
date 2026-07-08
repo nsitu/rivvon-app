@@ -64,3 +64,18 @@ note that the pose landmarker is likely different from the face landmarker which
 
 Check if you can Get Bliss Symbols to work as a Single Line font.
 https://en.wikipedia.org/wiki/Blissymbols
+
+the logo corner select dropdown can include icons for the positions.
+'north_west' for Top Left
+'north_east' for Top Right
+etc.
+
+the contrast and saturation sliders are smooth now.This is owing to having shifted the behaviour of the UI so as to not have to refresh continually during the slide. I think there is a data bus involved that sidesteps prop drilling. I wonder if the bus is uniquely suited to the sliders here because of their frequent updates? or should we use that pattern more broadly? I want to understand the architecture.
+
+There remain other sliders that still cause fps dips. maybe for the same reason or maybe for different reasons.
+
+on mobile after texture is 100% saved to the browser we still end up waiting for a quite a while before it is actually done. so review the progress indicator here.
+
+the direction of a stroke impacts the way a texture is applied. thus the top and bottom of the texture could be drawn in opposite directions depending on where the stroke begins and ends. (see for example the bee emoji which exhibits this behaviour) as an alternative, we might instead normalize all the strokes so that the resulting ribbons within each ribbon series are all rendered with the textures oriented the same way. this might be achieved by selectively reversing the direction of some strokes, but it might also be achieved in some other way at the stage when the textures themselves are applied.
+
+when sampling waves across a small number of tiles, the peaks and troughs end up appearing a bit awkwardly, as they tend to traverse very similar pixels on the way up and on the way down. one can of course use a longer video clip to mitigate, since this will smooth out the forms. however an alternate solution might be to add blur to the shader in the parts of the image that are nearby to pixels that have been sampled from peaks and troughs. thus, for any given pixel within any given layer within any given tile, we should be able to know enough about its origin in order to tell whether or not it has a proximity to a peak or trough. if it is indeed close, then more blur could be applied. in effect for each layer there might be a map that tells us where blur is needed. this blur the peaks and troughs feature might be applied as a shader after the fact, or it might be baked into the texture itself. we should investigate what is more feasible. if we take the baking approach, it might be easier because we are closer to the sampling process at that point, and so it may be easier to know which pixels need blurring.
