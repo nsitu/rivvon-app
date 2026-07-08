@@ -2,6 +2,10 @@
     import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useThreeSetup } from '../../composables/viewer/useThreeSetup';
+    import {
+        registerRendererAdjustments,
+        clearRendererAdjustments,
+    } from '../../modules/viewer/rendererAdjustmentBus';
 
     const props = defineProps({
         rendererType: {
@@ -53,6 +57,9 @@
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        syncSceneColorAdjustments,
+        setContrast,
+        setSaturation,
         setEdgeDriftEnabled,
         setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength,
@@ -160,6 +167,14 @@
             // Register reinitialize callback on the store so it survives teardown
             app.setReinitCallback(reinitialize);
 
+            // Expose drag-time renderer setters so slider controls can bypass
+            // Pinia/Vue reactivity during continuous input. Pinia is still updated
+            // on commit (@change) via the regular watcher path below.
+            registerRendererAdjustments({
+                setContrast,
+                setSaturation,
+            });
+
             console.log('[ThreeCanvas] Initialization complete');
         } catch (error) {
             console.error('[ThreeCanvas] Failed to initialize:', error);
@@ -167,6 +182,7 @@
     });
 
     onUnmounted(() => {
+        clearRendererAdjustments();
         stopRenderLoop();
     });
 
@@ -201,6 +217,18 @@
         setBackgroundFromTileManager().catch((error) => {
             console.error('[ThreeCanvas] Failed to update scene background blur:', error);
         });
+    });
+
+    watch(() => app.renderFilterMode, () => {
+        syncSceneColorAdjustments();
+    });
+
+    watch(() => app.contrast, (value) => {
+        setContrast(value);
+    });
+
+    watch(() => app.saturation, (value) => {
+        setSaturation(value);
     });
 
     watch(() => app.textureRepeatMode, (mode) => {
