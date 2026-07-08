@@ -70,8 +70,11 @@
             <div class="tools-section-label">Geometry</div>
             <div class="tools-section-items">
                 <div class="tools-slider">
-                    <label>Ribbon Width <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2)
-                            }}x</span></label>
+                    <label>
+                        <span class="material-symbols-outlined tools-slider-icon">fit_page_width</span>
+                        <span>Ribbon Width</span>
+                        <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2) }}x</span>
+                    </label>
                     <input
                         type="range"
                         min="0.1"
