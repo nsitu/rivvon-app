@@ -385,6 +385,10 @@ function normalizeRepeatMode(mode) {
     return 'wrap';
 }
 
+function resolveMirrorY(materialOptions = null) {
+    return !!materialOptions?.orientationMirrorY;
+}
+
 function bigintAbs(value) {
     return value < 0n ? -value : value;
 }
@@ -945,13 +949,16 @@ export class TileManager {
         return material;
     }
 
-    #buildFlowMaterialCacheKey(currentSample, nextSample) {
+    #buildFlowMaterialCacheKey(currentSample, nextSample, materialOptions = null) {
+        const mirrorY = resolveMirrorY(materialOptions);
+
         return [
             this.flowDirection < 0 ? 'rev' : 'fwd',
             currentSample.tileIndex,
             currentSample.mirrorX ? 1 : 0,
             nextSample.tileIndex,
             nextSample.mirrorX ? 1 : 0,
+            mirrorY ? 1 : 0,
         ].join(':');
     }
 
@@ -1203,6 +1210,7 @@ export class TileManager {
         const layerCount = textureCurrent.image?.depth || 1;
         const mirrorCurrent = options.mirrorCurrent ? 1 : 0;
         const mirrorNext = options.mirrorNext ? 1 : 0;
+        const mirrorY = options.mirrorY ? 1 : 0;
         const reverseFlow = this.flowDirection < 0;
         const hasCapMask = true;
 
@@ -1217,6 +1225,7 @@ export class TileManager {
                 uFlipVertical: this.sharedFlipVerticalUniform,
                 uMirrorCurrent: { value: mirrorCurrent },
                 uMirrorNext: { value: mirrorNext },
+                uMirrorY: { value: mirrorY },
                 uFlowOffset: this.sharedFlowOffsetUniform,
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
@@ -1272,6 +1281,7 @@ export class TileManager {
                 uniform int uFlipVertical;
                 uniform int uMirrorCurrent;
                 uniform int uMirrorNext;
+                uniform int uMirrorY;
                 uniform float uFlowOffset;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
@@ -1299,7 +1309,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
                     float nextShiftedU = ${reverseFlow ? 'shiftedU + 1.0' : 'shiftedU - 1.0'};
-                    float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
+                    bool mirrorV = (uFlipVertical == 1) != (uMirrorY == 1);
+                    float sampleV = mirrorV ? (1.0 - vUv.y) : vUv.y;
 
                     vec2 currentDerivUV = vec2(
                         (uMirrorCurrent == 1) ? (1.0 - shiftedU) : shiftedU,
@@ -1427,6 +1438,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const flipVerticalUniform = uniform(this.sharedFlipVerticalUniform.value);
         const mirrorCurrentUniform = uniform(options.mirrorCurrent ? 1 : 0);
         const mirrorNextUniform = uniform(options.mirrorNext ? 1 : 0);
+        const mirrorYUniform = uniform(options.mirrorY ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
@@ -1453,7 +1465,12 @@ ${SCENE_COLOR_ADJUST_GLSL}
         // Apply flow offset
         const shiftedU = baseUV.x.add(flowOffsetUniform);
         const nextShiftedU = reverseFlow ? shiftedU.add(1.0) : shiftedU.sub(1.0);
-        const sampledV = flipVerticalUniform.equal(1).select(float(1).sub(baseUV.y), baseUV.y);
+        const mirroredV = float(1).sub(baseUV.y);
+        const sampledV = flipVerticalUniform.equal(1)
+            .select(
+                mirrorYUniform.equal(1).select(baseUV.y, mirroredV),
+                mirrorYUniform.equal(1).select(mirroredV, baseUV.y)
+            );
         
         // Create two UV sets
         const uvCurrent = vec2(
@@ -1591,7 +1608,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
 
         const textureCurrent = this.arrayTextures[currentTileIdx];
         const textureNext = this.arrayTextures[nextTileIdx];
-        const cacheKey = this.#buildFlowMaterialCacheKey(currentSample, nextSample);
+        const cacheKey = this.#buildFlowMaterialCacheKey(currentSample, nextSample, materialOptions);
+        const mirrorY = resolveMirrorY(materialOptions);
 
         if (cacheKey) {
             const cachedMaterial = this.flowMaterialCache.get(cacheKey);
@@ -1610,12 +1628,14 @@ ${SCENE_COLOR_ADJUST_GLSL}
             material = this.#createDualTextureMaterialWebGPU(textureCurrent, textureNext, {
                 mirrorCurrent: currentSample.mirrorX,
                 mirrorNext: nextSample.mirrorX,
+                mirrorY,
                 ...materialOptions,
             });
         } else {
             material = this.#createDualTextureMaterialWebGL(textureCurrent, textureNext, {
                 mirrorCurrent: currentSample.mirrorX,
                 mirrorNext: nextSample.mirrorX,
+                mirrorY,
                 ...materialOptions,
             });
         }
@@ -1661,6 +1681,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
     #createArrayMaterialWebGL(arrayTexture, options = {}) {
         const layerCount = arrayTexture.image?.depth || 1;
         const mirrorX = options.mirrorX ? 1 : 0;
+        const mirrorY = options.mirrorY ? 1 : 0;
         const hasCapMask = true;
 
         const material = new THREE.ShaderMaterial({
@@ -1672,6 +1693,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uRotate90: this.sharedRotateUniform,
                 uFlipVertical: this.sharedFlipVerticalUniform,
                 uMirrorX: { value: mirrorX },
+                uMirrorY: { value: mirrorY },
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
@@ -1724,6 +1746,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uniform int uRotate90;
                 uniform int uFlipVertical;
                 uniform int uMirrorX;
+                uniform int uMirrorY;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
@@ -1747,7 +1770,8 @@ ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
 
                 void main() {
-                    float sampleV = (uFlipVertical == 1) ? (1.0 - vUv.y) : vUv.y;
+                    bool mirrorV = (uFlipVertical == 1) != (uMirrorY == 1);
+                    float sampleV = mirrorV ? (1.0 - vUv.y) : vUv.y;
                     vec2 sampleUV = vec2((uMirrorX == 1) ? (1.0 - vUv.x) : vUv.x, sampleV);
                     // Optionally rotate by 90 degrees (clockwise)
                     vec2 uvR = (uRotate90 == 1) ? vec2(sampleUV.y, 1.0 - sampleUV.x) : sampleUV;
@@ -1849,6 +1873,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const rotateUniform = uniform(this.sharedRotateUniform.value);
         const flipVerticalUniform = uniform(this.sharedFlipVerticalUniform.value);
         const mirrorUniform = uniform(options.mirrorX ? 1 : 0);
+        const mirrorYUniform = uniform(options.mirrorY ? 1 : 0);
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
@@ -1871,9 +1896,15 @@ ${SCENE_COLOR_ADJUST_GLSL}
         // Get base UV coordinates
         const baseUV = uv();
         const edgeNoiseU = attribute('edgeNoiseU', 'float');
+        const mirroredV = float(1).sub(baseUV.y);
+        const sampledV = flipVerticalUniform.equal(1)
+            .select(
+                mirrorYUniform.equal(1).select(baseUV.y, mirroredV),
+                mirrorYUniform.equal(1).select(mirroredV, baseUV.y)
+            );
         const sampleUV = vec2(
             mirrorUniform.equal(1).select(float(1).sub(baseUV.x), baseUV.x),
-            flipVerticalUniform.equal(1).select(float(1).sub(baseUV.y), baseUV.y)
+            sampledV
         );
 
         // Step 1: Optionally rotate by 90 degrees clockwise
@@ -2184,20 +2215,23 @@ ${SCENE_COLOR_ADJUST_GLSL}
         if (!this.isKTX2) return undefined;
         const sample = this.resolveSegmentToTile(index);
         const baseMaterial = this.materials[sample.tileIndex];
+        const mirrorX = !!sample.mirrorX;
+        const mirrorY = resolveMirrorY(materialOptions);
 
-        if (!sample.mirrorX || !baseMaterial) {
+        if ((!mirrorX && !mirrorY) || !baseMaterial) {
             return baseMaterial;
         }
 
-        let mirroredMaterial = this.mirroredMaterials.get(sample.tileIndex);
+        const mirrorKey = `${sample.tileIndex}:${mirrorX ? 1 : 0}:${mirrorY ? 1 : 0}`;
+        let mirroredMaterial = this.mirroredMaterials.get(mirrorKey);
         if (!mirroredMaterial) {
             const arrayTexture = this.arrayTextures[sample.tileIndex];
             if (!arrayTexture) {
                 return baseMaterial;
             }
 
-            mirroredMaterial = this.#createArrayMaterial(arrayTexture, { mirrorX: true });
-            this.mirroredMaterials.set(sample.tileIndex, mirroredMaterial);
+            mirroredMaterial = this.#createArrayMaterial(arrayTexture, { mirrorX, mirrorY });
+            this.mirroredMaterials.set(mirrorKey, mirroredMaterial);
         }
 
         return mirroredMaterial;

@@ -64,6 +64,7 @@ export class Ribbon {
         this.pathLength = 0;
         this.layoutMode = 'measuringTape';
         this.layoutMetadata = null;
+        this.textureOrientationMirrorY = false;
 
         this.waveAmplitude = 0.075;
         this.waveFrequency = 0.25;
@@ -120,6 +121,11 @@ export class Ribbon {
 
     setSegmentOffset(offset) {
         this.segmentOffset = offset;
+        return this;
+    }
+
+    setTextureOrientationMirrorY(mirrorY) {
+        this.textureOrientationMirrorY = !!mirrorY;
         return this;
     }
 
@@ -988,7 +994,9 @@ export class Ribbon {
         const activeTileManager = overrideTileManager || this.tileManager;
 
         if (activeTileManager && typeof activeTileManager.getMaterial === 'function') {
-            material = activeTileManager.getMaterial(textureIndex) || null;
+            material = activeTileManager.getMaterial(textureIndex, {
+                orientationMirrorY: this.textureOrientationMirrorY,
+            }) || null;
         }
 
         if (!material) {

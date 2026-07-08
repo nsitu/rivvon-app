@@ -179,6 +179,8 @@ With 33 tiles and a 45-segment ribbon, tiles wrap as `0, 1, 2, ..., 32, 0, 1, 2,
 
 Rivvon exposes a `Texture Layout` control in the viewer toolbar. This changes how segment indices are resolved into tile samples without changing ribbon geometry.
 
+Normalize Texture Orientation is a separate texture-sampling feature. It normalizes the cross-ribbon `V` axis for each ribbon in a series without changing tile order or along-ribbon `U` layout. See `normalize-texture-orientation.md`.
+
 `Wrap Tiles`
 
 ```

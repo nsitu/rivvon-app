@@ -57,6 +57,7 @@
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        setNormalizeTextureOrientation,
         syncSceneColorAdjustments,
         setContrast,
         setSaturation,
@@ -239,6 +240,10 @@
         setTextureFlipVertical(enabled);
     });
 
+    watch(() => app.normalizeTextureOrientation, (enabled) => {
+        setNormalizeTextureOrientation(enabled);
+    });
+
     watch(() => app.edgeDriftEnabled, (enabled) => {
         setEdgeDriftEnabled(enabled);
     });
@@ -311,6 +316,7 @@
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        setNormalizeTextureOrientation,
         setEdgeDriftEnabled,
         setEdgeNoiseTransparencyMax,
         setEdgeNoisePatternLength,

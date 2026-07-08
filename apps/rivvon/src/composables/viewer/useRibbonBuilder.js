@@ -89,6 +89,7 @@ export function useRibbonBuilder(ctx) {
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
+        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
         
         // Build from single path (wrapped in array)
         ctx.ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
@@ -128,6 +129,7 @@ export function useRibbonBuilder(ctx) {
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
+        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
         
         // Build from multiple paths
         ctx.ribbonSeries.value.buildFromMultiplePaths(pointsArray, options.width || 1.2);
@@ -184,6 +186,7 @@ export function useRibbonBuilder(ctx) {
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
+        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
         
         // Build from processed points
         ctx.ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
@@ -224,6 +227,7 @@ export function useRibbonBuilder(ctx) {
             helixMode: false,
             sphericalProjectionEnabled: false,
         });
+        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
         ctx.ribbonSeries.value.buildFromProceduralSource({ type, settings }, sourceConfig.width || 1.2, 0);
 
         ctx.cinematicCamera.clearROIs();
@@ -445,6 +449,16 @@ export function useRibbonBuilder(ctx) {
         ctx.app.setTextureFlipVertical(nextEnabled);
     }
 
+    function setNormalizeTextureOrientation(enabled) {
+        const nextEnabled = !!enabled;
+        ctx.app.setNormalizeTextureOrientation(nextEnabled);
+
+        if (ctx.ribbonSeries.value) {
+            ctx.ribbonSeries.value.setNormalizeTextureOrientation(nextEnabled);
+            ctx.ribbonSeries.value.initFlowMaterials();
+        }
+    }
+
     /**
      * Sync the current scene color-adjustment spike state into ribbon materials.
      * While duotone is active, the fullscreen path remains authoritative.
@@ -651,6 +665,7 @@ export function useRibbonBuilder(ctx) {
         setTextureAnimationReversed,
         setTextureRepeatMode,
         setTextureFlipVertical,
+        setNormalizeTextureOrientation,
         syncSceneColorAdjustments,
         setContrast,
         setSaturation,

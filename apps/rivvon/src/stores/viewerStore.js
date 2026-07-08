@@ -425,6 +425,10 @@ export const useViewerStore = defineStore('viewer', {
         
         // Texture state
         textureRepeatMode: 'mirrorTile', // 'wrap' | 'mirrorTile'
+        normalizeTextureOrientation: normalizeViewerBooleanPreference(
+            readViewerPreferences().normalizeTextureOrientation,
+            true
+        ),
         textureFlipVertical: normalizeViewerBooleanPreference(
             readViewerPreferences().textureFlipVertical,
             normalizeViewerBooleanPreference(
@@ -611,6 +615,7 @@ export const useViewerStore = defineStore('viewer', {
             this.backgroundBlurEnabled = true;
             this.textureAnimationReversed = false;
             this.textureRepeatMode = 'mirrorTile';
+            this.normalizeTextureOrientation = true;
             this.textureFlipVertical = false;
             this.textureOverviewLayoutStrategy = normalizeTextureOverviewLayoutStrategy(undefined);
             this.exportAspectRatioPreset = defaultExportDimensions.aspectRatioPreset;
@@ -661,6 +666,7 @@ export const useViewerStore = defineStore('viewer', {
                 animatedBackgroundEnabled: false,
                 backgroundBlurEnabled: true,
                 textureAnimationReversed: false,
+                normalizeTextureOrientation: true,
                 textureFlipVertical: false,
                 textureOverviewFlipVertical: false,
                 textureOverviewLayoutStrategy: this.textureOverviewLayoutStrategy,
@@ -902,6 +908,7 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurEnabled: this.backgroundBlurEnabled,
                 textureAnimationReversed: this.textureAnimationReversed,
                 textureRepeatMode: this.textureRepeatMode,
+                normalizeTextureOrientation: this.normalizeTextureOrientation,
                 textureFlipVertical: this.textureFlipVertical,
                 textureOverviewLayoutStrategy: this.textureOverviewLayoutStrategy,
                 exportAspectRatioPreset: this.exportAspectRatioPreset,
@@ -967,6 +974,7 @@ export const useViewerStore = defineStore('viewer', {
                 this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
+                this.normalizeTextureOrientation !== original.normalizeTextureOrientation ||
                 this.textureFlipVertical !== original.textureFlipVertical ||
                 this.textureOverviewLayoutStrategy !== original.textureOverviewLayoutStrategy ||
                 this.exportAspectRatioPreset !== original.exportAspectRatioPreset ||
@@ -1088,6 +1096,12 @@ export const useViewerStore = defineStore('viewer', {
 
         setTextureRepeatMode(mode) {
             this.textureRepeatMode = mode === 'mirrorTile' ? 'mirrorTile' : 'wrap';
+        },
+
+        setNormalizeTextureOrientation(enabled) {
+            const nextValue = !!enabled;
+            this.normalizeTextureOrientation = nextValue;
+            writeViewerPreferences({ normalizeTextureOrientation: nextValue });
         },
 
         setTextureFlipVertical(enabled) {

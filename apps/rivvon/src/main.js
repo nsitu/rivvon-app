@@ -23,7 +23,7 @@ loadMaterialSymbols([
     'home', 'palette', 'settings', 'rotate_90_degrees_cw',
     'step_over', 'close_fullscreen', 'open_in_full', 'warning',
     'video_file', 'frame_source', 'barcode', 'timer', 'speed',
-    'calculate', 'view_compact', 'rotate_right', 'equalizer',
+    'calculate', 'view_compact', 'rotate_right', 'equalizer', 'equal',
     'arrow_range', 'resize', 'double_arrow', 'filter_alt', 'play_arrow', 'volume_off', 'volume_up', 'pause',
     'account_circle', 'crop', 'save', 'folder','texture','arrow_back', 'arrow_forward', 'video_camera_back_add','arrow_back_ios','check','done_outline','visibility','hard_drive','cloud_upload','folder_zip','menu','block','animation',
     'polyline','file_export','share','image','airwave','videocam','content_copy','delete','edit','instant_mix','visibility_off',
@@ -41,8 +41,8 @@ loadMaterialSymbols([
     'horizontal_align_center','filter_b_and_w','download',
     'swap_vert','fast_rewind','wallpaper','blur_on','sync',
     'refresh','link','target','colors','contrast',
-    'fit_page_width','vital_signs','theaters','opacity','branding_watermark',
-    'north_west', 'south_east', 'north_east','south_west' 
+    'fit_page_width','vital_signs', 'opacity','branding_watermark',
+    'north_west', 'south_east', 'north_east','south_west' ,'text_select_move_up'
 ]);
 
 

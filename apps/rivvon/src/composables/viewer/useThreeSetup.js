@@ -370,6 +370,7 @@ export function useThreeSetup() {
         setTextureAnimationReversed: ribbons.setTextureAnimationReversed,
         setTextureRepeatMode: ribbons.setTextureRepeatMode,
         setTextureFlipVertical: ribbons.setTextureFlipVertical,
+        setNormalizeTextureOrientation: ribbons.setNormalizeTextureOrientation,
         syncSceneColorAdjustments: ribbons.syncSceneColorAdjustments,
         setContrast: ribbons.setContrast,
         setSaturation: ribbons.setSaturation,

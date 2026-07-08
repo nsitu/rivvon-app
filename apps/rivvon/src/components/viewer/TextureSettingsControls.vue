@@ -278,6 +278,13 @@
         }
     });
 
+    const normalizeTextureOrientationModel = computed({
+        get: () => app.normalizeTextureOrientation,
+        set: (value) => {
+            app.setNormalizeTextureOrientation(!!value);
+        }
+    });
+
     const verticalFlipModel = computed({
         get: () => app.textureFlipVertical,
         set: (value) => {
@@ -296,6 +303,24 @@
             <div class="tools-section-label">Texture and Materials</div>
 
             <div class="tools-section-items">
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('normalize-texture-orientation')"
+                    >
+                        <span class="material-symbols-outlined">text_select_move_up</span>
+                        <span>Normalize Orientation</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ normalizeTextureOrientationModel ? 'On' : 'Off'
+                            }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('normalize-texture-orientation')"
+                            v-model="normalizeTextureOrientationModel"
+                        />
+                    </div>
+                </div>
+
                 <div class="tools-toggle-row">
                     <label
                         class="tools-toggle-main"
@@ -351,7 +376,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                    }}</span>
+                                        }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -359,7 +384,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                    }}</span>
+                                        }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>
@@ -380,7 +405,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ transparentShadowsFilterModel ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('transparent-shadows-filter')"
                             v-model="transparentShadowsFilterModel"
@@ -449,7 +474,10 @@
                     </div>
                 </label>
 
-                <div v-if="edgeDriftEnabledModel" class="tools-slider-block">
+                <div
+                    v-if="edgeDriftEnabledModel"
+                    class="tools-slider-block"
+                >
                     <div class="tools-slider-head">
                         <label class="tools-slider-label">Edge Variation</label>
                         <span class="tools-hint tools-slider-hint">{{ edgeNoiseTransparencyLabel }}</span>
@@ -467,7 +495,10 @@
                     </div>
                 </div>
 
-                <div v-if="edgeDriftEnabledModel" class="tools-slider-block">
+                <div
+                    v-if="edgeDriftEnabledModel"
+                    class="tools-slider-block"
+                >
                     <div class="tools-slider-head">
                         <label class="tools-slider-label">Pattern Length</label>
                         <span class="tools-hint tools-slider-hint">{{ edgeNoisePatternLengthLabel }}</span>
@@ -511,7 +542,8 @@
                         <span class="tools-toggle-title">Filmstrip Style</span>
                     </span>
                     <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ filmstripStyleEnabledModel ? 'On' : 'Off' }}</span>
+                        <span class="tools-hint tools-toggle-hint">{{ filmstripStyleEnabledModel ? 'On' : 'Off'
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('filmstrip-style-enabled')"
                             v-model="filmstripStyleEnabledModel"
@@ -519,7 +551,10 @@
                     </div>
                 </label>
 
-                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                <div
+                    v-if="filmstripStyleEnabledModel"
+                    class="tools-slider-block"
+                >
                     <div class="tools-slider-head">
                         <label class="tools-slider-label">Gap Length</label>
                         <span class="tools-hint tools-slider-hint">{{ filmstripGapLengthLabel }}</span>
@@ -537,7 +572,10 @@
                     </div>
                 </div>
 
-                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                <div
+                    v-if="filmstripStyleEnabledModel"
+                    class="tools-slider-block"
+                >
                     <div class="tools-slider-head">
                         <label class="tools-slider-label">Hole Length</label>
                         <span class="tools-hint tools-slider-hint">{{ filmstripHoleLengthLabel }}</span>
@@ -555,7 +593,10 @@
                     </div>
                 </div>
 
-                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                <div
+                    v-if="filmstripStyleEnabledModel"
+                    class="tools-slider-block"
+                >
                     <div class="tools-slider-head">
                         <label class="tools-slider-label">Aperture</label>
                         <span class="tools-hint tools-slider-hint">{{ filmstripApertureLabel }}</span>
@@ -573,7 +614,10 @@
                     </div>
                 </div>
 
-                <div v-if="filmstripStyleEnabledModel" class="tools-slider-block">
+                <div
+                    v-if="filmstripStyleEnabledModel"
+                    class="tools-slider-block"
+                >
                     <div class="tools-slider-head">
                         <label class="tools-slider-label">Hole Roundedness</label>
                         <span class="tools-hint tools-slider-hint">{{ filmstripHoleRoundednessLabel }}</span>
@@ -648,7 +692,10 @@
                             <span class="material-symbols-outlined">contrast</span>
                             <span>Contrast</span>
                         </label>
-                        <span ref="contrastLabelRef" class="tools-hint tools-slider-hint">{{ initialContrast }}%</span>
+                        <span
+                            ref="contrastLabelRef"
+                            class="tools-hint tools-slider-hint"
+                        >{{ initialContrast }}%</span>
                     </div>
                     <input
                         ref="contrastInputRef"
@@ -674,7 +721,10 @@
                             <span class="material-symbols-outlined">colors</span>
                             <span>Saturation</span>
                         </label>
-                        <span ref="saturationLabelRef" class="tools-hint tools-slider-hint">{{ initialSaturation }}%</span>
+                        <span
+                            ref="saturationLabelRef"
+                            class="tools-hint tools-slider-hint"
+                        >{{ initialSaturation }}%</span>
                     </div>
                     <input
                         ref="saturationInputRef"

@@ -11,6 +11,10 @@ import {
     getProceduralSourceFrame,
 } from './proceduralPaths.js';
 
+const TEXTURE_ORIENTATION_EPSILON = 0.000001;
+const TEXTURE_ORIENTATION_SAMPLE_COUNT = 9;
+const ARTWORK_FACING_NORMAL = new Vector3(0, 0, 1);
+
 export class RibbonSeries {
     /**
      * Create a new ribbon series
@@ -32,6 +36,7 @@ export class RibbonSeries {
         this.proceduralSource = null;
         this._proceduralDebug = null;
         this._layoutDebug = null;
+        this.normalizeTextureOrientation = true;
 
         // Round-robin mapping: each entry is { ribbon, strand, tileManager }
         this._strandTileManagerMap = [];
@@ -100,8 +105,82 @@ export class RibbonSeries {
         return this;
     }
 
+    setNormalizeTextureOrientation(enabled) {
+        this.normalizeTextureOrientation = !!enabled;
+        this._applyTextureOrientationToRibbons(this.lastPathsPoints);
+        return this;
+    }
+
     _clonePaths(pathsPoints = []) {
         return pathsPoints.map((points) => points.map((point) => point.clone()));
+    }
+
+    _calculateTextureOrientationMirrors(pathsPoints = []) {
+        if (!this.normalizeTextureOrientation) {
+            return pathsPoints.map(() => false);
+        }
+
+        return pathsPoints.map((points) => {
+            if (!Array.isArray(points) || points.length < 2) {
+                return false;
+            }
+
+            const pathLength = calculatePolylineLength(points);
+            if (!Number.isFinite(pathLength) || pathLength <= TEXTURE_ORIENTATION_EPSILON) {
+                return false;
+            }
+
+            const probeRibbon = new Ribbon(this._contentGroup);
+            probeRibbon.setHelixOptions({
+                ...this._helixOptions,
+                sphericalProjectionRadius: this._resolvedSphericalProjectionRadius
+                    || this._helixOptions.sphericalProjectionRadius,
+            });
+            probeRibbon.pathLength = pathLength;
+
+            const curve = probeRibbon.createCurveFromPoints(points);
+            const frameSamples = probeRibbon.createFrameSamples(
+                curve,
+                Math.max(2, TEXTURE_ORIENTATION_SAMPLE_COUNT)
+            );
+            let score = 0;
+            let sampleTotal = 0;
+
+            for (let i = 0; i < TEXTURE_ORIENTATION_SAMPLE_COUNT; i += 1) {
+                const t = TEXTURE_ORIENTATION_SAMPLE_COUNT === 1
+                    ? 0.5
+                    : i / (TEXTURE_ORIENTATION_SAMPLE_COUNT - 1);
+                const frame = probeRibbon._sampleFrame(curve, frameSamples, t);
+                const widthDirection = frame?.widthDirection || frame?.normal;
+
+                if (!widthDirection || widthDirection.lengthSq() <= TEXTURE_ORIENTATION_EPSILON) {
+                    continue;
+                }
+
+                score += widthDirection.clone().normalize().dot(ARTWORK_FACING_NORMAL);
+                sampleTotal += 1;
+            }
+
+            return sampleTotal > 0 && score < -TEXTURE_ORIENTATION_EPSILON;
+        });
+    }
+
+    _applyTextureOrientationToRibbons(pathsPoints = []) {
+        const mirrors = this._calculateTextureOrientationMirrors(pathsPoints);
+        let ribbonIndex = 0;
+
+        for (let pathIndex = 0; pathIndex < pathsPoints.length; pathIndex += 1) {
+            const points = pathsPoints[pathIndex];
+            if (!Array.isArray(points) || points.length < 2) {
+                continue;
+            }
+
+            const ribbon = this.ribbons[ribbonIndex];
+            if (ribbon) {
+                ribbon.setTextureOrientationMirrorY(mirrors[pathIndex]);
+            }
+            ribbonIndex += 1;
+        }
     }
 
     _resolveGeometryPaths(pathsPoints) {
@@ -190,6 +269,7 @@ export class RibbonSeries {
         let segmentOffset = 0;  // Track cumulative segment count for texture continuity
         const N = this.tileManagers.length; // Number of available TileManagers
         let textureIndex = 0; // Running index for round-robin TileManager assignment
+        const textureOrientationMirrors = this._calculateTextureOrientationMirrors(this.lastPathsPoints);
 
         for (let i = 0; i < this.lastPathsPoints.length; i++) {
             const points = this.lastPathsPoints[i];
@@ -228,6 +308,7 @@ export class RibbonSeries {
 
             // Set segment offset for continuous texture indexing
             ribbon.setSegmentOffset(segmentOffset);
+            ribbon.setTextureOrientationMirrorY(textureOrientationMirrors[i]);
 
             // Build the ribbon
             ribbon.buildFromPoints(points, effectiveWidth, time);
@@ -337,6 +418,7 @@ export class RibbonSeries {
             sphericalProjectionEnabled: false,
         });
         ribbon.setSegmentOffset(0);
+        ribbon.setTextureOrientationMirrorY(this._calculateTextureOrientationMirrors(this.lastPathsPoints)[0]);
         ribbon.buildPooledSegmentedRibbon(points, this._getEffectiveRibbonWidth(width), time, options);
 
         this.ribbons.push(ribbon);
@@ -367,6 +449,7 @@ export class RibbonSeries {
         const N = this.tileManagers.length;
         let textureIndex = 0;
         let segmentOffset = 0;
+        const textureOrientationMirrors = this._calculateTextureOrientationMirrors(this.lastPathsPoints);
 
         for (let index = 0; index < this.lastPathsPoints.length; index += 1) {
             const points = this.lastPathsPoints[index];
@@ -391,6 +474,7 @@ export class RibbonSeries {
                 sphericalProjectionRadius: null,
             });
             ribbon.setSegmentOffset(segmentOffset);
+            ribbon.setTextureOrientationMirrorY(textureOrientationMirrors[index]);
             ribbon.buildPooledSegmentedRibbon(points, effectiveWidth, time, pathOptions[index] || {});
 
             segmentOffset += ribbon.meshSegments.length;
@@ -415,6 +499,7 @@ export class RibbonSeries {
         this._updateTransformRoot(this.lastPathsPoints);
 
         const ribbon = this.ribbons[0];
+        ribbon.setTextureOrientationMirrorY(this._calculateTextureOrientationMirrors(this.lastPathsPoints)[0]);
         ribbon.updatePooledSegmentedRibbon(points, this._getEffectiveRibbonWidth(width), time, options);
         this.totalSegmentCount = ribbon.meshSegments.length;
         this._layoutDebug = this._collectLayoutDebugInfo();
@@ -440,6 +525,7 @@ export class RibbonSeries {
 
         const pathOptions = Array.isArray(options.pathOptions) ? options.pathOptions : [];
         const effectiveWidth = this._getEffectiveRibbonWidth(width);
+        const textureOrientationMirrors = this._calculateTextureOrientationMirrors(this.lastPathsPoints);
         let segmentOffset = 0;
         let ribbonIndex = 0;
 
@@ -462,6 +548,7 @@ export class RibbonSeries {
             }
 
             ribbon.setSegmentOffset(segmentOffset);
+            ribbon.setTextureOrientationMirrorY(textureOrientationMirrors[index]);
             ribbon.updatePooledSegmentedRibbon(points, effectiveWidth, time, pathOption);
             segmentOffset += ribbon.meshSegments.length;
             ribbonIndex += 1;
@@ -700,7 +787,10 @@ export class RibbonSeries {
             for (let s = 0; s < ribbon.meshSegments.length; s++) {
                 const mesh = ribbon.meshSegments[s];
                 const baseIndex = mesh.userData?.tapeTileIndex ?? globalSegmentIndex;
-                const material = tmA.getOrCreateMaterialForSegment(baseIndex, flowActive);
+                const materialOptions = {
+                    orientationMirrorY: ribbon.textureOrientationMirrorY,
+                };
+                const material = tmA.getOrCreateMaterialForSegment(baseIndex, flowActive, materialOptions);
                 
                 if (material) {
                     mesh.material = material;
@@ -709,13 +799,14 @@ export class RibbonSeries {
                         material,
                         baseIndex,
                         tileManager: tmA,
+                        materialOptions,
                     });
 
                     // Assign strand B material (may use different TileManager in multi-texture mode)
                     if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
                         const meshB = ribbon.helixMeshSegmentsB[s];
                         const baseIndexB = meshB.userData?.tapeTileIndex ?? baseIndex;
-                        const materialB = tmB.getOrCreateMaterialForSegment(baseIndexB, flowActive);
+                        const materialB = tmB.getOrCreateMaterialForSegment(baseIndexB, flowActive, materialOptions);
 
                         if (materialB) {
                             meshB.material = materialB;
@@ -724,6 +815,7 @@ export class RibbonSeries {
                                 material: materialB,
                                 baseIndex: baseIndexB,
                                 tileManager: tmB,
+                                materialOptions,
                             });
                         }
                     }
@@ -781,10 +873,10 @@ export class RibbonSeries {
 
             // Rebind each segment to the already-cached material for its updated tile pair.
             for (const entry of this._flowMaterials) {
-                const { mesh, baseIndex, tileManager: entryTm } = entry;
+                const { mesh, baseIndex, tileManager: entryTm, materialOptions } = entry;
                 const tm = entryTm || this.tileManager;
                 
-                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true);
+                const newMaterial = tm.getOrCreateMaterialForSegment(baseIndex, true, materialOptions);
                 
                 if (newMaterial) {
                     if (mesh.material !== newMaterial) {
