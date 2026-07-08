@@ -13,16 +13,27 @@ export function useRenderFilter(ctx) {
     let filterRenderTarget = null;
     let filterMaterialSignature = null;
     let filterMaterialTexture = null;
+    let filterContrastUniform = null;
+    let filterSaturationUniform = null;
 
     function getActiveFilterMode() {
-        return ctx.app.renderFilterMode === 'blackAndWhite'
-            || ctx.app.renderFilterMode === 'duotone'
+        return ctx.app.renderFilterMode === 'duotone'
             ? ctx.app.renderFilterMode
             : 'none';
     }
 
     function isTransparentShadowsEnabled() {
         return ctx.app.transparentShadowsEnabled === true;
+    }
+
+    function getContrastValue() {
+        const value = Number(ctx.app.contrast);
+        return Number.isFinite(value) ? Math.min(2, Math.max(0, value)) : 1;
+    }
+
+    function getSaturationValue() {
+        const value = Number(ctx.app.saturation);
+        return Number.isFinite(value) ? Math.min(2, Math.max(0, value)) : 1;
     }
 
     function isTransparencyHighlightsMode() {
@@ -41,7 +52,7 @@ export function useRenderFilter(ctx) {
 
     function getPostProcessFilterMode() {
         const mode = getActiveFilterMode();
-        return mode === 'blackAndWhite' || mode === 'duotone'
+        return mode === 'duotone'
             ? mode
             : 'none';
     }
@@ -103,12 +114,14 @@ export function useRenderFilter(ctx) {
     function createWebGLFilterMaterial(texture) {
         const filterMode = getPostProcessFilterMode();
         const filteredColorExpression = filterMode === 'duotone'
-            ? `mix(vec3(0.0), vec3(${getDuotoneColorValues()}), luminance)`
-            : 'vec3(luminance)';
+            ? `mix(vec3(0.0), vec3(${getDuotoneColorValues()}), filteredLuminance)`
+            : 'contrasted';
 
         return new THREE.ShaderMaterial({
             uniforms: {
-                tDiffuse: { value: texture }
+                tDiffuse: { value: texture },
+                uContrast: { value: getContrastValue() },
+                uSaturation: { value: getSaturationValue() },
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -120,16 +133,22 @@ export function useRenderFilter(ctx) {
             fragmentShader: `
                 precision highp float;
                 uniform sampler2D tDiffuse;
+                uniform float uContrast;
+                uniform float uSaturation;
                 varying vec2 vUv;
 
                 void main() {
                     vec4 color = texture2D(tDiffuse, vUv);
 
-                    // Handle premultiplied-alpha inputs so luminance is computed
-                    // from the original color before transparency is reapplied.
                     float alpha = color.a;
                     vec3 unpremultiplied = alpha > 0.0 ? (color.rgb / alpha) : vec3(0.0);
+
                     float luminance = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722));
+
+                    vec3 saturated = mix(vec3(luminance), unpremultiplied, uSaturation);
+                    vec3 contrasted = (saturated - 0.5) * uContrast + 0.5;
+                    float filteredLuminance = dot(contrasted, vec3(0.2126, 0.7152, 0.0722));
+
                     vec3 filteredColor = ${filteredColorExpression};
                     vec3 premultipliedFiltered = filteredColor * alpha;
                     gl_FragColor = vec4(premultipliedFiltered, alpha);
@@ -143,27 +162,40 @@ export function useRenderFilter(ctx) {
 
     function createWebGPUFilterMaterial(texture) {
         const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-        const { texture: textureNode, uv, float, vec2, vec3, vec4, dot, max, mix } = webGPUDeps.threeTSL;
+        const { texture: textureNode, uniform, uv, float, vec2, vec3, vec4, dot, max, mix } = webGPUDeps.threeTSL;
         const [duotoneRed, duotoneGreen, duotoneBlue] = getDuotoneColorValues()
             .split(', ')
             .map((value) => Number(value));
         const filterMode = getPostProcessFilterMode();
+        const contrastValue = getContrastValue();
+        const saturationValue = getSaturationValue();
 
         const material = new MeshBasicNodeMaterial();
         const baseUv = uv();
         const sampleUv = vec2(baseUv.x, float(1).sub(baseUv.y));
         const sampledColor = textureNode(texture, sampleUv);
+        const contrastUniform = uniform(float(contrastValue));
+        const saturationUniform = uniform(float(saturationValue));
         const alpha = sampledColor.a;
         const safeAlpha = max(alpha, float(0.00001));
         const unpremultiplied = sampledColor.rgb.div(safeAlpha);
         const luminance = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722));
-        const grayscale = vec3(luminance, luminance, luminance);
-        const filteredBase = filterMode === 'duotone'
-            ? mix(vec3(0.0, 0.0, 0.0), vec3(duotoneRed, duotoneGreen, duotoneBlue), luminance)
-            : grayscale;
+        const saturated = mix(vec3(luminance, luminance, luminance), unpremultiplied, saturationUniform);
+        const contrasted = saturated.sub(vec3(0.5)).mul(contrastUniform).add(vec3(0.5));
+        const filteredLuminance = dot(contrasted, vec3(0.2126, 0.7152, 0.0722));
+        const grayscale = vec3(filteredLuminance, filteredLuminance, filteredLuminance);
+
+        let filteredBase;
+        if (filterMode === 'duotone') {
+            filteredBase = mix(vec3(0.0, 0.0, 0.0), vec3(duotoneRed, duotoneGreen, duotoneBlue), filteredLuminance);
+        } else {
+            filteredBase = contrasted;
+        }
+
         const premultipliedFiltered = filteredBase.mul(alpha);
 
-        // Match WebGL path: filter first in unpremultiplied space, then reapply alpha.
+    filterContrastUniform = contrastUniform;
+    filterSaturationUniform = saturationUniform;
         material.colorNode = vec4(premultipliedFiltered, alpha);
         material.transparent = true;
         material.depthWrite = false;
@@ -347,6 +379,19 @@ export function useRenderFilter(ctx) {
             return;
         }
 
+        if (filterMaterial?.uniforms?.uContrast) {
+            filterMaterial.uniforms.uContrast.value = getContrastValue();
+        }
+        if (filterMaterial?.uniforms?.uSaturation) {
+            filterMaterial.uniforms.uSaturation.value = getSaturationValue();
+        }
+        if (filterContrastUniform) {
+            filterContrastUniform.value = getContrastValue();
+        }
+        if (filterSaturationUniform) {
+            filterSaturationUniform.value = getSaturationValue();
+        }
+
         // Save current clear color and alpha
         const savedClearColor = renderer.getClearColor(new THREE.Color());
         const savedClearAlpha = renderer.getClearAlpha();
@@ -376,6 +421,8 @@ export function useRenderFilter(ctx) {
         filterMaterial = null;
         filterMaterialSignature = null;
         filterMaterialTexture = null;
+        filterContrastUniform = null;
+        filterSaturationUniform = null;
 
         if (filterQuad && filterScene) {
             filterScene.remove(filterQuad);
