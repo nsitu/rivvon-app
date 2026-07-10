@@ -134,14 +134,7 @@
 <template>
     <div
         class="texture-overview-panel"
-        :class="{ 'has-transparent-texture': app.transparentShadowsEnabled && backgroundThumbnailUrl }"
     >
-        <div
-            v-if="app.transparentShadowsEnabled && backgroundThumbnailUrl"
-            class="texture-overview-panel-backdrop"
-            :style="backgroundThumbnailStyle"
-            aria-hidden="true"
-        ></div>
         <div class="texture-overview-panel-container viewer-chrome-panel-container">
             <section class="texture-overview-panel-content">
                 <div class="texture-overview-panel-body">
@@ -240,6 +233,8 @@
                             :is-cached="isCached"
                             :target-width="resolvedDimensions.width"
                             :target-height="resolvedDimensions.height"
+                            :background-url="backgroundThumbnailUrl"
+                            :show-blurred-background="app.transparentShadowsEnabled"
                         />
 
                         <div
@@ -303,9 +298,6 @@
         background: rgba(0, 0, 0, 0.76);
     }
 
-    .texture-overview-panel.has-transparent-texture {
-        background: transparent;
-    }
 
     .texture-overview-panel::after {
         content: '';
@@ -315,23 +307,6 @@
         background:
             linear-gradient(180deg, rgba(3, 6, 12, 0.42) 0%, rgba(3, 6, 12, 0.42) 100%),
             radial-gradient(circle at center, rgba(11, 18, 32, 0.12) 0%, rgba(11, 18, 32, 0.34) 100%);
-        z-index: 0;
-    }
-
-    .texture-overview-panel.has-transparent-texture::after {
-        display: none;
-    }
-
-    .texture-overview-panel-backdrop {
-        position: absolute;
-        inset: -2rem;
-        pointer-events: none;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-size: cover;
-        filter: blur(42px) saturate(1.08);
-        transform: scale(1.08);
-        opacity: 1;
         z-index: 0;
     }
 

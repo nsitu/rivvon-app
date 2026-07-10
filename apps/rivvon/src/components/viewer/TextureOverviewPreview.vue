@@ -41,6 +41,8 @@
             type: Number,
             default: 1080,
         },
+        backgroundUrl: { type: String, default: null },
+        showBlurredBackground: { type: Boolean, default: false },
     });
 
     const app = useViewerStore();
@@ -57,6 +59,7 @@
 
     const wrapperStyle = computed(() => ({
         '--overview-aspect-ratio': `${Math.max(1, Number(props.targetWidth) || 1920)} / ${Math.max(1, Number(props.targetHeight) || 1080)}`,
+        '--overview-background-image': props.backgroundUrl ? `url("${String(props.backgroundUrl).replace(/"/g, '\\"')}")` : 'none',
     }));
 
     let renderer = null;
@@ -82,6 +85,27 @@
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
     const loadThreeWebGPUModule = createLazyLoader(() => import('three/webgpu'));
     const loadWebGPUCapability = createLazyLoader(() => import('three/addons/capabilities/WebGPU.js').then((module) => module.default));
+
+    function loadBackgroundImage(url) {
+        if (!url) return Promise.resolve(null);
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.crossOrigin = 'anonymous';
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('Failed to load the overview background image.'));
+            image.src = url;
+        });
+    }
+
+    function drawBlurredBackground(context, image, width, height) {
+        const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight) * 1.12;
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        context.save();
+        context.filter = `blur(${Math.max(24, Math.round(Math.min(width, height) * 0.04))}px) saturate(1.08)`;
+        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+        context.restore();
+    }
 
     function waitForAnimationFrame() {
         return new Promise((resolve) => {
@@ -1125,6 +1149,7 @@
         let exportCanvas = renderer.domElement;
         let exportCanvasContext = null;
         let exportLogoAsset = null;
+        let exportBackgroundImage = null;
 
         try {
             rebuildLayout(width, height);
@@ -1150,8 +1175,10 @@
             };
             const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
 
-            if (logoOverlayEnabled) {
-                exportLogoAsset = await loadExportLogoAsset();
+            const includeBackground = props.showBlurredBackground && Boolean(props.backgroundUrl);
+            if (includeBackground || logoOverlayEnabled) {
+                if (includeBackground) exportBackgroundImage = await loadBackgroundImage(props.backgroundUrl);
+                if (logoOverlayEnabled) exportLogoAsset = await loadExportLogoAsset();
                 exportCanvas = document.createElement('canvas');
                 exportCanvas.width = width;
                 exportCanvas.height = height;
@@ -1189,17 +1216,15 @@
                 syncCellMaterials();
                 renderCurrentScene();
 
-                if (exportCanvasContext && exportLogoAsset) {
+                if (exportCanvasContext) {
                     exportCanvasContext.clearRect(0, 0, width, height);
+                    if (exportBackgroundImage) {
+                        drawBlurredBackground(exportCanvasContext, exportBackgroundImage, width, height);
+                    }
                     exportCanvasContext.drawImage(renderer.domElement, 0, 0, width, height);
-                    drawExportLogoOverlay(
-                        exportCanvasContext,
-                        exportLogoAsset.image,
-                        width,
-                        height,
-                        exportLogoAsset.aspectRatio,
-                        logoOverlayCorner,
-                    );
+                    if (exportLogoAsset) {
+                        drawExportLogoOverlay(exportCanvasContext, exportLogoAsset.image, width, height, exportLogoAsset.aspectRatio, logoOverlayCorner);
+                    }
                 }
 
                 await videoSource.add(time, deltaSec);
@@ -1345,6 +1370,11 @@
         :style="wrapperStyle"
     >
         <div
+            v-if="showBlurredBackground && backgroundUrl"
+            class="texture-overview-preview-background"
+            aria-hidden="true"
+        ></div>
+        <div
             v-if="error"
             class="texture-overview-preview-message is-error"
         >
@@ -1378,6 +1408,17 @@
         display: block;
         width: 100%;
         height: 100%;
+    }
+
+    .texture-overview-preview-background {
+        position: absolute;
+        inset: -8%;
+        background-image: var(--overview-background-image);
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        filter: blur(42px) saturate(1.08);
+        pointer-events: none;
     }
 
     .texture-overview-preview-message {
