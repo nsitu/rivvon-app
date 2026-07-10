@@ -40,7 +40,9 @@ export function useTextureLoader(ctx, deps = {}) {
         });
     }
 
-    async function finalizeTextureLoad({ clearMultiTexture = true } = {}) {
+    async function finalizeTextureLoad({ clearMultiTexture = true, onProgress = null } = {}) {
+        onProgress?.('applying', 0, 1);
+
         if (clearMultiTexture) {
             clearMultiTextureState();
         }
@@ -48,6 +50,8 @@ export function useTextureLoader(ctx, deps = {}) {
         deps.setFlowState?.(ctx.app.flowState);
         deps.rebuildRibbonsWithNewTextures?.();
         await deps.setBackgroundFromTileManager?.();
+
+        onProgress?.('applying', 1, 1);
     }
 
     /**
@@ -97,7 +101,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             if (success) {
                 console.log(`[ThreeSetup] Remote texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
-                await finalizeTextureLoad();
+                await finalizeTextureLoad({ onProgress });
             }
 
             return success;
@@ -128,7 +132,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             if (success) {
                 console.log(`[ThreeSetup] Session texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
-                await finalizeTextureLoad();
+                await finalizeTextureLoad({ onProgress });
             }
 
             return success;
@@ -159,7 +163,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             if (success) {
                 console.log(`[ThreeSetup] Local texture loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
-                await finalizeTextureLoad();
+                await finalizeTextureLoad({ onProgress });
             }
 
             return success;
@@ -190,7 +194,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             if (success) {
                 console.log(`[ThreeSetup] Local tile records loaded: ${ctx.tileManager.value.getTileCount()} tiles`);
-                await finalizeTextureLoad();
+                await finalizeTextureLoad({ onProgress });
             }
 
             return success;
@@ -261,7 +265,7 @@ export function useTextureLoader(ctx, deps = {}) {
 
             console.log(`[ThreeSetup] Loaded ${validTileManagers.length} TileManagers`);
 
-            await finalizeTextureLoad({ clearMultiTexture: false });
+            await finalizeTextureLoad({ clearMultiTexture: false, onProgress });
 
             return true;
         } catch (error) {

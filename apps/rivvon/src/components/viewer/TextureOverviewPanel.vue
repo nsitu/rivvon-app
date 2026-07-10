@@ -15,6 +15,7 @@
         TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
     } from '../../modules/viewer/textureOverviewLayout.js';
     import TextureOverviewPreview from './TextureOverviewPreview.vue';
+    import TextureSettingsControls from './TextureSettingsControls.vue';
 
     const props = defineProps({
         texture: {
@@ -134,7 +135,7 @@
 <template>
     <div class="texture-overview-panel">
         <div
-            v-if="backgroundThumbnailUrl"
+            v-if="app.transparentShadowsEnabled && backgroundThumbnailUrl"
             class="texture-overview-panel-backdrop"
             :style="backgroundThumbnailStyle"
             aria-hidden="true"
@@ -224,6 +225,14 @@
                                 </label>
                             </div>
                         </div>
+
+                        <TextureSettingsControls
+                            class="texture-overview-filter-controls"
+                            :show-texture-materials="false"
+                            :show-duotone-filter="true"
+                            :show-transparent-shadows-filter="true"
+                            :show-vertical-flip="false"
+                        />
 
                     </div>
 
@@ -388,6 +397,12 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
         gap: 0.75rem;
+    }
+
+    .texture-overview-filter-controls {
+        max-height: min(22rem, 34vh);
+        overflow-y: auto;
+        padding-right: 0.25rem;
     }
 
     .preview-control-field {

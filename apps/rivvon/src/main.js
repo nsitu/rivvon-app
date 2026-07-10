@@ -42,7 +42,7 @@ loadMaterialSymbols([
     'swap_vert','fast_rewind','wallpaper','blur_on','sync',
     'refresh','link','target','colors','contrast',
     'fit_page_width','vital_signs', 'opacity','branding_watermark',
-    'north_west', 'south_east', 'north_east','south_west' ,'text_select_move_up'
+    'north_west', 'south_east', 'north_east','south_west' ,'text_select_move_up','blur_linear'
 ]);
 
 

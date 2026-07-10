@@ -1,6 +1,6 @@
 <script setup>
     import * as THREE from 'three';
-    import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+    import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { TileManager } from '../../modules/viewer/tileManager';
@@ -10,6 +10,7 @@
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
     import { createLazyLoader } from '../../modules/shared/lazyLoader';
+    import { useRenderFilter } from '../../composables/viewer/useRenderFilter.js';
 
     const props = defineProps({
         texture: {
@@ -63,6 +64,10 @@
     let camera = null;
     let tileManager = null;
     let resizeObserver = null;
+    const rendererRef = shallowRef(null);
+    const sceneRef = shallowRef(null);
+    const cameraRef = shallowRef(null);
+    const renderFilter = useRenderFilter({ app, renderer: rendererRef, scene: sceneRef, camera: cameraRef });
     let animationFrameId = 0;
     let cellGeometry = null;
     let cellEntries = [];
@@ -667,15 +672,36 @@
         lastAutoDiagnosticKey = null;
     }
 
-    function updateLoadingStatus(stage, current, total) {
+    function formatTextureLoadPercent(stage, current, total) {
         const numericTotal = Math.max(0, Number(total) || 0);
         const numericCurrent = Math.max(0, Number(current) || 0);
-        const percent = numericTotal > 0
-            ? `${Math.round((numericCurrent / numericTotal) * 100)}%`
-            : '';
+        const stageProgress = numericTotal > 0
+            ? Math.min(1, Math.max(0, numericCurrent / numericTotal))
+            : 0;
+        const stageWeights = {
+            downloading: [0, 55],
+            loading: [0, 55],
+            building: [55, 92],
+            applying: [92, 99],
+        };
+        const [start, end] = stageWeights[stage] || [0, 99];
+        const percent = Math.round(start + ((end - start) * stageProgress));
+
+        return `${Math.min(99, Math.max(0, percent))}%`;
+    }
+
+    function updateLoadingStatus(stage, current, total) {
+        const numericTotal = Math.max(0, Number(total) || 0);
+        const percent = formatTextureLoadPercent(stage, current, total);
 
         if (stage === 'building') {
             loadingMessage.value = 'Building...';
+            loadingStatusText.value = percent;
+            return;
+        }
+
+        if (stage === 'applying') {
+            loadingMessage.value = 'Preparing viewer...';
             loadingStatusText.value = percent;
             return;
         }
@@ -704,6 +730,8 @@
         tileManager.setFlowAlignmentEnabled?.(app.flowCycleAlignmentEnabled);
         tileManager.setLayerAnimationEnabled?.(app.textureAnimationEnabled);
         tileManager.setLayerAnimationReversed?.(app.textureAnimationReversed);
+        tileManager.setContrast?.(app.renderFilterMode === 'duotone' ? 1 : app.contrast);
+        tileManager.setSaturation?.(app.renderFilterMode === 'duotone' ? 1 : app.saturation);
 
         if (app.flowState === 'off') {
             tileManager.setFlowEnabled?.(false);
@@ -791,7 +819,7 @@
             return;
         }
 
-        renderer.render(scene, camera);
+        renderFilter.renderScene();
     }
 
     function updateViewport(viewportWidthOverride = null, viewportHeightOverride = null, pixelRatioOverride = null) {
@@ -1021,6 +1049,10 @@
         const rendererInfo = await createOverviewRenderer();
         renderer = rendererInfo.renderer;
         activeRendererType = rendererInfo.rendererType;
+        rendererRef.value = renderer;
+        sceneRef.value = scene;
+        cameraRef.value = camera;
+        await renderFilter.initRenderFilter(activeRendererType);
         wrapperRef.value.appendChild(renderer.domElement);
 
         resizeObserver = new ResizeObserver(() => {
@@ -1251,6 +1283,26 @@
         }
     );
 
+    watch(
+        () => [
+            app.transparentShadowsEnabled,
+            app.transparencyMode,
+            app.transparentShadowsThresholdMin,
+            app.transparentShadowsThresholdMax,
+            app.renderFilterMode,
+            app.duotoneColor,
+            app.contrast,
+            app.saturation,
+        ],
+        () => {
+            if (!renderer || !tileManager) return;
+            tileManager.setContrast?.(app.renderFilterMode === 'duotone' ? 1 : app.contrast);
+            tileManager.setSaturation?.(app.renderFilterMode === 'duotone' ? 1 : app.saturation);
+            syncCellMaterials(true);
+            renderCurrentScene();
+        }
+    );
+
     onBeforeUnmount(() => {
         reloadToken += 1;
 
@@ -1261,15 +1313,19 @@
         resizeObserver?.disconnect?.();
         resizeObserver = null;
         teardownTileManager();
+        renderFilter.disposeRenderFilter();
 
         if (renderer) {
             renderer.dispose?.();
             renderer.domElement?.remove?.();
             renderer = null;
+            rendererRef.value = null;
         }
 
         scene = null;
         camera = null;
+        sceneRef.value = null;
+        cameraRef.value = null;
     });
 
     defineExpose({

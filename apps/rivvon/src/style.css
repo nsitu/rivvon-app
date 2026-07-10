@@ -13,6 +13,7 @@
    CSS Custom Properties for light/dark mode theming (Slyce)
    ======================================== */
 :root {
+    --special-blue: #3b82f6;
     --bg-primary: #ffffff;
     --bg-secondary: #f9fafb;
     --bg-tertiary: #f3f4f6;

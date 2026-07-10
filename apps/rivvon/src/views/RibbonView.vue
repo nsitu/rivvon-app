@@ -3057,12 +3057,27 @@
         loadingStatusText.value = statusText;
     }
 
-    function setTextureLoadingProgress(stage, current, total) {
+    function formatTextureLoadPercent(stage, current, total) {
         const numericTotal = Math.max(0, Number(total) || 0);
         const numericCurrent = Math.max(0, Number(current) || 0);
-        const percent = numericTotal > 0
-            ? `${Math.round((numericCurrent / numericTotal) * 100)}%`
-            : '';
+        const stageProgress = numericTotal > 0
+            ? Math.min(1, Math.max(0, numericCurrent / numericTotal))
+            : 0;
+
+        const stageWeights = {
+            downloading: [0, 55],
+            loading: [0, 55],
+            building: [55, 92],
+            applying: [92, 99],
+        };
+        const [start, end] = stageWeights[stage] || [0, 99];
+        const percent = Math.round(start + ((end - start) * stageProgress));
+
+        return `${Math.min(99, Math.max(0, percent))}%`;
+    }
+
+    function setTextureLoadingProgress(stage, current, total) {
+        const percent = formatTextureLoadPercent(stage, current, total);
 
         if (stage === 'downloading') {
             setTextureLoadingDisplay('Downloading...', percent);
@@ -3071,6 +3086,11 @@
 
         if (stage === 'building') {
             setTextureLoadingDisplay('Building...', percent);
+            return;
+        }
+
+        if (stage === 'applying') {
+            setTextureLoadingDisplay('Preparing viewer...', percent);
             return;
         }
 

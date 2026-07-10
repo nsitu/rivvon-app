@@ -57,6 +57,12 @@ const MAX_CONTRAST = 2.0;
 const DEFAULT_SATURATION = 1.0;
 const MIN_SATURATION = 0.0;
 const MAX_SATURATION = 2.0;
+const DEFAULT_BACKGROUND_BLUR_AMOUNT = 8.0;
+const MIN_BACKGROUND_BLUR_AMOUNT = 1.0;
+const MAX_BACKGROUND_BLUR_AMOUNT = 50.0;
+const DEFAULT_BACKGROUND_FLOW_SPEED = 0.25;
+const MIN_BACKGROUND_FLOW_SPEED = 0.05;
+const MAX_BACKGROUND_FLOW_SPEED = 2.0;
 const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
@@ -114,6 +120,18 @@ function normalizeSaturation(value) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return DEFAULT_SATURATION;
     return Math.min(MAX_SATURATION, Math.max(MIN_SATURATION, parsed));
+}
+
+function normalizeBackgroundBlurAmount(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_BLUR_AMOUNT;
+    return Math.min(MAX_BACKGROUND_BLUR_AMOUNT, Math.max(MIN_BACKGROUND_BLUR_AMOUNT, parsed));
+}
+
+function normalizeBackgroundFlowSpeed(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_FLOW_SPEED;
+    return Math.min(MAX_BACKGROUND_FLOW_SPEED, Math.max(MIN_BACKGROUND_FLOW_SPEED, parsed));
 }
 
 function normalizeTransparentShadowsThresholdValue(value, fallback) {
@@ -388,9 +406,19 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().animatedBackgroundEnabled,
             false
         ),
+        backgroundFlowEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().backgroundFlowEnabled,
+            false
+        ),
+        backgroundFlowSpeed: normalizeBackgroundFlowSpeed(
+            readViewerPreferences().backgroundFlowSpeed
+        ),
         backgroundBlurEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().backgroundBlurEnabled,
             true
+        ),
+        backgroundBlurAmount: normalizeBackgroundBlurAmount(
+            readViewerPreferences().backgroundBlurAmount
         ),
         textureAnimationReversed: normalizeViewerBooleanPreference(
             readViewerPreferences().textureAnimationReversed,
@@ -612,7 +640,10 @@ export const useViewerStore = defineStore('viewer', {
             this.flowCycleAlignmentEnabled = true;
             this.textureAnimationEnabled = true;
             this.animatedBackgroundEnabled = false;
+            this.backgroundFlowEnabled = false;
+            this.backgroundFlowSpeed = DEFAULT_BACKGROUND_FLOW_SPEED;
             this.backgroundBlurEnabled = true;
+            this.backgroundBlurAmount = DEFAULT_BACKGROUND_BLUR_AMOUNT;
             this.textureAnimationReversed = false;
             this.textureRepeatMode = 'mirrorTile';
             this.normalizeTextureOrientation = true;
@@ -664,7 +695,10 @@ export const useViewerStore = defineStore('viewer', {
                 flowCycleAlignmentEnabled: true,
                 textureAnimationEnabled: true,
                 animatedBackgroundEnabled: false,
+                backgroundFlowEnabled: false,
+                backgroundFlowSpeed: DEFAULT_BACKGROUND_FLOW_SPEED,
                 backgroundBlurEnabled: true,
+                backgroundBlurAmount: DEFAULT_BACKGROUND_BLUR_AMOUNT,
                 textureAnimationReversed: false,
                 normalizeTextureOrientation: true,
                 textureFlipVertical: false,
@@ -824,10 +858,28 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ animatedBackgroundEnabled: nextValue });
         },
 
+        setBackgroundFlowEnabled(enabled) {
+            const nextValue = !!enabled;
+            this.backgroundFlowEnabled = nextValue;
+            writeViewerPreferences({ backgroundFlowEnabled: nextValue });
+        },
+
+        setBackgroundFlowSpeed(speed) {
+            const nextValue = normalizeBackgroundFlowSpeed(speed);
+            this.backgroundFlowSpeed = nextValue;
+            writeViewerPreferences({ backgroundFlowSpeed: nextValue });
+        },
+
         setBackgroundBlurEnabled(enabled) {
             const nextValue = !!enabled;
             this.backgroundBlurEnabled = nextValue;
             writeViewerPreferences({ backgroundBlurEnabled: nextValue });
+        },
+
+        setBackgroundBlurAmount(amount) {
+            const nextValue = normalizeBackgroundBlurAmount(amount);
+            this.backgroundBlurAmount = nextValue;
+            writeViewerPreferences({ backgroundBlurAmount: nextValue });
         },
 
         setTextureAnimationReversed(reversed) {
@@ -905,7 +957,10 @@ export const useViewerStore = defineStore('viewer', {
                 flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
                 textureAnimationEnabled: this.textureAnimationEnabled,
                 animatedBackgroundEnabled: this.animatedBackgroundEnabled,
+                backgroundFlowEnabled: this.backgroundFlowEnabled,
+                backgroundFlowSpeed: this.backgroundFlowSpeed,
                 backgroundBlurEnabled: this.backgroundBlurEnabled,
+                backgroundBlurAmount: this.backgroundBlurAmount,
                 textureAnimationReversed: this.textureAnimationReversed,
                 textureRepeatMode: this.textureRepeatMode,
                 normalizeTextureOrientation: this.normalizeTextureOrientation,
@@ -971,7 +1026,10 @@ export const useViewerStore = defineStore('viewer', {
                 this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
                 this.textureAnimationEnabled !== original.textureAnimationEnabled ||
                 this.animatedBackgroundEnabled !== original.animatedBackgroundEnabled ||
+                this.backgroundFlowEnabled !== original.backgroundFlowEnabled ||
+                this.backgroundFlowSpeed !== original.backgroundFlowSpeed ||
                 this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
+                this.backgroundBlurAmount !== original.backgroundBlurAmount ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
                 this.normalizeTextureOrientation !== original.normalizeTextureOrientation ||

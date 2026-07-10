@@ -9,3 +9,7 @@ Texture data is stored in the browser via [IndexedDB](https://developer.mozilla.
 Image contours are traced with [Marching Squares](https://en.wikipedia.org/wiki/Marching_squares) on a segmented mask via [U-2-Net](https://github.com/xuebinqin/U-2-Net) by [Xuebin Qin](https://xuebinqin.github.io/) et al and [quantized](https://github.com/xuebinqin/U-2-Net/issues/295) by [Kikedao](https://github.com/Kikedao) for [ONNX Runtime Web](https://onnxruntime.ai/docs/tutorials/web/).
 
 Animations are achieved by taking multiple cross sections of the same video. Each cross section samples pixels from each frame. This can be done using one of two strategies: a linear sampling pattern that stays on the same row for each sample (planar cross section), or a periodic function that achieves a wave-based, directly loopable animation.
+
+### Recent Changes
+
+- **Independent background flow speed** — The Background section in the tools panel now has its own Flow Speed slider (separate from the ribbon conveyor belt speed). Set via `backgroundFlowSpeed` in the viewer store, persisted to localStorage, and rendered by `useSceneBackground.js`. The background still follows the ribbon's flow direction and tile-wrapping state, but moves at its own rate.

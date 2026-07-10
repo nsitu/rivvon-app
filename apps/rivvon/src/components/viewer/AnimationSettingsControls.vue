@@ -69,12 +69,23 @@
         },
     });
 
+    const backgroundFlowModel = computed({
+        get: () => app.backgroundFlowEnabled,
+        set: (value) => {
+            app.setBackgroundFlowEnabled(!!value);
+        },
+    });
+
     const backgroundBlurModel = computed({
         get: () => app.backgroundBlurEnabled,
         set: (value) => {
             app.setBackgroundBlurEnabled(!!value);
         },
     });
+
+    const backgroundBlurDisplay = computed(() => `${app.backgroundBlurAmount.toFixed(1)}x`);
+
+    const backgroundFlowSpeedDisplay = computed(() => `${app.backgroundFlowSpeed.toFixed(2)} tiles/s`);
 
     const reverseLayerCycleModel = computed({
         get: () => app.textureAnimationReversed,
@@ -85,6 +96,14 @@
 
     function handleFlowSpeedInput(event) {
         app.setFlowSpeed(parseFloat(event.target.value));
+    }
+
+    function handleBackgroundBlurInput(event) {
+        app.setBackgroundBlurAmount(parseFloat(event.target.value));
+    }
+
+    function handleBackgroundFlowSpeedInput(event) {
+        app.setBackgroundFlowSpeed(parseFloat(event.target.value));
     }
 
     function getInputId(name) {
@@ -181,7 +200,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
@@ -210,6 +229,32 @@
                 </div>
 
                 <div
+                    class="tools-toggle-row"
+                    v-if="flowEnabledModel && textureAnimationModel"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('auto-align-cycles')"
+                    >
+                        <span class="material-symbols-outlined">horizontal_align_center</span>
+                        <span>Auto-Align Cycles</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
+                        }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('auto-align-cycles')"
+                            v-model="flowCycleAlignmentModel"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tools-section">
+            <div class="tools-section-label">Background</div>
+            <div class="tools-section-items">
+                <div
                     v-if="textureAnimationModel"
                     class="tools-toggle-row"
                 >
@@ -232,6 +277,43 @@
                 <div class="tools-toggle-row">
                     <label
                         class="tools-toggle-main"
+                        :for="getInputId('background-flow')"
+                    >
+                        <span class="material-symbols-outlined">text_select_move_forward_word</span>
+                        <span>Background Flow</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundFlowModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-flow')"
+                            v-model="backgroundFlowModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="backgroundFlowModel"
+                    class="tools-slider"
+                >
+                    <label>
+                        <span class="material-symbols-outlined tools-slider-icon">speed</span>
+                        Background Flow Speed
+                        <span class="tools-slider-value">{{ backgroundFlowSpeedDisplay }}</span>
+                    </label>
+                    <input
+                        :id="getInputId('background-flow-speed')"
+                        type="range"
+                        min="0.05"
+                        max="2"
+                        step="0.05"
+                        :value="app.backgroundFlowSpeed"
+                        @input="handleBackgroundFlowSpeedInput"
+                    />
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
                         :for="getInputId('background-blur')"
                     >
                         <span class="material-symbols-outlined">blur_on</span>
@@ -247,24 +329,23 @@
                 </div>
 
                 <div
-                    v-if="flowEnabledModel && textureAnimationModel"
-                    class="tools-toggle-row"
+                    v-if="backgroundBlurModel"
+                    class="tools-slider"
                 >
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('auto-align-cycles')"
-                    >
-                        <span class="material-symbols-outlined">horizontal_align_center</span>
-                        <span>Auto-Align Cycles</span>
+                    <label>
+                        <span class="material-symbols-outlined tools-slider-icon">blur_linear</span>
+                        Blur Amount
+                        <span class="tools-slider-value">{{ backgroundBlurDisplay }}</span>
                     </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
-                            }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('auto-align-cycles')"
-                            v-model="flowCycleAlignmentModel"
-                        />
-                    </div>
+                    <input
+                        :id="getInputId('background-blur-amount')"
+                        type="range"
+                        min="1"
+                        max="50"
+                        step="0.5"
+                        :value="app.backgroundBlurAmount"
+                        @input="handleBackgroundBlurInput"
+                    />
                 </div>
             </div>
         </div>

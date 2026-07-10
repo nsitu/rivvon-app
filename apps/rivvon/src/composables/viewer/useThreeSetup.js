@@ -92,6 +92,11 @@ export function useThreeSetup() {
     const background = useSceneBackground(ctx);
     const ribbons = useRibbonBuilder(ctx);
 
+    function renderSceneWithBackground(target = null) {
+        background.updateBackground();
+        renderFilter.renderScene(target);
+    }
+
     const textures = useTextureLoader(ctx, {
         rebuildRibbonsWithNewTextures: ribbons.rebuildRibbonsWithNewTextures,
         setBackgroundFromTileManager: background.setBackgroundFromTileManager,
@@ -101,7 +106,7 @@ export function useThreeSetup() {
     const exporter = useSceneExport(ctx, {
         pauseRenderLoop: renderLoop.pauseRenderLoop,
         resumeRenderLoop: renderLoop.resumeRenderLoop,
-        renderScene: renderFilter.renderScene,
+        renderScene: renderSceneWithBackground,
     });
 
     // ── Initialization ─────────────────────────────────────────────────
@@ -256,7 +261,7 @@ export function useThreeSetup() {
 
     // Wire the circular dependency: render loop recovery needs teardownViewer
     renderLoopDeps.teardownViewer = teardownViewer;
-    renderLoopDeps.renderScene = renderFilter.renderScene;
+    renderLoopDeps.renderScene = renderSceneWithBackground;
 
     // ── Cleanup on unmount ─────────────────────────────────────────────
 
@@ -360,6 +365,7 @@ export function useThreeSetup() {
         clearMultiTextureState: textures.clearMultiTextureState,
         loadTextures: textures.loadTextures,
         loadTexturesFromRemote: textures.loadTexturesFromRemote,
+        loadTexturesFromSession: textures.loadTexturesFromSession,
         loadTexturesFromLocal: textures.loadTexturesFromLocal,
         loadTexturesFromTileRecords: textures.loadTexturesFromTileRecords,
         loadMultipleTextures: textures.loadMultipleTextures,
