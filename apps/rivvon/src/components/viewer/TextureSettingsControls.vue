@@ -11,7 +11,6 @@
     } from '../../modules/viewer/rendererAdjustmentBus';
 
     defineProps({
-        showTextureMaterials: { type: Boolean, default: true },
         showPreferredResolution: { type: Boolean, default: false },
         showDuotoneFilter: { type: Boolean, default: false },
         showTransparentShadowsFilter: { type: Boolean, default: false },
@@ -300,7 +299,7 @@
 
 <template>
     <div class="texture-settings-controls">
-        <div v-if="showTextureMaterials" class="tools-section">
+        <div class="tools-section">
             <div class="tools-section-label">Texture and Materials</div>
 
             <div class="tools-section-items">

@@ -15,7 +15,6 @@
         TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
     } from '../../modules/viewer/textureOverviewLayout.js';
     import TextureOverviewPreview from './TextureOverviewPreview.vue';
-    import TextureSettingsControls from './TextureSettingsControls.vue';
 
     const props = defineProps({
         texture: {
@@ -226,14 +225,6 @@
                             </div>
                         </div>
 
-                        <TextureSettingsControls
-                            class="texture-overview-filter-controls"
-                            :show-texture-materials="false"
-                            :show-duotone-filter="true"
-                            :show-transparent-shadows-filter="true"
-                            :show-vertical-flip="false"
-                        />
-
                     </div>
 
                     <div class="texture-overview-stage">
@@ -359,6 +350,9 @@
         display: flex;
         flex-direction: column;
         gap: 1rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 0.25rem;
     }
 
     .texture-overview-meta {
@@ -397,12 +391,6 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
         gap: 0.75rem;
-    }
-
-    .texture-overview-filter-controls {
-        max-height: min(22rem, 34vh);
-        overflow-y: auto;
-        padding-right: 0.25rem;
     }
 
     .preview-control-field {
@@ -465,13 +453,13 @@
 
     .texture-overview-stage {
         position: relative;
-        flex: 1;
+        flex: 0 0 auto;
         width: 100%;
-        min-height: 0;
+        min-height: clamp(10rem, 42vh, 32rem);
         display: flex;
         align-items: flex-start;
         justify-content: center;
-        overflow: auto;
+        overflow: visible;
     }
 
     .preview-tile-info {
