@@ -122,37 +122,21 @@ function getBackgroundFlowPosition(ctx, tileManager) {
     if (!ctx.app.backgroundFlowEnabled) {
         return {
             active: false,
-            baseIndex: tileManager?.getTileFlowOffset?.() || 0,
+            baseIndex: 0,
             offset: 0,
             direction: 1,
         };
     }
 
-    // Use the independent background flow speed instead of the shared ribbon flow speed.
+    // Background flow owns its complete motion state. Ribbon flow direction,
+    // speed, enabled state, and wrapped tile offset must not influence it.
     const speed = Math.max(0, Number(ctx.app.backgroundFlowSpeed) || 0);
-    const direction = ctx.app.flowState === 'backward' ? -1 : 1;
+    const direction = 1;
     if (speed <= 0) {
         return {
             active: false,
-            baseIndex: tileManager?.getTileFlowOffset?.() || 0,
+            baseIndex: 0,
             offset: 0,
-            direction,
-        };
-    }
-
-    // If the ribbons have active TileManager flow, piggyback for seamless tile wrapping.
-    // The speed is still independent (background uses its own speed), but the tile
-    // wrapping state is shared so both advance in lock-step.
-    if (tileManager?.isFlowEnabled?.() && (tileManager?.getFlowSpeed?.() || 0) !== 0) {
-        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        const elapsedSeconds = Math.max(0, (now - BACKGROUND_FLOW_TIME_ORIGIN) / 1000);
-        const position = elapsedSeconds * speed * direction;
-        const baseIndex = direction < 0 ? Math.ceil(position) : Math.floor(position);
-
-        return {
-            active: true,
-            baseIndex,
-            offset: position - baseIndex,
             direction,
         };
     }
