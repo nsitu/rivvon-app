@@ -48,6 +48,7 @@
     const app = useViewerStore();
     const { cacheCloudTexture, getTextureSet: getLocalTextureSet, evictCachedTexture } = useLocalStorage();
     const wrapperRef = ref(null);
+    const backgroundCanvasRef = ref(null);
     const isLoading = ref(false);
     const error = ref('');
     const isReady = ref(false);
@@ -82,30 +83,11 @@
     let activeRendererType = 'webgl';
     let autoDiagnosticRunSequence = 0;
     let lastAutoDiagnosticKey = null;
+    let hasPaintedStaticBackground = false;
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
     const loadThreeWebGPUModule = createLazyLoader(() => import('three/webgpu'));
     const loadWebGPUCapability = createLazyLoader(() => import('three/addons/capabilities/WebGPU.js').then((module) => module.default));
 
-    function loadBackgroundImage(url) {
-        if (!url) return Promise.resolve(null);
-        return new Promise((resolve, reject) => {
-            const image = new Image();
-            image.crossOrigin = 'anonymous';
-            image.onload = () => resolve(image);
-            image.onerror = () => reject(new Error('Failed to load the overview background image.'));
-            image.src = url;
-        });
-    }
-
-    function drawBlurredBackground(context, image, width, height) {
-        const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight) * 1.12;
-        const drawWidth = image.naturalWidth * scale;
-        const drawHeight = image.naturalHeight * scale;
-        context.save();
-        context.filter = `blur(${Math.max(24, Math.round(Math.min(width, height) * 0.04))}px) saturate(1.08)`;
-        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
-        context.restore();
-    }
 
     function waitForAnimationFrame() {
         return new Promise((resolve) => {
@@ -844,6 +826,25 @@
         }
 
         renderFilter.renderScene();
+        renderLiveBackground();
+    }
+
+    function renderLiveBackground() {
+        if (!props.showBlurredBackground || !backgroundCanvasRef.value || !renderer?.domElement) return;
+        if (!app.animatedBackgroundEnabled && hasPaintedStaticBackground) return;
+        const canvas = backgroundCanvasRef.value;
+        const source = renderer.domElement;
+        if (canvas.width !== source.width || canvas.height !== source.height) {
+            canvas.width = source.width;
+            canvas.height = source.height;
+        }
+        const context = canvas.getContext('2d', { alpha: false });
+        if (!context) return;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.filter = `blur(${Math.max(24, Math.round(Math.min(canvas.width, canvas.height) * 0.04))}px) saturate(1.08)`;
+        context.drawImage(source, -canvas.width * 0.06, -canvas.height * 0.06, canvas.width * 1.12, canvas.height * 1.12);
+        context.filter = 'none';
+        hasPaintedStaticBackground = true;
     }
 
     function updateViewport(viewportWidthOverride = null, viewportHeightOverride = null, pixelRatioOverride = null) {
@@ -1149,7 +1150,7 @@
         let exportCanvas = renderer.domElement;
         let exportCanvasContext = null;
         let exportLogoAsset = null;
-        let exportBackgroundImage = null;
+        let exportBackgroundSnapshot = null;
 
         try {
             rebuildLayout(width, height);
@@ -1175,9 +1176,14 @@
             };
             const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
 
-            const includeBackground = props.showBlurredBackground && Boolean(props.backgroundUrl);
+            const includeBackground = props.showBlurredBackground;
+            if (includeBackground && !app.animatedBackgroundEnabled) {
+                exportBackgroundSnapshot = document.createElement('canvas');
+                exportBackgroundSnapshot.width = width;
+                exportBackgroundSnapshot.height = height;
+                exportBackgroundSnapshot.getContext('2d')?.drawImage(renderer.domElement, 0, 0, width, height);
+            }
             if (includeBackground || logoOverlayEnabled) {
-                if (includeBackground) exportBackgroundImage = await loadBackgroundImage(props.backgroundUrl);
                 if (logoOverlayEnabled) exportLogoAsset = await loadExportLogoAsset();
                 exportCanvas = document.createElement('canvas');
                 exportCanvas.width = width;
@@ -1218,8 +1224,17 @@
 
                 if (exportCanvasContext) {
                     exportCanvasContext.clearRect(0, 0, width, height);
-                    if (exportBackgroundImage) {
-                        drawBlurredBackground(exportCanvasContext, exportBackgroundImage, width, height);
+                    if (includeBackground) {
+                        exportCanvasContext.save();
+                        exportCanvasContext.filter = `blur(${Math.max(24, Math.round(Math.min(width, height) * 0.04))}px) saturate(1.08)`;
+                        exportCanvasContext.drawImage(
+                            exportBackgroundSnapshot || renderer.domElement,
+                            -width * 0.06,
+                            -height * 0.06,
+                            width * 1.12,
+                            height * 1.12,
+                        );
+                        exportCanvasContext.restore();
                     }
                     exportCanvasContext.drawImage(renderer.domElement, 0, 0, width, height);
                     if (exportLogoAsset) {
@@ -1308,6 +1323,11 @@
         }
     );
 
+    watch(() => app.animatedBackgroundEnabled, () => {
+        hasPaintedStaticBackground = false;
+        renderCurrentScene();
+    });
+
     watch(
         () => [
             app.transparentShadowsEnabled,
@@ -1369,11 +1389,12 @@
         :class="{ 'is-ready': isReady && !isLoading && !error }"
         :style="wrapperStyle"
     >
-        <div
-            v-if="showBlurredBackground && backgroundUrl"
+        <canvas
+            v-if="showBlurredBackground"
+            ref="backgroundCanvasRef"
             class="texture-overview-preview-background"
             aria-hidden="true"
-        ></div>
+        ></canvas>
         <div
             v-if="error"
             class="texture-overview-preview-message is-error"
@@ -1412,12 +1433,9 @@
 
     .texture-overview-preview-background {
         position: absolute;
-        inset: -8%;
-        background-image: var(--overview-background-image);
-        background-position: center;
-        background-repeat: no-repeat;
-        background-size: cover;
-        filter: blur(42px) saturate(1.08);
+        inset: 0;
+        width: 100%;
+        height: 100%;
         pointer-events: none;
     }
 
