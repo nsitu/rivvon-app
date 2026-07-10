@@ -11,6 +11,7 @@
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
     import { createLazyLoader } from '../../modules/shared/lazyLoader';
     import { useRenderFilter } from '../../composables/viewer/useRenderFilter.js';
+    import { useSceneBackground } from '../../composables/viewer/useSceneBackground.js';
 
     const props = defineProps({
         texture: {
@@ -48,7 +49,6 @@
     const app = useViewerStore();
     const { cacheCloudTexture, getTextureSet: getLocalTextureSet, evictCachedTexture } = useLocalStorage();
     const wrapperRef = ref(null);
-    const backgroundCanvasRef = ref(null);
     const isLoading = ref(false);
     const error = ref('');
     const isReady = ref(false);
@@ -71,7 +71,17 @@
     const rendererRef = shallowRef(null);
     const sceneRef = shallowRef(null);
     const cameraRef = shallowRef(null);
+    const tileManagerRef = shallowRef(null);
+    const backgroundTextureRef = shallowRef(null);
     const renderFilter = useRenderFilter({ app, renderer: rendererRef, scene: sceneRef, camera: cameraRef });
+    const sceneBackground = useSceneBackground({
+        app,
+        renderer: rendererRef,
+        scene: sceneRef,
+        camera: cameraRef,
+        tileManager: tileManagerRef,
+        backgroundTexture: backgroundTextureRef,
+    });
     let animationFrameId = 0;
     let cellGeometry = null;
     let cellEntries = [];
@@ -83,7 +93,6 @@
     let activeRendererType = 'webgl';
     let autoDiagnosticRunSequence = 0;
     let lastAutoDiagnosticKey = null;
-    let hasPaintedStaticBackground = false;
     const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
     const loadThreeWebGPUModule = createLazyLoader(() => import('three/webgpu'));
     const loadWebGPUCapability = createLazyLoader(() => import('three/addons/capabilities/WebGPU.js').then((module) => module.default));
@@ -773,6 +782,7 @@
         if (tileManager) {
             tileManager.dispose?.();
             tileManager = null;
+            tileManagerRef.value = null;
         }
     }
 
@@ -825,26 +835,8 @@
             return;
         }
 
+        sceneBackground.updateBackground();
         renderFilter.renderScene();
-        renderLiveBackground();
-    }
-
-    function renderLiveBackground() {
-        if (!props.showBlurredBackground || !backgroundCanvasRef.value || !renderer?.domElement) return;
-        if (!app.animatedBackgroundEnabled && hasPaintedStaticBackground) return;
-        const canvas = backgroundCanvasRef.value;
-        const source = renderer.domElement;
-        if (canvas.width !== source.width || canvas.height !== source.height) {
-            canvas.width = source.width;
-            canvas.height = source.height;
-        }
-        const context = canvas.getContext('2d', { alpha: false });
-        if (!context) return;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.filter = `blur(${Math.max(24, Math.round(Math.min(canvas.width, canvas.height) * 0.04))}px) saturate(1.08)`;
-        context.drawImage(source, -canvas.width * 0.06, -canvas.height * 0.06, canvas.width * 1.12, canvas.height * 1.12);
-        context.filter = 'none';
-        hasPaintedStaticBackground = true;
     }
 
     function updateViewport(viewportWidthOverride = null, viewportHeightOverride = null, pixelRatioOverride = null) {
@@ -1021,11 +1013,15 @@
             }
 
             tileManager = nextTileManager;
+            tileManagerRef.value = nextTileManager;
             tileCount.value = tileManager.getTileCount?.() || props.texture.tile_count || 0;
             loadingMessage.value = 'Building...';
             loadingStatusText.value = '100%';
             applyViewerSettings();
             rebuildLayout();
+            if (props.showBlurredBackground) {
+                await sceneBackground.setBackgroundFromTileManager({ opacity: 1 });
+            }
             isReady.value = true;
 
             if (resolvedTexture.kind === 'remote') {
@@ -1082,7 +1078,7 @@
 
         resizeObserver = new ResizeObserver(() => {
             updateViewport();
-            renderer?.render?.(scene, camera);
+            renderCurrentScene();
         });
         resizeObserver.observe(wrapperRef.value);
 
@@ -1150,7 +1146,6 @@
         let exportCanvas = renderer.domElement;
         let exportCanvasContext = null;
         let exportLogoAsset = null;
-        let exportBackgroundSnapshot = null;
 
         try {
             rebuildLayout(width, height);
@@ -1176,14 +1171,7 @@
             };
             const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
 
-            const includeBackground = props.showBlurredBackground;
-            if (includeBackground && !app.animatedBackgroundEnabled) {
-                exportBackgroundSnapshot = document.createElement('canvas');
-                exportBackgroundSnapshot.width = width;
-                exportBackgroundSnapshot.height = height;
-                exportBackgroundSnapshot.getContext('2d')?.drawImage(renderer.domElement, 0, 0, width, height);
-            }
-            if (includeBackground || logoOverlayEnabled) {
+            if (logoOverlayEnabled) {
                 if (logoOverlayEnabled) exportLogoAsset = await loadExportLogoAsset();
                 exportCanvas = document.createElement('canvas');
                 exportCanvas.width = width;
@@ -1224,18 +1212,6 @@
 
                 if (exportCanvasContext) {
                     exportCanvasContext.clearRect(0, 0, width, height);
-                    if (includeBackground) {
-                        exportCanvasContext.save();
-                        exportCanvasContext.filter = `blur(${Math.max(24, Math.round(Math.min(width, height) * 0.04))}px) saturate(1.08)`;
-                        exportCanvasContext.drawImage(
-                            exportBackgroundSnapshot || renderer.domElement,
-                            -width * 0.06,
-                            -height * 0.06,
-                            width * 1.12,
-                            height * 1.12,
-                        );
-                        exportCanvasContext.restore();
-                    }
                     exportCanvasContext.drawImage(renderer.domElement, 0, 0, width, height);
                     if (exportLogoAsset) {
                         drawExportLogoOverlay(exportCanvasContext, exportLogoAsset.image, width, height, exportLogoAsset.aspectRatio, logoOverlayCorner);
@@ -1323,10 +1299,15 @@
         }
     );
 
-    watch(() => app.animatedBackgroundEnabled, () => {
-        hasPaintedStaticBackground = false;
-        renderCurrentScene();
-    });
+    watch(
+        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundBlurEnabled, app.backgroundBlurAmount],
+        async ([enabled]) => {
+            if (!tileManager || !renderer) return;
+            if (enabled) await sceneBackground.setBackgroundFromTileManager({ opacity: 1 });
+            else sceneBackground.disposeBackground();
+            renderCurrentScene();
+        },
+    );
 
     watch(
         () => [
@@ -1358,6 +1339,7 @@
         resizeObserver?.disconnect?.();
         resizeObserver = null;
         teardownTileManager();
+        sceneBackground.disposeBackground();
         renderFilter.disposeRenderFilter();
 
         if (renderer) {
@@ -1371,6 +1353,7 @@
         camera = null;
         sceneRef.value = null;
         cameraRef.value = null;
+        tileManagerRef.value = null;
     });
 
     defineExpose({
@@ -1389,12 +1372,6 @@
         :class="{ 'is-ready': isReady && !isLoading && !error }"
         :style="wrapperStyle"
     >
-        <canvas
-            v-if="showBlurredBackground"
-            ref="backgroundCanvasRef"
-            class="texture-overview-preview-background"
-            aria-hidden="true"
-        ></canvas>
         <div
             v-if="error"
             class="texture-overview-preview-message is-error"
@@ -1431,13 +1408,6 @@
         height: 100%;
     }
 
-    .texture-overview-preview-background {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-    }
 
     .texture-overview-preview-message {
         position: absolute;
