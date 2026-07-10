@@ -132,7 +132,10 @@
 </script>
 
 <template>
-    <div class="texture-overview-panel">
+    <div
+        class="texture-overview-panel"
+        :class="{ 'has-transparent-texture': app.transparentShadowsEnabled && backgroundThumbnailUrl }"
+    >
         <div
             v-if="app.transparentShadowsEnabled && backgroundThumbnailUrl"
             class="texture-overview-panel-backdrop"
@@ -300,6 +303,10 @@
         background: rgba(0, 0, 0, 0.76);
     }
 
+    .texture-overview-panel.has-transparent-texture {
+        background: transparent;
+    }
+
     .texture-overview-panel::after {
         content: '';
         position: absolute;
@@ -311,6 +318,10 @@
         z-index: 0;
     }
 
+    .texture-overview-panel.has-transparent-texture::after {
+        display: none;
+    }
+
     .texture-overview-panel-backdrop {
         position: absolute;
         inset: -2rem;
@@ -320,7 +331,7 @@
         background-size: cover;
         filter: blur(42px) saturate(1.08);
         transform: scale(1.08);
-        opacity: 0.5;
+        opacity: 1;
         z-index: 0;
     }
 
