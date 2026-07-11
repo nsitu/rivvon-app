@@ -27,6 +27,7 @@
     const textInput = ref('');
     const isMultiline = ref(false);
     const lineHeightPercent = ref(110);
+    const letterSpacingPercent = ref(0);
     const singleLineInputRef = ref(null);
     const multilineInputRef = ref(null);
     const {
@@ -127,8 +128,8 @@
         }
 
         return isMultiline.value
-            ? 'Preview reflects the selected font, multiline layout, and line height.'
-            : 'Preview reflects the selected font.';
+            ? 'Preview reflects the selected font, multiline layout, line height, and letter spacing.'
+            : 'Preview reflects the selected font and letter spacing.';
     });
 
     function collapseLineBreaks(value) {
@@ -192,6 +193,7 @@
                 font: selectedFont.value,
                 multiline: isMultiline.value,
                 lineHeight: lineHeightPercent.value / 100,
+                charSpacing: letterSpacingPercent.value,
                 strokeColor: '#f8fafc',
                 strokeWidth: LIVE_TEXT_PREVIEW_STROKE_WIDTH,
                 padding: 18,
@@ -238,7 +240,7 @@
     });
 
     watch(
-        [textInput, selectedFont, isMultiline, lineHeightPercent],
+        [textInput, selectedFont, isMultiline, lineHeightPercent, letterSpacingPercent],
         () => {
             updateEnteredTextPreview();
         }
@@ -265,7 +267,8 @@
             const selectedLineHeight = lineHeightPercent.value / 100;
             const points = await textToPoints(textInput.value, {
                 multiline: isMultiline.value,
-                lineHeight: selectedLineHeight
+                lineHeight: selectedLineHeight,
+                charSpacing: letterSpacingPercent.value,
             });
             emit('request-generate', {
                 points,
@@ -274,6 +277,7 @@
                     font: selectedFont.value,
                     multiline: isMultiline.value,
                     lineHeight: selectedLineHeight,
+                    charSpacing: letterSpacingPercent.value,
                 }
             });
             close();
@@ -295,6 +299,11 @@
         }
 
         return Math.max(30, Math.min(160, Math.round(value / 5) * 5));
+    }
+
+    function clampLetterSpacingPercent(value) {
+        if (!Number.isFinite(value)) return 0;
+        return Math.max(-50, Math.min(100, Math.round(value / 5) * 5));
     }
 
     function resolveTextFieldElement() {
@@ -327,11 +336,13 @@
             ? source.multiline
             : nextText.includes('\n');
         const nextLineHeightPercent = clampLineHeightPercent(Number(source?.lineHeight) * 100);
+        const nextLetterSpacingPercent = clampLetterSpacingPercent(Number(source?.charSpacing));
         const nextFontId = typeof source?.font === 'string' ? source.font.trim() : '';
 
         textInput.value = nextText;
         isMultiline.value = nextIsMultiline;
         lineHeightPercent.value = nextLineHeightPercent;
+        letterSpacingPercent.value = nextLetterSpacingPercent;
 
         if (nextFontId && fonts.value.some((font) => font.id === nextFontId) && nextFontId !== selectedFont.value) {
             await setFont(nextFontId);
@@ -444,6 +455,22 @@
                                 class="line-height-slider"
                             />
                             <p class="input-hint">100% uses the font's base line height.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="field-label-row">
+                                <label for="letterSpacingSlider">Letter spacing</label>
+                                <span class="field-mode">{{ letterSpacingPercent }}%</span>
+                            </div>
+                            <Slider
+                                id="letterSpacingSlider"
+                                v-model="letterSpacingPercent"
+                                :min="-50"
+                                :max="100"
+                                :step="5"
+                                class="line-height-slider"
+                            />
+                            <p class="input-hint">0% uses the font's natural spacing.</p>
                         </div>
 
                         <div class="form-group">
