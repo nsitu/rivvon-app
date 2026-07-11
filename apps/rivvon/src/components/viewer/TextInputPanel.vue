@@ -298,12 +298,12 @@
             return 110;
         }
 
-        return Math.max(30, Math.min(160, Math.round(value / 5) * 5));
+        return Math.max(30, Math.min(160, Math.round(value)));
     }
 
     function clampLetterSpacingPercent(value) {
         if (!Number.isFinite(value)) return 0;
-        return Math.max(-50, Math.min(100, Math.round(value / 5) * 5));
+        return Math.max(-50, Math.min(100, Math.round(value)));
     }
 
     function resolveTextFieldElement() {
@@ -451,7 +451,7 @@
                                 v-model="lineHeightPercent"
                                 :min="30"
                                 :max="160"
-                                :step="5"
+                                :step="1"
                                 class="line-height-slider"
                             />
                             <p class="input-hint">100% uses the font's base line height.</p>
@@ -467,7 +467,7 @@
                                 v-model="letterSpacingPercent"
                                 :min="-50"
                                 :max="100"
-                                :step="5"
+                                :step="1"
                                 class="line-height-slider"
                             />
                             <p class="input-hint">0% uses the font's natural spacing.</p>
