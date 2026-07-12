@@ -69,6 +69,8 @@
         }
     });
 
+    const tubeJoinOffsetDegreesLabel = computed(() => `${Math.round(app.tubeTextureJoinOffsetDegrees)}°`);
+
     function getInputId(name) {
         return `${inputIdPrefix}-${name}`;
     }
@@ -132,6 +134,17 @@
                             step="2"
                             :value="app.tubeRadialSegments"
                             @input="app.setTubeRadialSegments(parseInt($event.target.value, 10))"
+                        />
+                    </div>
+                    <div class="tools-slider">
+                        <label>Join Offset <span class="tools-slider-value">{{ tubeJoinOffsetDegreesLabel }}</span></label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="350"
+                            step="10"
+                            :value="app.tubeTextureJoinOffsetDegrees"
+                            @input="app.setTubeTextureJoinOffsetDegrees(parseInt($event.target.value, 10))"
                         />
                     </div>
                     <div class="tools-hint tools-surface-hint">Texture wraps twice with mirrored seams. Tube ends are open.</div>

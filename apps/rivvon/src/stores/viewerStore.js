@@ -70,6 +70,7 @@ const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
 const SURFACE_MODES = ['ribbon', 'tube'];
 const DEFAULT_TUBE_RADIUS_SCALE = 0.5;
 const DEFAULT_TUBE_RADIAL_SEGMENTS = 8;
+const DEFAULT_TUBE_TEXTURE_JOIN_OFFSET_DEGREES = 0;
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
         return window.matchMedia('(pointer: coarse)').matches ? 256 : 512;
@@ -296,6 +297,16 @@ function normalizeTubeRadialSegments(value) {
     return clamped % 2 === 0 ? clamped : Math.min(24, clamped + 1);
 }
 
+function normalizeTubeTextureJoinOffsetDegrees(value) {
+    const parsed = Math.round(Number(value));
+
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_TUBE_TEXTURE_JOIN_OFFSET_DEGREES;
+    }
+
+    return Math.max(0, Math.min(359, parsed));
+}
+
 function normalizeViewerBooleanPreference(value, fallback = false) {
     return typeof value === 'boolean' ? value : fallback;
 }
@@ -503,6 +514,9 @@ export const useViewerStore = defineStore('viewer', {
         surfaceMode: normalizeSurfaceMode(readViewerPreferences().surfaceMode),
         tubeRadiusScale: normalizeTubeRadiusScale(readViewerPreferences().tubeRadiusScale),
         tubeRadialSegments: normalizeTubeRadialSegments(readViewerPreferences().tubeRadialSegments),
+        tubeTextureJoinOffsetDegrees: normalizeTubeTextureJoinOffsetDegrees(
+            readViewerPreferences().tubeTextureJoinOffsetDegrees
+        ),
 
         // Geometry options
         capStyle: CAP_STYLE_ROUNDED,
@@ -748,6 +762,7 @@ export const useViewerStore = defineStore('viewer', {
             this.surfaceMode = 'ribbon';
             this.tubeRadiusScale = DEFAULT_TUBE_RADIUS_SCALE;
             this.tubeRadialSegments = DEFAULT_TUBE_RADIAL_SEGMENTS;
+                        this.tubeTextureJoinOffsetDegrees = DEFAULT_TUBE_TEXTURE_JOIN_OFFSET_DEGREES;
             this.helixMode = false;
             this.helixRadius = 0.20;
             this.helixPitch = 9.0;
@@ -811,6 +826,7 @@ export const useViewerStore = defineStore('viewer', {
                 surfaceMode: 'ribbon',
                 tubeRadiusScale: DEFAULT_TUBE_RADIUS_SCALE,
                 tubeRadialSegments: DEFAULT_TUBE_RADIAL_SEGMENTS,
+                                tubeTextureJoinOffsetDegrees: DEFAULT_TUBE_TEXTURE_JOIN_OFFSET_DEGREES,
                 sphericalProjectionEnabled: false,
                 sphericalProjectionWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
                 showTextureMetadataOverlay: false,
@@ -1187,6 +1203,7 @@ export const useViewerStore = defineStore('viewer', {
                 this.surfaceMode !== original.surfaceMode ||
                 this.tubeRadiusScale !== original.tubeRadiusScale ||
                 this.tubeRadialSegments !== original.tubeRadialSegments ||
+                this.tubeTextureJoinOffsetDegrees !== original.tubeTextureJoinOffsetDegrees ||
                 this.helixMode !== original.helixMode ||
                 this.helixRadius !== original.helixRadius ||
                 this.helixPitch !== original.helixPitch ||
@@ -1630,6 +1647,12 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ tubeRadialSegments: nextValue });
         },
 
+        setTubeTextureJoinOffsetDegrees(value) {
+            const nextValue = normalizeTubeTextureJoinOffsetDegrees(value);
+            this.tubeTextureJoinOffsetDegrees = nextValue;
+            writeViewerPreferences({ tubeTextureJoinOffsetDegrees: nextValue });
+        },
+
         setCapStyle(style) {
             const nextStyle = normalizeCapStyle(style, this.roundedCaps);
             this.capStyle = nextStyle;
@@ -1675,6 +1698,7 @@ export const useViewerStore = defineStore('viewer', {
             surfaceMode: normalizeSurfaceMode(state.surfaceMode),
             tubeRadiusScale: normalizeTubeRadiusScale(state.tubeRadiusScale),
             tubeRadialSegments: normalizeTubeRadialSegments(state.tubeRadialSegments),
+            tubeTextureJoinOffsetDegrees: normalizeTubeTextureJoinOffsetDegrees(state.tubeTextureJoinOffsetDegrees),
             undulationEnabled: state.undulationEnabled,
             capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,

@@ -25,6 +25,7 @@ export class RibbonSeries {
         this.ribbons = [];           // Array of Ribbon instances
         this.tileManager = null;
         this.tileManagers = [];      // Array of TileManagers for multi-texture mode
+        this.tubeTextureJoinOffsetDegrees = 0;
         this.totalSegmentCount = 0;  // For tracking total segments across all ribbons
         this.sourcePathsPoints = []; // Preserve original source paths for geometry mode rebuilds
         this.lastPathsPoints = [];   // Store for animation updates

@@ -64,6 +64,69 @@ describe('tube ribbon geometry', () => {
         ribbon.dispose();
     });
 
+    it('rotates the tube seam so the mirrored join can start at 90 degrees', () => {
+        const baseRibbon = new Ribbon(new THREE.Scene());
+        baseRibbon.setHelixOptions({
+            surfaceMode: 'tube',
+            tubeRadiusScale: 0.5,
+            tubeRadialSegments: 8,
+            undulationEnabled: false,
+        });
+        baseRibbon.pathLength = 2;
+
+        const offsetRibbon = new Ribbon(new THREE.Scene());
+        offsetRibbon.setHelixOptions({
+            surfaceMode: 'tube',
+            tubeRadiusScale: 0.5,
+            tubeRadialSegments: 8,
+            tubeTextureJoinOffsetDegrees: 90,
+            undulationEnabled: false,
+        });
+        offsetRibbon.pathLength = 2;
+
+        const curve = baseRibbon.createCurveFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(2, 0, 0),
+        ]);
+        const frameSamples = baseRibbon.createFrameSamples(curve, 3);
+
+        const baseGeometry = baseRibbon.createTubeRibbonSegmentGeometryWithCache(
+            curve,
+            0,
+            1,
+            1,
+            0,
+            0,
+            frameSamples,
+            2,
+            0,
+            null,
+            { pathLength: 2, tileWorldLength: 1, capWorldLength: 1 }
+        );
+        const offsetGeometry = offsetRibbon.createTubeRibbonSegmentGeometryWithCache(
+            curve,
+            0,
+            1,
+            1,
+            0,
+            0,
+            frameSamples,
+            2,
+            0,
+            null,
+            { pathLength: 2, tileWorldLength: 1, capWorldLength: 1 }
+        );
+
+        const baseVertexAtQuarterTurn = new THREE.Vector3().fromBufferAttribute(baseGeometry.attributes.position, 2);
+        const offsetFirstVertex = new THREE.Vector3().fromBufferAttribute(offsetGeometry.attributes.position, 0);
+        expect(offsetFirstVertex.distanceTo(baseVertexAtQuarterTurn)).toBeLessThan(1e-6);
+
+        baseGeometry.dispose();
+        offsetGeometry.dispose();
+        baseRibbon.dispose();
+        offsetRibbon.dispose();
+    });
+
     it('selects tube geometry through the normal build path and disables planar cap masks', () => {
         const scene = new THREE.Scene();
         const ribbon = new Ribbon(scene);

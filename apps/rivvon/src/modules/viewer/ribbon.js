@@ -104,6 +104,7 @@ export class Ribbon {
         this.surfaceMode = 'ribbon';
         this.tubeRadiusScale = 0.5;
         this.tubeRadialSegments = 8;
+        this.tubeTextureJoinOffsetDegrees = 0;
         this.ribbonPathAlignmentMode = 'center';
         this.sphericalProjectionEnabled = false;
         this.sphericalProjectionRadius = 1;
@@ -163,6 +164,9 @@ export class Ribbon {
         }
         if (options.tubeRadialSegments !== undefined) {
             this.tubeRadialSegments = normalizeTubeRadialSegments(options.tubeRadialSegments);
+        }
+        if (options.tubeTextureJoinOffsetDegrees !== undefined && Number.isFinite(options.tubeTextureJoinOffsetDegrees)) {
+            this.tubeTextureJoinOffsetDegrees = Math.max(0, Math.min(359, Math.round(options.tubeTextureJoinOffsetDegrees)));
         }
         if (options.undulationEnabled !== undefined) this.undulationEnabled = !!options.undulationEnabled;
         if (options.ribbonPathAlignmentMode !== undefined) this.ribbonPathAlignmentMode = options.ribbonPathAlignmentMode || 'center';
@@ -1299,6 +1303,7 @@ export class Ribbon {
         const ringVertexCount = radialSegments + 1;
         const strandWidthScale = this.helixMode ? this.helixStrandWidth : 1;
         const radius = width * strandWidthScale * this.tubeRadiusScale;
+        const tubeTextureJoinOffsetRadians = ((this.tubeTextureJoinOffsetDegrees || 0) / 180) * Math.PI;
 
         const basePositions = [];
         const normals = [];
@@ -1321,7 +1326,7 @@ export class Ribbon {
             const capEndU = (pathLength - frame.arcLength) / capWorldLength;
 
             for (let radialIndex = 0; radialIndex <= radialSegments; radialIndex++) {
-                const theta = (radialIndex / radialSegments) * Math.PI * 2;
+                const theta = ((radialIndex / radialSegments) * Math.PI * 2) + tubeTextureJoinOffsetRadians;
                 this._setAnimatedTubeVertexPosition(
                     vertex,
                     frame,
