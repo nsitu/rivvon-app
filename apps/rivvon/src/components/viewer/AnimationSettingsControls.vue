@@ -1,5 +1,6 @@
 ﻿<script setup>
     import { computed, getCurrentInstance, ref, watch } from 'vue';
+    import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
 
@@ -107,6 +108,24 @@
         get: () => peakTroughTransparencyAvailable.value && app.peakTroughTransparencyEnabled,
         set: (value) => app.setPeakTroughTransparencyEnabled(!!value),
     });
+
+    const peakTroughGradientRangeModel = computed({
+        get: () => [
+            Math.round(app.peakTroughGradientStart * 100),
+            Math.round(app.peakTroughGradientEnd * 100),
+        ],
+        set: (value) => {
+            if (!Array.isArray(value) || value.length !== 2) return;
+            app.setPeakTroughGradientRange([
+                Number(value[0]) / 100,
+                Number(value[1]) / 100,
+            ]);
+        },
+    });
+
+    const peakTroughGradientLabel = computed(
+        () => `${Math.round(app.peakTroughGradientStart * 100)}% - ${Math.round(app.peakTroughGradientEnd * 100)}%`
+    );
 
     function handleFlowSpeedInput(event) {
         app.setFlowSpeed(parseFloat(event.target.value));
@@ -289,6 +308,27 @@
                         />
                     </div>
                 </div>
+                <div
+                    v-if="peakTroughTransparencyModel"
+                    class="tools-slider-block"
+                >
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">Transparency Gradient</label>
+                        <span class="tools-hint tools-slider-hint">{{ peakTroughGradientLabel }}</span>
+                    </div>
+                    <Slider
+                        v-model="peakTroughGradientRangeModel"
+                        range
+                        :min="0"
+                        :max="100"
+                        :step="1"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Fade starts</span>
+                        <span>Maximum transparency</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -464,6 +504,41 @@
 
     .tools-toggle-hint {
         margin-left: 0;
+    }
+
+    .tools-slider-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        padding: 0 1rem 0.875rem;
+        color: var(--p-text-color, #fff);
+    }
+
+    .tools-slider-head,
+    .tools-slider-caption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .tools-slider-label {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .tools-slider-hint {
+        margin-left: 0;
+    }
+
+    .tools-range-slider {
+        width: calc(100% - 1rem);
+        margin: 0 0.5rem;
+    }
+
+    .tools-slider-caption {
+        color: rgba(255, 255, 255, 0.56);
+        font-size: 0.72rem;
     }
 
 </style>

@@ -31,6 +31,18 @@ export function useRenderFilter(ctx) {
             && ctx.app.activeTextureCrossSectionType === 'waves';
     }
 
+    function getPeakTroughGradientRange() {
+        const start = Number(ctx.app.peakTroughGradientStart);
+        const end = Number(ctx.app.peakTroughGradientEnd);
+        const normalizedStart = Number.isFinite(start) ? Math.min(1, Math.max(0, start)) : 0.65;
+        const normalizedEnd = Number.isFinite(end) ? Math.min(1, Math.max(0, end)) : 1;
+
+        return {
+            start: Math.min(normalizedStart, normalizedEnd - 0.0001),
+            end: Math.max(normalizedEnd, normalizedStart + 0.0001),
+        };
+    }
+
     function getContrastValue() {
         const value = Number(ctx.app.contrast);
         return Number.isFinite(value) ? Math.min(2, Math.max(0, value)) : 1;
@@ -275,6 +287,7 @@ export function useRenderFilter(ctx) {
     function syncTransparentShadowsMaterials(scene) {
         const enabled = isTransparentShadowsEnabled();
         const peakTroughEnabled = isPeakTroughTransparencyEnabled();
+        const peakTroughGradient = getPeakTroughGradientRange();
         const useHighlights = isTransparencyHighlightsMode();
         const { min, max } = getTransparentShadowsThresholds();
 
@@ -291,6 +304,12 @@ export function useRenderFilter(ctx) {
                 material._transparentShadowsUniform.value = enabled ? 1 : 0;
                 if (material._peakTroughTransparencyUniform) {
                     material._peakTroughTransparencyUniform.value = peakTroughEnabled ? 1 : 0;
+                }
+                if (material._peakTroughGradientStartUniform) {
+                    material._peakTroughGradientStartUniform.value = peakTroughGradient.start;
+                }
+                if (material._peakTroughGradientEndUniform) {
+                    material._peakTroughGradientEndUniform.value = peakTroughGradient.end;
                 }
                 if (material._transparentHighlightsUniform) {
                     material._transparentHighlightsUniform.value = useHighlights ? 1 : 0;

@@ -17,7 +17,8 @@ const CAP_ALPHA_MIN_AA = 1 / 4096;
 const TRANSPARENT_SHADOWS_LUMA_MIN = 0.2;
 const TRANSPARENT_SHADOWS_LUMA_MAX = 0.5;
 const PEAK_TROUGH_FADE_START = 0.65;
-const PEAK_TROUGH_MIN_ALPHA = 0.1;
+const PEAK_TROUGH_FADE_END = 1.0;
+const PEAK_TROUGH_MIN_ALPHA = 0.0;
 const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
 const MAX_EDGE_NOISE_TRANSPARENCY = 0.5;
 const DEFAULT_EDGE_DRIFT_ENABLED = false;
@@ -80,6 +81,8 @@ const PEAK_TROUGH_ALPHA_GLSL = /* glsl */`
                     float tileCount,
                     float layerIndex,
                     float layerCount,
+                    float fadeStart,
+                    float fadeEnd,
                     float enabled
                 ) {
                     if (enabled < 0.5 || tileCount < 1.0 || layerCount < 1.0) {
@@ -89,7 +92,7 @@ const PEAK_TROUGH_ALPHA_GLSL = /* glsl */`
                     float globalProgress = (tileIndex + clamp(temporalUv, 0.0, 1.0)) / tileCount;
                     float layerPhase = layerIndex / layerCount;
                     float extremity = abs(sin(6.28318530718 * (globalProgress + layerPhase)));
-                    float mask = smoothstep(${PEAK_TROUGH_FADE_START.toFixed(2)}, 1.0, extremity);
+                    float mask = smoothstep(fadeStart, max(fadeEnd, fadeStart + 0.0001), extremity);
                     return mix(1.0, ${PEAK_TROUGH_MIN_ALPHA.toFixed(1)}, mask);
                 }
 `;
@@ -415,6 +418,8 @@ function createPeakTroughAlphaNode(
     tileCount,
     layerIndex,
     layerCount,
+    fadeStartUniform,
+    fadeEndUniform,
     enabledUniform
 ) {
     const { float, abs, smoothstep, mix } = threeTSL;
@@ -427,7 +432,8 @@ function createPeakTroughAlphaNode(
         .div(safeTileCount);
     const layerPhase = layerIndex.div(safeLayerCount);
     const extremity = abs(globalProgress.add(layerPhase).mul(float(Math.PI * 2)).sin());
-    const mask = smoothstep(float(PEAK_TROUGH_FADE_START), float(1.0), extremity);
+    const safeFadeEnd = fadeEndUniform.max(fadeStartUniform.add(float(0.0001)));
+    const mask = smoothstep(fadeStartUniform, safeFadeEnd, extremity);
     const alpha = mix(float(1.0), float(PEAK_TROUGH_MIN_ALPHA), mask);
 
     return enabledUniform.greaterThan(float(0.5)).select(alpha, float(1.0));
@@ -1278,6 +1284,8 @@ export class TileManager {
                 uMirrorY: { value: mirrorY },
                 uFlowOffset: this.sharedFlowOffsetUniform,
                 uPeakTroughTransparency: { value: 0 },
+                uPeakTroughGradientStart: { value: PEAK_TROUGH_FADE_START },
+                uPeakTroughGradientEnd: { value: PEAK_TROUGH_FADE_END },
                 uTileCount: { value: Math.max(1, this.tileCount) },
                 uCurrentTileIndex: { value: currentTileIndex },
                 uNextTileIndex: { value: nextTileIndex },
@@ -1339,6 +1347,8 @@ export class TileManager {
                 uniform int uMirrorY;
                 uniform float uFlowOffset;
                 uniform float uPeakTroughTransparency;
+                uniform float uPeakTroughGradientStart;
+                uniform float uPeakTroughGradientEnd;
                 uniform float uTileCount;
                 uniform float uCurrentTileIndex;
                 uniform float uNextTileIndex;
@@ -1423,6 +1433,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         uTileCount,
                         float(uLayer),
                         float(uLayerCount),
+                        uPeakTroughGradientStart,
+                        uPeakTroughGradientEnd,
                         uPeakTroughTransparency
                     );
                     float peakTroughAlphaNext = computePeakTroughAlpha(
@@ -1431,6 +1443,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         uTileCount,
                         float(uLayer),
                         float(uLayerCount),
+                        uPeakTroughGradientStart,
+                        uPeakTroughGradientEnd,
                         uPeakTroughTransparency
                     );
                     texColor.a *= ${reverseFlow
@@ -1484,6 +1498,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
         material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
+        material._peakTroughGradientStartUniform = material.uniforms.uPeakTroughGradientStart;
+        material._peakTroughGradientEndUniform = material.uniforms.uPeakTroughGradientEnd;
         material._edgeNoiseMaxUniform = material.uniforms.uEdgeNoiseMax;
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
@@ -1523,6 +1539,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const mirrorYUniform = uniform(options.mirrorY ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
         const peakTroughTransparencyUniform = uniform(0);
+        const peakTroughGradientStartUniform = uniform(float(PEAK_TROUGH_FADE_START));
+        const peakTroughGradientEndUniform = uniform(float(PEAK_TROUGH_FADE_END));
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
@@ -1593,6 +1611,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
             this.tileCount,
             layerUniform,
             layerCount,
+            peakTroughGradientStartUniform,
+            peakTroughGradientEndUniform,
             peakTroughTransparencyUniform
         );
         const peakTroughAlphaNext = createPeakTroughAlphaNode(
@@ -1602,6 +1622,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
             this.tileCount,
             layerUniform,
             layerCount,
+            peakTroughGradientStartUniform,
+            peakTroughGradientEndUniform,
             peakTroughTransparencyUniform
         );
         const peakTroughAlpha = reverseFlow
@@ -1678,6 +1700,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
         material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
+        material._peakTroughGradientStartUniform = peakTroughGradientStartUniform;
+        material._peakTroughGradientEndUniform = peakTroughGradientEndUniform;
         material._edgeNoiseMaxUniform = edgeNoiseMaxUniform;
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
@@ -1805,6 +1829,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uMirrorX: { value: mirrorX },
                 uMirrorY: { value: mirrorY },
                 uPeakTroughTransparency: { value: 0 },
+                uPeakTroughGradientStart: { value: PEAK_TROUGH_FADE_START },
+                uPeakTroughGradientEnd: { value: PEAK_TROUGH_FADE_END },
                 uTileCount: { value: Math.max(1, this.tileCount) },
                 uTileIndex: { value: tileIndex },
                 uTransparentShadows: { value: 0 },
@@ -1862,6 +1888,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uniform int uMirrorX;
                 uniform int uMirrorY;
                 uniform float uPeakTroughTransparency;
+                uniform float uPeakTroughGradientStart;
+                uniform float uPeakTroughGradientEnd;
                 uniform float uTileCount;
                 uniform float uTileIndex;
                 uniform int uTransparentShadows;
@@ -1903,6 +1931,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         uTileCount,
                         float(uLayer),
                         uLayerCount,
+                        uPeakTroughGradientStart,
+                        uPeakTroughGradientEnd,
                         uPeakTroughTransparency
                     );
                     texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
@@ -1938,6 +1968,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
         material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
+        material._peakTroughGradientStartUniform = material.uniforms.uPeakTroughGradientStart;
+        material._peakTroughGradientEndUniform = material.uniforms.uPeakTroughGradientEnd;
         material._edgeNoiseMaxUniform = material.uniforms.uEdgeNoiseMax;
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
@@ -2004,6 +2036,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const mirrorYUniform = uniform(options.mirrorY ? 1 : 0);
         const transparentShadowsUniform = uniform(0);
         const peakTroughTransparencyUniform = uniform(0);
+        const peakTroughGradientStartUniform = uniform(float(PEAK_TROUGH_FADE_START));
+        const peakTroughGradientEndUniform = uniform(float(PEAK_TROUGH_FADE_END));
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
@@ -2062,6 +2096,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
             this.tileCount,
             layerUniform,
             layerCount,
+            peakTroughGradientStartUniform,
+            peakTroughGradientEndUniform,
             peakTroughTransparencyUniform
         );
         const capAlpha = createCapAlphaNode(threeTSL, baseUV);
@@ -2128,6 +2164,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
         material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
+        material._peakTroughGradientStartUniform = peakTroughGradientStartUniform;
+        material._peakTroughGradientEndUniform = peakTroughGradientEndUniform;
         material._edgeNoiseMaxUniform = edgeNoiseMaxUniform;
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;

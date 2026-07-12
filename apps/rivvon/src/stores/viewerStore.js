@@ -30,6 +30,9 @@ const DEFAULT_TRANSPARENCY_MODE = 'shadows';
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN = 0.2;
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX = 0.5;
 const MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP = 0.01;
+const DEFAULT_PEAK_TROUGH_GRADIENT_START = 0.65;
+const DEFAULT_PEAK_TROUGH_GRADIENT_END = 1.0;
+const MIN_PEAK_TROUGH_GRADIENT_GAP = 0.01;
 const MIN_RIBBON_WIDTH_SCALE = 0.1;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
 const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
@@ -170,6 +173,31 @@ function normalizeTransparentShadowsThresholdRange(minValue, maxValue) {
         min: minThreshold,
         max: maxThreshold,
     };
+}
+
+function normalizePeakTroughGradientRange(startValue, endValue) {
+    let start = normalizeTransparentShadowsThresholdValue(
+        startValue,
+        DEFAULT_PEAK_TROUGH_GRADIENT_START
+    );
+    let end = normalizeTransparentShadowsThresholdValue(
+        endValue,
+        DEFAULT_PEAK_TROUGH_GRADIENT_END
+    );
+
+    if (end < start) {
+        [start, end] = [end, start];
+    }
+
+    if ((end - start) < MIN_PEAK_TROUGH_GRADIENT_GAP) {
+        if (start + MIN_PEAK_TROUGH_GRADIENT_GAP <= 1) {
+            end = start + MIN_PEAK_TROUGH_GRADIENT_GAP;
+        } else {
+            start = Math.max(0, end - MIN_PEAK_TROUGH_GRADIENT_GAP);
+        }
+    }
+
+    return { start, end };
 }
 
 function normalizeRibbonWidthScale(value) {
@@ -341,6 +369,10 @@ export const useViewerStore = defineStore('viewer', {
         const exportDimensionSettings = getStoredExportDimensionSettings();
         const storedExportLogoSettings = getStoredExportLogoSettings();
         const storedFilterSettings = getStoredFilterSettings();
+        const storedPeakTroughGradient = normalizePeakTroughGradientRange(
+            readViewerPreferences().peakTroughGradientStart,
+            readViewerPreferences().peakTroughGradientEnd
+        );
         const panelVisibilityState = createViewerPanelVisibilityState();
 
         return ({
@@ -432,6 +464,8 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().peakTroughTransparencyEnabled,
             false
         ),
+        peakTroughGradientStart: storedPeakTroughGradient.start,
+        peakTroughGradientEnd: storedPeakTroughGradient.end,
         undulationEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().undulationEnabled,
             true
@@ -656,6 +690,8 @@ export const useViewerStore = defineStore('viewer', {
             this.backgroundBlurAmount = DEFAULT_BACKGROUND_BLUR_AMOUNT;
             this.textureAnimationReversed = false;
             this.peakTroughTransparencyEnabled = false;
+            this.peakTroughGradientStart = DEFAULT_PEAK_TROUGH_GRADIENT_START;
+            this.peakTroughGradientEnd = DEFAULT_PEAK_TROUGH_GRADIENT_END;
             this.textureRepeatMode = 'mirrorTile';
             this.normalizeTextureOrientation = true;
             this.textureFlipVertical = false;
@@ -713,6 +749,8 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurAmount: DEFAULT_BACKGROUND_BLUR_AMOUNT,
                 textureAnimationReversed: false,
                 peakTroughTransparencyEnabled: false,
+                peakTroughGradientStart: DEFAULT_PEAK_TROUGH_GRADIENT_START,
+                peakTroughGradientEnd: DEFAULT_PEAK_TROUGH_GRADIENT_END,
                 normalizeTextureOrientation: true,
                 textureFlipVertical: false,
                 textureOverviewFlipVertical: false,
@@ -913,6 +951,18 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ peakTroughTransparencyEnabled: nextValue });
         },
 
+        setPeakTroughGradientRange(range) {
+            const [startValue, endValue] = Array.isArray(range) ? range : [];
+            const normalized = normalizePeakTroughGradientRange(startValue, endValue);
+            this.peakTroughGradientStart = normalized.start;
+            this.peakTroughGradientEnd = normalized.end;
+            writeViewerPreferences({
+                peakTroughGradientStart: normalized.start,
+                peakTroughGradientEnd: normalized.end,
+            });
+            return normalized;
+        },
+
         setActiveTextureCrossSectionType(type) {
             const nextType = type === 'waves' || type === 'planes' ? type : null;
             this.activeTextureCrossSectionType = nextType;
@@ -997,6 +1047,8 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurAmount: this.backgroundBlurAmount,
                 textureAnimationReversed: this.textureAnimationReversed,
                 peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
+                peakTroughGradientStart: this.peakTroughGradientStart,
+                peakTroughGradientEnd: this.peakTroughGradientEnd,
                 textureRepeatMode: this.textureRepeatMode,
                 normalizeTextureOrientation: this.normalizeTextureOrientation,
                 textureFlipVertical: this.textureFlipVertical,
@@ -1068,6 +1120,8 @@ export const useViewerStore = defineStore('viewer', {
                 this.backgroundBlurAmount !== original.backgroundBlurAmount ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
                 this.peakTroughTransparencyEnabled !== original.peakTroughTransparencyEnabled ||
+                this.peakTroughGradientStart !== original.peakTroughGradientStart ||
+                this.peakTroughGradientEnd !== original.peakTroughGradientEnd ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
                 this.normalizeTextureOrientation !== original.normalizeTextureOrientation ||
                 this.textureFlipVertical !== original.textureFlipVertical ||
