@@ -1,5 +1,6 @@
 ﻿<script setup>
     import { computed, getCurrentInstance, ref, watch } from 'vue';
+    import ColorPicker from 'primevue/colorpicker';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -90,6 +91,38 @@
     });
 
     const backgroundBlurDisplay = computed(() => `${app.backgroundBlurAmount.toFixed(1)}x`);
+
+    const backgroundOverlayModel = computed({
+        get: () => app.backgroundOverlayEnabled,
+        set: (value) => {
+            app.setBackgroundOverlayEnabled(!!value);
+        }
+    });
+
+    const backgroundOverlayColorModel = computed({
+        get: () => app.backgroundOverlayColor,
+        set: (value) => {
+            app.setBackgroundOverlayColor(value);
+        }
+    });
+
+    const backgroundOverlayColorPickerModel = computed({
+        get: () => backgroundOverlayColorModel.value.replace('#', ''),
+        set: (value) => {
+            app.setBackgroundOverlayColor(typeof value === 'string' ? `#${value}` : value);
+        }
+    });
+
+    const backgroundOverlayColorLabel = computed(() => backgroundOverlayColorModel.value.toUpperCase());
+
+    const backgroundOverlayOpacityModel = computed({
+        get: () => Math.round(app.backgroundOverlayOpacity * 100),
+        set: (value) => {
+            app.setBackgroundOverlayOpacity(Number(value) / 100);
+        }
+    });
+
+    const backgroundOverlayOpacityDisplay = computed(() => `${Math.round(app.backgroundOverlayOpacity * 100)}%`);
 
     const backgroundFlowSpeedDisplay = computed(() => `${app.backgroundFlowSpeed.toFixed(2)} tiles/s`);
 
@@ -233,7 +266,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.textureAnimationEnabled ? 'On' : 'Off'
-                            }}</span>
+                        }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('layer-cycling')"
                             v-model="textureAnimationModel"
@@ -274,7 +307,7 @@
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ app.flowCycleAlignmentEnabled ? 'On' : 'Off'
-                        }}</span>
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
@@ -364,7 +397,8 @@
                         <span>Flip Background Vertically</span>
                     </label>
                     <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundFlipVerticalModel ? 'On' : 'Off' }}</span>
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundFlipVerticalModel ? 'On' : 'Off'
+                            }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('background-flip-vertical')"
                             v-model="backgroundFlipVerticalModel"
@@ -428,13 +462,15 @@
 
                 <div
                     v-if="backgroundBlurModel"
-                    class="tools-slider"
+                    class="tools-slider-block"
                 >
-                    <label>
-                        <span class="material-symbols-outlined tools-slider-icon">blur_linear</span>
-                        Blur Amount
-                        <span class="tools-slider-value">{{ backgroundBlurDisplay }}</span>
-                    </label>
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">
+                            <span class="material-symbols-outlined">blur_linear</span>
+                            <span>Blur Amount</span>
+                        </label>
+                        <span class="tools-hint tools-slider-hint">{{ backgroundBlurDisplay }}</span>
+                    </div>
                     <input
                         :id="getInputId('background-blur-amount')"
                         type="range"
@@ -443,7 +479,81 @@
                         step="0.5"
                         :value="app.backgroundBlurAmount"
                         @input="handleBackgroundBlurInput"
+                        class="tools-native-range"
                     />
+                    <div class="tools-slider-caption">
+                        <span>Soft</span>
+                        <span>Strong</span>
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('background-overlay')"
+                    >
+                        <span class="material-symbols-outlined">palette</span>
+                        <span>Background Color Overlay</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundOverlayModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-overlay')"
+                            v-model="backgroundOverlayModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="backgroundOverlayModel"
+                    class="tools-color-row"
+                >
+                    <label
+                        class="tools-color-main"
+                        :for="getInputId('background-overlay-color')"
+                    >
+                        <span
+                            class="tools-color-swatch"
+                            :style="{ backgroundColor: backgroundOverlayColorModel }"
+                        ></span>
+                        <span>Overlay Color</span>
+                    </label>
+                    <div class="tools-color-control">
+                        <span class="tools-hint tools-color-hint">{{ backgroundOverlayColorLabel }}</span>
+                        <ColorPicker
+                            :inputId="getInputId('background-overlay-color')"
+                            v-model="backgroundOverlayColorPickerModel"
+                            format="hex"
+                            class="tools-color-picker"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="backgroundOverlayModel"
+                    class="tools-slider-block"
+                >
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label">
+                            <span class="material-symbols-outlined">opacity</span>
+                            <span>Overlay Opacity</span>
+                        </label>
+                        <span class="tools-hint tools-slider-hint">{{ backgroundOverlayOpacityDisplay }}</span>
+                    </div>
+                    <input
+                        :id="getInputId('background-overlay-opacity')"
+                        v-model="backgroundOverlayOpacityModel"
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        class="tools-native-range"
+                        aria-label="Overlay Opacity"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Transparent</span>
+                        <span>Opaque</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -523,8 +633,17 @@
     }
 
     .tools-slider-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
         font-size: 0.85rem;
         color: rgba(255, 255, 255, 0.78);
+    }
+
+    .tools-slider-label .material-symbols-outlined {
+        font-size: 1.1rem;
+        line-height: 1;
+        opacity: 0.85;
     }
 
     .tools-slider-hint {
@@ -539,6 +658,101 @@
     .tools-slider-caption {
         color: rgba(255, 255, 255, 0.56);
         font-size: 0.72rem;
+    }
+
+    .tools-native-range {
+        -webkit-appearance: none;
+        appearance: none;
+        width: calc(100% - 1rem);
+        margin: 0 0.5rem;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        outline: none;
+        cursor: pointer;
+    }
+
+    .tools-native-range::-webkit-slider-runnable-track {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+    }
+
+    .tools-native-range::-moz-range-track {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        border: none;
+    }
+
+    .tools-native-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        margin-top: -7px;
+        border-radius: 999px;
+        background: var(--p-primary-color, #10b981);
+        border: 2px solid var(--p-primary-color, #10b981);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+    }
+
+    .tools-native-range::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: var(--p-primary-color, #10b981);
+        border: 2px solid var(--p-primary-color, #10b981);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+    }
+
+    .tools-color-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0 1rem 0.875rem;
+        color: var(--p-text-color, #fff);
+    }
+
+    .tools-color-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.875rem;
+        min-width: 0;
+        color: inherit;
+        font-size: 0.9rem;
+    }
+
+    .tools-color-swatch {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22) inset;
+        flex-shrink: 0;
+    }
+
+    .tools-color-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex-shrink: 0;
+    }
+
+    .tools-color-hint {
+        margin-left: 0;
+        text-transform: uppercase;
+    }
+
+    :deep(.tools-color-picker .p-colorpicker-preview) {
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 999px;
+    }
+
+    :deep(.tools-color-picker .p-colorpicker-panel) {
+        z-index: 5000;
     }
 
 </style>

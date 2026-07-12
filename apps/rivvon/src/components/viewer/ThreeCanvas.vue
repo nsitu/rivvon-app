@@ -59,6 +59,7 @@
         setTextureRepeatMode,
         setTextureFlipVertical,
         setNormalizeTextureOrientation,
+        updateBackground,
         syncSceneColorAdjustments,
         setContrast,
         setSaturation,
@@ -219,6 +220,10 @@
         setBackgroundFromTileManager().catch((error) => {
             console.error('[ThreeCanvas] Failed to update scene background blur:', error);
         });
+    });
+
+    watch(() => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity], () => {
+        updateBackground();
     });
 
     watch(() => app.renderFilterMode, () => {

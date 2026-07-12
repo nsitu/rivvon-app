@@ -1310,6 +1310,14 @@
     );
 
     watch(
+        () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity],
+        () => {
+            sceneBackground.updateBackground();
+            renderCurrentScene();
+        }
+    );
+
+    watch(
         () => [
             app.transparentShadowsEnabled,
             app.transparencyMode,

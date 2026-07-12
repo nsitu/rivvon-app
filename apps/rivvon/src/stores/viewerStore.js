@@ -73,6 +73,8 @@ const MAX_BACKGROUND_BLUR_AMOUNT = 50.0;
 const DEFAULT_BACKGROUND_FLOW_SPEED = 0.25;
 const MIN_BACKGROUND_FLOW_SPEED = 0.05;
 const MAX_BACKGROUND_FLOW_SPEED = 2.0;
+const DEFAULT_BACKGROUND_OVERLAY_COLOR = "#ffffff";
+const DEFAULT_BACKGROUND_OVERLAY_OPACITY = 0.35;
 const RIBBON_PATH_ALIGNMENT_MODES = ["inside", "center", "outside"];
 const SURFACE_MODES = ["ribbon", "tube"];
 const DEFAULT_TUBE_RADIUS_SCALE = 0.5;
@@ -151,6 +153,31 @@ function normalizeBackgroundFlowSpeed(value) {
     MAX_BACKGROUND_FLOW_SPEED,
     Math.max(MIN_BACKGROUND_FLOW_SPEED, parsed),
   );
+}
+
+function normalizeBackgroundOverlayOpacity(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_OVERLAY_OPACITY;
+  return Math.min(1, Math.max(0, parsed));
+}
+
+function normalizeBackgroundOverlayColor(value) {
+  if (typeof value !== "string") {
+    return DEFAULT_BACKGROUND_OVERLAY_COLOR;
+  }
+
+  const normalized = value.trim().replace(/^#/, "").toLowerCase();
+
+  if (/^[0-9a-f]{3}$/.test(normalized)) {
+    return `#${normalized
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")}`;
+  }
+
+  return /^[0-9a-f]{6}$/.test(normalized)
+    ? `#${normalized}`
+    : DEFAULT_BACKGROUND_OVERLAY_COLOR;
 }
 
 function normalizeTransparentShadowsThresholdValue(value, fallback) {
@@ -527,6 +554,16 @@ export const useViewerStore = defineStore("viewer", {
       backgroundBlurAmount: normalizeBackgroundBlurAmount(
         readViewerPreferences().backgroundBlurAmount,
       ),
+      backgroundOverlayEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundOverlayEnabled,
+        false,
+      ),
+      backgroundOverlayColor: normalizeBackgroundOverlayColor(
+        readViewerPreferences().backgroundOverlayColor,
+      ),
+      backgroundOverlayOpacity: normalizeBackgroundOverlayOpacity(
+        readViewerPreferences().backgroundOverlayOpacity,
+      ),
       textureAnimationReversed: normalizeViewerBooleanPreference(
         readViewerPreferences().textureAnimationReversed,
         false,
@@ -781,6 +818,9 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundFlowSpeed = DEFAULT_BACKGROUND_FLOW_SPEED;
       this.backgroundBlurEnabled = true;
       this.backgroundBlurAmount = DEFAULT_BACKGROUND_BLUR_AMOUNT;
+      this.backgroundOverlayEnabled = false;
+      this.backgroundOverlayColor = DEFAULT_BACKGROUND_OVERLAY_COLOR;
+      this.backgroundOverlayOpacity = DEFAULT_BACKGROUND_OVERLAY_OPACITY;
       this.textureAnimationReversed = false;
       this.peakTroughTransparencyEnabled = false;
       this.peakTroughGradientStart = DEFAULT_PEAK_TROUGH_GRADIENT_START;
@@ -849,6 +889,9 @@ export const useViewerStore = defineStore("viewer", {
         backgroundFlowSpeed: DEFAULT_BACKGROUND_FLOW_SPEED,
         backgroundBlurEnabled: true,
         backgroundBlurAmount: DEFAULT_BACKGROUND_BLUR_AMOUNT,
+        backgroundOverlayEnabled: false,
+        backgroundOverlayColor: DEFAULT_BACKGROUND_OVERLAY_COLOR,
+        backgroundOverlayOpacity: DEFAULT_BACKGROUND_OVERLAY_OPACITY,
         textureAnimationReversed: false,
         peakTroughTransparencyEnabled: false,
         peakTroughGradientStart: DEFAULT_PEAK_TROUGH_GRADIENT_START,
@@ -1048,6 +1091,24 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundBlurAmount: nextValue });
     },
 
+    setBackgroundOverlayEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.backgroundOverlayEnabled = nextValue;
+      writeViewerPreferences({ backgroundOverlayEnabled: nextValue });
+    },
+
+    setBackgroundOverlayColor(color) {
+      const nextValue = normalizeBackgroundOverlayColor(color);
+      this.backgroundOverlayColor = nextValue;
+      writeViewerPreferences({ backgroundOverlayColor: nextValue });
+    },
+
+    setBackgroundOverlayOpacity(opacity) {
+      const nextValue = normalizeBackgroundOverlayOpacity(opacity);
+      this.backgroundOverlayOpacity = nextValue;
+      writeViewerPreferences({ backgroundOverlayOpacity: nextValue });
+    },
+
     setTextureAnimationReversed(reversed) {
       const nextValue = !!reversed;
       this.textureAnimationReversed = nextValue;
@@ -1155,6 +1216,9 @@ export const useViewerStore = defineStore("viewer", {
         backgroundFlowSpeed: this.backgroundFlowSpeed,
         backgroundBlurEnabled: this.backgroundBlurEnabled,
         backgroundBlurAmount: this.backgroundBlurAmount,
+        backgroundOverlayEnabled: this.backgroundOverlayEnabled,
+        backgroundOverlayColor: this.backgroundOverlayColor,
+        backgroundOverlayOpacity: this.backgroundOverlayOpacity,
         textureAnimationReversed: this.textureAnimationReversed,
         peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
         peakTroughGradientStart: this.peakTroughGradientStart,
@@ -1232,6 +1296,9 @@ export const useViewerStore = defineStore("viewer", {
         this.backgroundFlowSpeed !== original.backgroundFlowSpeed ||
         this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
         this.backgroundBlurAmount !== original.backgroundBlurAmount ||
+        this.backgroundOverlayEnabled !== original.backgroundOverlayEnabled ||
+        this.backgroundOverlayColor !== original.backgroundOverlayColor ||
+        this.backgroundOverlayOpacity !== original.backgroundOverlayOpacity ||
         this.textureAnimationReversed !== original.textureAnimationReversed ||
         this.peakTroughTransparencyEnabled !==
           original.peakTroughTransparencyEnabled ||
