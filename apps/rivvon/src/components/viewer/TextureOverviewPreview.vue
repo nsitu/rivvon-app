@@ -1300,7 +1300,7 @@
     );
 
     watch(
-        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundBlurEnabled, app.backgroundBlurAmount],
+        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundBlurEnabled, app.backgroundBlurAmount],
         async ([enabled]) => {
             if (!tileManager || !renderer) return;
             if (enabled) await sceneBackground.setBackgroundFromTileManager({ opacity: 1 });

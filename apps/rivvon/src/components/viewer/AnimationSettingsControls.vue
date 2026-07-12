@@ -69,6 +69,11 @@
         },
     });
 
+    const backgroundFlipVerticalModel = computed({
+        get: () => app.backgroundFlipVertical,
+        set: (value) => app.setBackgroundFlipVertical(!!value),
+    });
+
     const backgroundFlowModel = computed({
         get: () => app.backgroundFlowEnabled,
         set: (value) => {
@@ -270,6 +275,23 @@
                         <ToggleSwitch
                             :inputId="getInputId('animated-background')"
                             v-model="animatedBackgroundModel"
+                        />
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('background-flip-vertical')"
+                    >
+                        <span class="material-symbols-outlined">swap_vert</span>
+                        <span>Flip Background Vertically</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundFlipVerticalModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-flip-vertical')"
+                            v-model="backgroundFlipVerticalModel"
                         />
                     </div>
                 </div>

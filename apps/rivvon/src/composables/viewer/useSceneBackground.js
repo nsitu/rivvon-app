@@ -333,7 +333,7 @@ function resolveBackgroundFrame(ctx) {
         flowOffset: flowActive ? backgroundFlow.offset : 0,
         reverseFlow: flowStep < 0,
         rotate90: tileManager?.rotate90 ? 1 : 0,
-        flipVertical: tileManager?.flipVertical ? 1 : 0,
+        flipVertical: ctx.app.backgroundFlipVertical ? 1 : 0,
         blurRadius: getBackgroundBlurRadius(ctx),
         currentSample,
         nextSample,

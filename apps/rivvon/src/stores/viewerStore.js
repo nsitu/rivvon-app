@@ -406,6 +406,10 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().animatedBackgroundEnabled,
             false
         ),
+        backgroundFlipVertical: normalizeViewerBooleanPreference(
+            readViewerPreferences().backgroundFlipVertical,
+            false
+        ),
         backgroundFlowEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().backgroundFlowEnabled,
             false
@@ -640,6 +644,7 @@ export const useViewerStore = defineStore('viewer', {
             this.flowCycleAlignmentEnabled = true;
             this.textureAnimationEnabled = true;
             this.animatedBackgroundEnabled = false;
+            this.backgroundFlipVertical = false;
             this.backgroundFlowEnabled = false;
             this.backgroundFlowSpeed = DEFAULT_BACKGROUND_FLOW_SPEED;
             this.backgroundBlurEnabled = true;
@@ -695,6 +700,7 @@ export const useViewerStore = defineStore('viewer', {
                 flowCycleAlignmentEnabled: true,
                 textureAnimationEnabled: true,
                 animatedBackgroundEnabled: false,
+                backgroundFlipVertical: false,
                 backgroundFlowEnabled: false,
                 backgroundFlowSpeed: DEFAULT_BACKGROUND_FLOW_SPEED,
                 backgroundBlurEnabled: true,
@@ -858,6 +864,12 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ animatedBackgroundEnabled: nextValue });
         },
 
+        setBackgroundFlipVertical(enabled) {
+            const nextValue = !!enabled;
+            this.backgroundFlipVertical = nextValue;
+            writeViewerPreferences({ backgroundFlipVertical: nextValue });
+        },
+
         setBackgroundFlowEnabled(enabled) {
             const nextValue = !!enabled;
             this.backgroundFlowEnabled = nextValue;
@@ -957,6 +969,7 @@ export const useViewerStore = defineStore('viewer', {
                 flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
                 textureAnimationEnabled: this.textureAnimationEnabled,
                 animatedBackgroundEnabled: this.animatedBackgroundEnabled,
+                backgroundFlipVertical: this.backgroundFlipVertical,
                 backgroundFlowEnabled: this.backgroundFlowEnabled,
                 backgroundFlowSpeed: this.backgroundFlowSpeed,
                 backgroundBlurEnabled: this.backgroundBlurEnabled,
@@ -1026,6 +1039,7 @@ export const useViewerStore = defineStore('viewer', {
                 this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
                 this.textureAnimationEnabled !== original.textureAnimationEnabled ||
                 this.animatedBackgroundEnabled !== original.animatedBackgroundEnabled ||
+                this.backgroundFlipVertical !== original.backgroundFlipVertical ||
                 this.backgroundFlowEnabled !== original.backgroundFlowEnabled ||
                 this.backgroundFlowSpeed !== original.backgroundFlowSpeed ||
                 this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
