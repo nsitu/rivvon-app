@@ -67,6 +67,9 @@ const DEFAULT_BACKGROUND_FLOW_SPEED = 0.25;
 const MIN_BACKGROUND_FLOW_SPEED = 0.05;
 const MAX_BACKGROUND_FLOW_SPEED = 2.0;
 const RIBBON_PATH_ALIGNMENT_MODES = ['inside', 'center', 'outside'];
+const SURFACE_MODES = ['ribbon', 'tube'];
+const DEFAULT_TUBE_RADIUS_SCALE = 0.5;
+const DEFAULT_TUBE_RADIAL_SEGMENTS = 8;
 function getDefaultPreferredTextureMaxResolution() {
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
         return window.matchMedia('(pointer: coarse)').matches ? 256 : 512;
@@ -276,6 +279,23 @@ function normalizeRibbonPathAlignmentMode(value) {
         : 'center';
 }
 
+function normalizeSurfaceMode(value) {
+    return SURFACE_MODES.includes(value) ? value : 'ribbon';
+}
+
+function normalizeTubeRadiusScale(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed)
+        ? Math.max(0.1, Math.min(1, parsed))
+        : DEFAULT_TUBE_RADIUS_SCALE;
+}
+
+function normalizeTubeRadialSegments(value) {
+    const parsed = Math.round(Number(value));
+    const clamped = Number.isFinite(parsed) ? Math.max(4, Math.min(24, parsed)) : DEFAULT_TUBE_RADIAL_SEGMENTS;
+    return clamped % 2 === 0 ? clamped : Math.min(24, clamped + 1);
+}
+
 function normalizeViewerBooleanPreference(value, fallback = false) {
     return typeof value === 'boolean' ? value : fallback;
 }
@@ -480,6 +500,9 @@ export const useViewerStore = defineStore('viewer', {
         ribbonPathAlignmentMode: normalizeRibbonPathAlignmentMode(
             readViewerPreferences().ribbonPathAlignmentMode
         ),
+        surfaceMode: normalizeSurfaceMode(readViewerPreferences().surfaceMode),
+        tubeRadiusScale: normalizeTubeRadiusScale(readViewerPreferences().tubeRadiusScale),
+        tubeRadialSegments: normalizeTubeRadialSegments(readViewerPreferences().tubeRadialSegments),
 
         // Geometry options
         capStyle: CAP_STYLE_ROUNDED,
@@ -722,6 +745,9 @@ export const useViewerStore = defineStore('viewer', {
             this.saturation = DEFAULT_SATURATION;
             this.ribbonWidthScale = 1;
             this.ribbonPathAlignmentMode = 'center';
+            this.surfaceMode = 'ribbon';
+            this.tubeRadiusScale = DEFAULT_TUBE_RADIUS_SCALE;
+            this.tubeRadialSegments = DEFAULT_TUBE_RADIAL_SEGMENTS;
             this.helixMode = false;
             this.helixRadius = 0.20;
             this.helixPitch = 9.0;
@@ -782,6 +808,9 @@ export const useViewerStore = defineStore('viewer', {
                 contrast: DEFAULT_CONTRAST,
                 saturation: DEFAULT_SATURATION,
                 undulationEnabled: true,
+                surfaceMode: 'ribbon',
+                tubeRadiusScale: DEFAULT_TUBE_RADIUS_SCALE,
+                tubeRadialSegments: DEFAULT_TUBE_RADIAL_SEGMENTS,
                 sphericalProjectionEnabled: false,
                 sphericalProjectionWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
                 showTextureMetadataOverlay: false,
@@ -1079,6 +1108,9 @@ export const useViewerStore = defineStore('viewer', {
                 saturation: this.saturation,
                 ribbonWidthScale: this.ribbonWidthScale,
                 ribbonPathAlignmentMode: this.ribbonPathAlignmentMode,
+                surfaceMode: this.surfaceMode,
+                tubeRadiusScale: this.tubeRadiusScale,
+                tubeRadialSegments: this.tubeRadialSegments,
                 helixMode: this.helixMode,
                 helixRadius: this.helixRadius,
                 helixPitch: this.helixPitch,
@@ -1152,6 +1184,9 @@ export const useViewerStore = defineStore('viewer', {
                 this.saturation !== original.saturation ||
                 this.ribbonWidthScale !== original.ribbonWidthScale ||
                 this.ribbonPathAlignmentMode !== original.ribbonPathAlignmentMode ||
+                this.surfaceMode !== original.surfaceMode ||
+                this.tubeRadiusScale !== original.tubeRadiusScale ||
+                this.tubeRadialSegments !== original.tubeRadialSegments ||
                 this.helixMode !== original.helixMode ||
                 this.helixRadius !== original.helixRadius ||
                 this.helixPitch !== original.helixPitch ||
@@ -1577,6 +1612,24 @@ export const useViewerStore = defineStore('viewer', {
             writeViewerPreferences({ ribbonPathAlignmentMode: nextMode });
         },
 
+        setSurfaceMode(mode) {
+            const nextMode = normalizeSurfaceMode(mode);
+            this.surfaceMode = nextMode;
+            writeViewerPreferences({ surfaceMode: nextMode });
+        },
+
+        setTubeRadiusScale(value) {
+            const nextValue = normalizeTubeRadiusScale(value);
+            this.tubeRadiusScale = nextValue;
+            writeViewerPreferences({ tubeRadiusScale: nextValue });
+        },
+
+        setTubeRadialSegments(value) {
+            const nextValue = normalizeTubeRadialSegments(value);
+            this.tubeRadialSegments = nextValue;
+            writeViewerPreferences({ tubeRadialSegments: nextValue });
+        },
+
         setCapStyle(style) {
             const nextStyle = normalizeCapStyle(style, this.roundedCaps);
             this.capStyle = nextStyle;
@@ -1619,6 +1672,9 @@ export const useViewerStore = defineStore('viewer', {
             helixStrandWidth: state.helixStrandWidth,
             ribbonWidthScale: state.ribbonWidthScale,
             ribbonPathAlignmentMode: normalizeRibbonPathAlignmentMode(state.ribbonPathAlignmentMode),
+            surfaceMode: normalizeSurfaceMode(state.surfaceMode),
+            tubeRadiusScale: normalizeTubeRadiusScale(state.tubeRadiusScale),
+            tubeRadialSegments: normalizeTubeRadialSegments(state.tubeRadialSegments),
             undulationEnabled: state.undulationEnabled,
             capStyle: normalizeCapStyle(state.capStyle, state.roundedCaps),
             roundedCaps: normalizeCapStyle(state.capStyle, state.roundedCaps) === CAP_STYLE_ROUNDED,

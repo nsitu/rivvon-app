@@ -15,6 +15,11 @@
         { label: 'Square Caps', value: 'square', icon: 'crop' }
     ];
 
+    const surfaceOptions = [
+        { label: 'Ribbon', value: 'ribbon', icon: 'gesture' },
+        { label: 'Tube', value: 'tube', icon: 'view_in_ar' }
+    ];
+
     const ribbonPathAlignmentOptions = [
         { label: 'Align to Inside', value: 'inside' },
         { label: 'Align to Centre', value: 'center' },
@@ -27,6 +32,11 @@
             if (!option?.value) return;
             app.setCapStyle(option.value);
         }
+    });
+
+    const surfaceModeModel = computed({
+        get: () => app.surfaceMode,
+        set: (value) => app.setSurfaceMode(value)
     });
 
     const doubleHelixModel = computed({
@@ -86,6 +96,51 @@
                 </div>
 
                 <div class="tools-select-block">
+                    <label class="tools-select-label">Surface</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="surfaceModeModel"
+                            :options="surfaceOptions"
+                            option-label="label"
+                            option-value="value"
+                            class="tools-select"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="app.surfaceMode === 'tube'"
+                    class="tools-geometry-details"
+                >
+                    <div class="tools-slider">
+                        <label>Tube Radius <span class="tools-slider-value">{{ app.tubeRadiusScale.toFixed(2) }}x</span></label>
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="1"
+                            step="0.05"
+                            :value="app.tubeRadiusScale"
+                            @input="app.setTubeRadiusScale(parseFloat($event.target.value))"
+                        />
+                    </div>
+                    <div class="tools-slider">
+                        <label>Tube Sides <span class="tools-slider-value">{{ app.tubeRadialSegments }}</span></label>
+                        <input
+                            type="range"
+                            min="4"
+                            max="24"
+                            step="2"
+                            :value="app.tubeRadialSegments"
+                            @input="app.setTubeRadialSegments(parseInt($event.target.value, 10))"
+                        />
+                    </div>
+                    <div class="tools-hint tools-surface-hint">Texture wraps twice with mirrored seams. Tube ends are open.</div>
+                </div>
+
+                <div
+                    v-if="app.surfaceMode !== 'tube'"
+                    class="tools-select-block"
+                >
                     <label class="tools-select-label">Path Alignment</label>
                     <div class="tools-select-wrap">
                         <Select
@@ -196,7 +251,10 @@
                     </div>
                 </div>
 
-                <div class="tools-select-block">
+                <div
+                    v-if="app.surfaceMode !== 'tube'"
+                    class="tools-select-block"
+                >
                     <label class="tools-select-label">Cap Style</label>
                     <div class="tools-select-wrap">
                         <Select
@@ -227,7 +285,10 @@
                     </div>
                 </div>
 
-                <div class="tools-toggle-row">
+                <div
+                    v-if="app.surfaceMode !== 'tube'"
+                    class="tools-toggle-row"
+                >
                     <label
                         class="tools-toggle-main"
                         :for="getInputId('corner-narrowing')"
@@ -348,6 +409,12 @@
 
     .tools-toggle-hint {
         margin-left: 0;
+    }
+
+    .tools-surface-hint {
+        margin: 0.25rem 0.75rem 0.75rem;
+        line-height: 1.4;
+        white-space: normal;
     }
 
 </style>

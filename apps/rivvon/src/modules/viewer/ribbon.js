@@ -18,6 +18,25 @@ const CURVATURE_NARROWING_FULL_ANGLE = 0.95;
 const CURVATURE_NARROWING_MIN_WIDTH = 0.45;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const WORLD_RIGHT = new THREE.Vector3(1, 0, 0);
+const MIN_TUBE_RADIAL_SEGMENTS = 4;
+const MAX_TUBE_RADIAL_SEGMENTS = 24;
+
+export function normalizeTubeRadialSegments(value) {
+    const parsed = Math.round(Number(value));
+    const clamped = Number.isFinite(parsed)
+        ? Math.max(MIN_TUBE_RADIAL_SEGMENTS, Math.min(MAX_TUBE_RADIAL_SEGMENTS, parsed))
+        : 8;
+
+    return clamped % 2 === 0 ? clamped : Math.min(MAX_TUBE_RADIAL_SEGMENTS, clamped + 1);
+}
+
+export function getMirroredTubeTextureV(radialIndex, radialSegments) {
+    const safeSegments = normalizeTubeRadialSegments(radialSegments);
+    const circumferenceT = Math.max(0, Math.min(1, Number(radialIndex) / safeSegments));
+    return circumferenceT <= 0.5
+        ? circumferenceT * 2
+        : 2 - circumferenceT * 2;
+}
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, value));
@@ -82,6 +101,9 @@ export class Ribbon {
         this.capStyle = DEFAULT_CAP_STYLE;
         this.roundedCaps = false;
         this.cornerNarrowingEnabled = false;
+        this.surfaceMode = 'ribbon';
+        this.tubeRadiusScale = 0.5;
+        this.tubeRadialSegments = 8;
         this.ribbonPathAlignmentMode = 'center';
         this.sphericalProjectionEnabled = false;
         this.sphericalProjectionRadius = 1;
@@ -135,6 +157,13 @@ export class Ribbon {
         if (options.helixPitch !== undefined) this.helixPitch = options.helixPitch;
         if (options.helixStrandWidth !== undefined) this.helixStrandWidth = options.helixStrandWidth;
         if (options.cornerNarrowingEnabled !== undefined) this.cornerNarrowingEnabled = !!options.cornerNarrowingEnabled;
+        if (options.surfaceMode !== undefined) this.surfaceMode = options.surfaceMode === 'tube' ? 'tube' : 'ribbon';
+        if (options.tubeRadiusScale !== undefined && Number.isFinite(options.tubeRadiusScale)) {
+            this.tubeRadiusScale = Math.max(0.1, Math.min(1, options.tubeRadiusScale));
+        }
+        if (options.tubeRadialSegments !== undefined) {
+            this.tubeRadialSegments = normalizeTubeRadialSegments(options.tubeRadialSegments);
+        }
         if (options.undulationEnabled !== undefined) this.undulationEnabled = !!options.undulationEnabled;
         if (options.ribbonPathAlignmentMode !== undefined) this.ribbonPathAlignmentMode = options.ribbonPathAlignmentMode || 'center';
         if (options.sphericalProjectionEnabled !== undefined) this.sphericalProjectionEnabled = !!options.sphericalProjectionEnabled;
@@ -166,8 +195,8 @@ export class Ribbon {
         }
 
         const vertexCount = position.count;
-        const startStyle = options.start ? this._getCapStyleCode() : 0;
-        const endStyle = options.end ? this._getCapStyleCode() : 0;
+        const startStyle = this.surfaceMode !== 'tube' && options.start ? this._getCapStyleCode() : 0;
+        const endStyle = this.surfaceMode !== 'tube' && options.end ? this._getCapStyleCode() : 0;
         const startValues = new Float32Array(vertexCount);
         const endValues = new Float32Array(vertexCount);
 
@@ -273,7 +302,21 @@ export class Ribbon {
             tileWorldLength,
         };
 
-        const segmentMesh = masked
+        const segmentMesh = this.surfaceMode === 'tube'
+            ? this.createTubeRibbonSegmentWithCache(
+                curve,
+                startT,
+                endT,
+                width,
+                time,
+                segmentIndex,
+                frameSamples,
+                pointsPerSegment,
+                strandOffset,
+                overrideTileManager,
+                geometryOptions
+            )
+            : masked
             ? this.createMaskedRibbonSegmentWithCache(
                 curve,
                 startT,
@@ -324,7 +367,27 @@ export class Ribbon {
         capWorldLength,
         tileWorldLength,
     }) {
-        const geometry = this.createStripRibbonSegmentGeometryWithCache(
+        const geometry = this.surfaceMode === 'tube'
+            ? this.createTubeRibbonSegmentGeometryWithCache(
+                curve,
+                this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength),
+                this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength),
+                width,
+                time,
+                interval.tileIndex,
+                frameSamples,
+                pointsPerSegment,
+                0,
+                null,
+                {
+                    uStart: interval.uStart,
+                    uEnd: interval.uEnd,
+                    capWorldLength,
+                    pathLength: this.pathLength,
+                    tileWorldLength,
+                }
+            )
+            : this.createStripRibbonSegmentGeometryWithCache(
             curve,
             this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength),
             this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength),
@@ -502,7 +565,7 @@ export class Ribbon {
             curve,
             Math.max(2, segmentCount * pointsPerSegment + 1)
         );
-        const useCornerNarrowing = this.cornerNarrowingEnabled && !this.helixMode;
+        const useCornerNarrowing = this.cornerNarrowingEnabled && !this.helixMode && this.surfaceMode !== 'tube';
         const cornerIntervalFn = useCornerNarrowing
             ? (localT, globalT, frame) => this._getCurvatureRetainedInterval(
                 frame.curvature,
@@ -593,7 +656,27 @@ export class Ribbon {
         );
 
         for (const interval of intervals) {
-            const geometry = this.createStripRibbonSegmentGeometryWithCache(
+            const geometry = this.surfaceMode === 'tube'
+                ? this.createTubeRibbonSegmentGeometryWithCache(
+                    curve,
+                    this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength),
+                    this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength),
+                    width,
+                    time,
+                    interval.tileIndex,
+                    frameSamples,
+                    pointsPerSegment,
+                    0,
+                    null,
+                    {
+                        uStart: interval.uStart,
+                        uEnd: interval.uEnd,
+                        capWorldLength,
+                        pathLength: this.pathLength,
+                        tileWorldLength,
+                    }
+                )
+                : this.createStripRibbonSegmentGeometryWithCache(
                 curve,
                 this._distanceToGlobalT(interval.visibleStartDistance, this.pathLength),
                 this._distanceToGlobalT(interval.visibleEndDistance, this.pathLength),
@@ -939,6 +1022,7 @@ export class Ribbon {
             radialDir: new THREE.Vector3(),
             acrossDir: new THREE.Vector3(),
             widthDirection: new THREE.Vector3(),
+            animatedBinormal: new THREE.Vector3(),
         };
     }
 
@@ -985,6 +1069,42 @@ export class Ribbon {
         scratch.animatedNormal.copy(scratch.widthDirection);
         scratch.animatedNormal.applyAxisAngle(frame.tangent, wavePhase);
         target.copy(frame.point).addScaledVector(scratch.animatedNormal, scaledAcross * width);
+        return target;
+    }
+
+    _setAnimatedTubeVertexPosition(target, frame, radius, theta, time, strandOffset = 0, scratch) {
+        const wavePhase = this.undulationEnabled
+            ? Math.sin(
+                frame.arcLength * this.waveFrequency * Math.PI * 2 + time * this.waveSpeed
+            ) * this.waveAmplitude
+            : 0;
+
+        if (this.helixMode) {
+            const helixAngle = frame.globalT * this.helixPitch * Math.PI * 2 + strandOffset;
+            const animatedAngle = helixAngle + wavePhase;
+            const cosA = Math.cos(animatedAngle);
+            const sinA = Math.sin(animatedAngle);
+            const helixRadius = this.helixRadius * this.lastWidth;
+
+            scratch.helixCenter.copy(frame.point)
+                .addScaledVector(frame.normal, cosA * helixRadius)
+                .addScaledVector(frame.binormal, sinA * helixRadius);
+            scratch.radialDir.copy(scratch.helixCenter).sub(frame.point).normalize();
+            scratch.acrossDir.crossVectors(frame.tangent, scratch.radialDir).normalize();
+
+            target.copy(scratch.helixCenter)
+                .addScaledVector(scratch.radialDir, Math.cos(theta) * radius)
+                .addScaledVector(scratch.acrossDir, Math.sin(theta) * radius);
+            return target;
+        }
+
+        scratch.widthDirection.copy(frame.widthDirection || frame.normal);
+        scratch.animatedNormal.copy(scratch.widthDirection).applyAxisAngle(frame.tangent, wavePhase);
+        scratch.animatedBinormal.crossVectors(frame.tangent, scratch.animatedNormal).normalize();
+
+        target.copy(frame.point)
+            .addScaledVector(scratch.animatedNormal, Math.cos(theta) * radius)
+            .addScaledVector(scratch.animatedBinormal, Math.sin(theta) * radius);
         return target;
     }
 
@@ -1046,6 +1166,7 @@ export class Ribbon {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
+        const maskVs = [];
         const edgeNoiseUs = [];
         const capStartUs = [];
         const capEndUs = [];
@@ -1088,6 +1209,7 @@ export class Ribbon {
             const capEndU = (pathLength - frame.arcLength) / capWorldLength;
             uvs.push(sampleU, 0);
             uvs.push(sampleU, 1);
+            maskVs.push(0, 1);
             edgeNoiseUs.push(edgeNoiseU);
             edgeNoiseUs.push(edgeNoiseU);
             capStartUs.push(capStartU);
@@ -1131,6 +1253,134 @@ export class Ribbon {
 
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setAttribute('maskV', new THREE.Float32BufferAttribute(maskVs, 1));
+        geometry.setAttribute('edgeNoiseU', new THREE.Float32BufferAttribute(edgeNoiseUs, 1));
+        geometry.setAttribute('capStartU', new THREE.Float32BufferAttribute(capStartUs, 1));
+        geometry.setAttribute('capEndU', new THREE.Float32BufferAttribute(capEndUs, 1));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+
+        return geometry;
+    }
+
+    createTubeRibbonSegmentWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, overrideTileManager = null, geometryOptions = {}) {
+        const geometry = this.createTubeRibbonSegmentGeometryWithCache(
+            curve,
+            startT,
+            endT,
+            width,
+            time,
+            segmentIndex,
+            frameSamples,
+            pointsPerSegment,
+            strandOffset,
+            null,
+            geometryOptions
+        );
+
+        return this._createSegmentMesh(geometry, segmentIndex, overrideTileManager);
+    }
+
+    createTubeRibbonSegmentGeometryWithCache(curve, startT, endT, width, time, segmentIndex, frameSamples, pointsPerSegment, strandOffset = 0, _widthScaleFn = null, geometryOptions = {}) {
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const uvs = [];
+        const maskVs = [];
+        const edgeNoiseUs = [];
+        const capStartUs = [];
+        const capEndUs = [];
+        const indices = [];
+        const uStart = Number.isFinite(geometryOptions.uStart) ? geometryOptions.uStart : 0;
+        const uEnd = Number.isFinite(geometryOptions.uEnd) ? geometryOptions.uEnd : 1;
+        const capWorldLength = Math.max(0.0001, Number(geometryOptions.capWorldLength) || 0.0001);
+        const pathLength = Math.max(0, Number(geometryOptions.pathLength) || this.pathLength || 0);
+        const tileWorldLength = Math.max(0.0001, Number(geometryOptions.tileWorldLength) || width || 1);
+        const radialSegments = normalizeTubeRadialSegments(this.tubeRadialSegments);
+        const ringVertexCount = radialSegments + 1;
+        const strandWidthScale = this.helixMode ? this.helixStrandWidth : 1;
+        const radius = width * strandWidthScale * this.tubeRadiusScale;
+
+        const basePositions = [];
+        const normals = [];
+        const binormals = [];
+        const widthDirections = [];
+        const tangents = [];
+        const arcLengths = [];
+        const globalTs = [];
+        const radialAngles = [];
+        const scratch = this._createAnimationScratch();
+        const vertex = new THREE.Vector3();
+
+        for (let i = 0; i <= pointsPerSegment; i++) {
+            const localT = i / pointsPerSegment;
+            const globalT = startT + (endT - startT) * localT;
+            const frame = this._sampleFrame(curve, frameSamples, globalT);
+            const sampleU = uStart + localT * (uEnd - uStart);
+            const edgeNoiseU = this.segmentOffset + frame.arcLength / tileWorldLength;
+            const capStartU = frame.arcLength / capWorldLength;
+            const capEndU = (pathLength - frame.arcLength) / capWorldLength;
+
+            for (let radialIndex = 0; radialIndex <= radialSegments; radialIndex++) {
+                const theta = (radialIndex / radialSegments) * Math.PI * 2;
+                this._setAnimatedTubeVertexPosition(
+                    vertex,
+                    frame,
+                    radius,
+                    theta,
+                    time,
+                    strandOffset,
+                    scratch
+                );
+
+                positions.push(vertex.x, vertex.y, vertex.z);
+                uvs.push(sampleU, getMirroredTubeTextureV(radialIndex, radialSegments));
+                maskVs.push(0.5);
+                edgeNoiseUs.push(edgeNoiseU);
+                capStartUs.push(capStartU);
+                capEndUs.push(capEndU);
+                basePositions.push(frame.point.clone());
+                normals.push(frame.normal.clone());
+                binormals.push(frame.binormal.clone());
+                widthDirections.push((frame.widthDirection || frame.normal).clone());
+                tangents.push(frame.tangent.clone());
+                arcLengths.push(frame.arcLength);
+                globalTs.push(frame.globalT);
+                radialAngles.push(theta);
+            }
+
+            if (i < pointsPerSegment) {
+                const ringStart = i * ringVertexCount;
+                const nextRingStart = (i + 1) * ringVertexCount;
+
+                for (let radialIndex = 0; radialIndex < radialSegments; radialIndex++) {
+                    const current = ringStart + radialIndex;
+                    const next = current + 1;
+                    const currentForward = nextRingStart + radialIndex;
+                    const nextForward = currentForward + 1;
+                    indices.push(current, next, currentForward);
+                    indices.push(next, nextForward, currentForward);
+                }
+            }
+        }
+
+        const cacheTarget = (this.helixMode && strandOffset > 0) ? this._segmentCacheB : this._segmentCache;
+        cacheTarget[segmentIndex] = {
+            surfaceMode: 'tube',
+            basePositions,
+            normals,
+            binormals,
+            widthDirections,
+            tangents,
+            arcLengths,
+            globalTs,
+            radialAngles,
+            radius,
+            strandOffset,
+        };
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setAttribute('maskV', new THREE.Float32BufferAttribute(maskVs, 1));
         geometry.setAttribute('edgeNoiseU', new THREE.Float32BufferAttribute(edgeNoiseUs, 1));
         geometry.setAttribute('capStartU', new THREE.Float32BufferAttribute(capStartUs, 1));
         geometry.setAttribute('capEndU', new THREE.Float32BufferAttribute(capEndUs, 1));
@@ -1144,6 +1394,7 @@ export class Ribbon {
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const uvs = [];
+        const maskVs = [];
         const edgeNoiseUs = [];
         const capStartUs = [];
         const capEndUs = [];
@@ -1190,6 +1441,7 @@ export class Ribbon {
             const capEndU = (pathLength - frame.arcLength) / capWorldLength;
             uvs.push(sampleU, vStart);
             uvs.push(sampleU, vEnd);
+            maskVs.push(vStart, vEnd);
             edgeNoiseUs.push(edgeNoiseU);
             edgeNoiseUs.push(edgeNoiseU);
             capStartUs.push(capStartU);
@@ -1233,6 +1485,7 @@ export class Ribbon {
 
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setAttribute('maskV', new THREE.Float32BufferAttribute(maskVs, 1));
         geometry.setAttribute('edgeNoiseU', new THREE.Float32BufferAttribute(edgeNoiseUs, 1));
         geometry.setAttribute('capStartU', new THREE.Float32BufferAttribute(capStartUs, 1));
         geometry.setAttribute('capEndU', new THREE.Float32BufferAttribute(capEndUs, 1));
@@ -1306,7 +1559,10 @@ export class Ribbon {
                 acrossValues,
                 widthScales,
                 width,
-                strandOffset
+                strandOffset,
+                surfaceMode,
+                radialAngles,
+                radius,
             } = segCache;
 
             for (let i = 0; i < basePositions.length; i++) {
@@ -1320,16 +1576,28 @@ export class Ribbon {
                     globalT: globalTs[i],
                 };
 
-                this._setAnimatedVertexPosition(
-                    vertexPosition,
-                    frame,
-                    width,
-                    acrossValues[i],
-                    widthScales[i],
-                    time,
-                    strandOffset,
-                    scratch
-                );
+                if (surfaceMode === 'tube') {
+                    this._setAnimatedTubeVertexPosition(
+                        vertexPosition,
+                        frame,
+                        radius,
+                        radialAngles[i],
+                        time,
+                        strandOffset,
+                        scratch
+                    );
+                } else {
+                    this._setAnimatedVertexPosition(
+                        vertexPosition,
+                        frame,
+                        width,
+                        acrossValues[i],
+                        widthScales[i],
+                        time,
+                        strandOffset,
+                        scratch
+                    );
+                }
 
                 const idx = i * 3;
                 positions[idx] = vertexPosition.x;
@@ -1341,7 +1609,9 @@ export class Ribbon {
             positionAttr.needsUpdate = true;
 
             // Recompute vertex normals for correct lighting
-            mesh.geometry.computeVertexNormals();
+            if (surfaceMode !== 'tube') {
+                mesh.geometry.computeVertexNormals();
+            }
         }
     }
 

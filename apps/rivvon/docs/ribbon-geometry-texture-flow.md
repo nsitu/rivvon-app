@@ -77,6 +77,27 @@ V = 0 (left edge) to 1 (right edge)
 
 This 1:1 segment-to-tile mapping is the core constraint that ties geometry to texture management.
 
+### Tube Surface Mode
+
+The Geometry panel can switch each strand from the default planar `ribbon` surface to a `tube` surface. Tube mode preserves the same curve, segment intervals, global tile indices, and along-path `U` coordinate. It replaces each two-vertex strip sample with an even-sided circular ring built from the ribbon's rotation-minimizing normal/binormal frame.
+
+The same texture is sampled twice around the circumference without duplicating texture resources:
+
+```
+circumference: 0 -> 0.5 -> 1
+texture V:     0 -> 1   -> 0
+```
+
+The second half is therefore a mirrored copy of the first. Both longitudinal joins meet on the same texture edge. A separate `maskV` attribute remains fixed at the centre of the planar profile in tube mode, so Edge Drift and Filmstrip effects do not interpret the texture joins as physical ribbon edges.
+
+Current tube-mode boundaries:
+
+- tube ends are open;
+- planar cap profiles and Adaptive Corner Narrowing are not applied;
+- materials remain unlit, so volume comes from the cylindrical silhouette, depth, and texture foreshortening;
+- radial resolution and radius are persisted viewer settings;
+- conveyor flow and Mirror Bounce continue to operate along path `U` exactly as they do for flat ribbons.
+
 ### End Caps
 
 The first and last segments can use SVG-driven cap profiles instead of the standard strip geometry. Current cap styles are square, rounded, pointed, and swallowtail. Profile caps still preserve the same per-segment U mapping.

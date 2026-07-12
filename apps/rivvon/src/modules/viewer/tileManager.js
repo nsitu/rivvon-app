@@ -1307,12 +1307,14 @@ export class TileManager {
             },
             vertexShader: /* glsl */`
                 in float edgeNoiseU;
+                in float maskV;
                 in float capStartStyle;
                 in float capEndStyle;
                 in float capStartU;
                 in float capEndU;
                 out vec2 vUv;
                 out float vEdgeNoiseU;
+                out float vMaskV;
                 out float vCapStartStyle;
                 out float vCapEndStyle;
                 out float vCapStartU;
@@ -1320,6 +1322,7 @@ export class TileManager {
                 void main() {
                     vUv = uv;
                     vEdgeNoiseU = edgeNoiseU;
+                    vMaskV = maskV;
                     vCapStartStyle = capStartStyle;
                     vCapEndStyle = capEndStyle;
                     vCapStartU = capStartU;
@@ -1332,6 +1335,7 @@ export class TileManager {
                 precision highp sampler2DArray;
                 in vec2 vUv;
                 in float vEdgeNoiseU;
+                in float vMaskV;
                 in float vCapStartStyle;
                 in float vCapEndStyle;
                 in float vCapStartU;
@@ -1376,6 +1380,7 @@ ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
 
                 void main() {
+                    vec2 maskUv = vec2(vUv.x, vMaskV);
                     // Apply flow offset to U coordinate (slides along ribbon)
                     float shiftedU = vUv.x + uFlowOffset;
                     float nextShiftedU = ${reverseFlow ? 'shiftedU + 1.0' : 'shiftedU - 1.0'};
@@ -1451,9 +1456,9 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         ? 'shiftedU < 0.0 ? peakTroughAlphaNext : peakTroughAlphaCurrent'
                         : 'shiftedU >= 1.0 ? peakTroughAlphaNext : peakTroughAlphaCurrent'};
 
-                    texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
-                    texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
-                    texColor.a *= computeFilmstripAlpha(vUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
+                    texColor.a *= computeCapAlpha(vec2(vCapStartU, vMaskV), vec2(vCapEndU, vMaskV), vCapStartStyle, vCapEndStyle);
+                    texColor.a *= computeEdgeNoiseAlpha(maskUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
+                    texColor.a *= computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
                     if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001 || uFilmstripEnabled > 0.5) && texColor.a <= 0.001) discard;
 
                     if (uTransparentShadows == 1) {
@@ -1491,6 +1496,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
             capEndStyle: [0],
             capStartU: [1],
             capEndU: [1],
+            maskV: [0.5],
         };
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
@@ -1562,6 +1568,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
 
         const baseUV = uv();
         const edgeNoiseU = attribute('edgeNoiseU', 'float');
+        const maskUV = vec2(baseUV.x, attribute('maskV', 'float'));
         
         // Apply flow offset
         const shiftedU = baseUV.x.add(flowOffsetUniform);
@@ -1630,11 +1637,11 @@ ${SCENE_COLOR_ADJUST_GLSL}
             ? shiftedU.lessThan(float(0.0)).select(peakTroughAlphaNext, peakTroughAlphaCurrent)
             : shiftedU.greaterThanEqual(1.0).select(peakTroughAlphaNext, peakTroughAlphaCurrent);
 
-        const capAlpha = createCapAlphaNode(threeTSL, baseUV);
+        const capAlpha = createCapAlphaNode(threeTSL, maskUV);
 
         const edgeNoiseAlpha = createEdgeNoiseAlphaNode(
             threeTSL,
-            baseUV,
+            maskUV,
             edgeNoiseU,
             edgeNoiseMaxUniform,
             edgeNoisePhaseUniform,
@@ -1643,7 +1650,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         );
         const filmstripAlpha = createFilmstripAlphaNode(
             threeTSL,
-            baseUV,
+            maskUV,
             edgeNoiseU,
             filmstripEnabledUniform,
             filmstripGapLengthUniform,
@@ -1693,6 +1700,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
             capEndStyle: [0],
             capStartU: [1],
             capEndU: [1],
+            maskV: [0.5],
         };
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
@@ -1851,12 +1859,14 @@ ${SCENE_COLOR_ADJUST_GLSL}
             },
             vertexShader: /* glsl */`
                 in float edgeNoiseU;
+                in float maskV;
                 in float capStartStyle;
                 in float capEndStyle;
                 in float capStartU;
                 in float capEndU;
                 out vec2 vUv;
                 out float vEdgeNoiseU;
+                out float vMaskV;
                 out float vCapStartStyle;
                 out float vCapEndStyle;
                 out float vCapStartU;
@@ -1864,6 +1874,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 void main() {
                     vUv = uv;
                     vEdgeNoiseU = edgeNoiseU;
+                    vMaskV = maskV;
                     vCapStartStyle = capStartStyle;
                     vCapEndStyle = capEndStyle;
                     vCapStartU = capStartU;
@@ -1876,6 +1887,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 precision highp sampler2DArray;
                 in vec2 vUv;
                 in float vEdgeNoiseU;
+                in float vMaskV;
                 in float vCapStartStyle;
                 in float vCapEndStyle;
                 in float vCapStartU;
@@ -1916,6 +1928,7 @@ ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
 
                 void main() {
+                    vec2 maskUv = vec2(vUv.x, vMaskV);
                     bool mirrorV = (uFlipVertical == 1) != (uMirrorY == 1);
                     float sampleV = mirrorV ? (1.0 - vUv.y) : vUv.y;
                     vec2 sampleUV = vec2((uMirrorX == 1) ? (1.0 - vUv.x) : vUv.x, sampleV);
@@ -1935,9 +1948,9 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         uPeakTroughGradientEnd,
                         uPeakTroughTransparency
                     );
-                    texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
-                    texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
-                    texColor.a *= computeFilmstripAlpha(vUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
+                    texColor.a *= computeCapAlpha(vec2(vCapStartU, vMaskV), vec2(vCapEndU, vMaskV), vCapStartStyle, vCapEndStyle);
+                    texColor.a *= computeEdgeNoiseAlpha(maskUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
+                    texColor.a *= computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
                     if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001 || uFilmstripEnabled > 0.5) && texColor.a <= 0.001) discard;
 
                     if (uTransparentShadows == 1) {
@@ -1985,6 +1998,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
             capEndStyle: [0],
             capStartU: [1],
             capEndU: [1],
+            maskV: [0.5],
         };
         material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
 
@@ -2059,6 +2073,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         // Get base UV coordinates
         const baseUV = uv();
         const edgeNoiseU = attribute('edgeNoiseU', 'float');
+        const maskUV = vec2(baseUV.x, attribute('maskV', 'float'));
         const mirroredV = float(1).sub(baseUV.y);
         const sampledV = flipVerticalUniform.equal(1)
             .select(
@@ -2100,11 +2115,11 @@ ${SCENE_COLOR_ADJUST_GLSL}
             peakTroughGradientEndUniform,
             peakTroughTransparencyUniform
         );
-        const capAlpha = createCapAlphaNode(threeTSL, baseUV);
+        const capAlpha = createCapAlphaNode(threeTSL, maskUV);
 
         const edgeNoiseAlpha = createEdgeNoiseAlphaNode(
             threeTSL,
-            baseUV,
+            maskUV,
             edgeNoiseU,
             edgeNoiseMaxUniform,
             edgeNoisePhaseUniform,
@@ -2113,7 +2128,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         );
         const filmstripAlpha = createFilmstripAlphaNode(
             threeTSL,
-            baseUV,
+            maskUV,
             edgeNoiseU,
             filmstripEnabledUniform,
             filmstripGapLengthUniform,
@@ -2183,6 +2198,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
             capEndStyle: [0],
             capStartU: [1],
             capEndU: [1],
+            maskV: [0.5],
         };
 
         console.log('[TileManager] WebGPU material created:', {
