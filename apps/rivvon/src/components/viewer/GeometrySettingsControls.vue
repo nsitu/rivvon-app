@@ -115,7 +115,8 @@
                     class="tools-geometry-details"
                 >
                     <div class="tools-slider">
-                        <label>Tube Radius <span class="tools-slider-value">{{ app.tubeRadiusScale.toFixed(2) }}x</span></label>
+                        <label>Tube Radius <span class="tools-slider-value">{{ app.tubeRadiusScale.toFixed(2)
+                                }}x</span></label>
                         <input
                             type="range"
                             min="0.1"
@@ -137,7 +138,8 @@
                         />
                     </div>
                     <div class="tools-slider">
-                        <label>Join Offset <span class="tools-slider-value">{{ tubeJoinOffsetDegreesLabel }}</span></label>
+                        <label>Join Offset <span class="tools-slider-value">{{ tubeJoinOffsetDegreesLabel
+                                }}</span></label>
                         <input
                             type="range"
                             min="0"
@@ -147,7 +149,8 @@
                             @input="app.setTubeTextureJoinOffsetDegrees(parseInt($event.target.value, 10))"
                         />
                     </div>
-                    <div class="tools-hint tools-surface-hint">Texture wraps twice with mirrored seams. Tube ends are open.</div>
+                    <div class="tools-hint tools-surface-hint">Texture wraps twice with mirrored seams. Tube ends are
+                        open.</div>
                 </div>
 
                 <div
@@ -177,7 +180,7 @@
                         </label>
                         <div class="tools-toggle-control">
                             <span class="tools-hint tools-toggle-hint">{{ sphericalProjectionModel ? 'On' : 'Off'
-                            }}</span>
+                                }}</span>
                             <ToggleSwitch
                                 :inputId="getInputId('spherical-projection')"
                                 v-model="sphericalProjectionModel"
@@ -226,7 +229,7 @@
                     >
                         <div class="tools-slider">
                             <label>Radius <span class="tools-slider-value">{{ app.helixRadius.toFixed(2)
-                                    }}</span></label>
+                            }}</span></label>
                             <input
                                 type="range"
                                 min="0.1"
@@ -251,7 +254,7 @@
 
                         <div class="tools-slider">
                             <label>Strand Width <span class="tools-slider-value">{{ app.helixStrandWidth.toFixed(2)
-                                    }}</span></label>
+                            }}</span></label>
                             <input
                                 type="range"
                                 min="0.05"
@@ -282,7 +285,7 @@
                                     class="tools-select-row"
                                 >
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
                                 <span v-else>{{ slotProps.placeholder }}</span>
@@ -290,7 +293,7 @@
                             <template #option="slotProps">
                                 <div class="tools-select-row">
                                     <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                        }}</span>
+                                    }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
                             </template>
