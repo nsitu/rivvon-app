@@ -170,6 +170,7 @@ export function useThreeSetup() {
                 webgpuMaterialMode: 'node'
             });
             await tileManager.value.loadAllTiles();
+            app.setActiveTextureCrossSectionType(tileManager.value.variant);
 
             // Sync flow animation state from store
             ribbons.setFlowState(app.flowState);

@@ -47,6 +47,14 @@ export function useTextureLoader(ctx, deps = {}) {
             clearMultiTextureState();
         }
 
+        const activeManagers = ctx.tileManagers.value.length > 0
+            ? ctx.tileManagers.value
+            : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        const activeTypes = new Set(activeManagers.map(manager => manager?.variant).filter(Boolean));
+        ctx.app.setActiveTextureCrossSectionType(
+            activeTypes.size === 1 ? [...activeTypes][0] : null
+        );
+
         deps.setFlowState?.(ctx.app.flowState);
         deps.rebuildRibbonsWithNewTextures?.();
         await deps.setBackgroundFromTileManager?.();

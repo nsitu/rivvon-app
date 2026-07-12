@@ -16,6 +16,8 @@ const CAP_ALPHA_AA_SCALE = 0.7;
 const CAP_ALPHA_MIN_AA = 1 / 4096;
 const TRANSPARENT_SHADOWS_LUMA_MIN = 0.2;
 const TRANSPARENT_SHADOWS_LUMA_MAX = 0.5;
+const PEAK_TROUGH_FADE_START = 0.65;
+const PEAK_TROUGH_MIN_ALPHA = 0.1;
 const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
 const MAX_EDGE_NOISE_TRANSPARENCY = 0.5;
 const DEFAULT_EDGE_DRIFT_ENABLED = false;
@@ -68,6 +70,27 @@ const CAP_ALPHA_GLSL = /* glsl */`
                     float signedDistance = min(startSignedDistance, endSignedDistance);
                     float aa = max(fwidth(signedDistance) * ${CAP_ALPHA_AA_SCALE.toFixed(1)}, ${CAP_ALPHA_MIN_AA});
                     return smoothstep(-aa, aa, signedDistance);
+                }
+`;
+
+const PEAK_TROUGH_ALPHA_GLSL = /* glsl */`
+                float computePeakTroughAlpha(
+                    float temporalUv,
+                    float tileIndex,
+                    float tileCount,
+                    float layerIndex,
+                    float layerCount,
+                    float enabled
+                ) {
+                    if (enabled < 0.5 || tileCount < 1.0 || layerCount < 1.0) {
+                        return 1.0;
+                    }
+
+                    float globalProgress = (tileIndex + clamp(temporalUv, 0.0, 1.0)) / tileCount;
+                    float layerPhase = layerIndex / layerCount;
+                    float extremity = abs(sin(6.28318530718 * (globalProgress + layerPhase)));
+                    float mask = smoothstep(${PEAK_TROUGH_FADE_START.toFixed(2)}, 1.0, extremity);
+                    return mix(1.0, ${PEAK_TROUGH_MIN_ALPHA.toFixed(1)}, mask);
                 }
 `;
 
@@ -383,6 +406,31 @@ function normalizeRepeatMode(mode) {
     }
 
     return 'wrap';
+}
+
+function createPeakTroughAlphaNode(
+    threeTSL,
+    temporalUV,
+    tileIndex,
+    tileCount,
+    layerIndex,
+    layerCount,
+    enabledUniform
+) {
+    const { float, abs, smoothstep, mix } = threeTSL;
+    const safeTileCount = float(Math.max(1, tileCount));
+    const safeLayerCount = float(Math.max(1, layerCount));
+    const globalProgress = temporalUV
+        .max(float(0.0))
+        .min(float(1.0))
+        .add(float(tileIndex))
+        .div(safeTileCount);
+    const layerPhase = layerIndex.div(safeLayerCount);
+    const extremity = abs(globalProgress.add(layerPhase).mul(float(Math.PI * 2)).sin());
+    const mask = smoothstep(float(PEAK_TROUGH_FADE_START), float(1.0), extremity);
+    const alpha = mix(float(1.0), float(PEAK_TROUGH_MIN_ALPHA), mask);
+
+    return enabledUniform.greaterThan(float(0.5)).select(alpha, float(1.0));
 }
 
 function resolveMirrorY(materialOptions = null) {
@@ -1208,6 +1256,8 @@ export class TileManager {
      */
     #createDualTextureMaterialWebGL(textureCurrent, textureNext, options = {}) {
         const layerCount = textureCurrent.image?.depth || 1;
+        const currentTileIndex = Number(options.currentTileIndex) || 0;
+        const nextTileIndex = Number(options.nextTileIndex) || 0;
         const mirrorCurrent = options.mirrorCurrent ? 1 : 0;
         const mirrorNext = options.mirrorNext ? 1 : 0;
         const mirrorY = options.mirrorY ? 1 : 0;
@@ -1227,6 +1277,10 @@ export class TileManager {
                 uMirrorNext: { value: mirrorNext },
                 uMirrorY: { value: mirrorY },
                 uFlowOffset: this.sharedFlowOffsetUniform,
+                uPeakTroughTransparency: { value: 0 },
+                uTileCount: { value: Math.max(1, this.tileCount) },
+                uCurrentTileIndex: { value: currentTileIndex },
+                uNextTileIndex: { value: nextTileIndex },
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
@@ -1277,12 +1331,17 @@ export class TileManager {
                 uniform sampler2DArray uTexArrayCurrent;
                 uniform sampler2DArray uTexArrayNext;
                 uniform int uLayer;
+                uniform float uLayerCount;
                 uniform int uRotate90;
                 uniform int uFlipVertical;
                 uniform int uMirrorCurrent;
                 uniform int uMirrorNext;
                 uniform int uMirrorY;
                 uniform float uFlowOffset;
+                uniform float uPeakTroughTransparency;
+                uniform float uTileCount;
+                uniform float uCurrentTileIndex;
+                uniform float uNextTileIndex;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
@@ -1301,6 +1360,7 @@ export class TileManager {
                 out vec4 outColor;
 
 ${CAP_ALPHA_GLSL}
+${PEAK_TROUGH_ALPHA_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
@@ -1357,6 +1417,25 @@ ${SCENE_COLOR_ADJUST_GLSL}
                     vec4 texColor = ${reverseFlow
                         ? 'shiftedU < 0.0 ? texColorNext : texColorCurrent'
                         : 'shiftedU >= 1.0 ? texColorNext : texColorCurrent'};
+                    float peakTroughAlphaCurrent = computePeakTroughAlpha(
+                        flippedUvCurrent.y,
+                        uCurrentTileIndex,
+                        uTileCount,
+                        float(uLayer),
+                        float(uLayerCount),
+                        uPeakTroughTransparency
+                    );
+                    float peakTroughAlphaNext = computePeakTroughAlpha(
+                        flippedUvNext.y,
+                        uNextTileIndex,
+                        uTileCount,
+                        float(uLayer),
+                        float(uLayerCount),
+                        uPeakTroughTransparency
+                    );
+                    texColor.a *= ${reverseFlow
+                        ? 'shiftedU < 0.0 ? peakTroughAlphaNext : peakTroughAlphaCurrent'
+                        : 'shiftedU >= 1.0 ? peakTroughAlphaNext : peakTroughAlphaCurrent'};
 
                     texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
                     texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
@@ -1404,6 +1483,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
+        material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
         material._edgeNoiseMaxUniform = material.uniforms.uEdgeNoiseMax;
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
@@ -1429,6 +1509,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const { NodeMaterial } = threeWebGPU;
         const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
+        const currentTileIndex = Number(options.currentTileIndex) || 0;
+        const nextTileIndex = Number(options.nextTileIndex) || 0;
         const reverseFlow = this.flowDirection < 0;
         const hasCapMask = true;
 
@@ -1440,6 +1522,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const mirrorNextUniform = uniform(options.mirrorNext ? 1 : 0);
         const mirrorYUniform = uniform(options.mirrorY ? 1 : 0);
         const flowOffsetUniform = uniform(this.sharedFlowOffsetUniform.value);
+        const peakTroughTransparencyUniform = uniform(0);
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
@@ -1503,6 +1586,27 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const sampledColor = reverseFlow
             ? shiftedU.lessThan(float(0.0)).select(colorNext, colorCurrent)
             : shiftedU.greaterThanEqual(1.0).select(colorNext, colorCurrent);
+        const peakTroughAlphaCurrent = createPeakTroughAlphaNode(
+            threeTSL,
+            finalUVCurrent.y,
+            currentTileIndex,
+            this.tileCount,
+            layerUniform,
+            layerCount,
+            peakTroughTransparencyUniform
+        );
+        const peakTroughAlphaNext = createPeakTroughAlphaNode(
+            threeTSL,
+            finalUVNext.y,
+            nextTileIndex,
+            this.tileCount,
+            layerUniform,
+            layerCount,
+            peakTroughTransparencyUniform
+        );
+        const peakTroughAlpha = reverseFlow
+            ? shiftedU.lessThan(float(0.0)).select(peakTroughAlphaNext, peakTroughAlphaCurrent)
+            : shiftedU.greaterThanEqual(1.0).select(peakTroughAlphaNext, peakTroughAlphaCurrent);
 
         const capAlpha = createCapAlphaNode(threeTSL, baseUV);
 
@@ -1526,8 +1630,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
             filmstripRoundednessUniform
         );
         const finalColor = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
-            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha).mul(filmstripAlpha));
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(peakTroughAlpha).mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
+            : vec4(sampledColor.rgb, sampledColor.a.mul(peakTroughAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha));
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
             .div(transparentShadowsSpan)
@@ -1573,6 +1677,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentHighlightsUniform = transparentHighlightsUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
+        material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
         material._edgeNoiseMaxUniform = edgeNoiseMaxUniform;
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
@@ -1626,6 +1731,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         let material;
         if (this.rendererType === 'webgpu') {
             material = this.#createDualTextureMaterialWebGPU(textureCurrent, textureNext, {
+                currentTileIndex: currentTileIdx,
+                nextTileIndex: nextTileIdx,
                 mirrorCurrent: currentSample.mirrorX,
                 mirrorNext: nextSample.mirrorX,
                 mirrorY,
@@ -1633,6 +1740,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
             });
         } else {
             material = this.#createDualTextureMaterialWebGL(textureCurrent, textureNext, {
+                currentTileIndex: currentTileIdx,
+                nextTileIndex: nextTileIdx,
                 mirrorCurrent: currentSample.mirrorX,
                 mirrorNext: nextSample.mirrorX,
                 mirrorY,
@@ -1680,6 +1789,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
 
     #createArrayMaterialWebGL(arrayTexture, options = {}) {
         const layerCount = arrayTexture.image?.depth || 1;
+        const tileIndex = Number(options.tileIndex) || 0;
         const mirrorX = options.mirrorX ? 1 : 0;
         const mirrorY = options.mirrorY ? 1 : 0;
         const hasCapMask = true;
@@ -1694,6 +1804,9 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uFlipVertical: this.sharedFlipVerticalUniform,
                 uMirrorX: { value: mirrorX },
                 uMirrorY: { value: mirrorY },
+                uPeakTroughTransparency: { value: 0 },
+                uTileCount: { value: Math.max(1, this.tileCount) },
+                uTileIndex: { value: tileIndex },
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
@@ -1743,10 +1856,14 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 in float vCapEndU;
                 uniform sampler2DArray uTexArray;
                 uniform int uLayer;
+                uniform float uLayerCount;
                 uniform int uRotate90;
                 uniform int uFlipVertical;
                 uniform int uMirrorX;
                 uniform int uMirrorY;
+                uniform float uPeakTroughTransparency;
+                uniform float uTileCount;
+                uniform float uTileIndex;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
                 uniform float uTransparentShadowsThresholdMin;
@@ -1765,6 +1882,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 out vec4 outColor;
 
 ${CAP_ALPHA_GLSL}
+${PEAK_TROUGH_ALPHA_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
@@ -1779,6 +1897,14 @@ ${SCENE_COLOR_ADJUST_GLSL}
                     // Flip V to match texture orientation
                     vec2 flippedUv = vec2(uvR.x, 1.0 - uvR.y);
                     vec4 texColor = texture(uTexArray, vec3(flippedUv, float(uLayer)));
+                    texColor.a *= computePeakTroughAlpha(
+                        flippedUv.y,
+                        uTileIndex,
+                        uTileCount,
+                        float(uLayer),
+                        uLayerCount,
+                        uPeakTroughTransparency
+                    );
                     texColor.a *= computeCapAlpha(vec2(vCapStartU, vUv.y), vec2(vCapEndU, vUv.y), vCapStartStyle, vCapEndStyle);
                     texColor.a *= computeEdgeNoiseAlpha(vUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
                     texColor.a *= computeFilmstripAlpha(vUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
@@ -1811,6 +1937,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
+        material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
         material._edgeNoiseMaxUniform = material.uniforms.uEdgeNoiseMax;
         material._edgeNoiseSpatialFrequencyUniform = material.uniforms.uEdgeNoiseSpatialFrequency;
         material._edgeNoiseMirrorUniform = material.uniforms.uEdgeNoiseMirror;
@@ -1837,6 +1964,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const { NodeMaterial } = threeWebGPU;
         const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
+        const tileIndex = Number(options.tileIndex) || 0;
         const hasCapMask = true;
 
         // Simple fallback path: use a non-array texture in a MeshBasicMaterial
@@ -1875,6 +2003,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const mirrorUniform = uniform(options.mirrorX ? 1 : 0);
         const mirrorYUniform = uniform(options.mirrorY ? 1 : 0);
         const transparentShadowsUniform = uniform(0);
+        const peakTroughTransparencyUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
@@ -1926,6 +2055,15 @@ ${SCENE_COLOR_ADJUST_GLSL}
         // Create NodeMaterial with texture array sampling using .depth()
         const material = new NodeMaterial();
         const sampledColor = texture(arrayTexture, finalUV).depth(layerUniform);
+        const peakTroughAlpha = createPeakTroughAlphaNode(
+            threeTSL,
+            finalUV.y,
+            tileIndex,
+            this.tileCount,
+            layerUniform,
+            layerCount,
+            peakTroughTransparencyUniform
+        );
         const capAlpha = createCapAlphaNode(threeTSL, baseUV);
 
         const edgeNoiseAlpha = createEdgeNoiseAlphaNode(
@@ -1948,8 +2086,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
             filmstripRoundednessUniform
         );
         const finalColor = hasCapMask
-            ? vec4(sampledColor.rgb, sampledColor.a.mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
-            : vec4(sampledColor.rgb, sampledColor.a.mul(edgeNoiseAlpha).mul(filmstripAlpha));
+            ? vec4(sampledColor.rgb, sampledColor.a.mul(peakTroughAlpha).mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
+            : vec4(sampledColor.rgb, sampledColor.a.mul(peakTroughAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha));
         const luminance = dot(finalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
         const transparencyFactor = luminance.sub(transparentShadowsMinUniform)
             .div(transparentShadowsSpan)
@@ -1989,6 +2127,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._transparentHighlightsUniform = transparentHighlightsUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
+        material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
         material._edgeNoiseMaxUniform = edgeNoiseMaxUniform;
         material._edgeNoiseSpatialFrequencyUniform = edgeNoiseSpatialFrequencyUniform;
         material._edgeNoiseMirrorUniform = edgeNoiseMirrorUniform;
@@ -2083,7 +2222,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
         }
 
         this.arrayTextures[tileIndex] = arrayTexture;
-        return this.#createArrayMaterial(arrayTexture);
+        return this.#createArrayMaterial(arrayTexture, { tileIndex });
     }
 
     async #loadKTX2Tile(index) {
@@ -2230,7 +2369,11 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 return baseMaterial;
             }
 
-            mirroredMaterial = this.#createArrayMaterial(arrayTexture, { mirrorX, mirrorY });
+            mirroredMaterial = this.#createArrayMaterial(arrayTexture, {
+                tileIndex: sample.tileIndex,
+                mirrorX,
+                mirrorY,
+            });
             this.mirroredMaterials.set(mirrorKey, mirroredMaterial);
         }
 

@@ -99,6 +99,15 @@
         },
     });
 
+    const peakTroughTransparencyAvailable = computed(
+        () => app.activeTextureCrossSectionType === 'waves'
+    );
+
+    const peakTroughTransparencyModel = computed({
+        get: () => peakTroughTransparencyAvailable.value && app.peakTroughTransparencyEnabled,
+        set: (value) => app.setPeakTroughTransparencyEnabled(!!value),
+    });
+
     function handleFlowSpeedInput(event) {
         app.setFlowSpeed(parseFloat(event.target.value));
     }
@@ -250,6 +259,33 @@
                         <ToggleSwitch
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tools-section">
+            <div class="tools-section-label">Peak and Trough Effects</div>
+            <div class="tools-section-items">
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('peak-trough-transparency')"
+                    >
+                        <span class="material-symbols-outlined">opacity</span>
+                        <span>Peak/Trough Transparency</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">
+                            {{ peakTroughTransparencyAvailable
+                                ? (peakTroughTransparencyModel ? 'On' : 'Off')
+                                : 'Waves only' }}
+                        </span>
+                        <ToggleSwitch
+                            :inputId="getInputId('peak-trough-transparency')"
+                            v-model="peakTroughTransparencyModel"
+                            :disabled="!peakTroughTransparencyAvailable"
                         />
                     </div>
                 </div>

@@ -428,6 +428,10 @@ export const useViewerStore = defineStore('viewer', {
             readViewerPreferences().textureAnimationReversed,
             false
         ),
+        peakTroughTransparencyEnabled: normalizeViewerBooleanPreference(
+            readViewerPreferences().peakTroughTransparencyEnabled,
+            false
+        ),
         undulationEnabled: normalizeViewerBooleanPreference(
             readViewerPreferences().undulationEnabled,
             true
@@ -521,6 +525,7 @@ export const useViewerStore = defineStore('viewer', {
         currentTextureId: null,
         currentTextureName: '',
         currentTextureDescription: '',
+        activeTextureCrossSectionType: null,
         thumbnailUrl: null,
         activeTextureIds: [],      // Array of texture IDs when multi-texture is active
         multiTextureActive: false, // True when multiple textures are loaded simultaneously
@@ -650,6 +655,7 @@ export const useViewerStore = defineStore('viewer', {
             this.backgroundBlurEnabled = true;
             this.backgroundBlurAmount = DEFAULT_BACKGROUND_BLUR_AMOUNT;
             this.textureAnimationReversed = false;
+            this.peakTroughTransparencyEnabled = false;
             this.textureRepeatMode = 'mirrorTile';
             this.normalizeTextureOrientation = true;
             this.textureFlipVertical = false;
@@ -706,6 +712,7 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurEnabled: true,
                 backgroundBlurAmount: DEFAULT_BACKGROUND_BLUR_AMOUNT,
                 textureAnimationReversed: false,
+                peakTroughTransparencyEnabled: false,
                 normalizeTextureOrientation: true,
                 textureFlipVertical: false,
                 textureOverviewFlipVertical: false,
@@ -899,6 +906,20 @@ export const useViewerStore = defineStore('viewer', {
             this.textureAnimationReversed = nextValue;
             writeViewerPreferences({ textureAnimationReversed: nextValue });
         },
+
+        setPeakTroughTransparencyEnabled(enabled) {
+            const nextValue = !!enabled && this.activeTextureCrossSectionType === 'waves';
+            this.peakTroughTransparencyEnabled = nextValue;
+            writeViewerPreferences({ peakTroughTransparencyEnabled: nextValue });
+        },
+
+        setActiveTextureCrossSectionType(type) {
+            const nextType = type === 'waves' || type === 'planes' ? type : null;
+            this.activeTextureCrossSectionType = nextType;
+            if (nextType !== 'waves' && this.peakTroughTransparencyEnabled) {
+                this.setPeakTroughTransparencyEnabled(false);
+            }
+        },
         
         showBetaModal(reason = 'default') {
             this.betaModalReason = reason;
@@ -975,6 +996,7 @@ export const useViewerStore = defineStore('viewer', {
                 backgroundBlurEnabled: this.backgroundBlurEnabled,
                 backgroundBlurAmount: this.backgroundBlurAmount,
                 textureAnimationReversed: this.textureAnimationReversed,
+                peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
                 textureRepeatMode: this.textureRepeatMode,
                 normalizeTextureOrientation: this.normalizeTextureOrientation,
                 textureFlipVertical: this.textureFlipVertical,
@@ -1045,6 +1067,7 @@ export const useViewerStore = defineStore('viewer', {
                 this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
                 this.backgroundBlurAmount !== original.backgroundBlurAmount ||
                 this.textureAnimationReversed !== original.textureAnimationReversed ||
+                this.peakTroughTransparencyEnabled !== original.peakTroughTransparencyEnabled ||
                 this.textureRepeatMode !== original.textureRepeatMode ||
                 this.normalizeTextureOrientation !== original.normalizeTextureOrientation ||
                 this.textureFlipVertical !== original.textureFlipVertical ||

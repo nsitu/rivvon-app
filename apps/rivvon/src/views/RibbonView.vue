@@ -413,6 +413,7 @@
                 setBackgroundFromTileManager: threeCanvasRef.value.setBackgroundFromTileManager,
             }
         );
+        app.setActiveTextureCrossSectionType(threeCanvasRef.value.tileManager?.variant);
 
         app.setThumbnailUrl(null);
 
