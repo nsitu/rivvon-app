@@ -1,6 +1,7 @@
 ﻿<script setup>
     import { computed, getCurrentInstance, ref, watch } from 'vue';
     import ColorPicker from 'primevue/colorpicker';
+    import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -133,14 +134,55 @@
         },
     });
 
-    const peakTroughTransparencyAvailable = computed(
+    const peakTroughEffectAvailable = computed(
         () => app.activeTextureCrossSectionType === 'waves'
     );
 
+    const peakTroughEffectOptions = [
+        { label: 'Off', value: 'none', icon: 'block' },
+        { label: 'Transparency', value: 'transparency', icon: 'opacity' },
+        { label: 'Blur', value: 'blur', icon: 'blur_on' },
+    ];
+
     const peakTroughTransparencyModel = computed({
-        get: () => peakTroughTransparencyAvailable.value && app.peakTroughTransparencyEnabled,
+        get: () => peakTroughEffectAvailable.value && app.peakTroughTransparencyEnabled,
         set: (value) => app.setPeakTroughTransparencyEnabled(!!value),
     });
+
+    const peakTroughBlurModel = computed({
+        get: () => peakTroughEffectAvailable.value && app.peakTroughBlurEnabled,
+        set: (value) => app.setPeakTroughBlurEnabled(!!value),
+    });
+
+    const peakTroughEffectModel = computed({
+        get: () => {
+            if (!peakTroughEffectAvailable.value) return 'none';
+            if (peakTroughBlurModel.value) return 'blur';
+            if (peakTroughTransparencyModel.value) return 'transparency';
+            return 'none';
+        },
+        set: (value) => {
+            if (value === 'blur') {
+                app.setPeakTroughBlurEnabled(true);
+                return;
+            }
+            if (value === 'transparency') {
+                app.setPeakTroughTransparencyEnabled(true);
+                return;
+            }
+
+            app.setPeakTroughTransparencyEnabled(false);
+            app.setPeakTroughBlurEnabled(false);
+        },
+    });
+
+    const peakTroughEffectEnabled = computed(
+        () => peakTroughTransparencyModel.value || peakTroughBlurModel.value
+    );
+
+    const peakTroughBlurDisplay = computed(
+        () => `${app.peakTroughBlurAmount.toFixed(1)} texels`
+    );
 
     const peakTroughGradientRangeModel = computed({
         get: () => [
@@ -170,6 +212,10 @@
 
     function handleBackgroundFlowSpeedInput(event) {
         app.setBackgroundFlowSpeed(parseFloat(event.target.value));
+    }
+
+    function handlePeakTroughBlurInput(event) {
+        app.setPeakTroughBlurAmount(parseFloat(event.target.value));
     }
 
     function getInputId(name) {
@@ -320,33 +366,54 @@
         <div class="tools-section">
             <div class="tools-section-label">Peak and Trough Effects</div>
             <div class="tools-section-items">
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('peak-trough-transparency')"
-                    >
-                        <span class="material-symbols-outlined">opacity</span>
-                        <span>Peak/Trough Transparency</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">
-                            {{ peakTroughTransparencyAvailable
-                                ? (peakTroughTransparencyModel ? 'On' : 'Off')
-                                : 'Waves only' }}
+                <div class="tools-select-block">
+                    <div class="tools-select-head">
+                        <label
+                            class="tools-select-label"
+                            :for="getInputId('peak-trough-effect')"
+                        >
+                            Effect
+                        </label>
+                        <span
+                            v-if="!peakTroughEffectAvailable"
+                            class="tools-hint tools-toggle-hint"
+                        >
+                            Waves only
                         </span>
-                        <ToggleSwitch
-                            :inputId="getInputId('peak-trough-transparency')"
-                            v-model="peakTroughTransparencyModel"
-                            :disabled="!peakTroughTransparencyAvailable"
-                        />
+                    </div>
+                    <div class="tools-select-wrap">
+                        <Select
+                            :inputId="getInputId('peak-trough-effect')"
+                            v-model="peakTroughEffectModel"
+                            :options="peakTroughEffectOptions"
+                            option-label="label"
+                            option-value="value"
+                            :disabled="!peakTroughEffectAvailable"
+                            class="tools-select"
+                        >
+                            <template #value="slotProps">
+                                <div class="tools-select-row">
+                                    <span class="material-symbols-outlined tools-select-icon">
+                                        {{ peakTroughEffectOptions.find((option) => option.value === slotProps.value)?.icon }}
+                                    </span>
+                                    <span>{{ peakTroughEffectOptions.find((option) => option.value === slotProps.value)?.label }}</span>
+                                </div>
+                            </template>
+                            <template #option="slotProps">
+                                <div class="tools-select-row">
+                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon }}</span>
+                                    <span>{{ slotProps.option.label }}</span>
+                                </div>
+                            </template>
+                        </Select>
                     </div>
                 </div>
                 <div
-                    v-if="peakTroughTransparencyModel"
+                    v-if="peakTroughEffectEnabled"
                     class="tools-slider-block"
                 >
                     <div class="tools-slider-head">
-                        <label class="tools-slider-label">Transparency Gradient</label>
+                        <label class="tools-slider-label">Effect Gradient</label>
                         <span class="tools-hint tools-slider-hint">{{ peakTroughGradientLabel }}</span>
                     </div>
                     <Slider
@@ -359,7 +426,36 @@
                     />
                     <div class="tools-slider-caption">
                         <span>Fade starts</span>
-                        <span>Maximum transparency</span>
+                        <span>{{ peakTroughBlurModel ? 'Maximum blur' : 'Maximum transparency' }}</span>
+                    </div>
+                </div>
+                <div
+                    v-if="peakTroughBlurModel"
+                    class="tools-slider-block"
+                >
+                    <div class="tools-slider-head">
+                        <label
+                            class="tools-slider-label"
+                            :for="getInputId('peak-trough-blur-amount')"
+                        >
+                            <span class="material-symbols-outlined">blur_linear</span>
+                            <span>Blur Amount</span>
+                        </label>
+                        <span class="tools-hint tools-slider-hint">{{ peakTroughBlurDisplay }}</span>
+                    </div>
+                    <input
+                        :id="getInputId('peak-trough-blur-amount')"
+                        type="range"
+                        min="1"
+                        max="16"
+                        step="0.5"
+                        :value="app.peakTroughBlurAmount"
+                        @input="handlePeakTroughBlurInput"
+                        class="tools-native-range"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Subtle</span>
+                        <span>Strong</span>
                     </div>
                 </div>
             </div>
@@ -567,6 +663,45 @@
         flex-direction: column;
         gap: 1.25rem;
         width: 100%;
+    }
+
+    .tools-select-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        padding: 0.5rem;
+    }
+
+    .tools-select-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .tools-select-label {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+        padding: 0 0.1rem;
+    }
+
+    .tools-select {
+        width: 100%;
+    }
+
+    .tools-select-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .tools-select-icon {
+        font-size: 1.2rem;
+        opacity: 0.85;
+    }
+
+    :deep(.tools-select .p-select-label) {
+        font-size: 0.95rem;
     }
 
     .tools-toggle-row {

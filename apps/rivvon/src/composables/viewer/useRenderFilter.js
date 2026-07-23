@@ -31,6 +31,16 @@ export function useRenderFilter(ctx) {
             && ctx.app.activeTextureCrossSectionType === 'waves';
     }
 
+    function isPeakTroughBlurEnabled() {
+        return ctx.app.peakTroughBlurEnabled === true
+            && ctx.app.activeTextureCrossSectionType === 'waves';
+    }
+
+    function getPeakTroughBlurAmount() {
+        const amount = Number(ctx.app.peakTroughBlurAmount);
+        return Number.isFinite(amount) ? Math.min(16, Math.max(1, amount)) : 4;
+    }
+
     function getPeakTroughGradientRange() {
         const start = Number(ctx.app.peakTroughGradientStart);
         const end = Number(ctx.app.peakTroughGradientEnd);
@@ -287,6 +297,8 @@ export function useRenderFilter(ctx) {
     function syncTransparentShadowsMaterials(scene) {
         const enabled = isTransparentShadowsEnabled();
         const peakTroughEnabled = isPeakTroughTransparencyEnabled();
+        const peakTroughBlurEnabled = isPeakTroughBlurEnabled();
+        const peakTroughBlurAmount = getPeakTroughBlurAmount();
         const peakTroughGradient = getPeakTroughGradientRange();
         const useHighlights = isTransparencyHighlightsMode();
         const { min, max } = getTransparentShadowsThresholds();
@@ -304,6 +316,12 @@ export function useRenderFilter(ctx) {
                 material._transparentShadowsUniform.value = enabled ? 1 : 0;
                 if (material._peakTroughTransparencyUniform) {
                     material._peakTroughTransparencyUniform.value = peakTroughEnabled ? 1 : 0;
+                }
+                if (material._peakTroughBlurUniform) {
+                    material._peakTroughBlurUniform.value = peakTroughBlurEnabled ? 1 : 0;
+                }
+                if (material._peakTroughBlurAmountUniform) {
+                    material._peakTroughBlurAmountUniform.value = peakTroughBlurAmount;
                 }
                 if (material._peakTroughGradientStartUniform) {
                     material._peakTroughGradientStartUniform.value = peakTroughGradient.start;

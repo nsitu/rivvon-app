@@ -40,6 +40,9 @@ const MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP = 0.01;
 const DEFAULT_PEAK_TROUGH_GRADIENT_START = 0.65;
 const DEFAULT_PEAK_TROUGH_GRADIENT_END = 1.0;
 const MIN_PEAK_TROUGH_GRADIENT_GAP = 0.01;
+const DEFAULT_PEAK_TROUGH_BLUR_AMOUNT = 4.0;
+const MIN_PEAK_TROUGH_BLUR_AMOUNT = 1.0;
+const MAX_PEAK_TROUGH_BLUR_AMOUNT = 16.0;
 const MIN_RIBBON_WIDTH_SCALE = 0.1;
 const MAX_RIBBON_WIDTH_SCALE = 2.5;
 const DEFAULT_EDGE_NOISE_TRANSPARENCY_MAX = 0.5;
@@ -244,6 +247,18 @@ function normalizePeakTroughGradientRange(startValue, endValue) {
   }
 
   return { start, end };
+}
+
+function normalizePeakTroughBlurAmount(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_PEAK_TROUGH_BLUR_AMOUNT;
+  }
+
+  return Math.min(
+    MAX_PEAK_TROUGH_BLUR_AMOUNT,
+    Math.max(MIN_PEAK_TROUGH_BLUR_AMOUNT, parsed),
+  );
 }
 
 function normalizeRibbonWidthScale(value) {
@@ -467,10 +482,22 @@ export const useViewerStore = defineStore("viewer", {
     const exportDimensionSettings = getStoredExportDimensionSettings();
     const storedExportLogoSettings = getStoredExportLogoSettings();
     const storedFilterSettings = getStoredFilterSettings();
+    const storedPeakTroughPreferences = readViewerPreferences();
     const storedPeakTroughGradient = normalizePeakTroughGradientRange(
-      readViewerPreferences().peakTroughGradientStart,
-      readViewerPreferences().peakTroughGradientEnd,
+      storedPeakTroughPreferences.peakTroughGradientStart,
+      storedPeakTroughPreferences.peakTroughGradientEnd,
     );
+    const storedPeakTroughTransparencyEnabled =
+      normalizeViewerBooleanPreference(
+        storedPeakTroughPreferences.peakTroughTransparencyEnabled,
+        false,
+      );
+    const storedPeakTroughBlurEnabled =
+      !storedPeakTroughTransparencyEnabled &&
+      normalizeViewerBooleanPreference(
+        storedPeakTroughPreferences.peakTroughBlurEnabled,
+        false,
+      );
     const panelVisibilityState = createViewerPanelVisibilityState();
 
     return {
@@ -568,9 +595,10 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().textureAnimationReversed,
         false,
       ),
-      peakTroughTransparencyEnabled: normalizeViewerBooleanPreference(
-        readViewerPreferences().peakTroughTransparencyEnabled,
-        false,
+      peakTroughTransparencyEnabled: storedPeakTroughTransparencyEnabled,
+      peakTroughBlurEnabled: storedPeakTroughBlurEnabled,
+      peakTroughBlurAmount: normalizePeakTroughBlurAmount(
+        storedPeakTroughPreferences.peakTroughBlurAmount,
       ),
       peakTroughGradientStart: storedPeakTroughGradient.start,
       peakTroughGradientEnd: storedPeakTroughGradient.end,
@@ -823,6 +851,8 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundOverlayOpacity = DEFAULT_BACKGROUND_OVERLAY_OPACITY;
       this.textureAnimationReversed = false;
       this.peakTroughTransparencyEnabled = false;
+      this.peakTroughBlurEnabled = false;
+      this.peakTroughBlurAmount = DEFAULT_PEAK_TROUGH_BLUR_AMOUNT;
       this.peakTroughGradientStart = DEFAULT_PEAK_TROUGH_GRADIENT_START;
       this.peakTroughGradientEnd = DEFAULT_PEAK_TROUGH_GRADIENT_END;
       this.textureRepeatMode = "mirrorTile";
@@ -894,6 +924,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: DEFAULT_BACKGROUND_OVERLAY_OPACITY,
         textureAnimationReversed: false,
         peakTroughTransparencyEnabled: false,
+        peakTroughBlurEnabled: false,
+        peakTroughBlurAmount: DEFAULT_PEAK_TROUGH_BLUR_AMOUNT,
         peakTroughGradientStart: DEFAULT_PEAK_TROUGH_GRADIENT_START,
         peakTroughGradientEnd: DEFAULT_PEAK_TROUGH_GRADIENT_END,
         normalizeTextureOrientation: true,
@@ -1119,7 +1151,32 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue =
         !!enabled && this.activeTextureCrossSectionType === "waves";
       this.peakTroughTransparencyEnabled = nextValue;
-      writeViewerPreferences({ peakTroughTransparencyEnabled: nextValue });
+      if (nextValue) {
+        this.peakTroughBlurEnabled = false;
+      }
+      writeViewerPreferences({
+        peakTroughTransparencyEnabled: nextValue,
+        peakTroughBlurEnabled: this.peakTroughBlurEnabled,
+      });
+    },
+
+    setPeakTroughBlurEnabled(enabled) {
+      const nextValue =
+        !!enabled && this.activeTextureCrossSectionType === "waves";
+      this.peakTroughBlurEnabled = nextValue;
+      if (nextValue) {
+        this.peakTroughTransparencyEnabled = false;
+      }
+      writeViewerPreferences({
+        peakTroughBlurEnabled: nextValue,
+        peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
+      });
+    },
+
+    setPeakTroughBlurAmount(amount) {
+      const nextValue = normalizePeakTroughBlurAmount(amount);
+      this.peakTroughBlurAmount = nextValue;
+      writeViewerPreferences({ peakTroughBlurAmount: nextValue });
     },
 
     setPeakTroughGradientRange(range) {
@@ -1139,6 +1196,9 @@ export const useViewerStore = defineStore("viewer", {
       this.activeTextureCrossSectionType = nextType;
       if (nextType !== "waves" && this.peakTroughTransparencyEnabled) {
         this.setPeakTroughTransparencyEnabled(false);
+      }
+      if (nextType !== "waves" && this.peakTroughBlurEnabled) {
+        this.setPeakTroughBlurEnabled(false);
       }
     },
 
@@ -1221,6 +1281,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: this.backgroundOverlayOpacity,
         textureAnimationReversed: this.textureAnimationReversed,
         peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
+        peakTroughBlurEnabled: this.peakTroughBlurEnabled,
+        peakTroughBlurAmount: this.peakTroughBlurAmount,
         peakTroughGradientStart: this.peakTroughGradientStart,
         peakTroughGradientEnd: this.peakTroughGradientEnd,
         textureRepeatMode: this.textureRepeatMode,
@@ -1302,6 +1364,8 @@ export const useViewerStore = defineStore("viewer", {
         this.textureAnimationReversed !== original.textureAnimationReversed ||
         this.peakTroughTransparencyEnabled !==
           original.peakTroughTransparencyEnabled ||
+        this.peakTroughBlurEnabled !== original.peakTroughBlurEnabled ||
+        this.peakTroughBlurAmount !== original.peakTroughBlurAmount ||
         this.peakTroughGradientStart !== original.peakTroughGradientStart ||
         this.peakTroughGradientEnd !== original.peakTroughGradientEnd ||
         this.textureRepeatMode !== original.textureRepeatMode ||

@@ -379,6 +379,8 @@
         () => app.transparentShadowsThresholdMin,
         () => app.transparentShadowsThresholdMax,
         () => app.peakTroughTransparencyEnabled,
+        () => app.peakTroughBlurEnabled,
+        () => app.peakTroughBlurAmount,
         () => app.peakTroughGradientStart,
         () => app.peakTroughGradientEnd,
         () => app.duotoneColor,
