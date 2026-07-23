@@ -511,7 +511,20 @@ function createPeakTroughBlurredColorNode(
         useNext = null,
     }
 ) {
-    const { Fn, If, float, vec2, vec4, mix, texture, log2, floor } = threeTSL;
+    const {
+        Fn,
+        If,
+        float,
+        vec2,
+        vec4,
+        ivec2,
+        mix,
+        texture,
+        textureLoad,
+        log2,
+        exp2,
+        floor,
+    } = threeTSL;
 
     const sampleBlur = (textureValue, sampleUv) => {
         const { width, height, maxMipLevel } = getTextureDimensions(textureValue);
@@ -524,17 +537,26 @@ function createPeakTroughBlurredColorNode(
         const blurMipLevel = floor(log2(radius).add(float(1.0)))
             .max(float(0.0))
             .min(float(maxMipLevel));
+        const mipDimensions = vec2(float(width), float(height))
+            .mul(exp2(blurMipLevel.negate()));
         const offset = vec2(
             radius.mul(float(1 / width)),
             radius.mul(float(1 / height))
         );
         const halfOffset = offset.mul(float(0.5));
-        const sampleAt = (uvOffset, weight) => texture(
+        const sampleAt = (uvOffset, weight) => textureLoad(
             textureValue,
-            sampleUv.add(uvOffset)
+            ivec2(
+                sampleUv
+                    .add(uvOffset)
+                    .mul(mipDimensions)
+                    .floor()
+                    .max(vec2(float(0)))
+                    .min(mipDimensions.sub(float(1)))
+            ),
+            blurMipLevel
         )
             .depth(layerUniform)
-            .level(blurMipLevel)
             .rgb
             .mul(float(weight));
 
