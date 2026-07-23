@@ -101,25 +101,32 @@ const PEAK_TROUGH_BLUR_GLSL = /* glsl */`
                     sampler2DArray texArray,
                     vec2 sampleUv,
                     float layerIndex,
-                    vec2 uvDx,
-                    vec2 uvDy,
-                    float radius,
-                    vec3 centerColor
+                    float strength
                 ) {
                     vec2 textureDimensions = vec2(textureSize(texArray, 0).xy);
-                    vec2 offset = max(radius, 1.0) / max(textureDimensions, vec2(1.0));
+                    // Treat the toolbar value as strength rather than a literal
+                    // texel radius so high settings can intentionally erase detail.
+                    float radius = max(strength * strength * 2.0, 1.0);
+                    float maxMipLevel = floor(log2(max(textureDimensions.x, textureDimensions.y)));
+                    float blurMipLevel = clamp(floor(log2(radius) + 1.0), 0.0, maxMipLevel);
+                    vec2 offset = radius / max(textureDimensions, vec2(1.0));
                     vec2 halfOffset = offset * 0.5;
-                    vec3 color = centerColor * 0.2;
+                    vec3 color = textureLod(texArray, vec3(sampleUv, layerIndex), blurMipLevel).rgb * 0.08;
 
-                    color += textureGrad(texArray, vec3(sampleUv + vec2(-halfOffset.x, 0.0), layerIndex), uvDx, uvDy).rgb * 0.12;
-                    color += textureGrad(texArray, vec3(sampleUv + vec2( halfOffset.x, 0.0), layerIndex), uvDx, uvDy).rgb * 0.12;
-                    color += textureGrad(texArray, vec3(sampleUv + vec2(0.0, -halfOffset.y), layerIndex), uvDx, uvDy).rgb * 0.12;
-                    color += textureGrad(texArray, vec3(sampleUv + vec2(0.0,  halfOffset.y), layerIndex), uvDx, uvDy).rgb * 0.12;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(-halfOffset.x, 0.0), layerIndex), blurMipLevel).rgb * 0.10;
+                    color += textureLod(texArray, vec3(sampleUv + vec2( halfOffset.x, 0.0), layerIndex), blurMipLevel).rgb * 0.10;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(0.0, -halfOffset.y), layerIndex), blurMipLevel).rgb * 0.10;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(0.0,  halfOffset.y), layerIndex), blurMipLevel).rgb * 0.10;
 
-                    color += textureGrad(texArray, vec3(sampleUv + vec2(-offset.x, -offset.y), layerIndex), uvDx, uvDy).rgb * 0.08;
-                    color += textureGrad(texArray, vec3(sampleUv + vec2( offset.x, -offset.y), layerIndex), uvDx, uvDy).rgb * 0.08;
-                    color += textureGrad(texArray, vec3(sampleUv + vec2(-offset.x,  offset.y), layerIndex), uvDx, uvDy).rgb * 0.08;
-                    color += textureGrad(texArray, vec3(sampleUv + vec2( offset.x,  offset.y), layerIndex), uvDx, uvDy).rgb * 0.08;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(-offset.x, -offset.y), layerIndex), blurMipLevel).rgb * 0.08;
+                    color += textureLod(texArray, vec3(sampleUv + vec2( offset.x, -offset.y), layerIndex), blurMipLevel).rgb * 0.08;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(-offset.x,  offset.y), layerIndex), blurMipLevel).rgb * 0.08;
+                    color += textureLod(texArray, vec3(sampleUv + vec2( offset.x,  offset.y), layerIndex), blurMipLevel).rgb * 0.08;
+
+                    color += textureLod(texArray, vec3(sampleUv + vec2(-offset.x, 0.0), layerIndex), blurMipLevel).rgb * 0.05;
+                    color += textureLod(texArray, vec3(sampleUv + vec2( offset.x, 0.0), layerIndex), blurMipLevel).rgb * 0.05;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(0.0, -offset.y), layerIndex), blurMipLevel).rgb * 0.05;
+                    color += textureLod(texArray, vec3(sampleUv + vec2(0.0,  offset.y), layerIndex), blurMipLevel).rgb * 0.05;
 
                     return color;
                 }
@@ -473,10 +480,19 @@ function getTextureDimensions(textureValue) {
         : null;
     const width = Number(image?.width || baseMip?.width);
     const height = Number(image?.height || baseMip?.height);
+    const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
+    const safeHeight = Number.isFinite(height) && height > 0 ? height : 1;
+    const mipCount = Array.isArray(textureValue?.mipmaps)
+        ? textureValue.mipmaps.length
+        : 0;
+    const generatedMipLevel = textureValue?.generateMipmaps !== false
+        ? Math.floor(Math.log2(Math.max(safeWidth, safeHeight)))
+        : 0;
 
     return {
-        width: Number.isFinite(width) && width > 0 ? width : 1,
-        height: Number.isFinite(height) && height > 0 ? height : 1,
+        width: safeWidth,
+        height: safeHeight,
+        maxMipLevel: mipCount > 1 ? mipCount - 1 : generatedMipLevel,
     };
 }
 
@@ -495,26 +511,46 @@ function createPeakTroughBlurredColorNode(
         useNext = null,
     }
 ) {
-    const { Fn, If, float, vec2, vec4, mix, texture } = threeTSL;
+    const { Fn, If, float, vec2, vec4, mix, texture, log2, floor } = threeTSL;
 
-    const sampleBlur = (textureValue, sampleUv, centerColor) => {
-        const { width, height } = getTextureDimensions(textureValue);
+    const sampleBlur = (textureValue, sampleUv) => {
+        const { width, height, maxMipLevel } = getTextureDimensions(textureValue);
+        // Match the WebGL strength curve and prefilter through lower mips before
+        // taking the wide neighborhood samples.
+        const radius = blurAmountUniform
+            .mul(blurAmountUniform)
+            .mul(float(2.0))
+            .max(float(1.0));
+        const blurMipLevel = floor(log2(radius).add(float(1.0)))
+            .max(float(0.0))
+            .min(float(maxMipLevel));
         const offset = vec2(
-            blurAmountUniform.mul(float(1 / width)),
-            blurAmountUniform.mul(float(1 / height))
+            radius.mul(float(1 / width)),
+            radius.mul(float(1 / height))
         );
         const halfOffset = offset.mul(float(0.5));
+        const sampleAt = (uvOffset, weight) => texture(
+            textureValue,
+            sampleUv.add(uvOffset)
+        )
+            .depth(layerUniform)
+            .level(blurMipLevel)
+            .rgb
+            .mul(float(weight));
 
-        return centerColor
-            .mul(float(0.2))
-            .add(texture(textureValue, sampleUv.add(vec2(halfOffset.x.negate(), float(0)))).depth(layerUniform).rgb.mul(float(0.12)))
-            .add(texture(textureValue, sampleUv.add(vec2(halfOffset.x, float(0)))).depth(layerUniform).rgb.mul(float(0.12)))
-            .add(texture(textureValue, sampleUv.add(vec2(float(0), halfOffset.y.negate()))).depth(layerUniform).rgb.mul(float(0.12)))
-            .add(texture(textureValue, sampleUv.add(vec2(float(0), halfOffset.y))).depth(layerUniform).rgb.mul(float(0.12)))
-            .add(texture(textureValue, sampleUv.add(vec2(offset.x.negate(), offset.y.negate()))).depth(layerUniform).rgb.mul(float(0.08)))
-            .add(texture(textureValue, sampleUv.add(vec2(offset.x, offset.y.negate()))).depth(layerUniform).rgb.mul(float(0.08)))
-            .add(texture(textureValue, sampleUv.add(vec2(offset.x.negate(), offset.y))).depth(layerUniform).rgb.mul(float(0.08)))
-            .add(texture(textureValue, sampleUv.add(vec2(offset.x, offset.y))).depth(layerUniform).rgb.mul(float(0.08)));
+        return sampleAt(vec2(float(0), float(0)), 0.08)
+            .add(sampleAt(vec2(halfOffset.x.negate(), float(0)), 0.10))
+            .add(sampleAt(vec2(halfOffset.x, float(0)), 0.10))
+            .add(sampleAt(vec2(float(0), halfOffset.y.negate()), 0.10))
+            .add(sampleAt(vec2(float(0), halfOffset.y), 0.10))
+            .add(sampleAt(vec2(offset.x.negate(), offset.y.negate()), 0.08))
+            .add(sampleAt(vec2(offset.x, offset.y.negate()), 0.08))
+            .add(sampleAt(vec2(offset.x.negate(), offset.y), 0.08))
+            .add(sampleAt(vec2(offset.x, offset.y), 0.08))
+            .add(sampleAt(vec2(offset.x.negate(), float(0)), 0.05))
+            .add(sampleAt(vec2(offset.x, float(0)), 0.05))
+            .add(sampleAt(vec2(float(0), offset.y.negate()), 0.05))
+            .add(sampleAt(vec2(float(0), offset.y), 0.05));
     };
 
     return Fn(() => {
@@ -529,16 +565,16 @@ function createPeakTroughBlurredColorNode(
                 if (nextTexture && nextUv && useNext) {
                     If(useNext, () => {
                         blurredColor.rgb.assign(
-                            sampleBlur(nextTexture, nextUv, outputColor.rgb)
+                            sampleBlur(nextTexture, nextUv)
                         );
                     }).Else(() => {
                         blurredColor.rgb.assign(
-                            sampleBlur(currentTexture, currentUv, outputColor.rgb)
+                            sampleBlur(currentTexture, currentUv)
                         );
                     });
                 } else {
                     blurredColor.rgb.assign(
-                        sampleBlur(currentTexture, currentUv, outputColor.rgb)
+                        sampleBlur(currentTexture, currentUv)
                     );
                 }
 
@@ -1578,11 +1614,11 @@ ${SCENE_COLOR_ADJUST_GLSL}
                     if (uPeakTroughBlur > 0.5 && peakTroughMask > 0.0001) {
                         vec3 blurredColor = ${reverseFlow
                             ? `shiftedU < 0.0
-                                ? samplePeakTroughBlur(uTexArrayNext, flippedUvNext, float(uLayer), dPdxNext, dPdyNext, uPeakTroughBlurAmount, texColor.rgb)
-                                : samplePeakTroughBlur(uTexArrayCurrent, flippedUvCurrent, float(uLayer), dPdxCurrent, dPdyCurrent, uPeakTroughBlurAmount, texColor.rgb)`
+                                ? samplePeakTroughBlur(uTexArrayNext, flippedUvNext, float(uLayer), uPeakTroughBlurAmount)
+                                : samplePeakTroughBlur(uTexArrayCurrent, flippedUvCurrent, float(uLayer), uPeakTroughBlurAmount)`
                             : `shiftedU >= 1.0
-                                ? samplePeakTroughBlur(uTexArrayNext, flippedUvNext, float(uLayer), dPdxNext, dPdyNext, uPeakTroughBlurAmount, texColor.rgb)
-                                : samplePeakTroughBlur(uTexArrayCurrent, flippedUvCurrent, float(uLayer), dPdxCurrent, dPdyCurrent, uPeakTroughBlurAmount, texColor.rgb)`};
+                                ? samplePeakTroughBlur(uTexArrayNext, flippedUvNext, float(uLayer), uPeakTroughBlurAmount)
+                                : samplePeakTroughBlur(uTexArrayCurrent, flippedUvCurrent, float(uLayer), uPeakTroughBlurAmount)`};
                         texColor.rgb = mix(texColor.rgb, blurredColor, peakTroughMask);
                     }
                     texColor.a *= mix(1.0, ${PEAK_TROUGH_MIN_ALPHA.toFixed(1)}, peakTroughMask * uPeakTroughTransparency);
@@ -2120,10 +2156,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
                             uTexArray,
                             flippedUv,
                             float(uLayer),
-                            uvDx,
-                            uvDy,
-                            uPeakTroughBlurAmount,
-                            texColor.rgb
+                            uPeakTroughBlurAmount
                         );
                         texColor.rgb = mix(texColor.rgb, blurredColor, peakTroughMask);
                     }

@@ -139,49 +139,27 @@
     );
 
     const peakTroughEffectOptions = [
-        { label: 'Off', value: 'none', icon: 'block' },
         { label: 'Transparency', value: 'transparency', icon: 'opacity' },
         { label: 'Blur', value: 'blur', icon: 'blur_on' },
     ];
 
-    const peakTroughTransparencyModel = computed({
-        get: () => peakTroughEffectAvailable.value && app.peakTroughTransparencyEnabled,
-        set: (value) => app.setPeakTroughTransparencyEnabled(!!value),
-    });
-
-    const peakTroughBlurModel = computed({
-        get: () => peakTroughEffectAvailable.value && app.peakTroughBlurEnabled,
-        set: (value) => app.setPeakTroughBlurEnabled(!!value),
+    const peakTroughEffectEnabled = computed({
+        get: () => peakTroughEffectAvailable.value
+            && (app.peakTroughTransparencyEnabled || app.peakTroughBlurEnabled),
+        set: (value) => app.setPeakTroughEffectEnabled(!!value),
     });
 
     const peakTroughEffectModel = computed({
-        get: () => {
-            if (!peakTroughEffectAvailable.value) return 'none';
-            if (peakTroughBlurModel.value) return 'blur';
-            if (peakTroughTransparencyModel.value) return 'transparency';
-            return 'none';
-        },
-        set: (value) => {
-            if (value === 'blur') {
-                app.setPeakTroughBlurEnabled(true);
-                return;
-            }
-            if (value === 'transparency') {
-                app.setPeakTroughTransparencyEnabled(true);
-                return;
-            }
-
-            app.setPeakTroughTransparencyEnabled(false);
-            app.setPeakTroughBlurEnabled(false);
-        },
+        get: () => app.peakTroughEffectType,
+        set: (value) => app.setPeakTroughEffectType(value),
     });
 
-    const peakTroughEffectEnabled = computed(
-        () => peakTroughTransparencyModel.value || peakTroughBlurModel.value
+    const peakTroughBlurModel = computed(
+        () => peakTroughEffectEnabled.value && app.peakTroughEffectType === 'blur'
     );
 
     const peakTroughBlurDisplay = computed(
-        () => `${app.peakTroughBlurAmount.toFixed(1)} texels`
+        () => `${app.peakTroughBlurAmount.toFixed(1)}x`
     );
 
     const peakTroughGradientRangeModel = computed({
@@ -366,29 +344,46 @@
         <div class="tools-section">
             <div class="tools-section-label">Peak and Trough Effects</div>
             <div class="tools-section-items">
-                <div class="tools-select-block">
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('peak-trough-enabled')"
+                    >
+                        <span class="material-symbols-outlined">vital_signs</span>
+                        <span>Peak/Trough Effects</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">
+                            {{ peakTroughEffectAvailable
+                                ? (peakTroughEffectEnabled ? 'On' : 'Off')
+                                : 'Waves only' }}
+                        </span>
+                        <ToggleSwitch
+                            :inputId="getInputId('peak-trough-enabled')"
+                            v-model="peakTroughEffectEnabled"
+                            :disabled="!peakTroughEffectAvailable"
+                        />
+                    </div>
+                </div>
+                <div
+                    v-if="peakTroughEffectEnabled"
+                    class="tools-select-block"
+                >
                     <div class="tools-select-head">
                         <label
                             class="tools-select-label"
-                            :for="getInputId('peak-trough-effect')"
+                            :for="getInputId('peak-trough-effect-type')"
                         >
-                            Effect
+                            Effect Type
                         </label>
-                        <span
-                            v-if="!peakTroughEffectAvailable"
-                            class="tools-hint tools-toggle-hint"
-                        >
-                            Waves only
-                        </span>
                     </div>
                     <div class="tools-select-wrap">
                         <Select
-                            :inputId="getInputId('peak-trough-effect')"
+                            :inputId="getInputId('peak-trough-effect-type')"
                             v-model="peakTroughEffectModel"
                             :options="peakTroughEffectOptions"
                             option-label="label"
                             option-value="value"
-                            :disabled="!peakTroughEffectAvailable"
                             class="tools-select"
                         >
                             <template #value="slotProps">
@@ -439,7 +434,7 @@
                             :for="getInputId('peak-trough-blur-amount')"
                         >
                             <span class="material-symbols-outlined">blur_linear</span>
-                            <span>Blur Amount</span>
+                            <span>Blur Strength</span>
                         </label>
                         <span class="tools-hint tools-slider-hint">{{ peakTroughBlurDisplay }}</span>
                     </div>
@@ -455,7 +450,7 @@
                     />
                     <div class="tools-slider-caption">
                         <span>Subtle</span>
-                        <span>Strong</span>
+                        <span>Obliterate detail</span>
                     </div>
                 </div>
             </div>
