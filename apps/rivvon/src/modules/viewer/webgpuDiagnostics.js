@@ -40,6 +40,10 @@ export function createWebGPUDiagnostics(renderer) {
         queueDrainMaxMs: 0,
         queueSampleError: null,
         lastQueueSampleAt: 0,
+        timestampPending: false,
+        gpuPassMs: null,
+        gpuPassMaxMs: 0,
+        timestampSampleError: null,
     };
 
     function sampleQueue(now = performance.now()) {
@@ -69,6 +73,33 @@ export function createWebGPUDiagnostics(renderer) {
             .finally(() => {
                 snapshot.queuePending = false;
             });
+
+        // Three inserts timestamp writes around its render passes when the
+        // feature is available. Resolving through the backend preserves
+        // Three's query-pool ownership and reports GPU execution time in ms.
+        if (
+            snapshot.timestampQuerySupported
+            && !snapshot.timestampPending
+            && typeof backend?.resolveTimestampsAsync === 'function'
+        ) {
+            snapshot.timestampPending = true;
+            backend.resolveTimestampsAsync('render')
+                .then((durationMs) => {
+                    if (Number.isFinite(durationMs) && durationMs >= 0) {
+                        snapshot.gpuPassMs = durationMs;
+                        snapshot.gpuPassMaxMs = Math.max(snapshot.gpuPassMaxMs, durationMs);
+                        snapshot.timestampSampleError = null;
+                    } else {
+                        snapshot.timestampSampleError = `Invalid timestamp result: ${durationMs}`;
+                    }
+                })
+                .catch((error) => {
+                    snapshot.timestampSampleError = error?.message || String(error);
+                })
+                .finally(() => {
+                    snapshot.timestampPending = false;
+                });
+        }
     }
 
     function getSnapshot() {

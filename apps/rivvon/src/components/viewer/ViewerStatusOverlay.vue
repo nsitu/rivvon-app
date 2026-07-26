@@ -152,6 +152,9 @@
         const queueDrain = Number.isFinite(gpu?.queueDrainMs)
             ? `${formatMs(gpu.queueDrainMs)} (max ${formatMs(gpu.queueDrainMaxMs)})`
             : (gpu?.queuePending ? 'sampling…' : 'n/a');
+        const gpuPass = Number.isFinite(gpu?.gpuPassMs)
+            ? `${formatMs(gpu.gpuPassMs)} (max ${formatMs(gpu.gpuPassMaxMs)})`
+            : (gpu?.timestampPending ? 'sampling…' : 'n/a');
         const lines = [
             `Frame     ${formatMs(perf.avgFrameMs)} avg | ${formatMs(perf.maxFrameMs)} max`,
             `Phases    tick ${formatMs(perf.avgTileTickMs)} | flow ${formatMs(perf.avgFlowUpdateMs)} | render ${formatMs(perf.avgRenderMs)}`,
@@ -172,7 +175,11 @@
         if (gpu) {
             lines.push(`GPU       ${gpu.adapterDescription} | ${gpu.adapterVendor} ${gpu.adapterArchitecture}`);
             lines.push(`WebGPU    timestamps ${gpu.timestampQuerySupported ? 'yes' : 'no'} | backend ${gpu.backend}`);
+            lines.push(`GPU pass  ${gpuPass}`);
             lines.push(`Queue     drain ${queueDrain} | canvas ${gpu.canvasWidth}x${gpu.canvasHeight} @${gpu.pixelRatio}x`);
+            if (gpu.timestampSampleError) {
+                lines.push(`GPU timer ${gpu.timestampSampleError}`);
+            }
         }
         if (storageMB.value !== null) {
             lines.push(`Storage   ${storageMB.value} MB`);
