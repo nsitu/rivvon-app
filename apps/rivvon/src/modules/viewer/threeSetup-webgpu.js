@@ -4,6 +4,14 @@ import WebGPU from 'three/addons/capabilities/WebGPU.js';
 import { applyRendererDisplayConfig } from './rendererConfig.js';
 import { createWebGPUDiagnostics } from './webgpuDiagnostics.js';
 
+const OPTIONAL_WEBGPU_FEATURES = [
+    'texture-compression-etc2',
+    'texture-compression-astc',
+    'texture-compression-astc-sliced-3d',
+    'timestamp-query',
+    'shader-f16',
+];
+
 /**
  * Initialize Three.js with WebGPU renderer
  * @returns {Promise<Object>} { scene, camera, renderer, controls, resetCamera, rendererType }
@@ -20,8 +28,21 @@ export async function initThreeWebGPU() {
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 0, 10);
 
-    // Create WebGPU renderer
+    // Own adapter selection so Three cannot independently choose Chrome's
+    // OpenGLES compatibility adapter when a native Vulkan adapter is available.
+    const adapter = await navigator.gpu.requestAdapter({
+        powerPreference: 'high-performance',
+    });
+    if (!adapter) {
+        throw new Error('Unable to acquire a high-performance WebGPU adapter');
+    }
+
+    const requiredFeatures = OPTIONAL_WEBGPU_FEATURES.filter(feature => adapter.features.has(feature));
+    const device = await adapter.requestDevice({ requiredFeatures });
+
+    // Create WebGPU renderer with the exact device described by diagnostics.
     const renderer = new THREE.WebGPURenderer({
+        device,
         antialias: true,
         alpha: true,
         // Required for Three to insert timestamp writes around render passes.
@@ -34,7 +55,12 @@ export async function initThreeWebGPU() {
 
     // CRITICAL: Wait for WebGPU backend to initialize
     await renderer.init();
-    const gpuDiagnostics = createWebGPUDiagnostics(renderer);
+    if (renderer.backend?.device !== device) {
+        renderer.dispose();
+        device.destroy();
+        throw new Error('Three.js did not initialize with the selected WebGPU device');
+    }
+    const gpuDiagnostics = createWebGPUDiagnostics(renderer, adapter, device);
 
     document.body.appendChild(renderer.domElement);
 

@@ -18,16 +18,17 @@ function entriesToObject(source) {
  * expose Dawn's selected native backend (Vulkan, Metal, OpenGLES compatibility,
  * etc.), so chrome://gpu is still the authority for compatibility mode.
  */
-export function createWebGPUDiagnostics(renderer) {
+export function createWebGPUDiagnostics(renderer, selectedAdapter = null, selectedDevice = null) {
     const backend = renderer?.backend ?? null;
-    const adapter = backend?.adapter ?? null;
-    const device = backend?.device ?? null;
+    const adapter = selectedAdapter ?? backend?.adapter ?? null;
+    const device = selectedDevice ?? backend?.device ?? null;
     const features = Array.from(adapter?.features ?? device?.features ?? []).sort();
     const adapterInfo = entriesToObject(adapter?.info);
     const limits = entriesToObject(adapter?.limits ?? device?.limits);
 
     const snapshot = {
         available: !!device,
+        deviceInjectionVerified: !!selectedDevice && backend?.device === selectedDevice,
         backend: 'not exposed by WebGPU',
         adapterDescription: adapterInfo.description || adapterInfo.device || 'unknown adapter',
         adapterVendor: adapterInfo.vendor || 'unknown',
