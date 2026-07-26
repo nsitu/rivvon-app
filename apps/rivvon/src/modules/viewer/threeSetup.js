@@ -5,16 +5,16 @@ import { initThreeWebGL } from './threeSetup-webgl.js';
  * @param {string} rendererType - 'webgl' or 'webgpu'
  * @returns {Promise<Object>} { scene, camera, renderer, controls, resetCamera, rendererType }
  */
-export async function initThree(rendererType = 'webgl') {
+export async function initThree(rendererType = 'webgl', rendererOptions = {}) {
     console.log(`[ThreeSetup] Initializing ${rendererType.toUpperCase()} renderer`);
 
     try {
         if (rendererType === 'webgpu') {
             const { initThreeWebGPU } = await import('./threeSetup-webgpu.js');
-            return await initThreeWebGPU();
+            return await initThreeWebGPU(rendererOptions);
         } else {
             // WebGL is synchronous but we return it wrapped for consistent API
-            return initThreeWebGL();
+            return initThreeWebGL(rendererOptions);
         }
     } catch (error) {
         console.error(`[ThreeSetup] Failed to initialize ${rendererType}:`, error);
@@ -22,7 +22,7 @@ export async function initThree(rendererType = 'webgl') {
         // If WebGPU fails, fallback to WebGL
         if (rendererType === 'webgpu') {
             console.warn('[ThreeSetup] Falling back to WebGL');
-            return initThreeWebGL();
+            return initThreeWebGL(rendererOptions);
         }
 
         throw error;

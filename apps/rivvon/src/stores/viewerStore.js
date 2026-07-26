@@ -394,6 +394,14 @@ function normalizeViewerBooleanPreference(value, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function normalizeRenderPixelRatio(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  }
+  return Math.max(0.5, Math.min(2, parsed));
+}
+
 function setViewerFlag(store, key, value) {
   store[key] = value;
 }
@@ -518,6 +526,13 @@ export const useViewerStore = defineStore("viewer", {
     return {
       // Renderer state
       rendererType: "webgl", // 'webgl' | 'webgpu'
+      renderAntialiasEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().renderAntialiasEnabled,
+        true,
+      ),
+      renderPixelRatio: normalizeRenderPixelRatio(
+        readViewerPreferences().renderPixelRatio,
+      ),
 
       // Drawing state
       isDrawingMode: false,
@@ -1811,6 +1826,19 @@ export const useViewerStore = defineStore("viewer", {
 
     setThreeContext(context) {
       this.threeContext = context;
+    },
+
+    setRenderAntialiasEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.renderAntialiasEnabled = nextValue;
+      writeViewerPreferences({ renderAntialiasEnabled: nextValue });
+    },
+
+    setRenderPixelRatio(value) {
+      const nextValue = normalizeRenderPixelRatio(value);
+      this.renderPixelRatio = nextValue;
+      writeViewerPreferences({ renderPixelRatio: nextValue });
+      return nextValue;
     },
 
     /**

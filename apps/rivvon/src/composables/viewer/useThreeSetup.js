@@ -134,7 +134,10 @@ export function useThreeSetup() {
     }
 
     try {
-      const result = await initThreeModule(rendererType);
+      const result = await initThreeModule(rendererType, {
+        antialias: app.renderAntialiasEnabled,
+        pixelRatio: app.renderPixelRatio,
+      });
       scene.value = result.scene;
       camera.value = result.camera;
       renderer.value = result.renderer;

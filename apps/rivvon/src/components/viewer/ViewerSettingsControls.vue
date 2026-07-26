@@ -1,5 +1,5 @@
 <script setup>
-    import { computed } from 'vue';
+    import { computed, ref } from 'vue';
     import Select from 'primevue/select';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -17,6 +17,48 @@
     ]);
 
     const app = useViewerStore();
+    const applyingRenderQuality = ref(false);
+
+    const pixelRatioOptions = [
+        { label: 'Performance (0.75x)', value: 0.75 },
+        { label: 'Balanced (1x)', value: 1 },
+        { label: 'Sharp (1.25x)', value: 1.25 },
+        { label: 'High (1.5x)', value: 1.5 },
+        { label: 'Maximum (2x)', value: 2 },
+    ];
+
+    const selectedPixelRatioOption = computed({
+        get: () => pixelRatioOptions.find(option => option.value === app.renderPixelRatio)
+            ?? pixelRatioOptions[1],
+        set: (option) => {
+            if (!option?.value) return;
+            const pixelRatio = app.setRenderPixelRatio(option.value);
+            const renderer = app.threeContext?.renderer;
+            if (renderer) {
+                renderer.setPixelRatio(pixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+    });
+
+    const antialiasModel = computed({
+        get: () => app.renderAntialiasEnabled,
+        set: async (value) => {
+            const enabled = !!value;
+            if (enabled === app.renderAntialiasEnabled || applyingRenderQuality.value) return;
+
+            app.setRenderAntialiasEnabled(enabled);
+            if (!app.threeContext?.teardownViewer || !app.reinitCallback) return;
+
+            applyingRenderQuality.value = true;
+            try {
+                app.threeContext.teardownViewer();
+                await app.reinitCallback();
+            } finally {
+                applyingRenderQuality.value = false;
+            }
+        }
+    });
 
     const viewerControlOptions = [
         { label: 'Orbit Controls', value: 'orbit', icon: '3d_rotation' },
@@ -155,6 +197,38 @@
                                 </div>
                             </template>
                         </Select>
+                    </div>
+                </div>
+
+                <div class="tools-select-block">
+                    <label class="tools-select-label">Pixel Ratio</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="selectedPixelRatioOption"
+                            :options="pixelRatioOptions"
+                            option-label="label"
+                            class="tools-select"
+                        />
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        for="renderAntialiasToggle"
+                    >
+                        <span class="material-symbols-outlined">blur_on</span>
+                        <span>Antialiasing</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">
+                            {{ applyingRenderQuality ? 'Restarting' : (app.renderAntialiasEnabled ? 'On' : 'Off') }}
+                        </span>
+                        <ToggleSwitch
+                            inputId="renderAntialiasToggle"
+                            v-model="antialiasModel"
+                            :disabled="applyingRenderQuality"
+                        />
                     </div>
                 </div>
 

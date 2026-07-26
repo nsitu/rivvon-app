@@ -16,7 +16,10 @@ const OPTIONAL_WEBGPU_FEATURES = [
  * Initialize Three.js with WebGPU renderer
  * @returns {Promise<Object>} { scene, camera, renderer, controls, resetCamera, rendererType }
  */
-export async function initThreeWebGPU() {
+export async function initThreeWebGPU({
+    antialias = true,
+    pixelRatio = window.devicePixelRatio,
+} = {}) {
     // Check WebGPU availability
     if (!WebGPU.isAvailable()) {
         throw new Error('WebGPU not available');
@@ -43,13 +46,13 @@ export async function initThreeWebGPU() {
     // Create WebGPU renderer with the exact device described by diagnostics.
     const renderer = new THREE.WebGPURenderer({
         device,
-        antialias: true,
+        antialias,
         alpha: true,
         // Required for Three to insert timestamp writes around render passes.
         // The diagnostic sampler resolves these asynchronously once per second.
         trackTimestamp: true,
     });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     applyRendererDisplayConfig(renderer, null, 'webgpu');
 

@@ -6,7 +6,7 @@ import { applyRendererDisplayConfig } from './rendererConfig.js';
  * Initialize Three.js with WebGL renderer
  * @returns {Object} { scene, camera, renderer, controls, resetCamera, rendererType }
  */
-export function initThreeWebGL() {
+export function initThreeWebGL({ antialias = true, pixelRatio = window.devicePixelRatio } = {}) {
     const scene = new THREE.Scene();
     scene.background = null; // Transparent - CSS blurred background shows through
 
@@ -16,10 +16,11 @@ export function initThreeWebGL() {
 
     /***/
     const renderer = new THREE.WebGLRenderer({
-                antialias: true,
+                antialias,
                 alpha: true,
                 preserveDrawingBuffer: true // without this, video rendering fails on ipad
             }); 
+    renderer.setPixelRatio(pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     applyRendererDisplayConfig(renderer, null, 'webgl');
     document.body.appendChild(renderer.domElement);

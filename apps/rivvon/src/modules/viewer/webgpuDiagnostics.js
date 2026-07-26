@@ -25,14 +25,22 @@ export function createWebGPUDiagnostics(renderer, selectedAdapter = null, select
     const features = Array.from(adapter?.features ?? device?.features ?? []).sort();
     const adapterInfo = entriesToObject(adapter?.info);
     const limits = entriesToObject(adapter?.limits ?? device?.limits);
+    const adapterVendor = adapterInfo.vendor || 'unknown';
+    const adapterArchitecture = adapterInfo.architecture || 'unknown';
+    const inferredAdapterDescription = [adapterVendor, adapterArchitecture]
+        .filter(value => value !== 'unknown')
+        .join(' ');
 
     const snapshot = {
         available: !!device,
         deviceInjectionVerified: !!selectedDevice && backend?.device === selectedDevice,
         backend: 'not exposed by WebGPU',
-        adapterDescription: adapterInfo.description || adapterInfo.device || 'unknown adapter',
-        adapterVendor: adapterInfo.vendor || 'unknown',
-        adapterArchitecture: adapterInfo.architecture || 'unknown',
+        adapterDescription: adapterInfo.description
+            || adapterInfo.device
+            || inferredAdapterDescription
+            || 'unknown adapter',
+        adapterVendor,
+        adapterArchitecture,
         timestampQuerySupported: features.includes('timestamp-query'),
         timestampTrackingEnabled: backend?.trackTimestamp === true,
         features,

@@ -155,6 +155,9 @@
         const gpuPass = Number.isFinite(gpu?.gpuPassMs)
             ? `${formatMs(gpu.gpuPassMs)} (max ${formatMs(gpu.gpuPassMaxMs)})`
             : (gpu?.timestampPending ? 'sampling…' : 'n/a');
+        const gpuIdentity = gpu?.adapterDescription && gpu.adapterDescription !== 'unknown adapter'
+            ? gpu.adapterDescription
+            : `${gpu?.adapterVendor || 'unknown'} ${gpu?.adapterArchitecture || 'unknown'}`;
         const lines = [
             `Frame     ${formatMs(perf.avgFrameMs)} avg | ${formatMs(perf.maxFrameMs)} max`,
             `Phases    tick ${formatMs(perf.avgTileTickMs)} | flow ${formatMs(perf.avgFlowUpdateMs)} | render ${formatMs(perf.avgRenderMs)}`,
@@ -173,7 +176,7 @@
             `Renderer  ${app.rendererType.toUpperCase()}`
         ];
         if (gpu) {
-            lines.push(`GPU       ${gpu.adapterDescription} | ${gpu.adapterVendor} ${gpu.adapterArchitecture}`);
+            lines.push(`GPU       ${gpuIdentity}`);
             lines.push(`WebGPU    ${gpu.deviceInjectionVerified ? 'injected' : 'unverified'} | timestamps ${gpu.timestampQuerySupported ? (gpu.timestampTrackingEnabled ? 'tracking' : 'available') : 'no'}`);
             lines.push(`GPU pass  ${gpuPass}`);
             lines.push(`Queue     drain ${queueDrain} | canvas ${gpu.canvasWidth}x${gpu.canvasHeight} @${gpu.pixelRatio}x`);
