@@ -14,6 +14,13 @@
 export async function chooseRenderer() {
     const params = new URLSearchParams(window.location.search);
     const forceRenderer = (params.get('renderer') || '').toLowerCase();
+    let preferredRenderer = '';
+    try {
+        const preferences = JSON.parse(window.localStorage.getItem('rivvon.viewer.preferences') || '{}');
+        preferredRenderer = (preferences.rendererType || '').toLowerCase();
+    } catch {
+        preferredRenderer = '';
+    }
 
     // Check WebGPU availability
     const hasWebGPU = typeof navigator !== 'undefined' && 'gpu' in navigator;
@@ -24,12 +31,16 @@ export async function chooseRenderer() {
         rendererType = 'webgpu';
     } else if (forceRenderer === 'webgl') {
         rendererType = 'webgl';
+    } else if (preferredRenderer === 'webgpu' && hasWebGPU) {
+        rendererType = 'webgpu';
+    } else if (preferredRenderer === 'webgl') {
+        rendererType = 'webgl';
     } else {
         // Auto-detect: prefer WebGPU if available (fixes ASTC array issues on Android)
         rendererType = hasWebGPU ? 'webgpu' : 'webgl';
     }
 
-    console.log('[Renderer] chosen=', rendererType, '| hasWebGPU=', hasWebGPU, '| force=', forceRenderer || 'auto');
+    console.log('[Renderer] chosen=', rendererType, '| hasWebGPU=', hasWebGPU, '| force=', forceRenderer || 'auto', '| preferred=', preferredRenderer || 'auto');
 
     if (rendererType === 'webgpu') {
         console.log('[Renderer] Using WebGPU - Better support for ASTC textures on Android');

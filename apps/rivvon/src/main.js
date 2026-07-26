@@ -124,14 +124,15 @@ async function loadBasisForSlyce() {
         const rendererType = await chooseRenderer();
         console.log('[Main] Renderer type determined:', rendererType);
 
-        // Mount app - only once
-        app.mount('#app');
-
-        // Set renderer type in stores after app is mounted
+        // Set renderer type before mounting so ThreeCanvas receives the chosen
+        // backend during its first initialization.
         const viewerStore = useViewerStore();
         const slyceStore = useSlyceStore();
         viewerStore.rendererType = rendererType;
         slyceStore.rendererType = rendererType;
+
+        // Mount app - only once
+        app.mount('#app');
         
         // Enable debug mode if #debug hash is present
         if (window.location.hash === '#debug') {

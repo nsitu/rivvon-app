@@ -1,8 +1,9 @@
 <script setup>
-    import { computed, ref } from 'vue';
+    import { computed, nextTick, ref } from 'vue';
     import Select from 'primevue/select';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
+    import { useSlyceStore } from '../../stores/slyceStore';
 
     const props = defineProps({
         technicalOverlay: { type: Boolean, default: false },
@@ -17,7 +18,40 @@
     ]);
 
     const app = useViewerStore();
+    const slyceApp = useSlyceStore();
     const applyingRenderQuality = ref(false);
+
+    const rendererOptions = [
+        { label: 'WebGL', value: 'webgl', icon: 'deployed_code' },
+        { label: 'WebGPU', value: 'webgpu', icon: 'memory' },
+    ];
+
+    async function rebuildRenderer() {
+        if (!app.threeContext?.teardownViewer || !app.reinitCallback) return;
+
+        applyingRenderQuality.value = true;
+        try {
+            app.threeContext.teardownViewer();
+            await app.reinitCallback();
+        } finally {
+            applyingRenderQuality.value = false;
+        }
+    }
+
+    const selectedRendererOption = computed({
+        get: () => rendererOptions.find(option => option.value === app.rendererType)
+            ?? rendererOptions[0],
+        set: async (option) => {
+            if (!option?.value || option.value === app.rendererType || applyingRenderQuality.value) return;
+
+            const rendererType = app.setRendererType(option.value);
+            slyceApp.rendererType = rendererType;
+            // Allow ThreeCanvas's rendererType prop to receive the store update
+            // before its reinitialize callback reads it.
+            await nextTick();
+            await rebuildRenderer();
+        }
+    });
 
     const pixelRatioOptions = [
         { label: 'Performance (0.75x)', value: 0.75 },
@@ -50,13 +84,7 @@
             app.setRenderAntialiasEnabled(enabled);
             if (!app.threeContext?.teardownViewer || !app.reinitCallback) return;
 
-            applyingRenderQuality.value = true;
-            try {
-                app.threeContext.teardownViewer();
-                await app.reinitCallback();
-            } finally {
-                applyingRenderQuality.value = false;
-            }
+            await rebuildRenderer();
         }
     });
 
@@ -209,6 +237,35 @@
                             option-label="label"
                             class="tools-select"
                         />
+                    </div>
+                </div>
+
+                <div class="tools-select-block">
+                    <label class="tools-select-label">Renderer</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="selectedRendererOption"
+                            :options="rendererOptions"
+                            option-label="label"
+                            class="tools-select"
+                            :disabled="applyingRenderQuality"
+                        >
+                            <template #value="slotProps">
+                                <div
+                                    v-if="slotProps.value"
+                                    class="tools-select-row"
+                                >
+                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon }}</span>
+                                    <span>{{ slotProps.value.label }}</span>
+                                </div>
+                            </template>
+                            <template #option="slotProps">
+                                <div class="tools-select-row">
+                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon }}</span>
+                                    <span>{{ slotProps.option.label }}</span>
+                                </div>
+                            </template>
+                        </Select>
                     </div>
                 </div>
 

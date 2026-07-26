@@ -525,7 +525,8 @@ export const useViewerStore = defineStore("viewer", {
 
     return {
       // Renderer state
-      rendererType: "webgl", // 'webgl' | 'webgpu'
+      rendererType:
+        readViewerPreferences().rendererType === "webgpu" ? "webgpu" : "webgl",
       renderAntialiasEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().renderAntialiasEnabled,
         true,
@@ -1832,6 +1833,13 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = !!enabled;
       this.renderAntialiasEnabled = nextValue;
       writeViewerPreferences({ renderAntialiasEnabled: nextValue });
+    },
+
+    setRendererType(rendererType) {
+      const nextType = rendererType === "webgpu" ? "webgpu" : "webgl";
+      this.rendererType = nextType;
+      writeViewerPreferences({ rendererType: nextType });
+      return nextType;
     },
 
     setRenderPixelRatio(value) {
