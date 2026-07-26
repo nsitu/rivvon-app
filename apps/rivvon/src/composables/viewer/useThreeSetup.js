@@ -57,6 +57,7 @@ export function useThreeSetup() {
     isInitialized,
     resetCamera,
     backgroundTexture,
+    gpuDiagnostics: null,
     isDeviceLost,
     isRecovering,
     cinematicCamera,
@@ -137,6 +138,7 @@ export function useThreeSetup() {
       scene.value = result.scene;
       camera.value = result.camera;
       renderer.value = result.renderer;
+      ctx.gpuDiagnostics = result.gpuDiagnostics ?? null;
       controls.value = result.controls;
       resetCamera.value = result.resetCamera;
       headTracking.attach(result.camera, result.controls);
@@ -153,6 +155,7 @@ export function useThreeSetup() {
         headTracking,
         scrollTilt,
         rendererType: result.rendererType,
+        gpuDiagnostics: result.gpuDiagnostics ?? null,
         pauseRenderLoop: renderLoop.pauseRenderLoop,
         resumeRenderLoop: renderLoop.resumeRenderLoop,
         teardownViewer,
@@ -284,6 +287,7 @@ export function useThreeSetup() {
     camera.value = null;
     resetCamera.value = null;
     isInitialized.value = false;
+    ctx.gpuDiagnostics = null;
 
     console.log("[ThreeSetup] Viewer torn down (full GPU resource release)");
   }
@@ -354,6 +358,7 @@ export function useThreeSetup() {
     }
     camera.value = null;
     isInitialized.value = false;
+    ctx.gpuDiagnostics = null;
 
     // Clear the context from app store
     app.setThreeContext(null);

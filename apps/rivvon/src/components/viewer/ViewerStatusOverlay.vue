@@ -148,6 +148,10 @@
             ? 'scroll'
             : (perf.textureAnimationEnabled ? 'auto' : 'off');
         const layerRuntimeState = perf.internalLayerAnimationEnabled ? 'tm-on' : 'tm-off';
+        const gpu = perf.gpuDiagnostics;
+        const queueDrain = Number.isFinite(gpu?.queueDrainMs)
+            ? `${formatMs(gpu.queueDrainMs)} (max ${formatMs(gpu.queueDrainMaxMs)})`
+            : (gpu?.queuePending ? 'sampling…' : 'n/a');
         const lines = [
             `Frame     ${formatMs(perf.avgFrameMs)} avg | ${formatMs(perf.maxFrameMs)} max`,
             `Phases    tick ${formatMs(perf.avgTileTickMs)} | flow ${formatMs(perf.avgFlowUpdateMs)} | render ${formatMs(perf.avgRenderMs)}`,
@@ -165,6 +169,11 @@
             `Heap      ${formatHeapTelemetry(heapTelemetry.value)}`,
             `Renderer  ${app.rendererType.toUpperCase()}`
         ];
+        if (gpu) {
+            lines.push(`GPU       ${gpu.adapterDescription} | ${gpu.adapterVendor} ${gpu.adapterArchitecture}`);
+            lines.push(`WebGPU    timestamps ${gpu.timestampQuerySupported ? 'yes' : 'no'} | backend ${gpu.backend}`);
+            lines.push(`Queue     drain ${queueDrain} | canvas ${gpu.canvasWidth}x${gpu.canvasHeight} @${gpu.pixelRatio}x`);
+        }
         if (storageMB.value !== null) {
             lines.push(`Storage   ${storageMB.value} MB`);
         }

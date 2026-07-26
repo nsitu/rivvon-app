@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
 import { applyRendererDisplayConfig } from './rendererConfig.js';
+import { createWebGPUDiagnostics } from './webgpuDiagnostics.js';
 
 /**
  * Initialize Three.js with WebGPU renderer
@@ -27,6 +28,7 @@ export async function initThreeWebGPU() {
 
     // CRITICAL: Wait for WebGPU backend to initialize
     await renderer.init();
+    const gpuDiagnostics = createWebGPUDiagnostics(renderer);
 
     document.body.appendChild(renderer.domElement);
 
@@ -101,6 +103,7 @@ export async function initThreeWebGPU() {
         resetCamera,
         handleResize,
         onDeviceLost,
+        gpuDiagnostics,
         rendererType: 'webgpu'
     };
 }

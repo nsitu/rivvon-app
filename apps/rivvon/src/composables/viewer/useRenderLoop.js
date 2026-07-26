@@ -71,6 +71,7 @@ function createPerfTelemetrySnapshot() {
         internalLayerAnimationEnabled: false,
         layerChangeCount: 0,
         lastLayerChangeAgeMs: null,
+        gpuDiagnostics: null,
     };
 }
 
@@ -275,6 +276,7 @@ export function useRenderLoop(ctx, deps = {}) {
             lastLayerChangeAgeMs: layerDebug?.lastLayerChangeAgeMs == null
                 ? null
                 : Math.round(layerDebug.lastLayerChangeAgeMs),
+            gpuDiagnostics: ctx.gpuDiagnostics?.getSnapshot?.() ?? null,
         };
 
         resetPerfWindow(now);
@@ -563,6 +565,7 @@ export function useRenderLoop(ctx, deps = {}) {
                 }
             }
             renderMs = performance.now() - renderStartMs;
+            ctx.gpuDiagnostics?.sampleQueue?.(performance.now());
 
             const frameEndMs = performance.now();
             recordPerfFrame({
