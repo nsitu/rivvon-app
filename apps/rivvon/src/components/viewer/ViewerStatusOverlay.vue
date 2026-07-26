@@ -174,7 +174,7 @@
         ];
         if (gpu) {
             lines.push(`GPU       ${gpu.adapterDescription} | ${gpu.adapterVendor} ${gpu.adapterArchitecture}`);
-            lines.push(`WebGPU    timestamps ${gpu.timestampQuerySupported ? 'yes' : 'no'} | backend ${gpu.backend}`);
+            lines.push(`WebGPU    timestamps ${gpu.timestampQuerySupported ? (gpu.timestampTrackingEnabled ? 'tracking' : 'available') : 'no'} | backend ${gpu.backend}`);
             lines.push(`GPU pass  ${gpuPass}`);
             lines.push(`Queue     drain ${queueDrain} | canvas ${gpu.canvasWidth}x${gpu.canvasHeight} @${gpu.pixelRatio}x`);
             if (gpu.timestampSampleError) {

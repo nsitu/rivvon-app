@@ -21,7 +21,13 @@ export async function initThreeWebGPU() {
     camera.position.set(0, 0, 10);
 
     // Create WebGPU renderer
-    const renderer = new THREE.WebGPURenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGPURenderer({
+        antialias: true,
+        alpha: true,
+        // Required for Three to insert timestamp writes around render passes.
+        // The diagnostic sampler resolves these asynchronously once per second.
+        trackTimestamp: true,
+    });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     applyRendererDisplayConfig(renderer, null, 'webgpu');

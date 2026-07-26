@@ -33,6 +33,7 @@ export function createWebGPUDiagnostics(renderer) {
         adapterVendor: adapterInfo.vendor || 'unknown',
         adapterArchitecture: adapterInfo.architecture || 'unknown',
         timestampQuerySupported: features.includes('timestamp-query'),
+        timestampTrackingEnabled: backend?.trackTimestamp === true,
         features,
         limits,
         queuePending: false,
@@ -79,6 +80,7 @@ export function createWebGPUDiagnostics(renderer) {
         // Three's query-pool ownership and reports GPU execution time in ms.
         if (
             snapshot.timestampQuerySupported
+            && snapshot.timestampTrackingEnabled
             && !snapshot.timestampPending
             && typeof backend?.resolveTimestampsAsync === 'function'
         ) {
@@ -89,7 +91,7 @@ export function createWebGPUDiagnostics(renderer) {
                         snapshot.gpuPassMs = durationMs;
                         snapshot.gpuPassMaxMs = Math.max(snapshot.gpuPassMaxMs, durationMs);
                         snapshot.timestampSampleError = null;
-                    } else {
+                    } else if (durationMs !== undefined) {
                         snapshot.timestampSampleError = `Invalid timestamp result: ${durationMs}`;
                     }
                 })
