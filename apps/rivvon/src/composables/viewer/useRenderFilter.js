@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import {
+    createGradientMapLut,
+    serializeGradientMapStops,
+} from '../../modules/viewer/gradientMap.js';
 
 export function useRenderFilter(ctx) {
     let activeRendererType = 'webgl';
     let webGPUDeps = null;
-    const duotoneColor = new THREE.Color();
-
     let filterScene = null;
     let filterCamera = null;
     let filterGeometry = null;
@@ -15,9 +17,11 @@ export function useRenderFilter(ctx) {
     let filterMaterialTexture = null;
     let filterContrastUniform = null;
     let filterSaturationUniform = null;
+    let filterGradientTexture = null;
+    let filterGradientSignature = null;
 
     function getActiveFilterMode() {
-        return ctx.app.renderFilterMode === 'duotone'
+        return ctx.app.renderFilterMode === 'gradientMap'
             ? ctx.app.renderFilterMode
             : 'none';
     }
@@ -79,23 +83,45 @@ export function useRenderFilter(ctx) {
 
     function getPostProcessFilterMode() {
         const mode = getActiveFilterMode();
-        return mode === 'duotone'
+        return mode === 'gradientMap'
             ? mode
             : 'none';
     }
 
-    function getDuotoneColorValues() {
-        duotoneColor.set(ctx.app.duotoneColor || '#ff7a00');
-        return [duotoneColor.r, duotoneColor.g, duotoneColor.b]
-            .map((value) => Number(value).toFixed(8))
-            .join(', ');
+    function syncGradientMapTexture() {
+        const signature = serializeGradientMapStops(ctx.app.gradientMapStops);
+        if (filterGradientTexture && filterGradientSignature === signature) {
+            return filterGradientTexture;
+        }
+
+        const data = createGradientMapLut(ctx.app.gradientMapStops);
+        if (!filterGradientTexture) {
+            filterGradientTexture = new THREE.DataTexture(
+                data,
+                data.length / 4,
+                1,
+                THREE.RGBAFormat,
+                THREE.UnsignedByteType,
+            );
+            filterGradientTexture.name = 'RivvonGradientMapLUT';
+            filterGradientTexture.colorSpace = THREE.SRGBColorSpace;
+            filterGradientTexture.minFilter = THREE.LinearFilter;
+            filterGradientTexture.magFilter = THREE.LinearFilter;
+            filterGradientTexture.wrapS = THREE.ClampToEdgeWrapping;
+            filterGradientTexture.wrapT = THREE.ClampToEdgeWrapping;
+            filterGradientTexture.generateMipmaps = false;
+        } else {
+            filterGradientTexture.image.data = data;
+        }
+
+        filterGradientTexture.needsUpdate = true;
+        filterGradientSignature = signature;
+        return filterGradientTexture;
     }
 
     function getFilterMaterialSignature() {
         const mode = getPostProcessFilterMode();
-        return mode === 'duotone'
-            ? `${mode}:${ctx.app.duotoneColor || '#ff7a00'}`
-            : mode;
+        return mode;
     }
 
     function shouldApplyFilter() {
@@ -140,13 +166,14 @@ export function useRenderFilter(ctx) {
 
     function createWebGLFilterMaterial(texture) {
         const filterMode = getPostProcessFilterMode();
-        const filteredColorExpression = filterMode === 'duotone'
-            ? `mix(vec3(0.0), vec3(${getDuotoneColorValues()}), filteredLuminance)`
+        const filteredColorExpression = filterMode === 'gradientMap'
+            ? 'texture2D(uGradientMap, vec2(clamp(filteredLuminance, 0.0, 1.0), 0.5)).rgb'
             : 'contrasted';
 
         return new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { value: texture },
+                uGradientMap: { value: syncGradientMapTexture() },
                 uContrast: { value: getContrastValue() },
                 uSaturation: { value: getSaturationValue() },
             },
@@ -160,6 +187,7 @@ export function useRenderFilter(ctx) {
             fragmentShader: `
                 precision highp float;
                 uniform sampler2D tDiffuse;
+                uniform sampler2D uGradientMap;
                 uniform float uContrast;
                 uniform float uSaturation;
                 varying vec2 vUv;
@@ -190,9 +218,6 @@ export function useRenderFilter(ctx) {
     function createWebGPUFilterMaterial(texture) {
         const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
         const { texture: textureNode, uniform, uv, float, vec2, vec3, vec4, dot, max, mix } = webGPUDeps.threeTSL;
-        const [duotoneRed, duotoneGreen, duotoneBlue] = getDuotoneColorValues()
-            .split(', ')
-            .map((value) => Number(value));
         const filterMode = getPostProcessFilterMode();
         const contrastValue = getContrastValue();
         const saturationValue = getSaturationValue();
@@ -210,19 +235,23 @@ export function useRenderFilter(ctx) {
         const saturated = mix(vec3(luminance, luminance, luminance), unpremultiplied, saturationUniform);
         const contrasted = saturated.sub(vec3(0.5)).mul(contrastUniform).add(vec3(0.5));
         const filteredLuminance = dot(contrasted, vec3(0.2126, 0.7152, 0.0722));
-        const grayscale = vec3(filteredLuminance, filteredLuminance, filteredLuminance);
-
         let filteredBase;
-        if (filterMode === 'duotone') {
-            filteredBase = mix(vec3(0.0, 0.0, 0.0), vec3(duotoneRed, duotoneGreen, duotoneBlue), filteredLuminance);
+        if (filterMode === 'gradientMap') {
+            const gradientPosition = filteredLuminance
+                .max(float(0))
+                .min(float(1));
+            filteredBase = textureNode(
+                syncGradientMapTexture(),
+                vec2(gradientPosition, float(0.5)),
+            ).rgb;
         } else {
             filteredBase = contrasted;
         }
 
         const premultipliedFiltered = filteredBase.mul(alpha);
 
-    filterContrastUniform = contrastUniform;
-    filterSaturationUniform = saturationUniform;
+        filterContrastUniform = contrastUniform;
+        filterSaturationUniform = saturationUniform;
         material.colorNode = vec4(premultipliedFiltered, alpha);
         material.transparent = true;
         material.depthWrite = false;
@@ -236,6 +265,7 @@ export function useRenderFilter(ctx) {
             return false;
         }
 
+        syncGradientMapTexture();
         const nextSignature = getFilterMaterialSignature();
 
         if (!filterQuad) {
@@ -470,6 +500,10 @@ export function useRenderFilter(ctx) {
         filterMaterialTexture = null;
         filterContrastUniform = null;
         filterSaturationUniform = null;
+
+        filterGradientTexture?.dispose?.();
+        filterGradientTexture = null;
+        filterGradientSignature = null;
 
         if (filterQuad && filterScene) {
             filterScene.remove(filterQuad);

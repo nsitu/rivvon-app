@@ -383,7 +383,7 @@
         () => app.peakTroughBlurAmount,
         () => app.peakTroughGradientStart,
         () => app.peakTroughGradientEnd,
-        () => app.duotoneColor,
+        () => app.gradientMapStops,
         () => app.contrast,
         () => app.saturation,
         () => app.textureRepeatMode,

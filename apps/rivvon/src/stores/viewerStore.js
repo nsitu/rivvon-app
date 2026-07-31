@@ -27,11 +27,17 @@ import {
   createViewerPanelVisibilityState,
   VIEWER_PANEL_KEYS,
 } from "../modules/viewer/viewerPanels.js";
+import {
+  createLegacyDuotoneStops,
+  DEFAULT_GRADIENT_MAP_STOPS,
+  normalizeGradientMapColor,
+  normalizeGradientMapStops,
+  serializeGradientMapStops,
+} from "../modules/viewer/gradientMap.js";
 
 const VIEWER_PREFERENCES_STORAGE_KEY = "rivvon.viewer.preferences";
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
-const VIEWER_FILTER_MODES = ["none", "duotone"];
-const DEFAULT_DUOTONE_COLOR = "#ff7a00";
+const VIEWER_FILTER_MODES = ["none", "gradientMap"];
 const TRANSPARENCY_MODES = ["shadows", "highlights"];
 const DEFAULT_TRANSPARENCY_MODE = "shadows";
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN = 0.2;
@@ -104,26 +110,12 @@ function normalizePreferredTextureMaxResolution(value) {
 }
 
 function normalizeViewerFilterMode(value) {
+  if (value === "duotone") return "gradientMap";
   return VIEWER_FILTER_MODES.includes(value) ? value : "none";
 }
 
 function normalizeDuotoneColor(value) {
-  if (typeof value !== "string") {
-    return DEFAULT_DUOTONE_COLOR;
-  }
-
-  const normalized = value.trim().replace(/^#/, "").toLowerCase();
-
-  if (/^[0-9a-f]{3}$/.test(normalized)) {
-    return `#${normalized
-      .split("")
-      .map((char) => `${char}${char}`)
-      .join("")}`;
-  }
-
-  return /^[0-9a-f]{6}$/.test(normalized)
-    ? `#${normalized}`
-    : DEFAULT_DUOTONE_COLOR;
+  return normalizeGradientMapColor(value);
 }
 
 function normalizeTransparencyMode(value) {
@@ -472,6 +464,12 @@ function getStoredExportLogoSettings() {
 
 function getStoredFilterSettings() {
   const preferences = readViewerPreferences();
+  const legacyDuotoneColor = normalizeDuotoneColor(preferences.duotoneColor);
+  const gradientMapStops = Array.isArray(preferences.gradientMapStops)
+    ? normalizeGradientMapStops(preferences.gradientMapStops)
+    : (preferences.duotoneColor
+      ? createLegacyDuotoneStops(legacyDuotoneColor)
+      : normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS));
   const transparentShadowsThresholds =
     normalizeTransparentShadowsThresholdRange(
       preferences.transparentShadowsThresholdMin,
@@ -487,7 +485,7 @@ function getStoredFilterSettings() {
     transparencyMode: normalizeTransparencyMode(preferences.transparencyMode),
     transparentShadowsThresholdMin: transparentShadowsThresholds.min,
     transparentShadowsThresholdMax: transparentShadowsThresholds.max,
-    duotoneColor: normalizeDuotoneColor(preferences.duotoneColor),
+    gradientMapStops,
     contrast: normalizeContrast(preferences.contrast),
     saturation: normalizeSaturation(preferences.saturation),
   };
@@ -739,7 +737,7 @@ export const useViewerStore = defineStore("viewer", {
       filmstripHoleRoundedness: normalizeFilmstripHoleRoundedness(
         readViewerPreferences().filmstripHoleRoundedness,
       ),
-      duotoneColor: storedFilterSettings.duotoneColor,
+      gradientMapStops: storedFilterSettings.gradientMapStops,
       contrast: storedFilterSettings.contrast,
       saturation: storedFilterSettings.saturation,
       currentTextureId: null,
@@ -917,7 +915,7 @@ export const useViewerStore = defineStore("viewer", {
       this.filmstripHoleLength = DEFAULT_FILMSTRIP_HOLE_LENGTH;
       this.filmstripAperture = DEFAULT_FILMSTRIP_APERTURE;
       this.filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
-      this.duotoneColor = DEFAULT_DUOTONE_COLOR;
+      this.gradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
       this.contrast = DEFAULT_CONTRAST;
       this.saturation = DEFAULT_SATURATION;
       this.ribbonWidthScale = 1;
@@ -991,7 +989,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripHoleRoundedness: DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS,
         filmstripHoleSpacing: DEFAULT_FILMSTRIP_GAP_LENGTH,
         filmstripHoleSize: DEFAULT_FILMSTRIP_APERTURE,
-        duotoneColor: DEFAULT_DUOTONE_COLOR,
+        gradientMapStops: this.gradientMapStops,
         contrast: DEFAULT_CONTRAST,
         saturation: DEFAULT_SATURATION,
         undulationEnabled: true,
@@ -1379,7 +1377,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripHoleLength: this.filmstripHoleLength,
         filmstripAperture: this.filmstripAperture,
         filmstripHoleRoundedness: this.filmstripHoleRoundedness,
-        duotoneColor: this.duotoneColor,
+        gradientMapStops: this.gradientMapStops,
         contrast: this.contrast,
         saturation: this.saturation,
         ribbonWidthScale: this.ribbonWidthScale,
@@ -1468,7 +1466,8 @@ export const useViewerStore = defineStore("viewer", {
         this.filmstripHoleLength !== original.filmstripHoleLength ||
         this.filmstripAperture !== original.filmstripAperture ||
         this.filmstripHoleRoundedness !== original.filmstripHoleRoundedness ||
-        this.duotoneColor !== original.duotoneColor ||
+        serializeGradientMapStops(this.gradientMapStops) !==
+          serializeGradientMapStops(original.gradientMapStops) ||
         this.contrast !== original.contrast ||
         this.saturation !== original.saturation ||
         this.ribbonWidthScale !== original.ribbonWidthScale ||
@@ -1776,8 +1775,23 @@ export const useViewerStore = defineStore("viewer", {
 
     setDuotoneColor(color) {
       const nextColor = normalizeDuotoneColor(color);
-      this.duotoneColor = nextColor;
-      writeViewerPreferences({ duotoneColor: nextColor });
+      this.gradientMapStops = createLegacyDuotoneStops(nextColor);
+      writeViewerPreferences({
+        duotoneColor: nextColor,
+        gradientMapStops: this.gradientMapStops,
+      });
+    },
+
+    setGradientMapStops(stops, { persist = true } = {}) {
+      const normalized = normalizeGradientMapStops(
+        stops,
+        this.gradientMapStops,
+      );
+      this.gradientMapStops = normalized;
+      if (persist) {
+        writeViewerPreferences({ gradientMapStops: normalized });
+      }
+      return normalized;
     },
 
     setContrast(value) {

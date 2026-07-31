@@ -1,5 +1,5 @@
 <script setup>
-    import { computed, ref, watch, getCurrentInstance } from 'vue';
+    import { computed, ref, watch, getCurrentInstance, onBeforeUnmount } from 'vue';
     import ColorPicker from 'primevue/colorpicker';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
@@ -9,6 +9,10 @@
         applyLiveContrast,
         applyLiveSaturation,
     } from '../../modules/viewer/rendererAdjustmentBus';
+    import {
+        createGradientMapLut,
+        MAX_GRADIENT_MAP_STOPS,
+    } from '../../modules/viewer/gradientMap';
 
     defineProps({
         showPreferredResolution: { type: Boolean, default: false },
@@ -36,10 +40,10 @@
         }
     });
 
-    const duotoneFilterModel = computed({
-        get: () => app.renderFilterMode === 'duotone',
+    const gradientMapFilterModel = computed({
+        get: () => app.renderFilterMode === 'gradientMap',
         set: (value) => {
-            app.setRenderFilterMode(value ? 'duotone' : 'none');
+            app.setRenderFilterMode(value ? 'gradientMap' : 'none');
         }
     });
 
@@ -189,21 +193,116 @@
             : `Opaque at ${transparentShadowsThresholdMaxLabel.value}`
     );
 
-    const duotoneColorModel = computed({
-        get: () => app.duotoneColor,
-        set: (value) => {
-            app.setDuotoneColor(value);
+    const gradientBarRef = ref(null);
+    const selectedGradientStopId = ref(app.gradientMapStops[1]?.id ?? app.gradientMapStops[0]?.id ?? null);
+    let draggedGradientStopId = null;
+
+    const gradientMapStops = computed(() => app.gradientMapStops);
+    const gradientPreviewStyle = computed(() => ({
+        background: `linear-gradient(to right, ${gradientMapStops.value
+            .map((stop) => `${stop.color} ${Math.round(stop.position * 10000) / 100}%`)
+            .join(', ')})`,
+    }));
+
+    watch(gradientMapStops, (stops) => {
+        if (!stops.some((stop) => stop.id === selectedGradientStopId.value)) {
+            selectedGradientStopId.value = stops[0]?.id ?? null;
         }
     });
 
-    const duotoneColorPickerModel = computed({
-        get: () => duotoneColorModel.value.replace('#', ''),
-        set: (value) => {
-            app.setDuotoneColor(typeof value === 'string' ? `#${value}` : value);
-        }
-    });
+    function updateGradientStop(stopId, patch, persist = true) {
+        app.setGradientMapStops(gradientMapStops.value.map((stop) => (
+            stop.id === stopId ? { ...stop, ...patch } : stop
+        )), { persist });
+        selectedGradientStopId.value = stopId;
+    }
 
-    const duotoneColorLabel = computed(() => duotoneColorModel.value.toUpperCase());
+    function onGradientStopColor(stopId, value) {
+        const color = typeof value === 'string' ? `#${value.replace(/^#/, '')}` : value;
+        updateGradientStop(stopId, { color });
+    }
+
+    function onGradientStopPosition(stopId, value) {
+        const percentage = Number(value);
+        if (!Number.isFinite(percentage)) return;
+        updateGradientStop(stopId, { position: percentage / 100 });
+    }
+
+    function sampleGradientColor(position) {
+        const lut = createGradientMapLut(gradientMapStops.value);
+        const index = Math.round(Math.min(1, Math.max(0, position)) * ((lut.length / 4) - 1)) * 4;
+        return `#${[lut[index], lut[index + 1], lut[index + 2]]
+            .map((channel) => channel.toString(16).padStart(2, '0'))
+            .join('')}`;
+    }
+
+    function addGradientStopAtPosition(position) {
+        if (gradientMapStops.value.length >= MAX_GRADIENT_MAP_STOPS) return;
+        const normalizedPosition = Math.min(1, Math.max(0, position));
+        const id = `stop-${Date.now().toString(36)}-${Math.round(normalizedPosition * 1000)}`;
+        app.setGradientMapStops([
+            ...gradientMapStops.value,
+            { id, position: normalizedPosition, color: sampleGradientColor(normalizedPosition) },
+        ]);
+        selectedGradientStopId.value = id;
+    }
+
+    function addGradientStop() {
+        const stops = gradientMapStops.value;
+        let largestGap = -1;
+        let position = 0.5;
+        for (let index = 1; index < stops.length; index += 1) {
+            const gap = stops[index].position - stops[index - 1].position;
+            if (gap > largestGap) {
+                largestGap = gap;
+                position = stops[index - 1].position + gap / 2;
+            }
+        }
+        addGradientStopAtPosition(position);
+    }
+
+    function removeGradientStop(stopId) {
+        if (gradientMapStops.value.length <= 2) return;
+        app.setGradientMapStops(gradientMapStops.value.filter((stop) => stop.id !== stopId));
+    }
+
+    function positionFromPointer(event) {
+        const bounds = gradientBarRef.value?.getBoundingClientRect?.();
+        if (!bounds?.width) return null;
+        return Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    }
+
+    function onGradientBarDoubleClick(event) {
+        const position = positionFromPointer(event);
+        if (position != null) addGradientStopAtPosition(position);
+    }
+
+    function onGradientStopPointerDown(event, stopId) {
+        event.preventDefault();
+        draggedGradientStopId = stopId;
+        selectedGradientStopId.value = stopId;
+        window.addEventListener('pointermove', onGradientStopPointerMove);
+        window.addEventListener('pointerup', stopGradientStopDrag, { once: true });
+    }
+
+    function onGradientStopPointerMove(event) {
+        if (!draggedGradientStopId) return;
+        const position = positionFromPointer(event);
+        if (position != null) {
+            updateGradientStop(draggedGradientStopId, { position }, false);
+        }
+    }
+
+    function stopGradientStopDrag() {
+        if (draggedGradientStopId) {
+            app.setGradientMapStops(gradientMapStops.value);
+        }
+        draggedGradientStopId = null;
+        window.removeEventListener('pointermove', onGradientStopPointerMove);
+        window.removeEventListener('pointerup', stopGradientStopDrag);
+    }
+
+    onBeforeUnmount(stopGradientStopDrag);
 
     // Contrast / saturation use native <input type="range"> + imperative DOM updates
     // during drag, bypassing Vue reactivity entirely on @input. We only touch
@@ -647,43 +746,114 @@
                 >
                     <label
                         class="tools-toggle-main"
-                        :for="getInputId('duotone-filter')"
+                        :for="getInputId('gradient-map-filter')"
                     >
                         <span class="material-symbols-outlined">palette</span>
-                        <span>Duotone</span>
+                        <span>Gradient Map</span>
                     </label>
                     <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ duotoneFilterModel ? 'On' : 'Off' }}</span>
+                        <span class="tools-hint tools-toggle-hint">{{ gradientMapFilterModel ? 'On' : 'Off' }}</span>
                         <ToggleSwitch
-                            :inputId="getInputId('duotone-filter')"
-                            v-model="duotoneFilterModel"
+                            :inputId="getInputId('gradient-map-filter')"
+                            v-model="gradientMapFilterModel"
                         />
                     </div>
                 </div>
 
                 <div
-                    v-if="showDuotoneFilter && duotoneFilterModel"
-                    class="tools-color-row"
+                    v-if="showDuotoneFilter && gradientMapFilterModel"
+                    class="gradient-map-editor"
                 >
-                    <label
-                        class="tools-color-main"
-                        :for="getInputId('duotone-color')"
-                    >
-                        <span
-                            class="tools-color-swatch"
-                            :style="{ backgroundColor: duotoneColorModel }"
-                        ></span>
-                        <span>Duotone Color</span>
-                    </label>
-                    <div class="tools-color-control">
-                        <span class="tools-hint tools-color-hint">{{ duotoneColorLabel }}</span>
-                        <ColorPicker
-                            :inputId="getInputId('duotone-color')"
-                            v-model="duotoneColorPickerModel"
-                            format="hex"
-                            class="tools-color-picker"
-                        />
+                    <div class="gradient-map-header">
+                        <span>Color Stops</span>
+                        <button
+                            type="button"
+                            class="gradient-map-add"
+                            :disabled="gradientMapStops.length >= MAX_GRADIENT_MAP_STOPS"
+                            title="Add color stop"
+                            @click="addGradientStop"
+                        >
+                            <span class="material-symbols-outlined">add</span>
+                            Add
+                        </button>
                     </div>
+
+                    <div class="gradient-map-track-wrap">
+                        <div
+                            ref="gradientBarRef"
+                            class="gradient-map-track"
+                            :style="gradientPreviewStyle"
+                            title="Double-click to add a stop"
+                            @dblclick="onGradientBarDoubleClick"
+                        >
+                            <button
+                                v-for="stop in gradientMapStops"
+                                :key="stop.id"
+                                type="button"
+                                class="gradient-map-handle"
+                                :class="{ 'is-selected': stop.id === selectedGradientStopId }"
+                                :style="{
+                                    left: `${stop.position * 100}%`,
+                                    '--stop-color': stop.color,
+                                }"
+                                :aria-label="`Gradient stop at ${Math.round(stop.position * 100)} percent`"
+                                @pointerdown="onGradientStopPointerDown($event, stop.id)"
+                                @click="selectedGradientStopId = stop.id"
+                            ></button>
+                        </div>
+                    </div>
+
+                    <div class="gradient-map-stop-list">
+                        <div
+                            v-for="stop in gradientMapStops"
+                            :key="`row-${stop.id}`"
+                            class="gradient-map-stop-row"
+                            :class="{ 'is-selected': stop.id === selectedGradientStopId }"
+                            @click="selectedGradientStopId = stop.id"
+                        >
+                            <ColorPicker
+                                :inputId="getInputId(`gradient-color-${stop.id}`)"
+                                :modelValue="stop.color.replace('#', '')"
+                                format="hex"
+                                class="tools-color-picker gradient-map-picker"
+                                @update:modelValue="onGradientStopColor(stop.id, $event)"
+                            />
+                            <input
+                                type="text"
+                                class="gradient-map-hex"
+                                :value="stop.color.toUpperCase()"
+                                maxlength="7"
+                                aria-label="Stop color"
+                                @change="onGradientStopColor(stop.id, $event.target.value)"
+                            />
+                            <div class="gradient-map-position-wrap">
+                                <input
+                                    type="number"
+                                    class="gradient-map-position"
+                                    :value="Math.round(stop.position * 100)"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    aria-label="Stop position percentage"
+                                    @change="onGradientStopPosition(stop.id, $event.target.value)"
+                                />
+                                <span>%</span>
+                            </div>
+                            <button
+                                type="button"
+                                class="gradient-map-remove"
+                                :disabled="gradientMapStops.length <= 2"
+                                title="Remove color stop"
+                                @click.stop="removeGradientStop(stop.id)"
+                            >
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <p class="gradient-map-caption">
+                        Maps scene luminance from shadows to highlights. Drag stops or double-click the ramp to add one.
+                    </p>
                 </div>
 
                 <div class="tools-slider-block">
@@ -801,6 +971,161 @@
 
     .tools-toggle-hint {
         margin-left: 0;
+    }
+
+    .gradient-map-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0 0.75rem 1rem;
+    }
+
+    .gradient-map-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .gradient-map-add,
+    .gradient-map-remove {
+        appearance: none;
+        border: 0;
+        color: rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+    }
+
+    .gradient-map-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
+        padding: 0.3rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+    }
+
+    .gradient-map-add .material-symbols-outlined,
+    .gradient-map-remove .material-symbols-outlined {
+        font-size: 1rem;
+    }
+
+    .gradient-map-add:disabled,
+    .gradient-map-remove:disabled {
+        opacity: 0.3;
+        cursor: default;
+    }
+
+    .gradient-map-track-wrap {
+        padding: 0.65rem 0.55rem 0.8rem;
+    }
+
+    .gradient-map-track {
+        position: relative;
+        height: 2rem;
+        border: 2px solid rgba(255, 255, 255, 0.76);
+        border-radius: 7px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42);
+        cursor: crosshair;
+    }
+
+    .gradient-map-handle {
+        position: absolute;
+        top: 50%;
+        width: 1rem;
+        height: 2.8rem;
+        padding: 0;
+        transform: translate(-50%, -50%);
+        border: 3px solid rgba(255, 255, 255, 0.95);
+        border-radius: 999px;
+        background: var(--stop-color);
+        box-shadow: 0 0 0 2px rgba(11, 34, 46, 0.95);
+        cursor: grab;
+        touch-action: none;
+        z-index: 1;
+    }
+
+    .gradient-map-handle.is-selected {
+        box-shadow:
+            0 0 0 2px rgba(11, 34, 46, 1),
+            0 0 0 6px rgba(255, 255, 255, 0.25);
+        z-index: 2;
+    }
+
+    .gradient-map-handle:active {
+        cursor: grabbing;
+    }
+
+    .gradient-map-stop-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .gradient-map-stop-row {
+        display: grid;
+        grid-template-columns: 2rem minmax(5.5rem, 1fr) 4.5rem 1.75rem;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.45rem;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.035);
+    }
+
+    .gradient-map-stop-row.is-selected {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .gradient-map-hex,
+    .gradient-map-position {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.2);
+        color: rgba(255, 255, 255, 0.9);
+        font: 0.75rem/1.2 monospace;
+        outline: none;
+    }
+
+    .gradient-map-hex {
+        padding: 0.45rem 0.5rem;
+        text-transform: uppercase;
+    }
+
+    .gradient-map-position-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        color: rgba(255, 255, 255, 0.52);
+        font-size: 0.72rem;
+    }
+
+    .gradient-map-position {
+        padding: 0.45rem 0.25rem 0.45rem 0.45rem;
+    }
+
+    .gradient-map-remove {
+        display: grid;
+        width: 1.75rem;
+        height: 1.75rem;
+        place-items: center;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .gradient-map-caption {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.48);
+        font-size: 0.68rem;
+        line-height: 1.35;
     }
 
     .tools-color-row {

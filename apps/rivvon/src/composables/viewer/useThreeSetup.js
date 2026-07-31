@@ -183,8 +183,8 @@ export function useThreeSetup() {
         filmstripHoleLength: app.filmstripHoleLength,
         filmstripAperture: app.filmstripAperture,
         filmstripHoleRoundedness: app.filmstripHoleRoundedness,
-        contrast: app.renderFilterMode === "duotone" ? 1 : app.contrast,
-        saturation: app.renderFilterMode === "duotone" ? 1 : app.saturation,
+        contrast: app.renderFilterMode === "gradientMap" ? 1 : app.contrast,
+        saturation: app.renderFilterMode === "gradientMap" ? 1 : app.saturation,
         webgpuMaterialMode: "node",
       });
       await tileManager.value.loadAllTiles();

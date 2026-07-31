@@ -745,8 +745,8 @@
         tileManager.setFlowAlignmentEnabled?.(app.flowCycleAlignmentEnabled);
         tileManager.setLayerAnimationEnabled?.(app.textureAnimationEnabled);
         tileManager.setLayerAnimationReversed?.(app.textureAnimationReversed);
-        tileManager.setContrast?.(app.renderFilterMode === 'duotone' ? 1 : app.contrast);
-        tileManager.setSaturation?.(app.renderFilterMode === 'duotone' ? 1 : app.saturation);
+        tileManager.setContrast?.(app.renderFilterMode === 'gradientMap' ? 1 : app.contrast);
+        tileManager.setSaturation?.(app.renderFilterMode === 'gradientMap' ? 1 : app.saturation);
 
         if (app.flowState === 'off') {
             tileManager.setFlowEnabled?.(false);
@@ -1324,14 +1324,14 @@
             app.transparentShadowsThresholdMin,
             app.transparentShadowsThresholdMax,
             app.renderFilterMode,
-            app.duotoneColor,
+            app.gradientMapStops,
             app.contrast,
             app.saturation,
         ],
         () => {
             if (!renderer || !tileManager) return;
-            tileManager.setContrast?.(app.renderFilterMode === 'duotone' ? 1 : app.contrast);
-            tileManager.setSaturation?.(app.renderFilterMode === 'duotone' ? 1 : app.saturation);
+            tileManager.setContrast?.(app.renderFilterMode === 'gradientMap' ? 1 : app.contrast);
+            tileManager.setSaturation?.(app.renderFilterMode === 'gradientMap' ? 1 : app.saturation);
             syncCellMaterials(true);
             renderCurrentScene();
         }

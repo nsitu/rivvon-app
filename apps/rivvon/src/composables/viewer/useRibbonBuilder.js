@@ -461,11 +461,11 @@ export function useRibbonBuilder(ctx) {
 
     /**
      * Sync the current scene color-adjustment spike state into ribbon materials.
-     * While duotone is active, the fullscreen path remains authoritative.
+     * While gradient mapping is active, the fullscreen path remains authoritative.
      */
     function syncSceneColorAdjustments() {
         const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
-        const useRibbonAdjustments = ctx.app.renderFilterMode !== 'duotone';
+        const useRibbonAdjustments = ctx.app.renderFilterMode !== 'gradientMap';
         const contrast = useRibbonAdjustments ? ctx.app.contrast : 1;
         const saturation = useRibbonAdjustments ? ctx.app.saturation : 1;
 
@@ -484,7 +484,7 @@ export function useRibbonBuilder(ctx) {
         const normalized = Number.isFinite(Number(value)) ? Number(value) : ctx.app.contrast;
 
         for (const tm of targets) {
-            tm.setContrast?.(ctx.app.renderFilterMode !== 'duotone' ? normalized : 1);
+            tm.setContrast?.(ctx.app.renderFilterMode !== 'gradientMap' ? normalized : 1);
         }
 
         return normalized;
@@ -499,7 +499,7 @@ export function useRibbonBuilder(ctx) {
         const normalized = Number.isFinite(Number(value)) ? Number(value) : ctx.app.saturation;
 
         for (const tm of targets) {
-            tm.setSaturation?.(ctx.app.renderFilterMode !== 'duotone' ? normalized : 1);
+            tm.setSaturation?.(ctx.app.renderFilterMode !== 'gradientMap' ? normalized : 1);
         }
 
         return normalized;
