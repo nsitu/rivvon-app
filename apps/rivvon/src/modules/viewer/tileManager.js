@@ -2486,6 +2486,20 @@ ${SCENE_COLOR_ADJUST_GLSL}
     }
 
     #registerDecodedArrayTexture(arrayTexture, tileIndex, label = 'Tile') {
+        // WebGPU exposes BC1 as an RGBA format. Some Basis/KTX2 payloads are
+        // still reported by the transcoder with Three's legacy RGB DXT1
+        // constant; WebGPUTextureUtils can create the GPU texture for that
+        // value, but cannot resolve its compressed block layout when uploading
+        // it, which crashes in _copyCompressedBufferToTexture(). The payload's
+        // block layout is identical, so normalize the Three.js format before
+        // any material gets a chance to upload it.
+        if (
+            this.rendererType === 'webgpu'
+            && arrayTexture.format === THREE.RGB_S3TC_DXT1_Format
+        ) {
+            arrayTexture.format = THREE.RGBA_S3TC_DXT1_Format;
+        }
+
         arrayTexture.flipY = false;
         arrayTexture.generateMipmaps = false;
         const hasMips = Array.isArray(arrayTexture.mipmaps) && arrayTexture.mipmaps.length > 1;
