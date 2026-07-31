@@ -1260,13 +1260,6 @@
         border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: none;
-        background-image:
-            linear-gradient(45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
-            linear-gradient(-45deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%),
-            linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.08) 75%);
-        background-size: 10px 10px;
-        background-position: 0 0, 0 5px, 5px -5px, -5px 0;
     }
 
     :deep(.tools-range-slider .p-slider-handle) {
