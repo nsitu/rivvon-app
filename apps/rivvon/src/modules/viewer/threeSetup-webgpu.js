@@ -5,6 +5,10 @@ import { applyRendererDisplayConfig } from './rendererConfig.js';
 import { createWebGPUDiagnostics } from './webgpuDiagnostics.js';
 
 const OPTIONAL_WEBGPU_FEATURES = [
+    // KTX2Loader uses this standard WebGPU feature for BC7/BC3 targets.
+    // It must be enabled explicitly when Rivvon creates its own GPUDevice;
+    // adapter support alone does not make it available on the device.
+    'texture-compression-bc',
     'texture-compression-etc2',
     'texture-compression-astc',
     'texture-compression-astc-sliced-3d',

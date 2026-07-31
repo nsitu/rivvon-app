@@ -22,7 +22,8 @@ export function createWebGPUDiagnostics(renderer, selectedAdapter = null, select
     const backend = renderer?.backend ?? null;
     const adapter = selectedAdapter ?? backend?.adapter ?? null;
     const device = selectedDevice ?? backend?.device ?? null;
-    const features = Array.from(adapter?.features ?? device?.features ?? []).sort();
+    const adapterFeatures = Array.from(adapter?.features ?? []).sort();
+    const deviceFeatures = Array.from(device?.features ?? []).sort();
     const adapterInfo = entriesToObject(adapter?.info);
     const limits = entriesToObject(adapter?.limits ?? device?.limits);
     const adapterVendor = adapterInfo.vendor || 'unknown';
@@ -41,9 +42,14 @@ export function createWebGPUDiagnostics(renderer, selectedAdapter = null, select
             || 'unknown adapter',
         adapterVendor,
         adapterArchitecture,
-        timestampQuerySupported: features.includes('timestamp-query'),
+        timestampQuerySupported: deviceFeatures.includes('timestamp-query'),
         timestampTrackingEnabled: backend?.trackTimestamp === true,
-        features,
+        // Keep `features` as the capabilities actually enabled on the device.
+        // Adapter support is reported separately because optional WebGPU
+        // features are unavailable until requested during device creation.
+        features: deviceFeatures,
+        adapterFeatures,
+        deviceFeatures,
         limits,
         queuePending: false,
         queueDrainMs: null,
