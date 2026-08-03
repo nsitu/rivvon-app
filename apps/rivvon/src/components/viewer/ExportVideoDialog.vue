@@ -529,6 +529,37 @@
                         </div>
 
                         <div
+                            v-if="aspectRatioPreset === 'custom' || resolutionPreset === 'custom'"
+                            class="form-field form-row"
+                        >
+                            <div class="flex-1">
+                                <label>Width</label>
+                                <InputNumber
+                                    v-model="customWidth"
+                                    :min="320"
+                                    :max="8192"
+                                    :step="2"
+                                    :disabled="isEncoding"
+                                    input-id="videoExportCustomWidth"
+                                    class="w-full"
+                                />
+                            </div>
+                            <span class="dimension-x" aria-hidden="true">x</span>
+                            <div class="flex-1">
+                                <label>Height</label>
+                                <InputNumber
+                                    v-model="customHeight"
+                                    :min="240"
+                                    :max="8192"
+                                    :step="2"
+                                    :disabled="isEncoding"
+                                    input-id="videoExportCustomHeight"
+                                    class="w-full"
+                                />
+                            </div>
+                        </div>
+
+                        <div
                             v-if="textureOnlyMode"
                             class="form-field"
                         >

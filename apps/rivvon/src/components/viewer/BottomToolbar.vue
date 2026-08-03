@@ -5,6 +5,7 @@
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
+    import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import AboutPanel from './AboutPanel.vue';
@@ -100,6 +101,20 @@
         get: () => exportDimensionSettings.value.resolutionPreset,
         set: (value) => {
             app.setExportResolutionPreset(value);
+        }
+    });
+
+    const exportCustomWidthModel = computed({
+        get: () => exportDimensionSettings.value.customWidth,
+        set: (value) => {
+            app.setExportCustomWidth(value);
+        }
+    });
+
+    const exportCustomHeightModel = computed({
+        get: () => exportDimensionSettings.value.customHeight,
+        set: (value) => {
+            app.setExportCustomHeight(value);
         }
     });
 
@@ -981,6 +996,35 @@
                                 </div>
                             </div>
 
+                            <div
+                                v-if="exportAspectRatioPresetModel === 'custom' || exportResolutionPresetModel === 'custom'"
+                                class="tools-select-block tools-dimensions-block"
+                            >
+                                <div class="tools-dimension-field">
+                                    <label class="tools-select-label">Width</label>
+                                    <InputNumber
+                                        v-model="exportCustomWidthModel"
+                                        :min="320"
+                                        :max="8192"
+                                        :step="2"
+                                        input-id="exportCustomWidth"
+                                        class="tools-dimension-input"
+                                    />
+                                </div>
+                                <span class="tools-dimension-x" aria-hidden="true">x</span>
+                                <div class="tools-dimension-field">
+                                    <label class="tools-select-label">Height</label>
+                                    <InputNumber
+                                        v-model="exportCustomHeightModel"
+                                        :min="240"
+                                        :max="8192"
+                                        :step="2"
+                                        input-id="exportCustomHeight"
+                                        class="tools-dimension-input"
+                                    />
+                                </div>
+                            </div>
+
                             <div class="tools-select-block">
                                 <div class="tools-toggle-row">
                                     <label
@@ -1470,6 +1514,31 @@
 
     .tools-select {
         width: 100%;
+    }
+
+    .tools-dimensions-block {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: end;
+        gap: 0.5rem;
+    }
+
+    .tools-dimension-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        min-width: 0;
+    }
+
+    .tools-dimension-input,
+    :deep(.tools-dimension-input .p-inputnumber-input) {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .tools-dimension-x {
+        padding-bottom: 0.65rem;
+        color: rgba(255, 255, 255, 0.5);
     }
 
     .tools-toggle-row {
