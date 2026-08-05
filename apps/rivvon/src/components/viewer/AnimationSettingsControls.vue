@@ -110,11 +110,19 @@
     const backgroundOverlayColorPickerModel = computed({
         get: () => backgroundOverlayColorModel.value.replace('#', ''),
         set: (value) => {
-            app.setBackgroundOverlayColor(typeof value === 'string' ? `#${value}` : value);
+            app.setBackgroundOverlayColor(
+                typeof value === 'string' ? `#${value.replace(/^#/, '')}` : value
+            );
         }
     });
 
-    const backgroundOverlayColorLabel = computed(() => backgroundOverlayColorModel.value.toUpperCase());
+    const backgroundOverlayColorInputModel = computed(
+        () => backgroundOverlayColorModel.value.toUpperCase()
+    );
+
+    function onBackgroundOverlayColorInput(event) {
+        app.setBackgroundOverlayColor(event.target.value);
+    }
 
     const backgroundOverlayOpacityModel = computed({
         get: () => Math.round(app.backgroundOverlayOpacity * 100),
@@ -610,7 +618,17 @@
                         <span>Overlay Color</span>
                     </label>
                     <div class="tools-color-control">
-                        <span class="tools-hint tools-color-hint">{{ backgroundOverlayColorLabel }}</span>
+                        <input
+                            :id="getInputId('background-overlay-color-hex')"
+                            type="text"
+                            class="background-overlay-hex"
+                            :value="backgroundOverlayColorInputModel"
+                            maxlength="7"
+                            spellcheck="false"
+                            autocomplete="off"
+                            aria-label="Overlay color hex code"
+                            @change="onBackgroundOverlayColorInput"
+                        />
                         <ColorPicker
                             :inputId="getInputId('background-overlay-color')"
                             v-model="backgroundOverlayColorPickerModel"
@@ -883,6 +901,24 @@
 
     :deep(.tools-color-picker .p-colorpicker-panel) {
         z-index: 5000;
+    }
+
+    .background-overlay-hex {
+        width: 5.5rem;
+        box-sizing: border-box;
+        padding: 0.45rem 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.2);
+        color: rgba(255, 255, 255, 0.9);
+        font: 0.75rem/1.2 monospace;
+        outline: none;
+        text-transform: uppercase;
+    }
+
+    .background-overlay-hex:focus {
+        border-color: var(--p-primary-color, #10b981);
+        box-shadow: 0 0 0 1px var(--p-primary-color, #10b981);
     }
 
 </style>

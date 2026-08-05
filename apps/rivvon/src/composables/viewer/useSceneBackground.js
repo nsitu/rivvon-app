@@ -162,28 +162,51 @@ function getBackgroundOverlayState(ctx) {
   };
 }
 
-function createBackgroundOverlayMaterialWebGL(ctx) {
-  const overlayState = getBackgroundOverlayState(ctx);
-  return new THREE.MeshBasicMaterial({
-    color: overlayState.color,
-    transparent: true,
-    opacity: overlayState.enabled ? overlayState.opacity : 0,
+function createWebGLBackgroundDisplayMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      uOverlayColor: { value: new THREE.Color(0xffffff) },
+      uOverlayOpacity: { value: 0 },
+    },
+    vertexShader: /* glsl */ `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+    fragmentShader: /* glsl */ `
+            precision highp float;
+            uniform sampler2D tDiffuse;
+            uniform vec3 uOverlayColor;
+            uniform float uOverlayOpacity;
+            varying vec2 vUv;
+
+            void main() {
+                vec4 background = texture2D(tDiffuse, vUv);
+                vec3 color = mix(background.rgb, uOverlayColor, uOverlayOpacity);
+                gl_FragColor = vec4(color, background.a);
+            }
+        `,
+    transparent: false,
     depthTest: false,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
 }
 
-function updateBackgroundOverlayMaterialWebGL(material, ctx) {
+function updateWebGLBackgroundDisplayMaterial(material, ctx, texture) {
   if (!material) {
     return;
   }
 
   const overlayState = getBackgroundOverlayState(ctx);
-  material.color.copy(overlayState.color);
-  material.transparent = true;
-  material.opacity = overlayState.enabled ? overlayState.opacity : 0;
-  material.visible = overlayState.enabled && material.opacity > 0;
+  material.uniforms.tDiffuse.value = texture;
+  material.uniforms.uOverlayColor.value.copy(overlayState.color);
+  material.uniforms.uOverlayOpacity.value = overlayState.enabled
+    ? overlayState.opacity
+    : 0;
 }
 
 function getBackgroundFlowPosition(ctx, tileManager, timeSeconds = null) {
@@ -354,82 +377,49 @@ export function useSceneBackground(ctx) {
   };
 }
 
-function attachCameraBackgroundPlane(ctx, material, overlayMaterial = null) {
+function attachCameraBackgroundPlane(ctx, material) {
   const camera = ctx.camera.value;
   const scene = ctx.scene.value;
   const geometry = new THREE.PlaneGeometry(1, 1);
   const mesh = new THREE.Mesh(geometry, material);
-  const overlayGeometry = overlayMaterial
-    ? new THREE.PlaneGeometry(1, 1)
-    : null;
-  const overlayMesh = overlayMaterial
-    ? new THREE.Mesh(overlayGeometry, overlayMaterial)
-    : null;
 
   mesh.name = "RivvonCameraLockedBackground";
   mesh.frustumCulled = false;
   mesh.renderOrder = BACKGROUND_RENDER_ORDER;
   mesh.position.set(0, 0, -BACKGROUND_DISTANCE);
 
-  if (overlayMesh) {
-    overlayMesh.name = "RivvonCameraLockedBackgroundOverlay";
-    overlayMesh.frustumCulled = false;
-    overlayMesh.renderOrder = BACKGROUND_RENDER_ORDER + 1;
-    overlayMesh.position.set(0, 0, -BACKGROUND_DISTANCE);
-  }
-
   if (!camera.parent && scene) {
     scene.add(camera);
   }
 
   camera.add(mesh);
-  if (overlayMesh) {
-    camera.add(overlayMesh);
-  }
 
   function syncSize() {
-    const applyOverlayTransform = () => {
-      if (!overlayMesh) {
-        return;
-      }
-
-      overlayMesh.position.copy(mesh.position);
-      overlayMesh.scale.copy(mesh.scale);
-    };
-
     if (camera.isPerspectiveCamera) {
       const height =
         2 *
         Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) *
         BACKGROUND_DISTANCE;
       mesh.scale.set(height * camera.aspect, height, 1);
-      applyOverlayTransform();
       return;
     }
 
     if (camera.isOrthographicCamera) {
       mesh.position.z = -1;
       mesh.scale.set(camera.right - camera.left, camera.top - camera.bottom, 1);
-      applyOverlayTransform();
     }
   }
 
   function dispose() {
     camera.remove(mesh);
-    if (overlayMesh) {
-      camera.remove(overlayMesh);
-    }
     geometry.dispose();
-    overlayGeometry?.dispose?.();
     material?.dispose?.();
-    overlayMaterial?.dispose?.();
   }
 
   syncSize();
 
   return {
     mesh,
-    overlayMesh,
     syncSize,
     dispose,
   };
@@ -485,6 +475,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       uRotate90: { value: initialFrame.rotate90 },
       uFlipVertical: { value: initialFrame.flipVertical },
       uBlurRadius: { value: initialFrame.blurRadius },
+      uOverlayColor: { value: new THREE.Color(0xffffff) },
+      uOverlayOpacity: { value: 0 },
       uSeamSafeBlend: { value: ctx.app.backgroundBlurEnabled ? 1 : 0 },
       uOpacity: { value: getBackgroundOpacity(options) },
     },
@@ -510,6 +502,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             uniform int uRotate90;
             uniform int uFlipVertical;
             uniform float uBlurRadius;
+            uniform vec3 uOverlayColor;
+            uniform float uOverlayOpacity;
             uniform int uSeamSafeBlend;
             uniform float uOpacity;
 
@@ -580,7 +574,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                         : (shiftedU >= 1.0 ? nextColor : currentColor))
                     : currentColor);
 
-                outColor = vec4(color.rgb, color.a * uOpacity);
+                vec3 compositedColor = mix(color.rgb, uOverlayColor, uOverlayOpacity);
+                outColor = vec4(compositedColor, color.a * uOpacity);
             }
         `,
     transparent: false,
@@ -593,8 +588,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     return createBlurredTileBackgroundRuntimeWebGL(ctx, material);
   }
 
-  const overlayMaterial = createBackgroundOverlayMaterialWebGL(ctx);
-  const plane = attachCameraBackgroundPlane(ctx, material, overlayMaterial);
+  const plane = attachCameraBackgroundPlane(ctx, material);
 
   function update(renderOptions = {}) {
     const frame = resolveBackgroundFrame(ctx, renderOptions);
@@ -602,7 +596,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       return;
     }
 
-    plane.syncSize();
+    plane?.syncSize?.();
     material.uniforms.uTexArrayCurrent.value = frame.currentTexture;
     material.uniforms.uTexArrayNext.value =
       frame.nextTexture || frame.currentTexture;
@@ -617,7 +611,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     material.uniforms.uRotate90.value = frame.rotate90;
     material.uniforms.uFlipVertical.value = frame.flipVertical;
     material.uniforms.uBlurRadius.value = frame.blurRadius;
-    updateBackgroundOverlayMaterialWebGL(overlayMaterial, ctx);
+    updateWebGLTileBackgroundMaterial(material, frame, ctx, true);
   }
 
   return {
@@ -626,7 +620,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
   };
 }
 
-function updateWebGLTileBackgroundMaterial(material, frame) {
+function updateWebGLTileBackgroundMaterial(material, frame, ctx, includeOverlay) {
   material.uniforms.uTexArrayCurrent.value = frame.currentTexture;
   material.uniforms.uTexArrayNext.value =
     frame.nextTexture || frame.currentTexture;
@@ -639,6 +633,10 @@ function updateWebGLTileBackgroundMaterial(material, frame) {
   material.uniforms.uRotate90.value = frame.rotate90;
   material.uniforms.uFlipVertical.value = frame.flipVertical;
   material.uniforms.uBlurRadius.value = frame.blurRadius;
+  const overlayState = getBackgroundOverlayState(ctx);
+  material.uniforms.uOverlayColor.value.copy(overlayState.color);
+  material.uniforms.uOverlayOpacity.value =
+    includeOverlay && overlayState.enabled ? overlayState.opacity : 0;
 }
 
 function createWebGLKawaseBlurMaterial(width, height) {
@@ -746,19 +744,8 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
   let gaussianHorizontalMaterial = null;
   let gaussianVerticalMaterial = null;
 
-  const displayMaterial = new THREE.MeshBasicMaterial({
-    map: null,
-    transparent: false,
-    depthTest: false,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const overlayMaterial = createBackgroundOverlayMaterialWebGL(ctx);
-  const plane = attachCameraBackgroundPlane(
-    ctx,
-    displayMaterial,
-    overlayMaterial,
-  );
+  const displayMaterial = createWebGLBackgroundDisplayMaterial();
+  const plane = attachCameraBackgroundPlane(ctx, displayMaterial);
 
   function ensureRenderTargets(renderOptions = {}) {
     const { width, height } = getBlurTargetSize(ctx, renderOptions);
@@ -792,7 +779,7 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
     }
 
     plane.syncSize();
-    updateWebGLTileBackgroundMaterial(sourceMaterial, frame);
+    updateWebGLTileBackgroundMaterial(sourceMaterial, frame, ctx, false);
     ensureRenderTargets(renderOptions);
 
     const renderer = ctx.renderer.value;
@@ -841,12 +828,12 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
 
     if (outputTexture !== outputTarget.texture) {
       outputTexture = outputTarget.texture;
-      displayMaterial.map = outputTexture;
+      updateWebGLBackgroundDisplayMaterial(displayMaterial, ctx, outputTexture);
       displayMaterial.needsUpdate = true;
       ctx.backgroundTexture.value = outputTexture;
     }
 
-    updateBackgroundOverlayMaterialWebGL(overlayMaterial, ctx);
+    updateWebGLBackgroundDisplayMaterial(displayMaterial, ctx, outputTarget.texture);
   }
 
   function dispose() {
@@ -875,6 +862,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     uniform,
     uv,
     float,
+    mix,
     vec2,
     vec3,
     vec4,
@@ -894,7 +882,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     ].join(":");
   }
 
-  function createMaterial(nextFrame) {
+  function createMaterial(nextFrame, includeOverlay = false) {
     const material = new MeshBasicNodeMaterial();
     const baseUv = uv();
     const layerUniform = uniform(nextFrame.currentLayer);
@@ -904,6 +892,18 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     const flipUniform = uniform(nextFrame.flipVertical);
     const blurUniform = uniform(float(nextFrame.blurRadius));
     const opacityUniform = uniform(float(getBackgroundOpacity(options)));
+    const overlayState = getBackgroundOverlayState(ctx);
+    const overlayRedUniform = uniform(float(overlayState.color.r));
+    const overlayGreenUniform = uniform(float(overlayState.color.g));
+    const overlayBlueUniform = uniform(float(overlayState.color.b));
+    const overlayOpacityUniform = uniform(
+      float(includeOverlay && overlayState.enabled ? overlayState.opacity : 0),
+    );
+    const overlayColor = vec3(
+      overlayRedUniform,
+      overlayGreenUniform,
+      overlayBlueUniform,
+    );
 
     const currentShiftedU = baseUv.x.add(
       flowActiveUniform.equal(1).select(flowOffsetUniform, float(0)),
@@ -990,7 +990,17 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       .equal(1)
       .select(activeFlowColor, currentColor);
 
-    material.colorNode = vec4(color.rgb, color.a.mul(opacityUniform));
+    const outputColor = vec4(color.rgb, color.a.mul(opacityUniform));
+    material.colorNode = includeOverlay
+      ? vec4(
+          mix(
+            outputColor.rgb,
+            overlayColor,
+            overlayOpacityUniform,
+          ),
+          outputColor.a,
+        )
+      : outputColor;
     material.transparent = false;
     material.depthTest = false;
     material.depthWrite = false;
@@ -1001,39 +1011,22 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._rotateUniform = rotateUniform;
     material._flipUniform = flipUniform;
     material._blurUniform = blurUniform;
-
-    return material;
-  }
-
-  function createOverlayMaterial() {
-    const overlayState = getBackgroundOverlayState(ctx);
-    const material = new MeshBasicNodeMaterial();
-    const overlayRedUniform = uniform(float(overlayState.color.r));
-    const overlayGreenUniform = uniform(float(overlayState.color.g));
-    const overlayBlueUniform = uniform(float(overlayState.color.b));
-    const overlayOpacityUniform = uniform(
-      float(overlayState.enabled ? overlayState.opacity : 0),
-    );
-
-    material.colorNode = vec4(
-      vec3(overlayRedUniform, overlayGreenUniform, overlayBlueUniform),
-      overlayOpacityUniform,
-    );
-    material.transparent = true;
-    material.depthTest = false;
-    material.depthWrite = false;
-    material.side = THREE.DoubleSide;
     material._overlayRedUniform = overlayRedUniform;
     material._overlayGreenUniform = overlayGreenUniform;
     material._overlayBlueUniform = overlayBlueUniform;
     material._overlayOpacityUniform = overlayOpacityUniform;
-    material.visible = overlayState.enabled && overlayState.opacity > 0;
+    material._includeOverlay = includeOverlay;
 
     return material;
   }
 
-  function syncOverlayMaterial(material) {
-    if (!material) {
+  function syncOverlayMaterial(material, includeOverlay = false) {
+    if (
+      !material?._overlayRedUniform ||
+      !material?._overlayGreenUniform ||
+      !material?._overlayBlueUniform ||
+      !material?._overlayOpacityUniform
+    ) {
       return;
     }
 
@@ -1041,10 +1034,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._overlayRedUniform.value = overlayState.color.r;
     material._overlayGreenUniform.value = overlayState.color.g;
     material._overlayBlueUniform.value = overlayState.color.b;
-    material._overlayOpacityUniform.value = overlayState.enabled
-      ? overlayState.opacity
-      : 0;
-    material.visible = overlayState.enabled && overlayState.opacity > 0;
+    material._overlayOpacityUniform.value =
+      includeOverlay && overlayState.enabled ? overlayState.opacity : 0;
   }
 
   if (ctx.app.backgroundBlurEnabled) {
@@ -1052,19 +1043,15 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       ctx,
       frame,
       createMaterial,
-      createOverlayMaterial,
-      syncOverlayMaterial,
       makeSignature,
     );
   }
 
-  const overlayMaterial = createOverlayMaterial();
-
   function installMaterial(nextFrame) {
-    const material = createMaterial(nextFrame);
+    const material = createMaterial(nextFrame, true);
 
     if (!plane) {
-      plane = attachCameraBackgroundPlane(ctx, material, overlayMaterial);
+      plane = attachCameraBackgroundPlane(ctx, material);
     } else {
       plane.mesh.material?.dispose?.();
       plane.mesh.material = material;
@@ -1095,7 +1082,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._rotateUniform.value = frame.rotate90;
     material._flipUniform.value = frame.flipVertical;
     material._blurUniform.value = frame.blurRadius;
-    syncOverlayMaterial(overlayMaterial);
+    syncOverlayMaterial(material, true);
   }
 
   return {
@@ -1107,21 +1094,25 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
   };
 }
 
-function syncWebGPUTileBackgroundMaterial(material, frame) {
+function syncWebGPUTileBackgroundMaterial(material, frame, ctx, includeOverlay) {
   material._layerUniform.value = frame.currentLayer;
   material._flowOffsetUniform.value = frame.flowOffset;
   material._flowActiveUniform.value = frame.flowActive ? 1 : 0;
   material._rotateUniform.value = frame.rotate90;
   material._flipUniform.value = frame.flipVertical;
   material._blurUniform.value = frame.blurRadius;
+  const overlayState = getBackgroundOverlayState(ctx);
+  material._overlayRedUniform.value = overlayState.color.r;
+  material._overlayGreenUniform.value = overlayState.color.g;
+  material._overlayBlueUniform.value = overlayState.color.b;
+  material._overlayOpacityUniform.value =
+    includeOverlay && overlayState.enabled ? overlayState.opacity : 0;
 }
 
 async function createBlurredTileBackgroundRuntimeWebGPU(
   ctx,
   initialFrame,
   createMaterial,
-  createOverlayMaterial,
-  syncOverlayMaterial,
   makeSignature,
 ) {
   const { MeshBasicNodeMaterial } = await import("three/webgpu");
@@ -1130,10 +1121,13 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     uniform,
     uv,
     vec2,
+    vec3,
+    vec4,
     float,
     add,
     div,
     mul,
+    mix,
   } = await import("three/tsl");
 
   const sampleScene = new THREE.Scene();
@@ -1162,20 +1156,59 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   let targetWidth = 0;
   let targetHeight = 0;
   let outputTexture = null;
+  let displayMaterial = null;
+  let plane = null;
 
-  const displayMaterial = new THREE.MeshBasicMaterial({
-    map: null,
-    transparent: false,
-    depthTest: false,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const overlayMaterial = createOverlayMaterial();
-  const plane = attachCameraBackgroundPlane(
-    ctx,
-    displayMaterial,
-    overlayMaterial,
-  );
+  function createDisplayMaterial(inputTexture) {
+    const overlayState = getBackgroundOverlayState(ctx);
+    const material = new MeshBasicNodeMaterial();
+    const overlayRedUniform = uniform(float(overlayState.color.r));
+    const overlayGreenUniform = uniform(float(overlayState.color.g));
+    const overlayBlueUniform = uniform(float(overlayState.color.b));
+    const overlayOpacityUniform = uniform(float(0));
+    const sampledColor = textureNode(inputTexture, uv());
+    const compositedColor = mix(
+      sampledColor.rgb,
+      vec3(overlayRedUniform, overlayGreenUniform, overlayBlueUniform),
+      overlayOpacityUniform,
+    );
+
+    material.colorNode = vec4(compositedColor, sampledColor.a);
+    material.transparent = false;
+    material.depthTest = false;
+    material.depthWrite = false;
+    material.side = THREE.DoubleSide;
+    material._overlayRedUniform = overlayRedUniform;
+    material._overlayGreenUniform = overlayGreenUniform;
+    material._overlayBlueUniform = overlayBlueUniform;
+    material._overlayOpacityUniform = overlayOpacityUniform;
+    return material;
+  }
+
+  function installDisplayMaterial(texture) {
+    const nextMaterial = createDisplayMaterial(texture);
+    if (!plane) {
+      plane = attachCameraBackgroundPlane(ctx, nextMaterial);
+    } else {
+      plane.mesh.material?.dispose?.();
+      plane.mesh.material = nextMaterial;
+    }
+    displayMaterial = nextMaterial;
+  }
+
+  function syncDisplayMaterial() {
+    if (!displayMaterial) {
+      return;
+    }
+
+    const overlayState = getBackgroundOverlayState(ctx);
+    displayMaterial._overlayRedUniform.value = overlayState.color.r;
+    displayMaterial._overlayGreenUniform.value = overlayState.color.g;
+    displayMaterial._overlayBlueUniform.value = overlayState.color.b;
+    displayMaterial._overlayOpacityUniform.value = overlayState.enabled
+      ? overlayState.opacity
+      : 0;
+  }
 
   function createBlurMaterial(inputTexture, width, height) {
     const material = new MeshBasicNodeMaterial();
@@ -1297,14 +1330,14 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       return;
     }
 
-    plane.syncSize();
+    plane?.syncSize?.();
     const nextSignature = makeSignature(frame);
     if (nextSignature !== signature) {
       sampleQuad.material?.dispose?.();
-      sampleQuad.material = createMaterial(frame);
+      sampleQuad.material = createMaterial(frame, false);
       signature = nextSignature;
     } else {
-      syncWebGPUTileBackgroundMaterial(sampleQuad.material, frame);
+      syncWebGPUTileBackgroundMaterial(sampleQuad.material, frame, ctx, false);
     }
 
     ensureRenderTargets(renderOptions);
@@ -1360,16 +1393,16 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
 
     if (outputTexture !== outputTarget.texture) {
       outputTexture = outputTarget.texture;
-      displayMaterial.map = outputTexture;
-      displayMaterial.needsUpdate = true;
+      installDisplayMaterial(outputTexture);
       ctx.backgroundTexture.value = outputTexture;
     }
 
-    syncOverlayMaterial(overlayMaterial);
+    plane?.syncSize?.();
+    syncDisplayMaterial();
   }
 
   function dispose() {
-    plane.dispose();
+    plane?.dispose?.();
     sampleTarget?.dispose?.();
     rtA?.dispose?.();
     rtB?.dispose?.();
