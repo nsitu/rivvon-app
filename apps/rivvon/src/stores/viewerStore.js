@@ -25,6 +25,10 @@ import {
 } from "../modules/viewer/sphericalProjection.js";
 import { normalizeArtworkMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
+  DEFAULT_BACKGROUND_TEXTURE,
+  normalizeBackgroundTexture,
+} from "../modules/viewer/backgroundTextures.js";
+import {
   DEFAULT_SEAMLESS_LOOP_COUNT,
   normalizeSeamlessLoopCount,
 } from "../modules/viewer/seamlessLoop.js";
@@ -86,7 +90,7 @@ const MAX_CONTRAST = 2.0;
 const DEFAULT_SATURATION = 1.0;
 const MIN_SATURATION = 0.0;
 const MAX_SATURATION = 2.0;
-const DEFAULT_BACKGROUND_BLUR_AMOUNT = 8.0;
+const DEFAULT_BACKGROUND_BLUR_AMOUNT = 150.0;
 const MIN_BACKGROUND_BLUR_AMOUNT = 1.0;
 const MAX_BACKGROUND_BLUR_AMOUNT = 200.0;
 const DEFAULT_BACKGROUND_FLOW_SPEED = 0.25;
@@ -658,6 +662,13 @@ export const useViewerStore = defineStore("viewer", {
       backgroundOverlayOpacity: normalizeBackgroundOverlayOpacity(
         readViewerPreferences().backgroundOverlayOpacity,
       ),
+      backgroundTextureEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundTextureEnabled,
+        false,
+      ),
+      backgroundTexture: normalizeBackgroundTexture(
+        readViewerPreferences().backgroundTexture,
+      ),
       textureAnimationReversed: normalizeViewerBooleanPreference(
         readViewerPreferences().textureAnimationReversed,
         false,
@@ -933,6 +944,8 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundOverlayEnabled = false;
       this.backgroundOverlayColor = DEFAULT_BACKGROUND_OVERLAY_COLOR;
       this.backgroundOverlayOpacity = DEFAULT_BACKGROUND_OVERLAY_OPACITY;
+      this.backgroundTextureEnabled = false;
+      this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
       this.textureAnimationReversed = false;
       this.peakTroughTransparencyEnabled = false;
       this.peakTroughBlurEnabled = false;
@@ -1011,6 +1024,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayEnabled: false,
         backgroundOverlayColor: DEFAULT_BACKGROUND_OVERLAY_COLOR,
         backgroundOverlayOpacity: DEFAULT_BACKGROUND_OVERLAY_OPACITY,
+        backgroundTextureEnabled: false,
+        backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
         textureAnimationReversed: false,
         peakTroughTransparencyEnabled: false,
         peakTroughBlurEnabled: false,
@@ -1233,6 +1248,18 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundOverlayOpacity: nextValue });
     },
 
+    setBackgroundTextureEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.backgroundTextureEnabled = nextValue;
+      writeViewerPreferences({ backgroundTextureEnabled: nextValue });
+    },
+
+    setBackgroundTexture(texture) {
+      const nextValue = normalizeBackgroundTexture(texture);
+      this.backgroundTexture = nextValue;
+      writeViewerPreferences({ backgroundTexture: nextValue });
+    },
+
     setTextureAnimationReversed(reversed) {
       const nextValue = !!reversed;
       this.textureAnimationReversed = nextValue;
@@ -1407,6 +1434,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayEnabled: this.backgroundOverlayEnabled,
         backgroundOverlayColor: this.backgroundOverlayColor,
         backgroundOverlayOpacity: this.backgroundOverlayOpacity,
+        backgroundTextureEnabled: this.backgroundTextureEnabled,
+        backgroundTexture: this.backgroundTexture,
         textureAnimationReversed: this.textureAnimationReversed,
         peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
         peakTroughBlurEnabled: this.peakTroughBlurEnabled,
@@ -1494,6 +1523,8 @@ export const useViewerStore = defineStore("viewer", {
         this.backgroundOverlayEnabled !== original.backgroundOverlayEnabled ||
         this.backgroundOverlayColor !== original.backgroundOverlayColor ||
         this.backgroundOverlayOpacity !== original.backgroundOverlayOpacity ||
+        this.backgroundTextureEnabled !== original.backgroundTextureEnabled ||
+        this.backgroundTexture !== original.backgroundTexture ||
         this.textureAnimationReversed !== original.textureAnimationReversed ||
         this.peakTroughTransparencyEnabled !==
           original.peakTroughTransparencyEnabled ||

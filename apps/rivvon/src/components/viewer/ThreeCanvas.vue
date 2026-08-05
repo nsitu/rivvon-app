@@ -222,6 +222,12 @@
         });
     });
 
+    watch(() => [app.backgroundTextureEnabled, app.backgroundTexture], () => {
+        setBackgroundFromTileManager().catch((error) => {
+            console.error('[ThreeCanvas] Failed to update scene background texture:', error);
+        });
+    });
+
     watch(() => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity], () => {
         updateBackground();
     });

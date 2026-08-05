@@ -5,6 +5,7 @@
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
+    import { BACKGROUND_TEXTURE_OPTIONS } from '../../modules/viewer/backgroundTextures.js';
 
     defineProps({
         showUndulation: { type: Boolean, default: true },
@@ -92,6 +93,21 @@
     });
 
     const backgroundBlurDisplay = computed(() => `${app.backgroundBlurAmount.toFixed(1)}x`);
+
+    const backgroundTextureModel = computed({
+        get: () => app.backgroundTextureEnabled,
+        set: (value) => app.setBackgroundTextureEnabled(!!value),
+    });
+
+    const selectedBackgroundTextureOption = computed({
+        get: () => BACKGROUND_TEXTURE_OPTIONS.find(
+            (option) => option.value === app.backgroundTexture,
+        ) ?? BACKGROUND_TEXTURE_OPTIONS[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setBackgroundTexture(option.value);
+        },
+    });
 
     const backgroundOverlayModel = computed({
         get: () => app.backgroundOverlayEnabled,
@@ -583,6 +599,38 @@
                     <div class="tools-slider-caption">
                         <span>Soft</span>
                         <span>Strong</span>
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('background-texture')"
+                    >
+                        <span class="material-symbols-outlined">texture</span>
+                        <span>Background Texture</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundTextureModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-texture')"
+                            v-model="backgroundTextureModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="backgroundTextureModel"
+                    class="tools-select-block background-texture-select"
+                >
+                    <label class="tools-select-label">Texture</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="selectedBackgroundTextureOption"
+                            :options="BACKGROUND_TEXTURE_OPTIONS"
+                            option-label="label"
+                            class="tools-select"
+                        />
                     </div>
                 </div>
 

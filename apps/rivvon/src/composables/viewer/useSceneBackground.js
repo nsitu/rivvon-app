@@ -2,6 +2,7 @@
 // Scene background management via a camera-locked textured plane.
 
 import * as THREE from "three";
+import { getBackgroundTextureOption } from "../../modules/viewer/backgroundTextures.js";
 
 const BACKGROUND_DISTANCE = 100;
 const BACKGROUND_RENDER_ORDER = -10000;
@@ -11,6 +12,7 @@ const MAX_BACKGROUND_BLUR_RADIUS_PASSES = 128;
 const MAX_REALTIME_GAUSSIAN_PASSES = 6;
 const BACKGROUND_FLOW_TIME_ORIGIN =
   typeof performance !== "undefined" ? performance.now() : Date.now();
+const BACKGROUND_TEXTURE_CACHE = new Map();
 
 function positiveModulo(value, modulus) {
   if (!modulus) return 0;
@@ -168,6 +170,32 @@ function getBackgroundOpacity(options = {}) {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0.7;
 }
 
+async function loadBackgroundTexture(ctx) {
+  if (!ctx.app.backgroundTextureEnabled) {
+    return null;
+  }
+
+  const option = getBackgroundTextureOption(ctx.app.backgroundTexture);
+  if (BACKGROUND_TEXTURE_CACHE.has(option.url)) {
+    return BACKGROUND_TEXTURE_CACHE.get(option.url);
+  }
+
+  const loader = new THREE.TextureLoader();
+  loader.crossOrigin = "anonymous";
+  const texture = await new Promise((resolve, reject) => {
+    loader.load(option.url, resolve, undefined, reject);
+  });
+
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  BACKGROUND_TEXTURE_CACHE.set(option.url, texture);
+  return texture;
+}
+
 function getBackgroundOverlayState(ctx) {
   const color = new THREE.Color();
   color.set(ctx.app.backgroundOverlayColor || "#ffffff");
@@ -182,10 +210,12 @@ function getBackgroundOverlayState(ctx) {
   };
 }
 
-function createWebGLBackgroundDisplayMaterial() {
+function createWebGLBackgroundDisplayMaterial(textureOverlay = null) {
   return new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
+      uTexture: { value: textureOverlay },
+      uTextureEnabled: { value: textureOverlay ? 1 : 0 },
       uOverlayColor: { value: new THREE.Color(0xffffff) },
       uOverlayOpacity: { value: 0 },
     },
@@ -199,13 +229,24 @@ function createWebGLBackgroundDisplayMaterial() {
     fragmentShader: /* glsl */ `
             precision highp float;
             uniform sampler2D tDiffuse;
+            uniform sampler2D uTexture;
+            uniform int uTextureEnabled;
             uniform vec3 uOverlayColor;
             uniform float uOverlayOpacity;
             varying vec2 vUv;
 
+            vec3 softLightBlend(vec3 base, vec3 blend) {
+                vec3 low = base - (1.0 - 2.0 * blend) * base * (1.0 - base);
+                vec3 high = base + (2.0 * blend - 1.0) * (sqrt(base) - base);
+                return mix(low, high, step(vec3(0.5), blend));
+            }
+
             void main() {
                 vec4 background = texture2D(tDiffuse, vUv);
                 vec3 color = mix(background.rgb, uOverlayColor, uOverlayOpacity);
+                if (uTextureEnabled == 1) {
+                    color = softLightBlend(color, texture2D(uTexture, vUv).rgb);
+                }
                 gl_FragColor = vec4(color, background.a);
             }
         `,
@@ -216,13 +257,20 @@ function createWebGLBackgroundDisplayMaterial() {
   });
 }
 
-function updateWebGLBackgroundDisplayMaterial(material, ctx, texture) {
+function updateWebGLBackgroundDisplayMaterial(
+  material,
+  ctx,
+  texture,
+  textureOverlay = null,
+) {
   if (!material) {
     return;
   }
 
   const overlayState = getBackgroundOverlayState(ctx);
   material.uniforms.tDiffuse.value = texture;
+  material.uniforms.uTexture.value = textureOverlay;
+  material.uniforms.uTextureEnabled.value = textureOverlay ? 1 : 0;
   material.uniforms.uOverlayColor.value.copy(overlayState.color);
   material.uniforms.uOverlayOpacity.value = overlayState.enabled
     ? overlayState.opacity
@@ -326,13 +374,30 @@ export function useSceneBackground(ctx) {
       return;
     }
 
+    let textureOverlay = null;
+    try {
+      textureOverlay = await loadBackgroundTexture(ctx);
+    } catch (error) {
+      console.warn("[ThreeSetup] Failed to load background texture:", error);
+    }
+
+    if (requestToken !== backgroundGenerationToken) {
+      return;
+    }
+
     const isWebGPU = ctx.app.rendererType === "webgpu";
     let runtime = null;
 
     try {
       runtime = isWebGPU
-        ? await createTileBackgroundRuntimeWebGPU(ctx, options)
-        : createTileBackgroundRuntimeWebGL(ctx, options);
+        ? await createTileBackgroundRuntimeWebGPU(ctx, {
+            ...options,
+            textureOverlay,
+          })
+        : createTileBackgroundRuntimeWebGL(ctx, {
+            ...options,
+            textureOverlay,
+          });
 
       if (requestToken !== backgroundGenerationToken) {
         runtime.dispose();
@@ -495,6 +560,10 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       uRotate90: { value: initialFrame.rotate90 },
       uFlipVertical: { value: initialFrame.flipVertical },
       uBlurRadius: { value: initialFrame.blurRadius },
+      uTexture: { value: options.textureOverlay || null },
+      uTextureEnabled: {
+        value: options.textureOverlay && ctx.app.backgroundTextureEnabled ? 1 : 0,
+      },
       uOverlayColor: { value: new THREE.Color(0xffffff) },
       uOverlayOpacity: { value: 0 },
       uSeamSafeBlend: { value: ctx.app.backgroundBlurEnabled ? 1 : 0 },
@@ -522,6 +591,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             uniform int uRotate90;
             uniform int uFlipVertical;
             uniform float uBlurRadius;
+            uniform sampler2D uTexture;
+            uniform int uTextureEnabled;
             uniform vec3 uOverlayColor;
             uniform float uOverlayOpacity;
             uniform int uSeamSafeBlend;
@@ -529,6 +600,12 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
 
             in vec2 vUv;
             out vec4 outColor;
+
+            vec3 softLightBlend(vec3 base, vec3 blend) {
+                vec3 low = base - (1.0 - 2.0 * blend) * base * (1.0 - base);
+                vec3 high = base + (2.0 * blend - 1.0) * (sqrt(base) - base);
+                return mix(low, high, step(vec3(0.5), blend));
+            }
 
             vec2 orientUv(vec2 inputUv, int mirrorX) {
                 vec2 sampleUv = inputUv;
@@ -595,6 +672,9 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                     : currentColor);
 
                 vec3 compositedColor = mix(color.rgb, uOverlayColor, uOverlayOpacity);
+                if (uTextureEnabled == 1) {
+                    compositedColor = softLightBlend(compositedColor, texture(uTexture, vUv).rgb);
+                }
                 outColor = vec4(compositedColor, color.a * uOpacity);
             }
         `,
@@ -631,7 +711,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     material.uniforms.uRotate90.value = frame.rotate90;
     material.uniforms.uFlipVertical.value = frame.flipVertical;
     material.uniforms.uBlurRadius.value = frame.blurRadius;
-    updateWebGLTileBackgroundMaterial(material, frame, ctx, true);
+    updateWebGLTileBackgroundMaterial(material, frame, ctx, true, options.textureOverlay);
   }
 
   return {
@@ -640,7 +720,13 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
   };
 }
 
-function updateWebGLTileBackgroundMaterial(material, frame, ctx, includeOverlay) {
+function updateWebGLTileBackgroundMaterial(
+  material,
+  frame,
+  ctx,
+  includeOverlay,
+  textureOverlay = null,
+) {
   material.uniforms.uTexArrayCurrent.value = frame.currentTexture;
   material.uniforms.uTexArrayNext.value =
     frame.nextTexture || frame.currentTexture;
@@ -653,6 +739,9 @@ function updateWebGLTileBackgroundMaterial(material, frame, ctx, includeOverlay)
   material.uniforms.uRotate90.value = frame.rotate90;
   material.uniforms.uFlipVertical.value = frame.flipVertical;
   material.uniforms.uBlurRadius.value = frame.blurRadius;
+  material.uniforms.uTexture.value = textureOverlay;
+  material.uniforms.uTextureEnabled.value =
+    includeOverlay && textureOverlay && ctx.app.backgroundTextureEnabled ? 1 : 0;
   const overlayState = getBackgroundOverlayState(ctx);
   material.uniforms.uOverlayColor.value.copy(overlayState.color);
   material.uniforms.uOverlayOpacity.value =
@@ -734,7 +823,9 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
   let gaussianHorizontalMaterial = null;
   let gaussianVerticalMaterial = null;
 
-  const displayMaterial = createWebGLBackgroundDisplayMaterial();
+  const displayMaterial = createWebGLBackgroundDisplayMaterial(
+    sourceMaterial.uniforms.uTexture.value,
+  );
   const plane = attachCameraBackgroundPlane(ctx, displayMaterial);
 
   function ensureRenderTargets(renderOptions = {}) {
@@ -814,12 +905,22 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
 
     if (outputTexture !== outputTarget.texture) {
       outputTexture = outputTarget.texture;
-      updateWebGLBackgroundDisplayMaterial(displayMaterial, ctx, outputTexture);
+      updateWebGLBackgroundDisplayMaterial(
+        displayMaterial,
+        ctx,
+        outputTexture,
+        sourceMaterial.uniforms.uTexture.value,
+      );
       displayMaterial.needsUpdate = true;
       ctx.backgroundTexture.value = outputTexture;
     }
 
-    updateWebGLBackgroundDisplayMaterial(displayMaterial, ctx, outputTarget.texture);
+    updateWebGLBackgroundDisplayMaterial(
+      displayMaterial,
+      ctx,
+      outputTarget.texture,
+      sourceMaterial.uniforms.uTexture.value,
+    );
   }
 
   function dispose() {
@@ -976,16 +1077,31 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       .select(activeFlowColor, currentColor);
 
     const outputColor = vec4(color.rgb, color.a.mul(opacityUniform));
-    material.colorNode = includeOverlay
-      ? vec4(
-          mix(
-            outputColor.rgb,
-            overlayColor,
-            overlayOpacityUniform,
-          ),
-          outputColor.a,
-        )
-      : outputColor;
+    const colorWithOverlay = includeOverlay
+      ? mix(outputColor.rgb, overlayColor, overlayOpacityUniform)
+      : outputColor.rgb;
+    const textureColor = options.textureOverlay
+      ? textureNode(options.textureOverlay, baseUv).rgb
+      : null;
+    const texturedColor =
+      includeOverlay && textureColor
+        ? (() => {
+            const low = colorWithOverlay.sub(
+              float(1)
+                .sub(textureColor.mul(2))
+                .mul(colorWithOverlay)
+                .mul(float(1).sub(colorWithOverlay)),
+            );
+            const high = colorWithOverlay.add(
+              textureColor
+                .mul(2)
+                .sub(1)
+                .mul(colorWithOverlay.sqrt().sub(colorWithOverlay)),
+            );
+            return textureColor.lessThan(float(0.5)).select(low, high);
+          })()
+        : colorWithOverlay;
+    material.colorNode = vec4(texturedColor, outputColor.a);
     material.transparent = false;
     material.depthTest = false;
     material.depthWrite = false;
@@ -1029,6 +1145,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       frame,
       createMaterial,
       makeSignature,
+      options,
     );
   }
 
@@ -1099,6 +1216,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   initialFrame,
   createMaterial,
   makeSignature,
+  options = {},
 ) {
   const { MeshBasicNodeMaterial } = await import("three/webgpu");
   const {
@@ -1151,13 +1269,33 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     const overlayBlueUniform = uniform(float(overlayState.color.b));
     const overlayOpacityUniform = uniform(float(0));
     const sampledColor = textureNode(inputTexture, uv());
-    const compositedColor = mix(
+    const colorWithOverlay = mix(
       sampledColor.rgb,
       vec3(overlayRedUniform, overlayGreenUniform, overlayBlueUniform),
       overlayOpacityUniform,
     );
+    const textureColor = options.textureOverlay
+      ? textureNode(options.textureOverlay, uv()).rgb
+      : null;
+    const texturedColor = textureColor
+      ? (() => {
+          const low = colorWithOverlay.sub(
+            float(1)
+              .sub(textureColor.mul(2))
+              .mul(colorWithOverlay)
+              .mul(float(1).sub(colorWithOverlay)),
+          );
+          const high = colorWithOverlay.add(
+            textureColor
+              .mul(2)
+              .sub(1)
+              .mul(colorWithOverlay.sqrt().sub(colorWithOverlay)),
+          );
+          return textureColor.lessThan(float(0.5)).select(low, high);
+        })()
+      : colorWithOverlay;
 
-    material.colorNode = vec4(compositedColor, sampledColor.a);
+    material.colorNode = vec4(texturedColor, sampledColor.a);
     material.transparent = false;
     material.depthTest = false;
     material.depthWrite = false;
