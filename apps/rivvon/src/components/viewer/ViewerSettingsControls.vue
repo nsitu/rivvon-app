@@ -5,6 +5,7 @@
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { VIEWER_MOTION_OPTIONS } from '../../modules/viewer/viewerMotion.js';
+    import { SEAMLESS_LOOP_COUNT_OPTIONS } from '../../modules/viewer/seamlessLoop.js';
 
     const props = defineProps({
         technicalOverlay: { type: Boolean, default: false },
@@ -123,6 +124,23 @@
     const viewerMotionDescription = computed(() => {
         const option = viewerMotionOptions.find((entry) => entry.value === app.viewerMotionMode);
         return option?.description ?? viewerMotionOptions[0].description;
+    });
+
+    const viewerMotionLoopCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
+
+    const selectedViewerMotionLoopCountOption = computed({
+        get: () => viewerMotionLoopCountOptions.find(
+            (option) => option.value === app.viewerMotionLoopCount,
+        ) ?? viewerMotionLoopCountOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setViewerMotionLoopCount(option.value);
+        }
+    });
+
+    const viewerMotionLoopDescription = computed(() => {
+        const count = app.viewerMotionLoopCount;
+        return `One full artwork turn spans ${count} seamless material ${count === 1 ? 'loop' : 'loops'}.`;
     });
 
     const showHeadTrackingTools = computed(() => (
@@ -273,6 +291,24 @@
                         />
                     </div>
                     <div class="tools-setting-description">{{ viewerMotionDescription }}</div>
+                </div>
+
+                <div
+                    v-if="app.viewerMotionMode !== 'none'"
+                    class="tools-motion-details"
+                >
+                    <div class="tools-select-block">
+                        <label class="tools-select-label">Motion Loop Count</label>
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedViewerMotionLoopCountOption"
+                                :options="viewerMotionLoopCountOptions"
+                                option-label="label"
+                                class="tools-select"
+                            />
+                        </div>
+                        <div class="tools-setting-description">{{ viewerMotionLoopDescription }}</div>
+                    </div>
                 </div>
 
                 <div class="tools-select-block">
@@ -522,6 +558,13 @@
         font-size: 0.78rem;
         line-height: 1.35;
         color: rgba(255, 255, 255, 0.55);
+    }
+
+    .tools-motion-details {
+        display: flex;
+        flex-direction: column;
+        border-left: 2px solid rgba(16, 185, 129, 0.3);
+        margin: 0 0.75rem 0.75rem 1.25rem;
     }
 
     .tools-status-card {

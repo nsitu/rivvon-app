@@ -9,6 +9,11 @@
     import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
+    import {
+        DEFAULT_SEAMLESS_LOOP_COUNT,
+        getSeamlessLoopDuration,
+        normalizeSeamlessLoopCount,
+    } from '../../modules/viewer/seamlessLoop.js';
     import { createLazyLoader } from '../../modules/shared/lazyLoader';
     import { useRenderFilter } from '../../composables/viewer/useRenderFilter.js';
     import { useSceneBackground } from '../../composables/viewer/useSceneBackground.js';
@@ -1117,7 +1122,7 @@
             fps = 30,
             format = 'mp4',
             duration = null,
-            loopCount = 1,
+            loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
             quality = 'high',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
@@ -1154,8 +1159,8 @@
             syncCellMaterials(true);
             renderCurrentScene();
 
-            const seamlessLoopDuration = tileManager.getSeamlessLoopDuration?.(false) ?? 1;
-            const normalizedLoopCount = Math.max(1, Math.floor(Number(loopCount) || 1));
+            const seamlessLoopDuration = getSeamlessLoopDuration(tileManager, false, 1);
+            const normalizedLoopCount = normalizeSeamlessLoopCount(loopCount);
             const exportDuration = duration != null
                 ? duration
                 : seamlessLoopDuration * normalizedLoopCount;

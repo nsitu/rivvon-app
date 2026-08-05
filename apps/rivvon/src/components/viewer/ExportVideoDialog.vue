@@ -21,6 +21,10 @@
         TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
         TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
     } from '../../modules/viewer/textureOverviewLayout.js';
+    import {
+        DEFAULT_SEAMLESS_LOOP_COUNT,
+        SEAMLESS_LOOP_COUNT_OPTIONS,
+    } from '../../modules/viewer/seamlessLoop.js';
 
     const app = useViewerStore();
 
@@ -42,14 +46,9 @@
     const exportMode = ref('ribbons');
     const durationMode = ref('loop');
     const customDuration = ref(5);
-    const cycleCount = ref(1);
+    const cycleCount = ref(DEFAULT_SEAMLESS_LOOP_COUNT);
 
-    const cycleCountOptions = [
-        { label: '1 loop', value: 1 },
-        { label: '2 loops', value: 2 },
-        { label: '3 loops', value: 3 },
-        { label: '4 loops', value: 4 },
-    ];
+    const cycleCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
     const fps = ref(30);
     const cameraMovement = ref('circularTilt');
     const quality = ref('high');
@@ -415,7 +414,9 @@
             fps: fps.value,
             format: format.value,
             duration: durationMode.value === 'custom' ? resolvedDuration.value : null,
-            loopCount: durationMode.value === 'loop' ? cycleCount.value : 1,
+            loopCount: durationMode.value === 'loop'
+                ? cycleCount.value
+                : DEFAULT_SEAMLESS_LOOP_COUNT,
             cameraMovement: textureOnlyMode.value ? 'none' : cameraMovement.value,
             quality: quality.value,
             logoOverlayEnabled: exportLogoOverlayEnabled.value,

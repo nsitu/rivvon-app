@@ -4,6 +4,11 @@
 import { Quaternion, Vector3 } from 'three';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
+import {
+    DEFAULT_SEAMLESS_LOOP_COUNT,
+    getSeamlessLoopDuration as getSharedSeamlessLoopDuration,
+    normalizeSeamlessLoopCount,
+} from '../../modules/viewer/seamlessLoop.js';
 
 const EXPORT_CIRCULAR_TURN_RADIANS = Math.PI * 2;
 const EXPORT_WORLD_UP = new Vector3(0, 1, 0);
@@ -66,10 +71,11 @@ export function useSceneExport(ctx, deps = {}) {
     }
 
     function getSeamlessLoopDuration() {
-        const tm = ctx.tileManager.value;
-        if (!tm) return 3.0;
-
-        return tm.getSeamlessLoopDuration?.(ctx.app.undulationEnabled) ?? 3.0;
+        return getSharedSeamlessLoopDuration(
+            ctx.tileManager.value,
+            ctx.app.undulationEnabled,
+            3.0,
+        );
     }
 
     async function createImageExportCanvas(options = {}) {
@@ -661,7 +667,7 @@ export function useSceneExport(ctx, deps = {}) {
             fps = 30,
             format = 'mp4',
             duration = null,
-            loopCount = 1,
+            loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
             filename = null,
             onProgress = null,
             onStatus = null,
@@ -711,7 +717,7 @@ export function useSceneExport(ctx, deps = {}) {
         } else {
             exportDuration = loopDuration;
         }
-        const normalizedLoopCount = Math.max(1, Math.floor(Number(loopCount) || 1));
+        const normalizedLoopCount = normalizeSeamlessLoopCount(loopCount);
         const deltaSec = 1 / fps;
 
         // --- Save current state ---

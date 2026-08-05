@@ -3,9 +3,9 @@ import { watch } from "vue";
 import {
   getViewerMotionAngle,
   normalizeViewerMotionMode,
-  VIEWER_MOTION_PERIOD_SECONDS,
 } from "../../modules/viewer/viewerMotion.js";
 import { getCircularTiltAnglesAtProgress } from "../../modules/viewer/mouseTiltMotion.js";
+import { getSeamlessLoopDurationForCount } from "../../modules/viewer/seamlessLoop.js";
 
 const WORLD_UP = new Vector3(0, 1, 0);
 
@@ -151,9 +151,12 @@ export function useViewerMotion(ctx) {
       return;
     }
 
-    const progress =
-      (Math.max(0, now - motionStartTime) / 1000) /
-      VIEWER_MOTION_PERIOD_SECONDS;
+    const motionDuration = getSeamlessLoopDurationForCount(
+      ctx.tileManager.value,
+      ctx.app.viewerMotionLoopCount,
+      ctx.app.undulationEnabled,
+    );
+    const progress = (Math.max(0, now - motionStartTime) / 1000) / motionDuration;
 
     if (activeMode === "circularTilt") {
       applyCircularTilt(progress);

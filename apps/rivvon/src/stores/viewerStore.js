@@ -25,6 +25,10 @@ import {
 } from "../modules/viewer/sphericalProjection.js";
 import { normalizeViewerMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
+  DEFAULT_SEAMLESS_LOOP_COUNT,
+  normalizeSeamlessLoopCount,
+} from "../modules/viewer/seamlessLoop.js";
+import {
   createViewerPanelVisibilityState,
   VIEWER_PANEL_KEYS,
 } from "../modules/viewer/viewerPanels.js";
@@ -554,6 +558,9 @@ export const useViewerStore = defineStore("viewer", {
       viewerMotionMode: normalizeViewerMotionMode(
         readViewerPreferences().viewerMotionMode,
       ),
+      viewerMotionLoopCount: normalizeSeamlessLoopCount(
+        readViewerPreferences().viewerMotionLoopCount,
+      ),
       scrollDrivenTiltEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().scrollDrivenTiltEnabled,
         true,
@@ -868,11 +875,18 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ viewerMotionMode: nextMode });
     },
 
+    setViewerMotionLoopCount(value) {
+      const nextCount = normalizeSeamlessLoopCount(value);
+      this.viewerMotionLoopCount = nextCount;
+      writeViewerPreferences({ viewerMotionLoopCount: nextCount });
+    },
+
     resetToolbarSettingsToDefaults() {
       const defaultExportDimensions = normalizeExportDimensionSettings({});
 
       this.viewerControlMode = "orbit";
       this.viewerMotionMode = "none";
+      this.viewerMotionLoopCount = DEFAULT_SEAMLESS_LOOP_COUNT;
       this.scrollDrivenTiltEnabled = true;
       this.scrollDrivenLayerCycleEnabled = true;
       this.scrollDrivenFlowEnabled = false;
@@ -950,6 +964,8 @@ export const useViewerStore = defineStore("viewer", {
       this.clearHeadTrackingFeedback();
 
       writeViewerPreferences({
+        viewerMotionMode: "none",
+        viewerMotionLoopCount: DEFAULT_SEAMLESS_LOOP_COUNT,
         scrollDrivenTiltEnabled: true,
         scrollDrivenLayerCycleEnabled: true,
         scrollDrivenFlowEnabled: false,
@@ -1340,6 +1356,7 @@ export const useViewerStore = defineStore("viewer", {
       this.toolsPanelOriginalState = {
         viewerControlMode: this.viewerControlMode,
         viewerMotionMode: this.viewerMotionMode,
+        viewerMotionLoopCount: this.viewerMotionLoopCount,
         scrollDrivenTiltEnabled: this.scrollDrivenTiltEnabled,
         scrollDrivenLayerCycleEnabled: this.scrollDrivenLayerCycleEnabled,
         scrollDrivenFlowEnabled: this.scrollDrivenFlowEnabled,
@@ -1423,6 +1440,7 @@ export const useViewerStore = defineStore("viewer", {
       return (
         this.viewerControlMode !== original.viewerControlMode ||
         this.viewerMotionMode !== original.viewerMotionMode ||
+        this.viewerMotionLoopCount !== original.viewerMotionLoopCount ||
         this.scrollDrivenTiltEnabled !== original.scrollDrivenTiltEnabled ||
         this.scrollDrivenLayerCycleEnabled !==
           original.scrollDrivenLayerCycleEnabled ||

@@ -1,4 +1,10 @@
 import { MathUtils } from "three";
+import {
+  DEFAULT_SEAMLESS_LOOP_COUNT as DEFAULT_VIEWER_MOTION_LOOP_COUNT,
+  SEAMLESS_LOOP_COUNTS as VIEWER_MOTION_LOOP_COUNTS,
+  SEAMLESS_LOOP_COUNT_OPTIONS as VIEWER_MOTION_LOOP_COUNT_OPTIONS,
+  normalizeSeamlessLoopCount as normalizeViewerMotionLoopCount,
+} from "./seamlessLoop.js";
 
 export const VIEWER_MOTION_MODES = [
   "none",
@@ -8,7 +14,12 @@ export const VIEWER_MOTION_MODES = [
 ];
 
 export const DEFAULT_VIEWER_MOTION_MODE = "none";
-export const VIEWER_MOTION_PERIOD_SECONDS = 12;
+export {
+  DEFAULT_VIEWER_MOTION_LOOP_COUNT,
+  VIEWER_MOTION_LOOP_COUNTS,
+  VIEWER_MOTION_LOOP_COUNT_OPTIONS,
+  normalizeViewerMotionLoopCount,
+};
 
 export const VIEWER_MOTION_OPTIONS = [
   {

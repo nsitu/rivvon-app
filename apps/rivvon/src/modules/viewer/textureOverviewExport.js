@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay';
 import { TileManager } from './tileManager';
 import { calculateTextureOverviewLayout } from './textureOverviewLayout';
+import {
+    DEFAULT_SEAMLESS_LOOP_COUNT,
+    getSeamlessLoopDuration,
+    normalizeSeamlessLoopCount,
+} from './seamlessLoop.js';
 import { createLazyLoader } from '../shared/lazyLoader.js';
 
 const loadTextureService = createLazyLoader(() => import('../../services/textureService.js'));
@@ -147,7 +152,7 @@ async function loadTemporaryTileManager(options = {}) {
 }
 
 export function buildTextureOverviewModeInfoFromTileManager(tileManager) {
-    const seamlessLoopDuration = tileManager.getSeamlessLoopDuration?.(false) ?? 1;
+    const seamlessLoopDuration = getSeamlessLoopDuration(tileManager, false, 1);
     const layerCount = tileManager.getLayerCount?.() ?? 0;
     const fps = tileManager.getFps?.() ?? 30;
     const textureAnimationEnabled = tileManager.isLayerAnimationEnabled?.() ?? true;
@@ -336,7 +341,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         fps = 30,
         format = 'mp4',
         duration = null,
-        loopCount = 1,
+        loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
         quality = 'high',
         logoOverlayEnabled = true,
         logoOverlayCorner = 'bottomLeft',
@@ -384,8 +389,8 @@ export async function exportTextureOverviewVideo(options = {}) {
         tileManager.resetAnimationState?.();
         overviewScene.syncMaterials(true);
 
-        const seamlessLoopDuration = tileManager.getSeamlessLoopDuration?.(false) ?? 1;
-        const normalizedLoopCount = Math.max(1, Math.floor(Number(loopCount) || 1));
+        const seamlessLoopDuration = getSeamlessLoopDuration(tileManager, false, 1);
+        const normalizedLoopCount = normalizeSeamlessLoopCount(loopCount);
         const exportDuration = duration != null
             ? duration
             : seamlessLoopDuration * normalizedLoopCount;
