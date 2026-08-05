@@ -6,6 +6,8 @@ import * as THREE from "three";
 const BACKGROUND_DISTANCE = 100;
 const BACKGROUND_RENDER_ORDER = -10000;
 const REALTIME_BLUR_MAX_SIDE = 384;
+const MAX_BACKGROUND_BLUR_AMOUNT = 100;
+const MAX_BACKGROUND_BLUR_RADIUS_PASSES = 64;
 const BACKGROUND_FLOW_TIME_ORIGIN =
   typeof performance !== "undefined" ? performance.now() : Date.now();
 
@@ -65,7 +67,9 @@ function getBackgroundBlurRadius() {
 
 function getBackgroundBlurAmount(ctx) {
   const amount = Number(ctx.app.backgroundBlurAmount);
-  return Number.isFinite(amount) ? Math.max(1, Math.min(50, amount)) : 8;
+  return Number.isFinite(amount)
+    ? Math.max(1, Math.min(MAX_BACKGROUND_BLUR_AMOUNT, amount))
+    : 8;
 }
 
 function getBlurTargetSize(ctx, renderOptions = {}) {
@@ -104,7 +108,10 @@ function getBlurTargetSize(ctx, renderOptions = {}) {
 
 function getBlurPassCount(ctx) {
   const amount = getBackgroundBlurAmount(ctx);
-  return Math.max(1, Math.min(32, Math.round(2 + amount * 0.6)));
+  return Math.max(
+    1,
+    Math.min(MAX_BACKGROUND_BLUR_RADIUS_PASSES, Math.round(2 + amount * 0.6)),
+  );
 }
 
 function getGaussianPassCount(ctx, renderOptions = {}) {
