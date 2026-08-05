@@ -1660,7 +1660,13 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         if (uTransparentColorMode == 1) {
                             vec3 colorDelta = texColor.rgb - uTransparentReferenceColor;
                             float colorDistanceSquared = dot(colorDelta, colorDelta);
-                            alphaScale = 1.0 - clamp(colorDistanceSquared / 3.0, 0.0, 1.0);
+                            float colorSimilarity = 1.0 - clamp(colorDistanceSquared / 3.0, 0.0, 1.0);
+                            alphaScale = clamp(
+                                (colorSimilarity - uTransparentShadowsThresholdMin)
+                                    / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
+                                0.0,
+                                1.0
+                            );
                         } else {
                             float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
                             alphaScale = clamp(
@@ -1902,8 +1908,13 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const colorSimilarity = float(1.0).sub(
             colorDistanceSquared.div(float(3.0)).max(float(0.0)).min(float(1.0)),
         );
+        const colorMatchFactor = colorSimilarity
+            .sub(transparentShadowsMinUniform)
+            .div(transparentShadowsSpan)
+            .max(float(0.0))
+            .min(float(1.0));
         const transparencyFactor = transparentColorModeUniform.equal(1).select(
-            colorSimilarity,
+            colorMatchFactor,
             luminanceFactor,
         );
         const mappedTransparencyFactor = transparentHighlightsUniform.equal(1).select(
@@ -2224,7 +2235,13 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         if (uTransparentColorMode == 1) {
                             vec3 colorDelta = texColor.rgb - uTransparentReferenceColor;
                             float colorDistanceSquared = dot(colorDelta, colorDelta);
-                            alphaScale = 1.0 - clamp(colorDistanceSquared / 3.0, 0.0, 1.0);
+                            float colorSimilarity = 1.0 - clamp(colorDistanceSquared / 3.0, 0.0, 1.0);
+                            alphaScale = clamp(
+                                (colorSimilarity - uTransparentShadowsThresholdMin)
+                                    / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
+                                0.0,
+                                1.0
+                            );
                         } else {
                             float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
                             alphaScale = clamp(
@@ -2445,8 +2462,13 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const colorSimilarity = float(1.0).sub(
             colorDistanceSquared.div(float(3.0)).max(float(0.0)).min(float(1.0)),
         );
+        const colorMatchFactor = colorSimilarity
+            .sub(transparentShadowsMinUniform)
+            .div(transparentShadowsSpan)
+            .max(float(0.0))
+            .min(float(1.0));
         const transparencyFactor = transparentColorModeUniform.equal(1).select(
-            colorSimilarity,
+            colorMatchFactor,
             luminanceFactor,
         );
         const mappedTransparencyFactor = transparentHighlightsUniform.equal(1).select(
