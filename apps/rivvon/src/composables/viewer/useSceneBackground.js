@@ -8,6 +8,7 @@ const BACKGROUND_RENDER_ORDER = -10000;
 const REALTIME_BLUR_MAX_SIDE = 384;
 const MAX_BACKGROUND_BLUR_AMOUNT = 100;
 const MAX_BACKGROUND_BLUR_RADIUS_PASSES = 64;
+const MAX_REALTIME_GAUSSIAN_PASSES = 6;
 const BACKGROUND_FLOW_TIME_ORIGIN =
   typeof performance !== "undefined" ? performance.now() : Date.now();
 
@@ -117,7 +118,7 @@ function getBlurPassCount(ctx) {
 function getGaussianPassCount(ctx, renderOptions = {}) {
   const amount = getBackgroundBlurAmount(ctx);
   const exportMode = renderOptions.blurMode === "export";
-  const maximumPasses = exportMode ? 4 : 3;
+  const maximumPasses = exportMode ? 4 : MAX_REALTIME_GAUSSIAN_PASSES;
   const amountPerPass = exportMode ? 12 : 18;
 
   return Math.max(
