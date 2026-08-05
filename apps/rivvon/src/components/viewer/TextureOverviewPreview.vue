@@ -1325,7 +1325,9 @@
     watch(
         () => [
             app.transparentShadowsEnabled,
+            app.transparencyMethod,
             app.transparencyMode,
+            app.transparencyReferenceColor,
             app.transparentShadowsThresholdMin,
             app.transparentShadowsThresholdMax,
             app.renderFilterMode,

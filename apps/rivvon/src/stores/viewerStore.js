@@ -43,8 +43,11 @@ import {
 const VIEWER_PREFERENCES_STORAGE_KEY = "rivvon.viewer.preferences";
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
 const VIEWER_FILTER_MODES = ["none", "gradientMap"];
+const TRANSPARENCY_METHODS = ["brightness", "color"];
+const DEFAULT_TRANSPARENCY_METHOD = "brightness";
 const TRANSPARENCY_MODES = ["shadows", "highlights"];
 const DEFAULT_TRANSPARENCY_MODE = "shadows";
+const DEFAULT_TRANSPARENCY_REFERENCE_COLOR = "#ffffff";
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN = 0.2;
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX = 0.5;
 const MIN_TRANSPARENT_SHADOWS_THRESHOLD_GAP = 0.01;
@@ -125,6 +128,19 @@ function normalizeDuotoneColor(value) {
 
 function normalizeTransparencyMode(value) {
   return TRANSPARENCY_MODES.includes(value) ? value : DEFAULT_TRANSPARENCY_MODE;
+}
+
+function normalizeTransparencyMethod(value) {
+  return TRANSPARENCY_METHODS.includes(value)
+    ? value
+    : DEFAULT_TRANSPARENCY_METHOD;
+}
+
+function normalizeTransparencyReferenceColor(value) {
+  return normalizeGradientMapColor(
+    value,
+    DEFAULT_TRANSPARENCY_REFERENCE_COLOR,
+  );
 }
 
 function normalizeContrast(value) {
@@ -487,7 +503,13 @@ function getStoredFilterSettings() {
       preferences.transparentShadowsEnabled,
       preferences.renderFilterMode === "transparentShadows",
     ),
+    transparencyMethod: normalizeTransparencyMethod(
+      preferences.transparencyMethod,
+    ),
     transparencyMode: normalizeTransparencyMode(preferences.transparencyMode),
+    transparencyReferenceColor: normalizeTransparencyReferenceColor(
+      preferences.transparencyReferenceColor,
+    ),
     transparentShadowsThresholdMin: transparentShadowsThresholds.min,
     transparentShadowsThresholdMax: transparentShadowsThresholds.max,
     gradientMapStops,
@@ -710,7 +732,9 @@ export const useViewerStore = defineStore("viewer", {
       ),
       renderFilterMode: storedFilterSettings.renderFilterMode,
       transparentShadowsEnabled: storedFilterSettings.transparentShadowsEnabled,
+      transparencyMethod: storedFilterSettings.transparencyMethod,
       transparencyMode: storedFilterSettings.transparencyMode,
+      transparencyReferenceColor: storedFilterSettings.transparencyReferenceColor,
       transparentShadowsThresholdMin:
         storedFilterSettings.transparentShadowsThresholdMin,
       transparentShadowsThresholdMax:
@@ -926,7 +950,9 @@ export const useViewerStore = defineStore("viewer", {
         getDefaultPreferredTextureMaxResolution();
       this.renderFilterMode = "none";
       this.transparentShadowsEnabled = false;
+      this.transparencyMethod = DEFAULT_TRANSPARENCY_METHOD;
       this.transparencyMode = DEFAULT_TRANSPARENCY_MODE;
+      this.transparencyReferenceColor = DEFAULT_TRANSPARENCY_REFERENCE_COLOR;
       this.transparentShadowsThresholdMin =
         DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN;
       this.transparentShadowsThresholdMax =
@@ -1000,7 +1026,9 @@ export const useViewerStore = defineStore("viewer", {
         preferredTextureMaxResolution: this.preferredTextureMaxResolution,
         renderFilterMode: "none",
         transparentShadowsEnabled: false,
+        transparencyMethod: DEFAULT_TRANSPARENCY_METHOD,
         transparencyMode: DEFAULT_TRANSPARENCY_MODE,
+        transparencyReferenceColor: DEFAULT_TRANSPARENCY_REFERENCE_COLOR,
         transparentShadowsThresholdMin:
           DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN,
         transparentShadowsThresholdMax:
@@ -1394,7 +1422,9 @@ export const useViewerStore = defineStore("viewer", {
         preferredTextureMaxResolution: this.preferredTextureMaxResolution,
         renderFilterMode: this.renderFilterMode,
         transparentShadowsEnabled: this.transparentShadowsEnabled,
+        transparencyMethod: this.transparencyMethod,
         transparencyMode: this.transparencyMode,
+        transparencyReferenceColor: this.transparencyReferenceColor,
         transparentShadowsThresholdMin: this.transparentShadowsThresholdMin,
         transparentShadowsThresholdMax: this.transparentShadowsThresholdMax,
         edgeDriftEnabled: this.edgeDriftEnabled,
@@ -1483,7 +1513,9 @@ export const useViewerStore = defineStore("viewer", {
           original.preferredTextureMaxResolution ||
         this.renderFilterMode !== original.renderFilterMode ||
         this.transparentShadowsEnabled !== original.transparentShadowsEnabled ||
+        this.transparencyMethod !== original.transparencyMethod ||
         this.transparencyMode !== original.transparencyMode ||
+        this.transparencyReferenceColor !== original.transparencyReferenceColor ||
         this.transparentShadowsThresholdMin !==
           original.transparentShadowsThresholdMin ||
         this.transparentShadowsThresholdMax !==
@@ -1709,10 +1741,23 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ transparentShadowsEnabled: nextValue });
     },
 
+    setTransparencyMethod(method) {
+      const nextMethod = normalizeTransparencyMethod(method);
+      this.transparencyMethod = nextMethod;
+      writeViewerPreferences({ transparencyMethod: nextMethod });
+    },
+
     setTransparencyMode(mode) {
       const nextMode = normalizeTransparencyMode(mode);
       this.transparencyMode = nextMode;
       writeViewerPreferences({ transparencyMode: nextMode });
+    },
+
+    setTransparencyReferenceColor(color) {
+      const nextColor = normalizeTransparencyReferenceColor(color);
+      this.transparencyReferenceColor = nextColor;
+      writeViewerPreferences({ transparencyReferenceColor: nextColor });
+      return nextColor;
     },
 
     setTransparentShadowsThresholdRange(range) {

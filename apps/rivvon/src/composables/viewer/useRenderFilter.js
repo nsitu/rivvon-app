@@ -19,6 +19,7 @@ export function useRenderFilter(ctx) {
     let filterSaturationUniform = null;
     let filterGradientTexture = null;
     let filterGradientSignature = null;
+    const transparentReferenceColor = new THREE.Color(0xffffff);
 
     function getActiveFilterMode() {
         return ctx.app.renderFilterMode === 'gradientMap'
@@ -69,6 +70,20 @@ export function useRenderFilter(ctx) {
 
     function isTransparencyHighlightsMode() {
         return ctx.app.transparencyMode === 'highlights';
+    }
+
+    function isTransparencyColorMode() {
+        return ctx.app.transparencyMethod === 'color';
+    }
+
+    function getTransparencyReferenceColor() {
+        try {
+            transparentReferenceColor.set(ctx.app.transparencyReferenceColor || '#ffffff');
+        } catch {
+            transparentReferenceColor.set('#ffffff');
+        }
+
+        return transparentReferenceColor;
     }
 
     function getTransparentShadowsThresholds() {
@@ -331,6 +346,8 @@ export function useRenderFilter(ctx) {
         const peakTroughBlurAmount = getPeakTroughBlurAmount();
         const peakTroughGradient = getPeakTroughGradientRange();
         const useHighlights = isTransparencyHighlightsMode();
+        const useColorMode = isTransparencyColorMode();
+        const referenceColor = getTransparencyReferenceColor();
         const { min, max } = getTransparentShadowsThresholds();
 
         scene.traverse((obj) => {
@@ -361,6 +378,17 @@ export function useRenderFilter(ctx) {
                 }
                 if (material._transparentHighlightsUniform) {
                     material._transparentHighlightsUniform.value = useHighlights ? 1 : 0;
+                }
+                if (material._transparentColorModeUniform) {
+                    material._transparentColorModeUniform.value = useColorMode ? 1 : 0;
+                }
+                if (material._transparentReferenceColorUniform) {
+                    const uniformColor = material._transparentReferenceColorUniform.value;
+                    if (uniformColor?.copy) {
+                        uniformColor.copy(referenceColor);
+                    } else {
+                        material._transparentReferenceColorUniform.value = referenceColor;
+                    }
                 }
                 if (material._transparentShadowsMinUniform) {
                     material._transparentShadowsMinUniform.value = min;

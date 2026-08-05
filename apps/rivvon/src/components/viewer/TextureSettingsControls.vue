@@ -54,6 +54,45 @@
         }
     });
 
+    const transparencyMethodOptions = [
+        { label: 'Brightness', value: 'brightness', icon: 'brightness_6' },
+        { label: 'Reference Color', value: 'color', icon: 'colorize' },
+    ];
+
+    const selectedTransparencyMethodOption = computed({
+        get: () => transparencyMethodOptions.find(
+            (option) => option.value === app.transparencyMethod,
+        ) ?? transparencyMethodOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+            app.setTransparencyMethod(option.value);
+        },
+    });
+
+    const transparencyReferenceColorModel = computed({
+        get: () => app.transparencyReferenceColor,
+        set: (value) => {
+            app.setTransparencyReferenceColor(value);
+        },
+    });
+
+    const transparencyReferenceColorPickerModel = computed({
+        get: () => transparencyReferenceColorModel.value.replace('#', ''),
+        set: (value) => {
+            app.setTransparencyReferenceColor(
+                typeof value === 'string' ? `#${value.replace(/^#/, '')}` : value,
+            );
+        },
+    });
+
+    const transparencyReferenceColorInputModel = computed(
+        () => transparencyReferenceColorModel.value.toUpperCase(),
+    );
+
+    function onTransparencyReferenceColorInput(event) {
+        app.setTransparencyReferenceColor(event.target.value);
+    }
+
     const transparencyHighlightsModel = computed({
         get: () => app.transparencyMode === 'highlights',
         set: (value) => {
@@ -62,7 +101,13 @@
     });
 
     const transparencyModeLabel = computed(
-        () => transparencyHighlightsModel.value ? 'Highlights' : 'Shadows'
+        () => app.transparencyMethod === 'color'
+            ? (transparencyHighlightsModel.value ? 'Inverted' : 'Match')
+            : (transparencyHighlightsModel.value ? 'Highlights' : 'Shadows')
+    );
+
+    const transparencyInversionLabel = computed(
+        () => app.transparencyMethod === 'color' ? 'Invert Color Match' : 'Highlights',
     );
 
     const transparentShadowsThresholdRangeModel = computed({
@@ -182,15 +227,27 @@
     );
 
     const transparencyThresholdMinCaption = computed(
-        () => transparencyHighlightsModel.value
-            ? `Opaque at ${transparentShadowsThresholdMinLabel.value}`
-            : `Transparent at ${transparentShadowsThresholdMinLabel.value}`
+        () => app.transparencyMethod === 'color'
+            ? (transparencyHighlightsModel.value
+                ? `Opaque below ${transparentShadowsThresholdMinLabel.value}`
+                : `Transparent below ${transparentShadowsThresholdMinLabel.value}`)
+            : (transparencyHighlightsModel.value
+                ? `Opaque at ${transparentShadowsThresholdMinLabel.value}`
+                : `Transparent at ${transparentShadowsThresholdMinLabel.value}`)
     );
 
     const transparencyThresholdMaxCaption = computed(
-        () => transparencyHighlightsModel.value
-            ? `Transparent at ${transparentShadowsThresholdMaxLabel.value}`
-            : `Opaque at ${transparentShadowsThresholdMaxLabel.value}`
+        () => app.transparencyMethod === 'color'
+            ? (transparencyHighlightsModel.value
+                ? `Transparent at ${transparentShadowsThresholdMaxLabel.value}`
+                : `Opaque at ${transparentShadowsThresholdMaxLabel.value}`)
+            : (transparencyHighlightsModel.value
+                ? `Transparent at ${transparentShadowsThresholdMaxLabel.value}`
+                : `Opaque at ${transparentShadowsThresholdMaxLabel.value}`)
+    );
+
+    const transparencyRangeLabel = computed(
+        () => app.transparencyMethod === 'color' ? 'Color Match Range' : 'Transparency Range',
     );
 
     const gradientBarRef = ref(null);
@@ -514,6 +571,75 @@
 
                 <div
                     v-if="showTransparentShadowsFilter && transparentShadowsFilterModel"
+                    class="tools-select-block"
+                >
+                    <label class="tools-select-label">Transparency Basis</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="selectedTransparencyMethodOption"
+                            :options="transparencyMethodOptions"
+                            option-label="label"
+                            class="tools-select"
+                        >
+                            <template #value="slotProps">
+                                <div
+                                    v-if="slotProps.value"
+                                    class="tools-select-row"
+                                >
+                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
+                                        }}</span>
+                                    <span>{{ slotProps.value.label }}</span>
+                                </div>
+                                <span v-else>{{ slotProps.placeholder }}</span>
+                            </template>
+                            <template #option="slotProps">
+                                <div class="tools-select-row">
+                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
+                                        }}</span>
+                                    <span>{{ slotProps.option.label }}</span>
+                                </div>
+                            </template>
+                        </Select>
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter && transparentShadowsFilterModel && app.transparencyMethod === 'color'"
+                    class="tools-color-row"
+                >
+                    <label
+                        class="tools-color-main"
+                        :for="getInputId('transparency-reference-color')"
+                    >
+                        <span
+                            class="tools-color-swatch"
+                            :style="{ backgroundColor: transparencyReferenceColorModel }"
+                        ></span>
+                        <span>Reference Color</span>
+                    </label>
+                    <div class="tools-color-control">
+                        <input
+                            :id="getInputId('transparency-reference-color-hex')"
+                            type="text"
+                            class="background-overlay-hex"
+                            :value="transparencyReferenceColorInputModel"
+                            maxlength="7"
+                            spellcheck="false"
+                            autocomplete="off"
+                            aria-label="Transparency reference color hex code"
+                            @change="onTransparencyReferenceColorInput"
+                        />
+                        <ColorPicker
+                            :inputId="getInputId('transparency-reference-color')"
+                            v-model="transparencyReferenceColorPickerModel"
+                            format="hex"
+                            class="tools-color-picker"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter && transparentShadowsFilterModel"
                     class="tools-toggle-row"
                 >
                     <label
@@ -521,7 +647,7 @@
                         :for="getInputId('transparency-highlights-mode')"
                     >
                         <span class="material-symbols-outlined">opacity</span>
-                        <span>Highlights</span>
+                        <span>{{ transparencyInversionLabel }}</span>
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ transparencyModeLabel }}</span>
@@ -537,7 +663,7 @@
                     class="tools-slider-block"
                 >
                     <div class="tools-slider-head">
-                        <label class="tools-slider-label">Transparency Range</label>
+                        <label class="tools-slider-label">{{ transparencyRangeLabel }}</label>
                         <span class="tools-hint tools-slider-hint">
                             {{ transparentShadowsThresholdMinLabel }} - {{ transparentShadowsThresholdMaxLabel }}
                         </span>
@@ -553,6 +679,12 @@
                     <div class="tools-slider-caption">
                         <span>{{ transparencyThresholdMinCaption }}</span>
                         <span>{{ transparencyThresholdMaxCaption }}</span>
+                    </div>
+                    <div
+                        v-if="app.transparencyMethod === 'color'"
+                        class="tools-slider-note"
+                    >
+                        0% means no reference-color match; 100% means an exact match.
                     </div>
                 </div>
 
@@ -1216,6 +1348,12 @@
         gap: 1rem;
         color: rgba(255, 255, 255, 0.56);
         font-size: 0.72rem;
+    }
+
+    .tools-slider-note {
+        color: rgba(255, 255, 255, 0.48);
+        font-size: 0.7rem;
+        line-height: 1.35;
     }
 
     .tools-select-block {
