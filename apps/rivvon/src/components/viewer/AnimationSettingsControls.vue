@@ -1,6 +1,6 @@
 ﻿<script setup>
     import { computed, getCurrentInstance, ref, watch } from 'vue';
-    import ColorPicker from 'primevue/colorpicker';
+    import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -629,7 +629,7 @@
                             aria-label="Overlay color hex code"
                             @change="onBackgroundOverlayColorInput"
                         />
-                        <ColorPicker
+                        <ColorPickerPopover
                             :inputId="getInputId('background-overlay-color')"
                             v-model="backgroundOverlayColorPickerModel"
                             format="hex"
@@ -893,14 +893,9 @@
         text-transform: uppercase;
     }
 
-    :deep(.tools-color-picker .p-colorpicker-preview) {
+    :deep(.tools-color-picker.color-picker-trigger) {
         width: 1.75rem;
         height: 1.75rem;
-        border-radius: 999px;
-    }
-
-    :deep(.tools-color-picker .p-colorpicker-panel) {
-        z-index: 5000;
     }
 
     .background-overlay-hex {

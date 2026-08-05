@@ -1,6 +1,6 @@
 <script setup>
     import { computed, ref, watch, getCurrentInstance, onBeforeUnmount } from 'vue';
-    import ColorPicker from 'primevue/colorpicker';
+    import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -629,7 +629,7 @@
                             aria-label="Transparency reference color hex code"
                             @change="onTransparencyReferenceColorInput"
                         />
-                        <ColorPicker
+                        <ColorPickerPopover
                             :inputId="getInputId('transparency-reference-color')"
                             v-model="transparencyReferenceColorPickerModel"
                             format="hex"
@@ -943,7 +943,7 @@
                             :class="{ 'is-selected': stop.id === selectedGradientStopId }"
                             @click="selectedGradientStopId = stop.id"
                         >
-                            <ColorPicker
+                            <ColorPickerPopover
                                 :inputId="getInputId(`gradient-color-${stop.id}`)"
                                 :modelValue="stop.color.replace('#', '')"
                                 format="hex"
@@ -1392,12 +1392,9 @@
         font-size: 0.95rem;
     }
 
-    :deep(.tools-color-picker .p-colorpicker-preview) {
+    :deep(.tools-color-picker.color-picker-trigger) {
         width: 2rem;
         height: 2rem;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: none;
     }
 
     :deep(.tools-range-slider .p-slider-handle) {

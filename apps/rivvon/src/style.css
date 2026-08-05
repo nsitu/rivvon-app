@@ -8,6 +8,7 @@
 @source "../src/**/*.vue";
 @source "../src/**/*.js";
 @source "../index.html";
+@source "../node_modules/@vuelor/picker";
 
 /* ========================================
    CSS Custom Properties for light/dark mode theming (Slyce)
@@ -21,21 +22,21 @@
     --bg-input: #ffffff;
     --bg-muted: #eeeeee;
     --bg-muted-alt: #dddddd;
-    
+
     --text-primary: #111827;
     --text-secondary: #374151;
     --text-tertiary: #6b7280;
     --text-muted: #9ca3af;
-    
+
     --border-primary: #e5e7eb;
     --border-secondary: #d1d5db;
     --border-muted: #eeeeee;
-    
+
     --accent-green: #10b981;
     --accent-green-light: #ecfdf5;
     --accent-purple: #9333ea;
     --accent-purple-light: #faf5ff;
-    
+
     color-scheme: dark;
 }
 
@@ -48,16 +49,16 @@
     --bg-input: #374151;
     --bg-muted: #374151;
     --bg-muted-alt: #4b5563;
-    
+
     --text-primary: #f9fafb;
     --text-secondary: #e5e7eb;
     --text-tertiary: #9ca3af;
     --text-muted: #6b7280;
-    
+
     --border-primary: #374151;
     --border-secondary: #4b5563;
     --border-muted: #4b5563;
-    
+
     --accent-green: #10b981;
     --accent-green-light: #064e3b;
     --accent-purple: #a855f7;
@@ -364,4 +365,19 @@ body.hover .upload-area {
     .slyce-view body {
         padding: 20px;
     }
+}
+
+@theme inline {
+    --vuelor-primary: #0d99ff;
+    --vuelor-surface: #ffffff;
+    --vuelor-border: #e6e6e6;
+    --vuelor-input: #f5f5f5;
+    --shadow-vuelor-card: 0 2px 5px 0 #00000026, 0 10px 16px 0 #0000001f, 0 0 .5px 0 #0000001f;
+    --shadow-vuelor-thumb: 0px 0px .5px #0000002e, 0px 3px 8px #0000001a, 0px 1px 3px #0000001a;
+    --shadow-vuelor-inner: inset 0 0 0 1px #0000001a;
+    --drop-shadow-vuelor-thumb: 0px 0px .5px #00000054, 0px 1px 3px #00000026;
+    --color-vuelor-input: var(--vuelor-input);
+    --color-vuelor-border: var(--vuelor-border);
+    --color-vuelor-surface: var(--vuelor-surface);
+    --color-vuelor-primary: var(--vuelor-primary);
 }
