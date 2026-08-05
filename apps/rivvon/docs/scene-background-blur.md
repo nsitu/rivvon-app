@@ -36,3 +36,18 @@ background render plus several full-screen blur passes per update. Compared
 with a large single-pass Gaussian kernel, the fixed four-sample passes are
 usually cheaper and easier to scale, though the result can be less uniform at
 very high blur amounts.
+
+## Video export
+
+Frame-accurate video export uses a separate quality profile. The composed
+background target matches the requested export dimensions, and the blur offsets
+are scaled with the target so the apparent blur radius remains consistent at
+the higher resolution.
+
+Export frames use a two-pass separable Gaussian blur (horizontal then vertical)
+instead of the realtime Kawase approximation. This produces a more uniform
+blur with fewer directional artifacts while keeping the export work on the GPU.
+Export resource usage therefore scales with the requested video resolution.
+
+Background flow also receives the export frame's synthetic timestamp, so a slow
+export does not turn realtime wall-clock time into uneven motion between frames.

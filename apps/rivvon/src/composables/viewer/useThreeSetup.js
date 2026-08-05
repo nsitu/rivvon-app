@@ -101,9 +101,9 @@ export function useThreeSetup() {
   const background = useSceneBackground(ctx);
   const ribbons = useRibbonBuilder(ctx);
 
-  function renderSceneWithBackground(target = null) {
-    background.updateBackground();
-    renderFilter.renderScene(target);
+  function renderSceneWithBackground(renderOptions = {}) {
+    background.updateBackground(renderOptions);
+    renderFilter.renderScene(renderOptions.target ?? null);
   }
 
   function updateBackground() {

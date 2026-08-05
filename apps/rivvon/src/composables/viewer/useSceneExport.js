@@ -56,9 +56,9 @@ export function useSceneExport(ctx, deps = {}) {
         return 'wrap';
     }
 
-    function renderScene() {
+    function renderScene(renderOptions = {}) {
         if (deps.renderScene) {
-            deps.renderScene();
+            deps.renderScene(renderOptions);
             return;
         }
 
@@ -596,8 +596,9 @@ export function useSceneExport(ctx, deps = {}) {
      *
      * @param {number} waveTime - Elapsed time in seconds (for undulation phase)
      * @param {number} deltaSec - Time step since last frame (for texture cycling)
+     * @param {Object} renderOptions - Background/render options for this frame
      */
-    function renderFrameAtTime(waveTime, deltaSec) {
+    function renderFrameAtTime(waveTime, deltaSec, renderOptions = {}) {
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) return;
 
         // 1. Advance texture layer cycling + flow with deterministic delta
@@ -623,7 +624,13 @@ export function useSceneExport(ctx, deps = {}) {
         }
 
         // 4. Render
-        renderScene();
+        renderScene({
+            ...renderOptions,
+            blurMode: 'export',
+            timeSeconds: waveTime,
+            width: ctx.renderer.value.domElement.width,
+            height: ctx.renderer.value.domElement.height,
+        });
     }
 
     /**
@@ -643,7 +650,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
     * @param {string} options.cameraMovement - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse'
-    * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
+     * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
@@ -890,7 +897,11 @@ export function useSceneExport(ctx, deps = {}) {
                 }
 
                 // Render this frame at the exact synthetic time
-                renderFrameAtTime(t, animationDelta);
+                renderFrameAtTime(t, animationDelta, {
+                    blurMode: 'export',
+                    width,
+                    height,
+                });
 
                 if (exportCanvasContext && exportLogoAsset) {
                     exportCanvasContext.clearRect(0, 0, width, height);
