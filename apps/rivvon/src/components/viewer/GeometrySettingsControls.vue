@@ -81,22 +81,6 @@
         <div class="tools-section">
             <div class="tools-section-label">Geometry</div>
             <div class="tools-section-items">
-                <div class="tools-slider">
-                    <label>
-                        <span class="material-symbols-outlined tools-slider-icon">fit_page_width</span>
-                        <span>Ribbon Width</span>
-                        <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2) }}x</span>
-                    </label>
-                    <input
-                        type="range"
-                        min="0.1"
-                        max="2.5"
-                        step="0.05"
-                        :value="app.ribbonWidthScale"
-                        @input="app.setRibbonWidthScale(parseFloat($event.target.value))"
-                    />
-                </div>
-
                 <div class="tools-select-block">
                     <label class="tools-select-label">Surface</label>
                     <div class="tools-select-wrap">
@@ -106,6 +90,27 @@
                             option-label="label"
                             option-value="value"
                             class="tools-select"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="app.surfaceMode !== 'tube'"
+                    class="tools-geometry-details"
+                >
+                    <div class="tools-slider">
+                        <label>
+                            <span class="material-symbols-outlined tools-slider-icon">fit_page_width</span>
+                            <span>Ribbon Width</span>
+                            <span class="tools-slider-value">{{ app.ribbonWidthScale.toFixed(2) }}x</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="2.5"
+                            step="0.05"
+                            :value="app.ribbonWidthScale"
+                            @input="app.setRibbonWidthScale(parseFloat($event.target.value))"
                         />
                     </div>
                 </div>

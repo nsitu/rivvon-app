@@ -74,7 +74,7 @@ export class RibbonSeries {
 
   /**
    * Set helix mode parameters, forwarded to all child ribbons
-   * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, ribbonWidthScale, capStyle, cornerNarrowingEnabled, undulationEnabled }
+   * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth, ribbonWidthScale, surfaceMode, capStyle, cornerNarrowingEnabled, undulationEnabled }
    * @returns {RibbonSeries} this for chaining
    */
   setHelixOptions(options = {}) {
@@ -270,12 +270,7 @@ export class RibbonSeries {
     this._resolvedSphericalProjectionRadius = sphericalProjectionRadius;
     this._updateTransformRoot(this.lastPathsPoints);
 
-    const ribbonWidthScale = Number.isFinite(
-      this._helixOptions.ribbonWidthScale,
-    )
-      ? this._helixOptions.ribbonWidthScale
-      : 1;
-    const effectiveWidth = width * ribbonWidthScale;
+    const effectiveWidth = this._getEffectiveSurfaceWidth(width);
 
     let segmentOffset = 0; // Track cumulative segment count for texture continuity
     const N = this.tileManagers.length; // Number of available TileManagers
@@ -367,7 +362,11 @@ export class RibbonSeries {
     return this.buildFromMultiplePaths([points], width, time);
   }
 
-  _getEffectiveRibbonWidth(width = 1) {
+  _getEffectiveSurfaceWidth(width = 1) {
+    if (this._helixOptions.surfaceMode === "tube") {
+      return width;
+    }
+
     const ribbonWidthScale = Number.isFinite(
       this._helixOptions.ribbonWidthScale,
     )
@@ -476,7 +475,7 @@ export class RibbonSeries {
     );
     ribbon.buildPooledSegmentedRibbon(
       points,
-      this._getEffectiveRibbonWidth(width),
+      this._getEffectiveSurfaceWidth(width),
       time,
       options,
     );
@@ -507,7 +506,7 @@ export class RibbonSeries {
     const pathOptions = Array.isArray(options.pathOptions)
       ? options.pathOptions
       : [];
-    const effectiveWidth = this._getEffectiveRibbonWidth(width);
+    const effectiveWidth = this._getEffectiveSurfaceWidth(width);
     const N = this.tileManagers.length;
     let textureIndex = 0;
     let segmentOffset = 0;
@@ -580,7 +579,7 @@ export class RibbonSeries {
     );
     ribbon.updatePooledSegmentedRibbon(
       points,
-      this._getEffectiveRibbonWidth(width),
+      this._getEffectiveSurfaceWidth(width),
       time,
       options,
     );
@@ -615,7 +614,7 @@ export class RibbonSeries {
     const pathOptions = Array.isArray(options.pathOptions)
       ? options.pathOptions
       : [];
-    const effectiveWidth = this._getEffectiveRibbonWidth(width);
+    const effectiveWidth = this._getEffectiveSurfaceWidth(width);
     const textureOrientationMirrors = this._calculateTextureOrientationMirrors(
       this.lastPathsPoints,
     );
@@ -664,7 +663,7 @@ export class RibbonSeries {
 
   buildFromProceduralSource(sourceConfig = {}, width = 1, time = 0) {
     const frame = getProceduralSourceFrame(sourceConfig, time);
-    const effectiveWidth = this._getEffectiveRibbonWidth(width);
+    const effectiveWidth = this._getEffectiveSurfaceWidth(width);
     const pathMetrics = this._getProceduralPathMetrics(
       frame.paths,
       effectiveWidth,
@@ -720,7 +719,7 @@ export class RibbonSeries {
       time,
       source.runtimeState,
     );
-    const effectiveWidth = this._getEffectiveRibbonWidth(source.width);
+    const effectiveWidth = this._getEffectiveSurfaceWidth(source.width);
     const previousMaxObservedPathLengths =
       Array.isArray(source.maxObservedPathLengths) &&
       source.maxObservedPathLengths.length > 0
