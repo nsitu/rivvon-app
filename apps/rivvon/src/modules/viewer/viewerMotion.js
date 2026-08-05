@@ -1,27 +1,27 @@
 import { MathUtils } from "three";
 import {
-  DEFAULT_SEAMLESS_LOOP_COUNT as DEFAULT_VIEWER_MOTION_LOOP_COUNT,
-  SEAMLESS_LOOP_COUNTS as VIEWER_MOTION_LOOP_COUNTS,
-  SEAMLESS_LOOP_COUNT_OPTIONS as VIEWER_MOTION_LOOP_COUNT_OPTIONS,
-  normalizeSeamlessLoopCount as normalizeViewerMotionLoopCount,
+  DEFAULT_SEAMLESS_LOOP_COUNT as DEFAULT_ARTWORK_MOTION_LOOP_COUNT,
+  SEAMLESS_LOOP_COUNTS as ARTWORK_MOTION_LOOP_COUNTS,
+  SEAMLESS_LOOP_COUNT_OPTIONS as ARTWORK_MOTION_LOOP_COUNT_OPTIONS,
+  normalizeSeamlessLoopCount as normalizeArtworkMotionLoopCount,
 } from "./seamlessLoop.js";
 
-export const VIEWER_MOTION_MODES = [
+export const ARTWORK_MOTION_MODES = [
   "none",
   "circularTilt",
   "circularOrbit",
   "circularOrbitReverse",
 ];
 
-export const DEFAULT_VIEWER_MOTION_MODE = "none";
+export const DEFAULT_ARTWORK_MOTION_MODE = "none";
 export {
-  DEFAULT_VIEWER_MOTION_LOOP_COUNT,
-  VIEWER_MOTION_LOOP_COUNTS,
-  VIEWER_MOTION_LOOP_COUNT_OPTIONS,
-  normalizeViewerMotionLoopCount,
+  DEFAULT_ARTWORK_MOTION_LOOP_COUNT,
+  ARTWORK_MOTION_LOOP_COUNTS,
+  ARTWORK_MOTION_LOOP_COUNT_OPTIONS,
+  normalizeArtworkMotionLoopCount,
 };
 
-export const VIEWER_MOTION_OPTIONS = [
+export const ARTWORK_MOTION_OPTIONS = [
   {
     label: "None",
     value: "none",
@@ -44,12 +44,12 @@ export const VIEWER_MOTION_OPTIONS = [
   },
 ];
 
-export function normalizeViewerMotionMode(value) {
-  return VIEWER_MOTION_MODES.includes(value)
+export function normalizeArtworkMotionMode(value) {
+  return ARTWORK_MOTION_MODES.includes(value)
     ? value
-    : DEFAULT_VIEWER_MOTION_MODE;
+    : DEFAULT_ARTWORK_MOTION_MODE;
 }
 
-export function getViewerMotionAngle(progress, direction = 1) {
+export function getArtworkMotionAngle(progress, direction = 1) {
   return MathUtils.euclideanModulo(progress, 1) * Math.PI * 2 * direction;
 }

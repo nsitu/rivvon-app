@@ -23,7 +23,7 @@ import {
   DEFAULT_SPHERICAL_WRAP_DEGREES,
   normalizeSphericalProjectionWrapDegrees,
 } from "../modules/viewer/sphericalProjection.js";
-import { normalizeViewerMotionMode } from "../modules/viewer/viewerMotion.js";
+import { normalizeArtworkMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
   DEFAULT_SEAMLESS_LOOP_COUNT,
   normalizeSeamlessLoopCount,
@@ -445,6 +445,11 @@ function readViewerPreferences() {
   }
 }
 
+function getStoredArtworkMotionMode() {
+  const preferences = readViewerPreferences();
+  return preferences.artworkMotionMode ?? preferences.viewerMotionMode;
+}
+
 function writeViewerPreferences(patch) {
   if (typeof window === "undefined" || !window.localStorage) {
     return;
@@ -577,8 +582,8 @@ export const useViewerStore = defineStore("viewer", {
 
       // Viewer control mode
       viewerControlMode: "orbit", // 'orbit' | 'headTracking' | 'mouseTilt' | 'scrollTilt'
-      viewerMotionMode: normalizeViewerMotionMode(
-        readViewerPreferences().viewerMotionMode,
+      artworkMotionMode: normalizeArtworkMotionMode(
+        getStoredArtworkMotionMode(),
       ),
       viewerMotionLoopCount: normalizeSeamlessLoopCount(
         readViewerPreferences().viewerMotionLoopCount,
@@ -893,10 +898,10 @@ export const useViewerStore = defineStore("viewer", {
       }
     },
 
-    setViewerMotionMode(mode) {
-      const nextMode = normalizeViewerMotionMode(mode);
-      this.viewerMotionMode = nextMode;
-      writeViewerPreferences({ viewerMotionMode: nextMode });
+    setArtworkMotionMode(mode) {
+      const nextMode = normalizeArtworkMotionMode(mode);
+      this.artworkMotionMode = nextMode;
+      writeViewerPreferences({ artworkMotionMode: nextMode });
     },
 
     setViewerMotionLoopCount(value) {
@@ -909,7 +914,7 @@ export const useViewerStore = defineStore("viewer", {
       const defaultExportDimensions = normalizeExportDimensionSettings({});
 
       this.viewerControlMode = "orbit";
-      this.viewerMotionMode = "none";
+      this.artworkMotionMode = "none";
       this.viewerMotionLoopCount = DEFAULT_SEAMLESS_LOOP_COUNT;
       this.scrollDrivenTiltEnabled = true;
       this.scrollDrivenLayerCycleEnabled = true;
@@ -990,7 +995,7 @@ export const useViewerStore = defineStore("viewer", {
       this.clearHeadTrackingFeedback();
 
       writeViewerPreferences({
-        viewerMotionMode: "none",
+        artworkMotionMode: "none",
         viewerMotionLoopCount: DEFAULT_SEAMLESS_LOOP_COUNT,
         scrollDrivenTiltEnabled: true,
         scrollDrivenLayerCycleEnabled: true,
@@ -1383,7 +1388,7 @@ export const useViewerStore = defineStore("viewer", {
     captureToolsPanelOriginalState() {
       this.toolsPanelOriginalState = {
         viewerControlMode: this.viewerControlMode,
-        viewerMotionMode: this.viewerMotionMode,
+        artworkMotionMode: this.artworkMotionMode,
         viewerMotionLoopCount: this.viewerMotionLoopCount,
         scrollDrivenTiltEnabled: this.scrollDrivenTiltEnabled,
         scrollDrivenLayerCycleEnabled: this.scrollDrivenLayerCycleEnabled,
@@ -1469,7 +1474,7 @@ export const useViewerStore = defineStore("viewer", {
       const original = this.toolsPanelOriginalState;
       return (
         this.viewerControlMode !== original.viewerControlMode ||
-        this.viewerMotionMode !== original.viewerMotionMode ||
+        this.artworkMotionMode !== original.artworkMotionMode ||
         this.viewerMotionLoopCount !== original.viewerMotionLoopCount ||
         this.scrollDrivenTiltEnabled !== original.scrollDrivenTiltEnabled ||
         this.scrollDrivenLayerCycleEnabled !==

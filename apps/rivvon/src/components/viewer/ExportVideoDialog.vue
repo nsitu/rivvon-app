@@ -50,7 +50,16 @@
 
     const cycleCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
     const fps = ref(30);
-    const cameraMovement = ref('circularTilt');
+    const exportOnlyCinematicMode = ref(false);
+    const artworkMotionMode = computed({
+        get: () => exportOnlyCinematicMode.value ? 'cinematic' : app.artworkMotionMode,
+        set: (value) => {
+            exportOnlyCinematicMode.value = value === 'cinematic';
+            if (!exportOnlyCinematicMode.value) {
+                app.setArtworkMotionMode(value);
+            }
+        },
+    });
     const quality = ref('high');
 
     const exportModeOptions = computed(() => {
@@ -87,7 +96,7 @@
         return value === 'circularOrbitReverse' ? 'clockwise' : 'counterclockwise';
     }
 
-    const cameraMovementOptions = computed(() => {
+    const artworkMotionOptions = computed(() => {
         const hasROIs = activeModeInfo.value?.hasROIs ?? false;
         return [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
@@ -98,8 +107,8 @@
         ];
     });
 
-    const cameraMovementDescription = computed(() => {
-        const option = cameraMovementOptions.value.find((entry) => entry.value === cameraMovement.value);
+    const artworkMotionDescription = computed(() => {
+        const option = artworkMotionOptions.value.find((entry) => entry.value === artworkMotionMode.value);
         return option?.description ?? '';
     });
 
@@ -208,7 +217,7 @@
 
     const resolvedDuration = computed(() => {
         if (durationMode.value === 'loop') {
-            if (!textureOnlyMode.value && cameraMovement.value === 'cinematic') {
+            if (!textureOnlyMode.value && artworkMotionMode.value === 'cinematic') {
                 return cinematicAutoDuration.value * cycleCount.value;
             }
             return seamlessLoopDuration.value * cycleCount.value;
@@ -225,17 +234,17 @@
         if (textureOnlyMode.value) {
             return `Texture overview returns to its starting tile, layer, and flow state after ${formatDuration(seamlessLoopDuration.value)}.`;
         }
-        if (cameraMovement.value === 'cinematic') {
+        if (artworkMotionMode.value === 'cinematic') {
             if (activeModeInfo.value?.hasROIs) {
                 return `Camera path auto-aligns from ${formatDuration(activeModeInfo.value?.cinematicDuration || 0)} to ${formatDuration(cinematicAutoDuration.value)} for a cleaner seam.`;
             }
             return `No saved cinematic views yet, so auto mode falls back to the ${formatDuration(seamlessLoopDuration.value)} material loop.`;
         }
-        if (cameraMovement.value === 'circularTilt') {
+        if (artworkMotionMode.value === 'circularTilt') {
             return `One full 360° artwork tilt rotation over ${formatDuration(resolvedDuration.value)}.`;
         }
-        if (isCircularOrbitMovement(cameraMovement.value)) {
-            return `One full 360° ${getCircularOrbitDirectionLabel(cameraMovement.value)} orbit around the artwork center over ${formatDuration(resolvedDuration.value)}.`;
+        if (isCircularOrbitMovement(artworkMotionMode.value)) {
+            return `One full 360° ${getCircularOrbitDirectionLabel(artworkMotionMode.value)} orbit around the artwork center over ${formatDuration(resolvedDuration.value)}.`;
         }
         return `Seamless loop — enabled cycles return to start after ${formatDuration(seamlessLoopDuration.value)}.`;
     });
@@ -251,7 +260,7 @@
             return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless texture loop so tile placement, layer cycling, and conveyor flow land back on frame zero together.`;
         }
 
-        if (cameraMovement.value === 'cinematic') {
+        if (artworkMotionMode.value === 'cinematic') {
             if (activeModeInfo.value?.hasROIs) {
                 return `The authored camera loop is ${formatDuration(activeModeInfo.value?.cinematicDuration || 0)}. Auto mode aligns it to ${formatDuration(cinematicAutoDuration.value)} so camera and material cycles land together.`;
             }
@@ -259,12 +268,12 @@
             return `No authored camera loop is available, so auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop.`;
         }
 
-        if (cameraMovement.value === 'circularTilt') {
+        if (artworkMotionMode.value === 'circularTilt') {
             return `Circular Tilt completes one full 360° rotation over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
         }
 
-        if (isCircularOrbitMovement(cameraMovement.value)) {
-            return `Circular Orbit (${getCircularOrbitDirectionLabel(cameraMovement.value)}) completes one full 360° turntable-style orbit over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+        if (isCircularOrbitMovement(artworkMotionMode.value)) {
+            return `Circular Orbit (${getCircularOrbitDirectionLabel(artworkMotionMode.value)}) completes one full 360° turntable-style orbit over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
         }
 
         return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;
@@ -336,18 +345,9 @@
                 ? preferredMode
                 : (availableModes[0] || 'ribbons');
 
-            if (exportMode.value === 'textureOnly') {
-                cameraMovement.value = 'none';
-            }
         },
         { immediate: true }
     );
-
-    watch(exportMode, (mode) => {
-        if (mode === 'textureOnly') {
-            cameraMovement.value = 'none';
-        }
-    });
 
     watch([
         aspectRatioPreset,
@@ -361,7 +361,7 @@
         customDuration,
         cycleCount,
         fps,
-        cameraMovement,
+        artworkMotionMode,
         quality,
         exportLogoOverlayEnabled,
         exportLogoOverlayCorner,
@@ -419,7 +419,7 @@
             loopCount: durationMode.value === 'loop'
                 ? cycleCount.value
                 : DEFAULT_SEAMLESS_LOOP_COUNT,
-            cameraMovement: textureOnlyMode.value ? 'none' : cameraMovement.value,
+            artworkMotionMode: textureOnlyMode.value ? 'none' : artworkMotionMode.value,
             quality: quality.value,
             logoOverlayEnabled: exportLogoOverlayEnabled.value,
             logoOverlayCorner: exportLogoOverlayCorner.value,
@@ -602,20 +602,20 @@
                             v-if="!textureOnlyMode"
                             class="form-field camera-movement-field"
                         >
-                            <label>Camera Movement</label>
+                            <label>Artwork Motion</label>
                             <Select
-                                v-model="cameraMovement"
-                                :options="cameraMovementOptions"
+                                v-model="artworkMotionMode"
+                                :options="artworkMotionOptions"
                                 optionLabel="label"
                                 optionValue="value"
                                 :disabled="isEncoding"
                                 class="w-full"
                             />
                             <div
-                                v-if="cameraMovementDescription"
+                                v-if="artworkMotionDescription"
                                 class="field-description"
                             >
-                                {{ cameraMovementDescription }}
+                                {{ artworkMotionDescription }}
                             </div>
                         </div>
 

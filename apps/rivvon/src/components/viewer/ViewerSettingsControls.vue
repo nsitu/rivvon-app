@@ -4,7 +4,7 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import { VIEWER_MOTION_OPTIONS } from '../../modules/viewer/viewerMotion.js';
+    import { ARTWORK_MOTION_OPTIONS } from '../../modules/viewer/viewerMotion.js';
     import { SEAMLESS_LOOP_COUNT_OPTIONS } from '../../modules/viewer/seamlessLoop.js';
 
     const props = defineProps({
@@ -105,11 +105,11 @@
         }
     });
 
-    const viewerMotionOptions = VIEWER_MOTION_OPTIONS;
+    const artworkMotionOptions = ARTWORK_MOTION_OPTIONS;
 
-    const selectedViewerMotionOption = computed({
-        get: () => viewerMotionOptions.find((option) => option.value === app.viewerMotionMode)
-            ?? viewerMotionOptions[0],
+    const selectedArtworkMotionOption = computed({
+        get: () => artworkMotionOptions.find((option) => option.value === app.artworkMotionMode)
+            ?? artworkMotionOptions[0],
         set: (option) => {
             if (!option?.value) return;
 
@@ -117,13 +117,13 @@
                 emit('request-viewer-control-mode-change', 'orbit');
             }
 
-            app.setViewerMotionMode(option.value);
+            app.setArtworkMotionMode(option.value);
         }
     });
 
-    const viewerMotionDescription = computed(() => {
-        const option = viewerMotionOptions.find((entry) => entry.value === app.viewerMotionMode);
-        return option?.description ?? viewerMotionOptions[0].description;
+    const artworkMotionDescription = computed(() => {
+        const option = artworkMotionOptions.find((entry) => entry.value === app.artworkMotionMode);
+        return option?.description ?? artworkMotionOptions[0].description;
     });
 
     const viewerMotionLoopCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
@@ -284,17 +284,17 @@
                     <label class="tools-select-label">Artwork Motion</label>
                     <div class="tools-select-wrap">
                         <Select
-                            v-model="selectedViewerMotionOption"
-                            :options="viewerMotionOptions"
+                            v-model="selectedArtworkMotionOption"
+                            :options="artworkMotionOptions"
                             option-label="label"
                             class="tools-select"
                         />
                     </div>
-                    <div class="tools-setting-description">{{ viewerMotionDescription }}</div>
+                    <div class="tools-setting-description">{{ artworkMotionDescription }}</div>
                 </div>
 
                 <div
-                    v-if="app.viewerMotionMode !== 'none'"
+                    v-if="app.artworkMotionMode !== 'none'"
                     class="tools-motion-details"
                 >
                     <div class="tools-select-block">

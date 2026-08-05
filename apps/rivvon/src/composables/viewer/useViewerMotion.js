@@ -1,8 +1,8 @@
 import { Quaternion, Vector3 } from "three";
 import { watch } from "vue";
 import {
-  getViewerMotionAngle,
-  normalizeViewerMotionMode,
+  getArtworkMotionAngle,
+  normalizeArtworkMotionMode,
 } from "../../modules/viewer/viewerMotion.js";
 import { getCircularTiltAnglesAtProgress } from "../../modules/viewer/mouseTiltMotion.js";
 import { getSeamlessLoopDurationForCount } from "../../modules/viewer/seamlessLoop.js";
@@ -95,7 +95,7 @@ export function useViewerMotion(ctx) {
       return "none";
     }
 
-    return normalizeViewerMotionMode(ctx.app.viewerMotionMode);
+    return normalizeArtworkMotionMode(ctx.app.artworkMotionMode);
   }
 
   function syncMode(now) {
@@ -131,7 +131,7 @@ export function useViewerMotion(ctx) {
   function applyCircularOrbit(progress, direction) {
     orbitRotation.setFromAxisAngle(
       WORLD_UP,
-      getViewerMotionAngle(progress, direction),
+      getArtworkMotionAngle(progress, direction),
     );
 
     orbitOffset

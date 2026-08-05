@@ -655,7 +655,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
-    * @param {string} options.cameraMovement - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse'
+    * @param {string} options.artworkMotionMode - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse'
      * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
@@ -672,7 +672,7 @@ export function useSceneExport(ctx, deps = {}) {
             onProgress = null,
             onStatus = null,
             signal = null,
-            cameraMovement = 'none',
+            artworkMotionMode = 'none',
             quality = 'high',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
@@ -708,7 +708,7 @@ export function useSceneExport(ctx, deps = {}) {
         let exportDuration;
         if (duration != null) {
             exportDuration = duration;
-        } else if (cameraMovement === 'cinematic' && ctx.cinematicCamera.hasROIs.value) {
+        } else if (artworkMotionMode === 'cinematic' && ctx.cinematicCamera.hasROIs.value) {
             const cinematicDuration = ctx.cinematicCamera.getLoopDuration();
             // Align with texture loop: snap to nearest frame boundary that is
             // >= cinematic duration and a near-integer multiple of the texture loop.
@@ -731,7 +731,7 @@ export function useSceneExport(ctx, deps = {}) {
 
         // --- Cinematic camera setup for export ---
         let cinematicReady = false;
-        if (cameraMovement === 'cinematic') {
+        if (artworkMotionMode === 'cinematic') {
             const inst = ctx.cinematicCamera.getInstance();
             if (inst) {
                 // Pass ribbonSeries so auto-ROIs can be generated if none exist
@@ -760,7 +760,7 @@ export function useSceneExport(ctx, deps = {}) {
         let circularOrbitPivot = null;
         let circularOrbitBasePosition = null;
         let circularOrbitBaseQuaternion = null;
-        const circularOrbitDirection = cameraMovement === 'circularOrbitReverse' ? -1 : 1;
+        const circularOrbitDirection = artworkMotionMode === 'circularOrbitReverse' ? -1 : 1;
         const circularOrbitRotation = new Quaternion();
         const circularOrbitOffset = new Vector3();
 
@@ -783,7 +783,7 @@ export function useSceneExport(ctx, deps = {}) {
             // Disable orbit control damping during export
             if (ctx.controls.value) ctx.controls.value.enabled = false;
 
-            if (cameraMovement === 'circularTilt') {
+            if (artworkMotionMode === 'circularTilt') {
                 circularTiltController = createMouseTiltController();
                 circularTiltController.attach(ctx.camera.value, ctx.controls.value);
                 circularTiltController.setRibbonSeries(ctx.ribbonSeries.value);
@@ -794,7 +794,7 @@ export function useSceneExport(ctx, deps = {}) {
                 }
             }
 
-            if (cameraMovement === 'circularOrbit' || cameraMovement === 'circularOrbitReverse') {
+            if (artworkMotionMode === 'circularOrbit' || artworkMotionMode === 'circularOrbitReverse') {
                 circularOrbitRoot = ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
 
                 if (circularOrbitRoot) {

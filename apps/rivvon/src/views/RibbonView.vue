@@ -2765,7 +2765,7 @@
                     format: settings.format,
                     duration: settings.duration,
                     loopCount: settings.loopCount,
-                    cameraMovement: settings.cameraMovement,
+                    artworkMotionMode: settings.artworkMotionMode,
                     quality: settings.quality,
                     logoOverlayEnabled: settings.logoOverlayEnabled,
                     logoOverlayCorner: settings.logoOverlayCorner,
