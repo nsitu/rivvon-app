@@ -657,7 +657,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
     * @param {string} options.artworkMotionMode - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse'
      * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
-     * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'high')
+     * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'very-high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
     async function exportVideo(options = {}) {
@@ -673,7 +673,7 @@ export function useSceneExport(ctx, deps = {}) {
             onStatus = null,
             signal = null,
             artworkMotionMode = 'none',
-            quality = 'high',
+            quality = 'very-high',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
         } = options;
@@ -837,7 +837,7 @@ export function useSceneExport(ctx, deps = {}) {
                 'high': MB.QUALITY_HIGH,
                 'very-high': MB.QUALITY_VERY_HIGH,
             };
-            const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
+            const bitrate = qualityMap[quality] ?? MB.QUALITY_VERY_HIGH;
 
             const renderCanvas = ctx.renderer.value.domElement;
             let exportCanvas = renderCanvas;

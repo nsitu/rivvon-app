@@ -1123,7 +1123,7 @@
             format = 'mp4',
             duration = null,
             loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
-            quality = 'high',
+            quality = 'very-high',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
             signal = null,

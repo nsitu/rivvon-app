@@ -342,7 +342,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         format = 'mp4',
         duration = null,
         loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
-        quality = 'high',
+        quality = 'very-high',
         logoOverlayEnabled = true,
         logoOverlayCorner = 'bottomLeft',
         signal = null,
@@ -404,7 +404,7 @@ export async function exportTextureOverviewVideo(options = {}) {
             'high': MB.QUALITY_HIGH,
             'very-high': MB.QUALITY_VERY_HIGH,
         };
-        const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
+        const bitrate = qualityMap[quality] ?? MB.QUALITY_VERY_HIGH;
 
         const output = new MB.Output({
             format: new OutputFormat(),

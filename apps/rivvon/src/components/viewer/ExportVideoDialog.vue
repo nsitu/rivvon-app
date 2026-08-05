@@ -60,7 +60,7 @@
             }
         },
     });
-    const quality = ref('high');
+    const quality = ref('very-high');
 
     const exportModeOptions = computed(() => {
         const options = [];
@@ -291,7 +291,7 @@
             'high': 8_000_000,
             'very-high': 14_000_000,
         };
-        return map[quality.value] ?? 8_000_000;
+        return map[quality.value] ?? 14_000_000;
     });
 
     const estimatedSize = computed(() => {
