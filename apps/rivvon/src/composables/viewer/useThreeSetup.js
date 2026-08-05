@@ -12,6 +12,7 @@ import { useCinematicCamera } from "./useCinematicCamera";
 import { useHeadTracking } from "./useHeadTracking";
 import { useMouseTilt } from "./useMouseTilt";
 import { useScrollTilt } from "./useScrollTilt";
+import { useViewerMotion } from "./useViewerMotion";
 import { useRenderFilter } from "./useRenderFilter";
 import { useRenderLoop } from "./useRenderLoop";
 import { useSceneBackground } from "./useSceneBackground";
@@ -87,6 +88,8 @@ export function useThreeSetup() {
   ctx.mouseTilt = mouseTilt;
   const scrollTilt = useScrollTilt(ctx);
   ctx.scrollTilt = scrollTilt;
+  const viewerMotion = useViewerMotion(ctx);
+  ctx.viewerMotion = viewerMotion;
   const renderFilter = useRenderFilter(ctx);
 
   // ── Sub-composables ────────────────────────────────────────────────
@@ -240,6 +243,7 @@ export function useThreeSetup() {
     headTracking.detach({ releaseDetector: false });
     mouseTilt.deactivate({ restoreBaseline: false });
     scrollTilt.deactivate({ restoreBaseline: false });
+    viewerMotion.deactivate({ restore: false });
     cinematicCamera.dispose();
     renderFilter.disposeRenderFilter();
 
@@ -308,6 +312,7 @@ export function useThreeSetup() {
     renderLoop.stopRenderLoop();
     headTracking.detach({ releaseDetector: true });
     scrollTilt.deactivate({ restoreBaseline: false });
+    viewerMotion.deactivate({ restore: false });
     cinematicCamera.dispose();
     renderFilter.disposeRenderFilter();
 
@@ -445,5 +450,6 @@ export function useThreeSetup() {
     headTracking,
     mouseTilt,
     scrollTilt,
+    viewerMotion,
   };
 }

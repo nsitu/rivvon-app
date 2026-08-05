@@ -538,6 +538,8 @@ export function useRenderLoop(ctx, deps = {}) {
             if (ctx.app.viewerControlMode === 'scrollTilt' && !ctx.cinematicCamera.isPlaying.value) {
                 ctx.scrollTilt?.tick?.(deltaSec, now);
             }
+
+            ctx.viewerMotion?.tick?.(now);
             
             // Call custom render callback if provided
             if (renderCallback) {

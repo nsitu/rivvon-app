@@ -23,6 +23,7 @@ import {
   DEFAULT_SPHERICAL_WRAP_DEGREES,
   normalizeSphericalProjectionWrapDegrees,
 } from "../modules/viewer/sphericalProjection.js";
+import { normalizeViewerMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
   createViewerPanelVisibilityState,
   VIEWER_PANEL_KEYS,
@@ -550,6 +551,9 @@ export const useViewerStore = defineStore("viewer", {
 
       // Viewer control mode
       viewerControlMode: "orbit", // 'orbit' | 'headTracking' | 'mouseTilt' | 'scrollTilt'
+      viewerMotionMode: normalizeViewerMotionMode(
+        readViewerPreferences().viewerMotionMode,
+      ),
       scrollDrivenTiltEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().scrollDrivenTiltEnabled,
         true,
@@ -858,10 +862,17 @@ export const useViewerStore = defineStore("viewer", {
       }
     },
 
+    setViewerMotionMode(mode) {
+      const nextMode = normalizeViewerMotionMode(mode);
+      this.viewerMotionMode = nextMode;
+      writeViewerPreferences({ viewerMotionMode: nextMode });
+    },
+
     resetToolbarSettingsToDefaults() {
       const defaultExportDimensions = normalizeExportDimensionSettings({});
 
       this.viewerControlMode = "orbit";
+      this.viewerMotionMode = "none";
       this.scrollDrivenTiltEnabled = true;
       this.scrollDrivenLayerCycleEnabled = true;
       this.scrollDrivenFlowEnabled = false;
@@ -1328,6 +1339,7 @@ export const useViewerStore = defineStore("viewer", {
     captureToolsPanelOriginalState() {
       this.toolsPanelOriginalState = {
         viewerControlMode: this.viewerControlMode,
+        viewerMotionMode: this.viewerMotionMode,
         scrollDrivenTiltEnabled: this.scrollDrivenTiltEnabled,
         scrollDrivenLayerCycleEnabled: this.scrollDrivenLayerCycleEnabled,
         scrollDrivenFlowEnabled: this.scrollDrivenFlowEnabled,
@@ -1410,6 +1422,7 @@ export const useViewerStore = defineStore("viewer", {
       const original = this.toolsPanelOriginalState;
       return (
         this.viewerControlMode !== original.viewerControlMode ||
+        this.viewerMotionMode !== original.viewerMotionMode ||
         this.scrollDrivenTiltEnabled !== original.scrollDrivenTiltEnabled ||
         this.scrollDrivenLayerCycleEnabled !==
           original.scrollDrivenLayerCycleEnabled ||

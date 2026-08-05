@@ -4,6 +4,7 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
+    import { VIEWER_MOTION_OPTIONS } from '../../modules/viewer/viewerMotion.js';
 
     const props = defineProps({
         technicalOverlay: { type: Boolean, default: false },
@@ -101,6 +102,27 @@
             if (!option?.value) return;
             emit('request-viewer-control-mode-change', option.value);
         }
+    });
+
+    const viewerMotionOptions = VIEWER_MOTION_OPTIONS;
+
+    const selectedViewerMotionOption = computed({
+        get: () => viewerMotionOptions.find((option) => option.value === app.viewerMotionMode)
+            ?? viewerMotionOptions[0],
+        set: (option) => {
+            if (!option?.value) return;
+
+            if (option.value !== 'none' && app.viewerControlMode !== 'orbit') {
+                emit('request-viewer-control-mode-change', 'orbit');
+            }
+
+            app.setViewerMotionMode(option.value);
+        }
+    });
+
+    const viewerMotionDescription = computed(() => {
+        const option = viewerMotionOptions.find((entry) => entry.value === app.viewerMotionMode);
+        return option?.description ?? viewerMotionOptions[0].description;
     });
 
     const showHeadTrackingTools = computed(() => (
@@ -238,6 +260,19 @@
                             class="tools-select"
                         />
                     </div>
+                </div>
+
+                <div class="tools-select-block">
+                    <label class="tools-select-label">Artwork Motion</label>
+                    <div class="tools-select-wrap">
+                        <Select
+                            v-model="selectedViewerMotionOption"
+                            :options="viewerMotionOptions"
+                            option-label="label"
+                            class="tools-select"
+                        />
+                    </div>
+                    <div class="tools-setting-description">{{ viewerMotionDescription }}</div>
                 </div>
 
                 <div class="tools-select-block">
@@ -480,6 +515,13 @@
 
     .tools-select-wrap {
         padding: 0;
+    }
+
+    .tools-setting-description {
+        padding: 0 0.1rem;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        color: rgba(255, 255, 255, 0.55);
     }
 
     .tools-status-card {
