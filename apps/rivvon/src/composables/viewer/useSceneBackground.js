@@ -107,6 +107,18 @@ function getBlurPassCount(ctx) {
   return Math.max(1, Math.min(32, Math.round(2 + amount * 0.6)));
 }
 
+function getGaussianPassCount(ctx, renderOptions = {}) {
+  const amount = getBackgroundBlurAmount(ctx);
+  const exportMode = renderOptions.blurMode === "export";
+  const maximumPasses = exportMode ? 4 : 3;
+  const amountPerPass = exportMode ? 12 : 18;
+
+  return Math.max(
+    1,
+    Math.min(maximumPasses, Math.ceil(amount / amountPerPass)),
+  );
+}
+
 function getBlurPassOffset(passIndex, passCount) {
   const progress = passCount <= 1 ? 1 : passIndex / (passCount - 1);
   return 1 + passIndex * 0.75 + progress * 2.25;
@@ -639,43 +651,6 @@ function updateWebGLTileBackgroundMaterial(material, frame, ctx, includeOverlay)
     includeOverlay && overlayState.enabled ? overlayState.opacity : 0;
 }
 
-function createWebGLKawaseBlurMaterial(width, height) {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      tDiffuse: { value: null },
-      uResolution: { value: new THREE.Vector2(width, height) },
-      uOffset: { value: 1 },
-    },
-    vertexShader: /* glsl */ `
-            precision highp float;
-            varying vec2 vUv;
-            void main() {
-                vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `,
-    fragmentShader: /* glsl */ `
-            precision highp float;
-            uniform sampler2D tDiffuse;
-            uniform vec2 uResolution;
-            uniform float uOffset;
-            varying vec2 vUv;
-
-            void main() {
-                vec2 texelSize = uOffset / uResolution;
-                vec4 color = vec4(0.0);
-                color += texture2D(tDiffuse, vUv + vec2(-texelSize.x, -texelSize.y));
-                color += texture2D(tDiffuse, vUv + vec2( texelSize.x, -texelSize.y));
-                color += texture2D(tDiffuse, vUv + vec2(-texelSize.x,  texelSize.y));
-                color += texture2D(tDiffuse, vUv + vec2( texelSize.x,  texelSize.y));
-                gl_FragColor = color * 0.25;
-            }
-        `,
-    depthTest: false,
-    depthWrite: false,
-  });
-}
-
 function createWebGLGaussianBlurMaterial(width, height, direction) {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -702,15 +677,23 @@ function createWebGLGaussianBlurMaterial(width, height, direction) {
 
             void main() {
                 vec2 texelStep = uDirection * (uRadius / uResolution);
-                vec4 color = texture2D(tDiffuse, vUv) * 0.204165;
-                color += texture2D(tDiffuse, vUv + texelStep * 1.0) * 0.180174;
-                color += texture2D(tDiffuse, vUv - texelStep * 1.0) * 0.180174;
-                color += texture2D(tDiffuse, vUv + texelStep * 2.0) * 0.123832;
-                color += texture2D(tDiffuse, vUv - texelStep * 2.0) * 0.123832;
-                color += texture2D(tDiffuse, vUv + texelStep * 3.0) * 0.066295;
-                color += texture2D(tDiffuse, vUv - texelStep * 3.0) * 0.066295;
-                color += texture2D(tDiffuse, vUv + texelStep * 4.0) * 0.027636;
-                color += texture2D(tDiffuse, vUv - texelStep * 4.0) * 0.027636;
+                vec4 color = texture2D(tDiffuse, vUv) * 0.1032;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.125) * 0.1000;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.125) * 0.1000;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.250) * 0.0910;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.250) * 0.0910;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.375) * 0.0779;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.375) * 0.0779;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.500) * 0.0626;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.500) * 0.0626;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.625) * 0.0472;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.625) * 0.0472;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.750) * 0.0335;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.750) * 0.0335;
+                color += texture2D(tDiffuse, vUv + texelStep * 0.875) * 0.0223;
+                color += texture2D(tDiffuse, vUv - texelStep * 0.875) * 0.0223;
+                color += texture2D(tDiffuse, vUv + texelStep * 1.000) * 0.0140;
+                color += texture2D(tDiffuse, vUv - texelStep * 1.000) * 0.0140;
                 gl_FragColor = color;
             }
         `,
@@ -730,7 +713,6 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
   const blurScene = new THREE.Scene();
   const blurCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const blurGeometry = new THREE.PlaneGeometry(2, 2);
-  let blurMaterial = null;
   const blurQuad = new THREE.Mesh(blurGeometry, null);
   blurQuad.frustumCulled = false;
   blurScene.add(blurQuad);
@@ -756,17 +738,14 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
     sampleTarget?.dispose?.();
     rtA?.dispose?.();
     rtB?.dispose?.();
-    blurMaterial?.dispose?.();
     gaussianHorizontalMaterial?.dispose?.();
     gaussianVerticalMaterial?.dispose?.();
 
     sampleTarget = createBackgroundRenderTarget(ctx, width, height);
     rtA = createBackgroundRenderTarget(ctx, width, height);
     rtB = createBackgroundRenderTarget(ctx, width, height);
-    blurMaterial = createWebGLKawaseBlurMaterial(width, height);
     gaussianHorizontalMaterial = createWebGLGaussianBlurMaterial(width, height, [1, 0]);
     gaussianVerticalMaterial = createWebGLGaussianBlurMaterial(width, height, [0, 1]);
-    blurQuad.material = blurMaterial;
     targetWidth = width;
     targetHeight = height;
     outputTexture = null;
@@ -783,23 +762,31 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
     ensureRenderTargets(renderOptions);
 
     const renderer = ctx.renderer.value;
-    if (!renderer || !sampleTarget || !rtA || !rtB || !blurMaterial) {
+    if (
+      !renderer ||
+      !sampleTarget ||
+      !rtA ||
+      !rtB ||
+      !gaussianHorizontalMaterial ||
+      !gaussianVerticalMaterial
+    ) {
       return;
     }
 
     renderer.setRenderTarget(sampleTarget);
     renderer.render(sampleScene, sampleCamera);
 
-    const passCount = getBlurPassCount(ctx);
+    const radiusPassCount = getBlurPassCount(ctx);
+    const gaussianPassCount = getGaussianPassCount(ctx, renderOptions);
+    const radius =
+      (getBlurPassOffset(radiusPassCount - 1, radiusPassCount) *
+        getBlurPassScale(targetWidth, targetHeight, renderOptions)) /
+      Math.sqrt(gaussianPassCount);
     let inputTexture = sampleTarget.texture;
-    let outputTarget = rtA;
+    let outputTarget = rtB;
 
-    if (renderOptions.blurMode === "export") {
-      const radius =
-        getBlurPassOffset(passCount - 1, passCount) *
-        getBlurPassScale(targetWidth, targetHeight, renderOptions);
-
-      gaussianHorizontalMaterial.uniforms.tDiffuse.value = sampleTarget.texture;
+    for (let i = 0; i < gaussianPassCount; i++) {
+      gaussianHorizontalMaterial.uniforms.tDiffuse.value = inputTexture;
       gaussianHorizontalMaterial.uniforms.uRadius.value = radius;
       blurQuad.material = gaussianHorizontalMaterial;
       renderer.setRenderTarget(rtA);
@@ -810,18 +797,9 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
       blurQuad.material = gaussianVerticalMaterial;
       renderer.setRenderTarget(rtB);
       renderer.render(blurScene, blurCamera);
+
+      inputTexture = rtB.texture;
       outputTarget = rtB;
-    } else {
-      for (let i = 0; i < passCount; i++) {
-        outputTarget = i % 2 === 0 ? rtA : rtB;
-        blurMaterial.uniforms.tDiffuse.value = inputTexture;
-        blurMaterial.uniforms.uOffset.value = getBlurPassOffset(i, passCount);
-
-        renderer.setRenderTarget(outputTarget);
-        renderer.render(blurScene, blurCamera);
-
-        inputTexture = outputTarget.texture;
-      }
     }
 
     renderer.setRenderTarget(null);
@@ -843,7 +821,6 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
     rtB?.dispose?.();
     sourceMaterial.dispose();
     sampleGeometry.dispose();
-    blurMaterial?.dispose?.();
     gaussianHorizontalMaterial?.dispose?.();
     gaussianVerticalMaterial?.dispose?.();
     blurGeometry.dispose();
@@ -1151,7 +1128,6 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   let sampleTarget = null;
   let rtA = null;
   let rtB = null;
-  let blurMaterials = null;
   let gaussianMaterials = null;
   let targetWidth = 0;
   let targetHeight = 0;
@@ -1210,42 +1186,6 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       : 0;
   }
 
-  function createBlurMaterial(inputTexture, width, height) {
-    const material = new MeshBasicNodeMaterial();
-    const coord = uv();
-    const offsetUniform = uniform(float(1));
-    const resolutionUniform = uniform(vec2(width, height));
-    const texelSize = div(offsetUniform, resolutionUniform);
-    const sample1 = textureNode(
-      inputTexture,
-      add(
-        coord,
-        vec2(mul(texelSize.x, float(-1)), mul(texelSize.y, float(-1))),
-      ),
-    );
-    const sample2 = textureNode(
-      inputTexture,
-      add(coord, vec2(texelSize.x, mul(texelSize.y, float(-1)))),
-    );
-    const sample3 = textureNode(
-      inputTexture,
-      add(coord, vec2(mul(texelSize.x, float(-1)), texelSize.y)),
-    );
-    const sample4 = textureNode(
-      inputTexture,
-      add(coord, vec2(texelSize.x, texelSize.y)),
-    );
-
-    material.colorNode = div(
-      add(add(add(sample1, sample2), sample3), sample4),
-      float(4),
-    );
-    material.depthTest = false;
-    material.depthWrite = false;
-    material._offsetUniform = offsetUniform;
-    return material;
-  }
-
   function createGaussianBlurMaterial(inputTexture, width, height, direction) {
     const material = new MeshBasicNodeMaterial();
     const coord = uv();
@@ -1264,15 +1204,23 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     }
 
     material.colorNode = textureNode(inputTexture, coord)
-      .mul(0.204165)
-      .add(sampleAt(1).mul(0.180174))
-      .add(sampleAt(-1).mul(0.180174))
-      .add(sampleAt(2).mul(0.123832))
-      .add(sampleAt(-2).mul(0.123832))
-      .add(sampleAt(3).mul(0.066295))
-      .add(sampleAt(-3).mul(0.066295))
-      .add(sampleAt(4).mul(0.027636))
-      .add(sampleAt(-4).mul(0.027636));
+      .mul(0.1032)
+      .add(sampleAt(0.125).mul(0.1000))
+      .add(sampleAt(-0.125).mul(0.1000))
+      .add(sampleAt(0.250).mul(0.0910))
+      .add(sampleAt(-0.250).mul(0.0910))
+      .add(sampleAt(0.375).mul(0.0779))
+      .add(sampleAt(-0.375).mul(0.0779))
+      .add(sampleAt(0.500).mul(0.0626))
+      .add(sampleAt(-0.500).mul(0.0626))
+      .add(sampleAt(0.625).mul(0.0472))
+      .add(sampleAt(-0.625).mul(0.0472))
+      .add(sampleAt(0.750).mul(0.0335))
+      .add(sampleAt(-0.750).mul(0.0335))
+      .add(sampleAt(0.875).mul(0.0223))
+      .add(sampleAt(-0.875).mul(0.0223))
+      .add(sampleAt(1.000).mul(0.0140))
+      .add(sampleAt(-1.000).mul(0.0140));
     material.depthTest = false;
     material.depthWrite = false;
     material._radiusUniform = radiusUniform;
@@ -1280,8 +1228,6 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   }
 
   function disposeBlurMaterials() {
-    blurMaterials?.forEach((material) => material.dispose());
-    blurMaterials = null;
     gaussianMaterials?.forEach((material) => material.dispose());
     gaussianMaterials = null;
   }
@@ -1300,28 +1246,14 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     sampleTarget = createBackgroundRenderTarget(ctx, width, height);
     rtA = createBackgroundRenderTarget(ctx, width, height);
     rtB = createBackgroundRenderTarget(ctx, width, height);
-    blurMaterials = [
-      createBlurMaterial(sampleTarget.texture, width, height),
-      createBlurMaterial(rtA.texture, width, height),
-      createBlurMaterial(rtB.texture, width, height),
-    ];
     gaussianMaterials = [
       createGaussianBlurMaterial(sampleTarget.texture, width, height, [1, 0]),
       createGaussianBlurMaterial(rtA.texture, width, height, [0, 1]),
+      createGaussianBlurMaterial(rtB.texture, width, height, [1, 0]),
     ];
     targetWidth = width;
     targetHeight = height;
     outputTexture = null;
-  }
-
-  function getBlurMaterialForTexture(inputTexture) {
-    if (inputTexture === sampleTarget.texture) {
-      return blurMaterials[0];
-    }
-    if (inputTexture === rtA.texture) {
-      return blurMaterials[1];
-    }
-    return blurMaterials[2];
   }
 
   function update(renderOptions = {}) {
@@ -1347,7 +1279,6 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       !sampleTarget ||
       !rtA ||
       !rtB ||
-      !blurMaterials ||
       !gaussianMaterials
     ) {
       return;
@@ -1356,17 +1287,18 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     renderer.setRenderTarget(sampleTarget);
     renderer.render(sampleScene, sampleCamera);
 
-    const passCount = getBlurPassCount(ctx);
-    let inputTexture = sampleTarget.texture;
-    let outputTarget = rtA;
+    const radiusPassCount = getBlurPassCount(ctx);
+    const gaussianPassCount = getGaussianPassCount(ctx, renderOptions);
+    const radius =
+      (getBlurPassOffset(radiusPassCount - 1, radiusPassCount) *
+        getBlurPassScale(targetWidth, targetHeight, renderOptions)) /
+      Math.sqrt(gaussianPassCount);
+    let outputTarget = rtB;
 
-    if (renderOptions.blurMode === "export") {
-      const radius =
-        getBlurPassOffset(passCount - 1, passCount) *
-        getBlurPassScale(targetWidth, targetHeight, renderOptions);
-
-      gaussianMaterials[0]._radiusUniform.value = radius;
-      blurQuad.material = gaussianMaterials[0];
+    for (let i = 0; i < gaussianPassCount; i++) {
+      const horizontalMaterial = gaussianMaterials[i === 0 ? 0 : 2];
+      horizontalMaterial._radiusUniform.value = radius;
+      blurQuad.material = horizontalMaterial;
       renderer.setRenderTarget(rtA);
       renderer.render(blurScene, blurCamera);
 
@@ -1375,18 +1307,6 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       renderer.setRenderTarget(rtB);
       renderer.render(blurScene, blurCamera);
       outputTarget = rtB;
-    } else {
-      for (let i = 0; i < passCount; i++) {
-        outputTarget = i % 2 === 0 ? rtA : rtB;
-        const blurMaterial = getBlurMaterialForTexture(inputTexture);
-        blurMaterial._offsetUniform.value = getBlurPassOffset(i, passCount);
-        blurQuad.material = blurMaterial;
-
-        renderer.setRenderTarget(outputTarget);
-        renderer.render(blurScene, blurCamera);
-
-        inputTexture = outputTarget.texture;
-      }
     }
 
     renderer.setRenderTarget(null);
