@@ -574,7 +574,7 @@
                         :id="getInputId('background-blur-amount')"
                         type="range"
                         min="1"
-                        max="100"
+                        max="200"
                         step="0.5"
                         :value="app.backgroundBlurAmount"
                         @input="handleBackgroundBlurInput"
