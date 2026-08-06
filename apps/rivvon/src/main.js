@@ -38,7 +38,7 @@ loadMaterialSymbols([
     'crop_square','settings_panorama','person_book','panorama','water',
     'task_alt','panorama_horizontal','panorama_vertical',
     'all_inclusive','gesture','text_select_move_forward_word',
-    'horizontal_align_center','filter_b_and_w','download',
+    'horizontal_align_center','filter_b_and_w','download','zoom_in',
     'swap_vert','fast_rewind','wallpaper','blur_on','sync',
     'refresh','link','target','colors','contrast',
     'fit_page_width','vital_signs', 'opacity','branding_watermark',

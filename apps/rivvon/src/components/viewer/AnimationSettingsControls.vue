@@ -925,25 +925,19 @@
         color: var(--p-text-color, #fff);
     }
 
-    .tools-background-base-subitems,
-    .tools-background-independent-subitems {
+    .tools-background-base-subitems {
         margin: 0 0.75rem 0.25rem 1.65rem;
         padding-left: 0.4rem;
         border-left: 1px solid rgba(255, 255, 255, 0.14);
     }
 
-    .tools-background-base-subitems .tools-toggle-row,
-    .tools-background-independent-subitems .tools-toggle-row {
+    .tools-background-base-subitems .tools-toggle-row {
         padding-left: 0.6rem;
         padding-right: 0.25rem;
     }
 
     .tools-background-base-subitems .tools-slider,
-    .tools-background-base-subitems .tools-slider-block,
-    .tools-background-independent-subitems .tools-slider,
-    .tools-background-independent-subitems .tools-slider-block,
-    .tools-background-independent-subitems .tools-color-row,
-    .tools-background-independent-subitems .tools-select-block {
+    .tools-background-base-subitems .tools-slider-block {
         padding-left: 0.6rem;
         padding-right: 0.25rem;
     }
