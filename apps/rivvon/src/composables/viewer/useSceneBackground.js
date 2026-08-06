@@ -170,12 +170,28 @@ function getBackgroundOpacity(options = {}) {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0.7;
 }
 
+function getBackgroundTimeSeconds(renderOptions = {}) {
+  if (Number.isFinite(Number(renderOptions.timeSeconds))) {
+    return Math.max(0, Number(renderOptions.timeSeconds));
+  }
+
+  return Math.max(
+    0,
+    ((typeof performance !== "undefined" ? performance.now() : Date.now()) -
+      BACKGROUND_FLOW_TIME_ORIGIN) /
+      1000,
+  );
+}
+
 async function loadBackgroundTexture(ctx) {
   if (!ctx.app.backgroundTextureEnabled) {
     return null;
   }
 
   const option = getBackgroundTextureOption(ctx.app.backgroundTexture);
+  if (option.type === "procedural" || !option.url) {
+    return null;
+  }
   if (BACKGROUND_TEXTURE_CACHE.has(option.url)) {
     return BACKGROUND_TEXTURE_CACHE.get(option.url);
   }
@@ -210,12 +226,18 @@ function getBackgroundOverlayState(ctx) {
   };
 }
 
-function createWebGLBackgroundDisplayMaterial(textureOverlay = null) {
+function createWebGLBackgroundDisplayMaterial(
+  textureOverlay = null,
+  textureOverlayMode = "none",
+) {
   return new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
       uTexture: { value: textureOverlay },
-      uTextureEnabled: { value: textureOverlay ? 1 : 0 },
+      uTextureMode: {
+        value: textureOverlayMode === "water" ? 2 : textureOverlay ? 1 : 0,
+      },
+      uTime: { value: 0 },
       uOverlayColor: { value: new THREE.Color(0xffffff) },
       uOverlayOpacity: { value: 0 },
     },
@@ -230,7 +252,8 @@ function createWebGLBackgroundDisplayMaterial(textureOverlay = null) {
             precision highp float;
             uniform sampler2D tDiffuse;
             uniform sampler2D uTexture;
-            uniform int uTextureEnabled;
+            uniform int uTextureMode;
+            uniform float uTime;
             uniform vec3 uOverlayColor;
             uniform float uOverlayOpacity;
             varying vec2 vUv;
@@ -241,11 +264,24 @@ function createWebGLBackgroundDisplayMaterial(textureOverlay = null) {
                 return mix(low, high, step(vec3(0.5), blend));
             }
 
+            vec3 proceduralWater(vec2 uv, float time) {
+                vec2 p = uv * 8.0;
+                float waveA = sin(dot(p, vec2(1.7, 0.8)) + time * 0.35);
+                float waveB = sin(dot(p, vec2(-0.9, 1.8)) - time * 0.28);
+                float waveC = sin(dot(p, vec2(2.7, -1.1)) + time * 0.21);
+                float waveD = sin(dot(p, vec2(-2.2, -1.7)) - time * 0.17);
+                float waves = waveA * 0.38 + waveB * 0.27 + waveC * 0.2 + waveD * 0.15;
+                float waterValue = clamp(0.5 + waves * 0.28, 0.08, 0.92);
+                return vec3(waterValue);
+            }
+
             void main() {
                 vec4 background = texture2D(tDiffuse, vUv);
                 vec3 color = mix(background.rgb, uOverlayColor, uOverlayOpacity);
-                if (uTextureEnabled == 1) {
+                if (uTextureMode == 1) {
                     color = softLightBlend(color, texture2D(uTexture, vUv).rgb);
+                } else if (uTextureMode == 2) {
+                    color = softLightBlend(color, proceduralWater(vUv, uTime));
                 }
                 gl_FragColor = vec4(color, background.a);
             }
@@ -262,6 +298,8 @@ function updateWebGLBackgroundDisplayMaterial(
   ctx,
   texture,
   textureOverlay = null,
+  textureOverlayMode = "none",
+  timeSeconds = 0,
 ) {
   if (!material) {
     return;
@@ -270,7 +308,9 @@ function updateWebGLBackgroundDisplayMaterial(
   const overlayState = getBackgroundOverlayState(ctx);
   material.uniforms.tDiffuse.value = texture;
   material.uniforms.uTexture.value = textureOverlay;
-  material.uniforms.uTextureEnabled.value = textureOverlay ? 1 : 0;
+  material.uniforms.uTextureMode.value =
+    textureOverlayMode === "water" ? 2 : textureOverlay ? 1 : 0;
+  material.uniforms.uTime.value = timeSeconds;
   material.uniforms.uOverlayColor.value.copy(overlayState.color);
   material.uniforms.uOverlayOpacity.value = overlayState.enabled
     ? overlayState.opacity
@@ -385,6 +425,14 @@ export function useSceneBackground(ctx) {
       return;
     }
 
+    const textureOption = getBackgroundTextureOption(ctx.app.backgroundTexture);
+    const textureOverlayMode =
+      ctx.app.backgroundTextureEnabled && textureOption.type === "procedural"
+        ? "water"
+        : textureOverlay
+          ? "image"
+          : "none";
+
     const isWebGPU = ctx.app.rendererType === "webgpu";
     let runtime = null;
 
@@ -393,10 +441,12 @@ export function useSceneBackground(ctx) {
         ? await createTileBackgroundRuntimeWebGPU(ctx, {
             ...options,
             textureOverlay,
+            textureOverlayMode,
           })
         : createTileBackgroundRuntimeWebGL(ctx, {
             ...options,
             textureOverlay,
+            textureOverlayMode,
           });
 
       if (requestToken !== backgroundGenerationToken) {
@@ -561,9 +611,15 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       uFlipVertical: { value: initialFrame.flipVertical },
       uBlurRadius: { value: initialFrame.blurRadius },
       uTexture: { value: options.textureOverlay || null },
-      uTextureEnabled: {
-        value: options.textureOverlay && ctx.app.backgroundTextureEnabled ? 1 : 0,
+      uTextureMode: {
+        value:
+          options.textureOverlayMode === "water"
+            ? 2
+            : options.textureOverlay && ctx.app.backgroundTextureEnabled
+              ? 1
+              : 0,
       },
+      uTime: { value: 0 },
       uOverlayColor: { value: new THREE.Color(0xffffff) },
       uOverlayOpacity: { value: 0 },
       uSeamSafeBlend: { value: ctx.app.backgroundBlurEnabled ? 1 : 0 },
@@ -592,7 +648,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             uniform int uFlipVertical;
             uniform float uBlurRadius;
             uniform sampler2D uTexture;
-            uniform int uTextureEnabled;
+            uniform int uTextureMode;
+            uniform float uTime;
             uniform vec3 uOverlayColor;
             uniform float uOverlayOpacity;
             uniform int uSeamSafeBlend;
@@ -605,6 +662,17 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                 vec3 low = base - (1.0 - 2.0 * blend) * base * (1.0 - base);
                 vec3 high = base + (2.0 * blend - 1.0) * (sqrt(base) - base);
                 return mix(low, high, step(vec3(0.5), blend));
+            }
+
+            vec3 proceduralWater(vec2 uv, float time) {
+                vec2 p = uv * 8.0;
+                float waveA = sin(dot(p, vec2(1.7, 0.8)) + time * 0.35);
+                float waveB = sin(dot(p, vec2(-0.9, 1.8)) - time * 0.28);
+                float waveC = sin(dot(p, vec2(2.7, -1.1)) + time * 0.21);
+                float waveD = sin(dot(p, vec2(-2.2, -1.7)) - time * 0.17);
+                float waves = waveA * 0.38 + waveB * 0.27 + waveC * 0.2 + waveD * 0.15;
+                float waterValue = clamp(0.5 + waves * 0.28, 0.08, 0.92);
+                return vec3(waterValue);
             }
 
             vec2 orientUv(vec2 inputUv, int mirrorX) {
@@ -672,8 +740,10 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                     : currentColor);
 
                 vec3 compositedColor = mix(color.rgb, uOverlayColor, uOverlayOpacity);
-                if (uTextureEnabled == 1) {
+                if (uTextureMode == 1) {
                     compositedColor = softLightBlend(compositedColor, texture(uTexture, vUv).rgb);
+                } else if (uTextureMode == 2) {
+                    compositedColor = softLightBlend(compositedColor, proceduralWater(vUv, uTime));
                 }
                 outColor = vec4(compositedColor, color.a * uOpacity);
             }
@@ -685,7 +755,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
   });
 
   if (ctx.app.backgroundBlurEnabled) {
-    return createBlurredTileBackgroundRuntimeWebGL(ctx, material);
+    return createBlurredTileBackgroundRuntimeWebGL(ctx, material, options);
   }
 
   const plane = attachCameraBackgroundPlane(ctx, material);
@@ -711,7 +781,15 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     material.uniforms.uRotate90.value = frame.rotate90;
     material.uniforms.uFlipVertical.value = frame.flipVertical;
     material.uniforms.uBlurRadius.value = frame.blurRadius;
-    updateWebGLTileBackgroundMaterial(material, frame, ctx, true, options.textureOverlay);
+    updateWebGLTileBackgroundMaterial(
+      material,
+      frame,
+      ctx,
+      true,
+      options.textureOverlay,
+      options.textureOverlayMode,
+      getBackgroundTimeSeconds(renderOptions),
+    );
   }
 
   return {
@@ -726,6 +804,8 @@ function updateWebGLTileBackgroundMaterial(
   ctx,
   includeOverlay,
   textureOverlay = null,
+  textureOverlayMode = "none",
+  timeSeconds = 0,
 ) {
   material.uniforms.uTexArrayCurrent.value = frame.currentTexture;
   material.uniforms.uTexArrayNext.value =
@@ -740,8 +820,13 @@ function updateWebGLTileBackgroundMaterial(
   material.uniforms.uFlipVertical.value = frame.flipVertical;
   material.uniforms.uBlurRadius.value = frame.blurRadius;
   material.uniforms.uTexture.value = textureOverlay;
-  material.uniforms.uTextureEnabled.value =
-    includeOverlay && textureOverlay && ctx.app.backgroundTextureEnabled ? 1 : 0;
+  material.uniforms.uTextureMode.value =
+    includeOverlay && textureOverlayMode === "water"
+      ? 2
+      : includeOverlay && textureOverlay && ctx.app.backgroundTextureEnabled
+        ? 1
+        : 0;
+  material.uniforms.uTime.value = timeSeconds;
   const overlayState = getBackgroundOverlayState(ctx);
   material.uniforms.uOverlayColor.value.copy(overlayState.color);
   material.uniforms.uOverlayOpacity.value =
@@ -799,7 +884,11 @@ function createWebGLGaussianBlurMaterial(width, height, direction) {
   });
 }
 
-function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
+function createBlurredTileBackgroundRuntimeWebGL(
+  ctx,
+  sourceMaterial,
+  options = {},
+) {
   const sampleScene = new THREE.Scene();
   const sampleCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const sampleGeometry = new THREE.PlaneGeometry(2, 2);
@@ -824,7 +913,8 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
   let gaussianVerticalMaterial = null;
 
   const displayMaterial = createWebGLBackgroundDisplayMaterial(
-    sourceMaterial.uniforms.uTexture.value,
+    options.textureOverlay,
+    options.textureOverlayMode,
   );
   const plane = attachCameraBackgroundPlane(ctx, displayMaterial);
 
@@ -909,7 +999,9 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
         displayMaterial,
         ctx,
         outputTexture,
-        sourceMaterial.uniforms.uTexture.value,
+        options.textureOverlay,
+        options.textureOverlayMode,
+        getBackgroundTimeSeconds(renderOptions),
       );
       displayMaterial.needsUpdate = true;
       ctx.backgroundTexture.value = outputTexture;
@@ -919,7 +1011,9 @@ function createBlurredTileBackgroundRuntimeWebGL(ctx, sourceMaterial) {
       displayMaterial,
       ctx,
       outputTarget.texture,
-      sourceMaterial.uniforms.uTexture.value,
+      options.textureOverlay,
+      options.textureOverlayMode,
+      getBackgroundTimeSeconds(renderOptions),
     );
   }
 
@@ -977,6 +1071,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     const rotateUniform = uniform(nextFrame.rotate90);
     const flipUniform = uniform(nextFrame.flipVertical);
     const blurUniform = uniform(float(nextFrame.blurRadius));
+    const waterTimeUniform = uniform(float(getBackgroundTimeSeconds()));
     const opacityUniform = uniform(float(getBackgroundOpacity(options)));
     const overlayState = getBackgroundOverlayState(ctx);
     const overlayRedUniform = uniform(float(overlayState.color.r));
@@ -990,6 +1085,20 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       overlayGreenUniform,
       overlayBlueUniform,
     );
+
+    function proceduralWater(coord, time) {
+      const p = coord.mul(8);
+      const waveA = p.x.mul(1.7).add(p.y.mul(0.8)).add(time.mul(0.35)).sin();
+      const waveB = p.x.mul(-0.9).add(p.y.mul(1.8)).sub(time.mul(0.28)).sin();
+      const waveC = p.x.mul(2.7).add(p.y.mul(-1.1)).add(time.mul(0.21)).sin();
+      const waveD = p.x.mul(-2.2).add(p.y.mul(-1.7)).sub(time.mul(0.17)).sin();
+      const waves = waveA
+        .mul(0.38)
+        .add(waveB.mul(0.27))
+        .add(waveC.mul(0.2))
+        .add(waveD.mul(0.15));
+      return vec3(waves.mul(0.28).add(0.5));
+    }
 
     const currentShiftedU = baseUv.x.add(
       flowActiveUniform.equal(1).select(flowOffsetUniform, float(0)),
@@ -1080,9 +1189,12 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     const colorWithOverlay = includeOverlay
       ? mix(outputColor.rgb, overlayColor, overlayOpacityUniform)
       : outputColor.rgb;
-    const textureColor = options.textureOverlay
-      ? textureNode(options.textureOverlay, baseUv).rgb
-      : null;
+    const textureColor =
+      options.textureOverlayMode === "water"
+        ? proceduralWater(baseUv, waterTimeUniform)
+        : options.textureOverlay
+          ? textureNode(options.textureOverlay, baseUv).rgb
+          : null;
     const texturedColor =
       includeOverlay && textureColor
         ? (() => {
@@ -1112,6 +1224,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._rotateUniform = rotateUniform;
     material._flipUniform = flipUniform;
     material._blurUniform = blurUniform;
+    material._waterTimeUniform = waterTimeUniform;
     material._overlayRedUniform = overlayRedUniform;
     material._overlayGreenUniform = overlayGreenUniform;
     material._overlayBlueUniform = overlayBlueUniform;
@@ -1121,7 +1234,11 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     return material;
   }
 
-  function syncOverlayMaterial(material, includeOverlay = false) {
+  function syncOverlayMaterial(
+    material,
+    includeOverlay = false,
+    renderOptions = {},
+  ) {
     if (
       !material?._overlayRedUniform ||
       !material?._overlayGreenUniform ||
@@ -1137,6 +1254,9 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._overlayBlueUniform.value = overlayState.color.b;
     material._overlayOpacityUniform.value =
       includeOverlay && overlayState.enabled ? overlayState.opacity : 0;
+    if (material._waterTimeUniform) {
+      material._waterTimeUniform.value = getBackgroundTimeSeconds(renderOptions);
+    }
   }
 
   if (ctx.app.backgroundBlurEnabled) {
@@ -1184,7 +1304,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._rotateUniform.value = frame.rotate90;
     material._flipUniform.value = frame.flipVertical;
     material._blurUniform.value = frame.blurRadius;
-    syncOverlayMaterial(material, true);
+    material._waterTimeUniform.value = getBackgroundTimeSeconds(renderOptions);
+    syncOverlayMaterial(material, true, renderOptions);
   }
 
   return {
@@ -1196,7 +1317,13 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
   };
 }
 
-function syncWebGPUTileBackgroundMaterial(material, frame, ctx, includeOverlay) {
+function syncWebGPUTileBackgroundMaterial(
+  material,
+  frame,
+  ctx,
+  includeOverlay,
+  renderOptions = {},
+) {
   material._layerUniform.value = frame.currentLayer;
   material._flowOffsetUniform.value = frame.flowOffset;
   material._flowActiveUniform.value = frame.flowActive ? 1 : 0;
@@ -1209,6 +1336,9 @@ function syncWebGPUTileBackgroundMaterial(material, frame, ctx, includeOverlay) 
   material._overlayBlueUniform.value = overlayState.color.b;
   material._overlayOpacityUniform.value =
     includeOverlay && overlayState.enabled ? overlayState.opacity : 0;
+  if (material._waterTimeUniform) {
+    material._waterTimeUniform.value = getBackgroundTimeSeconds(renderOptions);
+  }
 }
 
 async function createBlurredTileBackgroundRuntimeWebGPU(
@@ -1268,15 +1398,33 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     const overlayGreenUniform = uniform(float(overlayState.color.g));
     const overlayBlueUniform = uniform(float(overlayState.color.b));
     const overlayOpacityUniform = uniform(float(0));
+    const waterTimeUniform = uniform(float(getBackgroundTimeSeconds()));
     const sampledColor = textureNode(inputTexture, uv());
     const colorWithOverlay = mix(
       sampledColor.rgb,
       vec3(overlayRedUniform, overlayGreenUniform, overlayBlueUniform),
       overlayOpacityUniform,
     );
-    const textureColor = options.textureOverlay
-      ? textureNode(options.textureOverlay, uv()).rgb
-      : null;
+    function proceduralWater(coord, time) {
+      const p = coord.mul(8);
+      const waveA = p.x.mul(1.7).add(p.y.mul(0.8)).add(time.mul(0.35)).sin();
+      const waveB = p.x.mul(-0.9).add(p.y.mul(1.8)).sub(time.mul(0.28)).sin();
+      const waveC = p.x.mul(2.7).add(p.y.mul(-1.1)).add(time.mul(0.21)).sin();
+      const waveD = p.x.mul(-2.2).add(p.y.mul(-1.7)).sub(time.mul(0.17)).sin();
+      const waves = waveA
+        .mul(0.38)
+        .add(waveB.mul(0.27))
+        .add(waveC.mul(0.2))
+        .add(waveD.mul(0.15));
+      return vec3(waves.mul(0.28).add(0.5));
+    }
+
+    const textureColor =
+      options.textureOverlayMode === "water"
+        ? proceduralWater(uv(), waterTimeUniform)
+        : options.textureOverlay
+          ? textureNode(options.textureOverlay, uv()).rgb
+          : null;
     const texturedColor = textureColor
       ? (() => {
           const low = colorWithOverlay.sub(
@@ -1304,6 +1452,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     material._overlayGreenUniform = overlayGreenUniform;
     material._overlayBlueUniform = overlayBlueUniform;
     material._overlayOpacityUniform = overlayOpacityUniform;
+    material._waterTimeUniform = waterTimeUniform;
     return material;
   }
 
@@ -1318,7 +1467,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     displayMaterial = nextMaterial;
   }
 
-  function syncDisplayMaterial() {
+  function syncDisplayMaterial(renderOptions = {}) {
     if (!displayMaterial) {
       return;
     }
@@ -1330,6 +1479,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     displayMaterial._overlayOpacityUniform.value = overlayState.enabled
       ? overlayState.opacity
       : 0;
+    displayMaterial._waterTimeUniform.value = getBackgroundTimeSeconds(renderOptions);
   }
 
   function createGaussianBlurMaterial(inputTexture, width, height, direction) {
@@ -1415,7 +1565,13 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       sampleQuad.material = createMaterial(frame, false);
       signature = nextSignature;
     } else {
-      syncWebGPUTileBackgroundMaterial(sampleQuad.material, frame, ctx, false);
+      syncWebGPUTileBackgroundMaterial(
+        sampleQuad.material,
+        frame,
+        ctx,
+        false,
+        renderOptions,
+      );
     }
 
     ensureRenderTargets(renderOptions);
@@ -1464,7 +1620,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     }
 
     plane?.syncSize?.();
-    syncDisplayMaterial();
+    syncDisplayMaterial(renderOptions);
   }
 
   function dispose() {
