@@ -35,7 +35,7 @@ loadMaterialSymbols([
     'repeat','swap_horiz','vr180_create2d','height','waves','vertical_align_center','motion_photos_on','linear_scale',
     'camera','flip_camera_android','upload_file','photo_camera',
     'crop_landscape','crop_16_9','crop_9_16','crop_portrait',
-    'crop_square','settings_panorama','person_book','panorama',
+    'crop_square','settings_panorama','person_book','panorama','water'
     'task_alt','panorama_horizontal','panorama_vertical',
     'all_inclusive','gesture','text_select_move_forward_word',
     'horizontal_align_center','filter_b_and_w','download',
