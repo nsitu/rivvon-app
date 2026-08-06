@@ -517,341 +517,350 @@
         <div class="tools-section">
             <div class="tools-section-label">Background</div>
             <div class="tools-section-items">
-                <div
-                    v-if="textureAnimationModel"
-                    class="tools-toggle-row"
-                >
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('animated-background')"
-                    >
-                        <span class="material-symbols-outlined">wallpaper</span>
-                        <span>Animated Background</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ animatedBackgroundModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('animated-background')"
-                            v-model="animatedBackgroundModel"
-                        />
-                    </div>
-                </div>
-
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-flip-vertical')"
-                    >
-                        <span class="material-symbols-outlined">swap_vert</span>
-                        <span>Flip Background Vertically</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundFlipVerticalModel ? 'On' : 'Off'
-                            }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-flip-vertical')"
-                            v-model="backgroundFlipVerticalModel"
-                        />
-                    </div>
-                </div>
-
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-flow')"
-                    >
-                        <span class="material-symbols-outlined">text_select_move_forward_word</span>
-                        <span>Background Flow</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundFlowModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-flow')"
-                            v-model="backgroundFlowModel"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-if="backgroundFlowModel"
-                    class="tools-slider"
-                >
-                    <label>
-                        <span class="material-symbols-outlined tools-slider-icon">speed</span>
-                        Background Flow Speed
-                        <span class="tools-slider-value">{{ backgroundFlowSpeedDisplay }}</span>
-                    </label>
-                    <input
-                        :id="getInputId('background-flow-speed')"
-                        type="range"
-                        min="0.05"
-                        max="2"
-                        step="0.05"
-                        :value="app.backgroundFlowSpeed"
-                        @input="handleBackgroundFlowSpeedInput"
-                    />
-                </div>
-
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-base')"
-                    >
-                        <span class="material-symbols-outlined">layers</span>
-                        <span>KTX2 Background</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundBaseModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-base')"
-                            v-model="backgroundBaseModel"
-                        />
-                    </div>
-                </div>
-
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-blur')"
-                    >
-                        <span class="material-symbols-outlined">blur_on</span>
-                        <span>Background Blur</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundBlurModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-blur')"
-                            v-model="backgroundBlurModel"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-if="backgroundBlurModel"
-                    class="tools-slider-block"
-                >
-                    <div class="tools-slider-head">
-                        <label class="tools-slider-label">
-                            <span class="material-symbols-outlined">blur_linear</span>
-                            <span>Blur Amount</span>
+                <div class="tools-background-base-group">
+                    <div class="tools-toggle-row">
+                        <label
+                            class="tools-toggle-main"
+                            :for="getInputId('background-base')"
+                        >
+                            <span class="material-symbols-outlined">layers</span>
+                            <span>KTX2 Texture</span>
                         </label>
-                        <span class="tools-hint tools-slider-hint">{{ backgroundBlurDisplay }}</span>
+                        <div class="tools-toggle-control">
+                            <span class="tools-hint tools-toggle-hint">{{ backgroundBaseModel ? 'On' : 'Off' }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('background-base')"
+                                v-model="backgroundBaseModel"
+                            />
+                        </div>
                     </div>
-                    <input
-                        :id="getInputId('background-blur-amount')"
-                        type="range"
-                        min="1"
-                        max="200"
-                        step="0.5"
-                        :value="app.backgroundBlurAmount"
-                        @input="handleBackgroundBlurInput"
-                        class="tools-native-range"
-                    />
-                    <div class="tools-slider-caption">
-                        <span>Soft</span>
-                        <span>Strong</span>
-                    </div>
-                </div>
 
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-texture')"
+                    <div
+                        v-if="backgroundBaseModel"
+                        class="tools-background-base-subitems"
                     >
-                        <span class="material-symbols-outlined">texture</span>
-                        <span>Static Texture</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundTextureModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-texture')"
-                            v-model="backgroundTextureModel"
-                        />
+                        <div
+                            v-if="textureAnimationModel"
+                            class="tools-toggle-row"
+                        >
+                            <label
+                                class="tools-toggle-main"
+                                :for="getInputId('animated-background')"
+                            >
+                                <span class="material-symbols-outlined">wallpaper</span>
+                                <span>Animated Background</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ animatedBackgroundModel ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('animated-background')"
+                                    v-model="animatedBackgroundModel"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="tools-toggle-row">
+                            <label
+                                class="tools-toggle-main"
+                                :for="getInputId('background-flip-vertical')"
+                            >
+                                <span class="material-symbols-outlined">swap_vert</span>
+                                <span>Flip Background Vertically</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ backgroundFlipVerticalModel ? 'On' : 'Off'
+                                    }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('background-flip-vertical')"
+                                    v-model="backgroundFlipVerticalModel"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="tools-toggle-row">
+                            <label
+                                class="tools-toggle-main"
+                                :for="getInputId('background-flow')"
+                            >
+                                <span class="material-symbols-outlined">text_select_move_forward_word</span>
+                                <span>Background Flow</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ backgroundFlowModel ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('background-flow')"
+                                    v-model="backgroundFlowModel"
+                                />
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="backgroundFlowModel"
+                            class="tools-slider"
+                        >
+                            <label>
+                                <span class="material-symbols-outlined tools-slider-icon">speed</span>
+                                Background Flow Speed
+                                <span class="tools-slider-value">{{ backgroundFlowSpeedDisplay }}</span>
+                            </label>
+                            <input
+                                :id="getInputId('background-flow-speed')"
+                                type="range"
+                                min="0.05"
+                                max="2"
+                                step="0.05"
+                                :value="app.backgroundFlowSpeed"
+                                @input="handleBackgroundFlowSpeedInput"
+                            />
+                        </div>
+
+                        <div class="tools-toggle-row">
+                            <label
+                                class="tools-toggle-main"
+                                :for="getInputId('background-blur')"
+                            >
+                                <span class="material-symbols-outlined">blur_on</span>
+                                <span>Background Blur</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ backgroundBlurModel ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('background-blur')"
+                                    v-model="backgroundBlurModel"
+                                />
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="backgroundBlurModel"
+                            class="tools-slider-block"
+                        >
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label">
+                                    <span class="material-symbols-outlined">blur_linear</span>
+                                    <span>Blur Amount</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ backgroundBlurDisplay }}</span>
+                            </div>
+                            <input
+                                :id="getInputId('background-blur-amount')"
+                                type="range"
+                                min="1"
+                                max="200"
+                                step="0.5"
+                                :value="app.backgroundBlurAmount"
+                                @input="handleBackgroundBlurInput"
+                                class="tools-native-range"
+                            />
+                            <div class="tools-slider-caption">
+                                <span>Soft</span>
+                                <span>Strong</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div
-                    v-if="backgroundTextureModel"
-                    class="tools-select-block background-texture-select"
-                >
-                    <label class="tools-select-label">Texture</label>
-                    <div class="tools-select-wrap">
-                        <Select
-                            v-model="selectedBackgroundTextureOption"
-                            :options="BACKGROUND_TEXTURE_OPTIONS"
-                            option-label="label"
-                            class="tools-select"
-                        />
+                <div class="tools-background-independent-subitems">
+                    <div class="tools-toggle-row">
+                        <label
+                            class="tools-toggle-main"
+                            :for="getInputId('background-texture')"
+                        >
+                            <span class="material-symbols-outlined">texture</span>
+                            <span>Static Texture</span>
+                        </label>
+                        <div class="tools-toggle-control">
+                            <span class="tools-hint tools-toggle-hint">{{ backgroundTextureModel ? 'On' : 'Off' }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('background-texture')"
+                                v-model="backgroundTextureModel"
+                            />
+                        </div>
                     </div>
-                </div>
 
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-water')"
+                    <div
+                        v-if="backgroundTextureModel"
+                        class="tools-select-block background-texture-select"
                     >
-                        <span class="material-symbols-outlined">water</span>
-                        <span>Water Texture</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundWaterModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-water')"
-                            v-model="backgroundWaterModel"
-                        />
+                        <label class="tools-select-label">Texture</label>
+                        <div class="tools-select-wrap">
+                            <Select
+                                v-model="selectedBackgroundTextureOption"
+                                :options="BACKGROUND_TEXTURE_OPTIONS"
+                                option-label="label"
+                                class="tools-select"
+                            />
+                        </div>
                     </div>
-                </div>
 
-                <template v-if="backgroundWaterModel">
-                    <div class="tools-slider-block">
+                    <div class="tools-toggle-row">
+                        <label
+                            class="tools-toggle-main"
+                            :for="getInputId('background-water')"
+                        >
+                            <span class="material-symbols-outlined">water</span>
+                            <span>Water Texture</span>
+                        </label>
+                        <div class="tools-toggle-control">
+                            <span class="tools-hint tools-toggle-hint">{{ backgroundWaterModel ? 'On' : 'Off' }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('background-water')"
+                                v-model="backgroundWaterModel"
+                            />
+                        </div>
+                    </div>
+
+                    <template v-if="backgroundWaterModel">
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label">
+                                    <span class="material-symbols-outlined">zoom_in</span>
+                                    <span>Water Scale</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ backgroundWaterScaleDisplay }}</span>
+                            </div>
+                            <input
+                                :id="getInputId('background-water-scale')"
+                                type="range"
+                                min="2"
+                                max="24"
+                                step="0.5"
+                                :value="app.backgroundWaterScale"
+                                @input="handleBackgroundWaterScaleInput"
+                                class="tools-native-range"
+                            />
+                            <div class="tools-slider-caption">
+                                <span>Broad</span>
+                                <span>Fine</span>
+                            </div>
+                        </div>
+
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label">
+                                    <span class="material-symbols-outlined">speed</span>
+                                    <span>Water Speed</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ backgroundWaterSpeedDisplay }}</span>
+                            </div>
+                            <input
+                                :id="getInputId('background-water-speed')"
+                                type="range"
+                                min="0"
+                                max="3"
+                                step="0.05"
+                                :value="app.backgroundWaterSpeed"
+                                @input="handleBackgroundWaterSpeedInput"
+                                class="tools-native-range"
+                            />
+                            <div class="tools-slider-caption">
+                                <span>Still</span>
+                                <span>Fast</span>
+                            </div>
+                        </div>
+
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label">
+                                    <span class="material-symbols-outlined">contrast</span>
+                                    <span>Water Strength</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ backgroundWaterStrengthDisplay }}</span>
+                            </div>
+                            <input
+                                :id="getInputId('background-water-strength')"
+                                type="range"
+                                min="0.05"
+                                max="0.6"
+                                step="0.01"
+                                :value="app.backgroundWaterStrength"
+                                @input="handleBackgroundWaterStrengthInput"
+                                class="tools-native-range"
+                            />
+                            <div class="tools-slider-caption">
+                                <span>Subtle</span>
+                                <span>Strong</span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div class="tools-toggle-row">
+                        <label
+                            class="tools-toggle-main"
+                            :for="getInputId('background-overlay')"
+                        >
+                            <span class="material-symbols-outlined">palette</span>
+                            <span>Background Color Overlay</span>
+                        </label>
+                        <div class="tools-toggle-control">
+                            <span class="tools-hint tools-toggle-hint">{{ backgroundOverlayModel ? 'On' : 'Off' }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('background-overlay')"
+                                v-model="backgroundOverlayModel"
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="backgroundOverlayModel"
+                        class="tools-color-row"
+                    >
+                        <label
+                            class="tools-color-main"
+                            :for="getInputId('background-overlay-color')"
+                        >
+                            <span
+                                class="tools-color-swatch"
+                                :style="{ backgroundColor: backgroundOverlayColorModel }"
+                            ></span>
+                            <span>Overlay Color</span>
+                        </label>
+                        <div class="tools-color-control">
+                            <input
+                                :id="getInputId('background-overlay-color-hex')"
+                                type="text"
+                                class="background-overlay-hex"
+                                :value="backgroundOverlayColorInputModel"
+                                maxlength="7"
+                                spellcheck="false"
+                                autocomplete="off"
+                                aria-label="Overlay color hex code"
+                                @change="onBackgroundOverlayColorInput"
+                            />
+                            <ColorPickerPopover
+                                :inputId="getInputId('background-overlay-color')"
+                                v-model="backgroundOverlayColorPickerModel"
+                                format="hex"
+                                class="tools-color-picker"
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="backgroundOverlayModel"
+                        class="tools-slider-block"
+                    >
                         <div class="tools-slider-head">
                             <label class="tools-slider-label">
-                                <span class="material-symbols-outlined">zoom_in</span>
-                                <span>Water Scale</span>
+                                <span class="material-symbols-outlined">opacity</span>
+                                <span>Overlay Opacity</span>
                             </label>
-                            <span class="tools-hint tools-slider-hint">{{ backgroundWaterScaleDisplay }}</span>
+                            <span class="tools-hint tools-slider-hint">{{ backgroundOverlayOpacityDisplay }}</span>
                         </div>
                         <input
-                            :id="getInputId('background-water-scale')"
-                            type="range"
-                            min="2"
-                            max="24"
-                            step="0.5"
-                            :value="app.backgroundWaterScale"
-                            @input="handleBackgroundWaterScaleInput"
-                            class="tools-native-range"
-                        />
-                        <div class="tools-slider-caption">
-                            <span>Broad</span>
-                            <span>Fine</span>
-                        </div>
-                    </div>
-
-                    <div class="tools-slider-block">
-                        <div class="tools-slider-head">
-                            <label class="tools-slider-label">
-                                <span class="material-symbols-outlined">speed</span>
-                                <span>Water Speed</span>
-                            </label>
-                            <span class="tools-hint tools-slider-hint">{{ backgroundWaterSpeedDisplay }}</span>
-                        </div>
-                        <input
-                            :id="getInputId('background-water-speed')"
+                            :id="getInputId('background-overlay-opacity')"
+                            v-model="backgroundOverlayOpacityModel"
                             type="range"
                             min="0"
-                            max="3"
-                            step="0.05"
-                            :value="app.backgroundWaterSpeed"
-                            @input="handleBackgroundWaterSpeedInput"
+                            max="100"
+                            step="1"
                             class="tools-native-range"
+                            aria-label="Overlay Opacity"
                         />
                         <div class="tools-slider-caption">
-                            <span>Still</span>
-                            <span>Fast</span>
+                            <span>Transparent</span>
+                            <span>Opaque</span>
                         </div>
-                    </div>
-
-                    <div class="tools-slider-block">
-                        <div class="tools-slider-head">
-                            <label class="tools-slider-label">
-                                <span class="material-symbols-outlined">contrast</span>
-                                <span>Water Strength</span>
-                            </label>
-                            <span class="tools-hint tools-slider-hint">{{ backgroundWaterStrengthDisplay }}</span>
-                        </div>
-                        <input
-                            :id="getInputId('background-water-strength')"
-                            type="range"
-                            min="0.05"
-                            max="0.6"
-                            step="0.01"
-                            :value="app.backgroundWaterStrength"
-                            @input="handleBackgroundWaterStrengthInput"
-                            class="tools-native-range"
-                        />
-                        <div class="tools-slider-caption">
-                            <span>Subtle</span>
-                            <span>Strong</span>
-                        </div>
-                    </div>
-                </template>
-
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('background-overlay')"
-                    >
-                        <span class="material-symbols-outlined">palette</span>
-                        <span>Background Color Overlay</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ backgroundOverlayModel ? 'On' : 'Off' }}</span>
-                        <ToggleSwitch
-                            :inputId="getInputId('background-overlay')"
-                            v-model="backgroundOverlayModel"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-if="backgroundOverlayModel"
-                    class="tools-color-row"
-                >
-                    <label
-                        class="tools-color-main"
-                        :for="getInputId('background-overlay-color')"
-                    >
-                        <span
-                            class="tools-color-swatch"
-                            :style="{ backgroundColor: backgroundOverlayColorModel }"
-                        ></span>
-                        <span>Overlay Color</span>
-                    </label>
-                    <div class="tools-color-control">
-                        <input
-                            :id="getInputId('background-overlay-color-hex')"
-                            type="text"
-                            class="background-overlay-hex"
-                            :value="backgroundOverlayColorInputModel"
-                            maxlength="7"
-                            spellcheck="false"
-                            autocomplete="off"
-                            aria-label="Overlay color hex code"
-                            @change="onBackgroundOverlayColorInput"
-                        />
-                        <ColorPickerPopover
-                            :inputId="getInputId('background-overlay-color')"
-                            v-model="backgroundOverlayColorPickerModel"
-                            format="hex"
-                            class="tools-color-picker"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-if="backgroundOverlayModel"
-                    class="tools-slider-block"
-                >
-                    <div class="tools-slider-head">
-                        <label class="tools-slider-label">
-                            <span class="material-symbols-outlined">opacity</span>
-                            <span>Overlay Opacity</span>
-                        </label>
-                        <span class="tools-hint tools-slider-hint">{{ backgroundOverlayOpacityDisplay }}</span>
-                    </div>
-                    <input
-                        :id="getInputId('background-overlay-opacity')"
-                        v-model="backgroundOverlayOpacityModel"
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="1"
-                        class="tools-native-range"
-                        aria-label="Overlay Opacity"
-                    />
-                    <div class="tools-slider-caption">
-                        <span>Transparent</span>
-                        <span>Opaque</span>
                     </div>
                 </div>
             </div>
@@ -914,6 +923,29 @@
         gap: 1rem;
         padding: 0.875rem 1rem;
         color: var(--p-text-color, #fff);
+    }
+
+    .tools-background-base-subitems,
+    .tools-background-independent-subitems {
+        margin: 0 0.75rem 0.25rem 1.65rem;
+        padding-left: 0.4rem;
+        border-left: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .tools-background-base-subitems .tools-toggle-row,
+    .tools-background-independent-subitems .tools-toggle-row {
+        padding-left: 0.6rem;
+        padding-right: 0.25rem;
+    }
+
+    .tools-background-base-subitems .tools-slider,
+    .tools-background-base-subitems .tools-slider-block,
+    .tools-background-independent-subitems .tools-slider,
+    .tools-background-independent-subitems .tools-slider-block,
+    .tools-background-independent-subitems .tools-color-row,
+    .tools-background-independent-subitems .tools-select-block {
+        padding-left: 0.6rem;
+        padding-right: 0.25rem;
     }
 
     .tools-toggle-main {
