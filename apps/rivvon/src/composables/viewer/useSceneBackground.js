@@ -292,12 +292,41 @@ function createWebGLBackgroundDisplayMaterial(
 
             vec3 proceduralWater(vec2 uv, float time) {
                 vec2 p = uv * uWaterScale;
-                float waveA = sin(dot(p, vec2(1.7, 0.8)) + time * 0.35 * uWaterSpeed);
-                float waveB = sin(dot(p, vec2(-0.9, 1.8)) - time * 0.28 * uWaterSpeed);
-                float waveC = sin(dot(p, vec2(2.7, -1.1)) + time * 0.21 * uWaterSpeed);
-                float waveD = sin(dot(p, vec2(-2.2, -1.7)) - time * 0.17 * uWaterSpeed);
-                float waves = waveA * 0.38 + waveB * 0.27 + waveC * 0.2 + waveD * 0.15;
-                float waterValue = clamp(0.5 + waves * uWaterStrength, 0.08, 0.92);
+                float phaseShift = length(p) * 0.1;
+                float frequency = 1.0;
+                float timeMultiplier = 0.75;
+                float weight = 1.0;
+                float waveSum = 0.0;
+                float weightSum = 0.0;
+                float iteration = 0.0;
+
+                for (int i = 0; i < 8; i++) {
+                    vec2 direction = normalize(vec2(sin(iteration), cos(iteration)));
+                    float x = dot(direction, p) * frequency
+                        + time * timeMultiplier * uWaterSpeed
+                        + phaseShift;
+                    float wave = exp(sin(x) - 1.0);
+                    float derivative = wave * cos(x);
+
+                    p += direction * derivative * weight * -0.24;
+                    waveSum += wave * weight;
+                    weightSum += weight;
+                    weight *= 0.72;
+                    frequency *= 1.22;
+                    timeMultiplier *= 1.07;
+                    iteration += 2.399963;
+                }
+
+                float field = waveSum / weightSum;
+                float centered = field - 0.5;
+                float crest = pow(max(centered * 2.8, 0.0), 2.2);
+                float trough = pow(max(-centered * 2.0, 0.0), 1.35);
+                float contrast = 0.65 + uWaterStrength * 2.0;
+                float waterValue = clamp(
+                    0.5 + centered * contrast + crest * (0.12 + uWaterStrength * 0.3) - trough * 0.08,
+                    0.02,
+                    0.98
+                );
                 return vec3(waterValue);
             }
 
@@ -697,12 +726,41 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
 
             vec3 proceduralWater(vec2 uv, float time) {
                 vec2 p = uv * uWaterScale;
-                float waveA = sin(dot(p, vec2(1.7, 0.8)) + time * 0.35 * uWaterSpeed);
-                float waveB = sin(dot(p, vec2(-0.9, 1.8)) - time * 0.28 * uWaterSpeed);
-                float waveC = sin(dot(p, vec2(2.7, -1.1)) + time * 0.21 * uWaterSpeed);
-                float waveD = sin(dot(p, vec2(-2.2, -1.7)) - time * 0.17 * uWaterSpeed);
-                float waves = waveA * 0.38 + waveB * 0.27 + waveC * 0.2 + waveD * 0.15;
-                float waterValue = clamp(0.5 + waves * uWaterStrength, 0.08, 0.92);
+                float phaseShift = length(p) * 0.1;
+                float frequency = 1.0;
+                float timeMultiplier = 0.75;
+                float weight = 1.0;
+                float waveSum = 0.0;
+                float weightSum = 0.0;
+                float iteration = 0.0;
+
+                for (int i = 0; i < 8; i++) {
+                    vec2 direction = normalize(vec2(sin(iteration), cos(iteration)));
+                    float x = dot(direction, p) * frequency
+                        + time * timeMultiplier * uWaterSpeed
+                        + phaseShift;
+                    float wave = exp(sin(x) - 1.0);
+                    float derivative = wave * cos(x);
+
+                    p += direction * derivative * weight * -0.24;
+                    waveSum += wave * weight;
+                    weightSum += weight;
+                    weight *= 0.72;
+                    frequency *= 1.22;
+                    timeMultiplier *= 1.07;
+                    iteration += 2.399963;
+                }
+
+                float field = waveSum / weightSum;
+                float centered = field - 0.5;
+                float crest = pow(max(centered * 2.8, 0.0), 2.2);
+                float trough = pow(max(-centered * 2.0, 0.0), 1.35);
+                float contrast = 0.65 + uWaterStrength * 2.0;
+                float waterValue = clamp(
+                    0.5 + centered * contrast + crest * (0.12 + uWaterStrength * 0.3) - trough * 0.08,
+                    0.02,
+                    0.98
+                );
                 return vec3(waterValue);
             }
 
@@ -1078,6 +1136,9 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     uniform,
     uv,
     float,
+    exp,
+    max,
+    pow,
     mix,
     vec2,
     vec3,
@@ -1144,33 +1205,48 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     );
 
     function proceduralWater(coord, time) {
-      const p = coord.mul(waterScaleUniform);
-      const waveA = p.x
-        .mul(1.7)
-        .add(p.y.mul(0.8))
-        .add(time.mul(0.35).mul(waterSpeedUniform))
-        .sin();
-      const waveB = p.x
-        .mul(-0.9)
-        .add(p.y.mul(1.8))
-        .sub(time.mul(0.28).mul(waterSpeedUniform))
-        .sin();
-      const waveC = p.x
-        .mul(2.7)
-        .add(p.y.mul(-1.1))
-        .add(time.mul(0.21).mul(waterSpeedUniform))
-        .sin();
-      const waveD = p.x
-        .mul(-2.2)
-        .add(p.y.mul(-1.7))
-        .sub(time.mul(0.17).mul(waterSpeedUniform))
-        .sin();
-      const waves = waveA
-        .mul(0.38)
-        .add(waveB.mul(0.27))
-        .add(waveC.mul(0.2))
-        .add(waveD.mul(0.15));
-      return vec3(waves.mul(waterStrengthUniform).add(0.5));
+      let p = coord.mul(waterScaleUniform);
+      let waveSum = float(0);
+      let weightSum = float(0);
+      let frequency = 1.0;
+      let timeMultiplier = 0.75;
+      let weight = 1.0;
+      const phaseShift = coord.x.add(coord.y).mul(0.1);
+
+      for (let i = 0; i < 8; i += 1) {
+        const iteration = i * 2.399963;
+        const directionX = Math.sin(iteration);
+        const directionY = Math.cos(iteration);
+        const direction = vec2(directionX, directionY);
+        const x = p.x
+          .mul(directionX * frequency)
+          .add(p.y.mul(directionY * frequency))
+          .add(time.mul(timeMultiplier).mul(waterSpeedUniform))
+          .add(phaseShift);
+        const wave = exp(x.sin().sub(1));
+        const derivative = wave.mul(x.cos());
+
+        p = p.add(direction.mul(derivative.mul(-weight * 0.24)));
+        waveSum = waveSum.add(wave.mul(weight));
+        weightSum = weightSum.add(weight);
+        weight *= 0.72;
+        frequency *= 1.22;
+        timeMultiplier *= 1.07;
+      }
+
+      const field = waveSum.div(weightSum);
+      const centered = field.sub(0.5);
+      const crest = pow(max(centered.mul(2.8), float(0)), float(2.2));
+      const trough = pow(max(centered.mul(-2.0), float(0)), float(1.35));
+      const contrast = waterStrengthUniform.mul(2).add(0.65);
+      const waterValue = centered
+        .mul(contrast)
+        .add(crest.mul(waterStrengthUniform.mul(0.3).add(0.12)))
+        .sub(trough.mul(0.08))
+        .add(0.5)
+        .max(0.02)
+        .min(0.98);
+      return vec3(waterValue);
     }
 
     function softLightBlend(base, blend) {
@@ -1481,6 +1557,9 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     vec3,
     vec4,
     float,
+    exp,
+    max,
+    pow,
     add,
     div,
     mul,
@@ -1540,33 +1619,48 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       overlayOpacityUniform,
     );
     function proceduralWater(coord, time) {
-      const p = coord.mul(waterScaleUniform);
-      const waveA = p.x
-        .mul(1.7)
-        .add(p.y.mul(0.8))
-        .add(time.mul(0.35).mul(waterSpeedUniform))
-        .sin();
-      const waveB = p.x
-        .mul(-0.9)
-        .add(p.y.mul(1.8))
-        .sub(time.mul(0.28).mul(waterSpeedUniform))
-        .sin();
-      const waveC = p.x
-        .mul(2.7)
-        .add(p.y.mul(-1.1))
-        .add(time.mul(0.21).mul(waterSpeedUniform))
-        .sin();
-      const waveD = p.x
-        .mul(-2.2)
-        .add(p.y.mul(-1.7))
-        .sub(time.mul(0.17).mul(waterSpeedUniform))
-        .sin();
-      const waves = waveA
-        .mul(0.38)
-        .add(waveB.mul(0.27))
-        .add(waveC.mul(0.2))
-        .add(waveD.mul(0.15));
-      return vec3(waves.mul(waterStrengthUniform).add(0.5));
+      let p = coord.mul(waterScaleUniform);
+      let waveSum = float(0);
+      let weightSum = float(0);
+      let frequency = 1.0;
+      let timeMultiplier = 0.75;
+      let weight = 1.0;
+      const phaseShift = coord.x.add(coord.y).mul(0.1);
+
+      for (let i = 0; i < 8; i += 1) {
+        const iteration = i * 2.399963;
+        const directionX = Math.sin(iteration);
+        const directionY = Math.cos(iteration);
+        const direction = vec2(directionX, directionY);
+        const x = p.x
+          .mul(directionX * frequency)
+          .add(p.y.mul(directionY * frequency))
+          .add(time.mul(timeMultiplier).mul(waterSpeedUniform))
+          .add(phaseShift);
+        const wave = exp(x.sin().sub(1));
+        const derivative = wave.mul(x.cos());
+
+        p = p.add(direction.mul(derivative.mul(-weight * 0.24)));
+        waveSum = waveSum.add(wave.mul(weight));
+        weightSum = weightSum.add(weight);
+        weight *= 0.72;
+        frequency *= 1.22;
+        timeMultiplier *= 1.07;
+      }
+
+      const field = waveSum.div(weightSum);
+      const centered = field.sub(0.5);
+      const crest = pow(max(centered.mul(2.8), float(0)), float(2.2));
+      const trough = pow(max(centered.mul(-2.0), float(0)), float(1.35));
+      const contrast = waterStrengthUniform.mul(2).add(0.65);
+      const waterValue = centered
+        .mul(contrast)
+        .add(crest.mul(waterStrengthUniform.mul(0.3).add(0.12)))
+        .sub(trough.mul(0.08))
+        .add(0.5)
+        .max(0.02)
+        .min(0.98);
+      return vec3(waterValue);
     }
 
     function softLightBlend(base, blend) {
