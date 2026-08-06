@@ -9,11 +9,6 @@ export const BACKGROUND_TEXTURE_OPTIONS = [
     value: "textile",
     url: "/background-textures/textile.jpg",
   },
-  {
-    label: "Water",
-    value: "water",
-    type: "procedural",
-  },
 ];
 
 export const DEFAULT_BACKGROUND_TEXTURE = "card";

@@ -98,6 +98,17 @@ const MIN_BACKGROUND_FLOW_SPEED = 0.05;
 const MAX_BACKGROUND_FLOW_SPEED = 2.0;
 const DEFAULT_BACKGROUND_OVERLAY_COLOR = "#ffffff";
 const DEFAULT_BACKGROUND_OVERLAY_OPACITY = 0.35;
+const DEFAULT_BACKGROUND_BASE_ENABLED = true;
+const DEFAULT_BACKGROUND_WATER_ENABLED = false;
+const DEFAULT_BACKGROUND_WATER_SCALE = 8.0;
+const MIN_BACKGROUND_WATER_SCALE = 2.0;
+const MAX_BACKGROUND_WATER_SCALE = 24.0;
+const DEFAULT_BACKGROUND_WATER_SPEED = 1.0;
+const MIN_BACKGROUND_WATER_SPEED = 0.0;
+const MAX_BACKGROUND_WATER_SPEED = 3.0;
+const DEFAULT_BACKGROUND_WATER_STRENGTH = 0.28;
+const MIN_BACKGROUND_WATER_STRENGTH = 0.05;
+const MAX_BACKGROUND_WATER_STRENGTH = 0.6;
 const RIBBON_PATH_ALIGNMENT_MODES = ["inside", "center", "outside"];
 const SURFACE_MODES = ["ribbon", "tube"];
 const DEFAULT_TUBE_RADIUS_SCALE = 0.5;
@@ -411,6 +422,33 @@ function normalizeViewerBooleanPreference(value, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function normalizeBackgroundWaterScale(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_WATER_SCALE;
+  return Math.min(
+    MAX_BACKGROUND_WATER_SCALE,
+    Math.max(MIN_BACKGROUND_WATER_SCALE, parsed),
+  );
+}
+
+function normalizeBackgroundWaterSpeed(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_WATER_SPEED;
+  return Math.min(
+    MAX_BACKGROUND_WATER_SPEED,
+    Math.max(MIN_BACKGROUND_WATER_SPEED, parsed),
+  );
+}
+
+function normalizeBackgroundWaterStrength(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_WATER_STRENGTH;
+  return Math.min(
+    MAX_BACKGROUND_WATER_STRENGTH,
+    Math.max(MIN_BACKGROUND_WATER_STRENGTH, parsed),
+  );
+}
+
 function normalizeRenderPixelRatio(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -668,6 +706,23 @@ export const useViewerStore = defineStore("viewer", {
       ),
       backgroundTexture: normalizeBackgroundTexture(
         readViewerPreferences().backgroundTexture,
+      ),
+      backgroundBaseEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundBaseEnabled,
+        DEFAULT_BACKGROUND_BASE_ENABLED,
+      ),
+      backgroundWaterEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundWaterEnabled,
+        DEFAULT_BACKGROUND_WATER_ENABLED,
+      ),
+      backgroundWaterScale: normalizeBackgroundWaterScale(
+        readViewerPreferences().backgroundWaterScale,
+      ),
+      backgroundWaterSpeed: normalizeBackgroundWaterSpeed(
+        readViewerPreferences().backgroundWaterSpeed,
+      ),
+      backgroundWaterStrength: normalizeBackgroundWaterStrength(
+        readViewerPreferences().backgroundWaterStrength,
       ),
       textureAnimationReversed: normalizeViewerBooleanPreference(
         readViewerPreferences().textureAnimationReversed,
@@ -946,6 +1001,11 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundOverlayOpacity = DEFAULT_BACKGROUND_OVERLAY_OPACITY;
       this.backgroundTextureEnabled = false;
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
+      this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
+      this.backgroundWaterEnabled = DEFAULT_BACKGROUND_WATER_ENABLED;
+      this.backgroundWaterScale = DEFAULT_BACKGROUND_WATER_SCALE;
+      this.backgroundWaterSpeed = DEFAULT_BACKGROUND_WATER_SPEED;
+      this.backgroundWaterStrength = DEFAULT_BACKGROUND_WATER_STRENGTH;
       this.textureAnimationReversed = false;
       this.peakTroughTransparencyEnabled = false;
       this.peakTroughBlurEnabled = false;
@@ -1026,6 +1086,11 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: DEFAULT_BACKGROUND_OVERLAY_OPACITY,
         backgroundTextureEnabled: false,
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
+        backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
+        backgroundWaterEnabled: DEFAULT_BACKGROUND_WATER_ENABLED,
+        backgroundWaterScale: DEFAULT_BACKGROUND_WATER_SCALE,
+        backgroundWaterSpeed: DEFAULT_BACKGROUND_WATER_SPEED,
+        backgroundWaterStrength: DEFAULT_BACKGROUND_WATER_STRENGTH,
         textureAnimationReversed: false,
         peakTroughTransparencyEnabled: false,
         peakTroughBlurEnabled: false,
@@ -1260,6 +1325,36 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundTexture: nextValue });
     },
 
+    setBackgroundBaseEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.backgroundBaseEnabled = nextValue;
+      writeViewerPreferences({ backgroundBaseEnabled: nextValue });
+    },
+
+    setBackgroundWaterEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.backgroundWaterEnabled = nextValue;
+      writeViewerPreferences({ backgroundWaterEnabled: nextValue });
+    },
+
+    setBackgroundWaterScale(value) {
+      const nextValue = normalizeBackgroundWaterScale(value);
+      this.backgroundWaterScale = nextValue;
+      writeViewerPreferences({ backgroundWaterScale: nextValue });
+    },
+
+    setBackgroundWaterSpeed(value) {
+      const nextValue = normalizeBackgroundWaterSpeed(value);
+      this.backgroundWaterSpeed = nextValue;
+      writeViewerPreferences({ backgroundWaterSpeed: nextValue });
+    },
+
+    setBackgroundWaterStrength(value) {
+      const nextValue = normalizeBackgroundWaterStrength(value);
+      this.backgroundWaterStrength = nextValue;
+      writeViewerPreferences({ backgroundWaterStrength: nextValue });
+    },
+
     setTextureAnimationReversed(reversed) {
       const nextValue = !!reversed;
       this.textureAnimationReversed = nextValue;
@@ -1436,6 +1531,11 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: this.backgroundOverlayOpacity,
         backgroundTextureEnabled: this.backgroundTextureEnabled,
         backgroundTexture: this.backgroundTexture,
+        backgroundBaseEnabled: this.backgroundBaseEnabled,
+        backgroundWaterEnabled: this.backgroundWaterEnabled,
+        backgroundWaterScale: this.backgroundWaterScale,
+        backgroundWaterSpeed: this.backgroundWaterSpeed,
+        backgroundWaterStrength: this.backgroundWaterStrength,
         textureAnimationReversed: this.textureAnimationReversed,
         peakTroughTransparencyEnabled: this.peakTroughTransparencyEnabled,
         peakTroughBlurEnabled: this.peakTroughBlurEnabled,
@@ -1525,6 +1625,11 @@ export const useViewerStore = defineStore("viewer", {
         this.backgroundOverlayOpacity !== original.backgroundOverlayOpacity ||
         this.backgroundTextureEnabled !== original.backgroundTextureEnabled ||
         this.backgroundTexture !== original.backgroundTexture ||
+        this.backgroundBaseEnabled !== original.backgroundBaseEnabled ||
+        this.backgroundWaterEnabled !== original.backgroundWaterEnabled ||
+        this.backgroundWaterScale !== original.backgroundWaterScale ||
+        this.backgroundWaterSpeed !== original.backgroundWaterSpeed ||
+        this.backgroundWaterStrength !== original.backgroundWaterStrength ||
         this.textureAnimationReversed !== original.textureAnimationReversed ||
         this.peakTroughTransparencyEnabled !==
           original.peakTroughTransparencyEnabled ||

@@ -132,6 +132,28 @@
         }
     });
 
+    const backgroundBaseModel = computed({
+        get: () => app.backgroundBaseEnabled,
+        set: (value) => app.setBackgroundBaseEnabled(!!value),
+    });
+
+    const backgroundWaterModel = computed({
+        get: () => app.backgroundWaterEnabled,
+        set: (value) => app.setBackgroundWaterEnabled(!!value),
+    });
+
+    const backgroundWaterScaleDisplay = computed(
+        () => `${app.backgroundWaterScale.toFixed(1)}x`,
+    );
+
+    const backgroundWaterSpeedDisplay = computed(
+        () => `${app.backgroundWaterSpeed.toFixed(2)}x`,
+    );
+
+    const backgroundWaterStrengthDisplay = computed(
+        () => `${Math.round(app.backgroundWaterStrength * 100)}%`,
+    );
+
     const backgroundOverlayColorInputModel = computed(
         () => backgroundOverlayColorModel.value.toUpperCase()
     );
@@ -214,6 +236,18 @@
 
     function handleBackgroundFlowSpeedInput(event) {
         app.setBackgroundFlowSpeed(parseFloat(event.target.value));
+    }
+
+    function handleBackgroundWaterScaleInput(event) {
+        app.setBackgroundWaterScale(parseFloat(event.target.value));
+    }
+
+    function handleBackgroundWaterSpeedInput(event) {
+        app.setBackgroundWaterSpeed(parseFloat(event.target.value));
+    }
+
+    function handleBackgroundWaterStrengthInput(event) {
+        app.setBackgroundWaterStrength(parseFloat(event.target.value));
     }
 
     function handlePeakTroughBlurInput(event) {
@@ -561,6 +595,23 @@
                 <div class="tools-toggle-row">
                     <label
                         class="tools-toggle-main"
+                        :for="getInputId('background-base')"
+                    >
+                        <span class="material-symbols-outlined">layers</span>
+                        <span>KTX2 Background</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundBaseModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-base')"
+                            v-model="backgroundBaseModel"
+                        />
+                    </div>
+                </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
                         :for="getInputId('background-blur')"
                     >
                         <span class="material-symbols-outlined">blur_on</span>
@@ -608,7 +659,7 @@
                         :for="getInputId('background-texture')"
                     >
                         <span class="material-symbols-outlined">texture</span>
-                        <span>Background Texture</span>
+                        <span>Static Texture</span>
                     </label>
                     <div class="tools-toggle-control">
                         <span class="tools-hint tools-toggle-hint">{{ backgroundTextureModel ? 'On' : 'Off' }}</span>
@@ -633,6 +684,97 @@
                         />
                     </div>
                 </div>
+
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('background-water')"
+                    >
+                        <span class="material-symbols-outlined">water</span>
+                        <span>Water Texture</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundWaterModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-water')"
+                            v-model="backgroundWaterModel"
+                        />
+                    </div>
+                </div>
+
+                <template v-if="backgroundWaterModel">
+                    <div class="tools-slider-block">
+                        <div class="tools-slider-head">
+                            <label class="tools-slider-label">
+                                <span class="material-symbols-outlined">zoom_in</span>
+                                <span>Water Scale</span>
+                            </label>
+                            <span class="tools-hint tools-slider-hint">{{ backgroundWaterScaleDisplay }}</span>
+                        </div>
+                        <input
+                            :id="getInputId('background-water-scale')"
+                            type="range"
+                            min="2"
+                            max="24"
+                            step="0.5"
+                            :value="app.backgroundWaterScale"
+                            @input="handleBackgroundWaterScaleInput"
+                            class="tools-native-range"
+                        />
+                        <div class="tools-slider-caption">
+                            <span>Broad</span>
+                            <span>Fine</span>
+                        </div>
+                    </div>
+
+                    <div class="tools-slider-block">
+                        <div class="tools-slider-head">
+                            <label class="tools-slider-label">
+                                <span class="material-symbols-outlined">speed</span>
+                                <span>Water Speed</span>
+                            </label>
+                            <span class="tools-hint tools-slider-hint">{{ backgroundWaterSpeedDisplay }}</span>
+                        </div>
+                        <input
+                            :id="getInputId('background-water-speed')"
+                            type="range"
+                            min="0"
+                            max="3"
+                            step="0.05"
+                            :value="app.backgroundWaterSpeed"
+                            @input="handleBackgroundWaterSpeedInput"
+                            class="tools-native-range"
+                        />
+                        <div class="tools-slider-caption">
+                            <span>Still</span>
+                            <span>Fast</span>
+                        </div>
+                    </div>
+
+                    <div class="tools-slider-block">
+                        <div class="tools-slider-head">
+                            <label class="tools-slider-label">
+                                <span class="material-symbols-outlined">contrast</span>
+                                <span>Water Strength</span>
+                            </label>
+                            <span class="tools-hint tools-slider-hint">{{ backgroundWaterStrengthDisplay }}</span>
+                        </div>
+                        <input
+                            :id="getInputId('background-water-strength')"
+                            type="range"
+                            min="0.05"
+                            max="0.6"
+                            step="0.01"
+                            :value="app.backgroundWaterStrength"
+                            @input="handleBackgroundWaterStrengthInput"
+                            class="tools-native-range"
+                        />
+                        <div class="tools-slider-caption">
+                            <span>Subtle</span>
+                            <span>Strong</span>
+                        </div>
+                    </div>
+                </template>
 
                 <div class="tools-toggle-row">
                     <label

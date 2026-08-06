@@ -228,6 +228,19 @@
         });
     });
 
+    watch(() => app.backgroundBaseEnabled, () => {
+        updateBackground();
+    });
+
+    watch(() => [
+        app.backgroundWaterEnabled,
+        app.backgroundWaterScale,
+        app.backgroundWaterSpeed,
+        app.backgroundWaterStrength,
+    ], () => {
+        updateBackground();
+    });
+
     watch(() => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity], () => {
         updateBackground();
     });
