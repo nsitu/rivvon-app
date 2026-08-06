@@ -292,38 +292,35 @@ function createWebGLBackgroundDisplayMaterial(
 
             vec3 proceduralWater(vec2 uv, float time) {
                 vec2 p = uv * uWaterScale;
-                float phaseShift = length(p) * 0.1;
-                float frequency = 1.0;
-                float timeMultiplier = 0.75;
-                float weight = 1.0;
                 float waveSum = 0.0;
+                float ridgeSum = 0.0;
                 float weightSum = 0.0;
-                float iteration = 0.0;
+                float weight = 1.0;
 
-                for (int i = 0; i < 8; i++) {
-                    vec2 direction = normalize(vec2(sin(iteration), cos(iteration)));
-                    float x = dot(direction, p) * frequency
-                        + time * timeMultiplier * uWaterSpeed
-                        + phaseShift;
-                    float wave = exp(sin(x) - 1.0);
-                    float derivative = wave * cos(x);
+                for (int i = 0; i < 4; i++) {
+                    float iteration = float(i);
+                    float frequency = 1.0 + iteration * 1.35;
+                    vec2 direction = normalize(vec2(
+                        1.0 + iteration * 0.7,
+                        0.35 - iteration * 0.9
+                    ));
+                    float phase = time * (0.35 + iteration * 0.11) * uWaterSpeed;
+                    float wave = sin(dot(direction, p) * frequency + phase);
+                    float ridge = pow(max(wave, 0.0), 5.0);
 
-                    p += direction * derivative * weight * -0.24;
+                    p += direction * wave * weight * 0.13;
                     waveSum += wave * weight;
+                    ridgeSum += ridge * weight;
                     weightSum += weight;
-                    weight *= 0.72;
-                    frequency *= 1.22;
-                    timeMultiplier *= 1.07;
-                    iteration += 2.399963;
+                    weight *= 0.58;
                 }
 
-                float field = waveSum / weightSum;
-                float centered = field - 0.5;
-                float crest = pow(max(centered * 2.8, 0.0), 2.2);
-                float trough = pow(max(-centered * 2.0, 0.0), 1.35);
-                float contrast = 0.65 + uWaterStrength * 2.0;
+                float centered = waveSum / weightSum;
+                float ridge = ridgeSum / weightSum;
+                float trough = pow(max(-centered * 1.6, 0.0), 1.35);
+                float contrast = 0.55 + uWaterStrength * 1.8;
                 float waterValue = clamp(
-                    0.5 + centered * contrast + crest * (0.12 + uWaterStrength * 0.3) - trough * 0.08,
+                    0.5 + centered * contrast + ridge * (0.08 + uWaterStrength * 0.38) - trough * 0.06,
                     0.02,
                     0.98
                 );
@@ -726,38 +723,35 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
 
             vec3 proceduralWater(vec2 uv, float time) {
                 vec2 p = uv * uWaterScale;
-                float phaseShift = length(p) * 0.1;
-                float frequency = 1.0;
-                float timeMultiplier = 0.75;
-                float weight = 1.0;
                 float waveSum = 0.0;
+                float ridgeSum = 0.0;
                 float weightSum = 0.0;
-                float iteration = 0.0;
+                float weight = 1.0;
 
-                for (int i = 0; i < 8; i++) {
-                    vec2 direction = normalize(vec2(sin(iteration), cos(iteration)));
-                    float x = dot(direction, p) * frequency
-                        + time * timeMultiplier * uWaterSpeed
-                        + phaseShift;
-                    float wave = exp(sin(x) - 1.0);
-                    float derivative = wave * cos(x);
+                for (int i = 0; i < 4; i++) {
+                    float iteration = float(i);
+                    float frequency = 1.0 + iteration * 1.35;
+                    vec2 direction = normalize(vec2(
+                        1.0 + iteration * 0.7,
+                        0.35 - iteration * 0.9
+                    ));
+                    float phase = time * (0.35 + iteration * 0.11) * uWaterSpeed;
+                    float wave = sin(dot(direction, p) * frequency + phase);
+                    float ridge = pow(max(wave, 0.0), 5.0);
 
-                    p += direction * derivative * weight * -0.24;
+                    p += direction * wave * weight * 0.13;
                     waveSum += wave * weight;
+                    ridgeSum += ridge * weight;
                     weightSum += weight;
-                    weight *= 0.72;
-                    frequency *= 1.22;
-                    timeMultiplier *= 1.07;
-                    iteration += 2.399963;
+                    weight *= 0.58;
                 }
 
-                float field = waveSum / weightSum;
-                float centered = field - 0.5;
-                float crest = pow(max(centered * 2.8, 0.0), 2.2);
-                float trough = pow(max(-centered * 2.0, 0.0), 1.35);
-                float contrast = 0.65 + uWaterStrength * 2.0;
+                float centered = waveSum / weightSum;
+                float ridge = ridgeSum / weightSum;
+                float trough = pow(max(-centered * 1.6, 0.0), 1.35);
+                float contrast = 0.55 + uWaterStrength * 1.8;
                 float waterValue = clamp(
-                    0.5 + centered * contrast + crest * (0.12 + uWaterStrength * 0.3) - trough * 0.08,
+                    0.5 + centered * contrast + ridge * (0.08 + uWaterStrength * 0.38) - trough * 0.06,
                     0.02,
                     0.98
                 );
@@ -1136,7 +1130,6 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     uniform,
     uv,
     float,
-    exp,
     max,
     pow,
     mix,
@@ -1207,42 +1200,47 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     function proceduralWater(coord, time) {
       let p = coord.mul(waterScaleUniform);
       let waveSum = float(0);
+      let ridgeSum = float(0);
       let weightSum = float(0);
-      let frequency = 1.0;
-      let timeMultiplier = 0.75;
       let weight = 1.0;
-      const phaseShift = coord.x.add(coord.y).mul(0.1);
+      const directions = [
+        [0.943, 0.330],
+        [0.951, -0.308],
+        [0.856, -0.517],
+        [0.796, -0.605],
+      ];
 
-      for (let i = 0; i < 8; i += 1) {
-        const iteration = i * 2.399963;
-        const directionX = Math.sin(iteration);
-        const directionY = Math.cos(iteration);
+      for (let i = 0; i < 4; i += 1) {
+        const iteration = i;
+        const frequency = 1.0 + iteration * 1.35;
+        const directionX = directions[i][0];
+        const directionY = directions[i][1];
         const direction = vec2(directionX, directionY);
-        const x = p.x
+        const phase = time
+          .mul(0.35 + iteration * 0.11)
+          .mul(waterSpeedUniform);
+        const wave = p.x
           .mul(directionX * frequency)
           .add(p.y.mul(directionY * frequency))
-          .add(time.mul(timeMultiplier).mul(waterSpeedUniform))
-          .add(phaseShift);
-        const wave = exp(x.sin().sub(1));
-        const derivative = wave.mul(x.cos());
+          .add(phase)
+          .sin();
+        const ridge = pow(max(wave, float(0)), float(5));
 
-        p = p.add(direction.mul(derivative.mul(-weight * 0.24)));
+        p = p.add(direction.mul(wave.mul(weight * 0.13)));
         waveSum = waveSum.add(wave.mul(weight));
+        ridgeSum = ridgeSum.add(ridge.mul(weight));
         weightSum = weightSum.add(weight);
-        weight *= 0.72;
-        frequency *= 1.22;
-        timeMultiplier *= 1.07;
+        weight *= 0.58;
       }
 
-      const field = waveSum.div(weightSum);
-      const centered = field.sub(0.5);
-      const crest = pow(max(centered.mul(2.8), float(0)), float(2.2));
-      const trough = pow(max(centered.mul(-2.0), float(0)), float(1.35));
-      const contrast = waterStrengthUniform.mul(2).add(0.65);
+      const centered = waveSum.div(weightSum);
+      const ridge = ridgeSum.div(weightSum);
+      const trough = pow(max(centered.mul(-1.6), float(0)), float(1.35));
+      const contrast = waterStrengthUniform.mul(1.8).add(0.55);
       const waterValue = centered
         .mul(contrast)
-        .add(crest.mul(waterStrengthUniform.mul(0.3).add(0.12)))
-        .sub(trough.mul(0.08))
+        .add(ridge.mul(waterStrengthUniform.mul(0.38).add(0.08)))
+        .sub(trough.mul(0.06))
         .add(0.5)
         .max(0.02)
         .min(0.98);
@@ -1366,7 +1364,9 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
               colorWithOverlay,
             )
         : colorWithOverlay;
-    const waterColor = proceduralWater(baseUv, waterTimeUniform);
+    const waterColor = includeOverlay && layerState.waterEnabled
+      ? proceduralWater(baseUv, waterTimeUniform)
+      : vec3(0.5);
     const texturedColor = includeOverlay
       ? waterEnabledUniform
           .equal(1)
@@ -1557,7 +1557,6 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     vec3,
     vec4,
     float,
-    exp,
     max,
     pow,
     add,
@@ -1621,42 +1620,47 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     function proceduralWater(coord, time) {
       let p = coord.mul(waterScaleUniform);
       let waveSum = float(0);
+      let ridgeSum = float(0);
       let weightSum = float(0);
-      let frequency = 1.0;
-      let timeMultiplier = 0.75;
       let weight = 1.0;
-      const phaseShift = coord.x.add(coord.y).mul(0.1);
+      const directions = [
+        [0.943, 0.330],
+        [0.951, -0.308],
+        [0.856, -0.517],
+        [0.796, -0.605],
+      ];
 
-      for (let i = 0; i < 8; i += 1) {
-        const iteration = i * 2.399963;
-        const directionX = Math.sin(iteration);
-        const directionY = Math.cos(iteration);
+      for (let i = 0; i < 4; i += 1) {
+        const iteration = i;
+        const frequency = 1.0 + iteration * 1.35;
+        const directionX = directions[i][0];
+        const directionY = directions[i][1];
         const direction = vec2(directionX, directionY);
-        const x = p.x
+        const phase = time
+          .mul(0.35 + iteration * 0.11)
+          .mul(waterSpeedUniform);
+        const wave = p.x
           .mul(directionX * frequency)
           .add(p.y.mul(directionY * frequency))
-          .add(time.mul(timeMultiplier).mul(waterSpeedUniform))
-          .add(phaseShift);
-        const wave = exp(x.sin().sub(1));
-        const derivative = wave.mul(x.cos());
+          .add(phase)
+          .sin();
+        const ridge = pow(max(wave, float(0)), float(5));
 
-        p = p.add(direction.mul(derivative.mul(-weight * 0.24)));
+        p = p.add(direction.mul(wave.mul(weight * 0.13)));
         waveSum = waveSum.add(wave.mul(weight));
+        ridgeSum = ridgeSum.add(ridge.mul(weight));
         weightSum = weightSum.add(weight);
-        weight *= 0.72;
-        frequency *= 1.22;
-        timeMultiplier *= 1.07;
+        weight *= 0.58;
       }
 
-      const field = waveSum.div(weightSum);
-      const centered = field.sub(0.5);
-      const crest = pow(max(centered.mul(2.8), float(0)), float(2.2));
-      const trough = pow(max(centered.mul(-2.0), float(0)), float(1.35));
-      const contrast = waterStrengthUniform.mul(2).add(0.65);
+      const centered = waveSum.div(weightSum);
+      const ridge = ridgeSum.div(weightSum);
+      const trough = pow(max(centered.mul(-1.6), float(0)), float(1.35));
+      const contrast = waterStrengthUniform.mul(1.8).add(0.55);
       const waterValue = centered
         .mul(contrast)
-        .add(crest.mul(waterStrengthUniform.mul(0.3).add(0.12)))
-        .sub(trough.mul(0.08))
+        .add(ridge.mul(waterStrengthUniform.mul(0.38).add(0.08)))
+        .sub(trough.mul(0.06))
         .add(0.5)
         .max(0.02)
         .min(0.98);
@@ -1687,7 +1691,9 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
             colorWithOverlay,
           )
       : colorWithOverlay;
-    const waterColor = proceduralWater(uv(), waterTimeUniform);
+    const waterColor = layerState.waterEnabled
+      ? proceduralWater(uv(), waterTimeUniform)
+      : vec3(0.5);
     const texturedColor = waterEnabledUniform
       .equal(1)
       .select(softLightBlend(withStaticTexture, waterColor), withStaticTexture);
