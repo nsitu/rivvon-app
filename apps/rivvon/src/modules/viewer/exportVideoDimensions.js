@@ -23,6 +23,7 @@ export const EXPORT_RESOLUTION_OPTIONS_BY_ASPECT = {
     ],
     square: [
         { label: '1080 (1080×1080)', value: 'square' },
+        { label: '1900 (1900×1900)', value: 'square-1900' },
         { label: '1920 (1920×1920)', value: 'square-1920' },
         { label: '2160 (2160×2160)', value: 'square-2160' },
         { label: '3840 (3840×3840)', value: 'square-3840' },
@@ -68,6 +69,7 @@ export function resolveExportDimensions(options = {}) {
         case '1080p-v': return { width: 1080, height: 1920 };
         case '4k-v': return { width: 2160, height: 3840 };
         case 'square': return { width: 1080, height: 1080 };
+        case 'square-1900': return { width: 1900, height: 1900 };
         case 'square-1920': return { width: 1920, height: 1920 };
         case 'square-2160': return { width: 2160, height: 2160 };
         case 'square-3840': return { width: 3840, height: 3840 };
