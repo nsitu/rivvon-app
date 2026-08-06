@@ -227,7 +227,10 @@ function getBackgroundOverlayState(ctx) {
 }
 
 function getBackgroundLayerState(ctx) {
+  const waterColor = new THREE.Color();
+  waterColor.set(ctx.app.backgroundWaterColor || "#66c7d8");
   const waterScale = Number(ctx.app.backgroundWaterScale);
+  const waterFlow = Number(ctx.app.backgroundWaterFlow);
   const waterSpeed = Number(ctx.app.backgroundWaterSpeed);
   const waterStrength = Number(ctx.app.backgroundWaterStrength);
 
@@ -235,6 +238,10 @@ function getBackgroundLayerState(ctx) {
     baseEnabled: ctx.app.backgroundBaseEnabled !== false,
     staticEnabled: !!ctx.app.backgroundTextureEnabled,
     waterEnabled: !!ctx.app.backgroundWaterEnabled,
+    waterColor,
+    waterFlow: Number.isFinite(waterFlow)
+      ? Math.max(0, Math.min(360, waterFlow))
+      : 35,
     waterScale: Number.isFinite(waterScale)
       ? Math.max(2, Math.min(24, waterScale))
       : 8,
@@ -256,6 +263,8 @@ function createWebGLBackgroundDisplayMaterial(
       uTexture: { value: textureOverlay },
       uStaticTextureEnabled: { value: textureOverlay ? 1 : 0 },
       uWaterEnabled: { value: 0 },
+      uWaterColor: { value: new THREE.Color("#66c7d8") },
+      uWaterFlow: { value: 35 },
       uWaterScale: { value: 8 },
       uWaterSpeed: { value: 1 },
       uWaterStrength: { value: 0.28 },
@@ -279,6 +288,8 @@ function createWebGLBackgroundDisplayMaterial(
             uniform float uWaterScale;
             uniform float uWaterSpeed;
             uniform float uWaterStrength;
+            uniform vec3 uWaterColor;
+            uniform float uWaterFlow;
             uniform float uTime;
             uniform vec3 uOverlayColor;
             uniform float uOverlayOpacity;
@@ -290,13 +301,11 @@ function createWebGLBackgroundDisplayMaterial(
                 return mix(low, high, step(vec3(0.5), blend));
             }
 
-            vec3 proceduralWater(vec2 uv, float time) {
-                vec2 p = uv * uWaterScale;
-                float waveSum = 0.0;
-                float ridgeSum = 0.0;
-                float weightSum = 0.0;
+            float waterField(vec2 coord, float time) {
+                vec2 flow = vec2(cos(radians(uWaterFlow)), sin(radians(uWaterFlow)));
+                vec2 p = coord * uWaterScale - flow * time * uWaterSpeed * 0.12;
+                float field = 0.0;
                 float weight = 1.0;
-
                 for (int i = 0; i < 4; i++) {
                     float iteration = float(i);
                     float frequency = 1.0 + iteration * 1.35;
@@ -304,27 +313,30 @@ function createWebGLBackgroundDisplayMaterial(
                         1.0 + iteration * 0.7,
                         0.35 - iteration * 0.9
                     ));
+                    vec2 crossDirection = vec2(-direction.y, direction.x);
                     float phase = time * (0.35 + iteration * 0.11) * uWaterSpeed;
-                    float wave = sin(dot(direction, p) * frequency + phase);
-                    float ridge = pow(max(wave, 0.0), 5.0);
-
-                    p += direction * wave * weight * 0.13;
-                    waveSum += wave * weight;
-                    ridgeSum += ridge * weight;
-                    weightSum += weight;
+                    float primary = sin(dot(direction, p) * frequency + phase);
+                    float cross = sin(dot(crossDirection, p) * frequency * 1.7 - phase * 0.63);
+                    field += (primary * 0.72 + cross * 0.28) * weight;
                     weight *= 0.58;
+                    p += direction * primary * weight * 0.12;
                 }
+                return field / 2.085;
+            }
 
-                float centered = waveSum / weightSum;
-                float ridge = ridgeSum / weightSum;
-                float trough = pow(max(-centered * 1.6, 0.0), 1.35);
-                float contrast = 0.55 + uWaterStrength * 1.8;
+            vec3 proceduralWater(vec2 uv, float time) {
+                float broadField = waterField(uv, time);
+                float detailField = waterField(uv * 1.77 + vec2(3.1, -1.7), time * 0.67);
                 float waterValue = clamp(
-                    0.5 + centered * contrast + ridge * (0.08 + uWaterStrength * 0.38) - trough * 0.06,
-                    0.02,
-                    0.98
+                    0.5 + broadField * (0.2 + uWaterStrength * 0.34) + detailField * 0.14,
+                    0.05,
+                    0.95
                 );
-                return vec3(waterValue);
+                float glint = pow(max((waterValue - 0.54) * 2.4, 0.0), 3.0);
+                vec3 tint = mix(vec3(0.92, 0.97, 1.0), uWaterColor, 0.72);
+                vec3 water = tint * (0.78 + waterValue * 0.34);
+                water += vec3(0.32, 0.78, 0.96) * glint * (0.08 + uWaterStrength * 0.34);
+                return clamp(water, 0.02, 0.98);
             }
 
             void main() {
@@ -364,6 +376,8 @@ function updateWebGLBackgroundDisplayMaterial(
   material.uniforms.uStaticTextureEnabled.value =
     layerState.staticEnabled && !!textureOverlay ? 1 : 0;
   material.uniforms.uWaterEnabled.value = layerState.waterEnabled ? 1 : 0;
+  material.uniforms.uWaterColor.value.copy(layerState.waterColor);
+  material.uniforms.uWaterFlow.value = layerState.waterFlow;
   material.uniforms.uWaterScale.value = layerState.waterScale;
   material.uniforms.uWaterSpeed.value = layerState.waterSpeed;
   material.uniforms.uWaterStrength.value = layerState.waterStrength;
@@ -1133,6 +1147,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     max,
     pow,
     mix,
+    sin,
+    cos,
     vec2,
     vec3,
     vec4,
@@ -1173,6 +1189,12 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     const waterEnabledUniform = uniform(
       getBackgroundLayerState(ctx).waterEnabled ? 1 : 0,
     );
+    const waterColorUniform = uniform(
+      getBackgroundLayerState(ctx).waterColor,
+    );
+    const waterFlowUniform = uniform(
+      float(getBackgroundLayerState(ctx).waterFlow),
+    );
     const waterScaleUniform = uniform(
       float(getBackgroundLayerState(ctx).waterScale),
     );
@@ -1197,11 +1219,13 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       overlayBlueUniform,
     );
 
-    function proceduralWater(coord, time) {
-      let p = coord.mul(waterScaleUniform);
-      let waveSum = float(0);
-      let ridgeSum = float(0);
-      let weightSum = float(0);
+    function waterField(coord, time) {
+      const angle = waterFlowUniform.mul(Math.PI / 180);
+      const flow = vec2(cos(angle), sin(angle));
+      let p = coord
+        .mul(waterScaleUniform)
+        .sub(flow.mul(time.mul(waterSpeedUniform).mul(0.12)));
+      let field = float(0);
       let weight = 1.0;
       const directions = [
         [0.943, 0.330],
@@ -1215,36 +1239,49 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
         const frequency = 1.0 + iteration * 1.35;
         const directionX = directions[i][0];
         const directionY = directions[i][1];
-        const direction = vec2(directionX, directionY);
+        const crossX = -directionY;
+        const crossY = directionX;
         const phase = time
           .mul(0.35 + iteration * 0.11)
           .mul(waterSpeedUniform);
-        const wave = p.x
+        const primary = p.x
           .mul(directionX * frequency)
           .add(p.y.mul(directionY * frequency))
           .add(phase)
           .sin();
-        const ridge = pow(max(wave, float(0)), float(5));
-
-        p = p.add(direction.mul(wave.mul(weight * 0.13)));
-        waveSum = waveSum.add(wave.mul(weight));
-        ridgeSum = ridgeSum.add(ridge.mul(weight));
-        weightSum = weightSum.add(weight);
+        const cross = p.x
+          .mul(crossX * frequency * 1.7)
+          .add(p.y.mul(crossY * frequency * 1.7))
+          .sub(phase.mul(0.63))
+          .sin();
+        field = field.add(primary.mul(0.72).add(cross.mul(0.28)).mul(weight));
+        p = p.add(vec2(directionX, directionY).mul(primary.mul(weight * 0.12)));
         weight *= 0.58;
       }
 
-      const centered = waveSum.div(weightSum);
-      const ridge = ridgeSum.div(weightSum);
-      const trough = pow(max(centered.mul(-1.6), float(0)), float(1.35));
-      const contrast = waterStrengthUniform.mul(1.8).add(0.55);
-      const waterValue = centered
-        .mul(contrast)
-        .add(ridge.mul(waterStrengthUniform.mul(0.38).add(0.08)))
-        .sub(trough.mul(0.06))
+      return field.div(2.085);
+    }
+
+    function proceduralWater(coord, time) {
+      const broadField = waterField(coord, time);
+      const detailField = waterField(
+        coord.mul(1.77).add(vec2(3.1, -1.7)),
+        time.mul(0.67),
+      );
+      const waterValue = broadField
+        .mul(waterStrengthUniform.mul(0.34).add(0.2))
+        .add(detailField.mul(0.14))
         .add(0.5)
-        .max(0.02)
-        .min(0.98);
-      return vec3(waterValue);
+        .max(0.05)
+        .min(0.95);
+      const glint = pow(
+        max(waterValue.sub(0.54).mul(2.4), float(0)),
+        float(3),
+      );
+      const tint = mix(vec3(0.92, 0.97, 1.0), waterColorUniform, 0.72);
+      return tint
+        .mul(waterValue.mul(0.34).add(0.78))
+        .add(vec3(0.32, 0.78, 0.96).mul(glint.mul(waterStrengthUniform.mul(0.34).add(0.08))));
     }
 
     function softLightBlend(base, blend) {
@@ -1387,6 +1424,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._baseEnabledUniform = baseEnabledUniform;
     material._staticTextureEnabledUniform = staticTextureEnabledUniform;
     material._waterEnabledUniform = waterEnabledUniform;
+    material._waterColorUniform = waterColorUniform;
+    material._waterFlowUniform = waterFlowUniform;
     material._waterScaleUniform = waterScaleUniform;
     material._waterSpeedUniform = waterSpeedUniform;
     material._waterStrengthUniform = waterStrengthUniform;
@@ -1436,6 +1475,12 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     }
     if (material._waterScaleUniform) {
       material._waterScaleUniform.value = layerState.waterScale;
+    }
+    if (material._waterColorUniform) {
+      material._waterColorUniform.value.copy(layerState.waterColor);
+    }
+    if (material._waterFlowUniform) {
+      material._waterFlowUniform.value = layerState.waterFlow;
     }
     if (material._waterSpeedUniform) {
       material._waterSpeedUniform.value = layerState.waterSpeed;
@@ -1527,6 +1572,12 @@ function syncWebGPUTileBackgroundMaterial(
       : 0;
   material._waterEnabledUniform.value =
     includeOverlay && layerState.waterEnabled ? 1 : 0;
+  if (material._waterColorUniform) {
+    material._waterColorUniform.value.copy(layerState.waterColor);
+  }
+  if (material._waterFlowUniform) {
+    material._waterFlowUniform.value = layerState.waterFlow;
+  }
   material._waterScaleUniform.value = layerState.waterScale;
   material._waterSpeedUniform.value = layerState.waterSpeed;
   material._waterStrengthUniform.value = layerState.waterStrength;
@@ -1563,6 +1614,8 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     div,
     mul,
     mix,
+    sin,
+    cos,
   } = await import("three/tsl");
 
   const sampleScene = new THREE.Scene();
@@ -1608,6 +1661,8 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       layerState.staticEnabled && options.textureOverlay ? 1 : 0,
     );
     const waterEnabledUniform = uniform(layerState.waterEnabled ? 1 : 0);
+    const waterColorUniform = uniform(layerState.waterColor);
+    const waterFlowUniform = uniform(float(layerState.waterFlow));
     const waterScaleUniform = uniform(float(layerState.waterScale));
     const waterSpeedUniform = uniform(float(layerState.waterSpeed));
     const waterStrengthUniform = uniform(float(layerState.waterStrength));
@@ -1617,11 +1672,13 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
       vec3(overlayRedUniform, overlayGreenUniform, overlayBlueUniform),
       overlayOpacityUniform,
     );
-    function proceduralWater(coord, time) {
-      let p = coord.mul(waterScaleUniform);
-      let waveSum = float(0);
-      let ridgeSum = float(0);
-      let weightSum = float(0);
+    function waterField(coord, time) {
+      const angle = waterFlowUniform.mul(Math.PI / 180);
+      const flow = vec2(cos(angle), sin(angle));
+      let p = coord
+        .mul(waterScaleUniform)
+        .sub(flow.mul(time.mul(waterSpeedUniform).mul(0.12)));
+      let field = float(0);
       let weight = 1.0;
       const directions = [
         [0.943, 0.330],
@@ -1635,36 +1692,47 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
         const frequency = 1.0 + iteration * 1.35;
         const directionX = directions[i][0];
         const directionY = directions[i][1];
-        const direction = vec2(directionX, directionY);
         const phase = time
           .mul(0.35 + iteration * 0.11)
           .mul(waterSpeedUniform);
-        const wave = p.x
+        const primary = p.x
           .mul(directionX * frequency)
           .add(p.y.mul(directionY * frequency))
           .add(phase)
           .sin();
-        const ridge = pow(max(wave, float(0)), float(5));
-
-        p = p.add(direction.mul(wave.mul(weight * 0.13)));
-        waveSum = waveSum.add(wave.mul(weight));
-        ridgeSum = ridgeSum.add(ridge.mul(weight));
-        weightSum = weightSum.add(weight);
+        const cross = p.x
+          .mul(-directionY * frequency * 1.7)
+          .add(p.y.mul(directionX * frequency * 1.7))
+          .sub(phase.mul(0.63))
+          .sin();
+        field = field.add(primary.mul(0.72).add(cross.mul(0.28)).mul(weight));
+        p = p.add(vec2(directionX, directionY).mul(primary.mul(weight * 0.12)));
         weight *= 0.58;
       }
 
-      const centered = waveSum.div(weightSum);
-      const ridge = ridgeSum.div(weightSum);
-      const trough = pow(max(centered.mul(-1.6), float(0)), float(1.35));
-      const contrast = waterStrengthUniform.mul(1.8).add(0.55);
-      const waterValue = centered
-        .mul(contrast)
-        .add(ridge.mul(waterStrengthUniform.mul(0.38).add(0.08)))
-        .sub(trough.mul(0.06))
+      return field.div(2.085);
+    }
+
+    function proceduralWater(coord, time) {
+      const broadField = waterField(coord, time);
+      const detailField = waterField(
+        coord.mul(1.77).add(vec2(3.1, -1.7)),
+        time.mul(0.67),
+      );
+      const waterValue = broadField
+        .mul(waterStrengthUniform.mul(0.34).add(0.2))
+        .add(detailField.mul(0.14))
         .add(0.5)
-        .max(0.02)
-        .min(0.98);
-      return vec3(waterValue);
+        .max(0.05)
+        .min(0.95);
+      const glint = pow(
+        max(waterValue.sub(0.54).mul(2.4), float(0)),
+        float(3),
+      );
+      const tint = mix(vec3(0.92, 0.97, 1.0), waterColorUniform, 0.72);
+      return tint
+        .mul(waterValue.mul(0.34).add(0.78))
+        .add(vec3(0.32, 0.78, 0.96).mul(glint.mul(waterStrengthUniform.mul(0.34).add(0.08))));
     }
 
     function softLightBlend(base, blend) {
@@ -1710,6 +1778,8 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     material._waterTimeUniform = waterTimeUniform;
     material._staticTextureEnabledUniform = staticTextureEnabledUniform;
     material._waterEnabledUniform = waterEnabledUniform;
+    material._waterColorUniform = waterColorUniform;
+    material._waterFlowUniform = waterFlowUniform;
     material._waterScaleUniform = waterScaleUniform;
     material._waterSpeedUniform = waterSpeedUniform;
     material._waterStrengthUniform = waterStrengthUniform;
@@ -1744,6 +1814,8 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     displayMaterial._staticTextureEnabledUniform.value =
       layerState.staticEnabled && displayMaterial._hasStaticTexture ? 1 : 0;
     displayMaterial._waterEnabledUniform.value = layerState.waterEnabled ? 1 : 0;
+    displayMaterial._waterColorUniform.value.copy(layerState.waterColor);
+    displayMaterial._waterFlowUniform.value = layerState.waterFlow;
     displayMaterial._waterScaleUniform.value = layerState.waterScale;
     displayMaterial._waterSpeedUniform.value = layerState.waterSpeed;
     displayMaterial._waterStrengthUniform.value = layerState.waterStrength;

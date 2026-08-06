@@ -100,6 +100,10 @@ const DEFAULT_BACKGROUND_OVERLAY_COLOR = "#ffffff";
 const DEFAULT_BACKGROUND_OVERLAY_OPACITY = 0.35;
 const DEFAULT_BACKGROUND_BASE_ENABLED = true;
 const DEFAULT_BACKGROUND_WATER_ENABLED = false;
+const DEFAULT_BACKGROUND_WATER_COLOR = "#66c7d8";
+const DEFAULT_BACKGROUND_WATER_FLOW = 35;
+const MIN_BACKGROUND_WATER_FLOW = 0;
+const MAX_BACKGROUND_WATER_FLOW = 360;
 const DEFAULT_BACKGROUND_WATER_SCALE = 8.0;
 const MIN_BACKGROUND_WATER_SCALE = 2.0;
 const MAX_BACKGROUND_WATER_SCALE = 24.0;
@@ -431,6 +435,33 @@ function normalizeBackgroundWaterScale(value) {
   );
 }
 
+function normalizeBackgroundWaterColor(value) {
+  if (typeof value !== "string") {
+    return DEFAULT_BACKGROUND_WATER_COLOR;
+  }
+
+  const normalized = value.trim().replace(/^#/, "").toLowerCase();
+  if (/^[0-9a-f]{3}$/.test(normalized)) {
+    return `#${normalized
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")}`;
+  }
+
+  return /^[0-9a-f]{6}$/.test(normalized)
+    ? `#${normalized}`
+    : DEFAULT_BACKGROUND_WATER_COLOR;
+}
+
+function normalizeBackgroundWaterFlow(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_WATER_FLOW;
+  return Math.min(
+    MAX_BACKGROUND_WATER_FLOW,
+    Math.max(MIN_BACKGROUND_WATER_FLOW, parsed),
+  );
+}
+
 function normalizeBackgroundWaterSpeed(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_WATER_SPEED;
@@ -714,6 +745,12 @@ export const useViewerStore = defineStore("viewer", {
       backgroundWaterEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundWaterEnabled,
         DEFAULT_BACKGROUND_WATER_ENABLED,
+      ),
+      backgroundWaterColor: normalizeBackgroundWaterColor(
+        readViewerPreferences().backgroundWaterColor,
+      ),
+      backgroundWaterFlow: normalizeBackgroundWaterFlow(
+        readViewerPreferences().backgroundWaterFlow,
       ),
       backgroundWaterScale: normalizeBackgroundWaterScale(
         readViewerPreferences().backgroundWaterScale,
@@ -1003,6 +1040,8 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
       this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
       this.backgroundWaterEnabled = DEFAULT_BACKGROUND_WATER_ENABLED;
+      this.backgroundWaterColor = DEFAULT_BACKGROUND_WATER_COLOR;
+      this.backgroundWaterFlow = DEFAULT_BACKGROUND_WATER_FLOW;
       this.backgroundWaterScale = DEFAULT_BACKGROUND_WATER_SCALE;
       this.backgroundWaterSpeed = DEFAULT_BACKGROUND_WATER_SPEED;
       this.backgroundWaterStrength = DEFAULT_BACKGROUND_WATER_STRENGTH;
@@ -1088,6 +1127,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
         backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
         backgroundWaterEnabled: DEFAULT_BACKGROUND_WATER_ENABLED,
+        backgroundWaterColor: DEFAULT_BACKGROUND_WATER_COLOR,
+        backgroundWaterFlow: DEFAULT_BACKGROUND_WATER_FLOW,
         backgroundWaterScale: DEFAULT_BACKGROUND_WATER_SCALE,
         backgroundWaterSpeed: DEFAULT_BACKGROUND_WATER_SPEED,
         backgroundWaterStrength: DEFAULT_BACKGROUND_WATER_STRENGTH,
@@ -1337,6 +1378,18 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundWaterEnabled: nextValue });
     },
 
+    setBackgroundWaterColor(color) {
+      const nextValue = normalizeBackgroundWaterColor(color);
+      this.backgroundWaterColor = nextValue;
+      writeViewerPreferences({ backgroundWaterColor: nextValue });
+    },
+
+    setBackgroundWaterFlow(value) {
+      const nextValue = normalizeBackgroundWaterFlow(value);
+      this.backgroundWaterFlow = nextValue;
+      writeViewerPreferences({ backgroundWaterFlow: nextValue });
+    },
+
     setBackgroundWaterScale(value) {
       const nextValue = normalizeBackgroundWaterScale(value);
       this.backgroundWaterScale = nextValue;
@@ -1533,6 +1586,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTexture: this.backgroundTexture,
         backgroundBaseEnabled: this.backgroundBaseEnabled,
         backgroundWaterEnabled: this.backgroundWaterEnabled,
+        backgroundWaterColor: this.backgroundWaterColor,
+        backgroundWaterFlow: this.backgroundWaterFlow,
         backgroundWaterScale: this.backgroundWaterScale,
         backgroundWaterSpeed: this.backgroundWaterSpeed,
         backgroundWaterStrength: this.backgroundWaterStrength,
@@ -1627,6 +1682,8 @@ export const useViewerStore = defineStore("viewer", {
         this.backgroundTexture !== original.backgroundTexture ||
         this.backgroundBaseEnabled !== original.backgroundBaseEnabled ||
         this.backgroundWaterEnabled !== original.backgroundWaterEnabled ||
+        this.backgroundWaterColor !== original.backgroundWaterColor ||
+        this.backgroundWaterFlow !== original.backgroundWaterFlow ||
         this.backgroundWaterScale !== original.backgroundWaterScale ||
         this.backgroundWaterSpeed !== original.backgroundWaterSpeed ||
         this.backgroundWaterStrength !== original.backgroundWaterStrength ||

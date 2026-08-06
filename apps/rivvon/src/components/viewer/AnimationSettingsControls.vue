@@ -142,6 +142,28 @@
         set: (value) => app.setBackgroundWaterEnabled(!!value),
     });
 
+    const backgroundWaterColorModel = computed({
+        get: () => app.backgroundWaterColor,
+        set: (value) => app.setBackgroundWaterColor(value),
+    });
+
+    const backgroundWaterColorPickerModel = computed({
+        get: () => backgroundWaterColorModel.value.replace('#', ''),
+        set: (value) => {
+            app.setBackgroundWaterColor(
+                typeof value === 'string' ? `#${value.replace(/^#/, '')}` : value
+            );
+        }
+    });
+
+    const backgroundWaterColorInputModel = computed(
+        () => backgroundWaterColorModel.value.toUpperCase()
+    );
+
+    const backgroundWaterFlowDisplay = computed(
+        () => `${Math.round(app.backgroundWaterFlow)}°`,
+    );
+
     const backgroundWaterScaleDisplay = computed(
         () => `${app.backgroundWaterScale.toFixed(1)}x`,
     );
@@ -240,6 +262,14 @@
 
     function handleBackgroundWaterScaleInput(event) {
         app.setBackgroundWaterScale(parseFloat(event.target.value));
+    }
+
+    function onBackgroundWaterColorInput(event) {
+        app.setBackgroundWaterColor(event.target.value);
+    }
+
+    function handleBackgroundWaterFlowInput(event) {
+        app.setBackgroundWaterFlow(parseFloat(event.target.value));
     }
 
     function handleBackgroundWaterSpeedInput(event) {
@@ -711,6 +741,62 @@
                     </div>
 
                     <template v-if="backgroundWaterModel">
+                        <div class="tools-color-row">
+                            <label
+                                class="tools-color-main"
+                                :for="getInputId('background-water-color')"
+                            >
+                                <span
+                                    class="tools-color-swatch"
+                                    :style="{ backgroundColor: backgroundWaterColorModel }"
+                                ></span>
+                                <span>Water Tint</span>
+                            </label>
+                            <div class="tools-color-control">
+                                <input
+                                    :id="getInputId('background-water-color-hex')"
+                                    type="text"
+                                    class="background-overlay-hex"
+                                    :value="backgroundWaterColorInputModel"
+                                    maxlength="7"
+                                    spellcheck="false"
+                                    autocomplete="off"
+                                    aria-label="Water tint hex code"
+                                    @change="onBackgroundWaterColorInput"
+                                />
+                                <ColorPickerPopover
+                                    :inputId="getInputId('background-water-color')"
+                                    v-model="backgroundWaterColorPickerModel"
+                                    format="hex"
+                                    class="tools-color-picker"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label">
+                                    <span class="material-symbols-outlined">water</span>
+                                    <span>Water Flow</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ backgroundWaterFlowDisplay }}</span>
+                            </div>
+                            <input
+                                :id="getInputId('background-water-flow')"
+                                type="range"
+                                min="0"
+                                max="360"
+                                step="1"
+                                :value="app.backgroundWaterFlow"
+                                @input="handleBackgroundWaterFlowInput"
+                                class="tools-native-range"
+                            />
+                            <div class="tools-slider-caption">
+                                <span>Right</span>
+                                <span>Full circle</span>
+                            </div>
+                        </div>
+
                         <div class="tools-slider-block">
                             <div class="tools-slider-head">
                                 <label class="tools-slider-label">

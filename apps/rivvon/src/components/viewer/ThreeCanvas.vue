@@ -234,6 +234,8 @@
 
     watch(() => [
         app.backgroundWaterEnabled,
+        app.backgroundWaterColor,
+        app.backgroundWaterFlow,
         app.backgroundWaterScale,
         app.backgroundWaterSpeed,
         app.backgroundWaterStrength,
