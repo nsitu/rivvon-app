@@ -61,6 +61,10 @@
     });
 
     const sphericalProjectionWrapDegreesLabel = computed(() => `${Math.round(app.sphericalProjectionWrapDegrees)}°`);
+    const sphericalProjectionVerticalWrapDegreesLabel = computed(() => {
+        const degrees = `${Math.round(app.sphericalProjectionVerticalWrapDegrees)}°`;
+        return app.sphericalProjectionVerticalWrapAuto ? `${degrees} Auto` : degrees;
+    });
 
     const ribbonPathAlignmentModel = computed({
         get: () => app.ribbonPathAlignmentMode,
@@ -207,6 +211,18 @@
                                 step="5"
                                 :value="app.sphericalProjectionWrapDegrees"
                                 @input="app.setSphericalProjectionWrapDegrees(parseFloat($event.target.value))"
+                            />
+                        </div>
+                        <div class="tools-slider">
+                            <label>Vertical Wrap <span class="tools-slider-value">{{
+                                sphericalProjectionVerticalWrapDegreesLabel }}</span></label>
+                            <input
+                                type="range"
+                                min="0"
+                                max="180"
+                                step="5"
+                                :value="app.sphericalProjectionVerticalWrapDegrees"
+                                @input="app.setSphericalProjectionVerticalWrapDegrees(parseFloat($event.target.value))"
                             />
                         </div>
                     </div>

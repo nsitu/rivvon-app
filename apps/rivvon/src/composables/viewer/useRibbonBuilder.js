@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Ribbon } from '../../modules/viewer/ribbon';
 import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
+import { getSphericalProjectionArtworkAspectRatio } from '../../modules/viewer/sphericalProjection';
 import {
     DEFAULT_CLOCK_SETTINGS,
     DEFAULT_SINE_WAVE_SETTINGS,
@@ -17,6 +18,11 @@ import {
  * @param {Object} ctx - Shared context refs from useThreeSetup
  */
 export function useRibbonBuilder(ctx) {
+
+    function resetSphericalVerticalWrapForArtwork(pathsPoints) {
+        const aspectRatio = getSphericalProjectionArtworkAspectRatio(pathsPoints);
+        ctx.app.resetSphericalProjectionVerticalWrapForArtwork?.(aspectRatio);
+    }
 
     function getDefaultProceduralSettings(type) {
         return type === 'clock'
@@ -86,6 +92,7 @@ export function useRibbonBuilder(ctx) {
 
         // Use RibbonSeries even for single path to ensure consistent animation
         // (wave undulation and texture flow work the same way)
+        resetSphericalVerticalWrapForArtwork([points]);
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
@@ -126,6 +133,7 @@ export function useRibbonBuilder(ctx) {
         }
 
         // Create new ribbon series - constructor only takes scene
+        resetSphericalVerticalWrapForArtwork(pointsArray);
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
@@ -183,6 +191,7 @@ export function useRibbonBuilder(ctx) {
         const smoothedPoints = tempRibbon.smoothPoints(sanitizedPoints, 150);
 
         // Use RibbonSeries for consistent animation behavior
+        resetSphericalVerticalWrapForArtwork([smoothedPoints]);
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);

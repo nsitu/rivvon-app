@@ -21,7 +21,9 @@ import {
 import { normalizeTextureOverviewLayoutStrategy } from "../modules/viewer/textureOverviewLayout.js";
 import {
   DEFAULT_SPHERICAL_WRAP_DEGREES,
+  deriveSphericalProjectionVerticalWrapDegrees,
   normalizeSphericalProjectionWrapDegrees,
+  normalizeSphericalProjectionVerticalWrapDegrees,
 } from "../modules/viewer/sphericalProjection.js";
 import { normalizeArtworkMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
@@ -811,6 +813,9 @@ export const useViewerStore = defineStore("viewer", {
       sphericalProjectionWrapDegrees: normalizeSphericalProjectionWrapDegrees(
         readViewerPreferences().sphericalProjectionWrapDegrees,
       ),
+      sphericalProjectionVerticalWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
+      sphericalProjectionVerticalWrapAuto: true,
+      sphericalProjectionArtworkAspectRatio: 1,
 
       // Texture state
       textureRepeatMode: "mirrorTile", // 'wrap' | 'mirrorTile'
@@ -1102,6 +1107,10 @@ export const useViewerStore = defineStore("viewer", {
       this.cornerNarrowingEnabled = false;
       this.sphericalProjectionEnabled = false;
       this.sphericalProjectionWrapDegrees = DEFAULT_SPHERICAL_WRAP_DEGREES;
+      this.sphericalProjectionVerticalWrapDegrees =
+        DEFAULT_SPHERICAL_WRAP_DEGREES;
+      this.sphericalProjectionVerticalWrapAuto = true;
+      this.sphericalProjectionArtworkAspectRatio = 1;
       this.showTextureMetadataOverlay = false;
       this.screenWakeLockEnabled = true;
       this.clearHeadTrackingFeedback();
@@ -1641,6 +1650,10 @@ export const useViewerStore = defineStore("viewer", {
         cornerNarrowingEnabled: this.cornerNarrowingEnabled,
         sphericalProjectionEnabled: this.sphericalProjectionEnabled,
         sphericalProjectionWrapDegrees: this.sphericalProjectionWrapDegrees,
+        sphericalProjectionVerticalWrapDegrees:
+          this.sphericalProjectionVerticalWrapDegrees,
+        sphericalProjectionVerticalWrapAuto:
+          this.sphericalProjectionVerticalWrapAuto,
         showTextureMetadataOverlay: this.showTextureMetadataOverlay,
         screenWakeLockEnabled: this.screenWakeLockEnabled,
       };
@@ -1748,6 +1761,10 @@ export const useViewerStore = defineStore("viewer", {
           original.sphericalProjectionEnabled ||
         this.sphericalProjectionWrapDegrees !==
           original.sphericalProjectionWrapDegrees ||
+        this.sphericalProjectionVerticalWrapDegrees !==
+          original.sphericalProjectionVerticalWrapDegrees ||
+        this.sphericalProjectionVerticalWrapAuto !==
+          original.sphericalProjectionVerticalWrapAuto ||
         this.showTextureMetadataOverlay !==
           original.showTextureMetadataOverlay ||
         this.screenWakeLockEnabled !== original.screenWakeLockEnabled
@@ -2273,7 +2290,36 @@ export const useViewerStore = defineStore("viewer", {
     setSphericalProjectionWrapDegrees(value) {
       const nextValue = normalizeSphericalProjectionWrapDegrees(value);
       this.sphericalProjectionWrapDegrees = nextValue;
+
+      if (this.sphericalProjectionVerticalWrapAuto) {
+        this.sphericalProjectionVerticalWrapDegrees =
+          deriveSphericalProjectionVerticalWrapDegrees(
+            nextValue,
+            this.sphericalProjectionArtworkAspectRatio,
+          );
+      }
+
       writeViewerPreferences({ sphericalProjectionWrapDegrees: nextValue });
+    },
+
+    setSphericalProjectionVerticalWrapDegrees(value) {
+      const nextValue = normalizeSphericalProjectionVerticalWrapDegrees(value);
+      if (nextValue === null) return;
+
+      this.sphericalProjectionVerticalWrapDegrees = nextValue;
+      this.sphericalProjectionVerticalWrapAuto = false;
+    },
+
+    resetSphericalProjectionVerticalWrapForArtwork(aspectRatio) {
+      const parsed = Number(aspectRatio);
+      this.sphericalProjectionArtworkAspectRatio =
+        Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
+      this.sphericalProjectionVerticalWrapAuto = true;
+      this.sphericalProjectionVerticalWrapDegrees =
+        deriveSphericalProjectionVerticalWrapDegrees(
+          this.sphericalProjectionWrapDegrees,
+          this.sphericalProjectionArtworkAspectRatio,
+        );
     },
   },
 
@@ -2309,6 +2355,8 @@ export const useViewerStore = defineStore("viewer", {
       sphericalProjectionEnabled: state.sphericalProjectionEnabled,
       sphericalProjectionWrapDegrees:
         state.sphericalProjectionWrapDegrees || DEFAULT_SPHERICAL_WRAP_DEGREES,
+      sphericalProjectionVerticalWrapDegrees:
+        state.sphericalProjectionVerticalWrapDegrees,
     }),
     toolsPanelHasChanges: (state) => state.hasToolsPanelChanges(),
   },
