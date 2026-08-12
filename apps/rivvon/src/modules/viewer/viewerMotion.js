@@ -1,4 +1,4 @@
-import { Euler, MathUtils, Quaternion } from "three";
+import { MathUtils, Quaternion, Vector3 } from "three";
 import {
   DEFAULT_SEAMLESS_LOOP_COUNT as DEFAULT_ARTWORK_MOTION_LOOP_COUNT,
   SEAMLESS_LOOP_COUNTS as ARTWORK_MOTION_LOOP_COUNTS,
@@ -50,34 +50,11 @@ export const ARTWORK_MOTION_OPTIONS = [
   },
 ];
 
-// A small, deterministic Fourier series gives us band-limited periodic noise.
-// Integer frequencies make the value and slope repeat at every loop seam.
-const TUMBLE_HARMONICS = {
-  x: [
-    [1, MathUtils.degToRad(13), 0.35],
-    [2, MathUtils.degToRad(6), 2.1],
-    [4, MathUtils.degToRad(2), -0.7],
-  ],
-  y: [
-    [1, MathUtils.degToRad(18), 1.4],
-    [3, MathUtils.degToRad(7), -0.25],
-    [5, MathUtils.degToRad(2.5), 2.6],
-  ],
-  z: [
-    [2, MathUtils.degToRad(7), 0.8],
-    [3, MathUtils.degToRad(3.5), 2.35],
-    [5, MathUtils.degToRad(1.5), -1.1],
-  ],
-};
-
-function evaluatePeriodicNoise(harmonics, phase) {
-  return harmonics.reduce((value, [frequency, amplitude, offset]) => (
-    value
-    + amplitude * (
-      Math.sin(phase * frequency + offset) - Math.sin(offset)
-    )
-  ), 0);
-}
+// One coherent revolution around a diagonal axis reads as rigid-body motion.
+// A very small orthogonal wobble keeps it from feeling mechanically perfect.
+const TUMBLE_AXIS = new Vector3(0.68, 0.55, 0.48).normalize();
+const TUMBLE_WOBBLE_AXIS = new Vector3(-0.45, 0.82, -0.35).normalize();
+const TUMBLE_WOBBLE_RADIANS = MathUtils.degToRad(4);
 
 export function normalizeArtworkMotionMode(value) {
   return ARTWORK_MOTION_MODES.includes(value)
@@ -96,7 +73,7 @@ export function getArtworkMotionAngle(progress, direction = 1) {
 export function getTumbleOrbitQuaternionAtProgress(
   progress,
   target = new Quaternion(),
-  rotation = new Euler(),
+  wobble = new Quaternion(),
 ) {
   const normalizedProgress = MathUtils.euclideanModulo(Number(progress) || 0, 1);
   if (normalizedProgress === 0) {
@@ -104,12 +81,11 @@ export function getTumbleOrbitQuaternionAtProgress(
   }
 
   const phase = normalizedProgress * Math.PI * 2;
-  rotation.set(
-    evaluatePeriodicNoise(TUMBLE_HARMONICS.x, phase),
-    evaluatePeriodicNoise(TUMBLE_HARMONICS.y, phase),
-    evaluatePeriodicNoise(TUMBLE_HARMONICS.z, phase),
-    "YXZ",
+  target.setFromAxisAngle(TUMBLE_AXIS, phase);
+  wobble.setFromAxisAngle(
+    TUMBLE_WOBBLE_AXIS,
+    Math.sin(phase) * TUMBLE_WOBBLE_RADIANS,
   );
 
-  return target.setFromEuler(rotation).normalize();
+  return target.premultiply(wobble).normalize();
 }

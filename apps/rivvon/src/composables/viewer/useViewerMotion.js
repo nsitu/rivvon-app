@@ -1,4 +1,4 @@
-import { Euler, Quaternion, Vector3 } from "three";
+import { Quaternion, Vector3 } from "three";
 import { watch } from "vue";
 import {
   getArtworkMotionAngle,
@@ -26,7 +26,7 @@ export function useViewerMotion(ctx) {
   const orbitOffset = new Vector3();
   const pitchAxis = new Vector3();
   const tumbleQuaternion = new Quaternion();
-  const tumbleRotation = new Euler();
+  const tumbleWobble = new Quaternion();
 
   function resolveRoot() {
     return ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
@@ -152,7 +152,7 @@ export function useViewerMotion(ctx) {
     getTumbleOrbitQuaternionAtProgress(
       progress,
       tumbleQuaternion,
-      tumbleRotation,
+      tumbleWobble,
     );
     baseline.root.position.copy(baseline.position);
     baseline.root.quaternion

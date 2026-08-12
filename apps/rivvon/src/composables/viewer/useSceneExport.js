@@ -1,7 +1,7 @@
 // src/composables/viewer/useSceneExport.js
 // Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
 
-import { Euler, Quaternion, Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
@@ -768,7 +768,7 @@ export function useSceneExport(ctx, deps = {}) {
         let tumbleOrbitBasePosition = null;
         let tumbleOrbitBaseQuaternion = null;
         const tumbleOrbitRotation = new Quaternion();
-        const tumbleOrbitEuler = new Euler();
+        const tumbleOrbitWobble = new Quaternion();
 
         // Compute total frames (after cinematic setup which may have updated exportDuration)
         const totalFrames = Math.ceil(exportDuration * fps);
@@ -924,7 +924,7 @@ export function useSceneExport(ctx, deps = {}) {
                     getTumbleOrbitQuaternionAtProgress(
                         motionProgress,
                         tumbleOrbitRotation,
-                        tumbleOrbitEuler,
+                        tumbleOrbitWobble,
                     );
                     tumbleOrbitRoot.position.copy(tumbleOrbitBasePosition);
                     tumbleOrbitRoot.quaternion

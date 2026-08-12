@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Euler, Quaternion } from 'three';
+import { Quaternion } from 'three';
 import {
     getTumbleOrbitQuaternionAtProgress,
     normalizeArtworkMotionMode,
@@ -29,23 +29,28 @@ describe('tumble orbit motion', () => {
         }
     });
 
-    it('produces normalized, non-trivial rotation on all three axes', () => {
-        let maxX = 0;
-        let maxY = 0;
-        let maxZ = 0;
-
+    it('stays normalized and advances at a calm, coherent angular rate', () => {
+        const angularSteps = [];
+        let previous = getTumbleOrbitQuaternionAtProgress(0);
         for (let sample = 1; sample < 100; sample += 1) {
             const quaternion = getTumbleOrbitQuaternionAtProgress(sample / 100);
-            const rotation = new Euler().setFromQuaternion(quaternion, 'YXZ');
-            maxX = Math.max(maxX, Math.abs(rotation.x));
-            maxY = Math.max(maxY, Math.abs(rotation.y));
-            maxZ = Math.max(maxZ, Math.abs(rotation.z));
             expect(quaternion.length()).toBeCloseTo(1, 12);
+            angularSteps.push(previous.angleTo(quaternion));
+            previous = quaternion;
         }
 
-        expect(maxX).toBeGreaterThan(0.1);
-        expect(maxY).toBeGreaterThan(0.1);
-        expect(maxZ).toBeGreaterThan(0.05);
+        const slowestStep = Math.min(...angularSteps);
+        const fastestStep = Math.max(...angularSteps);
+        expect(fastestStep / slowestStep).toBeLessThan(1.2);
+    });
+
+    it('crosses the loop seam with the same angular step as the rest of the path', () => {
+        const sampleCount = 360;
+        const beforeSeam = getTumbleOrbitQuaternionAtProgress((sampleCount - 1) / sampleCount);
+        const seam = getTumbleOrbitQuaternionAtProgress(1);
+        const afterSeam = getTumbleOrbitQuaternionAtProgress(1 + (1 / sampleCount));
+
+        expect(beforeSeam.angleTo(seam)).toBeCloseTo(seam.angleTo(afterSeam), 10);
     });
 
     it('can reuse a target quaternion', () => {
