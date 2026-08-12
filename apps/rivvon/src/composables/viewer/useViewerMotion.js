@@ -1,7 +1,8 @@
-import { Quaternion, Vector3 } from "three";
+import { Euler, Quaternion, Vector3 } from "three";
 import { watch } from "vue";
 import {
   getArtworkMotionAngle,
+  getTumbleOrbitQuaternionAtProgress,
   normalizeArtworkMotionMode,
 } from "../../modules/viewer/viewerMotion.js";
 import { getCircularTiltAnglesAtProgress } from "../../modules/viewer/mouseTiltMotion.js";
@@ -24,6 +25,8 @@ export function useViewerMotion(ctx) {
   const orbitRotation = new Quaternion();
   const orbitOffset = new Vector3();
   const pitchAxis = new Vector3();
+  const tumbleQuaternion = new Quaternion();
+  const tumbleRotation = new Euler();
 
   function resolveRoot() {
     return ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
@@ -145,6 +148,18 @@ export function useViewerMotion(ctx) {
       .premultiply(orbitRotation);
   }
 
+  function applyTumbleOrbit(progress) {
+    getTumbleOrbitQuaternionAtProgress(
+      progress,
+      tumbleQuaternion,
+      tumbleRotation,
+    );
+    baseline.root.position.copy(baseline.position);
+    baseline.root.quaternion
+      .copy(baseline.quaternion)
+      .premultiply(tumbleQuaternion);
+  }
+
   function tick(now) {
     syncMode(now);
     if (activeMode === "none" || motionStartTime == null || !baseline) {
@@ -164,6 +179,8 @@ export function useViewerMotion(ctx) {
       applyCircularOrbit(progress, 1);
     } else if (activeMode === "circularOrbitReverse") {
       applyCircularOrbit(progress, -1);
+    } else if (activeMode === "tumbleOrbit") {
+      applyTumbleOrbit(progress);
     }
 
     baseline.root.updateMatrixWorld(true);

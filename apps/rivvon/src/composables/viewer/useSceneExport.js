@@ -1,9 +1,10 @@
 // src/composables/viewer/useSceneExport.js
 // Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
 
-import { Quaternion, Vector3 } from 'three';
+import { Euler, Quaternion, Vector3 } from 'three';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
+import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
 import {
     DEFAULT_SEAMLESS_LOOP_COUNT,
     getSeamlessLoopDuration as getSharedSeamlessLoopDuration,
@@ -655,7 +656,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
-    * @param {string} options.artworkMotionMode - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse'
+    * @param {string} options.artworkMotionMode - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse' | 'tumbleOrbit'
      * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'very-high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
@@ -763,6 +764,11 @@ export function useSceneExport(ctx, deps = {}) {
         const circularOrbitDirection = artworkMotionMode === 'circularOrbitReverse' ? -1 : 1;
         const circularOrbitRotation = new Quaternion();
         const circularOrbitOffset = new Vector3();
+        let tumbleOrbitRoot = null;
+        let tumbleOrbitBasePosition = null;
+        let tumbleOrbitBaseQuaternion = null;
+        const tumbleOrbitRotation = new Quaternion();
+        const tumbleOrbitEuler = new Euler();
 
         // Compute total frames (after cinematic setup which may have updated exportDuration)
         const totalFrames = Math.ceil(exportDuration * fps);
@@ -806,6 +812,17 @@ export function useSceneExport(ctx, deps = {}) {
                     circularOrbitReady = true;
                 } else {
                     console.warn('[ThreeSetup] Circular orbit export requested but no ribbon root is available — artwork will stay fixed');
+                }
+            }
+
+            if (artworkMotionMode === 'tumbleOrbit') {
+                tumbleOrbitRoot = ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
+
+                if (tumbleOrbitRoot) {
+                    tumbleOrbitBasePosition = tumbleOrbitRoot.position.clone();
+                    tumbleOrbitBaseQuaternion = tumbleOrbitRoot.quaternion.clone();
+                } else {
+                    console.warn('[ThreeSetup] Tumble orbit export requested but no ribbon root is available — artwork will stay fixed');
                 }
             }
 
@@ -902,6 +919,20 @@ export function useSceneExport(ctx, deps = {}) {
                     circularOrbitRoot.updateMatrixWorld(true);
                 }
 
+                if (tumbleOrbitRoot && tumbleOrbitBasePosition && tumbleOrbitBaseQuaternion) {
+                    const motionProgress = totalFrames <= 1 ? 0 : frame / (totalFrames - 1);
+                    getTumbleOrbitQuaternionAtProgress(
+                        motionProgress,
+                        tumbleOrbitRotation,
+                        tumbleOrbitEuler,
+                    );
+                    tumbleOrbitRoot.position.copy(tumbleOrbitBasePosition);
+                    tumbleOrbitRoot.quaternion
+                        .copy(tumbleOrbitBaseQuaternion)
+                        .premultiply(tumbleOrbitRotation);
+                    tumbleOrbitRoot.updateMatrixWorld(true);
+                }
+
                 // Render this frame at the exact synthetic time
                 renderFrameAtTime(t, animationDelta, {
                     blurMode: 'export',
@@ -947,6 +978,12 @@ export function useSceneExport(ctx, deps = {}) {
                 circularOrbitRoot.position.copy(circularOrbitBasePosition);
                 circularOrbitRoot.quaternion.copy(circularOrbitBaseQuaternion);
                 circularOrbitRoot.updateMatrixWorld(true);
+            }
+
+            if (tumbleOrbitRoot && tumbleOrbitBasePosition && tumbleOrbitBaseQuaternion) {
+                tumbleOrbitRoot.position.copy(tumbleOrbitBasePosition);
+                tumbleOrbitRoot.quaternion.copy(tumbleOrbitBaseQuaternion);
+                tumbleOrbitRoot.updateMatrixWorld(true);
             }
 
             // --- Restore renderer state ---

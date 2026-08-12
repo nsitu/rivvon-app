@@ -140,7 +140,8 @@
 
     const viewerMotionLoopDescription = computed(() => {
         const count = app.viewerMotionLoopCount;
-        return `One full artwork turn spans ${count} seamless material ${count === 1 ? 'loop' : 'loops'}.`;
+        const motionLabel = app.artworkMotionMode === 'tumbleOrbit' ? 'tumble path' : 'artwork turn';
+        return `One full ${motionLabel} spans ${count} seamless material ${count === 1 ? 'loop' : 'loops'}.`;
     });
 
     const showHeadTrackingTools = computed(() => (

@@ -104,6 +104,7 @@
             { label: 'Circular Tilt', value: 'circularTilt', description: 'Artwork tilts through one full 360° rotation over the export duration' },
             { label: 'Counterclockwise Orbit', value: 'circularOrbit', description: 'View completes one full counterclockwise orbit around the artwork center over the export duration' },
             { label: 'Clockwise Orbit', value: 'circularOrbitReverse', description: 'View completes one full clockwise orbit around the artwork center over the export duration' },
+            { label: 'Tumble Orbit', value: 'tumbleOrbit', description: 'Artwork follows a seamless organic tumble across all three axes' },
         ];
     });
 
@@ -246,6 +247,9 @@
         if (isCircularOrbitMovement(artworkMotionMode.value)) {
             return `One full 360° ${getCircularOrbitDirectionLabel(artworkMotionMode.value)} orbit around the artwork center over ${formatDuration(resolvedDuration.value)}.`;
         }
+        if (artworkMotionMode.value === 'tumbleOrbit') {
+            return `A seamless three-axis artwork tumble over ${formatDuration(resolvedDuration.value)}.`;
+        }
         return `Seamless loop — enabled cycles return to start after ${formatDuration(seamlessLoopDuration.value)}.`;
     });
 
@@ -274,6 +278,10 @@
 
         if (isCircularOrbitMovement(artworkMotionMode.value)) {
             return `Circular Orbit (${getCircularOrbitDirectionLabel(artworkMotionMode.value)}) completes one full 360° turntable-style orbit over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+        }
+
+        if (artworkMotionMode.value === 'tumbleOrbit') {
+            return `Tumble Orbit follows a deterministic three-axis path and returns exactly to its starting orientation. In auto mode the path spans ${formatDuration(resolvedDuration.value)}.`;
         }
 
         return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;
