@@ -1,6 +1,7 @@
 <script setup>
     import { computed, getCurrentInstance } from 'vue';
     import Select from 'primevue/select';
+    import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
 
@@ -61,9 +62,25 @@
     });
 
     const sphericalProjectionWrapDegreesLabel = computed(() => `${Math.round(app.sphericalProjectionWrapDegrees)}°`);
-    const sphericalProjectionVerticalWrapDegreesLabel = computed(() => {
-        const degrees = `${Math.round(app.sphericalProjectionVerticalWrapDegrees)}°`;
-        return app.sphericalProjectionVerticalWrapAuto ? `${degrees} Auto` : degrees;
+    const sphericalProjectionLatitudeRangeModel = computed({
+        get: () => [
+            Math.round(app.sphericalProjectionLowerLatitudeDegrees),
+            Math.round(app.sphericalProjectionUpperLatitudeDegrees),
+        ],
+        set: (value) => {
+            if (!Array.isArray(value) || value.length !== 2) return;
+            app.setSphericalProjectionLatitudeBounds(value);
+        },
+    });
+
+    function formatLatitude(value) {
+        const rounded = Math.round(value);
+        return `${rounded > 0 ? '+' : ''}${rounded}°`;
+    }
+
+    const sphericalProjectionLatitudeRangeLabel = computed(() => {
+        const range = `${formatLatitude(app.sphericalProjectionLowerLatitudeDegrees)} – ${formatLatitude(app.sphericalProjectionUpperLatitudeDegrees)}`;
+        return app.sphericalProjectionVerticalWrapAuto ? `${range} Auto` : range;
     });
 
     const ribbonPathAlignmentModel = computed({
@@ -213,17 +230,23 @@
                                 @input="app.setSphericalProjectionWrapDegrees(parseFloat($event.target.value))"
                             />
                         </div>
-                        <div class="tools-slider">
-                            <label>Vertical Wrap <span class="tools-slider-value">{{
-                                sphericalProjectionVerticalWrapDegreesLabel }}</span></label>
-                            <input
-                                type="range"
-                                min="0"
-                                max="180"
-                                step="5"
-                                :value="app.sphericalProjectionVerticalWrapDegrees"
-                                @input="app.setSphericalProjectionVerticalWrapDegrees(parseFloat($event.target.value))"
+                        <div class="tools-latitude-range">
+                            <div class="tools-latitude-range-head">
+                                <label>Vertical Range</label>
+                                <span class="tools-slider-value">{{ sphericalProjectionLatitudeRangeLabel }}</span>
+                            </div>
+                            <Slider
+                                v-model="sphericalProjectionLatitudeRangeModel"
+                                range
+                                :min="-90"
+                                :max="90"
+                                :step="5"
+                                class="tools-range-slider"
                             />
+                            <div class="tools-latitude-range-caption">
+                                <span>South Pole</span>
+                                <span>North Pole</span>
+                            </div>
                         </div>
                     </div>
 
@@ -452,6 +475,45 @@
         margin: 0.25rem 0.75rem 0.75rem;
         line-height: 1.4;
         white-space: normal;
+    }
+
+    .tools-latitude-range {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        padding: 0.75rem;
+    }
+
+    .tools-latitude-range-head,
+    .tools-latitude-range-caption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .tools-latitude-range-head label {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .tools-range-slider {
+        width: calc(100% - 1rem);
+        margin: 0 0.5rem;
+    }
+
+    .tools-latitude-range-caption {
+        color: rgba(255, 255, 255, 0.56);
+        font-size: 0.72rem;
+    }
+
+    :deep(.tools-range-slider .p-slider-handle) {
+        background: var(--p-primary-color, #10b981) !important;
+        border-color: var(--p-primary-color, #10b981) !important;
+    }
+
+    :deep(.tools-range-slider .p-slider-handle::before) {
+        background: var(--p-primary-color, #10b981) !important;
     }
 
 </style>

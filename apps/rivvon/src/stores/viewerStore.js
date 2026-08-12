@@ -21,9 +21,9 @@ import {
 import { normalizeTextureOverviewLayoutStrategy } from "../modules/viewer/textureOverviewLayout.js";
 import {
   DEFAULT_SPHERICAL_WRAP_DEGREES,
-  deriveSphericalProjectionVerticalWrapDegrees,
+  deriveSphericalProjectionLatitudeBounds,
+  normalizeSphericalProjectionLatitudeBounds,
   normalizeSphericalProjectionWrapDegrees,
-  normalizeSphericalProjectionVerticalWrapDegrees,
 } from "../modules/viewer/sphericalProjection.js";
 import { normalizeArtworkMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
@@ -813,7 +813,10 @@ export const useViewerStore = defineStore("viewer", {
       sphericalProjectionWrapDegrees: normalizeSphericalProjectionWrapDegrees(
         readViewerPreferences().sphericalProjectionWrapDegrees,
       ),
-      sphericalProjectionVerticalWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
+      sphericalProjectionLowerLatitudeDegrees:
+        -DEFAULT_SPHERICAL_WRAP_DEGREES / 2,
+      sphericalProjectionUpperLatitudeDegrees:
+        DEFAULT_SPHERICAL_WRAP_DEGREES / 2,
       sphericalProjectionVerticalWrapAuto: true,
       sphericalProjectionArtworkAspectRatio: 1,
 
@@ -1107,8 +1110,10 @@ export const useViewerStore = defineStore("viewer", {
       this.cornerNarrowingEnabled = false;
       this.sphericalProjectionEnabled = false;
       this.sphericalProjectionWrapDegrees = DEFAULT_SPHERICAL_WRAP_DEGREES;
-      this.sphericalProjectionVerticalWrapDegrees =
-        DEFAULT_SPHERICAL_WRAP_DEGREES;
+      this.sphericalProjectionLowerLatitudeDegrees =
+        -DEFAULT_SPHERICAL_WRAP_DEGREES / 2;
+      this.sphericalProjectionUpperLatitudeDegrees =
+        DEFAULT_SPHERICAL_WRAP_DEGREES / 2;
       this.sphericalProjectionVerticalWrapAuto = true;
       this.sphericalProjectionArtworkAspectRatio = 1;
       this.showTextureMetadataOverlay = false;
@@ -1650,8 +1655,10 @@ export const useViewerStore = defineStore("viewer", {
         cornerNarrowingEnabled: this.cornerNarrowingEnabled,
         sphericalProjectionEnabled: this.sphericalProjectionEnabled,
         sphericalProjectionWrapDegrees: this.sphericalProjectionWrapDegrees,
-        sphericalProjectionVerticalWrapDegrees:
-          this.sphericalProjectionVerticalWrapDegrees,
+        sphericalProjectionLowerLatitudeDegrees:
+          this.sphericalProjectionLowerLatitudeDegrees,
+        sphericalProjectionUpperLatitudeDegrees:
+          this.sphericalProjectionUpperLatitudeDegrees,
         sphericalProjectionVerticalWrapAuto:
           this.sphericalProjectionVerticalWrapAuto,
         showTextureMetadataOverlay: this.showTextureMetadataOverlay,
@@ -1761,8 +1768,10 @@ export const useViewerStore = defineStore("viewer", {
           original.sphericalProjectionEnabled ||
         this.sphericalProjectionWrapDegrees !==
           original.sphericalProjectionWrapDegrees ||
-        this.sphericalProjectionVerticalWrapDegrees !==
-          original.sphericalProjectionVerticalWrapDegrees ||
+        this.sphericalProjectionLowerLatitudeDegrees !==
+          original.sphericalProjectionLowerLatitudeDegrees ||
+        this.sphericalProjectionUpperLatitudeDegrees !==
+          original.sphericalProjectionUpperLatitudeDegrees ||
         this.sphericalProjectionVerticalWrapAuto !==
           original.sphericalProjectionVerticalWrapAuto ||
         this.showTextureMetadataOverlay !==
@@ -2292,21 +2301,30 @@ export const useViewerStore = defineStore("viewer", {
       this.sphericalProjectionWrapDegrees = nextValue;
 
       if (this.sphericalProjectionVerticalWrapAuto) {
-        this.sphericalProjectionVerticalWrapDegrees =
-          deriveSphericalProjectionVerticalWrapDegrees(
-            nextValue,
-            this.sphericalProjectionArtworkAspectRatio,
-          );
+        const bounds = deriveSphericalProjectionLatitudeBounds(
+          nextValue,
+          this.sphericalProjectionArtworkAspectRatio,
+        );
+        this.sphericalProjectionLowerLatitudeDegrees = bounds.lower;
+        this.sphericalProjectionUpperLatitudeDegrees = bounds.upper;
       }
 
       writeViewerPreferences({ sphericalProjectionWrapDegrees: nextValue });
     },
 
-    setSphericalProjectionVerticalWrapDegrees(value) {
-      const nextValue = normalizeSphericalProjectionVerticalWrapDegrees(value);
-      if (nextValue === null) return;
+    setSphericalProjectionLatitudeBounds(range) {
+      const [lowerValue, upperValue] = Array.isArray(range) ? range : [];
+      const bounds = normalizeSphericalProjectionLatitudeBounds(
+        lowerValue,
+        upperValue,
+        {
+          lower: this.sphericalProjectionLowerLatitudeDegrees,
+          upper: this.sphericalProjectionUpperLatitudeDegrees,
+        },
+      );
 
-      this.sphericalProjectionVerticalWrapDegrees = nextValue;
+      this.sphericalProjectionLowerLatitudeDegrees = bounds.lower;
+      this.sphericalProjectionUpperLatitudeDegrees = bounds.upper;
       this.sphericalProjectionVerticalWrapAuto = false;
     },
 
@@ -2315,11 +2333,12 @@ export const useViewerStore = defineStore("viewer", {
       this.sphericalProjectionArtworkAspectRatio =
         Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
       this.sphericalProjectionVerticalWrapAuto = true;
-      this.sphericalProjectionVerticalWrapDegrees =
-        deriveSphericalProjectionVerticalWrapDegrees(
-          this.sphericalProjectionWrapDegrees,
-          this.sphericalProjectionArtworkAspectRatio,
-        );
+      const bounds = deriveSphericalProjectionLatitudeBounds(
+        this.sphericalProjectionWrapDegrees,
+        this.sphericalProjectionArtworkAspectRatio,
+      );
+      this.sphericalProjectionLowerLatitudeDegrees = bounds.lower;
+      this.sphericalProjectionUpperLatitudeDegrees = bounds.upper;
     },
   },
 
@@ -2355,8 +2374,10 @@ export const useViewerStore = defineStore("viewer", {
       sphericalProjectionEnabled: state.sphericalProjectionEnabled,
       sphericalProjectionWrapDegrees:
         state.sphericalProjectionWrapDegrees || DEFAULT_SPHERICAL_WRAP_DEGREES,
-      sphericalProjectionVerticalWrapDegrees:
-        state.sphericalProjectionVerticalWrapDegrees,
+      sphericalProjectionLowerLatitudeDegrees:
+        state.sphericalProjectionLowerLatitudeDegrees,
+      sphericalProjectionUpperLatitudeDegrees:
+        state.sphericalProjectionUpperLatitudeDegrees,
     }),
     toolsPanelHasChanges: (state) => state.hasToolsPanelChanges(),
   },

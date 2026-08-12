@@ -3,11 +3,11 @@ import * as THREE from 'three';
 export const DEFAULT_SPHERICAL_WRAP_DEGREES = 100;
 export const MIN_SPHERICAL_WRAP_DEGREES = 15;
 export const MAX_SPHERICAL_WRAP_DEGREES = 360;
-export const MIN_SPHERICAL_VERTICAL_WRAP_DEGREES = 0;
-export const MAX_SPHERICAL_VERTICAL_WRAP_DEGREES = 180;
+export const MIN_SPHERICAL_LATITUDE_DEGREES = -90;
+export const MAX_SPHERICAL_LATITUDE_DEGREES = 90;
 export const MAX_AUTO_SPHERICAL_VERTICAL_WRAP_DEGREES = 170;
-const MIN_MAPPABLE_VERTICAL_WRAP_DEGREES = 0.001;
-const MAX_MAPPABLE_VERTICAL_WRAP_DEGREES = 179.999;
+const MIN_MAPPABLE_LATITUDE_DEGREES = -89.999;
+const MAX_MAPPABLE_LATITUDE_DEGREES = 89.999;
 const MIN_SPHERICAL_RADIUS = 1;
 const ORIGIN = new THREE.Vector3(0, 0, 0);
 
@@ -35,25 +35,25 @@ export function normalizeSphericalProjectionWrapDegrees(value) {
     return clamp(parsed, MIN_SPHERICAL_WRAP_DEGREES, MAX_SPHERICAL_WRAP_DEGREES);
 }
 
-export function normalizeSphericalProjectionVerticalWrapDegrees(value) {
+function normalizeSphericalProjectionLatitudeDegrees(value, fallback) {
     if (value === null || value === undefined || value === '') {
-        return null;
+        return fallback;
     }
 
     const parsed = Number(value);
 
     if (!Number.isFinite(parsed)) {
-        return null;
+        return fallback;
     }
 
     return clamp(
         parsed,
-        MIN_SPHERICAL_VERTICAL_WRAP_DEGREES,
-        MAX_SPHERICAL_VERTICAL_WRAP_DEGREES
+        MIN_SPHERICAL_LATITUDE_DEGREES,
+        MAX_SPHERICAL_LATITUDE_DEGREES
     );
 }
 
-export function deriveSphericalProjectionVerticalWrapDegrees(
+export function deriveSphericalProjectionLatitudeBounds(
     horizontalWrapDegrees,
     artworkAspectRatio = 1
 ) {
@@ -61,11 +61,37 @@ export function deriveSphericalProjectionVerticalWrapDegrees(
     const ratio = Number(artworkAspectRatio);
     const safeRatio = Number.isFinite(ratio) && ratio >= 0 ? ratio : 1;
 
-    return clamp(
+    const verticalSpanDegrees = clamp(
         horizontal * safeRatio,
-        MIN_SPHERICAL_VERTICAL_WRAP_DEGREES,
+        0,
         MAX_AUTO_SPHERICAL_VERTICAL_WRAP_DEGREES
     );
+
+    return {
+        lower: -verticalSpanDegrees / 2,
+        upper: verticalSpanDegrees / 2,
+    };
+}
+
+export function normalizeSphericalProjectionLatitudeBounds(
+    lowerValue,
+    upperValue,
+    fallbackBounds = deriveSphericalProjectionLatitudeBounds(DEFAULT_SPHERICAL_WRAP_DEGREES)
+) {
+    let lower = normalizeSphericalProjectionLatitudeDegrees(
+        lowerValue,
+        fallbackBounds.lower
+    );
+    let upper = normalizeSphericalProjectionLatitudeDegrees(
+        upperValue,
+        fallbackBounds.upper
+    );
+
+    if (upper < lower) {
+        [lower, upper] = [upper, lower];
+    }
+
+    return { lower, upper };
 }
 
 export function getSphericalProjectionArtworkAspectRatio(pathsPoints) {
@@ -92,19 +118,28 @@ export function getSphericalProjectionArtworkAspectRatio(pathsPoints) {
 export function resolveSphericalProjectionRadius(
     pathsPoints,
     wrapDegrees = DEFAULT_SPHERICAL_WRAP_DEGREES,
-    verticalWrapDegrees = null
+    lowerLatitudeDegrees = null,
+    upperLatitudeDegrees = null
 ) {
     const allPoints = Array.isArray(pathsPoints) ? pathsPoints.flat() : [];
     const normalizedHorizontalWrapDegrees = normalizeSphericalProjectionWrapDegrees(wrapDegrees);
     const aspectRatio = getSphericalProjectionArtworkAspectRatio(pathsPoints);
-    const normalizedVerticalWrapDegrees = normalizeSphericalProjectionVerticalWrapDegrees(verticalWrapDegrees)
-        ?? deriveSphericalProjectionVerticalWrapDegrees(normalizedHorizontalWrapDegrees, aspectRatio);
+    const automaticLatitudeBounds = deriveSphericalProjectionLatitudeBounds(
+        normalizedHorizontalWrapDegrees,
+        aspectRatio
+    );
+    const latitudeBounds = normalizeSphericalProjectionLatitudeBounds(
+        lowerLatitudeDegrees,
+        upperLatitudeDegrees,
+        automaticLatitudeBounds
+    );
 
     if (allPoints.length < 2) {
         return {
             radius: MIN_SPHERICAL_RADIUS,
             horizontalWrapDegrees: normalizedHorizontalWrapDegrees,
-            verticalWrapDegrees: normalizedVerticalWrapDegrees,
+            lowerLatitudeDegrees: latitudeBounds.lower,
+            upperLatitudeDegrees: latitudeBounds.upper,
             center: new THREE.Vector3(),
             width: 0,
             height: 0,
@@ -123,7 +158,8 @@ export function resolveSphericalProjectionRadius(
         return {
             radius: MIN_SPHERICAL_RADIUS,
             horizontalWrapDegrees: normalizedHorizontalWrapDegrees,
-            verticalWrapDegrees: normalizedVerticalWrapDegrees,
+            lowerLatitudeDegrees: latitudeBounds.lower,
+            upperLatitudeDegrees: latitudeBounds.upper,
             center: new THREE.Vector3(),
             width: 0,
             height: 0,
@@ -133,7 +169,8 @@ export function resolveSphericalProjectionRadius(
     return {
         radius,
         horizontalWrapDegrees: normalizedHorizontalWrapDegrees,
-        verticalWrapDegrees: normalizedVerticalWrapDegrees,
+        lowerLatitudeDegrees: latitudeBounds.lower,
+        upperLatitudeDegrees: latitudeBounds.upper,
         center,
         width,
         height,
@@ -146,17 +183,24 @@ export function projectPlanarPointToSphere(point, radius, target = new THREE.Vec
         ? ((point.x - mapping.center.x) / Math.max(mapping.width, 1e-6))
             * degreesToRadians(mapping.horizontalWrapDegrees)
         : point.x / safeRadius;
-    const requestedVerticalWrapDegrees = mapping?.verticalWrapDegrees;
-    const mappableVerticalWrapDegrees = requestedVerticalWrapDegrees === undefined
-        ? null
-        : clamp(
-            requestedVerticalWrapDegrees,
-            MIN_MAPPABLE_VERTICAL_WRAP_DEGREES,
-            MAX_MAPPABLE_VERTICAL_WRAP_DEGREES
-        );
+    const normalizedArtworkY = mapping
+        ? clamp(
+            ((point.y - mapping.center.y) / Math.max(mapping.height, 1e-6)) + 0.5,
+            0,
+            1
+        )
+        : null;
+    const mappedLatitudeDegrees = mapping
+        ? mapping.lowerLatitudeDegrees
+            + normalizedArtworkY
+                * (mapping.upperLatitudeDegrees - mapping.lowerLatitudeDegrees)
+        : null;
     const latitude = mapping
-        ? ((point.y - mapping.center.y) / Math.max(mapping.height, 1e-6))
-            * degreesToRadians(mappableVerticalWrapDegrees)
+        ? degreesToRadians(clamp(
+            mappedLatitudeDegrees,
+            MIN_MAPPABLE_LATITUDE_DEGREES,
+            MAX_MAPPABLE_LATITUDE_DEGREES
+        ))
         : point.y / safeRadius;
     const cosLatitude = Math.cos(latitude);
 
@@ -183,7 +227,8 @@ export function projectPathsToSphere(pathsPoints, options = {}) {
     const resolution = resolveSphericalProjectionRadius(
         pathsPoints,
         options.wrapDegrees,
-        options.verticalWrapDegrees
+        options.lowerLatitudeDegrees,
+        options.upperLatitudeDegrees
     );
 
     const radius = getSafeSphericalRadius(

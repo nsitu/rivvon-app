@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import {
-    deriveSphericalProjectionVerticalWrapDegrees,
+    deriveSphericalProjectionLatitudeBounds,
+    normalizeSphericalProjectionLatitudeBounds,
     projectPathsToSphere,
 } from './sphericalProjection.js';
 
@@ -18,9 +19,22 @@ function rectangle(width, height) {
 }
 
 describe('spherical projection wrapping', () => {
-    it('derives vertical wrap from horizontal wrap and artwork aspect ratio', () => {
-        expect(deriveSphericalProjectionVerticalWrapDegrees(100, 0.5)).toBe(50);
-        expect(deriveSphericalProjectionVerticalWrapDegrees(100, 2)).toBe(170);
+    it('derives symmetric latitude bounds from horizontal wrap and artwork aspect ratio', () => {
+        expect(deriveSphericalProjectionLatitudeBounds(100, 0.5)).toEqual({
+            lower: -25,
+            upper: 25,
+        });
+        expect(deriveSphericalProjectionLatitudeBounds(100, 2)).toEqual({
+            lower: -85,
+            upper: 85,
+        });
+    });
+
+    it('orders and clamps explicit latitude bounds', () => {
+        expect(normalizeSphericalProjectionLatitudeBounds(120, -100)).toEqual({
+            lower: -90,
+            upper: 90,
+        });
     });
 
     it('uses the artwork aspect ratio when vertical wrap is automatic', () => {
@@ -29,30 +43,58 @@ describe('spherical projection wrapping', () => {
         });
 
         expect(result.horizontalWrapDegrees).toBe(120);
-        expect(result.verticalWrapDegrees).toBe(60);
+        expect(result.lowerLatitudeDegrees).toBe(-30);
+        expect(result.upperLatitudeDegrees).toBe(30);
     });
 
-    it('maps explicit horizontal and vertical spans independently', () => {
+    it('maps asymmetric latitude bounds independently from horizontal wrap', () => {
         const result = projectPathsToSphere(rectangle(4, 2), {
             wrapDegrees: 120,
-            verticalWrapDegrees: 80,
+            lowerLatitudeDegrees: -20,
+            upperLatitudeDegrees: 70,
         });
         const lowerLeft = result.paths[0][0].clone().normalize();
         const upperRight = result.paths[0][2].clone().normalize();
 
         expect(result.horizontalWrapDegrees).toBe(120);
-        expect(result.verticalWrapDegrees).toBe(80);
-        expect(Math.asin(lowerLeft.y) * 180 / Math.PI).toBeCloseTo(-40, 5);
-        expect(Math.asin(upperRight.y) * 180 / Math.PI).toBeCloseTo(40, 5);
+        expect(result.lowerLatitudeDegrees).toBe(-20);
+        expect(result.upperLatitudeDegrees).toBe(70);
+        expect(Math.asin(lowerLeft.y) * 180 / Math.PI).toBeCloseTo(-20, 5);
+        expect(Math.asin(upperRight.y) * 180 / Math.PI).toBeCloseTo(70, 5);
     });
 
-    it.each([0, 180])('keeps the %d degree boundary finite', (verticalWrapDegrees) => {
+    it('supports a range entirely within one hemisphere', () => {
         const result = projectPathsToSphere(rectangle(4, 2), {
             wrapDegrees: 120,
-            verticalWrapDegrees,
+            lowerLatitudeDegrees: 10,
+            upperLatitudeDegrees: 60,
         });
 
-        expect(result.verticalWrapDegrees).toBe(verticalWrapDegrees);
+        expect(result.paths.flat().every((point) => point.y > 0)).toBe(true);
+    });
+
+    it('supports a zero-span latitude range', () => {
+        const result = projectPathsToSphere(rectangle(4, 2), {
+            wrapDegrees: 120,
+            lowerLatitudeDegrees: 25,
+            upperLatitudeDegrees: 25,
+        });
+
+        for (const point of result.paths.flat()) {
+            expect(Math.asin(point.clone().normalize().y) * 180 / Math.PI)
+                .toBeCloseTo(25, 5);
+        }
+    });
+
+    it('keeps exact pole bounds finite', () => {
+        const result = projectPathsToSphere(rectangle(4, 2), {
+            wrapDegrees: 120,
+            lowerLatitudeDegrees: -90,
+            upperLatitudeDegrees: 90,
+        });
+
+        expect(result.lowerLatitudeDegrees).toBe(-90);
+        expect(result.upperLatitudeDegrees).toBe(90);
         for (const point of result.paths.flat()) {
             expect(point.toArray().every(Number.isFinite)).toBe(true);
         }

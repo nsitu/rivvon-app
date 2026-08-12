@@ -69,7 +69,8 @@ export class RibbonSeries {
       sphericalProjectionEnabled: false,
       sphericalProjectionRadius: null,
       sphericalProjectionWrapDegrees: null,
-      sphericalProjectionVerticalWrapDegrees: null,
+      sphericalProjectionLowerLatitudeDegrees: null,
+      sphericalProjectionUpperLatitudeDegrees: null,
     };
   }
 
@@ -210,8 +211,10 @@ export class RibbonSeries {
     const { radius, paths } = projectPathsToSphere(sourcePaths, {
       radius: this._helixOptions.sphericalProjectionRadius,
       wrapDegrees: this._helixOptions.sphericalProjectionWrapDegrees,
-      verticalWrapDegrees:
-        this._helixOptions.sphericalProjectionVerticalWrapDegrees,
+      lowerLatitudeDegrees:
+        this._helixOptions.sphericalProjectionLowerLatitudeDegrees,
+      upperLatitudeDegrees:
+        this._helixOptions.sphericalProjectionUpperLatitudeDegrees,
     });
 
     return {
