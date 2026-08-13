@@ -5,6 +5,7 @@ import * as THREE from "three";
 
 const SHADOW_CATCHER_RENDER_ORDER = -9999;
 const SHADOW_CATCHER_OVERSCAN = 1.02;
+const SHADOW_CATCHER_CURVE_ANGLE = THREE.MathUtils.degToRad(25);
 const SPOTLIGHT_BASE_INTENSITY = 100;
 const TRANSMISSION_MAP_SIZE_DESKTOP = 512;
 const TRANSMISSION_MAP_SIZE_MOBILE = 256;
@@ -20,11 +21,15 @@ export function useSceneLighting(ctx) {
   let transmissionRenderTarget = null;
   let transmissionCamera = null;
   let webGPUDeps = null;
+  let catcherWidth = 0;
+  let catcherHeight = 0;
+  let catcherWasSpherical = null;
   const transmissionMaterials = new Map();
   const cameraPosition = new THREE.Vector3();
   const artworkCenter = new THREE.Vector3();
   const lightAxis = new THREE.Vector3();
   const cameraQuaternion = new THREE.Quaternion();
+  const transmissionProjectorMatrix = new THREE.Matrix4();
 
   function isColoredProjectionActive() {
     return !!(
@@ -131,9 +136,13 @@ export function useSceneLighting(ctx) {
   function createColoredShadowMaterial(renderer) {
     if (renderer.isWebGPURenderer && webGPUDeps) {
       const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-      const { texture, uniform, uv, float, vec2, vec3, mix } = webGPUDeps.threeTSL;
+      const { texture, uniform, positionWorld, float, vec2, vec3, vec4, mix } =
+        webGPUDeps.threeTSL;
       const opacityUniform = uniform(ctx.app.sceneShadowOpacity);
-      const receiverUv = uv();
+      const projectorMatrixUniform = uniform(transmissionProjectorMatrix);
+      const lightClip = projectorMatrixUniform.mul(vec4(positionWorld, 1));
+      const lightNdc = lightClip.xyz.div(lightClip.w);
+      const receiverUv = lightNdc.xy.mul(0.5).add(0.5);
       // Render-target rows are inverted relative to the receiver plane. Leaving
       // this uncorrected mirrors the projection and reverses apparent rotation.
       const projectionUv = vec2(receiverUv.x, float(1).sub(receiverUv.y));
@@ -141,14 +150,27 @@ export function useSceneLighting(ctx) {
         transmissionRenderTarget.texture,
         projectionUv,
       );
+      const inBounds = lightClip.w
+        .greaterThan(float(0))
+        .and(receiverUv.x.greaterThanEqual(float(0)))
+        .and(receiverUv.x.lessThanEqual(float(1)))
+        .and(receiverUv.y.greaterThanEqual(float(0)))
+        .and(receiverUv.y.lessThanEqual(float(1)))
+        .and(lightNdc.z.greaterThanEqual(float(-1)))
+        .and(lightNdc.z.lessThanEqual(float(1)));
+      const transmittedLight = inBounds.select(
+        sampledTransmission.rgb,
+        vec3(1, 1, 1),
+      );
       const material = new MeshBasicNodeMaterial();
       material.colorNode = mix(
         vec3(1, 1, 1),
-        sampledTransmission.rgb,
+        transmittedLight,
         opacityUniform,
       );
       material.opacityNode = float(1);
       material._opacityUniform = opacityUniform;
+      material._projectorMatrixUniform = projectorMatrixUniform;
       return configureMultiplicativeBlending(material);
     }
 
@@ -156,21 +178,33 @@ export function useSceneLighting(ctx) {
       uniforms: {
         uTransmissionMap: { value: transmissionRenderTarget.texture },
         uOpacity: { value: ctx.app.sceneShadowOpacity },
+        uTransmissionProjector: { value: transmissionProjectorMatrix },
       },
       vertexShader: `
-        varying vec2 vUv;
+        varying vec3 vWorldPosition;
         void main() {
-          vUv = uv;
+          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform sampler2D uTransmissionMap;
         uniform float uOpacity;
-        varying vec2 vUv;
+        uniform mat4 uTransmissionProjector;
+        varying vec3 vWorldPosition;
         void main() {
-          vec2 projectionUv = vec2(vUv.x, 1.0 - vUv.y);
-          vec3 transmission = texture2D(uTransmissionMap, projectionUv).rgb;
+          vec4 lightClip = uTransmissionProjector * vec4(vWorldPosition, 1.0);
+          vec3 lightNdc = lightClip.xyz / lightClip.w;
+          vec2 receiverUv = lightNdc.xy * 0.5 + 0.5;
+          vec2 projectionUv = vec2(receiverUv.x, 1.0 - receiverUv.y);
+          bool inBounds = lightClip.w > 0.0
+            && all(greaterThanEqual(receiverUv, vec2(0.0)))
+            && all(lessThanEqual(receiverUv, vec2(1.0)))
+            && lightNdc.z >= -1.0
+            && lightNdc.z <= 1.0;
+          vec3 transmission = inBounds
+            ? texture2D(uTransmissionMap, projectionUv).rgb
+            : vec3(1.0);
           gl_FragColor = vec4(mix(vec3(1.0), transmission, uOpacity), 1.0);
         }
       `,
@@ -306,26 +340,99 @@ export function useSceneLighting(ctx) {
     }
   }
 
+  function syncShadowCatcherGeometry(width, height) {
+    if (!shadowCatcherGeometry) return;
+    const spherical = !!ctx.app.backgroundSphericalLayersEnabled;
+    if (
+      catcherWasSpherical === spherical &&
+      Math.abs(catcherWidth - width) < 0.0001 &&
+      Math.abs(catcherHeight - height) < 0.0001
+    ) {
+      return;
+    }
+
+    catcherWidth = width;
+    catcherHeight = height;
+    catcherWasSpherical = spherical;
+    const position = shadowCatcherGeometry.attributes.position;
+    const uvAttribute = shadowCatcherGeometry.attributes.uv;
+    const halfWidth = width * 0.5;
+    const halfHeight = height * 0.5;
+    const radialExtent = Math.hypot(halfWidth, halfHeight);
+    const sphereRadius = spherical
+      ? radialExtent / Math.sin(SHADOW_CATCHER_CURVE_ANGLE)
+      : Infinity;
+
+    for (let index = 0; index < position.count; index += 1) {
+      const x = (uvAttribute.getX(index) - 0.5) * width;
+      const y = (uvAttribute.getY(index) - 0.5) * height;
+      const radialDistanceSquared = x * x + y * y;
+      const z = spherical
+        ? sphereRadius -
+          Math.sqrt(Math.max(0, sphereRadius * sphereRadius - radialDistanceSquared))
+        : 0;
+      position.setXYZ(index, x, y, z);
+    }
+
+    position.needsUpdate = true;
+    shadowCatcherGeometry.computeVertexNormals();
+    shadowCatcherGeometry.computeBoundingSphere();
+    shadowCatcherGeometry.computeBoundingBox();
+  }
+
   function syncShadowCatcherSize() {
     const camera = ctx.camera.value;
     if (!camera || !shadowCatcher) return;
 
+    let width;
+    let height;
     if (camera.isPerspectiveCamera) {
       const catcherDistance = cameraPosition.distanceTo(shadowCatcher.position);
       const effectiveFov = camera.getEffectiveFOV?.() ?? camera.fov;
-      const height =
+      height =
         2 *
         Math.tan(THREE.MathUtils.degToRad(effectiveFov) / 2) *
         catcherDistance *
         SHADOW_CATCHER_OVERSCAN;
-      shadowCatcher.scale.set(height * camera.aspect, height, 1);
+      width = height * camera.aspect;
     } else if (camera.isOrthographicCamera) {
-      shadowCatcher.scale.set(
-        camera.right - camera.left,
-        camera.top - camera.bottom,
-        1,
+      width = (camera.right - camera.left) / camera.zoom;
+      height = (camera.top - camera.bottom) / camera.zoom;
+    }
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+    shadowCatcher.scale.set(1, 1, 1);
+    syncShadowCatcherGeometry(width, height);
+  }
+
+  function syncTransmissionProjector() {
+    if (!transmissionCamera) return;
+    transmissionCamera.updateMatrixWorld(true);
+    transmissionProjectorMatrix.multiplyMatrices(
+      transmissionCamera.projectionMatrix,
+      transmissionCamera.matrixWorldInverse,
+    );
+    if (coloredShadowMaterial?._projectorMatrixUniform) {
+      coloredShadowMaterial._projectorMatrixUniform.value =
+        transmissionProjectorMatrix;
+    }
+  }
+
+  function getTransmissionVerticalFov(lightToCenterDistance, aspect) {
+    const positions = shadowCatcherGeometry?.attributes?.position;
+    if (!positions) return 60;
+    let maximumVerticalTangent = 0;
+    for (let index = 0; index < positions.count; index += 1) {
+      const distanceFromLight = lightToCenterDistance - positions.getZ(index);
+      if (distanceFromLight <= 0.001) continue;
+      maximumVerticalTangent = Math.max(
+        maximumVerticalTangent,
+        Math.abs(positions.getY(index)) / distanceFromLight,
+        Math.abs(positions.getX(index)) / distanceFromLight / aspect,
       );
     }
+    return THREE.MathUtils.radToDeg(
+      2 * Math.atan(maximumVerticalTangent * SHADOW_CATCHER_OVERSCAN),
+    );
   }
 
   async function init() {
@@ -384,7 +491,15 @@ export function useSceneLighting(ctx) {
     fillLight = new THREE.HemisphereLight(0xffffff, 0x182030, 0.28);
     fillLight.name = "RivvonLightingFill";
 
-    shadowCatcherGeometry = new THREE.PlaneGeometry(1, 1);
+    const coarsePointer =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: coarse)").matches;
+    shadowCatcherGeometry = new THREE.PlaneGeometry(
+      1,
+      1,
+      coarsePointer ? 20 : 32,
+      coarsePointer ? 14 : 24,
+    );
     shadowCatcherMaterial = new THREE.ShadowMaterial({
       color: 0x000000,
       opacity: ctx.app.sceneShadowOpacity,
@@ -443,12 +558,14 @@ export function useSceneLighting(ctx) {
     transmissionCamera.position.copy(spotLight.position);
     transmissionCamera.quaternion.copy(cameraQuaternion);
     transmissionCamera.aspect = camera.aspect;
-    transmissionCamera.fov = THREE.MathUtils.radToDeg(
-      2 * Math.atan((shadowCatcher.scale.y * 0.5) / lightToPlaneDistance),
+    transmissionCamera.fov = getTransmissionVerticalFov(
+      lightToPlaneDistance,
+      camera.aspect,
     );
     transmissionCamera.near = 0.1;
     transmissionCamera.far = lightToPlaneDistance + 1;
     transmissionCamera.updateProjectionMatrix();
+    syncTransmissionProjector();
     renderTransmissionMap();
   }
 
@@ -475,10 +592,17 @@ export function useSceneLighting(ctx) {
     transmissionRenderTarget = null;
     transmissionCamera = null;
     webGPUDeps = null;
+    catcherWidth = 0;
+    catcherHeight = 0;
+    catcherWasSpherical = null;
   }
 
   watch(() => ctx.app.sceneLightingEnabled, syncEnabledState);
   watch(() => ctx.app.sceneColoredShadowsEnabled, syncShadowCatcherMode);
+  watch(() => ctx.app.backgroundSphericalLayersEnabled, () => {
+    catcherWasSpherical = null;
+    syncShadowCatcherSize();
+  });
   watch(
     () => [ctx.app.sceneLightingIntensity, ctx.app.sceneShadowOpacity],
     syncSettings,

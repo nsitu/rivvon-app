@@ -137,6 +137,11 @@
         set: (value) => app.setBackgroundBaseEnabled(!!value),
     });
 
+    const backgroundSphericalLayersModel = computed({
+        get: () => app.backgroundSphericalLayersEnabled,
+        set: (value) => app.setBackgroundSphericalLayersEnabled(!!value),
+    });
+
     const backgroundWaterModel = computed({
         get: () => app.backgroundWaterEnabled,
         set: (value) => app.setBackgroundWaterEnabled(!!value),
@@ -547,6 +552,23 @@
         <div class="tools-section">
             <div class="tools-section-label">Background</div>
             <div class="tools-section-items">
+                <div class="tools-toggle-row">
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('background-spherical-layers')"
+                    >
+                        <span class="material-symbols-outlined">layers</span>
+                        <span>Spherical background layers</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ backgroundSphericalLayersModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('background-spherical-layers')"
+                            v-model="backgroundSphericalLayersModel"
+                        />
+                    </div>
+                </div>
+
                 <div class="tools-background-base-group">
                     <div class="tools-toggle-row">
                         <label

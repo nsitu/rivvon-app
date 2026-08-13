@@ -101,6 +101,7 @@ const MAX_BACKGROUND_FLOW_SPEED = 2.0;
 const DEFAULT_BACKGROUND_OVERLAY_COLOR = "#ffffff";
 const DEFAULT_BACKGROUND_OVERLAY_OPACITY = 0.35;
 const DEFAULT_BACKGROUND_BASE_ENABLED = true;
+const DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED = false;
 const DEFAULT_BACKGROUND_WATER_ENABLED = false;
 const DEFAULT_BACKGROUND_WATER_COLOR = "#66c7d8";
 const DEFAULT_BACKGROUND_WATER_FLOW = 35;
@@ -814,6 +815,10 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().backgroundBaseEnabled,
         DEFAULT_BACKGROUND_BASE_ENABLED,
       ),
+      backgroundSphericalLayersEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundSphericalLayersEnabled,
+        DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED,
+      ),
       backgroundWaterEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundWaterEnabled,
         DEFAULT_BACKGROUND_WATER_ENABLED,
@@ -1123,6 +1128,8 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundTextureEnabled = false;
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
       this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
+      this.backgroundSphericalLayersEnabled =
+        DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED;
       this.backgroundWaterEnabled = DEFAULT_BACKGROUND_WATER_ENABLED;
       this.backgroundWaterColor = DEFAULT_BACKGROUND_WATER_COLOR;
       this.backgroundWaterFlow = DEFAULT_BACKGROUND_WATER_FLOW;
@@ -1222,6 +1229,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTextureEnabled: false,
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
         backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
+        backgroundSphericalLayersEnabled:
+          DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED,
         backgroundWaterEnabled: DEFAULT_BACKGROUND_WATER_ENABLED,
         backgroundWaterColor: DEFAULT_BACKGROUND_WATER_COLOR,
         backgroundWaterFlow: DEFAULT_BACKGROUND_WATER_FLOW,
@@ -1468,6 +1477,12 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundBaseEnabled: nextValue });
     },
 
+    setBackgroundSphericalLayersEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.backgroundSphericalLayersEnabled = nextValue;
+      writeViewerPreferences({ backgroundSphericalLayersEnabled: nextValue });
+    },
+
     setBackgroundWaterEnabled(enabled) {
       const nextValue = !!enabled;
       this.backgroundWaterEnabled = nextValue;
@@ -1681,6 +1696,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTextureEnabled: this.backgroundTextureEnabled,
         backgroundTexture: this.backgroundTexture,
         backgroundBaseEnabled: this.backgroundBaseEnabled,
+        backgroundSphericalLayersEnabled:
+          this.backgroundSphericalLayersEnabled,
         backgroundWaterEnabled: this.backgroundWaterEnabled,
         backgroundWaterColor: this.backgroundWaterColor,
         backgroundWaterFlow: this.backgroundWaterFlow,
@@ -1788,6 +1805,8 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundTextureEnabled !== original.backgroundTextureEnabled ||
         this.backgroundTexture !== original.backgroundTexture ||
         this.backgroundBaseEnabled !== original.backgroundBaseEnabled ||
+        this.backgroundSphericalLayersEnabled !==
+          original.backgroundSphericalLayersEnabled ||
         this.backgroundWaterEnabled !== original.backgroundWaterEnabled ||
         this.backgroundWaterColor !== original.backgroundWaterColor ||
         this.backgroundWaterFlow !== original.backgroundWaterFlow ||
