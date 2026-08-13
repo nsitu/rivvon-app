@@ -418,10 +418,12 @@ function createFilmstripAlphaNode(threeTSL, baseUV, edgeNoiseU, enabledUniform, 
 
 function createCapAlphaNode(threeTSL, baseUV) {
     const { attribute, float, vec2, abs, length, min, max, smoothstep } = threeTSL;
-    const startStyle = attribute('capStartStyle', 'float');
-    const endStyle = attribute('capEndStyle', 'float');
-    const capStartU = attribute('capStartU', 'float');
-    const capEndU = attribute('capEndU', 'float');
+    const capStyles = attribute('capStyles', 'vec2');
+    const capUs = attribute('capUs', 'vec2');
+    const startStyle = capStyles.x;
+    const endStyle = capStyles.y;
+    const capStartU = capUs.x;
+    const capEndU = capUs.y;
 
     const capSignedDistance = (style, capUv) => {
         const roundedCircleDistance = float(0.5).sub(length(vec2(
@@ -1996,10 +1998,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._textureNext = textureNext;
         material.defaultAttributeValues = {
             ...(material.defaultAttributeValues || {}),
-            capStartStyle: [0],
-            capEndStyle: [0],
-            capStartU: [1],
-            capEndU: [1],
+            capStyles: [0, 0],
+            capUs: [1, 1],
             maskV: [0.5],
         };
         material._hasCapMask = hasCapMask;
@@ -2604,10 +2604,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._saturationUniform = saturationUniform;
         material.defaultAttributeValues = {
             ...(material.defaultAttributeValues || {}),
-            capStartStyle: [0],
-            capEndStyle: [0],
-            capStartU: [1],
-            capEndU: [1],
+            capStyles: [0, 0],
+            capUs: [1, 1],
             maskV: [0.5],
         };
 

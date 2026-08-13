@@ -257,6 +257,26 @@ export class Ribbon {
       "capEndStyle",
       new THREE.BufferAttribute(endValues, 1),
     );
+
+    // WebGPU devices commonly expose maxVertexBuffers=8. The lit ribbon
+    // material also consumes normals, so pack the four cap scalars into two
+    // vec2 buffers to keep the active pipeline below that portable limit.
+    const capStartU = geometry.getAttribute("capStartU");
+    const capEndU = geometry.getAttribute("capEndU");
+    const packedStyles = new Float32Array(vertexCount * 2);
+    const packedUs = new Float32Array(vertexCount * 2);
+    for (let index = 0; index < vertexCount; index += 1) {
+      const offset = index * 2;
+      packedStyles[offset] = startValues[index];
+      packedStyles[offset + 1] = endValues[index];
+      packedUs[offset] = capStartU?.getX(index) ?? 1;
+      packedUs[offset + 1] = capEndU?.getX(index) ?? 1;
+    }
+    geometry.setAttribute(
+      "capStyles",
+      new THREE.BufferAttribute(packedStyles, 2),
+    );
+    geometry.setAttribute("capUs", new THREE.BufferAttribute(packedUs, 2));
   }
 
   _getCapWorldLength(pathLength, width) {

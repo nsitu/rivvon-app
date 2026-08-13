@@ -1,4 +1,7 @@
 const QUEUE_SAMPLE_INTERVAL_MS = 1000;
+// The viewer can issue many render passes per frame for background blur and
+// shadows. Drain Three's 2048-entry timestamp pool well before it fills.
+const TIMESTAMP_SAMPLE_INTERVAL_MS = 250;
 
 function entriesToObject(source) {
     if (!source) return {};
@@ -60,35 +63,34 @@ export function createWebGPUDiagnostics(renderer, selectedAdapter = null, select
         gpuPassMs: null,
         gpuPassMaxMs: 0,
         timestampSampleError: null,
+        lastTimestampSampleAt: 0,
     };
 
     function sampleQueue(now = performance.now()) {
         const queue = device?.queue;
         if (
-            !queue?.onSubmittedWorkDone
-            || snapshot.queuePending
-            || now - snapshot.lastQueueSampleAt < QUEUE_SAMPLE_INTERVAL_MS
+            queue?.onSubmittedWorkDone
+            && !snapshot.queuePending
+            && now - snapshot.lastQueueSampleAt >= QUEUE_SAMPLE_INTERVAL_MS
         ) {
-            return;
+            snapshot.queuePending = true;
+            snapshot.lastQueueSampleAt = now;
+            const startedAt = performance.now();
+
+            queue.onSubmittedWorkDone()
+                .then(() => {
+                    const elapsed = performance.now() - startedAt;
+                    snapshot.queueDrainMs = elapsed;
+                    snapshot.queueDrainMaxMs = Math.max(snapshot.queueDrainMaxMs, elapsed);
+                    snapshot.queueSampleError = null;
+                })
+                .catch((error) => {
+                    snapshot.queueSampleError = error?.message || String(error);
+                })
+                .finally(() => {
+                    snapshot.queuePending = false;
+                });
         }
-
-        snapshot.queuePending = true;
-        snapshot.lastQueueSampleAt = now;
-        const startedAt = performance.now();
-
-        queue.onSubmittedWorkDone()
-            .then(() => {
-                const elapsed = performance.now() - startedAt;
-                snapshot.queueDrainMs = elapsed;
-                snapshot.queueDrainMaxMs = Math.max(snapshot.queueDrainMaxMs, elapsed);
-                snapshot.queueSampleError = null;
-            })
-            .catch((error) => {
-                snapshot.queueSampleError = error?.message || String(error);
-            })
-            .finally(() => {
-                snapshot.queuePending = false;
-            });
 
         // Three inserts timestamp writes around its render passes when the
         // feature is available. Resolving through the backend preserves
@@ -97,10 +99,12 @@ export function createWebGPUDiagnostics(renderer, selectedAdapter = null, select
             snapshot.timestampQuerySupported
             && snapshot.timestampTrackingEnabled
             && !snapshot.timestampPending
-            && typeof backend?.resolveTimestampsAsync === 'function'
+            && now - snapshot.lastTimestampSampleAt >= TIMESTAMP_SAMPLE_INTERVAL_MS
+            && typeof renderer?.resolveTimestampsAsync === 'function'
         ) {
             snapshot.timestampPending = true;
-            backend.resolveTimestampsAsync('render')
+            snapshot.lastTimestampSampleAt = now;
+            renderer.resolveTimestampsAsync('render')
                 .then((durationMs) => {
                     if (Number.isFinite(durationMs) && durationMs >= 0) {
                         snapshot.gpuPassMs = durationMs;
