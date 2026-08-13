@@ -6,6 +6,8 @@ import * as THREE from "three";
 const SHADOW_CATCHER_RENDER_ORDER = -9999;
 const SHADOW_CATCHER_OVERSCAN = 1.02;
 const SPOTLIGHT_BASE_INTENSITY = 100;
+const TRANSMISSION_MAP_SIZE_DESKTOP = 512;
+const TRANSMISSION_MAP_SIZE_MOBILE = 256;
 
 export function useSceneLighting(ctx) {
   let spotLight = null;
@@ -14,10 +16,34 @@ export function useSceneLighting(ctx) {
   let shadowCatcher = null;
   let shadowCatcherGeometry = null;
   let shadowCatcherMaterial = null;
+  let coloredShadowMaterial = null;
+  let transmissionRenderTarget = null;
+  let transmissionCamera = null;
+  let webGPUDeps = null;
+  const transmissionMaterials = new Map();
   const cameraPosition = new THREE.Vector3();
   const artworkCenter = new THREE.Vector3();
   const lightAxis = new THREE.Vector3();
   const cameraQuaternion = new THREE.Quaternion();
+
+  function isColoredProjectionActive() {
+    return !!(
+      ctx.app.sceneLightingEnabled && ctx.app.sceneColoredShadowsEnabled
+    );
+  }
+
+  function configureMultiplicativeBlending(material) {
+    material.transparent = true;
+    material.depthTest = false;
+    material.depthWrite = false;
+    // Three's built-in mode maps to source × destination and is normalized
+    // consistently by both the WebGL and WebGPU render backends.
+    material.blending = THREE.MultiplyBlending;
+    material.premultipliedAlpha = true;
+    material.toneMapped = false;
+    material.side = THREE.DoubleSide;
+    return material;
+  }
 
   function resolveArtworkCenter(target) {
     const series = ctx.ribbonSeries.value;
@@ -52,6 +78,7 @@ export function useSceneLighting(ctx) {
       ctx.renderer.value.shadowMap.enabled = enabled;
     }
     syncMaterialLighting();
+    syncShadowCatcherMode();
   }
 
   function syncSettings() {
@@ -62,7 +89,213 @@ export function useSceneLighting(ctx) {
     if (shadowCatcherMaterial) {
       shadowCatcherMaterial.opacity = ctx.app.sceneShadowOpacity;
     }
+    if (coloredShadowMaterial?._opacityUniform) {
+      coloredShadowMaterial._opacityUniform.value = ctx.app.sceneShadowOpacity;
+    }
     syncMaterialLighting();
+  }
+
+  function syncShadowCatcherMode() {
+    if (!shadowCatcher) return;
+    const colored = isColoredProjectionActive() && coloredShadowMaterial;
+    shadowCatcher.material = colored
+      ? coloredShadowMaterial
+      : shadowCatcherMaterial;
+    shadowCatcher.receiveShadow = !colored;
+  }
+
+  function createTransmissionRenderTarget(renderer) {
+    const coarsePointer =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: coarse)").matches;
+    const size = coarsePointer
+      ? TRANSMISSION_MAP_SIZE_MOBILE
+      : TRANSMISSION_MAP_SIZE_DESKTOP;
+    const options = {
+      type: THREE.HalfFloatType,
+      format: THREE.RGBAFormat,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false,
+      stencilBuffer: false,
+      colorSpace: THREE.LinearSRGBColorSpace,
+    };
+    const target = renderer.isWebGPURenderer
+      ? new THREE.RenderTarget(size, size, options)
+      : new THREE.WebGLRenderTarget(size, size, options);
+    target.texture.name = "RivvonColoredTransmissionMap";
+    target.texture.generateMipmaps = false;
+    return target;
+  }
+
+  function createColoredShadowMaterial(renderer) {
+    if (renderer.isWebGPURenderer && webGPUDeps) {
+      const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
+      const { texture, uniform, uv, float, vec3, mix } = webGPUDeps.threeTSL;
+      const opacityUniform = uniform(ctx.app.sceneShadowOpacity);
+      const sampledTransmission = texture(transmissionRenderTarget.texture, uv());
+      const material = new MeshBasicNodeMaterial();
+      material.colorNode = mix(
+        vec3(1, 1, 1),
+        sampledTransmission.rgb,
+        opacityUniform,
+      );
+      material.opacityNode = float(1);
+      material._opacityUniform = opacityUniform;
+      return configureMultiplicativeBlending(material);
+    }
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTransmissionMap: { value: transmissionRenderTarget.texture },
+        uOpacity: { value: ctx.app.sceneShadowOpacity },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uTransmissionMap;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        void main() {
+          vec3 transmission = texture2D(uTransmissionMap, vUv).rgb;
+          gl_FragColor = vec4(mix(vec3(1.0), transmission, uOpacity), 1.0);
+        }
+      `,
+    });
+    material._opacityUniform = material.uniforms.uOpacity;
+    return configureMultiplicativeBlending(material);
+  }
+
+  function createTransmissionMaterial(sourceMaterial) {
+    if (ctx.renderer.value?.isWebGPURenderer && webGPUDeps) {
+      let colorNode = sourceMaterial?._transmissionColorNode;
+      let alphaNode = sourceMaterial?._transmissionAlphaNode;
+      const { texture, float, vec3, mix } = webGPUDeps.threeTSL;
+      if ((!colorNode || !alphaNode) && sourceMaterial?.map) {
+        const sampledMap = texture(sourceMaterial.map);
+        const tint = sourceMaterial.color || new THREE.Color(1, 1, 1);
+        colorNode = sampledMap.rgb.mul(vec3(tint.r, tint.g, tint.b));
+        alphaNode = sampledMap.a.mul(float(sourceMaterial.opacity ?? 1));
+      }
+      if (!colorNode || !alphaNode) return null;
+      const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
+      const material = new MeshBasicNodeMaterial();
+      material.colorNode = mix(vec3(1, 1, 1), colorNode, alphaNode);
+      material.opacityNode = float(1);
+      material.defaultAttributeValues = {
+        ...(sourceMaterial.defaultAttributeValues || {}),
+      };
+      return configureMultiplicativeBlending(material);
+    }
+
+    if (sourceMaterial?.map) {
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uMap: { value: sourceMaterial.map },
+          uColor: { value: sourceMaterial.color || new THREE.Color(1, 1, 1) },
+          uOpacity: { value: sourceMaterial.opacity ?? 1 },
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D uMap;
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying vec2 vUv;
+          void main() {
+            vec4 texel = texture2D(uMap, vUv);
+            float alpha = texel.a * uOpacity;
+            gl_FragColor = vec4(mix(vec3(1.0), texel.rgb * uColor, alpha), 1.0);
+          }
+        `,
+      });
+      return configureMultiplicativeBlending(material);
+    }
+
+    if (!sourceMaterial?.isShaderMaterial) return null;
+    const material = sourceMaterial.clone();
+    // Keep animated layer/flow uniforms synchronized with the visible material.
+    material.uniforms = sourceMaterial.uniforms;
+    const lightingOutputPattern =
+      /outColor\s*=\s*vec4\(applyCameraKeyLighting\([\s\S]*?\),\s*texColor\.a\s*\);/;
+    if (!lightingOutputPattern.test(material.fragmentShader)) {
+      material.dispose();
+      return null;
+    }
+    material.fragmentShader = material.fragmentShader.replace(
+      lightingOutputPattern,
+      "outColor = vec4(mix(vec3(1.0), adjustedColor, texColor.a), 1.0);",
+    );
+    return configureMultiplicativeBlending(material);
+  }
+
+  function getTransmissionMaterial(sourceMaterial) {
+    if (!sourceMaterial) return null;
+    const cached = transmissionMaterials.get(sourceMaterial.uuid);
+    if (cached) return cached;
+    const material = createTransmissionMaterial(sourceMaterial);
+    if (material) transmissionMaterials.set(sourceMaterial.uuid, material);
+    return material;
+  }
+
+  function renderTransmissionMap() {
+    if (!isColoredProjectionActive() || !transmissionRenderTarget) return;
+    const renderer = ctx.renderer.value;
+    const scene = ctx.scene.value;
+    const root = ctx.ribbonSeries.value?.getTransformRoot?.();
+    if (!renderer || !scene || !root || !transmissionCamera) return;
+
+    const materialOverrides = [];
+    root.traverse((object) => {
+      if (!object.isMesh || !object.visible) return;
+      const originalMaterial = object.material;
+      const sourceMaterials = Array.isArray(originalMaterial)
+        ? originalMaterial
+        : [originalMaterial];
+      const replacements = sourceMaterials.map(getTransmissionMaterial);
+      if (replacements.some((material) => !material)) return;
+      materialOverrides.push({ object, originalMaterial });
+      object.material = Array.isArray(originalMaterial)
+        ? replacements
+        : replacements[0];
+    });
+
+    const hiddenObjects = [];
+    for (const child of scene.children) {
+      if (child === root || !child.visible) continue;
+      hiddenObjects.push(child);
+      child.visible = false;
+    }
+    const savedTarget = renderer.getRenderTarget?.() ?? null;
+    const savedClearColor = renderer.getClearColor(new THREE.Color());
+    const savedClearAlpha = renderer.getClearAlpha();
+    const savedBackground = scene.background;
+
+    try {
+      scene.background = null;
+      renderer.setClearColor(0xffffff, 1);
+      renderer.setRenderTarget(transmissionRenderTarget);
+      renderer.clear(true, false, false);
+      renderer.render(scene, transmissionCamera);
+    } finally {
+      renderer.setRenderTarget(savedTarget);
+      renderer.setClearColor(savedClearColor, savedClearAlpha);
+      scene.background = savedBackground;
+      for (const child of hiddenObjects) child.visible = true;
+      for (const { object, originalMaterial } of materialOverrides) {
+        object.material = originalMaterial;
+      }
+    }
   }
 
   function syncShadowCatcherSize() {
@@ -87,13 +320,21 @@ export function useSceneLighting(ctx) {
     }
   }
 
-  function init() {
+  async function init() {
     dispose();
 
     const scene = ctx.scene.value;
     const camera = ctx.camera.value;
     const renderer = ctx.renderer.value;
     if (!scene || !camera || !renderer) return;
+
+    if (renderer.isWebGPURenderer) {
+      const [threeWebGPU, threeTSL] = await Promise.all([
+        import("three/webgpu"),
+        import("three/tsl"),
+      ]);
+      webGPUDeps = { threeWebGPU, threeTSL };
+    }
 
     if (renderer.shadowMap) {
       renderer.shadowMap.enabled = !!ctx.app.sceneLightingEnabled;
@@ -143,6 +384,10 @@ export function useSceneLighting(ctx) {
       depthWrite: false,
       transparent: true,
     });
+    transmissionRenderTarget = createTransmissionRenderTarget(renderer);
+    transmissionCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 250);
+    transmissionCamera.name = "RivvonTransmissionCamera";
+    coloredShadowMaterial = createColoredShadowMaterial(renderer);
     shadowCatcher = new THREE.Mesh(
       shadowCatcherGeometry,
       shadowCatcherMaterial,
@@ -183,6 +428,20 @@ export function useSceneLighting(ctx) {
     camera.getWorldQuaternion(cameraQuaternion);
     shadowCatcher.quaternion.copy(cameraQuaternion);
     syncShadowCatcherSize();
+
+    const lightToPlaneDistance = spotLight.position.distanceTo(
+      shadowCatcher.position,
+    );
+    transmissionCamera.position.copy(spotLight.position);
+    transmissionCamera.quaternion.copy(cameraQuaternion);
+    transmissionCamera.aspect = camera.aspect;
+    transmissionCamera.fov = THREE.MathUtils.radToDeg(
+      2 * Math.atan((shadowCatcher.scale.y * 0.5) / lightToPlaneDistance),
+    );
+    transmissionCamera.near = 0.1;
+    transmissionCamera.far = lightToPlaneDistance + 1;
+    transmissionCamera.updateProjectionMatrix();
+    renderTransmissionMap();
   }
 
   function dispose() {
@@ -194,15 +453,24 @@ export function useSceneLighting(ctx) {
     spotLight?.shadow?.map?.dispose?.();
     shadowCatcherGeometry?.dispose?.();
     shadowCatcherMaterial?.dispose?.();
+    coloredShadowMaterial?.dispose?.();
+    transmissionRenderTarget?.dispose?.();
+    for (const material of transmissionMaterials.values()) material.dispose?.();
+    transmissionMaterials.clear();
     spotLight = null;
     spotTarget = null;
     fillLight = null;
     shadowCatcher = null;
     shadowCatcherGeometry = null;
     shadowCatcherMaterial = null;
+    coloredShadowMaterial = null;
+    transmissionRenderTarget = null;
+    transmissionCamera = null;
+    webGPUDeps = null;
   }
 
   watch(() => ctx.app.sceneLightingEnabled, syncEnabledState);
+  watch(() => ctx.app.sceneColoredShadowsEnabled, syncShadowCatcherMode);
   watch(
     () => [ctx.app.sceneLightingIntensity, ctx.app.sceneShadowOpacity],
     syncSettings,

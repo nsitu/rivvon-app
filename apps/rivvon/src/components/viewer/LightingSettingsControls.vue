@@ -34,6 +34,11 @@
         set: (value) => app.setSceneShadowOpacity(value)
     });
 
+    const sceneColoredShadowsEnabledModel = computed({
+        get: () => app.sceneColoredShadowsEnabled,
+        set: (value) => app.setSceneColoredShadowsEnabled(value)
+    });
+
     function getInputId(name) {
         return `${inputIdPrefix}-${name}`;
     }
@@ -74,6 +79,22 @@
                             suffix="×"
                             class="lighting-number-input"
                         />
+                    </div>
+                    <div class="tools-toggle-row lighting-control-row">
+                        <label
+                            class="tools-toggle-main"
+                            :for="getInputId('coloredShadows')"
+                        >
+                            <span>Colored projection</span>
+                        </label>
+                        <div class="tools-toggle-control">
+                            <span class="tools-toggle-copy">{{ sceneColoredShadowsEnabledModel ? 'On' : 'Off' }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('coloredShadows')"
+                                v-model="sceneColoredShadowsEnabledModel"
+                                :disabled="!sceneLightingEnabledModel"
+                            />
+                        </div>
                     </div>
                     <div class="lighting-slider-control">
                         <div class="lighting-slider-label">

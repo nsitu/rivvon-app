@@ -1977,6 +1977,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
         const material = new MeshStandardNodeMaterial();
         material.colorNode = adjustedOutputColor;
+        material._transmissionColorNode = adjustedOutputColor.rgb;
+        material._transmissionAlphaNode = adjustedOutputColor.a;
         material.emissiveNode = adjustedOutputColor.rgb.mul(
             float(1.0).sub(sceneLightingEnabledUniform)
         );
@@ -2562,6 +2564,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             outputColor.a
         );
         material.colorNode = adjustedOutputColor;
+        material._transmissionColorNode = adjustedOutputColor.rgb;
+        material._transmissionAlphaNode = adjustedOutputColor.a;
         material.emissiveNode = adjustedOutputColor.rgb.mul(
             float(1.0).sub(sceneLightingEnabledUniform)
         );

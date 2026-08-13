@@ -154,7 +154,7 @@ export function useThreeSetup() {
       mouseTilt.attach(result.camera, result.controls);
       scrollTilt.attach(result.camera, result.controls);
       await renderFilter.initRenderFilter(result.rendererType);
-      lighting.init();
+      await lighting.init();
 
       // Store context in app store for access by other components
       app.setThreeContext({

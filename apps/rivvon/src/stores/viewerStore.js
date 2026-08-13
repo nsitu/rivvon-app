@@ -123,6 +123,7 @@ const MAX_SCENE_LIGHT_DISTANCE = 30;
 const DEFAULT_SCENE_SHADOW_PLANE_DISTANCE = 90;
 const MIN_SCENE_SHADOW_PLANE_DISTANCE = 2;
 const MAX_SCENE_SHADOW_PLANE_DISTANCE = 120;
+const DEFAULT_SCENE_COLORED_SHADOWS_ENABLED = false;
 const DEFAULT_SCENE_SHADOW_OPACITY = 0.25;
 const MIN_SCENE_SHADOW_OPACITY = 0.05;
 const MAX_SCENE_SHADOW_OPACITY = 0.6;
@@ -701,6 +702,10 @@ export const useViewerStore = defineStore("viewer", {
       sceneShadowPlaneDistance: normalizeSceneShadowPlaneDistance(
         readViewerPreferences().sceneShadowPlaneDistance,
       ),
+      sceneColoredShadowsEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().sceneColoredShadowsEnabled,
+        DEFAULT_SCENE_COLORED_SHADOWS_ENABLED,
+      ),
       sceneShadowOpacity: normalizeSceneShadowOpacity(
         readViewerPreferences().sceneShadowOpacity,
       ),
@@ -1094,6 +1099,7 @@ export const useViewerStore = defineStore("viewer", {
       this.sceneLightingIntensity = DEFAULT_SCENE_LIGHTING_INTENSITY;
       this.sceneLightDistance = DEFAULT_SCENE_LIGHT_DISTANCE;
       this.sceneShadowPlaneDistance = DEFAULT_SCENE_SHADOW_PLANE_DISTANCE;
+      this.sceneColoredShadowsEnabled = DEFAULT_SCENE_COLORED_SHADOWS_ENABLED;
       this.sceneShadowOpacity = DEFAULT_SCENE_SHADOW_OPACITY;
       this.artworkMotionMode = "none";
       this.viewerMotionLoopCount = DEFAULT_SEAMLESS_LOOP_COUNT;
@@ -1195,6 +1201,7 @@ export const useViewerStore = defineStore("viewer", {
         sceneLightingIntensity: DEFAULT_SCENE_LIGHTING_INTENSITY,
         sceneLightDistance: DEFAULT_SCENE_LIGHT_DISTANCE,
         sceneShadowPlaneDistance: DEFAULT_SCENE_SHADOW_PLANE_DISTANCE,
+        sceneColoredShadowsEnabled: DEFAULT_SCENE_COLORED_SHADOWS_ENABLED,
         sceneShadowOpacity: DEFAULT_SCENE_SHADOW_OPACITY,
         artworkMotionMode: "none",
         viewerMotionLoopCount: DEFAULT_SEAMLESS_LOOP_COUNT,
@@ -2274,6 +2281,12 @@ this.sphericalProjectionVerticalWrapAuto !==
       this.sceneShadowPlaneDistance = nextValue;
       writeViewerPreferences({ sceneShadowPlaneDistance: nextValue });
       return nextValue;
+    },
+
+    setSceneColoredShadowsEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.sceneColoredShadowsEnabled = nextValue;
+      writeViewerPreferences({ sceneColoredShadowsEnabled: nextValue });
     },
 
     setSceneShadowOpacity(value) {
