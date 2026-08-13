@@ -177,11 +177,12 @@
         if (activeToolbarOverlay.value === 'draw') return 'Draw';
         if (activeToolbarOverlay.value === 'texture') return 'Texture';
         if (activeToolbarOverlay.value === 'share') return 'Share';
+        if (activeToolbarOverlay.value === 'lighting') return 'Lighting';
         return null;
     });
 
     function handleToolbarOverlayChange(nextOverlay) {
-        activeToolbarOverlay.value = nextOverlay === 'draw' || nextOverlay === 'texture' || nextOverlay === 'share'
+        activeToolbarOverlay.value = ['draw', 'texture', 'lighting', 'share'].includes(nextOverlay)
             ? nextOverlay
             : null;
     }

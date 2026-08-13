@@ -311,6 +311,21 @@ const SCENE_COLOR_ADJUST_GLSL = /* glsl */`
                 }
 `;
 
+const CAMERA_KEY_LIGHTING_GLSL = /* glsl */`
+                vec3 applyCameraKeyLighting(
+                    vec3 color,
+                    vec3 viewNormal,
+                    vec3 viewPosition,
+                    float enabled,
+                    float intensity
+                ) {
+                    float facing = abs(dot(normalize(viewNormal), normalize(-viewPosition)));
+                    float diffuse = pow(clamp(facing, 0.0, 1.0), 0.7);
+                    float lightAmount = 0.3 + diffuse * (0.55 + 0.35 * intensity);
+                    return color * mix(1.0, lightAmount, clamp(enabled, 0.0, 1.0));
+                }
+`;
+
 function createSceneColorAdjustmentNode(threeTSL, colorNode, contrastUniform, saturationUniform) {
     const { vec3, dot, mix } = threeTSL;
     const luminance = dot(colorNode, vec3(0.2126, 0.7152, 0.0722));
@@ -741,6 +756,8 @@ export class TileManager {
             filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS,
             contrast = 1.0,
             saturation = 1.0,
+            sceneLightingEnabled = false,
+            sceneLightingIntensity = 1.0,
             onProgress = null // Callback for progress updates: (stage, current, total) => {}
         } = options;
 
@@ -810,6 +827,10 @@ export class TileManager {
         this.sceneSaturation = normalizeSceneSaturation(saturation);
         this.sharedContrastUniform = { value: this.sceneContrast };
         this.sharedSaturationUniform = { value: this.sceneSaturation };
+        this.sceneLightingEnabled = !!sceneLightingEnabled;
+        this.sceneLightingIntensity = Math.max(0.1, Math.min(2, Number(sceneLightingIntensity) || 1));
+        this.sharedSceneLightingEnabledUniform = { value: this.sceneLightingEnabled ? 1.0 : 0.0 };
+        this.sharedSceneLightingIntensityUniform = { value: this.sceneLightingIntensity };
         this.currentLayer = 0;
         this.layerCount = 0;
         this.direction = 1; // for ping-pong in planes mode
@@ -1471,6 +1492,8 @@ export class TileManager {
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
                 uContrast: this.sharedContrastUniform,
                 uSaturation: this.sharedSaturationUniform,
+                uSceneLightingEnabled: this.sharedSceneLightingEnabledUniform,
+                uSceneLightingIntensity: this.sharedSceneLightingIntensityUniform,
                 uEdgeNoiseMax: this.sharedEdgeNoiseMaxUniform,
                 uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
                 uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
@@ -1495,6 +1518,8 @@ export class TileManager {
                 out float vCapEndStyle;
                 out float vCapStartU;
                 out float vCapEndU;
+                out vec3 vLightingNormal;
+                out vec3 vLightingViewPosition;
                 void main() {
                     vUv = uv;
                     vEdgeNoiseU = edgeNoiseU;
@@ -1503,7 +1528,10 @@ export class TileManager {
                     vCapEndStyle = capEndStyle;
                     vCapStartU = capStartU;
                     vCapEndU = capEndU;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vec4 lightingViewPosition = modelViewMatrix * vec4(position, 1.0);
+                    vLightingNormal = normalMatrix * normal;
+                    vLightingViewPosition = lightingViewPosition.xyz;
+                    gl_Position = projectionMatrix * lightingViewPosition;
                 }
             `,
             fragmentShader: /* glsl */`
@@ -1516,6 +1544,8 @@ export class TileManager {
                 in float vCapEndStyle;
                 in float vCapStartU;
                 in float vCapEndU;
+                in vec3 vLightingNormal;
+                in vec3 vLightingViewPosition;
                 uniform sampler2DArray uTexArrayCurrent;
                 uniform sampler2DArray uTexArrayNext;
                 uniform int uLayer;
@@ -1542,6 +1572,8 @@ export class TileManager {
                 uniform float uTransparentShadowsThresholdMax;
                 uniform float uContrast;
                 uniform float uSaturation;
+                uniform float uSceneLightingEnabled;
+                uniform float uSceneLightingIntensity;
                 uniform float uEdgeNoiseMax;
                 uniform float uEdgeNoiseSpatialFrequency;
                 uniform float uEdgeNoiseMirror;
@@ -1559,6 +1591,7 @@ ${PEAK_TROUGH_BLUR_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
+${CAMERA_KEY_LIGHTING_GLSL}
 
                 void main() {
                     vec2 maskUv = vec2(vUv.x, vMaskV);
@@ -1682,7 +1715,14 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         texColor.a *= alphaScale;
                     }
 
-                    outColor = vec4(applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation), texColor.a);
+                    vec3 adjustedColor = applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation);
+                    outColor = vec4(applyCameraKeyLighting(
+                        adjustedColor,
+                        vLightingNormal,
+                        vLightingViewPosition,
+                        uSceneLightingEnabled,
+                        uSceneLightingIntensity
+                    ), texColor.a);
                 }
             `,
             // Cap masks are cutouts, not translucent surfaces. Keep them in the
@@ -1739,7 +1779,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
      */
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
-        const { NodeMaterial } = threeWebGPU;
+        const { MeshStandardNodeMaterial } = threeWebGPU;
         const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot, mix } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
         const currentTileIndex = Number(options.currentTileIndex) || 0;
@@ -1763,6 +1803,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
         const transparentColorModeUniform = uniform(0);
+        const sceneLightingEnabledUniform = uniform(this.sceneLightingEnabled ? 1 : 0);
+        const sceneLightingIntensityUniform = uniform(this.sceneLightingIntensity);
         const transparentReferenceColorUniform = uniform(new THREE.Color(0xffffff));
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
@@ -1931,8 +1973,13 @@ ${SCENE_COLOR_ADJUST_GLSL}
             outputColor.a
         );
 
-        const material = new NodeMaterial();
+        const material = new MeshStandardNodeMaterial();
         material.colorNode = adjustedOutputColor;
+        material.emissiveNode = adjustedOutputColor.rgb.mul(
+            float(1.0).sub(sceneLightingEnabledUniform)
+        );
+        material.roughness = 0.78;
+        material.metalness = 0;
         material.transparent = false;
         material.depthWrite = true;
         material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
@@ -1943,6 +1990,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._rotateUniform = rotateUniform;
         material._flipVerticalUniform = flipVerticalUniform;
         material._flowOffsetUniform = flowOffsetUniform;
+        material._sceneLightingEnabledUniform = sceneLightingEnabledUniform;
+        material._sceneLightingIntensityUniform = sceneLightingIntensityUniform;
         material._textureCurrent = textureCurrent;
         material._textureNext = textureNext;
         material.defaultAttributeValues = {
@@ -2106,6 +2155,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
                 uContrast: this.sharedContrastUniform,
                 uSaturation: this.sharedSaturationUniform,
+                uSceneLightingEnabled: this.sharedSceneLightingEnabledUniform,
+                uSceneLightingIntensity: this.sharedSceneLightingIntensityUniform,
                 uEdgeNoiseMax: this.sharedEdgeNoiseMaxUniform,
                 uEdgeNoiseSpatialFrequency: this.sharedEdgeNoiseSpatialFrequencyUniform,
                 uEdgeNoiseMirror: this.sharedEdgeNoiseMirrorUniform,
@@ -2130,6 +2181,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 out float vCapEndStyle;
                 out float vCapStartU;
                 out float vCapEndU;
+                out vec3 vLightingNormal;
+                out vec3 vLightingViewPosition;
                 void main() {
                     vUv = uv;
                     vEdgeNoiseU = edgeNoiseU;
@@ -2138,7 +2191,10 @@ ${SCENE_COLOR_ADJUST_GLSL}
                     vCapEndStyle = capEndStyle;
                     vCapStartU = capStartU;
                     vCapEndU = capEndU;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vec4 lightingViewPosition = modelViewMatrix * vec4(position, 1.0);
+                    vLightingNormal = normalMatrix * normal;
+                    vLightingViewPosition = lightingViewPosition.xyz;
+                    gl_Position = projectionMatrix * lightingViewPosition;
                 }
             `,
             fragmentShader: /* glsl */`
@@ -2151,6 +2207,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 in float vCapEndStyle;
                 in float vCapStartU;
                 in float vCapEndU;
+                in vec3 vLightingNormal;
+                in vec3 vLightingViewPosition;
                 uniform sampler2DArray uTexArray;
                 uniform int uLayer;
                 uniform float uLayerCount;
@@ -2173,6 +2231,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 uniform float uTransparentShadowsThresholdMax;
                 uniform float uContrast;
                 uniform float uSaturation;
+                uniform float uSceneLightingEnabled;
+                uniform float uSceneLightingIntensity;
                 uniform float uEdgeNoiseMax;
                 uniform float uEdgeNoiseSpatialFrequency;
                 uniform float uEdgeNoiseMirror;
@@ -2190,6 +2250,7 @@ ${PEAK_TROUGH_BLUR_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
+${CAMERA_KEY_LIGHTING_GLSL}
 
                 void main() {
                     vec2 maskUv = vec2(vUv.x, vMaskV);
@@ -2256,7 +2317,14 @@ ${SCENE_COLOR_ADJUST_GLSL}
                         }
                         texColor.a *= alphaScale;
                     }
-                    outColor = vec4(applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation), texColor.a);
+                    vec3 adjustedColor = applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation);
+                    outColor = vec4(applyCameraKeyLighting(
+                        adjustedColor,
+                        vLightingNormal,
+                        vLightingViewPosition,
+                        uSceneLightingEnabled,
+                        uSceneLightingIntensity
+                    ), texColor.a);
                 }
             `,
             transparent: false,
@@ -2301,7 +2369,7 @@ ${SCENE_COLOR_ADJUST_GLSL}
 
     #createArrayMaterialWebGPU(arrayTexture, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
-        const { NodeMaterial } = threeWebGPU;
+        const { MeshStandardNodeMaterial } = threeWebGPU;
         const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot, mix } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
         const tileIndex = Number(options.tileIndex) || 0;
@@ -2350,6 +2418,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         const peakTroughGradientEndUniform = uniform(float(PEAK_TROUGH_FADE_END));
         const transparentHighlightsUniform = uniform(0);
         const transparentColorModeUniform = uniform(0);
+        const sceneLightingEnabledUniform = uniform(this.sceneLightingEnabled ? 1 : 0);
+        const sceneLightingIntensityUniform = uniform(this.sceneLightingIntensity);
         const transparentReferenceColorUniform = uniform(new THREE.Color(0xffffff));
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
@@ -2399,8 +2469,9 @@ ${SCENE_COLOR_ADJUST_GLSL}
             float(1).sub(rotatedUV.y)
         );
 
-        // Create NodeMaterial with texture array sampling using .depth()
-        const material = new NodeMaterial();
+        // Standard node material keeps the custom texture graph while participating
+        // in Three's native spotlight and shadow pipeline.
+        const material = new MeshStandardNodeMaterial();
         const sampledColor = texture(arrayTexture, finalUV).depth(layerUniform);
         const peakTroughEffectEnabled = peakTroughTransparencyUniform.max(peakTroughBlurUniform);
         const peakTroughMask = createPeakTroughMaskNode(
@@ -2486,10 +2557,16 @@ ${SCENE_COLOR_ADJUST_GLSL}
                 vec4(finalColor.rgb, mappedTransparencyAlpha),
                 finalColor
             );
-        material.colorNode = vec4(
+        const adjustedOutputColor = vec4(
             createSceneColorAdjustmentNode(threeTSL, outputColor.rgb, contrastUniform, saturationUniform),
             outputColor.a
         );
+        material.colorNode = adjustedOutputColor;
+        material.emissiveNode = adjustedOutputColor.rgb.mul(
+            float(1.0).sub(sceneLightingEnabledUniform)
+        );
+        material.roughness = 0.78;
+        material.metalness = 0;
         material.transparent = false;
         material.depthWrite = true;
         material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
@@ -2500,6 +2577,8 @@ ${SCENE_COLOR_ADJUST_GLSL}
         material._rotateUniform = rotateUniform;
         material._flipVerticalUniform = flipVerticalUniform;
         material._mirrorUniform = mirrorUniform;
+        material._sceneLightingEnabledUniform = sceneLightingEnabledUniform;
+        material._sceneLightingIntensityUniform = sceneLightingIntensityUniform;
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
         material._transparentHighlightsUniform = transparentHighlightsUniform;
@@ -3314,6 +3393,28 @@ ${SCENE_COLOR_ADJUST_GLSL}
         this.sceneSaturation = nextValue;
         this.sharedSaturationUniform.value = nextValue;
         this.#syncSceneColorAdjustmentUniforms();
+        return true;
+    }
+
+    /** Enable or disable camera-key lighting for all ribbon materials. */
+    setSceneLighting(enabled, intensity = this.sceneLightingIntensity) {
+        const nextEnabled = !!enabled;
+        const nextIntensity = Math.max(0.1, Math.min(2, Number(intensity) || 1));
+        this.sceneLightingEnabled = nextEnabled;
+        this.sceneLightingIntensity = nextIntensity;
+        this.sharedSceneLightingEnabledUniform.value = nextEnabled ? 1.0 : 0.0;
+        this.sharedSceneLightingIntensityUniform.value = nextIntensity;
+
+        const syncMaterial = (material) => {
+            if (material?._sceneLightingEnabledUniform) {
+                material._sceneLightingEnabledUniform.value = nextEnabled ? 1.0 : 0.0;
+            }
+            if (material?._sceneLightingIntensityUniform) {
+                material._sceneLightingIntensityUniform.value = nextIntensity;
+            }
+        };
+        this.#forEachStaticMaterial(syncMaterial);
+        this.flowMaterials.forEach(syncMaterial);
         return true;
     }
 

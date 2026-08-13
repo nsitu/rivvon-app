@@ -113,6 +113,13 @@ const DEFAULT_BACKGROUND_WATER_SPEED = 1.0;
 const MIN_BACKGROUND_WATER_SPEED = 0.0;
 const MAX_BACKGROUND_WATER_SPEED = 3.0;
 const DEFAULT_BACKGROUND_WATER_STRENGTH = 0.28;
+const DEFAULT_SCENE_LIGHTING_ENABLED = false;
+const DEFAULT_SCENE_LIGHTING_INTENSITY = 1.0;
+const MIN_SCENE_LIGHTING_INTENSITY = 0.1;
+const MAX_SCENE_LIGHTING_INTENSITY = 2.0;
+const DEFAULT_SCENE_SHADOW_OPACITY = 0.25;
+const MIN_SCENE_SHADOW_OPACITY = 0.05;
+const MAX_SCENE_SHADOW_OPACITY = 0.6;
 const MIN_BACKGROUND_WATER_STRENGTH = 0.05;
 const MAX_BACKGROUND_WATER_STRENGTH = 0.6;
 const RIBBON_PATH_ALIGNMENT_MODES = ["inside", "center", "outside"];
@@ -482,6 +489,24 @@ function normalizeBackgroundWaterStrength(value) {
   );
 }
 
+function normalizeSceneLightingIntensity(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_SCENE_LIGHTING_INTENSITY;
+  return Math.min(
+    MAX_SCENE_LIGHTING_INTENSITY,
+    Math.max(MIN_SCENE_LIGHTING_INTENSITY, parsed),
+  );
+}
+
+function normalizeSceneShadowOpacity(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_SCENE_SHADOW_OPACITY;
+  return Math.min(
+    MAX_SCENE_SHADOW_OPACITY,
+    Math.max(MIN_SCENE_SHADOW_OPACITY, parsed),
+  );
+}
+
 function normalizeRenderPixelRatio(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -638,6 +663,16 @@ export const useViewerStore = defineStore("viewer", {
       ),
       renderPixelRatio: normalizeRenderPixelRatio(
         readViewerPreferences().renderPixelRatio,
+      ),
+      sceneLightingEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().sceneLightingEnabled,
+        DEFAULT_SCENE_LIGHTING_ENABLED,
+      ),
+      sceneLightingIntensity: normalizeSceneLightingIntensity(
+        readViewerPreferences().sceneLightingIntensity,
+      ),
+      sceneShadowOpacity: normalizeSceneShadowOpacity(
+        readViewerPreferences().sceneShadowOpacity,
       ),
 
       // Drawing state
@@ -1025,6 +1060,9 @@ export const useViewerStore = defineStore("viewer", {
       const defaultExportDimensions = normalizeExportDimensionSettings({});
 
       this.viewerControlMode = "orbit";
+      this.sceneLightingEnabled = DEFAULT_SCENE_LIGHTING_ENABLED;
+      this.sceneLightingIntensity = DEFAULT_SCENE_LIGHTING_INTENSITY;
+      this.sceneShadowOpacity = DEFAULT_SCENE_SHADOW_OPACITY;
       this.artworkMotionMode = "none";
       this.viewerMotionLoopCount = DEFAULT_SEAMLESS_LOOP_COUNT;
       this.scrollDrivenTiltEnabled = true;
@@ -1121,6 +1159,9 @@ export const useViewerStore = defineStore("viewer", {
       this.clearHeadTrackingFeedback();
 
       writeViewerPreferences({
+        sceneLightingEnabled: DEFAULT_SCENE_LIGHTING_ENABLED,
+        sceneLightingIntensity: DEFAULT_SCENE_LIGHTING_INTENSITY,
+        sceneShadowOpacity: DEFAULT_SCENE_SHADOW_OPACITY,
         artworkMotionMode: "none",
         viewerMotionLoopCount: DEFAULT_SEAMLESS_LOOP_COUNT,
         scrollDrivenTiltEnabled: true,
@@ -2160,6 +2201,26 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = normalizeRenderPixelRatio(value);
       this.renderPixelRatio = nextValue;
       writeViewerPreferences({ renderPixelRatio: nextValue });
+      return nextValue;
+    },
+
+    setSceneLightingEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.sceneLightingEnabled = nextValue;
+      writeViewerPreferences({ sceneLightingEnabled: nextValue });
+    },
+
+    setSceneLightingIntensity(value) {
+      const nextValue = normalizeSceneLightingIntensity(value);
+      this.sceneLightingIntensity = nextValue;
+      writeViewerPreferences({ sceneLightingIntensity: nextValue });
+      return nextValue;
+    },
+
+    setSceneShadowOpacity(value) {
+      const nextValue = normalizeSceneShadowOpacity(value);
+      this.sceneShadowOpacity = nextValue;
+      writeViewerPreferences({ sceneShadowOpacity: nextValue });
       return nextValue;
     },
 

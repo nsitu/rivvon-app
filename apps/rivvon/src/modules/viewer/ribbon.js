@@ -1395,7 +1395,10 @@ export class Ribbon {
       });
     }
 
-    return new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   _getCurvatureRetainedInterval(curvature = 0, maxWidthScale = 1) {

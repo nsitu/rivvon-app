@@ -16,6 +16,7 @@ import { useViewerMotion } from "./useViewerMotion";
 import { useRenderFilter } from "./useRenderFilter";
 import { useRenderLoop } from "./useRenderLoop";
 import { useSceneBackground } from "./useSceneBackground";
+import { useSceneLighting } from "./useSceneLighting";
 import { useRibbonBuilder } from "./useRibbonBuilder";
 import { useTextureLoader } from "./useTextureLoader";
 import { useSceneExport } from "./useSceneExport";
@@ -102,10 +103,12 @@ export function useThreeSetup() {
   const renderLoop = useRenderLoop(ctx, renderLoopDeps);
 
   const background = useSceneBackground(ctx);
+  const lighting = useSceneLighting(ctx);
   const ribbons = useRibbonBuilder(ctx);
 
   function renderSceneWithBackground(renderOptions = {}) {
     background.updateBackground(renderOptions);
+    lighting.tick();
     renderFilter.renderScene(renderOptions.target ?? null);
   }
 
@@ -151,6 +154,7 @@ export function useThreeSetup() {
       mouseTilt.attach(result.camera, result.controls);
       scrollTilt.attach(result.camera, result.controls);
       await renderFilter.initRenderFilter(result.rendererType);
+      lighting.init();
 
       // Store context in app store for access by other components
       app.setThreeContext({
@@ -188,6 +192,8 @@ export function useThreeSetup() {
         filmstripHoleRoundedness: app.filmstripHoleRoundedness,
         contrast: app.renderFilterMode === "gradientMap" ? 1 : app.contrast,
         saturation: app.renderFilterMode === "gradientMap" ? 1 : app.saturation,
+        sceneLightingEnabled: app.sceneLightingEnabled,
+        sceneLightingIntensity: app.sceneLightingIntensity,
         webgpuMaterialMode: "node",
       });
       await tileManager.value.loadAllTiles();
@@ -246,6 +252,7 @@ export function useThreeSetup() {
     viewerMotion.deactivate({ restore: false });
     cinematicCamera.dispose();
     renderFilter.disposeRenderFilter();
+    lighting.dispose();
 
     background.disposeBackground();
     if (ribbon.value) {
@@ -315,6 +322,7 @@ export function useThreeSetup() {
     viewerMotion.deactivate({ restore: false });
     cinematicCamera.dispose();
     renderFilter.disposeRenderFilter();
+    lighting.dispose();
 
     background.disposeBackground();
     if (ribbon.value) {

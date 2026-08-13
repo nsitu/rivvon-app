@@ -135,6 +135,21 @@
         }
     });
 
+    const sceneLightingEnabledModel = computed({
+        get: () => app.sceneLightingEnabled,
+        set: (value) => app.setSceneLightingEnabled(value)
+    });
+
+    const sceneLightingIntensityModel = computed({
+        get: () => app.sceneLightingIntensity,
+        set: (value) => app.setSceneLightingIntensity(value)
+    });
+
+    const sceneShadowOpacityModel = computed({
+        get: () => app.sceneShadowOpacity,
+        set: (value) => app.setSceneShadowOpacity(value)
+    });
+
     const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
     function formatBuildTimestamp(value) {
@@ -562,6 +577,7 @@
         if (props.activeToolbarOverlay === 'draw') return 'Draw';
         if (props.activeToolbarOverlay === 'texture') return 'Texture';
         if (props.activeToolbarOverlay === 'share') return 'Share';
+        if (props.activeToolbarOverlay === 'lighting') return 'Lighting';
         return '';
     });
 
@@ -779,6 +795,23 @@
             </button>
         </div>
 
+        <div class="toolbar-launcher">
+            <button
+                type="button"
+                class="toolbar-main-button"
+                :class="{ active: app.sceneLightingEnabled || props.activeToolbarOverlay === 'lighting' }"
+                :aria-expanded="props.activeToolbarOverlay === 'lighting'"
+                aria-label="Lighting controls"
+                aria-haspopup="dialog"
+                @click="toggleLauncher('lighting')"
+            >
+                <span class="toolbar-button-content">
+                    <span class="material-symbols-outlined toolbar-button-icon">lightbulb</span>
+                    <span class="toolbar-button-label">Lighting</span>
+                </span>
+            </button>
+        </div>
+
         <!-- Tools panel toggle -->
         <button
             class="toolbar-utility-button"
@@ -828,6 +861,54 @@
         <div class="launcher-panel-container viewer-chrome-panel-container">
             <ScrollPanel class="launcher-panel-scrollpanel">
                 <div class="launcher-panel-content">
+                    <div
+                        v-if="props.activeToolbarOverlay === 'lighting'"
+                        class="tools-section lighting-controls-section"
+                    >
+                        <div class="tools-section-label">Scene Lighting</div>
+                        <div class="lighting-control-stack">
+                            <div class="tools-toggle-row lighting-control-row">
+                                <label for="sceneLightingToggle" class="tools-toggle-main">
+                                    <span class="material-symbols-outlined">lightbulb</span>
+                                    <span>Camera spotlight</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-toggle-copy">{{ sceneLightingEnabledModel ? 'On' : 'Off' }}</span>
+                                    <ToggleSwitch
+                                        inputId="sceneLightingToggle"
+                                        v-model="sceneLightingEnabledModel"
+                                    />
+                                </div>
+                            </div>
+                            <div class="lighting-number-row">
+                                <label for="sceneLightingIntensity">Intensity</label>
+                                <InputNumber
+                                    v-model="sceneLightingIntensityModel"
+                                    input-id="sceneLightingIntensity"
+                                    :min="0.1"
+                                    :max="2"
+                                    :step="0.1"
+                                    :min-fraction-digits="1"
+                                    :max-fraction-digits="1"
+                                    suffix="×"
+                                    class="lighting-number-input"
+                                />
+                            </div>
+                            <div class="lighting-number-row">
+                                <label for="sceneShadowOpacity">Shadow strength</label>
+                                <InputNumber
+                                    v-model="sceneShadowOpacityModel"
+                                    input-id="sceneShadowOpacity"
+                                    :min="0.05"
+                                    :max="0.6"
+                                    :step="0.05"
+                                    :min-fraction-digits="2"
+                                    :max-fraction-digits="2"
+                                    class="lighting-number-input"
+                                />
+                            </div>
+                        </div>
+                    </div>
                     <template
                         v-for="entry in activeLauncherSections"
                         :key="entry.type === 'column-group' ? entry.sections.map(s => s.label).join('-') : entry.label"
@@ -1271,6 +1352,39 @@
         justify-content: flex-end;
         gap: 1.5rem;
         min-height: 100%;
+    }
+
+    .lighting-controls-section {
+        width: min(24rem, 100%);
+    }
+
+    .lighting-control-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .lighting-control-row,
+    .lighting-number-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 2.75rem;
+    }
+
+    .lighting-number-row label {
+        color: var(--viewer-toolbar-text, #fff);
+        font-size: 0.92rem;
+    }
+
+    .lighting-number-input {
+        width: 7.5rem;
+    }
+
+    :deep(.lighting-number-input .p-inputnumber-input) {
+        width: 100%;
+        text-align: right;
     }
 
     @media (min-width: 769px) {

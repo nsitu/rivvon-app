@@ -40,7 +40,7 @@ loadMaterialSymbols([
     'all_inclusive','gesture','text_select_move_forward_word',
     'horizontal_align_center','filter_b_and_w','download','zoom_in',
     'swap_vert','fast_rewind','wallpaper','blur_on','sync',
-    'refresh','link','target','colors','contrast',
+    'refresh','link','target','colors','contrast','lightbulb',
     'fit_page_width','vital_signs', 'opacity','branding_watermark',
     'north_west', 'south_east', 'north_east','south_west' ,'text_select_move_up','blur_linear','block','brightness_6','colorize'
 ]);

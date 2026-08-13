@@ -35,6 +35,8 @@ export function useTextureLoader(ctx, deps = {}) {
             filmstripHoleRoundedness: ctx.app.filmstripHoleRoundedness,
             contrast: ctx.app.renderFilterMode === 'gradientMap' ? 1 : ctx.app.contrast,
             saturation: ctx.app.renderFilterMode === 'gradientMap' ? 1 : ctx.app.saturation,
+            sceneLightingEnabled: ctx.app.sceneLightingEnabled,
+            sceneLightingIntensity: ctx.app.sceneLightingIntensity,
             webgpuMaterialMode: 'node',
             ...options,
         });
