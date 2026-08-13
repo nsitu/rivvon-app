@@ -120,6 +120,9 @@ const MAX_SCENE_LIGHTING_INTENSITY = 2.0;
 const DEFAULT_SCENE_LIGHT_DISTANCE = 10;
 const MIN_SCENE_LIGHT_DISTANCE = 2;
 const MAX_SCENE_LIGHT_DISTANCE = 30;
+const DEFAULT_SCENE_SHADOW_PLANE_DISTANCE = 90;
+const MIN_SCENE_SHADOW_PLANE_DISTANCE = 2;
+const MAX_SCENE_SHADOW_PLANE_DISTANCE = 120;
 const DEFAULT_SCENE_SHADOW_OPACITY = 0.25;
 const MIN_SCENE_SHADOW_OPACITY = 0.05;
 const MAX_SCENE_SHADOW_OPACITY = 0.6;
@@ -510,6 +513,15 @@ function normalizeSceneLightDistance(value) {
   );
 }
 
+function normalizeSceneShadowPlaneDistance(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_SCENE_SHADOW_PLANE_DISTANCE;
+  return Math.min(
+    MAX_SCENE_SHADOW_PLANE_DISTANCE,
+    Math.max(MIN_SCENE_SHADOW_PLANE_DISTANCE, parsed),
+  );
+}
+
 function normalizeSceneShadowOpacity(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_SCENE_SHADOW_OPACITY;
@@ -685,6 +697,9 @@ export const useViewerStore = defineStore("viewer", {
       ),
       sceneLightDistance: normalizeSceneLightDistance(
         readViewerPreferences().sceneLightDistance,
+      ),
+      sceneShadowPlaneDistance: normalizeSceneShadowPlaneDistance(
+        readViewerPreferences().sceneShadowPlaneDistance,
       ),
       sceneShadowOpacity: normalizeSceneShadowOpacity(
         readViewerPreferences().sceneShadowOpacity,
@@ -1078,6 +1093,7 @@ export const useViewerStore = defineStore("viewer", {
       this.sceneLightingEnabled = DEFAULT_SCENE_LIGHTING_ENABLED;
       this.sceneLightingIntensity = DEFAULT_SCENE_LIGHTING_INTENSITY;
       this.sceneLightDistance = DEFAULT_SCENE_LIGHT_DISTANCE;
+      this.sceneShadowPlaneDistance = DEFAULT_SCENE_SHADOW_PLANE_DISTANCE;
       this.sceneShadowOpacity = DEFAULT_SCENE_SHADOW_OPACITY;
       this.artworkMotionMode = "none";
       this.viewerMotionLoopCount = DEFAULT_SEAMLESS_LOOP_COUNT;
@@ -1178,6 +1194,7 @@ export const useViewerStore = defineStore("viewer", {
         sceneLightingEnabled: DEFAULT_SCENE_LIGHTING_ENABLED,
         sceneLightingIntensity: DEFAULT_SCENE_LIGHTING_INTENSITY,
         sceneLightDistance: DEFAULT_SCENE_LIGHT_DISTANCE,
+        sceneShadowPlaneDistance: DEFAULT_SCENE_SHADOW_PLANE_DISTANCE,
         sceneShadowOpacity: DEFAULT_SCENE_SHADOW_OPACITY,
         artworkMotionMode: "none",
         viewerMotionLoopCount: DEFAULT_SEAMLESS_LOOP_COUNT,
@@ -2238,6 +2255,13 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = normalizeSceneLightDistance(value);
       this.sceneLightDistance = nextValue;
       writeViewerPreferences({ sceneLightDistance: nextValue });
+      return nextValue;
+    },
+
+    setSceneShadowPlaneDistance(value) {
+      const nextValue = normalizeSceneShadowPlaneDistance(value);
+      this.sceneShadowPlaneDistance = nextValue;
+      writeViewerPreferences({ sceneShadowPlaneDistance: nextValue });
       return nextValue;
     },
 

@@ -3,9 +3,8 @@
 import { watch } from "vue";
 import * as THREE from "three";
 
-const BACKGROUND_DISTANCE = 100;
-const SHADOW_CATCHER_DISTANCE = BACKGROUND_DISTANCE - 0.05;
 const SHADOW_CATCHER_RENDER_ORDER = -9999;
+const SHADOW_CATCHER_OVERSCAN = 1.02;
 const SPOTLIGHT_BASE_INTENSITY = 100;
 
 export function useSceneLighting(ctx) {
@@ -18,6 +17,7 @@ export function useSceneLighting(ctx) {
   const cameraPosition = new THREE.Vector3();
   const artworkCenter = new THREE.Vector3();
   const lightAxis = new THREE.Vector3();
+  const cameraQuaternion = new THREE.Quaternion();
 
   function resolveArtworkCenter(target) {
     const series = ctx.ribbonSeries.value;
@@ -70,10 +70,13 @@ export function useSceneLighting(ctx) {
     if (!camera || !shadowCatcher) return;
 
     if (camera.isPerspectiveCamera) {
+      const catcherDistance = cameraPosition.distanceTo(shadowCatcher.position);
+      const effectiveFov = camera.getEffectiveFOV?.() ?? camera.fov;
       const height =
         2 *
-        Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) *
-        SHADOW_CATCHER_DISTANCE;
+        Math.tan(THREE.MathUtils.degToRad(effectiveFov) / 2) *
+        catcherDistance *
+        SHADOW_CATCHER_OVERSCAN;
       shadowCatcher.scale.set(height * camera.aspect, height, 1);
     } else if (camera.isOrthographicCamera) {
       shadowCatcher.scale.set(
@@ -148,12 +151,9 @@ export function useSceneLighting(ctx) {
     shadowCatcher.receiveShadow = true;
     shadowCatcher.frustumCulled = false;
     shadowCatcher.renderOrder = SHADOW_CATCHER_RENDER_ORDER;
-    shadowCatcher.position.set(0, 0, -SHADOW_CATCHER_DISTANCE);
 
     if (!camera.parent) scene.add(camera);
-    camera.add(shadowCatcher);
-    scene.add(spotLight, spotTarget, fillLight);
-    syncShadowCatcherSize();
+    scene.add(spotLight, spotTarget, fillLight, shadowCatcher);
     syncEnabledState();
     tick();
   }
@@ -176,13 +176,18 @@ export function useSceneLighting(ctx) {
       .addScaledVector(lightAxis, ctx.app.sceneLightDistance);
     spotTarget.position.copy(artworkCenter);
     spotTarget.updateMatrixWorld();
+
+    shadowCatcher.position
+      .copy(artworkCenter)
+      .addScaledVector(lightAxis, -ctx.app.sceneShadowPlaneDistance);
+    camera.getWorldQuaternion(cameraQuaternion);
+    shadowCatcher.quaternion.copy(cameraQuaternion);
     syncShadowCatcherSize();
   }
 
   function dispose() {
     const scene = ctx.scene.value;
-    const camera = ctx.camera.value;
-    if (shadowCatcher && camera) camera.remove(shadowCatcher);
+    if (shadowCatcher && scene) scene.remove(shadowCatcher);
     if (spotLight && scene) scene.remove(spotLight);
     if (spotTarget && scene) scene.remove(spotTarget);
     if (fillLight && scene) scene.remove(fillLight);

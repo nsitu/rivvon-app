@@ -151,6 +151,11 @@
         set: (value) => app.setSceneLightDistance(value)
     });
 
+    const sceneShadowPlaneDistanceModel = computed({
+        get: () => app.sceneShadowPlaneDistance,
+        set: (value) => app.setSceneShadowPlaneDistance(value)
+    });
+
     const sceneShadowOpacityModel = computed({
         get: () => app.sceneShadowOpacity,
         set: (value) => app.setSceneShadowOpacity(value)
@@ -927,6 +932,22 @@
                                     :min-fraction-digits="2"
                                     :max-fraction-digits="2"
                                     class="lighting-number-input"
+                                />
+                            </div>
+                            <div class="lighting-slider-control">
+                                <div class="lighting-slider-label">
+                                    <label for="sceneShadowPlaneDistance">Shadow plane distance</label>
+                                    <output for="sceneShadowPlaneDistance">{{ sceneShadowPlaneDistanceModel.toFixed(1) }}</output>
+                                </div>
+                                <Slider
+                                    v-model="sceneShadowPlaneDistanceModel"
+                                    input-id="sceneShadowPlaneDistance"
+                                    :min="2"
+                                    :max="120"
+                                    :step="1"
+                                    :disabled="!sceneLightingEnabledModel"
+                                    aria-label="Shadow plane distance from artwork"
+                                    class="lighting-distance-slider"
                                 />
                             </div>
                         </div>
