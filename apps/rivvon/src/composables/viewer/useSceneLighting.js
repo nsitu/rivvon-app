@@ -131,9 +131,16 @@ export function useSceneLighting(ctx) {
   function createColoredShadowMaterial(renderer) {
     if (renderer.isWebGPURenderer && webGPUDeps) {
       const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-      const { texture, uniform, uv, float, vec3, mix } = webGPUDeps.threeTSL;
+      const { texture, uniform, uv, float, vec2, vec3, mix } = webGPUDeps.threeTSL;
       const opacityUniform = uniform(ctx.app.sceneShadowOpacity);
-      const sampledTransmission = texture(transmissionRenderTarget.texture, uv());
+      const receiverUv = uv();
+      // Render-target rows are inverted relative to the receiver plane. Leaving
+      // this uncorrected mirrors the projection and reverses apparent rotation.
+      const projectionUv = vec2(receiverUv.x, float(1).sub(receiverUv.y));
+      const sampledTransmission = texture(
+        transmissionRenderTarget.texture,
+        projectionUv,
+      );
       const material = new MeshBasicNodeMaterial();
       material.colorNode = mix(
         vec3(1, 1, 1),
@@ -162,7 +169,8 @@ export function useSceneLighting(ctx) {
         uniform float uOpacity;
         varying vec2 vUv;
         void main() {
-          vec3 transmission = texture2D(uTransmissionMap, vUv).rgb;
+          vec2 projectionUv = vec2(vUv.x, 1.0 - vUv.y);
+          vec3 transmission = texture2D(uTransmissionMap, projectionUv).rgb;
           gl_FragColor = vec4(mix(vec3(1.0), transmission, uOpacity), 1.0);
         }
       `,
