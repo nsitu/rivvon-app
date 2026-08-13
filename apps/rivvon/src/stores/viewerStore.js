@@ -1734,8 +1734,13 @@ export const useViewerStore = defineStore("viewer", {
           this.sphericalProjectionLowerLatitudeDegrees,
         sphericalProjectionUpperLatitudeDegrees:
           this.sphericalProjectionUpperLatitudeDegrees,
-        sphericalProjectionVerticalWrapAuto:
+sphericalProjectionVerticalWrapAuto:
           this.sphericalProjectionVerticalWrapAuto,
+        sceneLightingEnabled: this.sceneLightingEnabled,
+        sceneLightingIntensity: this.sceneLightingIntensity,
+        sceneLightDistance: this.sceneLightDistance,
+        sceneShadowPlaneDistance: this.sceneShadowPlaneDistance,
+        sceneShadowOpacity: this.sceneShadowOpacity,
         showTextureMetadataOverlay: this.showTextureMetadataOverlay,
         screenWakeLockEnabled: this.screenWakeLockEnabled,
       };
@@ -1847,8 +1852,14 @@ export const useViewerStore = defineStore("viewer", {
           original.sphericalProjectionLowerLatitudeDegrees ||
         this.sphericalProjectionUpperLatitudeDegrees !==
           original.sphericalProjectionUpperLatitudeDegrees ||
-        this.sphericalProjectionVerticalWrapAuto !==
+this.sphericalProjectionVerticalWrapAuto !==
           original.sphericalProjectionVerticalWrapAuto ||
+        this.sceneLightingEnabled !== original.sceneLightingEnabled ||
+        this.sceneLightingIntensity !== original.sceneLightingIntensity ||
+        this.sceneLightDistance !== original.sceneLightDistance ||
+        this.sceneShadowPlaneDistance !==
+          original.sceneShadowPlaneDistance ||
+        this.sceneShadowOpacity !== original.sceneShadowOpacity ||
         this.showTextureMetadataOverlay !==
           original.showTextureMetadataOverlay ||
         this.screenWakeLockEnabled !== original.screenWakeLockEnabled

@@ -5,12 +5,12 @@
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
-    import InputNumber from 'primevue/inputnumber';
-    import Slider from 'primevue/slider';
+import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import AboutPanel from './AboutPanel.vue';
     import GeometrySettingsControls from './GeometrySettingsControls.vue';
+    import LightingSettingsControls from './LightingSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import ViewerSettingsControls from './ViewerSettingsControls.vue';
     import { EXPORT_LOGO_CORNER_OPTIONS } from '../../modules/viewer/exportLogoOverlay.js';
@@ -136,32 +136,7 @@
         }
     });
 
-    const sceneLightingEnabledModel = computed({
-        get: () => app.sceneLightingEnabled,
-        set: (value) => app.setSceneLightingEnabled(value)
-    });
-
-    const sceneLightingIntensityModel = computed({
-        get: () => app.sceneLightingIntensity,
-        set: (value) => app.setSceneLightingIntensity(value)
-    });
-
-    const sceneLightDistanceModel = computed({
-        get: () => app.sceneLightDistance,
-        set: (value) => app.setSceneLightDistance(value)
-    });
-
-    const sceneShadowPlaneDistanceModel = computed({
-        get: () => app.sceneShadowPlaneDistance,
-        set: (value) => app.setSceneShadowPlaneDistance(value)
-    });
-
-    const sceneShadowOpacityModel = computed({
-        get: () => app.sceneShadowOpacity,
-        set: (value) => app.setSceneShadowOpacity(value)
-    });
-
-    const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
+const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
     function formatBuildTimestamp(value) {
         if (!value) return 'Unavailable';
@@ -584,11 +559,10 @@
         return [];
     });
 
-    const activeLauncherTitle = computed(() => {
+const activeLauncherTitle = computed(() => {
         if (props.activeToolbarOverlay === 'draw') return 'Draw';
         if (props.activeToolbarOverlay === 'texture') return 'Texture';
         if (props.activeToolbarOverlay === 'share') return 'Share';
-        if (props.activeToolbarOverlay === 'lighting') return 'Lighting';
         return '';
     });
 
@@ -789,7 +763,7 @@
             </button>
         </div>
 
-        <div class="toolbar-launcher">
+<div class="toolbar-launcher">
             <button
                 type="button"
                 class="toolbar-main-button"
@@ -802,23 +776,6 @@
                 <span class="toolbar-button-content">
                     <span class="material-symbols-outlined toolbar-button-icon">texture</span>
                     <span class="toolbar-button-label">Texture</span>
-                </span>
-            </button>
-        </div>
-
-        <div class="toolbar-launcher">
-            <button
-                type="button"
-                class="toolbar-main-button"
-                :class="{ active: app.sceneLightingEnabled || props.activeToolbarOverlay === 'lighting' }"
-                :aria-expanded="props.activeToolbarOverlay === 'lighting'"
-                aria-label="Lighting controls"
-                aria-haspopup="dialog"
-                @click="toggleLauncher('lighting')"
-            >
-                <span class="toolbar-button-content">
-                    <span class="material-symbols-outlined toolbar-button-icon">lightbulb</span>
-                    <span class="toolbar-button-label">Lighting</span>
                 </span>
             </button>
         </div>
@@ -871,87 +828,7 @@
     >
         <div class="launcher-panel-container viewer-chrome-panel-container">
             <ScrollPanel class="launcher-panel-scrollpanel">
-                <div class="launcher-panel-content">
-                    <div
-                        v-if="props.activeToolbarOverlay === 'lighting'"
-                        class="tools-section lighting-controls-section"
-                    >
-                        <div class="tools-section-label">Scene Lighting</div>
-                        <div class="lighting-control-stack">
-                            <div class="tools-toggle-row lighting-control-row">
-                                <label for="sceneLightingToggle" class="tools-toggle-main">
-                                    <span class="material-symbols-outlined">lightbulb</span>
-                                    <span>Camera spotlight</span>
-                                </label>
-                                <div class="tools-toggle-control">
-                                    <span class="tools-toggle-copy">{{ sceneLightingEnabledModel ? 'On' : 'Off' }}</span>
-                                    <ToggleSwitch
-                                        inputId="sceneLightingToggle"
-                                        v-model="sceneLightingEnabledModel"
-                                    />
-                                </div>
-                            </div>
-                            <div class="lighting-number-row">
-                                <label for="sceneLightingIntensity">Intensity</label>
-                                <InputNumber
-                                    v-model="sceneLightingIntensityModel"
-                                    input-id="sceneLightingIntensity"
-                                    :min="0.1"
-                                    :max="2"
-                                    :step="0.1"
-                                    :min-fraction-digits="1"
-                                    :max-fraction-digits="1"
-                                    suffix="×"
-                                    class="lighting-number-input"
-                                />
-                            </div>
-                            <div class="lighting-slider-control">
-                                <div class="lighting-slider-label">
-                                    <label for="sceneLightDistance">Light distance</label>
-                                    <output for="sceneLightDistance">{{ sceneLightDistanceModel.toFixed(1) }}</output>
-                                </div>
-                                <Slider
-                                    v-model="sceneLightDistanceModel"
-                                    input-id="sceneLightDistance"
-                                    :min="2"
-                                    :max="30"
-                                    :step="0.5"
-                                    :disabled="!sceneLightingEnabledModel"
-                                    aria-label="Light distance from artwork"
-                                    class="lighting-distance-slider"
-                                />
-                            </div>
-                            <div class="lighting-number-row">
-                                <label for="sceneShadowOpacity">Shadow strength</label>
-                                <InputNumber
-                                    v-model="sceneShadowOpacityModel"
-                                    input-id="sceneShadowOpacity"
-                                    :min="0.05"
-                                    :max="0.6"
-                                    :step="0.05"
-                                    :min-fraction-digits="2"
-                                    :max-fraction-digits="2"
-                                    class="lighting-number-input"
-                                />
-                            </div>
-                            <div class="lighting-slider-control">
-                                <div class="lighting-slider-label">
-                                    <label for="sceneShadowPlaneDistance">Shadow plane distance</label>
-                                    <output for="sceneShadowPlaneDistance">{{ sceneShadowPlaneDistanceModel.toFixed(1) }}</output>
-                                </div>
-                                <Slider
-                                    v-model="sceneShadowPlaneDistanceModel"
-                                    input-id="sceneShadowPlaneDistance"
-                                    :min="2"
-                                    :max="120"
-                                    :step="1"
-                                    :disabled="!sceneLightingEnabledModel"
-                                    aria-label="Shadow plane distance from artwork"
-                                    class="lighting-distance-slider"
-                                />
-                            </div>
-                        </div>
-                    </div>
+<div class="launcher-panel-content">
                     <template
                         v-for="entry in activeLauncherSections"
                         :key="entry.type === 'column-group' ? entry.sections.map(s => s.label).join('-') : entry.label"
@@ -1192,6 +1069,10 @@
                     </div>
 
                     <div class="tools-section-host">
+                        <LightingSettingsControls />
+                    </div>
+
+                    <div class="tools-section-host">
                         <CinematicCameraControls
                             :cinematic-playing="props.cinematicPlaying"
                             :cinematic-roi-count="props.cinematicRoiCount"
@@ -1397,65 +1278,7 @@
         min-height: 100%;
     }
 
-    .lighting-controls-section {
-        width: min(24rem, 100%);
-    }
-
-    .lighting-control-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 0.8rem;
-    }
-
-    .lighting-control-row,
-    .lighting-number-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        min-height: 2.75rem;
-    }
-
-    .lighting-number-row label {
-        color: var(--viewer-toolbar-text, #fff);
-        font-size: 0.92rem;
-    }
-
-    .lighting-number-input {
-        width: 7.5rem;
-    }
-
-    :deep(.lighting-number-input .p-inputnumber-input) {
-        width: 100%;
-        text-align: right;
-    }
-
-    .lighting-slider-control {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        padding: 0.2rem 0 0.45rem;
-    }
-
-    .lighting-slider-label {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        color: var(--viewer-toolbar-text, #fff);
-        font-size: 0.92rem;
-    }
-
-    .lighting-slider-label output {
-        color: var(--viewer-toolbar-muted-text, rgba(255, 255, 255, 0.72));
-        font-variant-numeric: tabular-nums;
-    }
-
-    .lighting-distance-slider {
-        margin: 0 0.5rem;
-    }
-
-    @media (min-width: 769px) {
+@media (min-width: 769px) {
         .launcher-panel-content {
             flex-direction: row;
             flex-wrap: wrap;
