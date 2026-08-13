@@ -15,7 +15,16 @@ export function useSceneLighting(ctx) {
   let shadowCatcher = null;
   let shadowCatcherGeometry = null;
   let shadowCatcherMaterial = null;
-  const cameraDirection = new THREE.Vector3();
+  const cameraPosition = new THREE.Vector3();
+  const artworkCenter = new THREE.Vector3();
+  const lightAxis = new THREE.Vector3();
+
+  function resolveArtworkCenter(target) {
+    const series = ctx.ribbonSeries.value;
+    if (series?.getWorldCenter) return series.getWorldCenter(target);
+    if (ctx.controls.value?.target) return target.copy(ctx.controls.value.target);
+    return target.set(0, 0, 0);
+  }
 
   function getActiveTileManagers() {
     return ctx.tileManagers.value.length > 0
@@ -153,11 +162,19 @@ export function useSceneLighting(ctx) {
     const camera = ctx.camera.value;
     if (!camera || !spotLight || !spotTarget) return;
 
-    camera.getWorldPosition(spotLight.position);
-    camera.getWorldDirection(cameraDirection);
-    spotTarget.position
-      .copy(spotLight.position)
-      .addScaledVector(cameraDirection, 10);
+    camera.getWorldPosition(cameraPosition);
+    resolveArtworkCenter(artworkCenter);
+    lightAxis.subVectors(cameraPosition, artworkCenter);
+    if (lightAxis.lengthSq() < 0.000001) {
+      camera.getWorldDirection(lightAxis).multiplyScalar(-1);
+    } else {
+      lightAxis.normalize();
+    }
+
+    spotLight.position
+      .copy(artworkCenter)
+      .addScaledVector(lightAxis, ctx.app.sceneLightDistance);
+    spotTarget.position.copy(artworkCenter);
     spotTarget.updateMatrixWorld();
     syncShadowCatcherSize();
   }

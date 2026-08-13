@@ -1116,6 +1116,17 @@ export class RibbonSeries {
   }
 
   /**
+   * Copy the artwork pivot's current world-space position into a target vector.
+   * @param {THREE.Vector3} target - Vector that receives the world position
+   * @returns {THREE.Vector3}
+   */
+  getWorldCenter(target) {
+    if (!target || !this._transformRoot) return target;
+    this._transformRoot.updateWorldMatrix(true, false);
+    return this._transformRoot.getWorldPosition(target);
+  }
+
+  /**
    * Clean up all ribbons and clear cached path data
    */
   cleanup() {

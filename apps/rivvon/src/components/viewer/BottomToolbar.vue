@@ -6,6 +6,7 @@
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import AboutPanel from './AboutPanel.vue';
@@ -143,6 +144,11 @@
     const sceneLightingIntensityModel = computed({
         get: () => app.sceneLightingIntensity,
         set: (value) => app.setSceneLightingIntensity(value)
+    });
+
+    const sceneLightDistanceModel = computed({
+        get: () => app.sceneLightDistance,
+        set: (value) => app.setSceneLightDistance(value)
     });
 
     const sceneShadowOpacityModel = computed({
@@ -894,6 +900,22 @@
                                     class="lighting-number-input"
                                 />
                             </div>
+                            <div class="lighting-slider-control">
+                                <div class="lighting-slider-label">
+                                    <label for="sceneLightDistance">Light distance</label>
+                                    <output for="sceneLightDistance">{{ sceneLightDistanceModel.toFixed(1) }}</output>
+                                </div>
+                                <Slider
+                                    v-model="sceneLightDistanceModel"
+                                    input-id="sceneLightDistance"
+                                    :min="2"
+                                    :max="30"
+                                    :step="0.5"
+                                    :disabled="!sceneLightingEnabledModel"
+                                    aria-label="Light distance from artwork"
+                                    class="lighting-distance-slider"
+                                />
+                            </div>
                             <div class="lighting-number-row">
                                 <label for="sceneShadowOpacity">Shadow strength</label>
                                 <InputNumber
@@ -1385,6 +1407,31 @@
     :deep(.lighting-number-input .p-inputnumber-input) {
         width: 100%;
         text-align: right;
+    }
+
+    .lighting-slider-control {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.2rem 0 0.45rem;
+    }
+
+    .lighting-slider-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        color: var(--viewer-toolbar-text, #fff);
+        font-size: 0.92rem;
+    }
+
+    .lighting-slider-label output {
+        color: var(--viewer-toolbar-muted-text, rgba(255, 255, 255, 0.72));
+        font-variant-numeric: tabular-nums;
+    }
+
+    .lighting-distance-slider {
+        margin: 0 0.5rem;
     }
 
     @media (min-width: 769px) {
