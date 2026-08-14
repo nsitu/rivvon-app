@@ -3,6 +3,10 @@
 
 import * as THREE from "three";
 import { getBackgroundTextureOption } from "../../modules/viewer/backgroundTextures.js";
+import {
+  createBackgroundSurfaceGeometry,
+  deformBackgroundSurface,
+} from "../../modules/viewer/backgroundCurvature.js";
 
 const BACKGROUND_DISTANCE = 100;
 const BACKGROUND_RENDER_ORDER = -10000;
@@ -576,8 +580,14 @@ export function useSceneBackground(ctx) {
 function attachCameraBackgroundPlane(ctx, material) {
   const camera = ctx.camera.value;
   const scene = ctx.scene.value;
-  const geometry = new THREE.PlaneGeometry(1, 1);
+  const coarsePointer =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(pointer: coarse)").matches;
+  const geometry = createBackgroundSurfaceGeometry(coarsePointer);
   const mesh = new THREE.Mesh(geometry, material);
+  let previousWidth = 0;
+  let previousHeight = 0;
+  let previousCurvature = -1;
 
   mesh.name = "RivvonCameraLockedBackground";
   mesh.frustumCulled = false;
@@ -590,19 +600,41 @@ function attachCameraBackgroundPlane(ctx, material) {
 
   camera.add(mesh);
 
+  function syncGeometry(width, height) {
+    const curvature = ctx.app.backgroundSphericalLayersEnabled
+      ? ctx.app.backgroundCurvature
+      : 0;
+    if (
+      Math.abs(previousWidth - width) < 0.0001 &&
+      Math.abs(previousHeight - height) < 0.0001 &&
+      Math.abs(previousCurvature - curvature) < 0.0001
+    ) {
+      return;
+    }
+    previousWidth = width;
+    previousHeight = height;
+    previousCurvature = curvature;
+    deformBackgroundSurface(geometry, width, height, curvature);
+  }
+
   function syncSize() {
     if (camera.isPerspectiveCamera) {
       const height =
         2 *
         Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) *
         BACKGROUND_DISTANCE;
-      mesh.scale.set(height * camera.aspect, height, 1);
+      mesh.scale.set(1, 1, 1);
+      syncGeometry(height * camera.aspect, height);
       return;
     }
 
     if (camera.isOrthographicCamera) {
       mesh.position.z = -1;
-      mesh.scale.set(camera.right - camera.left, camera.top - camera.bottom, 1);
+      mesh.scale.set(1, 1, 1);
+      syncGeometry(
+        camera.right - camera.left,
+        camera.top - camera.bottom,
+      );
     }
   }
 

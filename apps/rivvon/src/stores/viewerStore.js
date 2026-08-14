@@ -31,6 +31,10 @@ import {
   normalizeBackgroundTexture,
 } from "../modules/viewer/backgroundTextures.js";
 import {
+  DEFAULT_BACKGROUND_CURVATURE,
+  normalizeBackgroundCurvature,
+} from "../modules/viewer/backgroundCurvature.js";
+import {
   DEFAULT_SEAMLESS_LOOP_COUNT,
   normalizeSeamlessLoopCount,
 } from "../modules/viewer/seamlessLoop.js";
@@ -819,6 +823,9 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().backgroundSphericalLayersEnabled,
         DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED,
       ),
+      backgroundCurvature: normalizeBackgroundCurvature(
+        readViewerPreferences().backgroundCurvature,
+      ),
       backgroundWaterEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundWaterEnabled,
         DEFAULT_BACKGROUND_WATER_ENABLED,
@@ -1130,6 +1137,7 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
       this.backgroundSphericalLayersEnabled =
         DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED;
+      this.backgroundCurvature = DEFAULT_BACKGROUND_CURVATURE;
       this.backgroundWaterEnabled = DEFAULT_BACKGROUND_WATER_ENABLED;
       this.backgroundWaterColor = DEFAULT_BACKGROUND_WATER_COLOR;
       this.backgroundWaterFlow = DEFAULT_BACKGROUND_WATER_FLOW;
@@ -1231,6 +1239,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
         backgroundSphericalLayersEnabled:
           DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED,
+        backgroundCurvature: DEFAULT_BACKGROUND_CURVATURE,
         backgroundWaterEnabled: DEFAULT_BACKGROUND_WATER_ENABLED,
         backgroundWaterColor: DEFAULT_BACKGROUND_WATER_COLOR,
         backgroundWaterFlow: DEFAULT_BACKGROUND_WATER_FLOW,
@@ -1483,6 +1492,13 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundSphericalLayersEnabled: nextValue });
     },
 
+    setBackgroundCurvature(value) {
+      const nextValue = normalizeBackgroundCurvature(value);
+      this.backgroundCurvature = nextValue;
+      writeViewerPreferences({ backgroundCurvature: nextValue });
+      return nextValue;
+    },
+
     setBackgroundWaterEnabled(enabled) {
       const nextValue = !!enabled;
       this.backgroundWaterEnabled = nextValue;
@@ -1698,6 +1714,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundBaseEnabled: this.backgroundBaseEnabled,
         backgroundSphericalLayersEnabled:
           this.backgroundSphericalLayersEnabled,
+        backgroundCurvature: this.backgroundCurvature,
         backgroundWaterEnabled: this.backgroundWaterEnabled,
         backgroundWaterColor: this.backgroundWaterColor,
         backgroundWaterFlow: this.backgroundWaterFlow,
@@ -1807,6 +1824,7 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundBaseEnabled !== original.backgroundBaseEnabled ||
         this.backgroundSphericalLayersEnabled !==
           original.backgroundSphericalLayersEnabled ||
+        this.backgroundCurvature !== original.backgroundCurvature ||
         this.backgroundWaterEnabled !== original.backgroundWaterEnabled ||
         this.backgroundWaterColor !== original.backgroundWaterColor ||
         this.backgroundWaterFlow !== original.backgroundWaterFlow ||

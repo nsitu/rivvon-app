@@ -2,10 +2,13 @@
 
 import { watch } from "vue";
 import * as THREE from "three";
+import {
+  createBackgroundSurfaceGeometry,
+  deformBackgroundSurface,
+} from "../../modules/viewer/backgroundCurvature.js";
 
 const SHADOW_CATCHER_RENDER_ORDER = -9999;
 const SHADOW_CATCHER_OVERSCAN = 1.02;
-const SHADOW_CATCHER_CURVE_ANGLE = THREE.MathUtils.degToRad(25);
 const SPOTLIGHT_BASE_INTENSITY = 100;
 const TRANSMISSION_MAP_SIZE_DESKTOP = 512;
 const TRANSMISSION_MAP_SIZE_MOBILE = 256;
@@ -23,7 +26,7 @@ export function useSceneLighting(ctx) {
   let webGPUDeps = null;
   let catcherWidth = 0;
   let catcherHeight = 0;
-  let catcherWasSpherical = null;
+  let catcherCurvature = -1;
   const transmissionMaterials = new Map();
   const cameraPosition = new THREE.Vector3();
   const artworkCenter = new THREE.Vector3();
@@ -342,9 +345,11 @@ export function useSceneLighting(ctx) {
 
   function syncShadowCatcherGeometry(width, height) {
     if (!shadowCatcherGeometry) return;
-    const spherical = !!ctx.app.backgroundSphericalLayersEnabled;
+    const curvature = ctx.app.backgroundSphericalLayersEnabled
+      ? ctx.app.backgroundCurvature
+      : 0;
     if (
-      catcherWasSpherical === spherical &&
+      Math.abs(catcherCurvature - curvature) < 0.0001 &&
       Math.abs(catcherWidth - width) < 0.0001 &&
       Math.abs(catcherHeight - height) < 0.0001
     ) {
@@ -353,31 +358,13 @@ export function useSceneLighting(ctx) {
 
     catcherWidth = width;
     catcherHeight = height;
-    catcherWasSpherical = spherical;
-    const position = shadowCatcherGeometry.attributes.position;
-    const uvAttribute = shadowCatcherGeometry.attributes.uv;
-    const halfWidth = width * 0.5;
-    const halfHeight = height * 0.5;
-    const radialExtent = Math.hypot(halfWidth, halfHeight);
-    const sphereRadius = spherical
-      ? radialExtent / Math.sin(SHADOW_CATCHER_CURVE_ANGLE)
-      : Infinity;
-
-    for (let index = 0; index < position.count; index += 1) {
-      const x = (uvAttribute.getX(index) - 0.5) * width;
-      const y = (uvAttribute.getY(index) - 0.5) * height;
-      const radialDistanceSquared = x * x + y * y;
-      const z = spherical
-        ? sphereRadius -
-          Math.sqrt(Math.max(0, sphereRadius * sphereRadius - radialDistanceSquared))
-        : 0;
-      position.setXYZ(index, x, y, z);
-    }
-
-    position.needsUpdate = true;
-    shadowCatcherGeometry.computeVertexNormals();
-    shadowCatcherGeometry.computeBoundingSphere();
-    shadowCatcherGeometry.computeBoundingBox();
+    catcherCurvature = curvature;
+    deformBackgroundSurface(
+      shadowCatcherGeometry,
+      width,
+      height,
+      curvature,
+    );
   }
 
   function syncShadowCatcherSize() {
@@ -494,12 +481,7 @@ export function useSceneLighting(ctx) {
     const coarsePointer =
       typeof window !== "undefined" &&
       window.matchMedia?.("(pointer: coarse)").matches;
-    shadowCatcherGeometry = new THREE.PlaneGeometry(
-      1,
-      1,
-      coarsePointer ? 20 : 32,
-      coarsePointer ? 14 : 24,
-    );
+    shadowCatcherGeometry = createBackgroundSurfaceGeometry(coarsePointer);
     shadowCatcherMaterial = new THREE.ShadowMaterial({
       color: 0x000000,
       opacity: ctx.app.sceneShadowOpacity,
@@ -594,15 +576,21 @@ export function useSceneLighting(ctx) {
     webGPUDeps = null;
     catcherWidth = 0;
     catcherHeight = 0;
-    catcherWasSpherical = null;
+    catcherCurvature = -1;
   }
 
   watch(() => ctx.app.sceneLightingEnabled, syncEnabledState);
   watch(() => ctx.app.sceneColoredShadowsEnabled, syncShadowCatcherMode);
-  watch(() => ctx.app.backgroundSphericalLayersEnabled, () => {
-    catcherWasSpherical = null;
-    syncShadowCatcherSize();
-  });
+  watch(
+    () => [
+      ctx.app.backgroundSphericalLayersEnabled,
+      ctx.app.backgroundCurvature,
+    ],
+    () => {
+      catcherCurvature = -1;
+      syncShadowCatcherSize();
+    },
+  );
   watch(
     () => [ctx.app.sceneLightingIntensity, ctx.app.sceneShadowOpacity],
     syncSettings,

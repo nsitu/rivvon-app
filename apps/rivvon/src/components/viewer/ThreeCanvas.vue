@@ -232,6 +232,10 @@
         updateBackground();
     });
 
+    watch(() => [app.backgroundSphericalLayersEnabled, app.backgroundCurvature], () => {
+        updateBackground();
+    });
+
     watch(() => [
         app.backgroundWaterEnabled,
         app.backgroundWaterColor,

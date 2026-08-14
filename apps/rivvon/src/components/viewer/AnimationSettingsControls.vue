@@ -142,6 +142,11 @@
         set: (value) => app.setBackgroundSphericalLayersEnabled(!!value),
     });
 
+    const backgroundCurvatureModel = computed({
+        get: () => Math.round(app.backgroundCurvature * 100),
+        set: (value) => app.setBackgroundCurvature(Number(value) / 100),
+    });
+
     const backgroundWaterModel = computed({
         get: () => app.backgroundWaterEnabled,
         set: (value) => app.setBackgroundWaterEnabled(!!value),
@@ -566,6 +571,33 @@
                             :inputId="getInputId('background-spherical-layers')"
                             v-model="backgroundSphericalLayersModel"
                         />
+                    </div>
+                </div>
+
+                <div
+                    v-if="backgroundSphericalLayersModel"
+                    class="tools-slider-block"
+                >
+                    <div class="tools-slider-head">
+                        <label
+                            class="tools-slider-label"
+                            :for="getInputId('background-curvature')"
+                        >
+                            <span>Background curvature</span>
+                        </label>
+                        <span class="tools-hint tools-slider-hint">{{ backgroundCurvatureModel }}%</span>
+                    </div>
+                    <Slider
+                        v-model="backgroundCurvatureModel"
+                        :input-id="getInputId('background-curvature')"
+                        :min="0"
+                        :max="100"
+                        :step="1"
+                        aria-label="Background curvature"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Flat</span>
+                        <span>Deep curve</span>
                     </div>
                 </div>
 
