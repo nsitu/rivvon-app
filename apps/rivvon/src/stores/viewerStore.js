@@ -35,8 +35,8 @@ import {
   normalizeBackgroundCurvature,
 } from "../modules/viewer/backgroundCurvature.js";
 import {
-  DEFAULT_SEAMLESS_LOOP_COUNT,
-  normalizeSeamlessLoopCount,
+  DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER,
+  normalizeMotionLoopDurationMultiplier,
 } from "../modules/viewer/seamlessLoop.js";
 import {
   createViewerPanelVisibilityState,
@@ -735,7 +735,7 @@ export const useViewerStore = defineStore("viewer", {
       artworkMotionMode: normalizeArtworkMotionMode(
         getStoredArtworkMotionMode(),
       ),
-      viewerMotionLoopCount: normalizeSeamlessLoopCount(
+      viewerMotionLoopCount: normalizeMotionLoopDurationMultiplier(
         readViewerPreferences().viewerMotionLoopCount,
       ),
       scrollDrivenTiltEnabled: normalizeViewerBooleanPreference(
@@ -1098,7 +1098,7 @@ export const useViewerStore = defineStore("viewer", {
     },
 
     setViewerMotionLoopCount(value) {
-      const nextCount = normalizeSeamlessLoopCount(value);
+      const nextCount = normalizeMotionLoopDurationMultiplier(value);
       this.viewerMotionLoopCount = nextCount;
       writeViewerPreferences({ viewerMotionLoopCount: nextCount });
     },
@@ -1114,7 +1114,7 @@ export const useViewerStore = defineStore("viewer", {
       this.sceneColoredShadowsEnabled = DEFAULT_SCENE_COLORED_SHADOWS_ENABLED;
       this.sceneShadowOpacity = DEFAULT_SCENE_SHADOW_OPACITY;
       this.artworkMotionMode = "none";
-      this.viewerMotionLoopCount = DEFAULT_SEAMLESS_LOOP_COUNT;
+      this.viewerMotionLoopCount = DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER;
       this.scrollDrivenTiltEnabled = true;
       this.scrollDrivenLayerCycleEnabled = true;
       this.scrollDrivenFlowEnabled = false;
@@ -1219,7 +1219,7 @@ export const useViewerStore = defineStore("viewer", {
         sceneColoredShadowsEnabled: DEFAULT_SCENE_COLORED_SHADOWS_ENABLED,
         sceneShadowOpacity: DEFAULT_SCENE_SHADOW_OPACITY,
         artworkMotionMode: "none",
-        viewerMotionLoopCount: DEFAULT_SEAMLESS_LOOP_COUNT,
+        viewerMotionLoopCount: DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER,
         scrollDrivenTiltEnabled: true,
         scrollDrivenLayerCycleEnabled: true,
         scrollDrivenFlowEnabled: false,

@@ -4,8 +4,10 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import { ARTWORK_MOTION_OPTIONS } from '../../modules/viewer/viewerMotion.js';
-    import { SEAMLESS_LOOP_COUNT_OPTIONS } from '../../modules/viewer/seamlessLoop.js';
+    import {
+        ARTWORK_MOTION_OPTIONS,
+        ARTWORK_MOTION_LOOP_COUNT_OPTIONS,
+    } from '../../modules/viewer/viewerMotion.js';
 
     const props = defineProps({
         technicalOverlay: { type: Boolean, default: false },
@@ -126,7 +128,7 @@
         return option?.description ?? artworkMotionOptions[0].description;
     });
 
-    const viewerMotionLoopCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
+    const viewerMotionLoopCountOptions = ARTWORK_MOTION_LOOP_COUNT_OPTIONS;
 
     const selectedViewerMotionLoopCountOption = computed({
         get: () => viewerMotionLoopCountOptions.find(
@@ -139,9 +141,17 @@
     });
 
     const viewerMotionLoopDescription = computed(() => {
-        const count = app.viewerMotionLoopCount;
         const motionLabel = app.artworkMotionMode === 'tumbleOrbit' ? 'tumble path' : 'artwork turn';
-        return `One full ${motionLabel} spans ${count} seamless material ${count === 1 ? 'loop' : 'loops'}.`;
+        const option = viewerMotionLoopCountOptions.find(
+            (entry) => entry.value === app.viewerMotionLoopCount,
+        ) ?? viewerMotionLoopCountOptions[0];
+        const materialLoopLabel = option.materialLoopCount === 1 ? 'loop' : 'loops';
+
+        if (option.pathCount === 1) {
+            return `One full ${motionLabel} spans ${option.materialLoopCount} seamless material ${materialLoopLabel}.`;
+        }
+
+        return `${option.pathCount} full ${motionLabel}s span 1 seamless material loop.`;
     });
 
     const showHeadTrackingTools = computed(() => (
@@ -299,7 +309,7 @@
                     class="tools-motion-details"
                 >
                     <div class="tools-select-block">
-                        <label class="tools-select-label">Motion Loop Count</label>
+                        <label class="tools-select-label">Motion Rate</label>
                         <div class="tools-select-wrap">
                             <Select
                                 v-model="selectedViewerMotionLoopCountOption"

@@ -6,7 +6,7 @@ import {
   normalizeArtworkMotionMode,
 } from "../../modules/viewer/viewerMotion.js";
 import { getCircularTiltAnglesAtProgress } from "../../modules/viewer/mouseTiltMotion.js";
-import { getSeamlessLoopDurationForCount } from "../../modules/viewer/seamlessLoop.js";
+import { getSeamlessLoopDurationForMotionRate } from "../../modules/viewer/seamlessLoop.js";
 
 const WORLD_UP = new Vector3(0, 1, 0);
 
@@ -166,7 +166,7 @@ export function useViewerMotion(ctx) {
       return;
     }
 
-    const motionDuration = getSeamlessLoopDurationForCount(
+    const motionDuration = getSeamlessLoopDurationForMotionRate(
       ctx.tileManager.value,
       ctx.app.viewerMotionLoopCount,
       ctx.app.undulationEnabled,
