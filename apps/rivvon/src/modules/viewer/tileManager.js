@@ -1532,6 +1532,7 @@ export class TileManager {
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
                 uOverlapMask: this.sharedOverlapMaskUniform,
                 uOverlapOnlyTransparency: { value: 0 },
+                uOverlapMaskPass: { value: 0 },
                 uContrast: this.sharedContrastUniform,
                 uSaturation: this.sharedSaturationUniform,
                 uSceneLightingEnabled: this.sharedSceneLightingEnabledUniform,
@@ -1618,6 +1619,7 @@ export class TileManager {
                 uniform float uTransparentShadowsThresholdMax;
                 uniform sampler2D uOverlapMask;
                 uniform int uOverlapOnlyTransparency;
+                uniform int uOverlapMaskPass;
                 uniform float uContrast;
                 uniform float uSaturation;
                 uniform float uSceneLightingEnabled;
@@ -1736,6 +1738,12 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                     texColor.a *= computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
                     if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001 || uFilmstripEnabled > 0.5) && texColor.a <= 0.001) discard;
 
+                    if (uOverlapMaskPass == 1) {
+                        // Match the ribbon's real visibility, including cap and cutout alpha.
+                        outColor = vec4(1.0, 1.0, 1.0, texColor.a * 0.5);
+                        return;
+                    }
+
                     if (uTransparentShadows == 1) {
                         float alphaScale;
                         if (uTransparentColorMode == 1) {
@@ -1806,6 +1814,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
         material._overlapOnlyTransparencyUniform = material.uniforms.uOverlapOnlyTransparency;
+        material._overlapMaskPassUniform = material.uniforms.uOverlapMaskPass;
         material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
         material._peakTroughBlurUniform = material.uniforms.uPeakTroughBlur;
         material._peakTroughBlurAmountUniform = material.uniforms.uPeakTroughBlurAmount;
@@ -1863,6 +1872,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
         const overlapOnlyTransparencyUniform = uniform(0);
+        const overlapMaskPassUniform = uniform(0);
         const overlapMaskTextureNode = texture(this.sharedOverlapMaskUniform.value, screenUV);
         const edgeNoiseMaxUniform = uniform(float(this.sharedEdgeNoiseMaxUniform.value));
         const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
@@ -2029,12 +2039,25 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             mappedTransparencyFactor,
         );
         const mappedTransparencyAlpha = finalColor.a.mul(scopedTransparencyFactor);
-        const outputColor = transparentShadowsUniform.equal(1).select(
+        const normalOutputColor = transparentShadowsUniform.equal(1).select(
             vec4(finalColor.rgb, mappedTransparencyAlpha),
             finalColor
         );
+        const maskOutputColor = vec4(
+            float(1.0),
+            float(1.0),
+            float(1.0),
+            finalColor.a.mul(float(0.5)),
+        );
+        const outputColor = overlapMaskPassUniform.equal(1).select(
+            maskOutputColor,
+            normalOutputColor,
+        );
         const adjustedOutputColor = vec4(
-            createSceneColorAdjustmentNode(threeTSL, outputColor.rgb, contrastUniform, saturationUniform),
+            overlapMaskPassUniform.equal(1).select(
+                maskOutputColor.rgb,
+                createSceneColorAdjustmentNode(threeTSL, outputColor.rgb, contrastUniform, saturationUniform),
+            ),
             outputColor.a
         );
 
@@ -2075,6 +2098,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
         material._overlapOnlyTransparencyUniform = overlapOnlyTransparencyUniform;
+        material._overlapMaskPassUniform = overlapMaskPassUniform;
         material._overlapMaskTextureNode = overlapMaskTextureNode;
         material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
         material._peakTroughBlurUniform = peakTroughBlurUniform;
@@ -2222,6 +2246,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
                 uOverlapMask: this.sharedOverlapMaskUniform,
                 uOverlapOnlyTransparency: { value: 0 },
+                uOverlapMaskPass: { value: 0 },
                 uContrast: this.sharedContrastUniform,
                 uSaturation: this.sharedSaturationUniform,
                 uSceneLightingEnabled: this.sharedSceneLightingEnabledUniform,
@@ -2304,6 +2329,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uniform float uTransparentShadowsThresholdMax;
                 uniform sampler2D uOverlapMask;
                 uniform int uOverlapOnlyTransparency;
+                uniform int uOverlapMaskPass;
                 uniform float uContrast;
                 uniform float uSaturation;
                 uniform float uSceneLightingEnabled;
@@ -2366,6 +2392,12 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                     texColor.a *= computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
                     if ((vCapStartStyle > 0.5 || vCapEndStyle > 0.5 || uEdgeNoiseMax > 0.0001 || uFilmstripEnabled > 0.5) && texColor.a <= 0.001) discard;
 
+                    if (uOverlapMaskPass == 1) {
+                        // Match the ribbon's real visibility, including cap and cutout alpha.
+                        outColor = vec4(1.0, 1.0, 1.0, texColor.a * 0.5);
+                        return;
+                    }
+
                     if (uTransparentShadows == 1) {
                         float alphaScale;
                         if (uTransparentColorMode == 1) {
@@ -2421,6 +2453,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
         material._overlapOnlyTransparencyUniform = material.uniforms.uOverlapOnlyTransparency;
+        material._overlapMaskPassUniform = material.uniforms.uOverlapMaskPass;
         material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
         material._peakTroughBlurUniform = material.uniforms.uPeakTroughBlur;
         material._peakTroughBlurAmountUniform = material.uniforms.uPeakTroughBlurAmount;
@@ -2505,6 +2538,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
         const overlapOnlyTransparencyUniform = uniform(0);
+        const overlapMaskPassUniform = uniform(0);
         const overlapMaskTextureNode = texture(this.sharedOverlapMaskUniform.value, screenUV);
         const edgeNoiseMaxUniform = uniform(float(this.sharedEdgeNoiseMaxUniform.value));
         const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
@@ -2649,9 +2683,22 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 vec4(finalColor.rgb, mappedTransparencyAlpha),
                 finalColor
             );
+        const maskOutputColor = vec4(
+            float(1.0),
+            float(1.0),
+            float(1.0),
+            finalColor.a.mul(float(0.5)),
+        );
+        const maskAwareOutputColor = overlapMaskPassUniform.equal(1).select(
+            maskOutputColor,
+            outputColor,
+        );
         const adjustedOutputColor = vec4(
-            createSceneColorAdjustmentNode(threeTSL, outputColor.rgb, contrastUniform, saturationUniform),
-            outputColor.a
+            overlapMaskPassUniform.equal(1).select(
+                maskOutputColor.rgb,
+                createSceneColorAdjustmentNode(threeTSL, maskAwareOutputColor.rgb, contrastUniform, saturationUniform),
+            ),
+            maskAwareOutputColor.a
         );
         material.colorNode = adjustedOutputColor;
         material._transmissionColorNode = adjustedOutputColor.rgb;
@@ -2681,6 +2728,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
         material._overlapOnlyTransparencyUniform = overlapOnlyTransparencyUniform;
+        material._overlapMaskPassUniform = overlapMaskPassUniform;
         material._overlapMaskTextureNode = overlapMaskTextureNode;
         material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
         material._peakTroughBlurUniform = peakTroughBlurUniform;

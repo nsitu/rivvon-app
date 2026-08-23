@@ -20,7 +20,6 @@ export function useRenderFilter(ctx) {
     let filterGradientTexture = null;
     let filterGradientSignature = null;
     let overlapRenderTarget = null;
-    let overlapMaskMaterial = null;
     const transparentReferenceColor = new THREE.Color(0xffffff);
 
     function getActiveFilterMode() {
@@ -229,27 +228,44 @@ export function useRenderFilter(ctx) {
             return false;
         }
 
-        if (!overlapMaskMaterial) {
-            overlapMaskMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                opacity: 0.5,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                toneMapped: false,
-                depthTest: false,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-            });
-        }
-
         const overrides = [];
         root.traverse((object) => {
             if (!object.isMesh || !object.material) {
                 return;
             }
 
-            overrides.push({ object, material: object.material });
-            object.material = overlapMaskMaterial;
+            const materials = Array.isArray(object.material)
+                ? object.material
+                : [object.material];
+            const maskMaterials = materials.filter((material) => material?._overlapMaskPassUniform);
+
+            if (maskMaterials.length === 0) {
+                overrides.push({ object, visible: object.visible });
+                object.visible = false;
+                return;
+            }
+
+            maskMaterials.forEach((material) => {
+                overrides.push({
+                    material,
+                    overlapMaskPass: material._overlapMaskPassUniform.value,
+                    transparent: material.transparent,
+                    blending: material.blending,
+                    depthWrite: material.depthWrite,
+                    depthTest: material.depthTest,
+                    alphaToCoverage: material.alphaToCoverage,
+                    toneMapped: material.toneMapped,
+                });
+
+                material._overlapMaskPassUniform.value = 1;
+                material.transparent = true;
+                material.blending = THREE.AdditiveBlending;
+                material.depthWrite = false;
+                material.depthTest = false;
+                material.alphaToCoverage = false;
+                material.toneMapped = false;
+                material.needsUpdate = true;
+            });
         });
 
         const savedClearColor = renderer.getClearColor(new THREE.Color());
@@ -261,8 +277,30 @@ export function useRenderFilter(ctx) {
             renderer.clear();
             renderer.render(root, camera);
         } finally {
-            overrides.forEach(({ object, material }) => {
-                object.material = material;
+            overrides.forEach((override) => {
+                if (override.object) {
+                    override.object.visible = override.visible;
+                    return;
+                }
+
+                const {
+                    material,
+                    overlapMaskPass,
+                    transparent,
+                    blending,
+                    depthWrite,
+                    depthTest,
+                    alphaToCoverage,
+                    toneMapped,
+                } = override;
+                material._overlapMaskPassUniform.value = overlapMaskPass;
+                material.transparent = transparent;
+                material.blending = blending;
+                material.depthWrite = depthWrite;
+                material.depthTest = depthTest;
+                material.alphaToCoverage = alphaToCoverage;
+                material.toneMapped = toneMapped;
+                material.needsUpdate = true;
             });
             renderer.setClearColor(savedClearColor, savedClearAlpha);
         }
@@ -646,8 +684,6 @@ export function useRenderFilter(ctx) {
 
         overlapRenderTarget?.dispose?.();
         overlapRenderTarget = null;
-        overlapMaskMaterial?.dispose?.();
-        overlapMaskMaterial = null;
 
         if (filterQuad && filterScene) {
             filterScene.remove(filterQuad);
