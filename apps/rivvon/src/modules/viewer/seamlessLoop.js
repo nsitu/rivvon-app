@@ -14,9 +14,17 @@ export const MOTION_LOOP_DURATION_MULTIPLIERS = [
   0.5,
   1 / 3,
   0.25,
+  0.2,
+  1 / 6,
+  1 / 7,
+  0.125,
   2,
   3,
   4,
+  5,
+  6,
+  7,
+  8,
 ];
 export const DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER = 1;
 
@@ -25,9 +33,17 @@ export const MOTION_LOOP_DURATION_OPTIONS = [
   { label: "2 paths per material loop", value: 0.5, pathCount: 2, materialLoopCount: 1 },
   { label: "3 paths per material loop", value: 1 / 3, pathCount: 3, materialLoopCount: 1 },
   { label: "4 paths per material loop", value: 0.25, pathCount: 4, materialLoopCount: 1 },
+  { label: "5 paths per material loop", value: 0.2, pathCount: 5, materialLoopCount: 1 },
+  { label: "6 paths per material loop", value: 1 / 6, pathCount: 6, materialLoopCount: 1 },
+  { label: "7 paths per material loop", value: 1 / 7, pathCount: 7, materialLoopCount: 1 },
+  { label: "8 paths per material loop", value: 0.125, pathCount: 8, materialLoopCount: 1 },
   { label: "1 path per 2 material loops", value: 2, pathCount: 1, materialLoopCount: 2 },
   { label: "1 path per 3 material loops", value: 3, pathCount: 1, materialLoopCount: 3 },
   { label: "1 path per 4 material loops", value: 4, pathCount: 1, materialLoopCount: 4 },
+  { label: "1 path per 5 material loops", value: 5, pathCount: 1, materialLoopCount: 5 },
+  { label: "1 path per 6 material loops", value: 6, pathCount: 1, materialLoopCount: 6 },
+  { label: "1 path per 7 material loops", value: 7, pathCount: 1, materialLoopCount: 7 },
+  { label: "1 path per 8 material loops", value: 8, pathCount: 1, materialLoopCount: 8 },
 ];
 
 export function normalizeSeamlessLoopCount(value) {

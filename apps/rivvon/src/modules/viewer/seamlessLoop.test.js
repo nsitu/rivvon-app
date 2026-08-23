@@ -5,7 +5,7 @@ import {
 } from "./seamlessLoop.js";
 
 describe("motion loop rates", () => {
-  it.each([1, 2, 3, 4, 0.5, 1 / 3, 0.25])(
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 0.5, 1 / 3, 0.25, 0.2, 1 / 6, 1 / 7, 0.125])(
     "accepts supported duration multiplier %s",
     (value) => {
       expect(normalizeMotionLoopDurationMultiplier(value)).toBe(value);
