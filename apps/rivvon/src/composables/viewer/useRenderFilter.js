@@ -19,6 +19,8 @@ export function useRenderFilter(ctx) {
     let filterSaturationUniform = null;
     let filterGradientTexture = null;
     let filterGradientSignature = null;
+    let overlapRenderTarget = null;
+    let overlapMaskMaterial = null;
     const transparentReferenceColor = new THREE.Color(0xffffff);
 
     function getActiveFilterMode() {
@@ -29,6 +31,11 @@ export function useRenderFilter(ctx) {
 
     function isTransparentShadowsEnabled() {
         return ctx.app.transparentShadowsEnabled === true;
+    }
+
+    function isOverlapOnlyTransparencyEnabled() {
+        return isTransparentShadowsEnabled()
+            && ctx.app.overlapOnlyTransparencyEnabled === true;
     }
 
     function isPeakTroughTransparencyEnabled() {
@@ -161,13 +168,13 @@ export function useRenderFilter(ctx) {
         }
     }
 
-    function createRenderTarget(width, height) {
+    function createRenderTarget(width, height, { depthBuffer = true, colorSpace = null } = {}) {
         const options = {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
             format: THREE.RGBAFormat,
-            colorSpace: ctx.renderer.value?.outputColorSpace ?? THREE.LinearSRGBColorSpace,
-            depthBuffer: true,
+            colorSpace: colorSpace ?? ctx.renderer.value?.outputColorSpace ?? THREE.LinearSRGBColorSpace,
+            depthBuffer,
             stencilBuffer: false,
         };
 
@@ -177,6 +184,90 @@ export function useRenderFilter(ctx) {
 
         target.texture.colorSpace = options.colorSpace;
         return target;
+    }
+
+    function ensureOverlapRenderTarget() {
+        const renderer = ctx.renderer.value;
+        if (!renderer?.domElement) {
+            return false;
+        }
+
+        const width = renderer.domElement.width;
+        const height = renderer.domElement.height;
+        if (!width || !height) {
+            return false;
+        }
+
+        const needsNewTarget = !overlapRenderTarget
+            || overlapRenderTarget.width !== width
+            || overlapRenderTarget.height !== height;
+
+        if (needsNewTarget) {
+            overlapRenderTarget?.dispose?.();
+            overlapRenderTarget = createRenderTarget(width, height, {
+                depthBuffer: false,
+                colorSpace: THREE.NoColorSpace,
+            });
+            overlapRenderTarget.texture.minFilter = THREE.LinearFilter;
+            overlapRenderTarget.texture.magFilter = THREE.LinearFilter;
+            overlapRenderTarget.texture.wrapS = THREE.ClampToEdgeWrapping;
+            overlapRenderTarget.texture.wrapT = THREE.ClampToEdgeWrapping;
+        }
+
+        return true;
+    }
+
+    function getRibbonMaskRoot() {
+        return ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
+    }
+
+    function renderOverlapMask() {
+        const renderer = ctx.renderer.value;
+        const camera = ctx.camera.value;
+        const root = getRibbonMaskRoot();
+        if (!renderer || !camera || !root || !ensureOverlapRenderTarget()) {
+            return false;
+        }
+
+        if (!overlapMaskMaterial) {
+            overlapMaskMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                opacity: 0.5,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                toneMapped: false,
+                depthTest: false,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            });
+        }
+
+        const overrides = [];
+        root.traverse((object) => {
+            if (!object.isMesh || !object.material) {
+                return;
+            }
+
+            overrides.push({ object, material: object.material });
+            object.material = overlapMaskMaterial;
+        });
+
+        const savedClearColor = renderer.getClearColor(new THREE.Color());
+        const savedClearAlpha = renderer.getClearAlpha();
+
+        try {
+            renderer.setClearColor(0x000000, 0);
+            renderer.setRenderTarget(overlapRenderTarget);
+            renderer.clear();
+            renderer.render(root, camera);
+        } finally {
+            overrides.forEach(({ object, material }) => {
+                object.material = material;
+            });
+            renderer.setClearColor(savedClearColor, savedClearAlpha);
+        }
+
+        return true;
     }
 
     function createWebGLFilterMaterial(texture) {
@@ -346,6 +437,7 @@ export function useRenderFilter(ctx) {
         const peakTroughBlurAmount = getPeakTroughBlurAmount();
         const peakTroughGradient = getPeakTroughGradientRange();
         const useHighlights = isTransparencyHighlightsMode();
+        const overlapOnlyEnabled = isOverlapOnlyTransparencyEnabled();
         const useColorMode = isTransparencyColorMode();
         const referenceColor = getTransparencyReferenceColor();
         const { min, max } = getTransparentShadowsThresholds();
@@ -395,6 +487,9 @@ export function useRenderFilter(ctx) {
                 }
                 if (material._transparentShadowsMaxUniform) {
                     material._transparentShadowsMaxUniform.value = max;
+                }
+                if (material._overlapOnlyTransparencyUniform) {
+                    material._overlapOnlyTransparencyUniform.value = overlapOnlyEnabled ? 1 : 0;
                 }
 
                 const original = material._transparentShadowsOriginalState || {
@@ -478,6 +573,22 @@ export function useRenderFilter(ctx) {
 
         syncTransparentShadowsMaterials(ctx.scene.value);
 
+        const overlapEnabled = isOverlapOnlyTransparencyEnabled();
+        const tileManagers = ctx.tileManagers.value.length > 0
+            ? ctx.tileManagers.value
+            : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        tileManagers.forEach((tileManager) => {
+            tileManager.setOverlapMaskTexture?.(
+                overlapEnabled && ensureOverlapRenderTarget()
+                    ? overlapRenderTarget.texture
+                    : null,
+            );
+        });
+
+        if (overlapEnabled) {
+            renderOverlapMask();
+        }
+
         if (!shouldApplyFilter() || !ensureFilterResources()) {
             renderer.setRenderTarget(target);
             renderer.render(ctx.scene.value, ctx.camera.value);
@@ -532,6 +643,11 @@ export function useRenderFilter(ctx) {
         filterGradientTexture?.dispose?.();
         filterGradientTexture = null;
         filterGradientSignature = null;
+
+        overlapRenderTarget?.dispose?.();
+        overlapRenderTarget = null;
+        overlapMaskMaterial?.dispose?.();
+        overlapMaskMaterial = null;
 
         if (filterQuad && filterScene) {
             filterScene.remove(filterQuad);

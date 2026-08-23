@@ -382,6 +382,7 @@
         () => app.preferredTextureMaxResolution,
         () => app.renderFilterMode,
         () => app.transparentShadowsEnabled,
+        () => app.overlapOnlyTransparencyEnabled,
         () => app.transparencyMethod,
         () => app.transparencyMode,
         () => app.transparencyReferenceColor,

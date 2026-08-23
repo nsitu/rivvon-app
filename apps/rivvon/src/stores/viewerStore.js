@@ -57,6 +57,7 @@ const TRANSPARENCY_METHODS = ["brightness", "color"];
 const DEFAULT_TRANSPARENCY_METHOD = "brightness";
 const TRANSPARENCY_MODES = ["shadows", "highlights"];
 const DEFAULT_TRANSPARENCY_MODE = "shadows";
+const DEFAULT_OVERLAP_ONLY_TRANSPARENCY_ENABLED = false;
 const DEFAULT_TRANSPARENCY_REFERENCE_COLOR = "#ffffff";
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MIN = 0.2;
 const DEFAULT_TRANSPARENT_SHADOWS_THRESHOLD_MAX = 0.5;
@@ -638,6 +639,10 @@ function getStoredFilterSettings() {
       preferences.transparentShadowsEnabled,
       preferences.renderFilterMode === "transparentShadows",
     ),
+    overlapOnlyTransparencyEnabled: normalizeViewerBooleanPreference(
+      preferences.overlapOnlyTransparencyEnabled,
+      DEFAULT_OVERLAP_ONLY_TRANSPARENCY_ENABLED,
+    ),
     transparencyMethod: normalizeTransparencyMethod(
       preferences.transparencyMethod,
     ),
@@ -930,6 +935,8 @@ export const useViewerStore = defineStore("viewer", {
       ),
       renderFilterMode: storedFilterSettings.renderFilterMode,
       transparentShadowsEnabled: storedFilterSettings.transparentShadowsEnabled,
+      overlapOnlyTransparencyEnabled:
+        storedFilterSettings.overlapOnlyTransparencyEnabled,
       transparencyMethod: storedFilterSettings.transparencyMethod,
       transparencyMode: storedFilterSettings.transparencyMode,
       transparencyReferenceColor: storedFilterSettings.transparencyReferenceColor,
@@ -1166,6 +1173,8 @@ export const useViewerStore = defineStore("viewer", {
         getDefaultPreferredTextureMaxResolution();
       this.renderFilterMode = "none";
       this.transparentShadowsEnabled = false;
+      this.overlapOnlyTransparencyEnabled =
+        DEFAULT_OVERLAP_ONLY_TRANSPARENCY_ENABLED;
       this.transparencyMethod = DEFAULT_TRANSPARENCY_METHOD;
       this.transparencyMode = DEFAULT_TRANSPARENCY_MODE;
       this.transparencyReferenceColor = DEFAULT_TRANSPARENCY_REFERENCE_COLOR;
@@ -1266,6 +1275,8 @@ export const useViewerStore = defineStore("viewer", {
         preferredTextureMaxResolution: this.preferredTextureMaxResolution,
         renderFilterMode: "none",
         transparentShadowsEnabled: false,
+        overlapOnlyTransparencyEnabled:
+          DEFAULT_OVERLAP_ONLY_TRANSPARENCY_ENABLED,
         transparencyMethod: DEFAULT_TRANSPARENCY_METHOD,
         transparencyMode: DEFAULT_TRANSPARENCY_MODE,
         transparencyReferenceColor: DEFAULT_TRANSPARENCY_REFERENCE_COLOR,
@@ -1741,6 +1752,7 @@ export const useViewerStore = defineStore("viewer", {
         preferredTextureMaxResolution: this.preferredTextureMaxResolution,
         renderFilterMode: this.renderFilterMode,
         transparentShadowsEnabled: this.transparentShadowsEnabled,
+        overlapOnlyTransparencyEnabled: this.overlapOnlyTransparencyEnabled,
         transparencyMethod: this.transparencyMethod,
         transparencyMode: this.transparencyMode,
         transparencyReferenceColor: this.transparencyReferenceColor,
@@ -1855,6 +1867,8 @@ sphericalProjectionVerticalWrapAuto:
           original.preferredTextureMaxResolution ||
         this.renderFilterMode !== original.renderFilterMode ||
         this.transparentShadowsEnabled !== original.transparentShadowsEnabled ||
+        this.overlapOnlyTransparencyEnabled !==
+          original.overlapOnlyTransparencyEnabled ||
         this.transparencyMethod !== original.transparencyMethod ||
         this.transparencyMode !== original.transparencyMode ||
         this.transparencyReferenceColor !== original.transparencyReferenceColor ||
@@ -2093,6 +2107,12 @@ this.sphericalProjectionVerticalWrapAuto !==
       const nextValue = !!enabled;
       this.transparentShadowsEnabled = nextValue;
       writeViewerPreferences({ transparentShadowsEnabled: nextValue });
+    },
+
+    setOverlapOnlyTransparencyEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.overlapOnlyTransparencyEnabled = nextValue;
+      writeViewerPreferences({ overlapOnlyTransparencyEnabled: nextValue });
     },
 
     setTransparencyMethod(method) {

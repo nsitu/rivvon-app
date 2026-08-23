@@ -829,6 +829,20 @@ export class TileManager {
         this.sceneSaturation = normalizeSceneSaturation(saturation);
         this.sharedContrastUniform = { value: this.sceneContrast };
         this.sharedSaturationUniform = { value: this.sceneSaturation };
+        this.overlapMaskTexture = new THREE.DataTexture(
+            new Uint8Array([0, 0, 0, 255]),
+            1,
+            1,
+            THREE.RGBAFormat,
+            THREE.UnsignedByteType,
+        );
+        this.overlapMaskTexture.minFilter = THREE.NearestFilter;
+        this.overlapMaskTexture.magFilter = THREE.NearestFilter;
+        this.overlapMaskTexture.wrapS = THREE.ClampToEdgeWrapping;
+        this.overlapMaskTexture.wrapT = THREE.ClampToEdgeWrapping;
+        this.overlapMaskTexture.colorSpace = THREE.NoColorSpace;
+        this.overlapMaskTexture.needsUpdate = true;
+        this.sharedOverlapMaskUniform = { value: this.overlapMaskTexture };
         this.sceneLightingEnabled = !!sceneLightingEnabled;
         this.sceneLightingIntensity = Math.max(0.1, Math.min(2, Number(sceneLightingIntensity) || 1));
         this.sharedSceneLightingEnabledUniform = { value: this.sceneLightingEnabled ? 1.0 : 0.0 };
@@ -1261,7 +1275,31 @@ export class TileManager {
         if (material._saturationUniform) {
             material._saturationUniform.value = this.sharedSaturationUniform.value;
         }
+        if (material._overlapMaskTextureNode) {
+            material._overlapMaskTextureNode.value = this.sharedOverlapMaskUniform.value;
+        }
         this.#syncEdgeNoiseMaterialState(material);
+    }
+
+    /**
+     * Set the current camera-space ribbon overlap mask texture.
+     * @param {THREE.Texture|null} texture
+     */
+    setOverlapMaskTexture(texture) {
+        const nextTexture = texture?.isTexture ? texture : this.overlapMaskTexture;
+        this.sharedOverlapMaskUniform.value = nextTexture;
+
+        const syncMaterial = (material) => {
+            if (material?.uniforms?.uOverlapMask) {
+                material.uniforms.uOverlapMask.value = nextTexture;
+            }
+            if (material?._overlapMaskTextureNode) {
+                material._overlapMaskTextureNode.value = nextTexture;
+            }
+        };
+
+        this.#forEachStaticMaterial(syncMaterial);
+        this.flowMaterials.forEach(syncMaterial);
     }
 
     #syncEdgeNoiseMaterialState(material) {
@@ -1492,6 +1530,8 @@ export class TileManager {
                 uTransparentReferenceColor: { value: new THREE.Color(0xffffff) },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
+                uOverlapMask: this.sharedOverlapMaskUniform,
+                uOverlapOnlyTransparency: { value: 0 },
                 uContrast: this.sharedContrastUniform,
                 uSaturation: this.sharedSaturationUniform,
                 uSceneLightingEnabled: this.sharedSceneLightingEnabledUniform,
@@ -1514,6 +1554,7 @@ export class TileManager {
                 in float capStartU;
                 in float capEndU;
                 out vec2 vUv;
+                out vec2 vScreenUv;
                 out float vEdgeNoiseU;
                 out float vMaskV;
                 out float vCapStartStyle;
@@ -1531,15 +1572,18 @@ export class TileManager {
                     vCapStartU = capStartU;
                     vCapEndU = capEndU;
                     vec4 lightingViewPosition = modelViewMatrix * vec4(position, 1.0);
+                    vec4 clipPosition = projectionMatrix * lightingViewPosition;
+                    vScreenUv = clipPosition.xy / clipPosition.w * 0.5 + 0.5;
                     vLightingNormal = normalMatrix * normal;
                     vLightingViewPosition = lightingViewPosition.xyz;
-                    gl_Position = projectionMatrix * lightingViewPosition;
+                    gl_Position = clipPosition;
                 }
             `,
             fragmentShader: /* glsl */`
                 precision highp float;
                 precision highp sampler2DArray;
                 in vec2 vUv;
+                in vec2 vScreenUv;
                 in float vEdgeNoiseU;
                 in float vMaskV;
                 in float vCapStartStyle;
@@ -1572,6 +1616,8 @@ export class TileManager {
                 uniform vec3 uTransparentReferenceColor;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
+                uniform sampler2D uOverlapMask;
+                uniform int uOverlapOnlyTransparency;
                 uniform float uContrast;
                 uniform float uSaturation;
                 uniform float uSceneLightingEnabled;
@@ -1714,6 +1760,11 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                         if (uTransparentHighlights == 1) {
                             alphaScale = 1.0 - alphaScale;
                         }
+                        if (uOverlapOnlyTransparency == 1) {
+                            float overlapAmount = texture(uOverlapMask, vScreenUv).r;
+                            float overlapGate = smoothstep(0.45, 0.65, overlapAmount);
+                            alphaScale = mix(1.0, alphaScale, overlapGate);
+                        }
                         texColor.a *= alphaScale;
                     }
 
@@ -1754,6 +1805,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentReferenceColorUniform = material.uniforms.uTransparentReferenceColor;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
+        material._overlapOnlyTransparencyUniform = material.uniforms.uOverlapOnlyTransparency;
         material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
         material._peakTroughBlurUniform = material.uniforms.uPeakTroughBlur;
         material._peakTroughBlurAmountUniform = material.uniforms.uPeakTroughBlurAmount;
@@ -1782,7 +1834,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
     #createDualTextureMaterialWebGPU(textureCurrent, textureNext, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { MeshStandardNodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot, mix } = threeTSL;
+        const { texture, uniform, uv, screenUV, attribute, float, vec2, vec3, vec4, dot, mix } = threeTSL;
         const layerCount = textureCurrent.image?.depth || 1;
         const currentTileIndex = Number(options.currentTileIndex) || 0;
         const nextTileIndex = Number(options.nextTileIndex) || 0;
@@ -1810,6 +1862,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const transparentReferenceColorUniform = uniform(new THREE.Color(0xffffff));
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
+        const overlapOnlyTransparencyUniform = uniform(0);
+        const overlapMaskTextureNode = texture(this.sharedOverlapMaskUniform.value, screenUV);
         const edgeNoiseMaxUniform = uniform(float(this.sharedEdgeNoiseMaxUniform.value));
         const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
         const edgeNoiseMirrorUniform = uniform(float(this.sharedEdgeNoiseMirrorUniform.value));
@@ -1965,7 +2019,16 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             float(1.0).sub(transparencyFactor),
             transparencyFactor
         );
-        const mappedTransparencyAlpha = finalColor.a.mul(mappedTransparencyFactor);
+        const overlapAmount = overlapMaskTextureNode.r;
+        const overlapGate = overlapAmount.sub(float(0.45))
+            .div(float(0.2))
+            .max(float(0.0))
+            .min(float(1.0));
+        const scopedTransparencyFactor = overlapOnlyTransparencyUniform.equal(1).select(
+            float(1.0).sub(overlapGate).add(mappedTransparencyFactor.mul(overlapGate)),
+            mappedTransparencyFactor,
+        );
+        const mappedTransparencyAlpha = finalColor.a.mul(scopedTransparencyFactor);
         const outputColor = transparentShadowsUniform.equal(1).select(
             vec4(finalColor.rgb, mappedTransparencyAlpha),
             finalColor
@@ -2011,6 +2074,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentReferenceColorUniform = transparentReferenceColorUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
+        material._overlapOnlyTransparencyUniform = overlapOnlyTransparencyUniform;
+        material._overlapMaskTextureNode = overlapMaskTextureNode;
         material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
         material._peakTroughBlurUniform = peakTroughBlurUniform;
         material._peakTroughBlurAmountUniform = peakTroughBlurAmountUniform;
@@ -2155,6 +2220,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uTransparentReferenceColor: { value: new THREE.Color(0xffffff) },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
+                uOverlapMask: this.sharedOverlapMaskUniform,
+                uOverlapOnlyTransparency: { value: 0 },
                 uContrast: this.sharedContrastUniform,
                 uSaturation: this.sharedSaturationUniform,
                 uSceneLightingEnabled: this.sharedSceneLightingEnabledUniform,
@@ -2177,6 +2244,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 in float capStartU;
                 in float capEndU;
                 out vec2 vUv;
+                out vec2 vScreenUv;
                 out float vEdgeNoiseU;
                 out float vMaskV;
                 out float vCapStartStyle;
@@ -2194,15 +2262,18 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                     vCapStartU = capStartU;
                     vCapEndU = capEndU;
                     vec4 lightingViewPosition = modelViewMatrix * vec4(position, 1.0);
+                    vec4 clipPosition = projectionMatrix * lightingViewPosition;
+                    vScreenUv = clipPosition.xy / clipPosition.w * 0.5 + 0.5;
                     vLightingNormal = normalMatrix * normal;
                     vLightingViewPosition = lightingViewPosition.xyz;
-                    gl_Position = projectionMatrix * lightingViewPosition;
+                    gl_Position = clipPosition;
                 }
             `,
             fragmentShader: /* glsl */`
                 precision highp float;
                 precision highp sampler2DArray;
                 in vec2 vUv;
+                in vec2 vScreenUv;
                 in float vEdgeNoiseU;
                 in float vMaskV;
                 in float vCapStartStyle;
@@ -2231,6 +2302,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uniform vec3 uTransparentReferenceColor;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
+                uniform sampler2D uOverlapMask;
+                uniform int uOverlapOnlyTransparency;
                 uniform float uContrast;
                 uniform float uSaturation;
                 uniform float uSceneLightingEnabled;
@@ -2317,6 +2390,11 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                         if (uTransparentHighlights == 1) {
                             alphaScale = 1.0 - alphaScale;
                         }
+                        if (uOverlapOnlyTransparency == 1) {
+                            float overlapAmount = texture(uOverlapMask, vScreenUv).r;
+                            float overlapGate = smoothstep(0.45, 0.65, overlapAmount);
+                            alphaScale = mix(1.0, alphaScale, overlapGate);
+                        }
                         texColor.a *= alphaScale;
                     }
                     vec3 adjustedColor = applySceneColorAdjustments(texColor.rgb, uContrast, uSaturation);
@@ -2342,6 +2420,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentReferenceColorUniform = material.uniforms.uTransparentReferenceColor;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
+        material._overlapOnlyTransparencyUniform = material.uniforms.uOverlapOnlyTransparency;
         material._peakTroughTransparencyUniform = material.uniforms.uPeakTroughTransparency;
         material._peakTroughBlurUniform = material.uniforms.uPeakTroughBlur;
         material._peakTroughBlurAmountUniform = material.uniforms.uPeakTroughBlurAmount;
@@ -2372,7 +2451,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
     #createArrayMaterialWebGPU(arrayTexture, options = {}) {
         const { threeWebGPU, threeTSL } = this.#getWebGPUMaterialDeps();
         const { MeshStandardNodeMaterial } = threeWebGPU;
-        const { texture, uniform, uv, attribute, float, vec2, vec3, vec4, dot, mix } = threeTSL;
+        const { texture, uniform, uv, screenUV, attribute, float, vec2, vec3, vec4, dot, mix } = threeTSL;
         const layerCount = arrayTexture.image?.depth || 1;
         const tileIndex = Number(options.tileIndex) || 0;
         const hasCapMask = true;
@@ -2425,6 +2504,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const transparentReferenceColorUniform = uniform(new THREE.Color(0xffffff));
         const transparentShadowsMinUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MIN));
         const transparentShadowsMaxUniform = uniform(float(TRANSPARENT_SHADOWS_LUMA_MAX));
+        const overlapOnlyTransparencyUniform = uniform(0);
+        const overlapMaskTextureNode = texture(this.sharedOverlapMaskUniform.value, screenUV);
         const edgeNoiseMaxUniform = uniform(float(this.sharedEdgeNoiseMaxUniform.value));
         const edgeNoiseSpatialFrequencyUniform = uniform(float(this.sharedEdgeNoiseSpatialFrequencyUniform.value));
         const edgeNoiseMirrorUniform = uniform(float(this.sharedEdgeNoiseMirrorUniform.value));
@@ -2548,7 +2629,16 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             float(1.0).sub(transparencyFactor),
             transparencyFactor
         );
-        const mappedTransparencyAlpha = finalColor.a.mul(mappedTransparencyFactor);
+        const overlapAmount = overlapMaskTextureNode.r;
+        const overlapGate = overlapAmount.sub(float(0.45))
+            .div(float(0.2))
+            .max(float(0.0))
+            .min(float(1.0));
+        const scopedTransparencyFactor = overlapOnlyTransparencyUniform.equal(1).select(
+            float(1.0).sub(overlapGate).add(mappedTransparencyFactor.mul(overlapGate)),
+            mappedTransparencyFactor,
+        );
+        const mappedTransparencyAlpha = finalColor.a.mul(scopedTransparencyFactor);
 
         const outputColor = hasCapMask
             ? transparentShadowsUniform.equal(1).select(
@@ -2590,6 +2680,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._transparentReferenceColorUniform = transparentReferenceColorUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
+        material._overlapOnlyTransparencyUniform = overlapOnlyTransparencyUniform;
+        material._overlapMaskTextureNode = overlapMaskTextureNode;
         material._peakTroughTransparencyUniform = peakTroughTransparencyUniform;
         material._peakTroughBlurUniform = peakTroughBlurUniform;
         material._peakTroughBlurAmountUniform = peakTroughBlurAmountUniform;

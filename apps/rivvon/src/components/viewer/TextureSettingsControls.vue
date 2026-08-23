@@ -54,6 +54,13 @@
         }
     });
 
+    const overlapOnlyTransparencyModel = computed({
+        get: () => app.overlapOnlyTransparencyEnabled,
+        set: (value) => {
+            app.setOverlapOnlyTransparencyEnabled(!!value);
+        },
+    });
+
     const transparencyMethodOptions = [
         { label: 'Brightness', value: 'brightness', icon: 'brightness_6' },
         { label: 'Reference Color', value: 'color', icon: 'colorize' },
@@ -600,6 +607,26 @@
                                 </div>
                             </template>
                         </Select>
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter && transparentShadowsFilterModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('overlap-only-transparency')"
+                    >
+                        <span class="material-symbols-outlined">layers</span>
+                        <span>Overlap-only transparency</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ overlapOnlyTransparencyModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('overlap-only-transparency')"
+                            v-model="overlapOnlyTransparencyModel"
+                        />
                     </div>
                 </div>
 
