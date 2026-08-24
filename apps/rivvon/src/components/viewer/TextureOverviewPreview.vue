@@ -78,7 +78,14 @@
     const cameraRef = shallowRef(null);
     const tileManagerRef = shallowRef(null);
     const backgroundTextureRef = shallowRef(null);
-    const renderFilter = useRenderFilter({ app, renderer: rendererRef, scene: sceneRef, camera: cameraRef });
+    const renderFilter = useRenderFilter({
+        app,
+        renderer: rendererRef,
+        scene: sceneRef,
+        camera: cameraRef,
+        tileManager: tileManagerRef,
+        overlapMaskRoot: sceneRef,
+    });
     const sceneBackground = useSceneBackground({
         app,
         renderer: rendererRef,

@@ -223,7 +223,9 @@ export function useRenderFilter(ctx) {
     }
 
     function getRibbonMaskRoot() {
-        return ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
+        return ctx.ribbonSeries?.value?.getTransformRoot?.()
+            ?? ctx.overlapMaskRoot?.value
+            ?? null;
     }
 
     function renderOverlapMask(targetOverride = undefined) {
@@ -782,9 +784,11 @@ export function useRenderFilter(ctx) {
         syncTransparentShadowsMaterials(ctx.scene.value);
 
         const overlapEnabled = isOverlapOnlyTransparencyEnabled();
-        const tileManagers = ctx.tileManagers.value.length > 0
-            ? ctx.tileManagers.value
-            : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        const configuredTileManagers = ctx.tileManagers?.value;
+        const primaryTileManager = ctx.tileManager?.value;
+        const tileManagers = Array.isArray(configuredTileManagers) && configuredTileManagers.length > 0
+            ? configuredTileManagers
+            : (primaryTileManager ? [primaryTileManager] : []);
         tileManagers.forEach((tileManager) => {
             tileManager.setOverlapMaskTexture?.(
                 overlapEnabled && ensureOverlapRenderTarget()
