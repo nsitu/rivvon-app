@@ -20,6 +20,9 @@ export function useRenderFilter(ctx) {
     let filterGradientTexture = null;
     let filterGradientSignature = null;
     let overlapRenderTarget = null;
+    let overlapDebugMaterial = null;
+    let overlapDebugTexture = null;
+    let overlapPrepassTexture = null;
     const transparentReferenceColor = new THREE.Color(0xffffff);
 
     function getActiveFilterMode() {
@@ -207,8 +210,11 @@ export function useRenderFilter(ctx) {
                 depthBuffer: false,
                 colorSpace: THREE.NoColorSpace,
             });
-            overlapRenderTarget.texture.minFilter = THREE.LinearFilter;
-            overlapRenderTarget.texture.magFilter = THREE.LinearFilter;
+            overlapRenderTarget.texture.generateMipmaps = false;
+            // Keep the coverage transitions crisp; the shader applies the
+            // intentional overlap threshold separately.
+            overlapRenderTarget.texture.minFilter = THREE.NearestFilter;
+            overlapRenderTarget.texture.magFilter = THREE.NearestFilter;
             overlapRenderTarget.texture.wrapS = THREE.ClampToEdgeWrapping;
             overlapRenderTarget.texture.wrapT = THREE.ClampToEdgeWrapping;
         }
@@ -220,56 +226,114 @@ export function useRenderFilter(ctx) {
         return ctx.ribbonSeries.value?.getTransformRoot?.() ?? null;
     }
 
-    function renderOverlapMask() {
+    function renderOverlapMask(targetOverride = undefined) {
         const renderer = ctx.renderer.value;
         const camera = ctx.camera.value;
         const root = getRibbonMaskRoot();
         if (!renderer || !camera || !root || !ensureOverlapRenderTarget()) {
             return false;
         }
-
-        const overrides = [];
+        const renderTarget = targetOverride === undefined
+            ? overlapRenderTarget
+            : targetOverride;
+        const visibilityOverrides = [];
+        const materialOverrides = [];
+        const objectMaterialOverrides = [];
         const overriddenMaterials = new Set();
+        let originalSharedOverlapMaskTexture;
+        if (!overlapPrepassTexture) {
+            overlapPrepassTexture = new THREE.DataTexture(
+                new Uint8Array([0, 0, 0, 255]),
+                1,
+                1,
+                THREE.RGBAFormat,
+                THREE.UnsignedByteType,
+            );
+            overlapPrepassTexture.colorSpace = THREE.NoColorSpace;
+            overlapPrepassTexture.flipY = false;
+            overlapPrepassTexture.needsUpdate = true;
+        }
         root.traverse((object) => {
             if (!object.isMesh || !object.material) {
                 return;
             }
-
             const materials = Array.isArray(object.material)
                 ? object.material
                 : [object.material];
-            const maskMaterials = materials.filter((material) => material?._overlapMaskPassUniform);
+            const maskMaterials = materials.map((material) => (
+                material?._overlapMaskMaterial ??
+                (material?._overlapMaskPassUniform ? material : null)
+            ));
 
-            if (maskMaterials.length === 0) {
-                overrides.push({ object, visible: object.visible });
+            if (maskMaterials.some((material) => !material)) {
+                visibilityOverrides.push({ object, visible: object.visible });
                 object.visible = false;
                 return;
             }
 
+            // Keep the original material so WebGL shaders and WebGPU
+            // NodeMaterials can execute their cap/edge/filmstrip-aware mask
+            // branch during the coverage prepass.
+            objectMaterialOverrides.push({ object, material: object.material });
+            object.material = Array.isArray(object.material)
+                ? maskMaterials
+                : maskMaterials[0];
+
             maskMaterials.forEach((material) => {
+                if (material._overlapMaskMaterial || !material._overlapMaskPassUniform) {
+                    return;
+                }
+
                 if (overriddenMaterials.has(material)) {
                     return;
                 }
 
                 overriddenMaterials.add(material);
-                overrides.push({
+                materialOverrides.push({
                     material,
                     overlapMaskPass: material._overlapMaskPassUniform.value,
+                    transparentShadows: material._transparentShadowsUniform?.value,
+                    overlapOnlyTransparency: material._overlapOnlyTransparencyUniform?.value,
+                    peakTroughTransparency: material._peakTroughTransparencyUniform?.value,
                     transparent: material.transparent,
                     blending: material.blending,
                     depthWrite: material.depthWrite,
                     depthTest: material.depthTest,
                     alphaToCoverage: material.alphaToCoverage,
                     toneMapped: material.toneMapped,
+                    overlapMaskTexture: material._overlapMaskTextureNode?.value
+                        ?? (material.uniforms?.uOverlapMask
+                            ? (originalSharedOverlapMaskTexture
+                                ?? material.uniforms.uOverlapMask.value)
+                            : undefined),
                 });
 
+                if (originalSharedOverlapMaskTexture === undefined && material.uniforms?.uOverlapMask) {
+                    originalSharedOverlapMaskTexture = material.uniforms.uOverlapMask.value;
+                }
+
                 material._overlapMaskPassUniform.value = 1;
+                if (material._transparentShadowsUniform) {
+                    material._transparentShadowsUniform.value = 0;
+                }
+                if (material._overlapOnlyTransparencyUniform) {
+                    material._overlapOnlyTransparencyUniform.value = 0;
+                }
+                if (material._peakTroughTransparencyUniform) {
+                    material._peakTroughTransparencyUniform.value = 0;
+                }
                 material.transparent = true;
                 material.blending = THREE.AdditiveBlending;
                 material.depthWrite = false;
                 material.depthTest = false;
                 material.alphaToCoverage = false;
                 material.toneMapped = false;
+                if (material._overlapMaskTextureNode) {
+                    material._overlapMaskTextureNode.value = overlapPrepassTexture;
+                }
+                if (material.uniforms?.uOverlapMask) {
+                    material.uniforms.uOverlapMask.value = overlapPrepassTexture;
+                }
                 material.needsUpdate = true;
             });
         });
@@ -279,35 +343,135 @@ export function useRenderFilter(ctx) {
 
         try {
             renderer.setClearColor(0x000000, 0);
-            renderer.setRenderTarget(overlapRenderTarget);
+            renderer.setRenderTarget(renderTarget);
             renderer.clear();
             renderer.render(root, camera);
         } finally {
-            overrides.forEach((override) => {
-                if (override.object) {
-                    override.object.visible = override.visible;
-                    return;
-                }
-
+            objectMaterialOverrides.forEach(({ object, material }) => {
+                object.material = material;
+            });
+            visibilityOverrides.forEach(({ object, visible }) => {
+                object.visible = visible;
+            });
+            materialOverrides.forEach((override) => {
                 const {
                     material,
                     overlapMaskPass,
+                    transparentShadows,
+                    overlapOnlyTransparency,
+                    peakTroughTransparency,
                     transparent,
                     blending,
                     depthWrite,
                     depthTest,
                     alphaToCoverage,
                     toneMapped,
+                    overlapMaskTexture,
                 } = override;
                 material._overlapMaskPassUniform.value = overlapMaskPass;
+                if (material._transparentShadowsUniform && transparentShadows !== undefined) {
+                    material._transparentShadowsUniform.value = transparentShadows;
+                }
+                if (material._overlapOnlyTransparencyUniform && overlapOnlyTransparency !== undefined) {
+                    material._overlapOnlyTransparencyUniform.value = overlapOnlyTransparency;
+                }
+                if (material._peakTroughTransparencyUniform && peakTroughTransparency !== undefined) {
+                    material._peakTroughTransparencyUniform.value = peakTroughTransparency;
+                }
                 material.transparent = transparent;
                 material.blending = blending;
                 material.depthWrite = depthWrite;
                 material.depthTest = depthTest;
                 material.alphaToCoverage = alphaToCoverage;
                 material.toneMapped = toneMapped;
+                if (material._overlapMaskTextureNode) {
+                    material._overlapMaskTextureNode.value = overlapMaskTexture;
+                }
+                if (material.uniforms?.uOverlapMask) {
+                    material.uniforms.uOverlapMask.value = overlapMaskTexture;
+                }
                 material.needsUpdate = true;
             });
+            renderer.setRenderTarget(null);
+            renderer.setClearColor(savedClearColor, savedClearAlpha);
+        }
+
+        return true;
+    }
+
+    function ensureOverlapDebugMaterial(texture) {
+        if (overlapDebugMaterial && overlapDebugTexture === texture) {
+            return overlapDebugMaterial;
+        }
+
+        overlapDebugMaterial?.dispose?.();
+        overlapDebugMaterial = null;
+        overlapDebugTexture = texture;
+
+        if (activeRendererType === 'webgpu') {
+            const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
+            const { texture: textureNode, uv, vec2, vec3, vec4, float } = webGPUDeps.threeTSL;
+            const baseUv = uv();
+            const sampleUv = vec2(baseUv.x, float(1).sub(baseUv.y));
+            const sampledMask = textureNode(texture, sampleUv);
+            overlapDebugMaterial = new MeshBasicNodeMaterial();
+            overlapDebugMaterial.colorNode = vec4(
+                vec3(sampledMask.r),
+                float(1.0),
+            );
+        } else {
+            overlapDebugMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tOverlapMask: { value: texture },
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    precision highp float;
+                    uniform sampler2D tOverlapMask;
+                    varying vec2 vUv;
+                    void main() {
+                        float coverage = texture2D(tOverlapMask, vUv).r;
+                        gl_FragColor = vec4(vec3(coverage), 1.0);
+                    }
+                `,
+            });
+        }
+
+        overlapDebugMaterial.toneMapped = false;
+        overlapDebugMaterial.transparent = false;
+        overlapDebugMaterial.depthWrite = false;
+        overlapDebugMaterial.depthTest = false;
+        return overlapDebugMaterial;
+    }
+
+    function renderOverlapMaskDebug(target = null) {
+        const renderer = ctx.renderer.value;
+        if (!renderer || !filterScene || !filterCamera || !filterGeometry || !overlapRenderTarget) {
+            return false;
+        }
+
+        if (!filterQuad) {
+            filterQuad = new THREE.Mesh(filterGeometry, null);
+            filterQuad.frustumCulled = false;
+            filterScene.add(filterQuad);
+        }
+
+        filterQuad.material = ensureOverlapDebugMaterial(overlapRenderTarget.texture);
+        const savedClearColor = renderer.getClearColor(new THREE.Color());
+        const savedClearAlpha = renderer.getClearAlpha();
+
+        try {
+            renderer.setClearColor(0x000000, 1);
+            renderer.setRenderTarget(target);
+            renderer.clear();
+            renderer.render(filterScene, filterCamera);
+        } finally {
             renderer.setClearColor(savedClearColor, savedClearAlpha);
         }
 
@@ -630,6 +794,11 @@ export function useRenderFilter(ctx) {
         });
 
         if (overlapEnabled) {
+            if (ctx.app.overlapMaskDebugEnabled === true) {
+                renderOverlapMask();
+                renderOverlapMaskDebug(target);
+                return;
+            }
             renderOverlapMask();
         }
 
@@ -638,6 +807,8 @@ export function useRenderFilter(ctx) {
             renderer.render(ctx.scene.value, ctx.camera.value);
             return;
         }
+
+        filterQuad.material = filterMaterial;
 
         if (filterMaterial?.uniforms?.uContrast) {
             filterMaterial.uniforms.uContrast.value = getContrastValue();
@@ -690,6 +861,11 @@ export function useRenderFilter(ctx) {
 
         overlapRenderTarget?.dispose?.();
         overlapRenderTarget = null;
+        overlapDebugMaterial?.dispose?.();
+        overlapDebugMaterial = null;
+        overlapDebugTexture = null;
+        overlapPrepassTexture?.dispose?.();
+        overlapPrepassTexture = null;
 
         if (filterQuad && filterScene) {
             filterScene.remove(filterQuad);

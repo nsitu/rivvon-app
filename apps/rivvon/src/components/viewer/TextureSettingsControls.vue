@@ -61,6 +61,13 @@
         },
     });
 
+    const overlapMaskDebugModel = computed({
+        get: () => app.overlapMaskDebugEnabled,
+        set: (value) => {
+            app.setOverlapMaskDebugEnabled(!!value);
+        },
+    });
+
     const transparencyMethodOptions = [
         { label: 'Brightness', value: 'brightness', icon: 'brightness_6' },
         { label: 'Reference Color', value: 'color', icon: 'colorize' },
@@ -626,6 +633,26 @@
                         <ToggleSwitch
                             :inputId="getInputId('overlap-only-transparency')"
                             v-model="overlapOnlyTransparencyModel"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-if="showTransparentShadowsFilter && transparentShadowsFilterModel && overlapOnlyTransparencyModel"
+                    class="tools-toggle-row"
+                >
+                    <label
+                        class="tools-toggle-main"
+                        :for="getInputId('overlap-mask-debug')"
+                    >
+                        <span class="material-symbols-outlined">layers</span>
+                        <span>Show overlap mask (debug)</span>
+                    </label>
+                    <div class="tools-toggle-control">
+                        <span class="tools-hint tools-toggle-hint">{{ overlapMaskDebugModel ? 'On' : 'Off' }}</span>
+                        <ToggleSwitch
+                            :inputId="getInputId('overlap-mask-debug')"
+                            v-model="overlapMaskDebugModel"
                         />
                     </div>
                 </div>

@@ -937,6 +937,8 @@ export const useViewerStore = defineStore("viewer", {
       transparentShadowsEnabled: storedFilterSettings.transparentShadowsEnabled,
       overlapOnlyTransparencyEnabled:
         storedFilterSettings.overlapOnlyTransparencyEnabled,
+      // Temporary diagnostic view; intentionally not persisted.
+      overlapMaskDebugEnabled: false,
       transparencyMethod: storedFilterSettings.transparencyMethod,
       transparencyMode: storedFilterSettings.transparencyMode,
       transparencyReferenceColor: storedFilterSettings.transparencyReferenceColor,
@@ -1175,6 +1177,7 @@ export const useViewerStore = defineStore("viewer", {
       this.transparentShadowsEnabled = false;
       this.overlapOnlyTransparencyEnabled =
         DEFAULT_OVERLAP_ONLY_TRANSPARENCY_ENABLED;
+      this.overlapMaskDebugEnabled = false;
       this.transparencyMethod = DEFAULT_TRANSPARENCY_METHOD;
       this.transparencyMode = DEFAULT_TRANSPARENCY_MODE;
       this.transparencyReferenceColor = DEFAULT_TRANSPARENCY_REFERENCE_COLOR;
@@ -2113,6 +2116,10 @@ this.sphericalProjectionVerticalWrapAuto !==
       const nextValue = !!enabled;
       this.overlapOnlyTransparencyEnabled = nextValue;
       writeViewerPreferences({ overlapOnlyTransparencyEnabled: nextValue });
+    },
+
+    setOverlapMaskDebugEnabled(enabled) {
+      this.overlapMaskDebugEnabled = !!enabled;
     },
 
     setTransparencyMethod(method) {
