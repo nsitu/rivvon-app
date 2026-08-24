@@ -2,6 +2,10 @@
 
 Docs are in ./docs
 
+## Overlap-only Transparency
+
+See [docs/overlap-only-transparency.md](./docs/overlap-only-transparency.md) for the user-facing intent, technical mask model, and troubleshooting guidance.
+
 ## Runtime Assets
 
 Large runtime binaries can be hosted outside the Pages deploy by setting `VITE_ASSET_BASE_URL` to a CDN base such as `https://cdn.rivvon.ca/`.
