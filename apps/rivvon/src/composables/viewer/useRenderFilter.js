@@ -229,6 +229,7 @@ export function useRenderFilter(ctx) {
         }
 
         const overrides = [];
+        const overriddenMaterials = new Set();
         root.traverse((object) => {
             if (!object.isMesh || !object.material) {
                 return;
@@ -246,6 +247,11 @@ export function useRenderFilter(ctx) {
             }
 
             maskMaterials.forEach((material) => {
+                if (overriddenMaterials.has(material)) {
+                    return;
+                }
+
+                overriddenMaterials.add(material);
                 overrides.push({
                     material,
                     overlapMaskPass: material._overlapMaskPassUniform.value,
