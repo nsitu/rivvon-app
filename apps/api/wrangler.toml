@@ -20,8 +20,12 @@ API_URL = "https://api.rivvon.ca"
 APP_URL = "https://slyce.rivvon.ca"
 # Comma-separated list of admin user emails
 ADMIN_USERS = "harold@nsitu.ca"
+R2_ACCOUNT_ID = "b89b667f819ab04b9388b8125ce24ae9"
+R2_BUCKET_NAME = "rivvon-textures"
 
 # Secrets (set via wrangler secret put)
 # GOOGLE_CLIENT_ID     - Google OAuth client ID
 # GOOGLE_CLIENT_SECRET - Google OAuth client secret
 # SESSION_SECRET       - Secret for signing session tokens (min 32 chars)
+# R2_ACCESS_KEY_ID      - R2 S3 API token access key (Object Read & Write)
+# R2_SECRET_ACCESS_KEY  - R2 S3 API token secret key

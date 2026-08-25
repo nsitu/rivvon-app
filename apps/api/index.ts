@@ -5,6 +5,8 @@ import { drawingUploadRoutes } from './routes/drawingUpload';
 import { textureRoutes } from './routes/textures';
 import { drawingRoutes } from './routes/drawings';
 import { authRoutes } from './routes/auth';
+import { myVideoRoutes, videoRoutes } from './routes/videos';
+import { videoUploadRoutes } from './routes/videoUpload';
 import { verifySession } from './middleware/session';
 import type { AppEnv } from './types/hono';
 import { isAdminRequest, queryAccessibleRows } from './utils/resourceAccess';
@@ -91,5 +93,8 @@ app.route('/texture-set', uploadRoutes);
 app.route('/drawing', drawingUploadRoutes);
 app.route('/textures', textureRoutes);
 app.route('/drawings', drawingRoutes);
+app.route('/videos', videoRoutes);
+app.route('/my-videos', myVideoRoutes);
+app.route('/video', videoUploadRoutes);
 
 export default app;

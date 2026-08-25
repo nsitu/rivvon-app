@@ -17,6 +17,15 @@
     import { useRivvonAPI } from '../services/api.js';
     import { useDrawingStorage } from '../services/drawingStorage.js';
     import { useLocalStorage } from '../services/localStorage.js';
+    import { useGoogleDrive } from '../services/googleDrive.js';
+    import {
+        completeVideoPublication,
+        createVideoPublication,
+        deleteVideoPublication,
+        uploadVideoBlob,
+        uploadVideoThumbnail,
+    } from '../services/videoService.js';
+    import { createVideoThumbnail } from '../modules/viewer/videoThumbnail.js';
     import Toast from 'primevue/toast';
     import { useToast } from 'primevue/usetoast';
     import * as THREE from 'three';
@@ -51,11 +60,16 @@
     const app = useViewerStore();
     const slyce = useSlyceStore();
     const toast = useToast();
-    const { isAuthenticated, isAdmin } = useGoogleAuth();
+    const { isAuthenticated, isAdmin, user } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
+    const {
+        ensureSlyceFolder,
+        createAssetFolder: createDriveAssetFolder,
+        uploadFile: uploadDriveFile,
+    } = useGoogleDrive();
     const {
         isDataLoaded: isEmojiDataLoaded,
         loadEmojiData,
@@ -2013,12 +2027,16 @@ const activeToolbarOverlayTitle = computed(() => {
     function resetEncodedVideoExport() {
         encodedVideoExport.value = {
             blob: null,
+            thumbnailBlob: null,
             filename: '',
             format: '',
             mimeType: '',
             size: 0,
+            settings: null,
         };
         videoExportStatus.value = '';
+        resetVideoPublishState();
+        resetVideoDriveState();
     }
 
     function clearVideoExportDialogState({
@@ -2039,7 +2057,12 @@ const activeToolbarOverlayTitle = computed(() => {
     async function handleVideoExportSettingsChange() {
         await refreshVideoExportInfo();
 
-        if (exportAbortController.value || !encodedVideoExport.value?.blob) {
+        if (
+            exportAbortController.value
+            || videoPublishState.value.isPublishing
+            || videoDriveState.value.isSaving
+            || !encodedVideoExport.value?.blob
+        ) {
             return;
         }
 
@@ -2123,6 +2146,218 @@ const activeToolbarOverlayTitle = computed(() => {
                 detail: 'Could not open the native share sheet on this device.',
                 life: 3600,
             });
+        }
+    }
+
+    function resetVideoPublishState() {
+        videoPublishState.value = {
+            isPublishing: false,
+            status: '',
+            progress: 0,
+            videoId: '',
+            error: '',
+        };
+    }
+
+    async function handlePublishEncodedVideo({ name, description = '', isPublic = true } = {}) {
+        const exportRecord = encodedVideoExport.value;
+        if (!exportRecord?.blob || videoPublishState.value.isPublishing || videoDriveState.value.isSaving) {
+            return;
+        }
+        if (!isAuthenticated.value || !isAdmin.value) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Publishing unavailable',
+                detail: 'Gallery publishing is currently limited to signed-in administrators.',
+                life: 4000,
+            });
+            return;
+        }
+
+        const settings = exportRecord.settings || {};
+        const controller = new AbortController();
+        videoPublishAbortController.value = controller;
+        resetVideoPublishState();
+        videoPublishState.value.isPublishing = true;
+        videoPublishState.value.status = 'Preparing gallery publication…';
+        let createdVideoId = '';
+
+        try {
+            const publication = await createVideoPublication({
+                name: name?.trim() || exportRecord.filename.replace(/\.[^.]+$/, ''),
+                description,
+                isPublic,
+                mimeType: exportRecord.mimeType,
+                width: settings.width,
+                height: settings.height,
+                duration: settings.resolvedDuration || settings.duration,
+                fps: settings.fps,
+                fileSize: exportRecord.size,
+                exportSettings: settings,
+                userProfile: user.value ? {
+                    name: user.value.name,
+                    email: user.value.email,
+                    picture: user.value.picture,
+                } : null,
+            });
+            createdVideoId = publication.videoId;
+
+            videoPublishState.value.status = 'Uploading video to R2…';
+            await uploadVideoBlob({
+                uploadUrl: publication.uploadUrl,
+                uploadHeaders: publication.uploadHeaders,
+                blob: exportRecord.blob,
+                signal: controller.signal,
+                onProgress: (progress) => {
+                    videoPublishState.value.progress = progress;
+                    videoPublishState.value.status = `Uploading video… ${Math.round(progress * 100)}%`;
+                },
+            });
+
+            if (exportRecord.thumbnailBlob) {
+                videoPublishState.value.status = 'Uploading thumbnail…';
+                await uploadVideoThumbnail(createdVideoId, exportRecord.thumbnailBlob);
+            }
+
+            videoPublishState.value.status = 'Finalizing gallery entry…';
+            await completeVideoPublication(createdVideoId);
+
+            videoPublishState.value = {
+                isPublishing: false,
+                status: 'Published to the video gallery.',
+                progress: 1,
+                videoId: createdVideoId,
+                error: '',
+            };
+            toast.add({
+                severity: 'success',
+                summary: 'Video published',
+                detail: isPublic ? 'The video is now available in the public gallery.' : 'The private video is available in My Videos.',
+                life: 5000,
+            });
+        } catch (error) {
+            if (createdVideoId) {
+                await deleteVideoPublication(createdVideoId).catch(() => {});
+            }
+
+            const cancelled = error?.name === 'AbortError';
+            videoPublishState.value = {
+                isPublishing: false,
+                status: cancelled ? 'Upload cancelled.' : '',
+                progress: 0,
+                videoId: '',
+                error: cancelled ? '' : (error?.message || 'Gallery publication failed'),
+            };
+            if (!cancelled) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Publish failed',
+                    detail: videoPublishState.value.error,
+                    life: 5000,
+                });
+            }
+        } finally {
+            videoPublishAbortController.value = null;
+        }
+    }
+
+    function handleCancelVideoPublish() {
+        videoPublishAbortController.value?.abort();
+    }
+
+    function handleOpenPublishedVideo() {
+        if (videoPublishState.value.videoId) {
+            router.push({ name: 'video-player', params: { videoId: videoPublishState.value.videoId } });
+        }
+    }
+
+    function resetVideoDriveState() {
+        videoDriveState.value = {
+            isSaving: false,
+            status: '',
+            progress: 0,
+            fileId: '',
+            folderId: '',
+            error: '',
+        };
+    }
+
+    async function handleSaveEncodedVideoToDrive() {
+        const exportRecord = encodedVideoExport.value;
+        if (!exportRecord?.blob || videoDriveState.value.isSaving || videoPublishState.value.isPublishing) {
+            return;
+        }
+        if (!isAuthenticated.value) {
+            toast.add({ severity: 'warn', summary: 'Sign in required', detail: 'Sign in before saving to Google Drive.', life: 3600 });
+            return;
+        }
+
+        const controller = new AbortController();
+        videoDriveAbortController.value = controller;
+        resetVideoDriveState();
+        videoDriveState.value.isSaving = true;
+        videoDriveState.value.status = 'Preparing Google Drive folder…';
+
+        try {
+            const rootFolderId = await ensureSlyceFolder();
+            const baseName = exportRecord.filename.replace(/\.[^.]+$/, '');
+            const date = new Date().toISOString().slice(0, 10);
+            const folderId = await createDriveAssetFolder(rootFolderId, `${baseName} (${date})`);
+            videoDriveState.value.folderId = folderId;
+            videoDriveState.value.status = 'Uploading video to Google Drive…';
+
+            const driveFile = await uploadDriveFile(folderId, exportRecord.filename, exportRecord.blob, {
+                contentType: exportRecord.mimeType,
+                makePublic: false,
+                signal: controller.signal,
+                onProgress: (progress) => {
+                    videoDriveState.value.progress = progress / 100;
+                    videoDriveState.value.status = `Uploading to Google Drive… ${Math.round(progress)}%`;
+                },
+            });
+
+            if (exportRecord.thumbnailBlob) {
+                videoDriveState.value.status = 'Uploading thumbnail to Google Drive…';
+                await uploadDriveFile(folderId, 'thumbnail.webp', exportRecord.thumbnailBlob, {
+                    contentType: 'image/webp',
+                    makePublic: false,
+                    signal: controller.signal,
+                });
+            }
+
+            videoDriveState.value = {
+                isSaving: false,
+                status: 'Saved privately to Google Drive.',
+                progress: 1,
+                fileId: driveFile.id,
+                folderId,
+                error: '',
+            };
+            toast.add({ severity: 'success', summary: 'Saved to Google Drive', detail: exportRecord.filename, life: 4200 });
+        } catch (error) {
+            const cancelled = error?.name === 'AbortError';
+            videoDriveState.value = {
+                ...videoDriveState.value,
+                isSaving: false,
+                status: cancelled ? 'Google Drive upload cancelled.' : '',
+                progress: 0,
+                error: cancelled ? '' : (error?.message || 'Google Drive upload failed'),
+            };
+            if (!cancelled) {
+                toast.add({ severity: 'error', summary: 'Drive save failed', detail: videoDriveState.value.error, life: 5000 });
+            }
+        } finally {
+            videoDriveAbortController.value = null;
+        }
+    }
+
+    function handleCancelVideoDriveSave() {
+        videoDriveAbortController.value?.abort();
+    }
+
+    function handleOpenDriveVideo() {
+        if (videoDriveState.value.fileId) {
+            window.open(`https://drive.google.com/file/d/${videoDriveState.value.fileId}/view`, '_blank', 'noopener,noreferrer');
         }
     }
 
@@ -2244,12 +2479,31 @@ const activeToolbarOverlayTitle = computed(() => {
     const exportAbortController = ref(null);
     const encodedVideoExport = ref({
         blob: null,
+        thumbnailBlob: null,
         filename: '',
         format: '',
         mimeType: '',
         size: 0,
+        settings: null,
     });
     const videoExportStatus = ref('');
+    const videoPublishAbortController = ref(null);
+    const videoPublishState = ref({
+        isPublishing: false,
+        status: '',
+        progress: 0,
+        videoId: '',
+        error: '',
+    });
+    const videoDriveAbortController = ref(null);
+    const videoDriveState = ref({
+        isSaving: false,
+        status: '',
+        progress: 0,
+        fileId: '',
+        folderId: '',
+        error: '',
+    });
     let exportInfoRequestId = 0;
 
     function getViewerAnimationSettings() {
@@ -2778,12 +3032,22 @@ const activeToolbarOverlayTitle = computed(() => {
                 return;
             }
 
+            let thumbnailBlob = null;
+            try {
+                videoExportStatus.value = 'Preparing thumbnail…';
+                thumbnailBlob = await createVideoThumbnail(blob);
+            } catch (thumbnailError) {
+                console.warn('Video thumbnail generation failed:', thumbnailError);
+            }
+
             encodedVideoExport.value = {
                 blob,
+                thumbnailBlob,
                 filename,
                 format: settings.format,
                 mimeType: blob.type || getVideoMimeType(settings.format),
                 size: blob.size,
+                settings,
             };
             videoExportStatus.value = '';
             toast.add({
@@ -3521,10 +3785,20 @@ const activeToolbarOverlayTitle = computed(() => {
             :encoded-filename="encodedVideoExport.filename"
             :encoded-size="encodedVideoExport.size"
             :can-share="canImageShare"
+            :can-publish="isAuthenticated && isAdmin"
+            :publish-state="videoPublishState"
+            :can-save-to-drive="isAuthenticated"
+            :drive-state="videoDriveState"
             @update:visible="handleExportVideoDialogVisibleChange"
             @request-export="handleExportConfirm"
             @request-download="handleDownloadEncodedVideo"
             @request-share="handleShareEncodedVideo"
+            @request-publish="handlePublishEncodedVideo"
+            @request-cancel-publish="handleCancelVideoPublish"
+            @request-open-published="handleOpenPublishedVideo"
+            @request-save-to-drive="handleSaveEncodedVideoToDrive"
+            @request-cancel-drive="handleCancelVideoDriveSave"
+            @request-open-drive="handleOpenDriveVideo"
             @request-cancel="handleCancelVideoExport"
             @settings-change="handleVideoExportSettingsChange"
         />

@@ -7,6 +7,7 @@ import { useGoogleAuth } from '../composables/shared/useGoogleAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 const SLYCE_FOLDER_NAME = 'Slyce Textures'
+const DRIVE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024 // 8 MiB; must remain a multiple of 256 KiB
 
 /**
  * Google Drive service for uploading textures
@@ -166,6 +167,63 @@ export function useGoogleDrive() {
         return createAssetFolder(parentFolderId, textureSetName)
     }
 
+    function uploadResumableChunk({ uploadUrl, chunk, contentType, start, total, signal, onProgress }) {
+        return new Promise((resolve, reject) => {
+            const request = new XMLHttpRequest()
+            let settled = false
+
+            const cleanup = () => signal?.removeEventListener('abort', abortUpload)
+            const finish = (callback, value) => {
+                if (settled) return
+                settled = true
+                cleanup()
+                callback(value)
+            }
+            const abortUpload = () => request.abort()
+
+            request.open('PUT', uploadUrl, true)
+            request.setRequestHeader('Content-Type', contentType)
+            request.setRequestHeader('Content-Range', `bytes ${start}-${start + chunk.size - 1}/${total}`)
+            request.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    onProgress?.(Math.min(100, ((start + event.loaded) / total) * 100))
+                }
+            })
+            request.addEventListener('load', () => {
+                let responseBody = null
+                try {
+                    responseBody = request.responseText ? JSON.parse(request.responseText) : null
+                } catch {
+                    responseBody = null
+                }
+                if (request.status === 200 || request.status === 201) {
+                    finish(resolve, { complete: true, file: responseBody, nextOffset: total })
+                    return
+                }
+                if (request.status === 308) {
+                    const receivedRange = request.getResponseHeader('Range') || ''
+                    const lastReceivedByte = Number(receivedRange.match(/-(\d+)$/)?.[1])
+                    finish(resolve, {
+                        complete: false,
+                        file: null,
+                        nextOffset: Number.isFinite(lastReceivedByte) ? lastReceivedByte + 1 : start + chunk.size,
+                    })
+                    return
+                }
+                finish(reject, new Error(responseBody?.error?.message || `Google Drive upload failed (${request.status})`))
+            })
+            request.addEventListener('error', () => finish(reject, new Error('Google Drive upload failed due to a network error')))
+            request.addEventListener('abort', () => finish(reject, new DOMException('Google Drive upload cancelled', 'AbortError')))
+
+            if (signal?.aborted) {
+                finish(reject, new DOMException('Google Drive upload cancelled', 'AbortError'))
+                return
+            }
+            signal?.addEventListener('abort', abortUpload, { once: true })
+            request.send(chunk)
+        })
+    }
+
     /**
      * Upload a file to Google Drive using resumable upload
      * Supports progress tracking for large files
@@ -185,6 +243,7 @@ export function useGoogleDrive() {
             ? { onProgress: options }
             : (options || {})
         const onProgress = normalizedOptions.onProgress || null
+        const signal = normalizedOptions.signal || null
         const contentType = normalizedOptions.contentType
             || (fileData instanceof Blob ? fileData.type : '')
             || 'application/octet-stream'
@@ -220,28 +279,30 @@ export function useGoogleDrive() {
             throw new Error('No upload URL returned')
         }
 
-        // Step 2: Upload the file data
-        // For files up to ~10MB, single request is fine
-        // For larger files, we could implement chunked upload
-        const uploadResponse = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: {
-                'Content-Length': fileSize.toString(),
-                'Content-Type': contentType,
-            },
-            body: blob,
-        })
-
-        if (!uploadResponse.ok) {
-            const error = await uploadResponse.json().catch(() => ({}))
-            throw new Error(error.message || 'Failed to upload file')
+        // Step 2: Upload in 256-KiB-aligned chunks so large exports can report
+        // progress and survive normal per-request size constraints.
+        let offset = 0
+        let file = null
+        while (offset < fileSize) {
+            const end = Math.min(fileSize, offset + DRIVE_UPLOAD_CHUNK_SIZE)
+            const result = await uploadResumableChunk({
+                uploadUrl,
+                chunk: blob.slice(offset, end, contentType),
+                contentType,
+                start: offset,
+                total: fileSize,
+                signal,
+                onProgress,
+            })
+            offset = result.nextOffset
+            file = result.file || file
         }
 
-        if (onProgress) {
-            onProgress(100)
+        if (!file?.id) {
+            throw new Error('Google Drive upload completed without file metadata')
         }
 
-        const file = await uploadResponse.json()
+        onProgress?.(100)
 
         if (normalizedOptions.makePublic !== false) {
             // Step 3: Make the file publicly accessible via link
@@ -262,7 +323,7 @@ export function useGoogleDrive() {
         const accessToken = await getAccessToken()
 
         try {
-            await fetch(
+            const response = await fetch(
                 `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
                 {
                     method: 'POST',
@@ -276,6 +337,10 @@ export function useGoogleDrive() {
                     }),
                 }
             )
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}))
+                throw new Error(error?.error?.message || 'Failed to make Google Drive file public')
+            }
         } catch (err) {
             console.warn('Failed to make file public:', err)
             // Don't fail the whole upload for this - file can still be accessed by owner

@@ -16,6 +16,19 @@ const routes = [
         component: () => import('../views/RibbonView.vue'),
         props: true
     },
+    {
+        path: '/videos',
+        name: 'video-gallery',
+        component: () => import('../views/VideoGalleryView.vue'),
+        meta: { layout: 'document' }
+    },
+    {
+        path: '/video/:videoId',
+        name: 'video-player',
+        component: () => import('../views/VideoPlayerView.vue'),
+        props: true,
+        meta: { layout: 'document' }
+    },
     
     // ============ SLYCE ROUTES ============
     {

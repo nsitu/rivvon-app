@@ -23,9 +23,11 @@ import InputNumber from 'primevue/inputnumber';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
+    import { useRouter } from 'vue-router';
 
     const app = useViewerStore();
     const slyce = useSlyceStore();
+    const router = useRouter();
     const { user, isAdmin, isAuthenticated, login, logout } = useGoogleAuth();
 
     const showInfoDialog = ref(false);
@@ -707,6 +709,17 @@ const activeLauncherTitle = computed(() => {
                     icon: 'grid_view',
                     active: isToolbarContextActive('textureBrowser'),
                     command: () => toggleContextItem('textureBrowser', () => emit('request-open-texture-browser'))
+                },
+                {
+                    contextLabel: 'Video Gallery',
+                    label: 'Browse...',
+                    description: 'Watch and download rendered Rivvon videos.',
+                    icon: 'video_library',
+                    command: () => {
+                        closeLaunchers();
+                        app.hideToolsPanel();
+                        router.push({ name: 'video-gallery' });
+                    }
                 }
             ]
         }

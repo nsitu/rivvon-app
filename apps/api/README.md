@@ -66,6 +66,38 @@ Future opportunity:
 - Reconcile the existing remote database with Wrangler's tracked migration system so future changes can use `wrangler d1 migrations list` and `wrangler d1 migrations apply` safely.
 - That follow-up should include backfilling or otherwise aligning `d1_migrations` with the schema that already exists in production.
 
+### Applying the video gallery migration
+
+Production D1 access requires either an interactive Wrangler session (`npx wrangler login`) or a `CLOUDFLARE_API_TOKEN` with D1 access. From `apps/api/`, inspect the live schema, apply only the new migration, and verify it:
+
+```bash
+npx wrangler whoami
+npx wrangler d1 execute rivvon-textures --remote --command="SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;"
+npx wrangler d1 execute rivvon-textures --remote --file=./db/migrations/007_video_exports.sql
+npx wrangler d1 execute rivvon-textures --remote --command="PRAGMA table_info(video_exports);"
+```
+
+Do not use `wrangler d1 migrations apply` for this database yet. Migrations 001–006 were applied manually and are not reconciled with Wrangler's migration tracking table.
+
+## Video gallery R2 uploads
+
+Gallery videos upload directly from the browser to an authenticated, short-lived R2 presigned URL. The API requires an R2 API token scoped to Object Read & Write for the `rivvon-textures` bucket. Configure its credentials as Worker secrets:
+
+```bash
+npx wrangler secret put R2_ACCESS_KEY_ID
+npx wrangler secret put R2_SECRET_ACCESS_KEY
+```
+
+`R2_ACCOUNT_ID` and `R2_BUCKET_NAME` are non-sensitive deployment variables configured in `wrangler.toml`.
+
+Browser uploads also require the bucket CORS policy checked into `r2-cors.json`:
+
+```bash
+npx wrangler r2 bucket cors set rivvon-textures --file=./r2-cors.json
+```
+
+Apply the D1 migration and R2 configuration before deploying the API and frontend. The API verifies the finished R2 object and its byte size before a video becomes visible in the gallery.
+
 ## Configuration
 
 See `wrangler.toml` for Cloudflare configuration.

@@ -8,7 +8,7 @@
     const route = useRoute();
 
     // Viewer mode is active when NOT on slyce routes
-    const isViewerMode = computed(() => !route.path.startsWith('/slyce'));
+    const isViewerMode = computed(() => route.meta.layout !== 'document' && !route.path.startsWith('/slyce'));
 
     onMounted(() => {
         // Add app-active class to body when Vue app loads

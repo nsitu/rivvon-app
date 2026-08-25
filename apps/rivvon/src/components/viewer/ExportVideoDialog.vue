@@ -7,6 +7,8 @@
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import InputText from 'primevue/inputtext';
+    import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
@@ -37,9 +39,18 @@
         encodedFilename: { type: String, default: '' },
         encodedSize: { type: Number, default: 0 },
         canShare: { type: Boolean, default: false },
+        canPublish: { type: Boolean, default: false },
+        publishState: { type: Object, default: () => ({}) },
+        canSaveToDrive: { type: Boolean, default: false },
+        driveState: { type: Object, default: () => ({}) },
     });
 
-    const emit = defineEmits(['update:visible', 'request-export', 'request-download', 'request-share', 'request-cancel', 'settings-change']);
+    const emit = defineEmits([
+        'update:visible', 'request-export', 'request-download', 'request-share',
+        'request-publish', 'request-cancel-publish', 'request-open-published',
+        'request-save-to-drive', 'request-cancel-drive', 'request-open-drive',
+        'request-cancel', 'settings-change',
+    ]);
 
     // --- Form state ---
     const format = ref('mp4');
@@ -61,6 +72,9 @@
         },
     });
     const quality = ref('very-high');
+    const publishName = ref('');
+    const publishDescription = ref('');
+    const publishPublic = ref(true);
 
     const exportModeOptions = computed(() => {
         const options = [];
@@ -313,6 +327,10 @@
     });
 
     const hasEncodedVideo = computed(() => Boolean(props.encodedFilename));
+    const isPublishing = computed(() => Boolean(props.publishState?.isPublishing));
+    const isPublished = computed(() => Boolean(props.publishState?.videoId));
+    const isSavingDrive = computed(() => Boolean(props.driveState?.isSaving));
+    const isSavedToDrive = computed(() => Boolean(props.driveState?.fileId));
 
     const encodedSizeLabel = computed(() => {
         const bytes = Number(props.encodedSize) || 0;
@@ -356,6 +374,16 @@
         },
         { immediate: true }
     );
+
+    watch(() => props.encodedFilename, (filename) => {
+        if (!filename) {
+            return;
+        }
+
+        publishName.value = filename.replace(/\.[^.]+$/, '');
+        publishDescription.value = '';
+        publishPublic.value = true;
+    });
 
     watch([
         aspectRatioPreset,
@@ -425,6 +453,7 @@
             fps: fps.value,
             format: format.value,
             duration: durationMode.value === 'custom' ? resolvedDuration.value : null,
+            resolvedDuration: resolvedDuration.value,
             loopCount: durationMode.value === 'loop'
                 ? cycleCount.value
                 : DEFAULT_SEAMLESS_LOOP_COUNT,
@@ -441,6 +470,14 @@
 
     function handleShare() {
         emit('request-share');
+    }
+
+    function handlePublish() {
+        emit('request-publish', {
+            name: publishName.value,
+            description: publishDescription.value,
+            isPublic: publishPublic.value,
+        });
     }
 
     function handleCancel() {
@@ -763,6 +800,76 @@
                     </div>
                 </div>
 
+                <section
+                    v-if="hasEncodedVideo && canPublish"
+                    class="publish-video-card"
+                >
+                    <div class="publish-video-heading">
+                        <span class="material-symbols-outlined">video_library</span>
+                        <div>
+                            <strong>{{ isPublished ? 'Published video' : 'Publish to Gallery' }}</strong>
+                            <p>{{ isPublished ? publishState.status : 'Upload this encoded file and its thumbnail to the Rivvon video gallery.' }}</p>
+                        </div>
+                    </div>
+
+                    <template v-if="!isPublished">
+                        <div class="publish-video-fields">
+                            <div class="form-field">
+                                <label for="publish-video-name">Title</label>
+                                <InputText
+                                    id="publish-video-name"
+                                    v-model="publishName"
+                                    :disabled="isPublishing"
+                                    maxlength="120"
+                                />
+                            </div>
+                            <div class="form-field publish-description-field">
+                                <label for="publish-video-description">Description</label>
+                                <Textarea
+                                    id="publish-video-description"
+                                    v-model="publishDescription"
+                                    :disabled="isPublishing"
+                                    rows="2"
+                                    maxlength="2000"
+                                    auto-resize
+                                />
+                            </div>
+                        </div>
+                        <div class="toggle-row publish-visibility-row">
+                            <div class="toggle-text">
+                                <label>Public Gallery</label>
+                                <div class="field-description">Turn off to keep this entry in My Videos only.</div>
+                            </div>
+                            <div class="toggle-control">
+                                <span class="toggle-copy">{{ publishPublic ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    v-model="publishPublic"
+                                    :disabled="isPublishing"
+                                    aria-label="Publish video publicly"
+                                />
+                            </div>
+                        </div>
+                    </template>
+
+                    <div
+                        v-if="publishState.status || publishState.error"
+                        class="publish-video-status"
+                        :class="{ error: publishState.error }"
+                    >
+                        <span class="material-symbols-outlined">{{ publishState.error ? 'warning' : (isPublished ? 'cloud_done' : 'cloud_upload') }}</span>
+                        <span>{{ publishState.error || publishState.status }}</span>
+                    </div>
+                </section>
+
+                <div
+                    v-if="hasEncodedVideo && canSaveToDrive && (driveState.status || driveState.error)"
+                    class="publish-video-status drive-video-status"
+                    :class="{ error: driveState.error }"
+                >
+                    <span class="material-symbols-outlined">{{ driveState.error ? 'warning' : (isSavedToDrive ? 'cloud_done' : 'drive_file_move') }}</span>
+                    <span>{{ driveState.error || driveState.status }}</span>
+                </div>
+
                 <div class="summary-row">
                     <div class="summary-item">
                         <span class="summary-label">Frames</span>
@@ -779,15 +886,15 @@
                 </div>
 
                 <PanelActionBar class="export-video-panel-footer">
-                    <template v-if="isEncoding">
+                    <template v-if="isEncoding || isPublishing || isSavingDrive">
                         <Button
                             type="button"
                             severity="secondary"
                             variant="outlined"
-                            @click="handleCancel"
+                            @click="isPublishing ? emit('request-cancel-publish') : (isSavingDrive ? emit('request-cancel-drive') : handleCancel())"
                         >
                             <span class="material-symbols-outlined">cancel</span>
-                            Cancel Encode
+                            {{ isPublishing || isSavingDrive ? 'Cancel Upload' : 'Cancel Encode' }}
                         </Button>
                     </template>
                     <template v-else-if="hasEncodedVideo">
@@ -809,6 +916,47 @@
                         >
                             <span class="material-symbols-outlined">share</span>
                             Share
+                        </Button>
+                        <Button
+                            v-if="canSaveToDrive && isSavedToDrive"
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
+                            @click="emit('request-open-drive')"
+                        >
+                            <span class="material-symbols-outlined">open_in_new</span>
+                            Open Drive
+                        </Button>
+                        <Button
+                            v-else-if="canSaveToDrive"
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
+                            @click="emit('request-save-to-drive')"
+                        >
+                            <span class="material-symbols-outlined">drive_file_move</span>
+                            Save to Drive
+                        </Button>
+                        <Button
+                            v-if="canPublish && isPublished"
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
+                            @click="emit('request-open-published')"
+                        >
+                            <span class="material-symbols-outlined">open_in_new</span>
+                            Open Video
+                        </Button>
+                        <Button
+                            v-else-if="canPublish"
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
+                            :disabled="!publishName.trim()"
+                            @click="handlePublish"
+                        >
+                            <span class="material-symbols-outlined">cloud_upload</span>
+                            Publish
                         </Button>
                         <Button
                             type="button"
@@ -892,6 +1040,75 @@
 
     .export-video-panel-footer {
         --panel-action-bar-padding: 0.85rem 0 0;
+    }
+
+    .publish-video-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.85rem;
+        background: rgba(255, 255, 255, 0.045);
+    }
+
+    .publish-video-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.7rem;
+    }
+
+    .publish-video-heading .material-symbols-outlined {
+        color: var(--p-primary-color, #6366f1);
+    }
+
+    .publish-video-heading strong {
+        display: block;
+        font-size: 0.95rem;
+    }
+
+    .publish-video-heading p {
+        margin: 0.2rem 0 0;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.62));
+        font-size: 0.8rem;
+        line-height: 1.4;
+    }
+
+    .publish-video-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+    }
+
+    .publish-description-field {
+        flex-grow: 2;
+    }
+
+    .publish-visibility-row {
+        padding-top: 0.1rem;
+    }
+
+    .publish-video-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.7));
+        font-size: 0.82rem;
+    }
+
+    .publish-video-status.error {
+        color: var(--p-red-300, #fca5a5);
+    }
+
+    .drive-video-status {
+        padding: 0.75rem 0.9rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 0.7rem;
+        background: rgba(255, 255, 255, 0.035);
+    }
+
+    .publish-video-status .material-symbols-outlined {
+        font-size: 1.15rem;
     }
 
     @media (max-width: 767px) {

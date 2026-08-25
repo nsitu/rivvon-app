@@ -28,3 +28,11 @@ export function buildDrawingPayloadR2Key(drawingId: string): string {
 export function buildDrawingThumbnailR2Key(drawingId: string, extension: string): string {
     return `drawing-thumbnails/${drawingId}.${extension}`;
 }
+
+export function buildVideoR2Key(videoId: string, extension: string): string {
+    return `videos/${videoId}/video.${extension}`;
+}
+
+export function buildVideoThumbnailR2Key(videoId: string, extension: string): string {
+    return `video-thumbnails/${videoId}.${extension}`;
+}
