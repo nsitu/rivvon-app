@@ -73,6 +73,28 @@
         },
     });
 
+    const backgroundLayerCount = computed(() => Math.max(
+        1,
+        Math.floor(Number(app.backgroundLayerCount) || 1),
+    ));
+
+    const backgroundLayerIndexModel = computed({
+        get: () => Math.max(
+            0,
+            Math.min(
+                backgroundLayerCount.value - 1,
+                Math.round(Number(app.backgroundLayerIndex) || 0),
+            ),
+        ),
+        set: (value) => {
+            app.setBackgroundLayerIndex(value);
+        },
+    });
+
+    const backgroundLayerDisplay = computed(
+        () => `Layer ${backgroundLayerIndexModel.value + 1}/${backgroundLayerCount.value}`,
+    );
+
     const backgroundFlipVerticalModel = computed({
         get: () => app.backgroundFlipVertical,
         set: (value) => app.setBackgroundFlipVertical(!!value),
@@ -640,6 +662,34 @@
                                     :inputId="getInputId('animated-background')"
                                     v-model="animatedBackgroundModel"
                                 />
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="!animatedBackgroundModel && backgroundLayerCount > 1"
+                            class="tools-slider-block"
+                        >
+                            <div class="tools-slider-head">
+                                <label
+                                    class="tools-slider-label"
+                                    :for="getInputId('background-layer')"
+                                >
+                                    <span class="material-symbols-outlined">layers</span>
+                                    <span>Background Layer</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ backgroundLayerDisplay }}</span>
+                            </div>
+                            <Slider
+                                v-model="backgroundLayerIndexModel"
+                                :input-id="getInputId('background-layer')"
+                                :min="0"
+                                :max="backgroundLayerCount - 1"
+                                :step="1"
+                                aria-label="Background layer"
+                            />
+                            <div class="tools-slider-caption">
+                                <span>Layer 1</span>
+                                <span>Layer {{ backgroundLayerCount }}</span>
                             </div>
                         </div>
 

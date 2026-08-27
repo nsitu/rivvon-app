@@ -68,6 +68,18 @@ function getTextureAt(tileManager, tileIndex) {
   return textures[positiveModulo(tileIndex, count)] || null;
 }
 
+function getBackgroundLayerCount(tileManager) {
+  const managerLayerCount = Number(tileManager?.getLayerCount?.());
+  if (Number.isFinite(managerLayerCount) && managerLayerCount > 0) {
+    return Math.max(1, Math.floor(managerLayerCount));
+  }
+
+  const textureLayerCount = Number(getTextureAt(tileManager, 0)?.image?.depth);
+  return Number.isFinite(textureLayerCount) && textureLayerCount > 0
+    ? Math.max(1, Math.floor(textureLayerCount))
+    : 1;
+}
+
 function getBackgroundBlurRadius() {
   return 0;
 }
@@ -455,6 +467,7 @@ export function useSceneBackground(ctx) {
     activeRuntime?.dispose?.();
     activeRuntime = null;
     ctx.backgroundTexture.value = null;
+    ctx.app.setBackgroundLayerCount?.(1);
 
     if (ctx.scene.value) {
       ctx.scene.value.background = null;
@@ -484,6 +497,9 @@ export function useSceneBackground(ctx) {
     const firstTexture =
       ctx.tileManager.value.getArrayTexture?.(0) ||
       getTextureAt(ctx.tileManager.value, 0);
+    ctx.app.setBackgroundLayerCount?.(
+      getBackgroundLayerCount(ctx.tileManager.value),
+    );
     if (!firstTexture) {
       console.warn("[ThreeSetup] No array texture available for background");
       return;
@@ -655,9 +671,10 @@ function attachCameraBackgroundPlane(ctx, material) {
 
 function resolveBackgroundFrame(ctx, renderOptions = {}) {
   const tileManager = ctx.tileManager.value;
+  const backgroundTexture = getTextureAt(tileManager, 0);
   const currentLayer = ctx.app.animatedBackgroundEnabled
-    ? clampLayer(tileManager?.currentLayer, getTextureAt(tileManager, 0))
-    : 0;
+    ? clampLayer(tileManager?.currentLayer, backgroundTexture)
+    : clampLayer(ctx.app.backgroundLayerIndex, backgroundTexture);
   const backgroundFlow = getBackgroundFlowPosition(
     ctx,
     tileManager,

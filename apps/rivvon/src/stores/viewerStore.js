@@ -105,6 +105,7 @@ const MIN_BACKGROUND_FLOW_SPEED = 0.05;
 const MAX_BACKGROUND_FLOW_SPEED = 2.0;
 const DEFAULT_BACKGROUND_OVERLAY_COLOR = "#ffffff";
 const DEFAULT_BACKGROUND_OVERLAY_OPACITY = 0.35;
+const DEFAULT_BACKGROUND_LAYER_INDEX = 0;
 const DEFAULT_BACKGROUND_BASE_ENABLED = true;
 const DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED = false;
 const DEFAULT_BACKGROUND_WATER_ENABLED = false;
@@ -448,6 +449,13 @@ function normalizeViewerBooleanPreference(value, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function normalizeBackgroundLayerIndex(value) {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed)
+    ? Math.max(0, parsed)
+    : DEFAULT_BACKGROUND_LAYER_INDEX;
+}
+
 function normalizeBackgroundWaterScale(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_BACKGROUND_WATER_SCALE;
@@ -785,6 +793,11 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().animatedBackgroundEnabled,
         false,
       ),
+      backgroundLayerIndex: normalizeBackgroundLayerIndex(
+        readViewerPreferences().backgroundLayerIndex,
+      ),
+      // Runtime metadata for the currently loaded KTX2 texture set.
+      backgroundLayerCount: 1,
       backgroundFlipVertical: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundFlipVertical,
         false,
@@ -1133,6 +1146,7 @@ export const useViewerStore = defineStore("viewer", {
       this.flowCycleAlignmentEnabled = true;
       this.textureAnimationEnabled = true;
       this.animatedBackgroundEnabled = false;
+      this.backgroundLayerIndex = DEFAULT_BACKGROUND_LAYER_INDEX;
       this.backgroundFlipVertical = false;
       this.backgroundFlowEnabled = false;
       this.backgroundFlowSpeed = DEFAULT_BACKGROUND_FLOW_SPEED;
@@ -1238,6 +1252,7 @@ export const useViewerStore = defineStore("viewer", {
         flowCycleAlignmentEnabled: true,
         textureAnimationEnabled: true,
         animatedBackgroundEnabled: false,
+        backgroundLayerIndex: DEFAULT_BACKGROUND_LAYER_INDEX,
         backgroundFlipVertical: false,
         backgroundFlowEnabled: false,
         backgroundFlowSpeed: DEFAULT_BACKGROUND_FLOW_SPEED,
@@ -1432,6 +1447,19 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = !!enabled;
       this.animatedBackgroundEnabled = nextValue;
       writeViewerPreferences({ animatedBackgroundEnabled: nextValue });
+    },
+
+    setBackgroundLayerIndex(index) {
+      const nextValue = normalizeBackgroundLayerIndex(index);
+      this.backgroundLayerIndex = nextValue;
+      writeViewerPreferences({ backgroundLayerIndex: nextValue });
+    },
+
+    setBackgroundLayerCount(count) {
+      const parsed = Math.floor(Number(count));
+      this.backgroundLayerCount = Number.isFinite(parsed)
+        ? Math.max(1, parsed)
+        : 1;
     },
 
     setBackgroundFlipVertical(enabled) {
@@ -1715,6 +1743,7 @@ export const useViewerStore = defineStore("viewer", {
         flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
         textureAnimationEnabled: this.textureAnimationEnabled,
         animatedBackgroundEnabled: this.animatedBackgroundEnabled,
+        backgroundLayerIndex: this.backgroundLayerIndex,
         backgroundFlipVertical: this.backgroundFlipVertical,
         backgroundFlowEnabled: this.backgroundFlowEnabled,
         backgroundFlowSpeed: this.backgroundFlowSpeed,
@@ -1826,6 +1855,7 @@ sphericalProjectionVerticalWrapAuto:
         this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
         this.textureAnimationEnabled !== original.textureAnimationEnabled ||
         this.animatedBackgroundEnabled !== original.animatedBackgroundEnabled ||
+        this.backgroundLayerIndex !== original.backgroundLayerIndex ||
         this.backgroundFlipVertical !== original.backgroundFlipVertical ||
         this.backgroundFlowEnabled !== original.backgroundFlowEnabled ||
         this.backgroundFlowSpeed !== original.backgroundFlowSpeed ||

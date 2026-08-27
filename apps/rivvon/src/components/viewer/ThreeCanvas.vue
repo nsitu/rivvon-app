@@ -216,6 +216,10 @@
         });
     });
 
+    watch(() => app.backgroundLayerIndex, () => {
+        updateBackground();
+    });
+
     watch(() => app.backgroundBlurEnabled, () => {
         setBackgroundFromTileManager().catch((error) => {
             console.error('[ThreeCanvas] Failed to update scene background blur:', error);

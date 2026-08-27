@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
+    import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
@@ -31,6 +31,12 @@ import InputNumber from 'primevue/inputnumber';
     const { user, isAdmin, isAuthenticated, login, logout } = useGoogleAuth();
 
     const showInfoDialog = ref(false);
+    const isFinePointerDevice = ref(false);
+    let finePointerMediaQuery = null;
+
+    function handleFinePointerChange(event) {
+        isFinePointerDevice.value = Boolean(event.matches);
+    }
 
     function handleAbout() {
         app.hideToolsPanel();
@@ -376,6 +382,69 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         || isToolbarContextActive('realtimeSampler')
     ));
 
+    const showVideoDropZone = computed(() => (
+        props.activeToolbarOverlay === 'texture' && isFinePointerDevice.value
+    ));
+    const isVideoDragActive = ref(false);
+    let videoDragDepth = 0;
+
+    function isFileDrag(event) {
+        return Array.from(event.dataTransfer?.types || []).includes('Files');
+    }
+
+    function resetVideoDragState() {
+        videoDragDepth = 0;
+        isVideoDragActive.value = false;
+    }
+
+    function handleVideoDragEnter(event) {
+        if (!showVideoDropZone.value || !isFileDrag(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        videoDragDepth += 1;
+        isVideoDragActive.value = true;
+    }
+
+    function handleVideoDragOver(event) {
+        if (!showVideoDropZone.value || !isFileDrag(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+        isVideoDragActive.value = true;
+    }
+
+    function handleVideoDragLeave(event) {
+        if (!showVideoDropZone.value || !isFileDrag(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        videoDragDepth = Math.max(0, videoDragDepth - 1);
+        if (videoDragDepth === 0) {
+            isVideoDragActive.value = false;
+        }
+    }
+
+    function handleVideoDrop(event) {
+        if (!showVideoDropZone.value) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        const file = event.dataTransfer?.files?.[0];
+        resetVideoDragState();
+
+        if (file?.type?.startsWith('video/')) {
+            emit('request-open-texture-file', { file });
+        }
+    }
+
+    watch(showVideoDropZone, (visible) => {
+        if (!visible) {
+            resetVideoDragState();
+        }
+    });
+
     const showFinishCaptureButton = computed(() => {
         if (app.isWalkMode) {
             return app.hasActiveWalkPath;
@@ -475,11 +544,36 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     onMounted(() => {
         window.addEventListener('keydown', handleGlobalKeydown);
         setupToolsPanelMasonry();
+
+        if (typeof window.matchMedia !== 'function') {
+            return;
+        }
+
+        finePointerMediaQuery = window.matchMedia('(pointer: fine) and (min-width: 769px)');
+        isFinePointerDevice.value = finePointerMediaQuery.matches;
+
+        if (typeof finePointerMediaQuery.addEventListener === 'function') {
+            finePointerMediaQuery.addEventListener('change', handleFinePointerChange);
+        } else {
+            finePointerMediaQuery.addListener(handleFinePointerChange);
+        }
     });
 
     onBeforeUnmount(() => {
         window.removeEventListener('keydown', handleGlobalKeydown);
         teardownToolsPanelMasonry();
+
+        if (!finePointerMediaQuery) {
+            return;
+        }
+
+        if (typeof finePointerMediaQuery.removeEventListener === 'function') {
+            finePointerMediaQuery.removeEventListener('change', handleFinePointerChange);
+        } else {
+            finePointerMediaQuery.removeListener(handleFinePointerChange);
+        }
+
+        finePointerMediaQuery = null;
     });
 
     // --- Tools panel masonry (span trick) ----------------------------------
@@ -757,7 +851,7 @@ const activeLauncherTitle = computed(() => {
 <template>
     <div
         class="bottom-toolbar"
-        :class="{ hidden: app.isFullscreen }"
+        :class="{ hidden: app.isFullscreen || isToolbarContextActive('textureCreator') }"
     >
         <div class="toolbar-launcher">
             <button
@@ -926,6 +1020,31 @@ const activeLauncherTitle = computed(() => {
                             </div>
                         </div>
                     </template>
+
+                    <div
+                        v-if="showVideoDropZone"
+                        class="tools-section video-drop-section"
+                    >
+                        <div class="tools-section-label">Quick Load</div>
+                        <div class="tools-section-items video-drop-section-items">
+                            <div
+                                class="video-drop-zone"
+                                :class="{ active: isVideoDragActive }"
+                                role="region"
+                                aria-label="Drop a video file to create a texture"
+                                @dragenter="handleVideoDragEnter"
+                                @dragover="handleVideoDragOver"
+                                @dragleave="handleVideoDragLeave"
+                                @drop="handleVideoDrop"
+                            >
+                                <span class="material-symbols-outlined video-drop-icon">upload_file</span>
+                                <span class="video-drop-copy">
+                                    <span class="video-drop-title">Drop video here</span>
+                                    <span class="video-drop-description">Start a texture from a video file.</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </ScrollPanel>
         </div>
@@ -1307,6 +1426,11 @@ const activeLauncherTitle = computed(() => {
             min-width: 15rem;
         }
 
+        .launcher-panel-content > .video-drop-section {
+            order: -1;
+            flex: 0 0 100%;
+        }
+
         .launcher-column-group {
             display: flex;
             flex-direction: column;
@@ -1366,6 +1490,55 @@ const activeLauncherTitle = computed(() => {
         text-wrap: balance;
     }
 
+    .video-drop-section-items {
+        padding: 0.5rem;
+    }
+
+    .video-drop-zone {
+        box-sizing: border-box;
+        display: flex;
+        min-height: 14.5rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.875rem;
+        padding: 1rem;
+        border: 1px dashed rgba(255, 255, 255, 0.32);
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.82);
+        text-align: left;
+        transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+
+    .video-drop-zone.active {
+        border-color: var(--p-primary-color, #10b981);
+        background: color-mix(in srgb, var(--p-primary-color, #10b981) 16%, transparent);
+        color: #fff;
+    }
+
+    .video-drop-icon {
+        flex-shrink: 0;
+        font-size: 1.75rem;
+        opacity: 0.9;
+    }
+
+    .video-drop-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        min-width: 0;
+    }
+
+    .video-drop-title {
+        font-size: 0.95rem;
+        line-height: 1.25;
+    }
+
+    .video-drop-description {
+        color: rgba(255, 255, 255, 0.62);
+        font-size: 0.78rem;
+        line-height: 1.35;
+    }
+
     .toolbar-button-label {
         font-size: 0.68rem;
         line-height: 1.1;
@@ -1387,6 +1560,10 @@ const activeLauncherTitle = computed(() => {
 
         .toolbar-main-button {
             width: 100%;
+        }
+
+        .video-drop-section {
+            display: none;
         }
     }
 

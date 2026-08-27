@@ -287,6 +287,7 @@ const activeToolbarOverlayTitle = computed(() => {
         textureCreatorReturnOverlay.value = 'texture';
 
         if (file) {
+            activeToolbarOverlay.value = null;
             slyce.beginFileWorkflowWithFile(file);
         }
 
