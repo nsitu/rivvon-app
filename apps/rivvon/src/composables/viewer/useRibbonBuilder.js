@@ -7,6 +7,8 @@ import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
 import { getSphericalProjectionArtworkAspectRatio } from '../../modules/viewer/sphericalProjection';
 import {
     DEFAULT_CLOCK_SETTINGS,
+    DEFAULT_MOBIUS_SETTINGS,
+    normalizeMobiusSettings,
     DEFAULT_SINE_WAVE_SETTINGS,
     normalizeProceduralSourceType,
 } from '../../modules/viewer/proceduralPaths';
@@ -25,18 +27,21 @@ export function useRibbonBuilder(ctx) {
     }
 
     function getDefaultProceduralSettings(type) {
+        if (type === 'mobius') return DEFAULT_MOBIUS_SETTINGS;
         return type === 'clock'
             ? DEFAULT_CLOCK_SETTINGS
             : DEFAULT_SINE_WAVE_SETTINGS;
     }
 
     function getStoredProceduralSettings(type) {
+        if (type === 'mobius') return ctx.app.mobiusSettings || DEFAULT_MOBIUS_SETTINGS;
         return type === 'clock'
             ? (ctx.app.clockSettings || DEFAULT_CLOCK_SETTINGS)
             : (ctx.app.sineWaveSettings || DEFAULT_SINE_WAVE_SETTINGS);
     }
 
     function getMergedProceduralSettings(type, overrides = {}) {
+        if (type === 'mobius') return normalizeMobiusSettings({ ...getStoredProceduralSettings(type), ...overrides });
         return {
             ...getDefaultProceduralSettings(type),
             ...getStoredProceduralSettings(type),
@@ -47,6 +52,11 @@ export function useRibbonBuilder(ctx) {
     function syncProceduralSourceToStore(type, settings) {
         ctx.app.setProceduralSourceType?.(type);
         ctx.app.setProceduralPathMode?.(type);
+
+        if (type === 'mobius') {
+            ctx.app.setMobiusSettings?.(settings);
+            return;
+        }
 
         if (type === 'clock') {
             ctx.app.setClockSettings?.(settings);

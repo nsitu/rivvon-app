@@ -403,7 +403,7 @@
         exportLogoOverlayCorner,
         () => app.flowState,
         () => app.flowSpeed,
-        () => app.undulationEnabled,
+        () => app.proceduralPathMode !== 'mobius' && app.undulationEnabled,
         () => app.flowCycleAlignmentEnabled,
         () => app.textureAnimationEnabled,
         () => app.textureAnimationReversed,

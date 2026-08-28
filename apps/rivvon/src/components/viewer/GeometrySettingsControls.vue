@@ -99,7 +99,14 @@
 
 <template>
     <div class="geometry-settings-controls">
-        <div class="tools-section">
+        <div v-if="app.proceduralPathMode === 'mobius'" class="tools-section">
+            <div class="tools-section-label">Möbius Geometry</div>
+            <div class="tools-hint tools-surface-hint">
+                Use the Möbius panel to change radius, width, handedness, and twist phase.
+                Caps, tube, helix, projection, and undulation are disabled to keep the band closed.
+            </div>
+        </div>
+        <div v-else class="tools-section">
             <div class="tools-section-label">Geometry</div>
             <div class="tools-section-items">
                 <div class="tools-select-block">

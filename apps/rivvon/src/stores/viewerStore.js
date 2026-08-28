@@ -13,6 +13,8 @@ import {
 } from "../modules/viewer/exportLogoOverlay.js";
 import {
   DEFAULT_CLOCK_SETTINGS,
+  DEFAULT_MOBIUS_SETTINGS,
+  normalizeMobiusSettings,
   DEFAULT_SINE_WAVE_SETTINGS,
   normalizeClockSettings,
   normalizeProceduralSourceType,
@@ -738,6 +740,7 @@ export const useViewerStore = defineStore("viewer", {
       proceduralSourceType: "sineWave",
       sineWaveSettings: { ...DEFAULT_SINE_WAVE_SETTINGS },
       clockSettings: { ...DEFAULT_CLOCK_SETTINGS },
+      mobiusSettings: { ...DEFAULT_MOBIUS_SETTINGS },
 
       // Walk capture state
       isWalkMode: false,
@@ -1084,6 +1087,14 @@ export const useViewerStore = defineStore("viewer", {
         ...this.sineWaveSettings,
         ...settings,
       });
+    },
+
+    setMobiusSettings(settings = {}) {
+      this.mobiusSettings = normalizeMobiusSettings({ ...this.mobiusSettings, ...settings });
+    },
+
+    resetMobiusSettings() {
+      this.mobiusSettings = { ...DEFAULT_MOBIUS_SETTINGS };
     },
 
     setClockSettings(settings = {}) {
@@ -1974,6 +1985,7 @@ this.sphericalProjectionVerticalWrapAuto !==
     },
 
     showSineWavePanel() {
+      hideViewerFlag(this, VIEWER_PANEL_KEYS.mobius);
       hideViewerFlag(this, VIEWER_PANEL_KEYS.clock);
       showViewerFlag(this, VIEWER_PANEL_KEYS.sineWave);
     },
@@ -1983,12 +1995,23 @@ this.sphericalProjectionVerticalWrapAuto !==
     },
 
     showClockPanel() {
+      hideViewerFlag(this, VIEWER_PANEL_KEYS.mobius);
       hideViewerFlag(this, VIEWER_PANEL_KEYS.sineWave);
       showViewerFlag(this, VIEWER_PANEL_KEYS.clock);
     },
 
     hideClockPanel() {
       hideViewerFlag(this, VIEWER_PANEL_KEYS.clock);
+    },
+
+    showMobiusPanel() {
+      hideViewerFlag(this, VIEWER_PANEL_KEYS.sineWave);
+      hideViewerFlag(this, VIEWER_PANEL_KEYS.clock);
+      showViewerFlag(this, VIEWER_PANEL_KEYS.mobius);
+    },
+
+    hideMobiusPanel() {
+      hideViewerFlag(this, VIEWER_PANEL_KEYS.mobius);
     },
 
     showAboutPanel() {

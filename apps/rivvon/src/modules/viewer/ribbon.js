@@ -93,6 +93,7 @@ export class Ribbon {
     this.layoutMode = "measuringTape";
     this.layoutMetadata = null;
     this.textureOrientationMirrorY = false;
+    this.pathGeometry = null;
 
     this.waveAmplitude = 0.075;
     this.waveFrequency = 0.25;
@@ -162,6 +163,12 @@ export class Ribbon {
     return this;
   }
 
+  setPathGeometry(geometry = null) {
+    this.pathGeometry = geometry ? { ...geometry } : null;
+    this.setHelixOptions();
+    return this;
+  }
+
   setHelixOptions(options = {}) {
     if (options.helixMode !== undefined) this.helixMode = options.helixMode;
     if (options.helixRadius !== undefined)
@@ -218,6 +225,17 @@ export class Ribbon {
           : this.roundedCaps,
       );
       this.roundedCaps = this.capStyle === CAP_STYLE_ROUNDED;
+    }
+    if (this.pathGeometry?.closed) {
+      // Keep ordinary-ribbon preferences in the store, but protect the join.
+      this.helixMode = false;
+      this.surfaceMode = "ribbon";
+      this.undulationEnabled = false;
+      this.sphericalProjectionEnabled = false;
+      this.cornerNarrowingEnabled = false;
+      this.ribbonPathAlignmentMode = "center";
+      this.capStyle = CAP_STYLE_SQUARE;
+      this.roundedCaps = false;
     }
     return this;
   }
@@ -954,6 +972,9 @@ export class Ribbon {
   }
 
   calculatePathLength(points) {
+    if (this.pathGeometry?.type === "circle") {
+      return 2 * Math.PI * this.pathGeometry.radius;
+    }
     let length = 0;
     for (let i = 1; i < points.length; i++) {
       length += points[i].distanceTo(points[i - 1]);
@@ -975,6 +996,19 @@ export class Ribbon {
    * so tangent jumps produced visible "steps" in the helix orbit plane.
    */
   createCurveFromPoints(points) {
+    if (this.pathGeometry?.type === "circle") {
+      const radius = this.pathGeometry.radius;
+      const curve = new THREE.Curve();
+      curve.getPoint = (t) => {
+        const theta = Math.PI * 2 * t;
+        return new THREE.Vector3(radius * Math.cos(theta), radius * Math.sin(theta), 0);
+      };
+      curve.getTangent = (t) => {
+        const theta = Math.PI * 2 * t;
+        return new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0);
+      };
+      return curve;
+    }
     const n = points.length;
 
     // For very short paths, fall back to a simple linear curve
@@ -1189,6 +1223,23 @@ export class Ribbon {
 
   _sampleFrame(curve, frameSamples, globalT) {
     const clampedT = Math.max(0, Math.min(1, globalT));
+    if (this.pathGeometry?.type === "circle") {
+      const theta = Math.PI * 2 * clampedT;
+      const tangent = curve.getTangent(clampedT);
+      const normal = new THREE.Vector3(Math.cos(theta), Math.sin(theta), 0);
+      const alpha = Math.PI * (this.pathGeometry.halfTwists || 0) * clampedT
+        + (this.pathGeometry.twistPhase || 0);
+      return {
+        point: curve.getPoint(clampedT),
+        tangent,
+        normal,
+        binormal: new THREE.Vector3().crossVectors(tangent, normal),
+        widthDirection: normal.clone().applyAxisAngle(tangent, -alpha),
+        arcLength: clampedT * this.pathLength,
+        globalT: clampedT,
+        curvature: 0,
+      };
+    }
     const scaledIndex = clampedT * (frameSamples.length - 1);
     const lowerIndex = Math.floor(scaledIndex);
     const upperIndex = Math.min(frameSamples.length - 1, lowerIndex + 1);

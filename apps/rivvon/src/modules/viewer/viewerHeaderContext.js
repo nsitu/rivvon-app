@@ -15,6 +15,7 @@ const DEFAULT_VIEWER_CONTEXT_ORDER = [
     'contour',
     'sineWave',
     'clock',
+    'mobius',
     'tools',
     'about',
 ];
@@ -130,6 +131,14 @@ const VIEWER_CONTEXT_DEFINITIONS = {
         isActive: (app) => isViewerPanelVisible(app, 'clock'),
         close: (app) => {
             app.hideClockPanel();
+            return true;
+        },
+    },
+    mobius: {
+        title: 'Möbius Strip',
+        isActive: (app) => isViewerPanelVisible(app, 'mobius'),
+        close: (app) => {
+            app.hideMobiusPanel();
             return true;
         },
     },

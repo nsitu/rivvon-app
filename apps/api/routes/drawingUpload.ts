@@ -25,7 +25,7 @@ import {
   successResponse,
 } from '../utils/response';
 
-const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg', 'contour']);
+const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg', 'contour', 'mobius']);
 const DRAWING_STORAGE_PROVIDER_VALUES = new Set(['r2', 'google-drive']);
 const THUMBNAIL_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']);
 

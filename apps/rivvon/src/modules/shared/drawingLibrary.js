@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg', 'contour', 'clock', 'sineWave']);
+const DRAWING_KIND_VALUES = new Set(['gesture', 'walk', 'text', 'emoji', 'svg', 'contour', 'clock', 'sineWave', 'mobius']);
 const DRAWING_STORAGE_PROVIDER_VALUES = new Set(['local', 'google-drive', 'r2']);
 
 function normalizeFiniteNumber(value, fallback = 0) {
@@ -59,6 +59,8 @@ export function getKindLabel(kind) {
             return 'SVG';
         case 'contour':
             return 'Contour';
+        case 'mobius':
+            return 'Möbius Strip';
         case 'clock':
             return 'Clock';
         case 'sineWave':

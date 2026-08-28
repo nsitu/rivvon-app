@@ -74,7 +74,7 @@ export function useSceneExport(ctx, deps = {}) {
     function getSeamlessLoopDuration() {
         return getSharedSeamlessLoopDuration(
             ctx.tileManager.value,
-            ctx.app.undulationEnabled,
+            (ctx.app.proceduralPathMode !== 'mobius' && ctx.app.undulationEnabled),
             3.0,
         );
     }
@@ -190,7 +190,7 @@ export function useSceneExport(ctx, deps = {}) {
         const variant = tm.variant === 'planes' ? 'planes' : 'waves';
         const textureAnimationEnabled = tm.isLayerAnimationEnabled?.() ?? true;
         const textureCyclePeriod = textureAnimationEnabled && layerCount > 1 ? (tm.getLayerCyclePeriod?.() ?? 0) : 0;
-        const undulationPeriod = ctx.app.undulationEnabled ? (tm.getOptimalUndulationPeriod?.(3.0) ?? 0) : 0;
+        const undulationPeriod = (ctx.app.proceduralPathMode !== 'mobius' && ctx.app.undulationEnabled) ? (tm.getOptimalUndulationPeriod?.(3.0) ?? 0) : 0;
         const flowEnabled = tm.isFlowEnabled?.() ?? false;
         const flowSpeed = tm.getFlowSpeed?.() ?? 0;
         const flowAlignmentInfo = tm.getFlowAlignmentInfo?.() ?? null;
@@ -1031,7 +1031,7 @@ export function useSceneExport(ctx, deps = {}) {
             layerCyclePeriod: cycleInfo.textureCyclePeriod || 0,
             textureCyclePeriod: cycleInfo.textureCyclePeriod,
             undulationPeriod: cycleInfo.undulationPeriod,
-            undulationEnabled: ctx.app.undulationEnabled,
+            undulationEnabled: (ctx.app.proceduralPathMode !== 'mobius' && ctx.app.undulationEnabled),
             flowCyclePeriod: cycleInfo.flowCyclePeriod,
             cycleDetails: cycleInfo.cycleDetails,
             layerCount: tm?.getLayerCount?.() ?? 0,

@@ -122,7 +122,8 @@ export class RibbonSeries {
   }
 
   _calculateTextureOrientationMirrors(pathsPoints = []) {
-    if (!this.normalizeTextureOrientation) {
+    // A Möbius band has no global facing side; retain its intrinsic V axis.
+    if (!this.normalizeTextureOrientation || this.proceduralSource?.type === "mobius") {
       return pathsPoints.map(() => false);
     }
 
@@ -369,6 +370,9 @@ export class RibbonSeries {
   }
 
   _getEffectiveSurfaceWidth(width = 1) {
+    if (this.proceduralSource?.type === "mobius") {
+      return this.proceduralSource.settings.width;
+    }
     if (this._helixOptions.surfaceMode === "tube") {
       return width;
     }
@@ -470,6 +474,7 @@ export class RibbonSeries {
       ribbon.setTileManager(tmA);
     }
 
+    ribbon.setPathGeometry(options.pathGeometry);
     ribbon.setHelixOptions({
       ...this._helixOptions,
       helixMode: false,
@@ -669,7 +674,9 @@ export class RibbonSeries {
 
   buildFromProceduralSource(sourceConfig = {}, width = 1, time = 0) {
     const frame = getProceduralSourceFrame(sourceConfig, time);
-    const effectiveWidth = this._getEffectiveSurfaceWidth(width);
+    // Do not carry source-specific width rules into a different source.
+    this.proceduralSource = null;
+    const effectiveWidth = frame.width ?? this._getEffectiveSurfaceWidth(width);
     const pathMetrics = this._getProceduralPathMetrics(
       frame.paths,
       effectiveWidth,
@@ -677,6 +684,7 @@ export class RibbonSeries {
       frame.pathLengths,
     );
     const pathOptions = pathMetrics.map((metrics) => ({
+      ...frame.pathOptions?.[metrics.pathIndex],
       activeSegmentCount: metrics.activeSegmentCount,
       maxSegmentCount: metrics.maxSegmentCount,
     }));
@@ -684,6 +692,7 @@ export class RibbonSeries {
     this.proceduralSource = {
       type: frame.type,
       settings: frame.settings,
+      isStatic: !!frame.isStatic,
       width,
       runtimeState: frame.runtimeState,
       maxObservedPathLengths: pathMetrics.map(
@@ -717,6 +726,11 @@ export class RibbonSeries {
     }
 
     const source = this.proceduralSource;
+    if (source.isStatic) {
+      // Texture flow remains active without rebuilding unchanged geometry.
+      source.lastTime = time;
+      return this._proceduralDebug;
+    }
     const frame = getProceduralSourceFrame(
       {
         type: source.type,
@@ -905,6 +919,10 @@ export class RibbonSeries {
    * @param {number} time - Animation time
    */
   rebuildUpdate(time) {
+    if (this.proceduralSource) {
+      const source = this.proceduralSource;
+      return this.buildFromProceduralSource(source, source.width, time);
+    }
     if (this.lastPathsPoints.length > 0) {
       // Preserve flow state before rebuild
       const wasActive = this._flowWasActive;

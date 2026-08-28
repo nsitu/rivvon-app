@@ -212,6 +212,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         'request-open-emoji-picker',
         'request-open-sine-wave-panel',
         'request-open-clock-panel',
+        'request-open-mobius-panel',
         'request-open-texture-file',
         'request-open-texture-camera',
         'request-open-texture-browser',
@@ -245,7 +246,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     ));
 
     const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
-        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'tools', 'about', 'realtimeSampler'],
+        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'mobius', 'tools', 'about', 'realtimeSampler'],
         onCloseRealtimeMode: (payload) => emit('request-close-realtime-mode', payload),
         onResetSlyceProcessing: () => slyce.resetProcessing(),
         isSlyceProcessing: isSlyceProcessing.value,
@@ -299,6 +300,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         viewerToolbarContextMap.value.contour,
         viewerToolbarContextMap.value.sineWave,
         viewerToolbarContextMap.value.clock,
+        viewerToolbarContextMap.value.mobius,
         viewerToolbarContextMap.value.realtimeSampler,
         viewerToolbarContextMap.value.about,
     ].filter(Boolean)));
@@ -324,6 +326,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         viewerToolbarContextMap.value.contour,
         viewerToolbarContextMap.value.sineWave,
         viewerToolbarContextMap.value.clock,
+        viewerToolbarContextMap.value.mobius,
         viewerToolbarContextMap.value.about,
         viewerToolbarContextMap.value.realtimeSampler,
     ]));
@@ -373,6 +376,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         || isToolbarContextActive('contour')
         || isToolbarContextActive('sineWave')
         || isToolbarContextActive('clock')
+        || isToolbarContextActive('mobius')
     ));
 
     const textureGroupActive = computed(() => (
@@ -730,6 +734,14 @@ const activeLauncherTitle = computed(() => {
                             icon: 'airwave',
                             active: isToolbarContextActive('sineWave'),
                             command: () => toggleContextItem('sineWave', () => emit('request-open-sine-wave-panel'))
+                        },
+                        {
+                            label: 'Möbius',
+                            contextLabel: 'Möbius Strip',
+                            description: 'Shape a closed ribbon with a half-twist.',
+                            icon: 'all_inclusive',
+                            active: isToolbarContextActive('mobius'),
+                            command: () => toggleContextItem('mobius', () => emit('request-open-mobius-panel'))
                         },
                         {
                             label: 'Temporal',

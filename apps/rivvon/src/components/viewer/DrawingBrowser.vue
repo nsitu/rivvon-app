@@ -313,6 +313,8 @@
                 return 'Emoji';
             case 'svg':
                 return 'SVG';
+            case 'mobius':
+                return 'Möbius Strip';
             case 'contour':
                 return 'Contour';
             default:

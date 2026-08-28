@@ -46,7 +46,7 @@
     });
 
     const undulationModel = computed({
-        get: () => app.undulationEnabled,
+        get: () => app.proceduralPathMode !== 'mobius' && app.undulationEnabled,
         set: (value) => {
             app.setUndulationEnabled(!!value);
         },
@@ -392,10 +392,11 @@
                         <span>Ribbon Undulation</span>
                     </label>
                     <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ app.undulationEnabled ? 'On' : 'Off' }}</span>
+                        <span class="tools-hint tools-toggle-hint">{{ app.proceduralPathMode === 'mobius' ? 'Closed band' : (app.undulationEnabled ? 'On' : 'Off') }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('undulation')"
                             v-model="undulationModel"
+                            :disabled="app.proceduralPathMode === 'mobius'"
                         />
                     </div>
                 </div>

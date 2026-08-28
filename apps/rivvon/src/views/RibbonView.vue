@@ -27,6 +27,7 @@
     } from '../services/videoService.js';
     import { createVideoThumbnail } from '../modules/viewer/videoThumbnail.js';
     import Toast from 'primevue/toast';
+    import { getProceduralSourceFrame, normalizeProceduralSourceType } from '../modules/viewer/proceduralPaths.js';
     import { useToast } from 'primevue/usetoast';
     import * as THREE from 'three';
 
@@ -40,6 +41,7 @@
     const EmojiPickerPanel = defineAsyncComponent(() => import('../components/viewer/EmojiPickerPanel.vue'));
     const ContourPanel = defineAsyncComponent(() => import('../components/viewer/ContourPanel.vue'));
     const SineWavePanel = defineAsyncComponent(() => import('../components/viewer/SineWavePanel.vue'));
+    const MobiusPanel = defineAsyncComponent(() => import('../components/viewer/MobiusPanel.vue'));
     const ClockPanel = defineAsyncComponent(() => import('../components/viewer/ClockPanel.vue'));
     const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
@@ -97,6 +99,7 @@
     const emojiPickerVisible = createViewerPanelModel('emoji');
     const contourPanelVisible = createViewerPanelVisibility('contour');
     const sineWavePanelVisible = createViewerPanelVisibility('sineWave');
+    const mobiusPanelVisible = createViewerPanelVisibility('mobius');
     const clockPanelVisible = createViewerPanelVisibility('clock');
     const drawingBrowserVisible = createViewerPanelVisibility('drawings');
     const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
@@ -556,6 +559,8 @@ const activeToolbarOverlayTitle = computed(() => {
                 return 'drawings';
             case 'gesture':
                 return 'draw';
+            case 'mobius':
+                return 'mobius';
             case 'clock':
                 return 'clock';
             case 'sineWave':
@@ -569,8 +574,8 @@ const activeToolbarOverlayTitle = computed(() => {
         const textureName = typeof app.currentTextureName === 'string' ? app.currentTextureName.trim() : '';
         const currentKind = currentDrawingKind.value;
 
-        // Procedural modes (clock, sineWave): show even without a texture
-        if (currentKind === 'clock' || currentKind === 'sineWave') {
+        // Procedural modes: show even without a texture
+        if (['clock', 'sineWave', 'mobius'].includes(currentKind)) {
             const kindLabel = getKindLabel(currentKind);
             const timeLabel = currentKind === 'clock' ? clockHeaderTime.value : '';
             const textureTarget = 'texture';
@@ -871,6 +876,9 @@ const activeToolbarOverlayTitle = computed(() => {
                 return;
             case 'draw':
                 enterDrawMode();
+                return;
+            case 'mobius':
+                openMobiusPanel();
                 return;
             case 'clock':
                 openClockPanel();
@@ -1651,6 +1659,7 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     function getProceduralSettingsForType(type = app.proceduralSourceType) {
+        if (type === 'mobius') return app.mobiusSettings;
         return type === 'clock'
             ? app.clockSettings
             : app.sineWaveSettings;
@@ -1683,10 +1692,14 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     function normalizeProceduralSourceRequest(type) {
-        return type === 'clock' ? 'clock' : 'sineWave';
+        return normalizeProceduralSourceType(type);
     }
 
     function showProceduralSourcePanel(type) {
+        if (type === 'mobius') {
+            app.showMobiusPanel();
+            return;
+        }
         if (type === 'clock') {
             app.hideSineWavePanel();
             app.showClockPanel();
@@ -1715,6 +1728,25 @@ const activeToolbarOverlayTitle = computed(() => {
 
     async function openSineWavePanel() {
         await openProceduralPanel('sineWave');
+    }
+
+    async function openMobiusPanel() {
+        await openProceduralPanel('mobius');
+    }
+
+    async function saveMobiusDrawing(source) {
+        const frame = getProceduralSourceFrame({ type: 'mobius', settings: source.settings });
+        const saved = await autosaveDrawingLocally(buildDrawingDraft({
+            kind: 'mobius',
+            paths: frame.paths,
+            source: { type: 'mobius', settings: frame.settings },
+        }));
+        toast.add({
+            severity: saved ? 'success' : 'error',
+            summary: saved ? 'Drawing saved' : 'Drawing could not be saved',
+            detail: saved ? 'Möbius parameters saved to your local drawing library.' : 'Please try saving again.',
+            life: 3500,
+        });
     }
 
     async function openClockPanel() {
@@ -2813,6 +2845,17 @@ const activeToolbarOverlayTitle = computed(() => {
             };
         }
 
+        if (mobiusPanelVisible.value) {
+            return {
+                id: 'mobius',
+                label: 'Möbius Strip',
+                close: () => {
+                    app.hideMobiusPanel();
+                    return true;
+                },
+            };
+        }
+
         if (clockPanelVisible.value) {
             return {
                 id: 'clock',
@@ -3142,6 +3185,22 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     async function handleSavedDrawingSelect(drawing) {
+        if (drawing?.kind === 'mobius') {
+            try {
+                let source = drawing.source;
+                if (!source?.settings) {
+                    const cloudId = drawing.cloud_id || (drawing.is_cloud ? drawing.id : null);
+                    if (cloudId) source = (await getDrawing(cloudId))?.payload?.source;
+                }
+                if (source?.type !== 'mobius' || !source.settings) {
+                    throw new Error('The saved Möbius parameters are missing.');
+                }
+                await handleCreateProceduralSource({ type: 'mobius', settings: source.settings });
+            } catch (error) {
+                toast.add({ severity: 'error', summary: 'Could not load Möbius strip', detail: error.message, life: 4000 });
+            }
+            return;
+        }
         const paths = await resolveSavedDrawingPaths(drawing);
         if (!paths.length) {
             return;
@@ -3652,6 +3711,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-open-emoji-picker="app.showEmojiPicker"
             @request-open-sine-wave-panel="openSineWavePanel"
             @request-open-clock-panel="openClockPanel"
+            @request-open-mobius-panel="openMobiusPanel"
             @request-open-texture-browser="openTextureBrowser"
             @request-import-file="openFileImport"
             @request-close-export-image="handleExportPanelClose"
@@ -3714,6 +3774,13 @@ const activeToolbarOverlayTitle = computed(() => {
             :active="sineWavePanelVisible"
             @request-close="app.hideSineWavePanel"
             @settings-change="handleProceduralSettingsChange"
+        />
+        <MobiusPanel
+            v-if="mobiusPanelVisible"
+            :active="mobiusPanelVisible"
+            @request-close="app.hideMobiusPanel"
+            @settings-change="handleProceduralSettingsChange"
+            @save-drawing="saveMobiusDrawing"
         />
         <ClockPanel
             v-if="clockPanelVisible"

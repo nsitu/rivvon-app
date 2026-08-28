@@ -10,6 +10,7 @@ export const VIEWER_PANEL_KEYS = Object.freeze({
     contour: 'contourPanelVisible',
     sineWave: 'sineWavePanelVisible',
     clock: 'clockPanelVisible',
+    mobius: 'mobiusPanelVisible',
     about: 'aboutPanelVisible',
 });
 

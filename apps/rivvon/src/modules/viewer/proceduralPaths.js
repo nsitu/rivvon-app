@@ -1,6 +1,24 @@
 import * as THREE from 'three';
 
-export const PROCEDURAL_SOURCE_TYPES = Object.freeze(['sineWave', 'clock']);
+export const PROCEDURAL_SOURCE_TYPES = Object.freeze(['sineWave', 'clock', 'mobius']);
+
+export const DEFAULT_MOBIUS_SETTINGS = Object.freeze({
+    radius: 2.4,
+    width: 1.2,
+    handedness: 1,
+    twistPhase: 0,
+});
+
+export function normalizeMobiusSettings(settings = {}) {
+    const radius = clampNumber(settings.radius, DEFAULT_MOBIUS_SETTINGS.radius, 0.5, 6);
+    return {
+        radius,
+        // Keep the band clear of the centre of the loop.
+        width: clampNumber(settings.width, Math.min(DEFAULT_MOBIUS_SETTINGS.width, radius * 1.6), 0.1, radius * 1.6),
+        handedness: Number(settings.handedness) === -1 ? -1 : 1,
+        twistPhase: clampNumber(settings.twistPhase, 0, 0, 360),
+    };
+}
 
 export const DEFAULT_SINE_WAVE_SETTINGS = Object.freeze({
     amplitudeMin: 0.05,
@@ -318,6 +336,35 @@ export function estimateClockPathLengths(settings = {}) {
 
 export function getProceduralSourceFrame(sourceConfig = {}, time = 0, runtimeState = {}) {
     const type = normalizeProceduralSourceType(sourceConfig.type);
+
+    if (type === 'mobius') {
+        const settings = normalizeMobiusSettings(sourceConfig.settings || {});
+        const pathLength = 2 * Math.PI * settings.radius;
+        // Points serve bounds, previews and serialization; rendering uses an
+        // exact circle, not an open spline through repeated endpoints.
+        const points = Array.from({ length: 129 }, (_, index) => {
+            const theta = index / 128 * Math.PI * 2;
+            return new THREE.Vector3(settings.radius * Math.cos(theta), settings.radius * Math.sin(theta), 0);
+        });
+        return {
+            type,
+            settings,
+            paths: [points],
+            pathLengths: [pathLength],
+            maxPathLengths: [pathLength],
+            width: settings.width,
+            isStatic: true,
+            pathOptions: [{ pathGeometry: {
+                type: 'circle',
+                closed: true,
+                radius: settings.radius,
+                halfTwists: settings.handedness,
+                twistPhase: THREE.MathUtils.degToRad(settings.twistPhase),
+            } }],
+            runtimeState,
+            debug: null,
+        };
+    }
 
     if (type === 'clock') {
         const settings = normalizeClockSettings(sourceConfig.settings || {});
