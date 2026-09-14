@@ -114,6 +114,7 @@
             <div ref="playerContainer" class="video-player-frame">
                 <video
                     ref="videoElement"
+                    crossorigin="anonymous"
                     :src="video.playback_url"
                     :poster="video.thumbnail_url || undefined"
                     controls
