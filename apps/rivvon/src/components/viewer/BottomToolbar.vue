@@ -949,7 +949,10 @@ const activeLauncherTitle = computed(() => {
 
     <div
         class="launcher-panel"
-        :class="{ active: !!props.activeToolbarOverlay }"
+        :class="{
+            active: !!props.activeToolbarOverlay,
+            'texture-launcher-panel': props.activeToolbarOverlay === 'texture',
+        }"
         role="dialog"
         :aria-label="`${activeLauncherTitle} actions`"
     >
@@ -1455,6 +1458,25 @@ const activeLauncherTitle = computed(() => {
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
+        }
+
+        .texture-launcher-panel .launcher-panel-content {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(15rem, 22rem));
+            justify-content: center;
+            align-content: end;
+            align-items: start;
+        }
+
+        .texture-launcher-panel .launcher-panel-content > .video-drop-section {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            width: 100%;
+            max-width: none;
+        }
+
+        .texture-launcher-panel .launcher-panel-content > .tools-section:not(.video-drop-section) {
+            width: 100%;
         }
     }
 
