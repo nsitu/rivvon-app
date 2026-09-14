@@ -103,6 +103,9 @@ export default defineConfig(({ mode }) => {
         },
         // Dev server configuration
         server: {
+            // Keep the default dev origin aligned with the API's CORS allowlist.
+            // `127.0.0.1` remains supported as an explicit CLI host override.
+            host: 'localhost',
             open: '/',
             headers: {
                 // Using 'credentialless' instead of 'require-corp' to allow cross-origin images

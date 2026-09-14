@@ -284,16 +284,25 @@
 <template>
     <main class="video-gallery-page">
         <header class="video-gallery-header">
-            <RouterLink to="/" class="gallery-brand" aria-label="Return to Rivvon viewer">
-                <span class="material-symbols-outlined">airwave</span>
-                <span>Rivvon</span>
-            </RouterLink>
-            <div class="gallery-heading">
-                <span class="material-symbols-outlined">video_library</span>
-                <div>
-                    <h1>Video Gallery</h1>
-                    <p>Rendered Rivvon loops ready to watch, share, and download.</p>
+            <div class="gallery-header-inner">
+                <RouterLink to="/" class="gallery-brand" aria-label="Return to Rivvon viewer">
+                    <img src="/rivvon-clean-white.svg" alt="Rivvon">
+                </RouterLink>
+                <span class="gallery-header-title">VIDEO GALLERY</span>
+                <RouterLink to="/" class="gallery-close" aria-label="Return to Rivvon viewer">
+                    <span class="material-symbols-outlined">close</span>
+                </RouterLink>
+            </div>
+        </header>
+
+        <div class="video-gallery-content">
+            <section class="gallery-heading">
+                <div class="gallery-kicker">
+                    <span class="material-symbols-outlined">video_library</span>
+                    <span>RIVVON LIBRARY</span>
                 </div>
+                <h1>Video Gallery</h1>
+                <p>Rendered Rivvon loops ready to watch, share, and download.</p>
                 <Button
                     v-if="canUpload"
                     type="button"
@@ -303,72 +312,72 @@
                     <span class="material-symbols-outlined">upload_file</span>
                     Upload video
                 </Button>
-            </div>
-        </header>
+            </section>
 
-        <nav class="gallery-tabs" aria-label="Video collections">
-            <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
-            <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
-        </nav>
+            <nav class="gallery-tabs" aria-label="Video collections">
+                <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
+                <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
+            </nav>
 
-        <section v-if="isMyVideos && !isAuthenticated" class="gallery-empty">
-            <span class="material-symbols-outlined">login</span>
-            <h2>Sign in to see your videos</h2>
-            <p>Private and public videos you publish will appear here.</p>
-            <Button @click="login">Sign in</Button>
-        </section>
-        <section v-else-if="isLoading" class="gallery-empty" aria-live="polite">
-            <span class="material-symbols-outlined gallery-spinner">progress_activity</span>
-            <h2>Loading videos…</h2>
-        </section>
-        <section v-else-if="error" class="gallery-empty gallery-error" role="alert">
-            <span class="material-symbols-outlined">warning</span>
-            <h2>Gallery unavailable</h2>
-            <p>{{ error }}</p>
-            <Button severity="secondary" @click="loadVideos">Try again</Button>
-        </section>
-        <section v-else-if="videos.length === 0" class="gallery-empty">
-            <span class="material-symbols-outlined">video_library</span>
-            <h2>{{ isMyVideos ? 'No published videos yet' : 'The gallery is waiting for its first video' }}</h2>
-            <p>Render a video from the viewer, then choose Publish to Gallery.</p>
-            <RouterLink to="/" class="gallery-primary-link">Open the viewer</RouterLink>
-        </section>
-        <section v-else class="video-card-grid" aria-live="polite">
-            <article v-for="video in videos" :key="video.id" class="video-card">
-                <RouterLink :to="{ name: 'video-player', params: { videoId: video.id } }" class="video-card-poster">
-                    <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="`Poster for ${video.name}`">
-                    <span v-else class="video-card-placeholder material-symbols-outlined">movie</span>
-                    <span class="video-card-play material-symbols-outlined">play_circle</span>
-                    <span class="video-card-duration">{{ formatDuration(video.duration) }}</span>
-                </RouterLink>
-                <div class="video-card-content">
-                    <div class="video-card-title-row">
-                        <div>
-                            <h2>{{ video.name }}</h2>
-                            <p v-if="video.description">{{ video.description }}</p>
+            <section v-if="isMyVideos && !isAuthenticated" class="gallery-empty">
+                <span class="material-symbols-outlined">login</span>
+                <h2>Sign in to see your videos</h2>
+                <p>Private and public videos you publish will appear here.</p>
+                <Button @click="login">Sign in</Button>
+            </section>
+            <section v-else-if="isLoading" class="gallery-empty" aria-live="polite">
+                <span class="material-symbols-outlined gallery-spinner">progress_activity</span>
+                <h2>Loading videos…</h2>
+            </section>
+            <section v-else-if="error" class="gallery-empty gallery-error" role="alert">
+                <span class="material-symbols-outlined">warning</span>
+                <h2>Gallery unavailable</h2>
+                <p>{{ error }}</p>
+                <Button severity="secondary" @click="loadVideos">Try again</Button>
+            </section>
+            <section v-else-if="videos.length === 0" class="gallery-empty">
+                <span class="material-symbols-outlined">video_library</span>
+                <h2>{{ isMyVideos ? 'No published videos yet' : 'The gallery is waiting for its first video' }}</h2>
+                <p>Render a video from the viewer, then choose Publish to Gallery.</p>
+                <RouterLink to="/" class="gallery-primary-link">Open the viewer</RouterLink>
+            </section>
+            <section v-else class="video-card-grid" aria-live="polite">
+                <article v-for="video in videos" :key="video.id" class="video-card">
+                    <RouterLink :to="{ name: 'video-player', params: { videoId: video.id } }" class="video-card-poster">
+                        <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="`Poster for ${video.name}`">
+                        <span v-else class="video-card-placeholder material-symbols-outlined">movie</span>
+                        <span class="video-card-play material-symbols-outlined">play_circle</span>
+                        <span class="video-card-duration">{{ formatDuration(video.duration) }}</span>
+                    </RouterLink>
+                    <div class="video-card-content">
+                        <div class="video-card-title-row">
+                            <div>
+                                <h2>{{ video.name }}</h2>
+                                <p v-if="video.description">{{ video.description }}</p>
+                            </div>
+                            <span v-if="!video.is_public" class="private-badge">Private</span>
                         </div>
-                        <span v-if="!video.is_public" class="private-badge">Private</span>
+                        <div class="video-card-meta">
+                            <span>{{ video.width }}×{{ video.height }}</span>
+                            <span>{{ video.format.toUpperCase() }}</span>
+                            <span>{{ formatFileSize(video.file_size) }}</span>
+                        </div>
+                        <div class="video-card-footer">
+                            <span>{{ video.owner_name || 'Rivvon artist' }} · {{ formatDate(video.created_at) }}</span>
+                            <button
+                                v-if="isMyVideos"
+                                class="delete-video-button"
+                                :disabled="deletingIds.has(video.id)"
+                                :aria-label="`Delete ${video.name}`"
+                                @click="deleteVideo(video)"
+                            >
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="video-card-meta">
-                        <span>{{ video.width }}×{{ video.height }}</span>
-                        <span>{{ video.format.toUpperCase() }}</span>
-                        <span>{{ formatFileSize(video.file_size) }}</span>
-                    </div>
-                    <div class="video-card-footer">
-                        <span>{{ video.owner_name || 'Rivvon artist' }} · {{ formatDate(video.created_at) }}</span>
-                        <button
-                            v-if="isMyVideos"
-                            class="delete-video-button"
-                            :disabled="deletingIds.has(video.id)"
-                            :aria-label="`Delete ${video.name}`"
-                            @click="deleteVideo(video)"
-                        >
-                            <span class="material-symbols-outlined">delete</span>
-                        </button>
-                    </div>
-                </div>
-            </article>
-        </section>
+                </article>
+            </section>
+        </div>
 
         <Teleport to="body">
             <div
@@ -502,45 +511,53 @@
 <style scoped>
     .video-gallery-page {
         min-height: 100vh;
-        padding: clamp(1rem, 3vw, 2.5rem);
+        padding-bottom: 3rem;
         color: #f8fafc;
-        background: radial-gradient(circle at 15% 0%, #292756 0, #141526 36rem, #0b0c14 75%);
+        background: #1a1a1a;
     }
-    .video-gallery-header { max-width: 88rem; margin: 0 auto 1.5rem; }
-    .gallery-brand { display: inline-flex; align-items: center; gap: .45rem; color: #c7d2fe; text-decoration: none; font-weight: 700; }
-    .gallery-heading { display: flex; align-items: center; gap: 1rem; margin-top: 2rem; }
-    .gallery-heading > .material-symbols-outlined { font-size: 2.5rem; color: #a5b4fc; }
-    .gallery-upload-button { margin-left: auto; white-space: nowrap; }
+    .video-gallery-header { background: #0d0d0d; border-bottom: 1px solid #222; }
+    .gallery-header-inner { display: flex; align-items: center; min-height: 6.5rem; }
+    .gallery-brand { display: flex; align-items: center; justify-content: center; width: 22rem; height: 6.5rem; padding: 0 2rem; background: #090909; clip-path: polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%); }
+    .gallery-brand img { display: block; width: min(15rem, 80%); height: auto; }
+    .gallery-header-title { padding-left: 2.5rem; color: #d4d4d4; font-size: .95rem; font-weight: 700; letter-spacing: .05em; }
+    .gallery-close { display: grid; width: 3rem; height: 3rem; margin-left: auto; margin-right: 1.25rem; color: #d4d4d4; place-items: center; text-decoration: none; transition: color .15s ease, background .15s ease; }
+    .gallery-close:hover { border-radius: .35rem; color: white; background: #242424; }
+    .video-gallery-content { width: min(100% - 2.5rem, 118rem); margin: 0 auto; }
+    .gallery-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 2rem; padding: 2rem 0 1.5rem; }
+    .gallery-kicker { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: .45rem; margin-bottom: .55rem; color: #a8a8a8; font-size: .72rem; font-weight: 700; letter-spacing: .12em; }
+    .gallery-kicker .material-symbols-outlined { font-size: 1.1rem; color: #60a5fa; }
+    .gallery-heading h1 { grid-column: 1; grid-row: 2; margin: 0; color: #f5f5f5; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -.03em; }
+    .gallery-heading p { grid-column: 1; grid-row: 3; margin: .4rem 0 0; color: #929292; font-size: .95rem; }
+    .gallery-upload-button { grid-column: 2; grid-row: 1 / span 3; flex-shrink: 0; white-space: nowrap; }
     .gallery-upload-button .material-symbols-outlined { font-size: 1.1rem; }
-    h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 3.2rem); }
-    .gallery-heading p { margin: .35rem 0 0; color: #a5adbd; }
-    .gallery-tabs { display: flex; gap: .4rem; max-width: 88rem; margin: 0 auto 1.5rem; border-bottom: 1px solid #303346; }
-    .gallery-tabs button { border: 0; border-bottom: 2px solid transparent; padding: .7rem 1rem; color: #9ca3af; background: transparent; cursor: pointer; }
-    .gallery-tabs button.active { color: #eef2ff; border-color: #818cf8; }
-    .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); gap: 1.25rem; max-width: 88rem; margin: auto; }
-    .video-card { overflow: hidden; border: 1px solid #2c3040; border-radius: 1rem; background: rgba(22, 24, 36, .88); box-shadow: 0 1rem 2.5rem rgba(0,0,0,.18); }
+    .gallery-tabs { display: flex; flex-wrap: wrap; gap: .55rem; margin-bottom: 1.75rem; }
+    .gallery-tabs button { min-height: 2.8rem; padding: .55rem 1.1rem; border: 1px solid #3c3c3c; border-radius: .6rem; color: #a8a8a8; background: #202020; cursor: pointer; font: inherit; transition: border-color .15s ease, color .15s ease, background .15s ease; }
+    .gallery-tabs button:hover { border-color: #5a5a5a; color: #e6e6e6; }
+    .gallery-tabs button.active { border-color: #3fae55; color: #65c878; background: #17271a; }
+    .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 1.25rem; }
+    .video-card { overflow: hidden; border: 1px solid #345379; border-radius: 0; background: #252525; box-shadow: none; }
     .video-card-poster { position: relative; display: grid; aspect-ratio: 16 / 9; overflow: hidden; background: #080910; place-items: center; }
     .video-card-poster img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
     .video-card:hover img { transform: scale(1.025); }
-    .video-card-placeholder { font-size: 4rem; color: #5b6075; }
+    .video-card-placeholder { font-size: 4rem; color: #5b6670; }
     .video-card-play { position: absolute; font-size: 3rem; color: rgba(255,255,255,.9); filter: drop-shadow(0 .25rem .5rem #000); }
-    .video-card-duration { position: absolute; right: .6rem; bottom: .55rem; padding: .2rem .4rem; border-radius: .3rem; color: white; background: rgba(0,0,0,.72); font-size: .75rem; }
-    .video-card-content { display: flex; flex-direction: column; gap: .8rem; padding: 1rem; }
+    .video-card-duration { position: absolute; right: .6rem; bottom: .55rem; padding: .2rem .4rem; border-radius: .2rem; color: white; background: rgba(0,0,0,.78); font-size: .75rem; }
+    .video-card-content { display: flex; flex-direction: column; gap: .8rem; padding: .95rem; }
     .video-card-title-row { display: flex; justify-content: space-between; gap: .8rem; }
-    .video-card h2 { margin: 0; font-size: 1rem; }
-    .video-card p { display: -webkit-box; overflow: hidden; margin: .35rem 0 0; color: #9ca3af; font-size: .82rem; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .private-badge { height: fit-content; padding: .2rem .45rem; border-radius: 999px; color: #c4b5fd; background: #312e554f; font-size: .7rem; }
-    .video-card-meta, .video-card-footer { display: flex; align-items: center; gap: .7rem; color: #818898; font-size: .73rem; }
+    .video-card h2 { margin: 0; color: #f2f2f2; font-size: .98rem; }
+    .video-card p { display: -webkit-box; overflow: hidden; margin: .35rem 0 0; color: #969696; font-size: .8rem; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .private-badge { height: fit-content; padding: .2rem .45rem; border: 1px solid #5b4c2d; border-radius: .2rem; color: #e0b96b; background: #342b1b; font-size: .7rem; }
+    .video-card-meta, .video-card-footer { display: flex; align-items: center; gap: .7rem; color: #929292; font-size: .72rem; }
     .video-card-meta span + span::before { content: '·'; margin-right: .7rem; }
-    .video-card-footer { justify-content: space-between; padding-top: .7rem; border-top: 1px solid #292c3a; }
-    .delete-video-button { display: grid; width: 2rem; height: 2rem; border: 0; border-radius: 50%; color: #fca5a5; background: transparent; cursor: pointer; place-items: center; }
+    .video-card-footer { justify-content: space-between; padding-top: .7rem; border-top: 1px solid #3a3a3a; }
+    .delete-video-button { display: grid; width: 2rem; height: 2rem; border: 0; border-radius: .2rem; color: #fca5a5; background: transparent; cursor: pointer; place-items: center; }
     .delete-video-button:hover { background: rgba(239,68,68,.12); }
     .delete-video-button .material-symbols-outlined { font-size: 1.1rem; }
     .gallery-empty { display: flex; min-height: 45vh; max-width: 42rem; margin: auto; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-    .gallery-empty > .material-symbols-outlined { font-size: 3rem; color: #818cf8; }
+    .gallery-empty > .material-symbols-outlined { font-size: 3rem; color: #60a5fa; }
     .gallery-empty h2 { margin: 1rem 0 .35rem; }
-    .gallery-empty p { color: #9ca3af; }
-    .gallery-primary-link { margin-top: .8rem; padding: .7rem 1rem; border-radius: .55rem; color: white; background: #6366f1; text-decoration: none; }
+    .gallery-empty p { color: #929292; }
+    .gallery-primary-link { margin-top: .8rem; padding: .7rem 1rem; border-radius: .35rem; color: white; background: #3987da; text-decoration: none; }
     .gallery-error > .material-symbols-outlined { color: #f87171; }
     .gallery-spinner { animation: gallery-spin .9s linear infinite; }
     @keyframes gallery-spin { to { transform: rotate(360deg); } }
@@ -590,8 +607,14 @@
     .gallery-upload-actions { display: flex; justify-content: flex-end; gap: .65rem; }
 
     @media (max-width: 600px) {
-        .gallery-heading { align-items: flex-start; flex-wrap: wrap; }
-        .gallery-upload-button { width: 100%; margin-left: 3.5rem; }
+        .gallery-header-inner { min-height: 4.5rem; }
+        .gallery-brand { width: 10rem; height: 4.5rem; padding: 0 1rem; }
+        .gallery-brand img { width: 8rem; }
+        .gallery-header-title { padding-left: .75rem; font-size: .75rem; }
+        .gallery-close { width: 2.5rem; height: 2.5rem; margin-right: .5rem; }
+        .video-gallery-content { width: min(100% - 1.25rem, 118rem); }
+        .gallery-heading { align-items: flex-start; flex-direction: column; gap: 1.25rem; padding-top: 1.5rem; }
+        .gallery-upload-button { width: 100%; }
         .gallery-selected-file { flex-wrap: wrap; }
         .gallery-selected-file-meta { width: 100%; margin-left: 1.6rem; }
     }

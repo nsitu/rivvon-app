@@ -3,7 +3,7 @@
     import { RouterLink, useRoute } from 'vue-router';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
     import { fetchVideo, uploadVideoThumbnail } from '../services/videoService.js';
-    import { createVideoThumbnailFromElement } from '../modules/viewer/videoThumbnail.js';
+    import { createVideoThumbnailFromUrl } from '../modules/viewer/videoThumbnail.js';
 
     const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
@@ -84,7 +84,7 @@
         thumbnailStatus.value = 'Generating thumbnail…';
         thumbnailError.value = '';
         try {
-            const thumbnailBlob = await createVideoThumbnailFromElement(videoElement.value);
+            const thumbnailBlob = await createVideoThumbnailFromUrl(playbackUrl.value);
             const result = await uploadVideoThumbnail(video.value.id, thumbnailBlob);
             video.value = { ...video.value, thumbnail_url: result.thumbnailUrl };
             thumbnailStatus.value = 'Thumbnail regenerated.';

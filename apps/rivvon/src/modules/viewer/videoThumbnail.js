@@ -26,6 +26,50 @@ function canvasToBlob(canvas, type, quality) {
     });
 }
 
+function waitForVideoFrame(video, timeoutMs = 1000) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const timeout = setTimeout(finish, timeoutMs);
+
+        function finish() {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeout);
+            resolve();
+        }
+
+        if (typeof video.requestVideoFrameCallback === 'function') {
+            video.requestVideoFrameCallback(finish);
+        } else if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(finish);
+        } else {
+            finish();
+        }
+    });
+}
+
+async function seekVideo(video, targetTime) {
+    const duration = Number(video.duration);
+    const boundedTime = Number.isFinite(duration) && duration > 0
+        ? Math.min(Math.max(0, targetTime), Math.max(0, duration - 0.001))
+        : Math.max(0, targetTime);
+
+    if (
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        && Math.abs(video.currentTime - boundedTime) < 0.01
+    ) {
+        await waitForVideoFrame(video);
+        return;
+    }
+
+    // Register before assigning currentTime: fast seeks can otherwise emit
+    // `seeked` before the listener is attached.
+    const seeked = waitForEvent(video, 'seeked', ['error', 'abort', 'emptied']);
+    video.currentTime = boundedTime;
+    await seeked;
+    await waitForVideoFrame(video);
+}
+
 export async function createVideoThumbnailFromElement(video, { maxWidth = 640, quality = 0.82 } = {}) {
     if (!(video instanceof HTMLVideoElement)) {
         throw new Error('A video element is required to create a thumbnail');
@@ -45,8 +89,9 @@ export async function createVideoThumbnailFromElement(video, { maxWidth = 640, q
     try {
         const posterTime = Math.min(0.1, Math.max(0, Number(video.duration) / 2));
         if (posterTime > 0 && video.seekable?.length) {
-            video.currentTime = posterTime;
-            await waitForEvent(video, 'seeked');
+            await seekVideo(video, posterTime);
+        } else {
+            await waitForVideoFrame(video);
         }
 
         const scale = Math.min(1, maxWidth / sourceWidth);
@@ -71,6 +116,29 @@ export async function createVideoThumbnailFromElement(video, { maxWidth = 640, q
     }
 }
 
+export async function createVideoThumbnailFromUrl(videoUrl, options = {}) {
+    if (typeof videoUrl !== 'string' || !videoUrl.trim()) {
+        throw new Error('A video URL is required to create a thumbnail');
+    }
+
+    const video = document.createElement('video');
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = 'anonymous';
+    video.src = videoUrl;
+
+    try {
+        const metadataReady = waitForEvent(video, 'loadedmetadata');
+        video.load();
+        await metadataReady;
+        return await createVideoThumbnailFromElement(video, options);
+    } finally {
+        video.removeAttribute('src');
+        video.load();
+    }
+}
+
 export async function createVideoThumbnail(videoBlob, { maxWidth = 640, quality = 0.82 } = {}) {
     if (!(videoBlob instanceof Blob) || !videoBlob.size) {
         throw new Error('A completed video is required to create a thumbnail');
@@ -87,14 +155,6 @@ export async function createVideoThumbnail(videoBlob, { maxWidth = 640, quality 
         const metadataReady = waitForEvent(video, 'loadedmetadata');
         video.load();
         await metadataReady;
-
-        const posterTime = Math.min(0.1, Math.max(0, Number(video.duration) / 2));
-        if (posterTime > 0 && video.seekable?.length) {
-            video.currentTime = posterTime;
-            await waitForEvent(video, 'seeked');
-        } else if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-            await waitForEvent(video, 'loadeddata');
-        }
 
         return await createVideoThumbnailFromElement(video, { maxWidth, quality });
     } finally {

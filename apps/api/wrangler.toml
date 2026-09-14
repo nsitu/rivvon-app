@@ -16,7 +16,7 @@ bucket_name = "rivvon-textures"
 
 # Environment variables (non-secret)
 [vars]
-CORS_ORIGINS = "https://slyce.rivvon.ca,https://rivvon.ca,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177"
+CORS_ORIGINS = "https://slyce.rivvon.ca,https://rivvon.ca,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://127.0.0.1:5176,http://127.0.0.1:5177"
 API_URL = "https://api.rivvon.ca"
 APP_URL = "https://slyce.rivvon.ca"
 # Comma-separated list of admin user emails
