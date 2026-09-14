@@ -261,7 +261,9 @@ videoUploadRoutes.put('/:id/thumbnail', async (c) => {
         await c.env.BUCKET.delete(access.video.thumbnail_r2_key);
     }
 
-    const thumbnailUrl = buildCdnUrl(thumbnailKey);
+    // Keep the object key stable, but version the public URL so CDN/browser
+    // caches do not serve an older image after regeneration.
+    const thumbnailUrl = `${buildCdnUrl(thumbnailKey)}?v=${Date.now()}`;
     await c.env.DB.prepare(`
         UPDATE video_exports
         SET thumbnail_url = ?, thumbnail_r2_key = ?, updated_at = unixepoch()

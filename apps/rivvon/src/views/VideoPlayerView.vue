@@ -1,8 +1,11 @@
 <script setup>
-    import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+    import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
     import { RouterLink, useRoute } from 'vue-router';
-    import { fetchVideo } from '../services/videoService.js';
+    import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
+    import { fetchVideo, uploadVideoThumbnail } from '../services/videoService.js';
+    import { createVideoThumbnailFromElement } from '../modules/viewer/videoThumbnail.js';
 
+    const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
     const video = ref(null);
     const isLoading = ref(true);
@@ -11,6 +14,10 @@
     const videoElement = ref(null);
     const isFullscreen = ref(false);
     const copied = ref(false);
+    const isRegeneratingThumbnail = ref(false);
+    const thumbnailStatus = ref('');
+    const thumbnailError = ref('');
+    const canRegenerateThumbnail = computed(() => isAuthenticated.value && isAdmin.value);
 
     function formatFileSize(bytes) {
         const value = Number(bytes) || 0;
@@ -22,6 +29,8 @@
     async function loadVideo() {
         isLoading.value = true;
         error.value = '';
+        thumbnailStatus.value = '';
+        thumbnailError.value = '';
         try {
             const response = await fetchVideo(route.params.videoId);
             video.value = response.video;
@@ -55,6 +64,25 @@
             window.setTimeout(() => { copied.value = false; }, 1800);
         } catch {
             error.value = 'Unable to copy the video link.';
+        }
+    }
+
+    async function regenerateThumbnail() {
+        if (!canRegenerateThumbnail.value || !video.value || isRegeneratingThumbnail.value) return;
+
+        isRegeneratingThumbnail.value = true;
+        thumbnailStatus.value = 'Generating thumbnail…';
+        thumbnailError.value = '';
+        try {
+            const thumbnailBlob = await createVideoThumbnailFromElement(videoElement.value);
+            const result = await uploadVideoThumbnail(video.value.id, thumbnailBlob);
+            video.value = { ...video.value, thumbnail_url: result.thumbnailUrl };
+            thumbnailStatus.value = 'Thumbnail regenerated.';
+        } catch (thumbnailFailure) {
+            thumbnailStatus.value = '';
+            thumbnailError.value = thumbnailFailure?.message || 'Unable to regenerate the thumbnail.';
+        } finally {
+            isRegeneratingThumbnail.value = false;
         }
     }
 
@@ -110,7 +138,7 @@
                     </p>
                 </div>
                 <div class="video-actions">
-                    <button @click="copyLink">
+                    <button type="button" @click="copyLink">
                         <span class="material-symbols-outlined">link</span>
                         {{ copied ? 'Copied' : 'Copy Link' }}
                     </button>
@@ -118,8 +146,19 @@
                         <span class="material-symbols-outlined">download</span>
                         Download
                     </a>
+                    <button
+                        v-if="canRegenerateThumbnail"
+                        type="button"
+                        :disabled="isRegeneratingThumbnail"
+                        @click="regenerateThumbnail"
+                    >
+                        <span class="material-symbols-outlined">{{ isRegeneratingThumbnail ? 'progress_activity' : 'refresh' }}</span>
+                        {{ isRegeneratingThumbnail ? 'Regenerating…' : 'Regenerate Thumbnail' }}
+                    </button>
                 </div>
             </div>
+            <p v-if="thumbnailStatus" class="thumbnail-status" role="status">{{ thumbnailStatus }}</p>
+            <p v-if="thumbnailError" class="thumbnail-status thumbnail-error" role="alert">{{ thumbnailError }}</p>
         </article>
     </main>
 </template>
@@ -142,7 +181,11 @@
     .video-meta { color: #858b9b; font-size: .82rem; }
     .video-actions { display: flex; align-items: flex-start; gap: .55rem; flex-shrink: 0; }
     .video-actions button, .video-actions a { display: inline-flex; align-items: center; gap: .4rem; padding: .65rem .8rem; border: 1px solid #383c50; border-radius: .55rem; color: #eef2ff; background: #202233; font: inherit; font-size: .82rem; text-decoration: none; cursor: pointer; }
+    .video-actions button:hover, .video-actions a:hover { border-color: #6366f1; background: #282b42; }
+    .video-actions button:disabled { cursor: wait; opacity: .65; }
     .video-actions .material-symbols-outlined { font-size: 1.1rem; }
+    .thumbnail-status { margin: 0; color: #a5b4fc; font-size: .82rem; }
+    .thumbnail-error { color: #fca5a5; }
     .player-message { display: flex; min-height: 70vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
     .player-message > .material-symbols-outlined { font-size: 3rem; color: #818cf8; }
     .player-message p { color: #9ca3af; }
