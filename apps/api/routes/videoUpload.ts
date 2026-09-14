@@ -135,7 +135,11 @@ videoUploadRoutes.post('/', async (c) => {
     const width = normalizePositiveNumber(body.width, { integer: true, max: 8192 });
     const height = normalizePositiveNumber(body.height, { integer: true, max: 8192 });
     const duration = normalizePositiveNumber(body.duration, { max: 60 * 60 });
-    const fps = normalizePositiveNumber(body.fps, { max: 240 });
+    // Browser APIs do not reliably expose FPS for local files. Direct gallery
+    // uploads may omit it; exported videos still provide their actual value.
+    const fps = body.fps === undefined || body.fps === null
+        ? 30
+        : normalizePositiveNumber(body.fps, { max: 240 });
     const fileSize = normalizePositiveNumber(body.fileSize, { integer: true, max: MAX_VIDEO_BYTES });
 
     if (!name || !typeInfo || !width || !height || !duration || !fps || !fileSize) {

@@ -184,6 +184,12 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         emit('request-share-view-url');
     }
 
+    function handleOpenGallery() {
+        closeLaunchers();
+        app.hideToolsPanel();
+        router.push({ name: 'video-gallery' });
+    }
+
     // Cinematic camera props (reactive state from composable)
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
@@ -815,17 +821,6 @@ const activeLauncherTitle = computed(() => {
                     icon: 'grid_view',
                     active: isToolbarContextActive('textureBrowser'),
                     command: () => toggleContextItem('textureBrowser', () => emit('request-open-texture-browser'))
-                },
-                {
-                    contextLabel: 'Video Gallery',
-                    label: 'Browse...',
-                    description: 'Watch and download rendered Rivvon videos.',
-                    icon: 'video_library',
-                    command: () => {
-                        closeLaunchers();
-                        app.hideToolsPanel();
-                        router.push({ name: 'video-gallery' });
-                    }
                 }
             ]
         }
@@ -908,6 +903,19 @@ const activeLauncherTitle = computed(() => {
             <span class="toolbar-button-content">
                 <span class="material-symbols-outlined toolbar-button-icon">instant_mix</span>
                 <span class="toolbar-button-label">Tools</span>
+            </span>
+        </button>
+
+        <!-- Video gallery -->
+        <button
+            type="button"
+            class="toolbar-utility-button"
+            aria-label="Gallery"
+            @click="handleOpenGallery"
+        >
+            <span class="toolbar-button-content">
+                <span class="material-symbols-outlined toolbar-button-icon">video_library</span>
+                <span class="toolbar-button-label">Gallery</span>
             </span>
         </button>
 

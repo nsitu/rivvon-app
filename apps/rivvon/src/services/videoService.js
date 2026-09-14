@@ -104,6 +104,52 @@ export async function completeVideoPublication(videoId) {
     return parseResponse(response, 'Failed to complete video publication');
 }
 
+/**
+ * Publish a video blob through the gallery's presigned R2 upload flow.
+ * The partial publication is removed if any upload/finalization step fails.
+ */
+export async function publishVideoBlob({
+    metadata = {},
+    blob,
+    thumbnailBlob = null,
+    signal,
+    onProgress,
+    onStatus,
+} = {}) {
+    if (!blob) {
+        throw new Error('A video file is required');
+    }
+
+    const publication = await createVideoPublication({
+        ...metadata,
+        mimeType: metadata.mimeType || blob.type,
+        fileSize: blob.size,
+    });
+
+    try {
+        onStatus?.('Uploading video to R2…');
+        await uploadVideoBlob({
+            uploadUrl: publication.uploadUrl,
+            uploadHeaders: publication.uploadHeaders,
+            blob,
+            signal,
+            onProgress,
+        });
+
+        if (thumbnailBlob) {
+            onStatus?.('Uploading thumbnail…');
+            await uploadVideoThumbnail(publication.videoId, thumbnailBlob);
+        }
+
+        onStatus?.('Finalizing gallery entry…');
+        await completeVideoPublication(publication.videoId);
+        return publication;
+    } catch (error) {
+        await deleteVideoPublication(publication.videoId).catch(() => {});
+        throw error;
+    }
+}
+
 export async function updateVideoPublication(videoId, updates) {
     const response = await fetch(`${API_BASE_URL}/video/${encodeURIComponent(videoId)}`, {
         method: 'PATCH',

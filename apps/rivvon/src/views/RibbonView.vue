@@ -19,11 +19,7 @@
     import { useLocalStorage } from '../services/localStorage.js';
     import { useGoogleDrive } from '../services/googleDrive.js';
     import {
-        completeVideoPublication,
-        createVideoPublication,
-        deleteVideoPublication,
-        uploadVideoBlob,
-        uploadVideoThumbnail,
+        publishVideoBlob,
     } from '../services/videoService.js';
     import { createVideoThumbnail } from '../modules/viewer/videoThumbnail.js';
     import Toast from 'primevue/toast';
@@ -2213,53 +2209,41 @@ const activeToolbarOverlayTitle = computed(() => {
         resetVideoPublishState();
         videoPublishState.value.isPublishing = true;
         videoPublishState.value.status = 'Preparing gallery publication…';
-        let createdVideoId = '';
-
         try {
-            const publication = await createVideoPublication({
-                name: name?.trim() || exportRecord.filename.replace(/\.[^.]+$/, ''),
-                description,
-                isPublic,
-                mimeType: exportRecord.mimeType,
-                width: settings.width,
-                height: settings.height,
-                duration: settings.resolvedDuration || settings.duration,
-                fps: settings.fps,
-                fileSize: exportRecord.size,
-                exportSettings: settings,
-                userProfile: user.value ? {
-                    name: user.value.name,
-                    email: user.value.email,
-                    picture: user.value.picture,
-                } : null,
-            });
-            createdVideoId = publication.videoId;
-
-            videoPublishState.value.status = 'Uploading video to R2…';
-            await uploadVideoBlob({
-                uploadUrl: publication.uploadUrl,
-                uploadHeaders: publication.uploadHeaders,
+            const publication = await publishVideoBlob({
+                metadata: {
+                    name: name?.trim() || exportRecord.filename.replace(/\.[^.]+$/, ''),
+                    description,
+                    isPublic,
+                    mimeType: exportRecord.mimeType,
+                    width: settings.width,
+                    height: settings.height,
+                    duration: settings.resolvedDuration || settings.duration,
+                    fps: settings.fps,
+                    exportSettings: settings,
+                    userProfile: user.value ? {
+                        name: user.value.name,
+                        email: user.value.email,
+                        picture: user.value.picture,
+                    } : null,
+                },
                 blob: exportRecord.blob,
+                thumbnailBlob: exportRecord.thumbnailBlob,
                 signal: controller.signal,
                 onProgress: (progress) => {
                     videoPublishState.value.progress = progress;
                     videoPublishState.value.status = `Uploading video… ${Math.round(progress * 100)}%`;
                 },
+                onStatus: (status) => {
+                    videoPublishState.value.status = status;
+                },
             });
-
-            if (exportRecord.thumbnailBlob) {
-                videoPublishState.value.status = 'Uploading thumbnail…';
-                await uploadVideoThumbnail(createdVideoId, exportRecord.thumbnailBlob);
-            }
-
-            videoPublishState.value.status = 'Finalizing gallery entry…';
-            await completeVideoPublication(createdVideoId);
 
             videoPublishState.value = {
                 isPublishing: false,
                 status: 'Published to the video gallery.',
                 progress: 1,
-                videoId: createdVideoId,
+                videoId: publication.videoId,
                 error: '',
             };
             toast.add({
@@ -2269,10 +2253,6 @@ const activeToolbarOverlayTitle = computed(() => {
                 life: 5000,
             });
         } catch (error) {
-            if (createdVideoId) {
-                await deleteVideoPublication(createdVideoId).catch(() => {});
-            }
-
             const cancelled = error?.name === 'AbortError';
             videoPublishState.value = {
                 isPublishing: false,
