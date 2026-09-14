@@ -27,7 +27,7 @@ Whenever an emoji is used we could increment its popularity value in a list of f
 
 We already have a drawing library. However within this context, there might be some particular shapes that we want to highlight. Review the publishing workflow here to see what can be done, e.g. marking a drawing as featured makes it special within the rivvon ecosystem. Maybe that is as simple as placing it in R2 as we already do for textures?
 
-Future opportunity: reconcile the Cloudflare D1 database with Wrangler's tracked migration system so we can safely use `wrangler d1 migrations list/apply`. Current reference: migrations are applied as individual SQL files from `apps/api/db/migrations/` via direct `wrangler d1 execute ... --remote --file=...` commands because older schema changes were applied manually and are not recorded in `d1_migrations`.
+Cloudflare D1 migrations are now tracked by Wrangler. Future schema changes should be created in `apps/api/db/migrations/` and applied by the GitHub Actions API deployment before the Worker is deployed; local Wrangler application remains available for development validation.
 
 When adjusting settings for a given video prior to processing, we might offer the user some sensible defaults based on the type of motion in the video. to support this we could do some initial profiling or analysis so as to categorize whether the video shows a panning motion, or other kinds of motion
 

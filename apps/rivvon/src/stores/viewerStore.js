@@ -1740,8 +1740,8 @@ export const useViewerStore = defineStore("viewer", {
      * Capture the current settings state as the "original" for tools panel change tracking.
      * Called when the tools panel opens.
      */
-    captureToolsPanelOriginalState() {
-      this.toolsPanelOriginalState = {
+    captureToolsPanelOriginalState({ store = true } = {}) {
+      const snapshot = {
         viewerControlMode: this.viewerControlMode,
         artworkMotionMode: this.artworkMotionMode,
         viewerMotionLoopCount: this.viewerMotionLoopCount,
@@ -1840,6 +1840,20 @@ sphericalProjectionVerticalWrapAuto:
         showTextureMetadataOverlay: this.showTextureMetadataOverlay,
         screenWakeLockEnabled: this.screenWakeLockEnabled,
       };
+
+      if (store) {
+        this.toolsPanelOriginalState = snapshot;
+      }
+
+      return snapshot;
+    },
+
+    /**
+     * Return the render-affecting settings without changing tools-panel
+     * change tracking state.
+     */
+    getViewerSettingsSnapshot() {
+      return this.captureToolsPanelOriginalState({ store: false });
     },
 
     /**

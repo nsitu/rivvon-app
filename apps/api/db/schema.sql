@@ -143,6 +143,8 @@ CREATE TABLE IF NOT EXISTS video_exports (
 
     -- Publication and provenance
     export_settings_json TEXT,
+    source_drawing_payload_json TEXT,
+    render_snapshot_json TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     is_public INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER DEFAULT (unixepoch()),

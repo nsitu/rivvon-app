@@ -231,3 +231,24 @@ export function createDrawingDocument(input = {}) {
         updated_at: normalizeTimestamp(input.updatedAt ?? input.updated_at, createdAt),
     };
 }
+
+/**
+ * Build the portable payload used by local and cloud drawing storage.
+ * Keeping this shape in the shared drawing module lets other persisted
+ * resources (such as rendered videos) retain the same path representation
+ * without creating a second vector serialization format.
+ */
+export function createDrawingPayload(input = {}) {
+    const document = createDrawingDocument(input);
+
+    return {
+        version: 1,
+        name: document.name,
+        description: document.description,
+        kind: document.kind,
+        paths: document.paths,
+        source: document.source,
+        pathCount: document.path_count,
+        pointCount: document.point_count,
+    };
+}

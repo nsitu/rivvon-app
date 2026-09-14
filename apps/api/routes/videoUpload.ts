@@ -19,6 +19,8 @@ import {
 
 const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
+const MAX_SOURCE_DRAWING_PAYLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_RENDER_SNAPSHOT_BYTES = 512 * 1024;
 const UPLOAD_URL_TTL_SECONDS = 60 * 60;
 const ALLOWED_VIDEO_TYPES = new Map([
     ['video/mp4', { format: 'mp4', extension: 'mp4' }],
@@ -154,6 +156,32 @@ videoUploadRoutes.post('/', async (c) => {
         }
     }
 
+    let sourceDrawingPayloadJson: string | null = null;
+    if (body.sourceDrawingPayload && typeof body.sourceDrawingPayload === 'object') {
+        const paths = body.sourceDrawingPayload.paths;
+        if (!Array.isArray(paths) || paths.some((path: unknown) => !Array.isArray(path))) {
+            return badRequestResponse('sourceDrawingPayload.paths must be an array of paths');
+        }
+
+        sourceDrawingPayloadJson = JSON.stringify(body.sourceDrawingPayload);
+        if (new TextEncoder().encode(sourceDrawingPayloadJson).byteLength > MAX_SOURCE_DRAWING_PAYLOAD_BYTES) {
+            return badRequestResponse('sourceDrawingPayload is too large');
+        }
+    }
+
+    let renderSnapshotJson: string | null = null;
+    if (body.renderSnapshot && typeof body.renderSnapshot === 'object') {
+        const schemaVersion = Number(body.renderSnapshot.schemaVersion);
+        if (!Number.isInteger(schemaVersion) || schemaVersion < 1) {
+            return badRequestResponse('renderSnapshot.schemaVersion is required');
+        }
+
+        renderSnapshotJson = JSON.stringify(body.renderSnapshot);
+        if (new TextEncoder().encode(renderSnapshotJson).byteLength > MAX_RENDER_SNAPSHOT_BYTES) {
+            return badRequestResponse('renderSnapshot is too large');
+        }
+    }
+
     const videoId = nanoid();
     const r2Key = buildVideoR2Key(videoId, typeInfo.extension);
     const playbackUrl = buildCdnUrl(r2Key);
@@ -167,8 +195,9 @@ videoUploadRoutes.post('/', async (c) => {
             id, owner_id, name, description,
             format, mime_type, width, height, duration, fps,
             expected_file_size, storage_provider, r2_key, playback_url,
-            export_settings_json, status, is_public
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, ?, ?, 'uploading', ?)
+            export_settings_json, source_drawing_payload_json, render_snapshot_json,
+            status, is_public
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, ?, ?, ?, ?, 'uploading', ?)
     `).bind(
         videoId,
         auth.userId,
@@ -184,6 +213,8 @@ videoUploadRoutes.post('/', async (c) => {
         r2Key,
         playbackUrl,
         exportSettingsJson,
+        sourceDrawingPayloadJson,
+        renderSnapshotJson,
         body.isPublic === false ? 0 : 1,
     ).run();
 

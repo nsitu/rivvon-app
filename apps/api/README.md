@@ -38,46 +38,54 @@ This API serves as the central backend connecting:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Run locally
-npm run dev
+pnpm dev
 
-# Deploy to Cloudflare
-npm run deploy
+# Build/deploy the Worker locally when needed
+pnpm build
+pnpm deploy
 ```
+
+## Deployment
+
+Production deployment is handled by `.github/workflows/deploy.yml`. A push to `main` that changes the API or shared packages runs the following sequence:
+
+1. Install dependencies with the locked pnpm version.
+2. Apply any pending remote D1 migrations.
+3. Deploy the API Worker.
+
+The migration step must succeed before the Worker is deployed. GitHub Actions authenticates with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; the API token must have permission to edit D1 as well as deploy the Worker. The API job uses the protected `production` environment and serializes production API deployments.
+
+Frontend and runtime-asset deployments run as separate jobs in the same workflow. Pull requests build frontend previews but do not modify the production D1 database.
 
 ## Database Migrations
 
-Current approach:
+Migration files live in `db/migrations/`, and `wrangler.toml` points Wrangler at that directory. The remote database's existing schema and `d1_migrations` history have been reconciled, so new changes should use Wrangler's tracked migration workflow.
 
-- Migration files live in `db/migrations/`.
-- The repo has been applying D1 changes by executing specific SQL files directly against the remote database, for example:
-
-```bash
-npx wrangler d1 execute rivvon-textures --remote --file=./db/migrations/004_drawings.sql
-```
-
-- This is the safe operational path for the current database because earlier schema changes were applied manually and are not recorded in Cloudflare's `d1_migrations` tracking table.
-- Before running a new migration, verify the live schema and avoid replaying older migration files blindly.
-
-Future opportunity:
-
-- Reconcile the existing remote database with Wrangler's tracked migration system so future changes can use `wrangler d1 migrations list` and `wrangler d1 migrations apply` safely.
-- That follow-up should include backfilling or otherwise aligning `d1_migrations` with the schema that already exists in production.
-
-### Applying the video gallery migration
-
-Production D1 access requires either an interactive Wrangler session (`npx wrangler login`) or a `CLOUDFLARE_API_TOKEN` with D1 access. From `apps/api/`, inspect the live schema, apply only the new migration, and verify it:
+From `apps/api/`:
 
 ```bash
-npx wrangler whoami
-npx wrangler d1 execute rivvon-textures --remote --command="SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;"
-npx wrangler d1 execute rivvon-textures --remote --file=./db/migrations/007_video_exports.sql
-npx wrangler d1 execute rivvon-textures --remote --command="PRAGMA table_info(video_exports);"
+# Create a new migration file
+pnpm db:migrations:create add_description_here
+
+# Check local or remote state
+pnpm db:migrations:list:local
+pnpm db:migrations:list:remote
+
+# Apply locally while developing
+pnpm db:migrations:apply:local
+
+# Apply to production (requires Cloudflare authentication)
+pnpm db:migrations:apply:remote
 ```
 
-Do not use `wrangler d1 migrations apply` for this database yet. Migrations 001–006 were applied manually and are not reconciled with Wrangler's migration tracking table.
+The API deployment workflow runs `db:migrations:apply:remote` before deploying the Worker. A migration failure stops the deployment. Wrangler captures a D1 backup when applying migrations, and failed migrations are rolled back. Applying migrations locally first is optional but recommended for validating a change before merging.
+
+Do not edit an applied migration or apply `schema.sql` to an existing production database. Keep `schema.sql` as a reference/bootstrap snapshot; use the incremental migration files for all future schema changes.
+
+For local remote-development isolation, create a separate preview D1 database and add its ID as `preview_database_id` under the D1 binding in `wrangler.toml` before using it. Until that resource is provisioned, use `db:migrations:apply:local` for local development and reserve `--remote` for the production database.
 
 ## Video gallery R2 uploads
 
@@ -96,7 +104,7 @@ Browser uploads also require the bucket CORS policy checked into `r2-cors.json`:
 npx wrangler r2 bucket cors set rivvon-textures --file=./r2-cors.json
 ```
 
-Apply the D1 migration and R2 configuration before deploying the API and frontend. The API verifies the finished R2 object and its byte size before a video becomes visible in the gallery.
+R2 CORS configuration is managed separately with Wrangler when it changes. D1 migrations are applied automatically by the GitHub Actions API deployment before the Worker is released. The API verifies the finished R2 object and its byte size before a video becomes visible in the gallery.
 
 ## Configuration
 

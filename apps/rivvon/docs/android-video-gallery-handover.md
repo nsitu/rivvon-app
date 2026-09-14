@@ -263,7 +263,7 @@ Do not block the initial Android work on these enhancements; isolate list select
 - Public read routes: `apps/api/routes/videos.ts`
 - Route mounts: `apps/api/index.ts`
 - Publication/storage behavior: `apps/api/routes/videoUpload.ts`
-- Database record: `apps/api/db/migrations/007_video_exports.sql`
+- Database records: `apps/api/db/migrations/007_video_exports.sql` and `apps/api/db/migrations/008_video_render_sources.sql`
 - Existing web API client: `apps/rivvon/src/services/videoService.js`
 - Existing web player behavior: `apps/rivvon/src/views/VideoPlayerView.vue`
 

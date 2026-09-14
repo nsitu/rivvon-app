@@ -9,6 +9,11 @@
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
+    "db:migrations:create": "wrangler d1 migrations create rivvon-textures",
+    "db:migrations:list:local": "wrangler d1 migrations list rivvon-textures --local",
+    "db:migrations:list:remote": "wrangler d1 migrations list rivvon-textures --remote",
+    "db:migrations:apply:local": "wrangler d1 migrations apply rivvon-textures --local",
+    "db:migrations:apply:remote": "wrangler d1 migrations apply rivvon-textures --remote",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "echo 'No linter configured'"

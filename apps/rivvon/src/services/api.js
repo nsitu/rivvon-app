@@ -1,5 +1,6 @@
 import { useGoogleAuth } from '../composables/shared/useGoogleAuth'
 import { useGoogleDrive } from './googleDrive'
+import { createDrawingPayload } from '../modules/shared/drawingLibrary.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 
@@ -227,25 +228,13 @@ export function useRivvonAPI() {
     }
 
     function serializeDrawingPayload({ name, description = '', kind, paths, source = null } = {}) {
-        const normalizedPaths = Array.isArray(paths) ? paths : []
-        const pathCount = normalizedPaths.length
-        const pointCount = normalizedPaths.reduce((total, path) => total + (Array.isArray(path) ? path.length : 0), 0)
-        const payload = {
-            version: 1,
-            name,
-            description,
-            kind,
-            paths: normalizedPaths,
-            source,
-            pathCount,
-            pointCount,
-        }
+        const payload = createDrawingPayload({ name, description, kind, paths, source })
 
         return {
             payload,
             payloadJson: JSON.stringify(payload),
-            pathCount,
-            pointCount,
+            pathCount: payload.pathCount,
+            pointCount: payload.pointCount,
         }
     }
 

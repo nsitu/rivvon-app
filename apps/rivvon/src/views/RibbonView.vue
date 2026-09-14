@@ -7,7 +7,8 @@
     import { useEmojiPicker } from '../composables/viewer/useEmojiPicker';
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
-    import { createDefaultDrawingName, createDrawingDocument, getKindLabel, inflateDrawingPaths, normalizeDrawingKind } from '../modules/shared/drawingLibrary.js';
+    import { createDefaultDrawingName, createDrawingDocument, createDrawingPayload, getKindLabel, inflateDrawingPaths, normalizeDrawingKind, serializeDrawingPaths } from '../modules/shared/drawingLibrary.js';
+    import { createRenderSnapshot } from '../modules/shared/renderSnapshot.js';
     import { createLazyLoader } from '../modules/shared/lazyLoader.js';
     import { resolveOrderedContext } from '../modules/viewer/viewerHeaderContext.js';
     import { isViewerPanelVisible, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
@@ -497,6 +498,7 @@ const activeToolbarOverlayTitle = computed(() => {
     const isReady = ref(false);
     const showTechnicalOverlay = ref(false);
     const currentTextureSelection = ref(null);
+    const activeTextureAssignments = ref([]);
     const currentDrawingKind = ref(null);
     const currentDrawingTitle = ref(null);
     const currentDrawingSource = ref(null);
@@ -831,6 +833,111 @@ const activeToolbarOverlayTitle = computed(() => {
         currentTextureSelection.value = selection;
     }
 
+    function getTextureAssignmentSnapshot() {
+        if (Array.isArray(activeTextureAssignments.value) && activeTextureAssignments.value.length > 0) {
+            return activeTextureAssignments.value.map((assignment, assignmentIndex) => ({
+                id: assignment.id,
+                source: assignment.source || 'unknown',
+                name: assignment.name || '',
+                variantResolution: Number(assignment.variantResolution) || null,
+                assignmentIndex,
+            }));
+        }
+
+        const selectedTexture = currentTextureSelection.value;
+        const textureId = selectedTexture?.texture?.id || app.currentTextureId || null;
+        if (!textureId) {
+            return [];
+        }
+
+        return [{
+            id: textureId,
+            source: selectedTexture?.source || 'unknown',
+            name: selectedTexture?.texture?.name || app.currentTextureName || '',
+            variantResolution: Number(selectedTexture?.texture?.tile_resolution) || null,
+            assignmentIndex: 0,
+        }];
+    }
+
+    function getCameraSnapshot() {
+        const camera = threeCanvasRef.value?.camera;
+        const controls = threeCanvasRef.value?.controls;
+        const cinematicInstance = threeCanvasRef.value?.cinematicCamera?.getInstance?.();
+        const toVector = (value) => value && Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z)
+            ? { x: value.x, y: value.y, z: value.z }
+            : null;
+
+        return {
+            position: toVector(camera?.position),
+            quaternion: camera?.quaternion
+                ? { x: camera.quaternion.x, y: camera.quaternion.y, z: camera.quaternion.z, w: camera.quaternion.w }
+                : null,
+            up: toVector(camera?.up),
+            target: toVector(controls?.target),
+            fov: Number.isFinite(camera?.fov) ? camera.fov : null,
+            cinematic: cinematicInstance
+                ? {
+                    rois: cinematicInstance.getROIs?.().map((roi) => ({
+                        position: toVector(roi.position),
+                        target: toVector(roi.target),
+                        fov: roi.fov,
+                    })) || [],
+                    minSpeedRatio: cinematicInstance.minSpeedRatio,
+                    dwellRadiusFraction: cinematicInstance.dwellRadiusFraction,
+                    microMotionEnabled: cinematicInstance.microMotionEnabled,
+                }
+                : null,
+        };
+    }
+
+    function buildCurrentSourceDrawingPayload() {
+        const ribbonSeries = threeCanvasRef.value?.ribbonSeries;
+        const sourcePaths = ribbonSeries?.sourcePathsPoints;
+        const paths = serializeDrawingPaths(sourcePaths);
+        if (!paths.length) {
+            return null;
+        }
+
+        const proceduralSource = ribbonSeries?.proceduralSource;
+        const kind = currentDrawingKind.value || proceduralSource?.type || 'gesture';
+        const source = currentDrawingSource.value || (proceduralSource
+            ? {
+                type: proceduralSource.type,
+                settings: proceduralSource.settings,
+                runtimeState: proceduralSource.runtimeState,
+            }
+            : null);
+
+        return createDrawingPayload({
+            kind,
+            name: getSavedDrawingName(kind, source),
+            paths,
+            source,
+        });
+    }
+
+    function buildCurrentRenderSnapshot(exportSettings, sourceDrawingPayload = null) {
+        const proceduralSource = threeCanvasRef.value?.ribbonSeries?.proceduralSource;
+
+        return createRenderSnapshot({
+            source: sourceDrawingPayload
+                ? {
+                    kind: sourceDrawingPayload.kind,
+                    version: sourceDrawingPayload.version,
+                    pathCount: sourceDrawingPayload.pathCount,
+                    pointCount: sourceDrawingPayload.pointCount,
+                }
+                : {
+                    kind: exportSettings?.exportMode === 'textureOnly' ? 'textureOnly' : (currentDrawingKind.value || proceduralSource?.type || null),
+                },
+            textures: getTextureAssignmentSnapshot(),
+            viewerSettings: app.getViewerSettingsSnapshot?.() || {},
+            camera: getCameraSnapshot(),
+            exportSettings,
+            shareState: currentViewShareState.value,
+        });
+    }
+
     async function activateViewerHeaderDrawingTarget({ useTitleContext = false } = {}) {
         const target = viewerHeaderTitleModel.value?.kindTarget;
         if (!target) {
@@ -961,9 +1068,15 @@ const activeToolbarOverlayTitle = computed(() => {
     function applyTextureResetState({ activeTextureIds = null, clearThumbnail = false } = {}) {
         if (Array.isArray(activeTextureIds) && activeTextureIds.length > 0) {
             setCurrentTextureSelection(null);
+            activeTextureAssignments.value = activeTextureIds.map((id, assignmentIndex) => ({
+                id,
+                source: 'unknown',
+                assignmentIndex,
+            }));
             app.setActiveTextures(activeTextureIds);
             app.clearCurrentTextureMetadata();
         } else {
+            activeTextureAssignments.value = [];
             setCurrentTextureMetadata(null);
         }
 
@@ -2062,6 +2175,8 @@ const activeToolbarOverlayTitle = computed(() => {
             mimeType: '',
             size: 0,
             settings: null,
+            sourceDrawingPayload: null,
+            renderSnapshot: null,
         };
         videoExportStatus.value = '';
         resetVideoPublishState();
@@ -2221,6 +2336,8 @@ const activeToolbarOverlayTitle = computed(() => {
                     duration: settings.resolvedDuration || settings.duration,
                     fps: settings.fps,
                     exportSettings: settings,
+                    sourceDrawingPayload: exportRecord.sourceDrawingPayload,
+                    renderSnapshot: exportRecord.renderSnapshot,
                     userProfile: user.value ? {
                         name: user.value.name,
                         email: user.value.email,
@@ -2498,6 +2615,8 @@ const activeToolbarOverlayTitle = computed(() => {
         mimeType: '',
         size: 0,
         settings: null,
+        sourceDrawingPayload: null,
+        renderSnapshot: null,
     });
     const videoExportStatus = ref('');
     const videoPublishAbortController = ref(null);
@@ -2974,6 +3093,10 @@ const activeToolbarOverlayTitle = computed(() => {
         );
 
         const filename = createTimestampedExportFilename(settings.format === 'webm' ? 'webm' : 'mp4');
+        const sourceDrawingPayload = settings.exportMode === 'textureOnly'
+            ? null
+            : buildCurrentSourceDrawingPayload();
+        const renderSnapshot = buildCurrentRenderSnapshot(settings, sourceDrawingPayload);
 
         clearVideoExportDialogState();
         videoExportStatus.value = 'Preparing export…';
@@ -3072,6 +3195,8 @@ const activeToolbarOverlayTitle = computed(() => {
                 mimeType: blob.type || getVideoMimeType(settings.format),
                 size: blob.size,
                 settings,
+                sourceDrawingPayload,
+                renderSnapshot,
             };
             videoExportStatus.value = '';
             toast.add({
@@ -3333,6 +3458,13 @@ const activeToolbarOverlayTitle = computed(() => {
                     applyTextureResetState({
                         activeTextureIds: selections.map(s => s.id),
                     });
+                    activeTextureAssignments.value = selections.map((selection, assignmentIndex) => ({
+                        id: selection.id,
+                        source: selection.source || 'unknown',
+                        name: selection.name || '',
+                        variantResolution: Number(selection.tileResolution || selection.tile_resolution) || null,
+                        assignmentIndex,
+                    }));
 
                     // Use first texture's thumbnail for background
                     const firstTextureSetWithMeta = textureSetsWithMeta[0];
@@ -3427,6 +3559,15 @@ const activeToolbarOverlayTitle = computed(() => {
             texture,
             isCached,
         });
+        activeTextureAssignments.value = texture?.id
+            ? [{
+                id: texture.id,
+                source,
+                name: texture.name || metadata?.name || '',
+                variantResolution: Number(texture.tile_resolution) || null,
+                assignmentIndex: 0,
+            }]
+            : [];
         setCurrentTextureMetadata(metadata);
     }
 
