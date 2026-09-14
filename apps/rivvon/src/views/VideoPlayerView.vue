@@ -18,6 +18,16 @@
     const thumbnailStatus = ref('');
     const thumbnailError = ref('');
     const canRegenerateThumbnail = computed(() => isAuthenticated.value && isAdmin.value);
+    const mediaVersion = computed(() => video.value?.updated_at || 'cors-v1');
+
+    function versionMediaUrl(url) {
+        if (!url) return url;
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}gallery_media=${encodeURIComponent(String(mediaVersion.value))}`;
+    }
+
+    const playbackUrl = computed(() => versionMediaUrl(video.value?.playback_url));
+    const thumbnailUrl = computed(() => versionMediaUrl(video.value?.thumbnail_url));
 
     function formatFileSize(bytes) {
         const value = Number(bytes) || 0;
@@ -115,8 +125,8 @@
                 <video
                     ref="videoElement"
                     crossorigin="anonymous"
-                    :src="video.playback_url"
-                    :poster="video.thumbnail_url || undefined"
+                    :src="playbackUrl"
+                    :poster="thumbnailUrl || undefined"
                     controls
                     playsinline
                     preload="metadata"
