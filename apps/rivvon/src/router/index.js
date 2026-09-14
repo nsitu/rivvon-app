@@ -24,9 +24,8 @@ const routes = [
     {
         path: '/video/:videoId',
         name: 'video-player',
-        component: () => import('../views/VideoPlayerView.vue'),
-        props: true,
-        meta: { layout: 'document' }
+        component: () => import('../views/RibbonView.vue'),
+        props: true
     },
     
     // ============ SLYCE ROUTES ============

@@ -46,6 +46,7 @@
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
     const BetaModal = defineAsyncComponent(() => import('../components/viewer/BetaModal.vue'));
     const VideoGalleryPanel = defineAsyncComponent(() => import('./VideoGalleryView.vue'));
+    const VideoPlayerPanel = defineAsyncComponent(() => import('./VideoPlayerView.vue'));
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
     const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
@@ -64,6 +65,7 @@
     const route = useRoute();
     const router = useRouter();
     const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
+    const isVideoPlayerRoute = computed(() => route.name === 'video-player');
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
     const {
@@ -3038,6 +3040,11 @@ const activeToolbarOverlayTitle = computed(() => {
 
     const activePanelContext = computed(() => resolveOrderedContext([
         {
+            title: 'Video Player',
+            isActive: () => isVideoPlayerRoute.value,
+            close: () => closeVideoPlayer(),
+        },
+        {
             title: 'Video Gallery',
             isActive: () => isVideoGalleryRoute.value,
             close: () => closeVideoGallery(),
@@ -3077,6 +3084,12 @@ const activeToolbarOverlayTitle = computed(() => {
     function closeVideoGallery() {
         if (isVideoGalleryRoute.value) {
             router.push({ name: 'home' });
+        }
+    }
+
+    function closeVideoPlayer() {
+        if (isVideoPlayerRoute.value) {
+            router.push({ name: 'video-gallery' });
         }
     }
 
@@ -3952,6 +3965,10 @@ const activeToolbarOverlayTitle = computed(() => {
             v-if="isVideoGalleryRoute"
         />
 
+        <VideoPlayerPanel
+            v-if="isVideoPlayerRoute"
+        />
+
         <!-- Full-page Slyce panel (like drawing mode) -->
         <TextureCreator
             ref="textureCreatorRef"
@@ -4075,6 +4092,7 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.beta-modal),
     .ribbon-view :deep(.texture-browser.active),
     .ribbon-view :deep(.video-gallery-panel),
+    .ribbon-view :deep(.video-player-panel),
     .ribbon-view :deep(.slyce-panel.active),
     .ribbon-view :deep(.realtime-panel.active),
     .ribbon-view :deep(.draw-canvas.active),
