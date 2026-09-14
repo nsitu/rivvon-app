@@ -19,8 +19,7 @@ const routes = [
     {
         path: '/videos',
         name: 'video-gallery',
-        component: () => import('../views/VideoGalleryView.vue'),
-        meta: { layout: 'document' }
+        component: () => import('../views/RibbonView.vue')
     },
     {
         path: '/video/:videoId',

@@ -45,6 +45,7 @@
     const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
     const BetaModal = defineAsyncComponent(() => import('../components/viewer/BetaModal.vue'));
+    const VideoGalleryPanel = defineAsyncComponent(() => import('./VideoGalleryView.vue'));
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
     const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
@@ -62,6 +63,7 @@
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
+    const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
     const {
@@ -3036,6 +3038,11 @@ const activeToolbarOverlayTitle = computed(() => {
 
     const activePanelContext = computed(() => resolveOrderedContext([
         {
+            title: 'Video Gallery',
+            isActive: () => isVideoGalleryRoute.value,
+            close: () => closeVideoGallery(),
+        },
+        {
             title: 'Export Video',
             isActive: () => showExportDialog.value,
             close: () => handleExportPanelClose(),
@@ -3065,6 +3072,12 @@ const activeToolbarOverlayTitle = computed(() => {
 
     function handleHeaderPanelClose() {
         activePanelContext.value?.close?.();
+    }
+
+    function closeVideoGallery() {
+        if (isVideoGalleryRoute.value) {
+            router.push({ name: 'home' });
+        }
     }
 
     function handleExportVideoDialogVisibleChange(visible) {
@@ -3935,6 +3948,10 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-select-multi="handleMultiTextureSelect"
         />
 
+        <VideoGalleryPanel
+            v-if="isVideoGalleryRoute"
+        />
+
         <!-- Full-page Slyce panel (like drawing mode) -->
         <TextureCreator
             ref="textureCreatorRef"
@@ -4057,6 +4074,7 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.text-input-panel.active),
     .ribbon-view :deep(.beta-modal),
     .ribbon-view :deep(.texture-browser.active),
+    .ribbon-view :deep(.video-gallery-panel),
     .ribbon-view :deep(.slyce-panel.active),
     .ribbon-view :deep(.realtime-panel.active),
     .ribbon-view :deep(.draw-canvas.active),
