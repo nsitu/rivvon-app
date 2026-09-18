@@ -4065,6 +4065,18 @@ const activeToolbarOverlayTitle = computed(() => {
                 />
             </div>
         </Transition>
+
+        <Transition name="fade">
+            <div
+                v-if="app.isFlowTransitioning"
+                class="loading-overlay loading-overlay--flow"
+            >
+                <LoadingIndicator
+                    class="loading-content"
+                    message="Preparing conveyor flow…"
+                />
+            </div>
+        </Transition>
     </div>
 </template>
 
@@ -4132,6 +4144,11 @@ const activeToolbarOverlayTitle = computed(() => {
         justify-content: center;
         background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(8px);
+    }
+
+    .loading-overlay--flow {
+        background: #080808;
+        backdrop-filter: none;
     }
 
     /* Fade transition */

@@ -783,6 +783,7 @@ export const useViewerStore = defineStore("viewer", {
 
       // Ribbon/3D state
       flowState: "off", // 'off' | 'forward' | 'backward'
+      isFlowTransitioning: false,
       flowSpeed: 0.25, // Base flow speed (positive value)
       flowCycleAlignmentEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().flowCycleAlignmentEnabled,
@@ -1152,6 +1153,7 @@ export const useViewerStore = defineStore("viewer", {
       this.scrollDrivenLayerCycleEnabled = true;
       this.scrollDrivenFlowEnabled = false;
       this.flowState = "off";
+      this.isFlowTransitioning = false;
       this.flowSpeed = 0.25;
       this.undulationEnabled = true;
       this.flowCycleAlignmentEnabled = true;
@@ -1421,16 +1423,25 @@ export const useViewerStore = defineStore("viewer", {
     cycleFlowState() {
       // Cycle: off -> forward -> backward -> off
       if (this.flowState === "off") {
-        this.flowState = "forward";
+        this.setFlowState("forward");
       } else if (this.flowState === "forward") {
-        this.flowState = "backward";
+        this.setFlowState("backward");
       } else {
-        this.flowState = "off";
+        this.setFlowState("off");
       }
     },
 
     setFlowState(state) {
+      if (this.flowState === state) {
+        return;
+      }
+
       this.flowState = state;
+      this.isFlowTransitioning = true;
+    },
+
+    finishFlowTransition() {
+      this.isFlowTransitioning = false;
     },
 
     setFlowSpeed(speed) {

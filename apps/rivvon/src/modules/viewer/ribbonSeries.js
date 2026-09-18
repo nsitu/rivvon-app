@@ -15,6 +15,17 @@ const TEXTURE_ORIENTATION_EPSILON = 0.000001;
 const TEXTURE_ORIENTATION_SAMPLE_COUNT = 9;
 const ARTWORK_FACING_NORMAL = new Vector3(0, 0, 1);
 
+function yieldToBrowser() {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => setTimeout(resolve, 0));
+      return;
+    }
+
+    setTimeout(resolve, 0);
+  });
+}
+
 export class RibbonSeries {
   /**
    * Create a new ribbon series
@@ -31,6 +42,8 @@ export class RibbonSeries {
     this.lastPathsPoints = []; // Store for animation updates
     this.lastWidth = 1;
     this._flowMaterials = []; // Track materials for flow updates
+    this._flowMaterialsTransitioning = false;
+    this._flowMaterialTransitionId = 0;
     this._flowWasActive = null; // Track last flow state (null = not yet initialized)
     this._lastFlowWrapStats = null;
     this._resolvedSphericalProjectionRadius = null;
@@ -114,6 +127,11 @@ export class RibbonSeries {
   setNormalizeTextureOrientation(enabled) {
     this.normalizeTextureOrientation = !!enabled;
     this._applyTextureOrientationToRibbons(this.lastPathsPoints);
+    return this;
+  }
+
+  setVisible(visible) {
+    this._transformRoot.visible = !!visible;
     return this;
   }
 
@@ -941,9 +959,7 @@ export class RibbonSeries {
    * or shared single-texture materials when flow is disabled (optimized).
    * Should be called once after building ribbons.
    */
-  initFlowMaterials() {
-    if (!this.tileManager) return;
-
+  #createFlowMaterialInitializer() {
     // Clear any existing flow materials tracked by all TileManagers
     for (const tm of this.tileManagers) {
       tm.clearFlowMaterialCache?.();
@@ -951,77 +967,131 @@ export class RibbonSeries {
       tm.clearEphemeralStaticMaterials?.();
     }
 
-    // Track segment info for later updates
     this._flowMaterials = [];
 
-    // Check if flow animation is active
     const flowActive =
       this.tileManager.isFlowEnabled?.() &&
       this.tileManager.getFlowSpeed?.() !== 0;
 
+    const processSegment = (ribbon, segmentIndex, globalSegmentIndex) => {
+      const mesh = ribbon.meshSegments[segmentIndex];
+      const tmA = ribbon.tileManager || this.tileManager;
+      const tmB = ribbon.tileManagerB || tmA;
+      const baseIndex = mesh.userData?.tapeTileIndex ?? globalSegmentIndex;
+      const materialOptions = {
+        orientationMirrorY: ribbon.textureOrientationMirrorY,
+      };
+      const material = tmA.getOrCreateMaterialForSegment(
+        baseIndex,
+        flowActive,
+        materialOptions,
+      );
+
+      if (material) {
+        mesh.material = material;
+        this._flowMaterials.push({
+          mesh,
+          material,
+          baseIndex,
+          tileManager: tmA,
+          materialOptions,
+        });
+
+        // Assign strand B material (may use a different TileManager in multi-texture mode).
+        if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[segmentIndex]) {
+          const meshB = ribbon.helixMeshSegmentsB[segmentIndex];
+          const baseIndexB = meshB.userData?.tapeTileIndex ?? baseIndex;
+          const materialB = tmB.getOrCreateMaterialForSegment(
+            baseIndexB,
+            flowActive,
+            materialOptions,
+          );
+
+          if (materialB) {
+            meshB.material = materialB;
+            this._flowMaterials.push({
+              mesh: meshB,
+              material: materialB,
+              baseIndex: baseIndexB,
+              tileManager: tmB,
+              materialOptions,
+            });
+          }
+        }
+      }
+
+      return globalSegmentIndex + 1;
+    };
+
+    const finish = () => {
+      this._lastTileOffset = this.tileManager.getTileFlowOffset?.() || 0;
+      this._flowWasActive = flowActive;
+
+      console.log(
+        `[RibbonSeries] Initialized ${this._flowMaterials.length} materials (flow ${flowActive ? "enabled - dual texture" : "disabled - single texture"}, ${this.tileManagers.length} texture set(s))`,
+      );
+    };
+
+    return { processSegment, finish, flowActive };
+  }
+
+  initFlowMaterials() {
+    if (!this.tileManager) return;
+
+    const initializer = this.#createFlowMaterialInitializer();
     let globalSegmentIndex = 0;
 
     for (const ribbon of this.ribbons) {
-      // Determine TileManagers for each strand
-      const tmA = ribbon.tileManager || this.tileManager;
-      const tmB = ribbon.tileManagerB || tmA;
-
       for (let s = 0; s < ribbon.meshSegments.length; s++) {
-        const mesh = ribbon.meshSegments[s];
-        const baseIndex = mesh.userData?.tapeTileIndex ?? globalSegmentIndex;
-        const materialOptions = {
-          orientationMirrorY: ribbon.textureOrientationMirrorY,
-        };
-        const material = tmA.getOrCreateMaterialForSegment(
-          baseIndex,
-          flowActive,
-          materialOptions,
+        globalSegmentIndex = initializer.processSegment(
+          ribbon,
+          s,
+          globalSegmentIndex,
         );
-
-        if (material) {
-          mesh.material = material;
-          this._flowMaterials.push({
-            mesh,
-            material,
-            baseIndex,
-            tileManager: tmA,
-            materialOptions,
-          });
-
-          // Assign strand B material (may use different TileManager in multi-texture mode)
-          if (ribbon.helixMeshSegmentsB && ribbon.helixMeshSegmentsB[s]) {
-            const meshB = ribbon.helixMeshSegmentsB[s];
-            const baseIndexB = meshB.userData?.tapeTileIndex ?? baseIndex;
-            const materialB = tmB.getOrCreateMaterialForSegment(
-              baseIndexB,
-              flowActive,
-              materialOptions,
-            );
-
-            if (materialB) {
-              meshB.material = materialB;
-              this._flowMaterials.push({
-                mesh: meshB,
-                material: materialB,
-                baseIndex: baseIndexB,
-                tileManager: tmB,
-                materialOptions,
-              });
-            }
-          }
-        }
-
-        globalSegmentIndex++;
       }
     }
 
-    // Store state for detecting changes
-    this._lastTileOffset = this.tileManager.getTileFlowOffset?.() || 0;
-    this._flowWasActive = flowActive;
+    initializer.finish();
+  }
 
-    console.log(
-      `[RibbonSeries] Initialized ${this._flowMaterials.length} materials (flow ${flowActive ? "enabled - dual texture" : "disabled - single texture"}, ${this.tileManagers.length} texture set(s))`,
-    );
+  async initFlowMaterialsAsync({ batchSize = 16 } = {}) {
+    if (!this.tileManager) return;
+
+    const transitionId = ++this._flowMaterialTransitionId;
+    this._flowMaterialsTransitioning = true;
+    try {
+      const initializer = this.#createFlowMaterialInitializer();
+      let globalSegmentIndex = 0;
+      let segmentsSinceYield = 0;
+      const safeBatchSize = Math.max(1, Math.floor(Number(batchSize) || 16));
+
+      for (const ribbon of this.ribbons) {
+        for (let s = 0; s < ribbon.meshSegments.length; s++) {
+          globalSegmentIndex = initializer.processSegment(
+            ribbon,
+            s,
+            globalSegmentIndex,
+          );
+          segmentsSinceYield += 1;
+
+          if (segmentsSinceYield >= safeBatchSize) {
+            segmentsSinceYield = 0;
+            await yieldToBrowser();
+            if (transitionId !== this._flowMaterialTransitionId) {
+              return;
+            }
+          }
+        }
+      }
+
+      if (transitionId === this._flowMaterialTransitionId) {
+        initializer.finish();
+      }
+    } finally {
+      if (transitionId === this._flowMaterialTransitionId) {
+        this._flowMaterialsTransitioning = false;
+      }
+    }
   }
 
   /**
@@ -1031,6 +1101,8 @@ export class RibbonSeries {
    */
   updateFlowMaterials() {
     if (!this.tileManager || !this._flowMaterials) return null;
+
+    if (this._flowMaterialsTransitioning) return null;
 
     // Check if flow state has changed (enabled/disabled)
     const flowActive =

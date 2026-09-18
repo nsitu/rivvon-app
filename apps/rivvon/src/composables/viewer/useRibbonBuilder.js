@@ -349,24 +349,60 @@ export function useRibbonBuilder(ctx) {
      * Set flow animation state
      * @param {string} state - 'off' | 'forward' | 'backward'
      */
-    function setFlowState(state) {
-        const baseSpeed = ctx.app.flowSpeed || 0.25;
-        // Apply flow state to ALL TileManagers (multi-texture mode)
-        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
-        let directionChanged = false;
-        for (const tm of targets) {
-            if (state === 'off') {
-                tm.setFlowEnabled(false);
-            } else {
-                const speed = state === 'forward' ? baseSpeed : -baseSpeed;
-                directionChanged = tm.setFlowSpeed(speed) || directionChanged;
-                tm.setFlowEnabled(true);
-            }
-        }
-        ctx.app.setFlowState(state);
+    let flowTransitionToken = 0;
 
-        if (directionChanged && ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.initFlowMaterials();
+    function yieldToBrowser() {
+        return new Promise((resolve) => {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => setTimeout(resolve, 0));
+                return;
+            }
+
+            setTimeout(resolve, 0);
+        });
+    }
+
+    async function setFlowState(state) {
+        const transitionToken = ++flowTransitionToken;
+        const ribbonSeries = ctx.ribbonSeries.value;
+
+        // Remove the old artwork before starting the expensive material rebuild.
+        // The caller has already updated the store, so the loading overlay can
+        // render during the browser yield below.
+        ribbonSeries?.setVisible?.(false);
+        await yieldToBrowser();
+
+        if (transitionToken !== flowTransitionToken) {
+            return;
+        }
+
+        try {
+            const baseSpeed = ctx.app.flowSpeed || 0.25;
+            // Apply flow state to ALL TileManagers (multi-texture mode)
+            const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+            for (const tm of targets) {
+                if (state === 'off') {
+                    tm.setFlowEnabled(false);
+                } else {
+                    const speed = state === 'forward' ? baseSpeed : -baseSpeed;
+                    tm.setFlowSpeed(speed);
+                    tm.setFlowEnabled(true);
+                }
+            }
+
+            if (ribbonSeries?.initFlowMaterialsAsync) {
+                await ribbonSeries.initFlowMaterialsAsync();
+            } else if (ribbonSeries) {
+                ribbonSeries.initFlowMaterials();
+            }
+
+        } catch (error) {
+            console.error('[ThreeSetup] Failed to apply flow state:', error);
+        }
+
+        if (transitionToken === flowTransitionToken && ctx.app.flowState === state) {
+            ribbonSeries?.setVisible?.(true);
+            ctx.app.finishFlowTransition?.();
         }
     }
 
