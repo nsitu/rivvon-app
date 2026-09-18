@@ -656,7 +656,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @param {Function} options.onProgress - Progress callback (0-1)
      * @param {Function} options.onStatus - Status text callback
      * @param {AbortSignal} options.signal - Optional AbortSignal to cancel export
-    * @param {string} options.artworkMotionMode - 'none' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse' | 'tumbleOrbit'
+    * @param {string} options.artworkMotionMode - 'none' | 'recordedOrbit' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse' | 'tumbleOrbit'
      * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'very-high')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
@@ -715,6 +715,8 @@ export function useSceneExport(ctx, deps = {}) {
             // >= cinematic duration and a near-integer multiple of the texture loop.
             // Cap at 2× cinematic duration to prevent excessively long exports.
             exportDuration = alignDurations(cinematicDuration, loopDuration, fps);
+        } else if (artworkMotionMode === 'recordedOrbit' && ctx.cameraMotion?.hasRecording?.value) {
+            exportDuration = alignDurations(ctx.cameraMotion.getLoopDuration(), loopDuration, fps);
         } else {
             exportDuration = loopDuration;
         }
@@ -732,6 +734,7 @@ export function useSceneExport(ctx, deps = {}) {
 
         // --- Cinematic camera setup for export ---
         let cinematicReady = false;
+        let recordedMotionReady = false;
         if (artworkMotionMode === 'cinematic') {
             const inst = ctx.cinematicCamera.getInstance();
             if (inst) {
@@ -747,6 +750,13 @@ export function useSceneExport(ctx, deps = {}) {
             }
             if (!cinematicReady) {
                 console.warn('[ThreeSetup] Cinematic camera requested but no ROIs — camera will stay fixed');
+            }
+        }
+
+        if (artworkMotionMode === 'recordedOrbit') {
+            recordedMotionReady = Boolean(ctx.cameraMotion?.hasRecording?.value);
+            if (!recordedMotionReady) {
+                console.warn('[ThreeSetup] Recorded camera motion requested but no recording is available — camera will stay fixed');
             }
         }
 
@@ -898,6 +908,8 @@ export function useSceneExport(ctx, deps = {}) {
                 // --- Cinematic camera animation ---
                 if (cinematicReady) {
                     ctx.cinematicCamera.getInstance().updateAtTime(t);
+                } else if (recordedMotionReady) {
+                    ctx.cameraMotion.applyAtTime(t);
                 }
 
                 if (circularTiltReady) {
@@ -1043,6 +1055,8 @@ export function useSceneExport(ctx, deps = {}) {
             hasROIs: ctx.cinematicCamera.hasROIs.value,
             cinematicDuration: ctx.cinematicCamera.getLoopDuration(),
             cinematicAutoDuration: cycleInfo.cinematicAutoDuration,
+            hasRecordedCameraMotion: Boolean(ctx.cameraMotion?.hasRecording?.value),
+            recordedCameraMotionDuration: ctx.cameraMotion?.getLoopDuration?.() ?? 0,
         };
     }
 

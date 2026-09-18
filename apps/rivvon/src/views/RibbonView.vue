@@ -1114,6 +1114,10 @@ const activeToolbarOverlayTitle = computed(() => {
                 handleCinematicClear();
                 break;
             }
+            case 'r': {
+                handleCameraMotionRecord();
+                break;
+            }
             case 'd': {
                 // Toggle the active contextual debug overlay
                 showTechnicalOverlay.value = !showTechnicalOverlay.value;
@@ -1134,6 +1138,7 @@ const activeToolbarOverlayTitle = computed(() => {
         );
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic || cinematic.isPlaying.value) return;
+        threeCanvasRef.value?.cameraMotion?.stopPlayback?.();
         cinematic.captureROI();
     }
 
@@ -1144,6 +1149,7 @@ const activeToolbarOverlayTitle = computed(() => {
         );
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic) return;
+        threeCanvasRef.value?.cameraMotion?.stopPlayback?.();
         const ribbonSeries = threeCanvasRef.value?.ribbonSeries;
         cinematic.togglePlayback(ribbonSeries);
     }
@@ -1155,7 +1161,65 @@ const activeToolbarOverlayTitle = computed(() => {
         );
         const cinematic = threeCanvasRef.value?.cinematicCamera;
         if (!cinematic || cinematic.isPlaying.value) return;
+        threeCanvasRef.value?.cameraMotion?.stopPlayback?.();
         cinematic.clearROIs();
+    }
+
+    function ensureOrbitControlsForCameraMotion() {
+        if (app.viewerControlMode === 'orbit') {
+            return true;
+        }
+
+        forceOrbitControls({
+            reason: 'camera-motion',
+            statusMessage: 'Orbit Controls restored for camera motion recording.',
+        });
+        return app.viewerControlMode === 'orbit';
+    }
+
+    function handleCameraMotionRecord() {
+        const motion = threeCanvasRef.value?.cameraMotion;
+        if (!motion) return;
+
+        if (motion.isRecording.value) {
+            motion.stopRecording();
+            return;
+        }
+
+        if (threeCanvasRef.value?.cinematicCamera?.isPlaying?.value) {
+            threeCanvasRef.value.cinematicCamera.stopPlayback();
+        }
+
+        if (ensureOrbitControlsForCameraMotion()) {
+            motion.startRecording();
+        }
+    }
+
+    function handleCameraMotionPlayback() {
+        const motion = threeCanvasRef.value?.cameraMotion;
+        if (!motion) return;
+
+        if (motion.isPlaying.value || motion.isPreviewing.value) {
+            motion.stopPlayback();
+            return;
+        }
+
+        if (threeCanvasRef.value?.cinematicCamera?.isPlaying?.value) {
+            threeCanvasRef.value.cinematicCamera.stopPlayback();
+        }
+
+        motion.startPlayback();
+    }
+
+    function handleCameraMotionSeek(seconds) {
+        threeCanvasRef.value?.cameraMotion?.seek?.(seconds);
+    }
+
+    function handleCameraMotionClear() {
+        threeCanvasRef.value?.cameraMotion?.clearRecording?.();
+        if (app.artworkMotionMode === 'recordedOrbit') {
+            app.setArtworkMotionMode('none');
+        }
     }
 
     onMounted(() => {
@@ -3835,6 +3899,14 @@ const activeToolbarOverlayTitle = computed(() => {
         <BottomToolbar
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
+            :camera-motion-recording="threeCanvasRef?.cameraMotion?.isRecording?.value ?? false"
+            :camera-motion-playing="threeCanvasRef?.cameraMotion?.isPlaying?.value ?? false"
+            :camera-motion-previewing="threeCanvasRef?.cameraMotion?.isPreviewing?.value ?? false"
+            :camera-motion-has-recording="threeCanvasRef?.cameraMotion?.hasRecording?.value ?? false"
+            :camera-motion-duration="threeCanvasRef?.cameraMotion?.duration?.value ?? 0"
+            :camera-motion-current-time="threeCanvasRef?.cameraMotion?.currentTime?.value ?? 0"
+            :camera-motion-sample-count="threeCanvasRef?.cameraMotion?.sampleCount?.value ?? 0"
+            :camera-motion-closure-duration="threeCanvasRef?.cameraMotion?.closureDuration?.value ?? 0"
             :technical-overlay="showTechnicalOverlay"
             :active-toolbar-overlay="activeToolbarOverlay"
             :can-share-view-url="canShareCurrentViewUrl"
@@ -3874,6 +3946,10 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-cinematic-capture="handleCinematicCapture"
             @request-cinematic-toggle="handleCinematicToggle"
             @request-cinematic-clear="handleCinematicClear"
+            @request-motion-record="handleCameraMotionRecord"
+            @request-motion-playback="handleCameraMotionPlayback"
+            @request-motion-clear="handleCameraMotionClear"
+            @request-motion-seek="handleCameraMotionSeek"
             @request-technical-overlay-toggle="showTechnicalOverlay = !showTechnicalOverlay"
         />
 

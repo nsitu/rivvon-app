@@ -62,12 +62,18 @@
     const cycleCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
     const fps = ref(30);
     const exportOnlyCinematicMode = ref(false);
+    const selectedArtworkMotionMode = ref(
+        app.artworkMotionMode === 'recordedOrbit' ? 'none' : app.artworkMotionMode,
+    );
     const artworkMotionMode = computed({
-        get: () => exportOnlyCinematicMode.value ? 'cinematic' : app.artworkMotionMode,
+        get: () => exportOnlyCinematicMode.value ? 'cinematic' : selectedArtworkMotionMode.value,
         set: (value) => {
             exportOnlyCinematicMode.value = value === 'cinematic';
+            selectedArtworkMotionMode.value = value;
             if (!exportOnlyCinematicMode.value) {
-                app.setArtworkMotionMode(value);
+                if (value !== 'recordedOrbit') {
+                    app.setArtworkMotionMode(value);
+                }
             }
         },
     });
@@ -112,7 +118,7 @@
 
     const artworkMotionOptions = computed(() => {
         const hasROIs = activeModeInfo.value?.hasROIs ?? false;
-        return [
+        const options = [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
             { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
             { label: 'Circular Tilt', value: 'circularTilt', description: 'Artwork tilts through one full 360° rotation over the export duration' },
@@ -120,6 +126,16 @@
             { label: 'Clockwise Orbit', value: 'circularOrbitReverse', description: 'View completes one full clockwise orbit around the artwork center over the export duration' },
             { label: 'Tumble Orbit', value: 'tumbleOrbit', description: 'Artwork follows a seamless organic tumble across all three axes' },
         ];
+
+        if (activeModeInfo.value?.hasRecordedCameraMotion) {
+            options.splice(2, 0, {
+                label: 'Recorded Camera Motion',
+                value: 'recordedOrbit',
+                description: `Replay the captured OrbitControls path, including its ${formatDuration(activeModeInfo.value.recordedCameraMotionDuration || 0)} return loop`,
+            });
+        }
+
+        return options;
     });
 
     const artworkMotionDescription = computed(() => {
@@ -222,6 +238,10 @@
         return activeModeInfo.value?.cinematicAutoDuration ?? seamlessLoopDuration.value;
     });
 
+    const recordedCameraDuration = computed(() => {
+        return activeModeInfo.value?.recordedCameraMotionDuration || seamlessLoopDuration.value;
+    });
+
     const cycleDetails = computed(() => {
         return activeModeInfo.value?.cycleDetails ?? [];
     });
@@ -234,6 +254,9 @@
         if (durationMode.value === 'loop') {
             if (!textureOnlyMode.value && artworkMotionMode.value === 'cinematic') {
                 return cinematicAutoDuration.value * cycleCount.value;
+            }
+            if (!textureOnlyMode.value && artworkMotionMode.value === 'recordedOrbit') {
+                return recordedCameraDuration.value * cycleCount.value;
             }
             return seamlessLoopDuration.value * cycleCount.value;
         }
@@ -254,6 +277,9 @@
                 return `Camera path auto-aligns from ${formatDuration(activeModeInfo.value?.cinematicDuration || 0)} to ${formatDuration(cinematicAutoDuration.value)} for a cleaner seam.`;
             }
             return `No saved cinematic views yet, so auto mode falls back to the ${formatDuration(seamlessLoopDuration.value)} material loop.`;
+        }
+        if (artworkMotionMode.value === 'recordedOrbit') {
+            return `Captured camera movement returns to its starting view after ${formatDuration(recordedCameraDuration.value)}.`;
         }
         if (artworkMotionMode.value === 'circularTilt') {
             return `One full 360° artwork tilt rotation over ${formatDuration(resolvedDuration.value)}.`;
@@ -284,6 +310,9 @@
             }
 
             return `No authored camera loop is available, so auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop.`;
+        }
+        if (artworkMotionMode.value === 'recordedOrbit') {
+            return `Recorded camera motion, including its synthesized return path, repeats every ${formatDuration(recordedCameraDuration.value)} in auto mode.`;
         }
 
         if (artworkMotionMode.value === 'circularTilt') {

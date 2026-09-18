@@ -3,6 +3,7 @@
     import Button from 'primevue/button';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
+    import CameraMotionControls from './CameraMotionControls.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
@@ -194,6 +195,14 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
         cinematicRoiCount: { type: Number, default: 0 },
+        cameraMotionRecording: { type: Boolean, default: false },
+        cameraMotionPlaying: { type: Boolean, default: false },
+        cameraMotionPreviewing: { type: Boolean, default: false },
+        cameraMotionHasRecording: { type: Boolean, default: false },
+        cameraMotionDuration: { type: Number, default: 0 },
+        cameraMotionCurrentTime: { type: Number, default: 0 },
+        cameraMotionSampleCount: { type: Number, default: 0 },
+        cameraMotionClosureDuration: { type: Number, default: 0 },
         technicalOverlay: { type: Boolean, default: false },
         activeToolbarOverlay: { type: String, default: null },
         canShareViewUrl: { type: Boolean, default: false },
@@ -234,6 +243,10 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         'request-cinematic-capture',
         'request-cinematic-toggle',
         'request-cinematic-clear',
+        'request-motion-record',
+        'request-motion-playback',
+        'request-motion-clear',
+        'request-motion-seek',
         'request-technical-overlay-toggle',
         'request-close-export-image',
         'request-close-export-video',
@@ -1234,6 +1247,24 @@ const activeLauncherTitle = computed(() => {
                             @request-cinematic-capture="emit('request-cinematic-capture')"
                             @request-cinematic-toggle="emit('request-cinematic-toggle')"
                             @request-cinematic-clear="emit('request-cinematic-clear')"
+                        />
+                    </div>
+
+                    <div class="tools-section-host">
+                        <CameraMotionControls
+                            :recording="props.cameraMotionRecording"
+                            :playing="props.cameraMotionPlaying"
+                            :previewing="props.cameraMotionPreviewing"
+                            :has-recording="props.cameraMotionHasRecording"
+                            :duration="props.cameraMotionDuration"
+                            :current-time="props.cameraMotionCurrentTime"
+                            :sample-count="props.cameraMotionSampleCount"
+                            :closure-duration="props.cameraMotionClosureDuration"
+                            :disabled="props.cinematicPlaying"
+                            @request-motion-record="emit('request-motion-record')"
+                            @request-motion-playback="emit('request-motion-playback')"
+                            @request-motion-clear="emit('request-motion-clear')"
+                            @request-motion-seek="emit('request-motion-seek', $event)"
                         />
                     </div>
 

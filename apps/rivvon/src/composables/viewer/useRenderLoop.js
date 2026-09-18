@@ -483,6 +483,10 @@ export function useRenderLoop(ctx, deps = {}) {
             const scrollTiltDrivesUndulation = ctx.app.viewerControlMode === 'scrollTilt'
                 && !ctx.cinematicCamera.isPlaying.value
                 && ctx.app.undulationEnabled;
+            const cameraMotionActive = Boolean(
+                ctx.cameraMotion?.isPlaying?.value
+                || ctx.cameraMotion?.isPreviewing?.value
+            );
             
             // Advance KTX2 layer cycling and tile flow (for texture animation)
             // Tick all TileManagers (multi-texture mode)
@@ -525,6 +529,8 @@ export function useRenderLoop(ctx, deps = {}) {
             // Cinematic camera tick (when playing, controls are disabled)
             if (ctx.cinematicCamera.isPlaying.value) {
                 ctx.cinematicCamera.tick(deltaSec);
+            } else if (cameraMotionActive) {
+                ctx.cameraMotion.tick(deltaSec);
             }
 
             if (ctx.app.viewerControlMode === 'headTracking' && !ctx.cinematicCamera.isPlaying.value) {
@@ -551,11 +557,16 @@ export function useRenderLoop(ctx, deps = {}) {
             if (
                 ctx.controls.value
                 && !ctx.cinematicCamera.isPlaying.value
+                && !cameraMotionActive
                 && ctx.app.viewerControlMode === 'orbit'
             ) {
                 ctx.controls.value.update();
             }
             controlsMs = performance.now() - controlsStartMs;
+
+            // Record after OrbitControls.update() so damping and wheel motion
+            // are captured exactly as they appear on screen.
+            ctx.cameraMotion?.sample?.(now);
             
             // Render scene
             const renderStartMs = performance.now();

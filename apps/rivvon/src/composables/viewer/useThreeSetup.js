@@ -20,6 +20,7 @@ import { useSceneLighting } from "./useSceneLighting";
 import { useRibbonBuilder } from "./useRibbonBuilder";
 import { useTextureLoader } from "./useTextureLoader";
 import { useSceneExport } from "./useSceneExport";
+import { useCameraMotionCapture } from "./useCameraMotionCapture";
 
 export function useThreeSetup() {
   const app = useViewerStore();
@@ -91,6 +92,8 @@ export function useThreeSetup() {
   ctx.scrollTilt = scrollTilt;
   const viewerMotion = useViewerMotion(ctx);
   ctx.viewerMotion = viewerMotion;
+  const cameraMotion = useCameraMotionCapture(ctx);
+  ctx.cameraMotion = cameraMotion;
   const renderFilter = useRenderFilter(ctx);
 
   // ── Sub-composables ────────────────────────────────────────────────
@@ -251,6 +254,7 @@ export function useThreeSetup() {
     scrollTilt.deactivate({ restoreBaseline: false });
     viewerMotion.deactivate({ restore: false });
     cinematicCamera.dispose();
+    cameraMotion.dispose();
     renderFilter.disposeRenderFilter();
     lighting.dispose();
 
@@ -321,6 +325,7 @@ export function useThreeSetup() {
     scrollTilt.deactivate({ restoreBaseline: false });
     viewerMotion.deactivate({ restore: false });
     cinematicCamera.dispose();
+    cameraMotion.dispose();
     renderFilter.disposeRenderFilter();
     lighting.dispose();
 
@@ -455,6 +460,7 @@ export function useThreeSetup() {
     setBackgroundFromUrl: background.setBackgroundFromUrl,
     setBackgroundFromTileManager: background.setBackgroundFromTileManager,
     cinematicCamera,
+    cameraMotion,
     headTracking,
     mouseTilt,
     scrollTilt,
