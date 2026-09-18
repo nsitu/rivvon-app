@@ -1191,6 +1191,12 @@ const activeToolbarOverlayTitle = computed(() => {
         }
 
         if (ensureOrbitControlsForCameraMotion()) {
+            // Recording needs the full canvas so the user can freely drag the
+            // OrbitControls. Close any toolbar panel before the capture starts;
+            // the compact recording overlay below is the only UI left on top
+            // of the canvas.
+            activeToolbarOverlay.value = null;
+            app.hideToolsPanel();
             motion.startRecording();
         }
     }
@@ -3895,8 +3901,9 @@ const activeToolbarOverlayTitle = computed(() => {
         <!-- Countdown progress bar -->
         <CountdownProgressBar />
 
-        <!-- Bottom toolbar -->
+        <!-- Bottom toolbar; recording replaces it with a compact capture control. -->
         <BottomToolbar
+            v-if="!threeCanvasRef?.cameraMotion?.isRecording?.value"
             :cinematic-playing="threeCanvasRef?.cinematicCamera?.isPlaying?.value ?? false"
             :cinematic-roi-count="threeCanvasRef?.cinematicCamera?.roiCount?.value ?? 0"
             :camera-motion-recording="threeCanvasRef?.cameraMotion?.isRecording?.value ?? false"
@@ -3952,6 +3959,27 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-motion-seek="handleCameraMotionSeek"
             @request-technical-overlay-toggle="showTechnicalOverlay = !showTechnicalOverlay"
         />
+
+        <Transition name="fade">
+            <div
+                v-if="threeCanvasRef?.cameraMotion?.isRecording?.value"
+                class="camera-motion-recording-overlay"
+                role="status"
+                aria-live="polite"
+            >
+                <span class="camera-motion-recording-dot" aria-hidden="true"></span>
+                <span class="camera-motion-recording-label">Recording camera motion</span>
+                <button
+                    type="button"
+                    class="camera-motion-recording-stop"
+                    aria-label="Stop recording camera motion"
+                    @click="handleCameraMotionRecord"
+                >
+                    <span class="material-symbols-outlined" aria-hidden="true">stop</span>
+                    <span>Stop</span>
+                </button>
+            </div>
+        </Transition>
 
         <TextureMetadataOverlay
             :visible="showTextureMetadataOverlay"
@@ -4187,6 +4215,85 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.walk-canvas.active),
     .ribbon-view .loading-overlay {
         pointer-events: auto;
+    }
+
+    .camera-motion-recording-overlay {
+        position: fixed;
+        top: 1rem;
+        left: 50%;
+        z-index: 11;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        min-height: 2.5rem;
+        padding: 0.35rem 0.45rem 0.35rem 0.7rem;
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(12, 12, 12, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        pointer-events: auto;
+        transform: translateX(-50%);
+    }
+
+    .camera-motion-recording-dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        flex: 0 0 auto;
+        background: #ff4d5e;
+        border-radius: 50%;
+        box-shadow: 0 0 0 0.2rem rgba(255, 77, 94, 0.16);
+        animation: camera-motion-recording-pulse 1.4s ease-in-out infinite;
+    }
+
+    .camera-motion-recording-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+    }
+
+    .camera-motion-recording-stop {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-height: 1.85rem;
+        padding: 0.2rem 0.6rem;
+        color: rgba(255, 255, 255, 0.94);
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.74rem;
+        font-weight: 600;
+    }
+
+    .camera-motion-recording-stop:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .camera-motion-recording-stop:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.85);
+        outline-offset: 2px;
+    }
+
+    .camera-motion-recording-stop .material-symbols-outlined {
+        font-size: 1rem;
+    }
+
+    @keyframes camera-motion-recording-pulse {
+        0%,
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        50% {
+            opacity: 0.5;
+            transform: scale(0.82);
+        }
     }
 
     .checkerboard {
