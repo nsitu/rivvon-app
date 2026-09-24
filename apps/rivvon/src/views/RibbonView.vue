@@ -192,14 +192,14 @@
 
     const activeToolbarOverlay = ref(null);
 const activeToolbarOverlayTitle = computed(() => {
-        if (activeToolbarOverlay.value === 'draw') return 'Draw';
-        if (activeToolbarOverlay.value === 'texture') return 'Texture';
+        if (activeToolbarOverlay.value === 'create') return 'Create';
+        if (activeToolbarOverlay.value === 'browse') return 'Browse';
         if (activeToolbarOverlay.value === 'share') return 'Share';
         return null;
     });
 
     function handleToolbarOverlayChange(nextOverlay) {
-        activeToolbarOverlay.value = ['draw', 'texture', 'share'].includes(nextOverlay)
+        activeToolbarOverlay.value = ['create', 'browse', 'share'].includes(nextOverlay)
             ? nextOverlay
             : null;
     }
@@ -288,7 +288,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         returnToCreateTextureOnRealtimeClose.value = false;
         textureCreatorLaunchSource.value = 'file';
-        textureCreatorReturnOverlay.value = 'texture';
+        textureCreatorReturnOverlay.value = 'create';
 
         if (file) {
             activeToolbarOverlay.value = null;
@@ -2864,6 +2864,41 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     const primaryWorkflowNavigation = computed(() => {
+        if (isVideoPlayerRoute.value) {
+            return {
+                id: 'videoPlayer',
+                group: 'gallery',
+                breadcrumbs: ['Video Gallery', 'Video Player'],
+                statusLabel: null,
+                canGoBack: true,
+                back: () => {
+                    closeVideoPlayer();
+                    return true;
+                },
+                canExit: true,
+                exit: () => {
+                    router.push({ name: 'home' });
+                    return true;
+                },
+            };
+        }
+
+        if (isVideoGalleryRoute.value) {
+            return {
+                id: 'videoGallery',
+                group: 'gallery',
+                breadcrumbs: ['Video Gallery'],
+                statusLabel: null,
+                canGoBack: false,
+                back: () => false,
+                canExit: true,
+                exit: () => {
+                    router.push({ name: 'home' });
+                    return true;
+                },
+            };
+        }
+
         if (textureCreatorVisible.value) {
             return {
                 id: 'textureCreator',
@@ -4113,6 +4148,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :encoded-size="encodedVideoExport.size"
             :can-share="canImageShare"
             :can-publish="isAuthenticated && isAdmin"
+            :is-authenticated="isAuthenticated"
             :publish-state="videoPublishState"
             :can-save-to-drive="isAuthenticated"
             :drive-state="videoDriveState"

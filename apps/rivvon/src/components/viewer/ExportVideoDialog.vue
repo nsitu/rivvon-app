@@ -40,6 +40,7 @@
         encodedSize: { type: Number, default: 0 },
         canShare: { type: Boolean, default: false },
         canPublish: { type: Boolean, default: false },
+        isAuthenticated: { type: Boolean, default: false },
         publishState: { type: Object, default: () => ({}) },
         canSaveToDrive: { type: Boolean, default: false },
         driveState: { type: Object, default: () => ({}) },
@@ -915,6 +916,11 @@
                 </div>
 
                 <PanelActionBar class="export-video-panel-footer">
+                    <template #leading v-if="hasEncodedVideo && !isAuthenticated">
+                        <div class="gallery-login-notice" role="status">
+                            Login required to save this video to the gallery.
+                        </div>
+                    </template>
                     <template v-if="isEncoding || isPublishing || isSavingDrive">
                         <Button
                             type="button"
@@ -985,6 +991,18 @@
                             @click="handlePublish"
                         >
                             <span class="material-symbols-outlined">cloud_upload</span>
+                            Publish
+                        </Button>
+                        <Button
+                            v-else-if="!isAuthenticated"
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
+                            disabled
+                            title="Login required to save this video to the gallery"
+                            aria-label="Login required to save this video to the gallery"
+                        >
+                            <span class="material-symbols-outlined">video_library</span>
                             Publish
                         </Button>
                         <Button
@@ -1069,6 +1087,11 @@
 
     .export-video-panel-footer {
         --panel-action-bar-padding: 0.85rem 0 0;
+    }
+
+    .gallery-login-notice {
+        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.7));
+        font-size: 0.82rem;
     }
 
     .publish-video-card {

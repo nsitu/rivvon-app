@@ -384,29 +384,30 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         return viewerToolbarContextMap.value[contextId]?.isActive?.() ?? false;
     }
 
-    const drawGroupActive = computed(() => (
+    const createGroupActive = computed(() => (
         props.navigationWorkflowGroup === 'draw'
-        || props.navigationWorkflowGroup === 'drawings'
         || isToolbarContextActive('draw')
         || isToolbarContextActive('walk')
-        || isToolbarContextActive('drawings')
         || isToolbarContextActive('text')
         || isToolbarContextActive('emoji')
         || isToolbarContextActive('contour')
         || isToolbarContextActive('sineWave')
         || isToolbarContextActive('clock')
         || isToolbarContextActive('mobius')
+        || isToolbarContextActive('textureCreator')
+        || isToolbarContextActive('realtimeSampler')
+        || props.activeToolbarOverlay === 'create'
     ));
 
-    const textureGroupActive = computed(() => (
-        props.navigationWorkflowGroup === 'texture'
-        || isToolbarContextActive('textureCreator')
+    const browseGroupActive = computed(() => (
+        props.navigationWorkflowGroup === 'drawings'
+        || isToolbarContextActive('drawings')
         || isToolbarContextActive('textureBrowser')
-        || isToolbarContextActive('realtimeSampler')
+        || props.activeToolbarOverlay === 'browse'
     ));
 
     const showVideoDropZone = computed(() => (
-        props.activeToolbarOverlay === 'texture' && isFinePointerDevice.value
+        props.activeToolbarOverlay === 'create' && isFinePointerDevice.value
     ));
     const isVideoDragActive = ref(false);
     let videoDragDepth = 0;
@@ -663,12 +664,12 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     }
 
     const activeLauncherSections = computed(() => {
-        if (props.activeToolbarOverlay === 'draw') {
-            return drawLauncherSections.value;
+        if (props.activeToolbarOverlay === 'create') {
+            return createLauncherSections.value;
         }
 
-        if (props.activeToolbarOverlay === 'texture') {
-            return textureLauncherSections.value;
+        if (props.activeToolbarOverlay === 'browse') {
+            return browseLauncherSections.value;
         }
 
         if (props.activeToolbarOverlay === 'share') {
@@ -679,8 +680,8 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     });
 
 const activeLauncherTitle = computed(() => {
-        if (props.activeToolbarOverlay === 'draw') return 'Draw';
-        if (props.activeToolbarOverlay === 'texture') return 'Texture';
+        if (props.activeToolbarOverlay === 'create') return 'Create';
+        if (props.activeToolbarOverlay === 'browse') return 'Browse';
         if (props.activeToolbarOverlay === 'share') return 'Share';
         return '';
     });
@@ -839,6 +840,44 @@ const activeLauncherTitle = computed(() => {
         }
     ]);
 
+    const createLauncherSections = computed(() => ([
+        {
+            label: 'Drawing',
+            items: drawLauncherSections.value[0].items,
+        },
+        {
+            label: 'Procedural Art',
+            items: drawLauncherSections.value[1].sections[0].items,
+        },
+        {
+            label: 'Texture',
+            items: textureLauncherSections.value[0].items,
+        },
+    ]));
+
+    const browseLauncherSections = computed(() => ([
+        {
+            label: 'Drawing',
+            items: [drawLauncherSections.value[1].sections[1].items[0]],
+        },
+        {
+            label: 'Texture',
+            items: textureLauncherSections.value[1].items,
+        },
+        {
+            label: 'Gallery',
+            items: [
+                {
+                    label: 'Browse',
+                    contextLabel: 'Video Gallery',
+                    description: 'View and play published videos.',
+                    icon: 'video_library',
+                    command: () => handleOpenGallery(),
+                },
+            ],
+        },
+    ]));
+
     const shareLauncherItems = computed(() => ([
         {
             label: 'Export Image',
@@ -877,15 +916,15 @@ const activeLauncherTitle = computed(() => {
             <button
                 type="button"
                 class="toolbar-main-button"
-                :class="{ active: drawGroupActive || props.activeToolbarOverlay === 'draw' }"
-                :aria-expanded="props.activeToolbarOverlay === 'draw'"
-                aria-label="Draw actions"
+                :class="{ active: createGroupActive }"
+                :aria-expanded="props.activeToolbarOverlay === 'create'"
+                aria-label="Create actions"
                 aria-haspopup="dialog"
-                @click="toggleLauncher('draw')"
+                @click="toggleLauncher('create')"
             >
                 <span class="toolbar-button-content">
-                    <span class="material-symbols-outlined toolbar-button-icon">draw</span>
-                    <span class="toolbar-button-label">Draw</span>
+                    <span class="material-symbols-outlined toolbar-button-icon">add</span>
+                    <span class="toolbar-button-label">Create</span>
                 </span>
             </button>
         </div>
@@ -894,15 +933,15 @@ const activeLauncherTitle = computed(() => {
             <button
                 type="button"
                 class="toolbar-main-button"
-                :class="{ active: textureGroupActive || props.activeToolbarOverlay === 'texture' }"
-                :aria-expanded="props.activeToolbarOverlay === 'texture'"
-                aria-label="Texture actions"
+                :class="{ active: browseGroupActive }"
+                :aria-expanded="props.activeToolbarOverlay === 'browse'"
+                aria-label="Browse actions"
                 aria-haspopup="dialog"
-                @click="toggleLauncher('texture')"
+                @click="toggleLauncher('browse')"
             >
                 <span class="toolbar-button-content">
-                    <span class="material-symbols-outlined toolbar-button-icon">texture</span>
-                    <span class="toolbar-button-label">Texture</span>
+                    <span class="material-symbols-outlined toolbar-button-icon">grid_view</span>
+                    <span class="toolbar-button-label">Browse</span>
                 </span>
             </button>
         </div>
@@ -916,19 +955,6 @@ const activeLauncherTitle = computed(() => {
             <span class="toolbar-button-content">
                 <span class="material-symbols-outlined toolbar-button-icon">instant_mix</span>
                 <span class="toolbar-button-label">Tools</span>
-            </span>
-        </button>
-
-        <!-- Video gallery -->
-        <button
-            type="button"
-            class="toolbar-utility-button"
-            aria-label="Gallery"
-            @click="handleOpenGallery"
-        >
-            <span class="toolbar-button-content">
-                <span class="material-symbols-outlined toolbar-button-icon">video_library</span>
-                <span class="toolbar-button-label">Gallery</span>
             </span>
         </button>
 
@@ -964,7 +990,7 @@ const activeLauncherTitle = computed(() => {
         class="launcher-panel"
         :class="{
             active: !!props.activeToolbarOverlay,
-            'texture-launcher-panel': props.activeToolbarOverlay === 'texture',
+            'create-launcher-panel': props.activeToolbarOverlay === 'create',
         }"
         role="dialog"
         :aria-label="`${activeLauncherTitle} actions`"
@@ -1491,22 +1517,22 @@ const activeLauncherTitle = computed(() => {
             gap: 1.5rem;
         }
 
-        .texture-launcher-panel .launcher-panel-content {
+        .create-launcher-panel .launcher-panel-content {
             display: grid;
-            grid-template-columns: repeat(2, minmax(15rem, 22rem));
+            grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
             justify-content: center;
             align-content: end;
             align-items: start;
         }
 
-        .texture-launcher-panel .launcher-panel-content > .video-drop-section {
-            grid-column: 1 / -1;
-            grid-row: 1;
+        .create-launcher-panel .launcher-panel-content > .video-drop-section {
+            grid-column: span 1;
+            grid-row: auto;
             width: 100%;
             max-width: none;
         }
 
-        .texture-launcher-panel .launcher-panel-content > .tools-section:not(.video-drop-section) {
+        .create-launcher-panel .launcher-panel-content > .tools-section:not(.video-drop-section) {
             width: 100%;
         }
     }

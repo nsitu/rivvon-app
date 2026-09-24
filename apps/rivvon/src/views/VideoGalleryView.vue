@@ -284,80 +284,94 @@
 <template>
     <main class="video-gallery-panel">
         <div class="video-gallery-content viewer-chrome-panel-container">
-            <div class="gallery-controls">
-                <nav class="gallery-tabs" aria-label="Video collections">
-                    <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
-                    <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
-                </nav>
-                <Button
-                    v-if="canUpload"
-                    type="button"
-                    class="gallery-upload-button"
-                    @click="openUploadDialog"
-                >
-                    <span class="material-symbols-outlined">upload_file</span>
-                    Upload video
-                </Button>
-            </div>
-
-            <section v-if="isMyVideos && !isAuthenticated" class="gallery-empty">
-                <span class="material-symbols-outlined">login</span>
-                <h2>Sign in to see your videos</h2>
-                <p>Private and public videos you publish will appear here.</p>
-                <Button @click="login">Sign in</Button>
-            </section>
-            <section v-else-if="isLoading" class="gallery-empty" aria-live="polite">
-                <span class="material-symbols-outlined gallery-spinner">progress_activity</span>
-                <h2>Loading videos…</h2>
-            </section>
-            <section v-else-if="error" class="gallery-empty gallery-error" role="alert">
-                <span class="material-symbols-outlined">warning</span>
-                <h2>Gallery unavailable</h2>
-                <p>{{ error }}</p>
-                <Button severity="secondary" @click="loadVideos">Try again</Button>
-            </section>
-            <section v-else-if="videos.length === 0" class="gallery-empty">
-                <span class="material-symbols-outlined">video_library</span>
-                <h2>{{ isMyVideos ? 'No published videos yet' : 'The gallery is waiting for its first video' }}</h2>
-                <p>Render a video from the viewer, then choose Publish to Gallery.</p>
-                <RouterLink to="/" class="gallery-primary-link">Open the viewer</RouterLink>
-            </section>
-            <section v-else class="video-card-grid" aria-live="polite">
-                <article v-for="video in videos" :key="video.id" class="video-card">
-                    <RouterLink :to="{ name: 'video-player', params: { videoId: video.id } }" class="video-card-poster">
-                        <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="`Poster for ${video.name}`">
-                        <span v-else class="video-card-placeholder material-symbols-outlined">movie</span>
-                        <span class="video-card-play material-symbols-outlined">play_circle</span>
-                        <span class="video-card-duration">{{ formatDuration(video.duration) }}</span>
-                    </RouterLink>
-                    <div class="video-card-content">
-                        <div class="video-card-title-row">
-                            <div>
-                                <h2>{{ video.name }}</h2>
-                                <p v-if="video.description">{{ video.description }}</p>
-                            </div>
-                            <span v-if="!video.is_public" class="private-badge">Private</span>
-                        </div>
-                        <div class="video-card-meta">
-                            <span>{{ video.width }}×{{ video.height }}</span>
-                            <span>{{ video.format.toUpperCase() }}</span>
-                            <span>{{ formatFileSize(video.file_size) }}</span>
-                        </div>
-                        <div class="video-card-footer">
-                            <span>{{ video.owner_name || 'Rivvon artist' }} · {{ formatDate(video.created_at) }}</span>
-                            <button
-                                v-if="isMyVideos"
-                                class="delete-video-button"
-                                :disabled="deletingIds.has(video.id)"
-                                :aria-label="`Delete ${video.name}`"
-                                @click="deleteVideo(video)"
-                            >
-                                <span class="material-symbols-outlined">delete</span>
-                            </button>
-                        </div>
+            <div class="video-gallery-scroll">
+                <div class="gallery-controls">
+                    <nav class="gallery-tabs" aria-label="Video collections">
+                        <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
+                        <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
+                    </nav>
+                    <div v-if="canUpload || !isAuthenticated" class="gallery-upload-action">
+                        <span
+                            v-if="!isAuthenticated"
+                            id="gallery-upload-login-notice"
+                            class="gallery-upload-login-notice"
+                            role="status"
+                        >
+                            Login required to upload videos.
+                        </span>
+                        <Button
+                            type="button"
+                            class="gallery-upload-button"
+                            :disabled="!canUpload"
+                            :title="!canUpload ? 'Login required to upload videos' : undefined"
+                            :aria-describedby="!canUpload ? 'gallery-upload-login-notice' : undefined"
+                            @click="openUploadDialog"
+                        >
+                            <span class="material-symbols-outlined">upload_file</span>
+                            Upload video
+                        </Button>
                     </div>
-                </article>
-            </section>
+                </div>
+
+                <section v-if="isMyVideos && !isAuthenticated" class="gallery-empty">
+                    <span class="material-symbols-outlined">login</span>
+                    <h2>Sign in to see your videos</h2>
+                    <p>Private and public videos you publish will appear here.</p>
+                    <Button @click="login">Sign in</Button>
+                </section>
+                <section v-else-if="isLoading" class="gallery-empty" aria-live="polite">
+                    <span class="material-symbols-outlined gallery-spinner">progress_activity</span>
+                    <h2>Loading videos…</h2>
+                </section>
+                <section v-else-if="error" class="gallery-empty gallery-error" role="alert">
+                    <span class="material-symbols-outlined">warning</span>
+                    <h2>Gallery unavailable</h2>
+                    <p>{{ error }}</p>
+                    <Button severity="secondary" @click="loadVideos">Try again</Button>
+                </section>
+                <section v-else-if="videos.length === 0" class="gallery-empty">
+                    <span class="material-symbols-outlined">video_library</span>
+                    <h2>{{ isMyVideos ? 'No published videos yet' : 'The gallery is waiting for its first video' }}</h2>
+                    <p>Render a video from the viewer, then choose Publish to Gallery.</p>
+                    <RouterLink to="/" class="gallery-primary-link">Open the viewer</RouterLink>
+                </section>
+                <section v-else class="video-card-grid" aria-live="polite">
+                    <article v-for="video in videos" :key="video.id" class="video-card">
+                        <RouterLink :to="{ name: 'video-player', params: { videoId: video.id } }" class="video-card-poster">
+                            <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="`Poster for ${video.name}`">
+                            <span v-else class="video-card-placeholder material-symbols-outlined">movie</span>
+                            <span class="video-card-play material-symbols-outlined">play_circle</span>
+                            <span class="video-card-duration">{{ formatDuration(video.duration) }}</span>
+                        </RouterLink>
+                        <div class="video-card-content">
+                            <div class="video-card-title-row">
+                                <div>
+                                    <h2>{{ video.name }}</h2>
+                                    <p v-if="video.description">{{ video.description }}</p>
+                                </div>
+                                <span v-if="!video.is_public" class="private-badge">Private</span>
+                            </div>
+                            <div class="video-card-meta">
+                                <span>{{ video.width }}×{{ video.height }}</span>
+                                <span>{{ video.format.toUpperCase() }}</span>
+                                <span>{{ formatFileSize(video.file_size) }}</span>
+                            </div>
+                            <div class="video-card-footer">
+                                <span>{{ video.owner_name || 'Rivvon artist' }} · {{ formatDate(video.created_at) }}</span>
+                                <button
+                                    v-if="isMyVideos"
+                                    class="delete-video-button"
+                                    :disabled="deletingIds.has(video.id)"
+                                    :aria-label="`Delete ${video.name}`"
+                                    @click="deleteVideo(video)"
+                                >
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                </section>
+            </div>
         </div>
 
         <Teleport to="body">
@@ -499,16 +513,20 @@
         color: #f8fafc;
         background: #1a1a1a;
     }
-    .video-gallery-content { flex: 1; min-height: 0; overflow-y: auto; padding-inline: 20px; width: 100%; }
+    .video-gallery-content { display: flex; flex: 1; min-height: 0; flex-direction: column; width: 100%; }
+    .video-gallery-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; width: 100%; }
     .gallery-controls { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .gallery-upload-action { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
+    .gallery-upload-login-notice { color: #929292; font-size: .8rem; }
     .gallery-upload-button { flex-shrink: 0; white-space: nowrap; }
     .gallery-upload-button .material-symbols-outlined { font-size: 1.1rem; }
     .gallery-tabs { display: flex; flex-wrap: wrap; gap: .55rem; }
-    .gallery-tabs button { min-height: 2.8rem; padding: .55rem 1.1rem; border: 1px solid #3c3c3c; border-radius: .6rem; color: #a8a8a8; background: #202020; cursor: pointer; font: inherit; transition: border-color .15s ease, color .15s ease, background .15s ease; }
+    .gallery-tabs button { min-height: 2.8rem; padding: .55rem 1.1rem; border: 1px solid #555; border-radius: 8px; color: #888; background: transparent; cursor: pointer; font: inherit; transition: border-color .2s ease, color .2s ease, background .2s ease; }
     .gallery-tabs button:hover { border-color: #5a5a5a; color: #e6e6e6; }
-    .gallery-tabs button.active { border-color: #3fae55; color: #65c878; background: #17271a; }
-    .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 1.25rem; }
-    .video-card { overflow: hidden; border: 1px solid #345379; border-radius: 0; background: #252525; box-shadow: none; }
+    .gallery-tabs button.active { border-color: #4caf50; color: #4caf50; background: rgba(76, 175, 80, .1); }
+    .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 20px; }
+    .video-card { overflow: hidden; border: 2px solid transparent; border-radius: 0; background: #252525; box-shadow: none; transition: all .2s ease; }
+    .video-card:hover { border-color: #4caf50; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .3); }
     .video-card-poster { position: relative; display: grid; aspect-ratio: 16 / 9; overflow: hidden; background: #080910; place-items: center; }
     .video-card-poster img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
     .video-card:hover img { transform: scale(1.025); }
@@ -581,6 +599,7 @@
 
     @media (max-width: 600px) {
         .gallery-controls { align-items: stretch; flex-direction: column; }
+        .gallery-upload-action { align-items: stretch; flex-direction: column; }
         .gallery-upload-button { width: 100%; }
         .gallery-selected-file { flex-wrap: wrap; }
         .gallery-selected-file-meta { width: 100%; margin-left: 1.6rem; }
