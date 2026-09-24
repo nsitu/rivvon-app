@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
+import Slider from 'primevue/slider';
 import { useRouter } from 'vue-router';
 import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
 import { createAudioWaveform, inspectAudioSource, trimAudioSource } from '../../modules/viewer/audioProcessing.js';
@@ -32,6 +33,19 @@ let activeHandle = null;
 const hasSource = computed(() => Boolean(sourceFile.value && sourceMetadata.value));
 const sourceIsVideo = computed(() => sourceFile.value?.type?.startsWith('video/'));
 const selectedDuration = computed(() => Math.max(0, end.value - start.value));
+const trimRange = computed({
+    get: () => [start.value, end.value],
+    set: (value) => {
+        if (!Array.isArray(value) || value.length < 2) return;
+        const duration = sourceMetadata.value?.duration || 0;
+        const nextStart = Math.max(0, Math.min(Number(value[0]) || 0, duration));
+        const nextEnd = Math.max(0, Math.min(Number(value[1]) || 0, duration));
+        if (nextEnd - nextStart < .05) return;
+        start.value = nextStart;
+        end.value = nextEnd;
+        if (playhead.value < nextStart || playhead.value > nextEnd) seekTo(nextStart);
+    },
+});
 const startPercent = computed(() => sourceMetadata.value?.duration ? (start.value / sourceMetadata.value.duration) * 100 : 0);
 const endPercent = computed(() => sourceMetadata.value?.duration ? (end.value / sourceMetadata.value.duration) * 100 : 100);
 
@@ -113,18 +127,6 @@ function beginWaveformPointer(event) {
     handleWaveformPointer(event);
     window.addEventListener('pointermove', handleWaveformPointer);
     window.addEventListener('pointerup', releaseWaveformPointer, { once: true });
-}
-
-function setStart(value) {
-    start.value = Math.min(Math.max(0, Number(value) || 0), end.value - .05);
-    if (playhead.value < start.value) seekTo(start.value);
-    drawWaveform();
-}
-
-function setEnd(value) {
-    end.value = Math.max(Math.min(sourceMetadata.value?.duration || 0, Number(value) || 0), start.value + .05);
-    if (playhead.value > end.value) seekTo(end.value);
-    drawWaveform();
 }
 
 function clearSource() {
@@ -266,12 +268,22 @@ onBeforeUnmount(() => {
                         <div class="selection-window" :style="{ left: `${startPercent}%`, width: `${endPercent - startPercent}%` }"></div>
                     </div>
                     <div class="trim-controls">
-                        <label>Start {{ formatDuration(start) }}
-                            <input type="range" min="0" :max="sourceMetadata.duration" step="0.01" :value="start" @input="setStart($event.target.value)">
-                        </label>
-                        <label>End {{ formatDuration(end) }}
-                            <input type="range" min="0" :max="sourceMetadata.duration" step="0.01" :value="end" @input="setEnd($event.target.value)">
-                        </label>
+                        <div class="trim-controls-heading">
+                            <span>Trim range</span>
+                            <strong>{{ formatDuration(start) }} – {{ formatDuration(end) }}</strong>
+                        </div>
+                        <Slider
+                            v-model="trimRange"
+                            range
+                            :min="0"
+                            :max="sourceMetadata.duration"
+                            :step="0.01"
+                            class="audio-trim-slider"
+                        />
+                        <div class="trim-controls-caption">
+                            <span>Start</span>
+                            <span>End</span>
+                        </div>
                     </div>
 
                     <div class="audio-preview">
@@ -320,9 +332,14 @@ h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
 .waveform-shell { position: relative; height: 11rem; margin-top: 1rem; overflow: hidden; border: 1px solid #334155; touch-action: none; }
 .waveform-shell canvas { position: relative; z-index: 1; display: block; width: 100%; height: 100%; cursor: ew-resize; }
 .selection-window { position: absolute; z-index: 2; top: 0; bottom: 0; border-inline: 2px solid #f8fafc; background: rgba(96, 165, 250, .11); pointer-events: none; }
-.trim-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
-.trim-controls label, .audio-title-field label { display: grid; gap: .45rem; color: #cbd5e1; font-size: .8rem; }
-.trim-controls input { width: 100%; accent-color: #60a5fa; }
+.trim-controls { display: grid; gap: .65rem; margin: 1rem 0; padding: .75rem; border: 1px solid #26364d; }
+.trim-controls-heading, .trim-controls-caption { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #cbd5e1; font-size: .8rem; }
+.trim-controls-heading strong { color: #f8fafc; font-weight: 500; }
+.trim-controls-caption { color: #94a3b8; font-size: .72rem; }
+.audio-trim-slider { width: calc(100% - 1rem); margin: 0 .5rem; }
+:deep(.audio-trim-slider .p-slider-handle) { background: #60a5fa; border-color: #60a5fa; }
+:deep(.audio-trim-slider .p-slider-range) { background: #60a5fa; }
+.audio-title-field label { display: grid; gap: .45rem; color: #cbd5e1; font-size: .8rem; }
 .audio-preview { margin: 1rem 0; }
 .audio-preview audio, .audio-preview video { display: block; width: 100%; max-height: 18rem; background: #05070d; }
 .audio-title-field { max-width: 32rem; }
