@@ -1737,6 +1737,14 @@ export const useViewerStore = defineStore("viewer", {
       hideViewerFlag(this, VIEWER_PANEL_KEYS.texturePreview);
     },
 
+    showAudioCreator() {
+      showViewerFlag(this, VIEWER_PANEL_KEYS.audioCreator);
+    },
+
+    hideAudioCreator() {
+      hideViewerFlag(this, VIEWER_PANEL_KEYS.audioCreator);
+    },
+
     showToolsPanel() {
       showViewerFlag(this, VIEWER_PANEL_KEYS.tools);
       this.captureToolsPanelOriginalState();

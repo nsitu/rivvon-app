@@ -36,3 +36,7 @@ export function buildVideoR2Key(videoId: string, extension: string): string {
 export function buildVideoThumbnailR2Key(videoId: string, extension: string): string {
     return `video-thumbnails/${videoId}.${extension}`;
 }
+
+export function buildAudioR2Key(audioId: string, extension = 'mp4'): string {
+    return `audio/${audioId}/audio.${extension}`;
+}

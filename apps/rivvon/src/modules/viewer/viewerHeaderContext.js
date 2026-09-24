@@ -8,6 +8,7 @@ const DEFAULT_VIEWER_CONTEXT_ORDER = [
     'drawings',
     'realtimeSampler',
     'textureCreator',
+    'audioCreator',
     'texturePreview',
     'textureBrowser',
     'emoji',
@@ -75,6 +76,14 @@ const VIEWER_CONTEXT_DEFINITIONS = {
             }
 
             app.hideSlyce();
+            return true;
+        },
+    },
+    audioCreator: {
+        title: 'Create Audio',
+        isActive: (app) => isViewerPanelVisible(app, 'audioCreator'),
+        close: (app) => {
+            app.hideAudioCreator();
             return true;
         },
     },

@@ -7,6 +7,8 @@ import { drawingRoutes } from './routes/drawings';
 import { authRoutes } from './routes/auth';
 import { myVideoRoutes, videoRoutes } from './routes/videos';
 import { videoUploadRoutes } from './routes/videoUpload';
+import { audioRoutes } from './routes/audios';
+import { audioUploadRoutes } from './routes/audioUpload';
 import { verifySession } from './middleware/session';
 import type { AppEnv } from './types/hono';
 import { isAdminRequest, queryAccessibleRows } from './utils/resourceAccess';
@@ -101,5 +103,7 @@ app.route('/drawings', drawingRoutes);
 app.route('/videos', videoRoutes);
 app.route('/my-videos', myVideoRoutes);
 app.route('/video', videoUploadRoutes);
+app.route('/audios', audioRoutes);
+app.route('/audio', audioUploadRoutes);
 
 export default app;

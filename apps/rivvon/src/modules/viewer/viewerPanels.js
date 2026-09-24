@@ -4,6 +4,7 @@ export const VIEWER_PANEL_KEYS = Object.freeze({
     texturePreview: 'texturePreviewVisible',
     drawings: 'drawingBrowserVisible',
     textureCreator: 'textureCreatorVisible',
+    audioCreator: 'audioCreatorVisible',
     realtimeSampler: 'realtimeSamplerVisible',
     tools: 'toolsPanelVisible',
     emoji: 'emojiPickerVisible',

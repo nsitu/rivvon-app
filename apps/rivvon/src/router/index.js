@@ -27,6 +27,17 @@ const routes = [
         component: () => import('../views/RibbonView.vue'),
         props: true
     },
+    {
+        path: '/audios',
+        name: 'audio-library',
+        component: () => import('../views/RibbonView.vue')
+    },
+    {
+        path: '/audio/:audioId',
+        name: 'audio-player',
+        component: () => import('../views/RibbonView.vue'),
+        props: true
+    },
     
     // ============ SLYCE ROUTES ============
     {

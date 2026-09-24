@@ -191,6 +191,12 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         router.push({ name: 'video-gallery' });
     }
 
+    function handleOpenAudioLibrary() {
+        closeLaunchers();
+        app.hideToolsPanel();
+        router.push({ name: 'audio-library' });
+    }
+
     // Cinematic camera props (reactive state from composable)
     const props = defineProps({
         cinematicPlaying: { type: Boolean, default: false },
@@ -231,6 +237,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         'request-open-texture-file',
         'request-open-texture-camera',
         'request-open-texture-browser',
+        'request-open-audio-creator',
         'request-close-realtime-mode',
         'request-import-file',
         'request-export-image',
@@ -265,7 +272,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     ));
 
     const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
-        order: ['walk', 'draw', 'drawings', 'textureCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'mobius', 'tools', 'about', 'realtimeSampler'],
+        order: ['walk', 'draw', 'drawings', 'textureCreator', 'audioCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'mobius', 'tools', 'about', 'realtimeSampler'],
         onCloseRealtimeMode: (payload) => emit('request-close-realtime-mode', payload),
         onResetSlyceProcessing: () => slyce.resetProcessing(),
         isSlyceProcessing: isSlyceProcessing.value,
@@ -313,6 +320,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         viewerToolbarContextMap.value.draw,
         viewerToolbarContextMap.value.drawings,
         viewerToolbarContextMap.value.textureCreator,
+        viewerToolbarContextMap.value.audioCreator,
         viewerToolbarContextMap.value.textureBrowser,
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
@@ -339,6 +347,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         viewerToolbarContextMap.value.draw,
         viewerToolbarContextMap.value.drawings,
         viewerToolbarContextMap.value.textureCreator,
+        viewerToolbarContextMap.value.audioCreator,
         viewerToolbarContextMap.value.textureBrowser,
         viewerToolbarContextMap.value.text,
         viewerToolbarContextMap.value.emoji,
@@ -853,6 +862,19 @@ const activeLauncherTitle = computed(() => {
             label: 'Texture',
             items: textureLauncherSections.value[0].items,
         },
+        {
+            label: 'Audio',
+            items: [
+                {
+                    contextLabel: 'Audio File',
+                    label: 'Create...',
+                    description: 'Trim audio from an audio or video file.',
+                    icon: 'equalizer',
+                    active: isToolbarContextActive('audioCreator'),
+                    command: () => toggleContextItem('audioCreator', () => emit('request-open-audio-creator')),
+                },
+            ],
+        },
     ]));
 
     const browseLauncherSections = computed(() => ([
@@ -873,6 +895,13 @@ const activeLauncherTitle = computed(() => {
                     description: 'View and play published videos.',
                     icon: 'video_library',
                     command: () => handleOpenGallery(),
+                },
+                {
+                    label: 'Browse',
+                    contextLabel: 'Audio Library',
+                    description: 'Play and manage your saved audio.',
+                    icon: 'equalizer',
+                    command: () => handleOpenAudioLibrary(),
                 },
             ],
         },

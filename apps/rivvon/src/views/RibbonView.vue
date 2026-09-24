@@ -44,9 +44,12 @@
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
+    const AudioCreator = defineAsyncComponent(() => import('../components/viewer/AudioCreator.vue'));
     const BetaModal = defineAsyncComponent(() => import('../components/viewer/BetaModal.vue'));
     const VideoGalleryPanel = defineAsyncComponent(() => import('./VideoGalleryView.vue'));
     const VideoPlayerPanel = defineAsyncComponent(() => import('./VideoPlayerView.vue'));
+    const AudioLibraryPanel = defineAsyncComponent(() => import('./AudioLibraryView.vue'));
+    const AudioPlayerPanel = defineAsyncComponent(() => import('./AudioPlayerView.vue'));
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
     const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
@@ -66,6 +69,8 @@
     const router = useRouter();
     const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
     const isVideoPlayerRoute = computed(() => route.name === 'video-player');
+    const isAudioLibraryRoute = computed(() => route.name === 'audio-library');
+    const isAudioPlayerRoute = computed(() => route.name === 'audio-player');
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
     const {
@@ -106,6 +111,7 @@
     const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
     const texturePreviewVisible = createViewerPanelVisibility('texturePreview');
     const textureCreatorVisible = createViewerPanelVisibility('textureCreator');
+    const audioCreatorVisible = createViewerPanelVisibility('audioCreator');
     const realtimeSamplerVisible = createViewerPanelVisibility('realtimeSampler');
     const isNarrowViewport = ref(false);
 
@@ -2864,6 +2870,41 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     const primaryWorkflowNavigation = computed(() => {
+        if (isAudioPlayerRoute.value) {
+            return {
+                id: 'audioPlayer',
+                group: 'audio',
+                breadcrumbs: ['Audio Library', 'Audio Player'],
+                statusLabel: null,
+                canGoBack: true,
+                back: () => {
+                    closeAudioPlayer();
+                    return true;
+                },
+                canExit: true,
+                exit: () => {
+                    router.push({ name: 'home' });
+                    return true;
+                },
+            };
+        }
+
+        if (isAudioLibraryRoute.value) {
+            return {
+                id: 'audioLibrary',
+                group: 'audio',
+                breadcrumbs: ['Audio Library'],
+                statusLabel: null,
+                canGoBack: false,
+                back: () => false,
+                canExit: true,
+                exit: () => {
+                    router.push({ name: 'home' });
+                    return true;
+                },
+            };
+        }
+
         if (isVideoPlayerRoute.value) {
             return {
                 id: 'videoPlayer',
@@ -3145,6 +3186,16 @@ const activeToolbarOverlayTitle = computed(() => {
 
     const activePanelContext = computed(() => resolveOrderedContext([
         {
+            title: 'Audio Player',
+            isActive: () => isAudioPlayerRoute.value,
+            close: () => closeAudioPlayer(),
+        },
+        {
+            title: 'Audio Library',
+            isActive: () => isAudioLibraryRoute.value,
+            close: () => closeAudioLibrary(),
+        },
+        {
             title: 'Video Player',
             isActive: () => isVideoPlayerRoute.value,
             close: () => closeVideoPlayer(),
@@ -3196,6 +3247,14 @@ const activeToolbarOverlayTitle = computed(() => {
         if (isVideoPlayerRoute.value) {
             router.push({ name: 'video-gallery' });
         }
+    }
+
+    function closeAudioLibrary() {
+        if (isAudioLibraryRoute.value) router.push({ name: 'home' });
+    }
+
+    function closeAudioPlayer() {
+        if (isAudioPlayerRoute.value) router.push({ name: 'audio-library' });
     }
 
     function handleExportVideoDialogVisibleChange(visible) {
@@ -3395,6 +3454,11 @@ const activeToolbarOverlayTitle = computed(() => {
 
     function openDrawingBrowser() {
         app.showDrawingBrowser();
+    }
+
+    function openAudioCreator() {
+        app.hideToolsPanel();
+        app.showAudioCreator();
     }
 
     async function resolveSavedDrawingPaths(drawing) {
@@ -3962,6 +4026,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-enter-walk-mode="enterWalkMode"
             @request-enter-contour-mode="enterContourMode"
             @request-open-drawing-browser="openDrawingBrowser"
+            @request-open-audio-creator="openAudioCreator"
             @request-open-texture-file="openCreateTextureFileMode"
             @request-open-texture-camera="openCreateTextureCameraMode"
             @request-close-realtime-mode="handleRealtimeClose"
@@ -4108,6 +4173,14 @@ const activeToolbarOverlayTitle = computed(() => {
             v-if="isVideoPlayerRoute"
         />
 
+        <AudioLibraryPanel
+            v-if="isAudioLibraryRoute"
+        />
+
+        <AudioPlayerPanel
+            v-if="isAudioPlayerRoute"
+        />
+
         <!-- Full-page Slyce panel (like drawing mode) -->
         <TextureCreator
             ref="textureCreatorRef"
@@ -4118,6 +4191,11 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-close="closeCreateTextureMode"
             @request-apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
             @request-apply-texture="handleApplyCreatedTexture"
+        />
+
+        <AudioCreator
+            v-if="audioCreatorVisible"
+            @request-close="app.hideAudioCreator"
         />
 
         <!-- Full-page Realtime Sampler (like Slyce panel) -->
