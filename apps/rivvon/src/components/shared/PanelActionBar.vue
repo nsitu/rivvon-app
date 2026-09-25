@@ -1,5 +1,24 @@
+<script setup>
+    const props = defineProps({
+        placement: {
+            type: String,
+            default: 'bottom',
+            validator: (value) => ['top', 'bottom'].includes(value),
+        },
+        ariaLabel: {
+            type: String,
+            default: 'Panel actions',
+        },
+    });
+</script>
+
 <template>
-    <footer class="panel-action-bar">
+    <div
+        class="panel-action-bar"
+        :class="`panel-action-bar-${props.placement}`"
+        role="toolbar"
+        :aria-label="props.ariaLabel"
+    >
         <div
             v-if="$slots.leading"
             class="panel-action-bar-leading"
@@ -10,7 +29,7 @@
         <div class="panel-action-bar-actions">
             <slot />
         </div>
-    </footer>
+    </div>
 </template>
 
 <style scoped>
@@ -22,11 +41,20 @@
         --panel-action-bar-button-min-width: 8rem;
         --panel-action-bar-mobile-basis: 12rem;
         display: flex;
+        flex-shrink: 0;
         flex-direction: column;
         gap: var(--panel-action-bar-gap);
+        background: var(--panel-action-bar-background);
+    }
+
+    .panel-action-bar-bottom {
         padding: var(--panel-action-bar-padding);
         border-top: 1px solid var(--panel-action-bar-border-color);
-        background: var(--panel-action-bar-background);
+    }
+
+    .panel-action-bar-top {
+        padding: 0 0 0.85rem;
+        border-bottom: 1px solid var(--panel-action-bar-border-color);
     }
 
     .panel-action-bar-leading {

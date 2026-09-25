@@ -12,6 +12,7 @@
     import { createLazyLoader } from '../../modules/shared/lazyLoader.js';
     import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
+    import PanelActionBar from '../shared/PanelActionBar.vue';
     import MultiSelect from 'primevue/multiselect';
     import ScrollPanel from 'primevue/scrollpanel';
     const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
@@ -2451,19 +2452,29 @@
                     }}%
                         scale)</span>
                 </div>
-                <div class="preview-actions">
+                <PanelActionBar
+                    placement="bottom"
+                    aria-label="Texture preview actions"
+                    class="texture-preview-footer"
+                >
+                    <Button
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
+                        @click="closePreview"
+                    >
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        Back to Textures
+                    </Button>
                     <Button
                         v-if="previewCanApply"
-                        type="button"
-                        class="preview-apply-button"
                         severity="info"
-                        title="Apply texture to ribbon"
                         @click="applyTextureSelection(previewTexture)"
                     >
                         <span class="material-symbols-outlined">check</span>
                         Apply
                     </Button>
-                </div>
+                </PanelActionBar>
             </div>
 
             <!-- Multi-select Apply bar -->
@@ -4035,29 +4046,6 @@
         border-radius: 4px;
         pointer-events: none;
         z-index: 2;
-    }
-
-    .preview-actions {
-        position: absolute;
-        bottom: 1rem;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
-        pointer-events: auto;
-        z-index: 2;
-    }
-
-    .preview-apply-button,
-    .preview-export-button {
-        pointer-events: auto;
-    }
-
-    .preview-apply-button .material-symbols-outlined,
-    .preview-export-button .material-symbols-outlined {
-        font-size: 1.1rem;
-        margin-right: 0.3rem;
     }
 
     /* Hide built-in tile-info inside preview (replaced by fixed overlay) */

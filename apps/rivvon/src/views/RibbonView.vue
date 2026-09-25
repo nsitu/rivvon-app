@@ -3135,14 +3135,6 @@ const activeToolbarOverlayTitle = computed(() => {
         return breadcrumbs;
     });
     const navigationCanGoBack = computed(() => {
-        if (activeNavigationModal.value) {
-            return true;
-        }
-
-        if (activeNavigationOverlay.value) {
-            return true;
-        }
-
         return primaryWorkflowNavigation.value?.canGoBack === true;
     });
     const navigationCanExitWorkflow = computed(() => Boolean(primaryWorkflowNavigation.value?.canExit));
@@ -3158,8 +3150,20 @@ const activeToolbarOverlayTitle = computed(() => {
             statusLabel: primaryWorkflowNavigation.value?.statusLabel ?? null,
             canGoBack: navigationCanGoBack.value,
             canExit: navigationCanExitWorkflow.value,
+            canDismiss: Boolean(activeNavigationModal.value || activeNavigationOverlay.value),
         };
     });
+
+    async function handleNavigationDismiss() {
+        if (activeNavigationModal.value) {
+            await activeNavigationModal.value.close?.();
+            return;
+        }
+
+        if (activeNavigationOverlay.value) {
+            await activeNavigationOverlay.value.close?.();
+        }
+    }
 
     async function handleNavigationBack() {
         if (activeNavigationModal.value) {
@@ -3966,7 +3970,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :viewer-title="viewerHeaderTitle"
             :viewer-title-model="viewerHeaderTitleModel"
             :toolbar-overlay-title="activeToolbarOverlayTitle"
-            @request-navigation-back="handleNavigationBack"
+            @request-navigation-dismiss="handleNavigationDismiss"
             @request-navigation-exit="handleNavigationExit"
             @request-close-realtime-mode="handleRealtimeClose"
             @request-close-panel="handleHeaderPanelClose"

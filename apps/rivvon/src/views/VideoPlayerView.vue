@@ -1,12 +1,16 @@
 <script setup>
     import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-    import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import Button from 'primevue/button';
+import ScrollPanel from 'primevue/scrollpanel';
+import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
     import { fetchVideo, uploadVideoThumbnail } from '../services/videoService.js';
     import { createVideoThumbnailFromUrl } from '../modules/viewer/videoThumbnail.js';
 
     const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
+    const router = useRouter();
     const video = ref(null);
     const isLoading = ref(true);
     const error = ref('');
@@ -104,7 +108,17 @@
 
 <template>
     <main class="video-player-panel">
-        <div class="video-player-scroll viewer-chrome-panel-container">
+        <PanelActionBar
+            placement="top"
+            aria-label="Video player navigation"
+            class="video-player-header-actions"
+        >
+            <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'video-gallery' })">
+                <span class="material-symbols-outlined">arrow_back</span>
+                Back to Video Gallery
+            </Button>
+        </PanelActionBar>
+        <ScrollPanel class="rivvon-scroll-panel video-player-scroll">
             <section v-if="isLoading" class="player-message">
                 <span class="material-symbols-outlined player-spinner">progress_activity</span>
                 <h1>Loading video…</h1>
@@ -165,13 +179,15 @@
                 <p v-if="thumbnailStatus" class="thumbnail-status" role="status">{{ thumbnailStatus }}</p>
                 <p v-if="thumbnailError" class="thumbnail-status thumbnail-error" role="alert">{{ thumbnailError }}</p>
             </article>
-        </div>
+        </ScrollPanel>
     </main>
 </template>
 
 <style scoped>
     .video-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; overflow: hidden; color: #f8fafc; background: #1a1a1a; }
-    .video-player-scroll { flex: 1; min-height: 0; width: 100%; overflow-y: auto; box-sizing: border-box; }
+    .video-player-header-actions { padding-top: var(--viewer-header-chrome-height); padding-inline: 1rem; }
+    .video-player-scroll { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; }
+    .video-player-scroll :deep(.p-scrollpanel-content) { padding-bottom: var(--viewer-bottom-chrome-height); }
     .video-player-content { box-sizing: border-box; width: min(100%, 84rem); margin-inline: auto; padding: 1.5rem 1.25rem; }
     .video-player-frame { position: relative; display: grid; overflow: hidden; width: 100%; max-height: 76vh; border: 1px solid #345379; border-radius: 0; background: #080910; box-shadow: none; place-items: center; }
     .video-player-frame:fullscreen { border: 0; border-radius: 0; }

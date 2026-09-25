@@ -1,10 +1,13 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import Button from 'primevue/button';
+import ScrollPanel from 'primevue/scrollpanel';
+import PanelActionBar from '../components/shared/PanelActionBar.vue';
 import { fetchAudio } from '../services/audioService.js';
 
 const route = useRoute();
+const router = useRouter();
 const audio = ref(null);
 const isLoading = ref(true);
 const error = ref('');
@@ -51,7 +54,17 @@ onMounted(loadAudio);
 
 <template>
     <main class="audio-player-panel">
-        <div class="audio-player-scroll viewer-chrome-panel-container">
+        <PanelActionBar
+            placement="top"
+            aria-label="Audio player navigation"
+            class="audio-player-header-actions"
+        >
+            <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'audio-library' })">
+                <span class="material-symbols-outlined">arrow_back</span>
+                Back to Audio Library
+            </Button>
+        </PanelActionBar>
+        <ScrollPanel class="rivvon-scroll-panel audio-player-scroll">
             <section v-if="isLoading" class="audio-player-message"><span class="material-symbols-outlined audio-spinner">progress_activity</span><h1>Loading audio…</h1></section>
             <section v-else-if="error || !audio" class="audio-player-message audio-player-error"><span class="material-symbols-outlined">warning</span><h1>Audio unavailable</h1><p>{{ error }}</p></section>
             <article v-else class="audio-player-content">
@@ -64,13 +77,15 @@ onMounted(loadAudio);
                     <a :href="playbackUrl" :download="`${audio.name}.mp4`"><span class="material-symbols-outlined">download</span>Download</a>
                 </div>
             </article>
-        </div>
+        </ScrollPanel>
     </main>
 </template>
 
 <style scoped>
 .audio-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
-.audio-player-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.audio-player-header-actions { padding-top: var(--viewer-header-chrome-height); padding-inline: 1rem; }
+.audio-player-scroll { flex: 1; min-height: 0; }
+.audio-player-scroll :deep(.p-scrollpanel-content) { padding-bottom: var(--viewer-bottom-chrome-height); }
 .audio-player-content { width: min(100%, 54rem); margin: 4rem auto; padding: 1.25rem; text-align: center; }
 .audio-player-art { display: grid; width: min(24rem, 80vw); aspect-ratio: 1; margin: 0 auto 2rem; border: 1px solid #3b82f6; color: #60a5fa; background: radial-gradient(circle, #172554, #0f172a 70%); place-items: center; }
 .audio-player-art .material-symbols-outlined { font-size: 8rem; }

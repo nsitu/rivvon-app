@@ -2,6 +2,8 @@
     import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
     import { RouterLink } from 'vue-router';
     import Button from 'primevue/button';
+    import ScrollPanel from 'primevue/scrollpanel';
+    import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import InputText from 'primevue/inputtext';
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -284,34 +286,39 @@
 <template>
     <main class="video-gallery-panel">
         <div class="video-gallery-content viewer-chrome-panel-container">
-            <div class="video-gallery-scroll">
-                <div class="gallery-controls">
-                    <nav class="gallery-tabs" aria-label="Video collections">
-                        <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
-                        <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
-                    </nav>
-                    <div v-if="canUpload || !isAuthenticated" class="gallery-upload-action">
-                        <span
-                            v-if="!isAuthenticated"
-                            id="gallery-upload-login-notice"
-                            class="gallery-upload-login-notice"
-                            role="status"
-                        >
-                            Login required to upload videos.
-                        </span>
-                        <Button
-                            type="button"
-                            class="gallery-upload-button"
-                            :disabled="!canUpload"
-                            :title="!canUpload ? 'Login required to upload videos' : undefined"
-                            :aria-describedby="!canUpload ? 'gallery-upload-login-notice' : undefined"
-                            @click="openUploadDialog"
-                        >
-                            <span class="material-symbols-outlined">upload_file</span>
-                            Upload video
-                        </Button>
-                    </div>
+            <PanelActionBar
+                placement="top"
+                aria-label="Video gallery controls"
+                class="gallery-controls"
+            >
+                <nav class="gallery-tabs" aria-label="Video collections">
+                    <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
+                    <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
+                </nav>
+                <div v-if="canUpload || !isAuthenticated" class="gallery-upload-action">
+                    <span
+                        v-if="!isAuthenticated"
+                        id="gallery-upload-login-notice"
+                        class="gallery-upload-login-notice"
+                        role="status"
+                    >
+                        Login required to upload videos.
+                    </span>
+                    <Button
+                        type="button"
+                        class="gallery-upload-button"
+                        :disabled="!canUpload"
+                        :title="!canUpload ? 'Login required to upload videos' : undefined"
+                        :aria-describedby="!canUpload ? 'gallery-upload-login-notice' : undefined"
+                        @click="openUploadDialog"
+                    >
+                        <span class="material-symbols-outlined">upload_file</span>
+                        Upload video
+                    </Button>
                 </div>
+            </PanelActionBar>
+
+            <ScrollPanel class="rivvon-scroll-panel video-gallery-scroll">
 
                 <section v-if="isMyVideos && !isAuthenticated" class="gallery-empty">
                     <span class="material-symbols-outlined">login</span>
@@ -371,7 +378,7 @@
                         </div>
                     </article>
                 </section>
-            </div>
+            </ScrollPanel>
         </div>
 
         <Teleport to="body">
@@ -514,8 +521,10 @@
         background: #1a1a1a;
     }
     .video-gallery-content { display: flex; flex: 1; min-height: 0; flex-direction: column; width: 100%; }
-    .video-gallery-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; width: 100%; }
-    .gallery-controls { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .video-gallery-scroll { flex: 1; min-height: 0; width: 100%; }
+    .video-gallery-scroll :deep(.p-scrollpanel-content) { padding: 20px 20px var(--viewer-bottom-chrome-height); }
+    .gallery-controls { padding-inline: 20px; }
+    .gallery-controls :deep(.panel-action-bar-actions) { justify-content: space-between; align-items: flex-start; }
     .gallery-upload-action { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
     .gallery-upload-login-notice { color: #929292; font-size: .8rem; }
     .gallery-upload-button { flex-shrink: 0; white-space: nowrap; }
@@ -598,7 +607,7 @@
     .gallery-upload-actions { display: flex; justify-content: flex-end; gap: .65rem; }
 
     @media (max-width: 600px) {
-        .gallery-controls { align-items: stretch; flex-direction: column; }
+        .gallery-controls :deep(.panel-action-bar-actions) { align-items: stretch; flex-direction: column; }
         .gallery-upload-action { align-items: stretch; flex-direction: column; }
         .gallery-upload-button { width: 100%; }
         .gallery-selected-file { flex-wrap: wrap; }

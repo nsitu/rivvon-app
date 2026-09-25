@@ -250,14 +250,14 @@
 
                 <PanelActionBar class="texture-overview-panel-footer">
                     <Button
-                        label="Close"
+                        label="Back to Textures"
                         severity="secondary"
                         variant="outlined"
                         icon="material-symbols-outlined"
                         @click="handleClose"
                     >
                         <template #icon>
-                            <span class="material-symbols-outlined">close</span>
+                            <span class="material-symbols-outlined">arrow_back</span>
                         </template>
                     </Button>
                     <Button

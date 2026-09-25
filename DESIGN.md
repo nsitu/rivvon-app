@@ -46,6 +46,22 @@ Persistent actions must not be placed inside a scrolling content region unless t
 
 The shared shell owns the panel's title, context, and close action. Do not repeat that purpose with a second heading, eyebrow, description, or close button inside the panel content. Content headings should introduce a distinct task or subsection rather than restating the panel title.
 
+## Header navigation and action bars
+
+The application header has one global navigation contract: it presents the current context and a close (`X`) action. It does not present a second Back control. A close action may dismiss an overlay or exit a self-contained workflow; its accessible label should describe the scope.
+
+Use a `PanelActionBar` for deliberate in-panel actions:
+
+- Use `placement="top"` for an upper action surface that navigates to a parent screen or exposes persistent context actions.
+- Use the default bottom placement for step actions, completion actions, and panel-level Apply/Done/Close controls.
+- A parent-navigation action should name its destination, such as `Back to Audio Library` or `Back to Textures`.
+- Keep Done/Close actions in the lower action bar even when the header also has an X. The two affordances are complementary: the bar gives the task an explicit completion/dismissal action, while the header remains the consistent shell escape.
+- Multi-step workflows should keep step navigation in the Stepper or lower action bar. A workflow Back action is not a substitute for the header close action.
+
+Breadcrumbs and rich context titles may identify the current location, but they are not the primary navigation mechanism. If a parent destination is useful, provide an explicit action-bar button with a clear destination label. Use a linked breadcrumb segment only when it is already the established interaction for that context and does not replace a required task action.
+
+For a new panel, decide explicitly whether it is a self-contained context (header X plus optional Done/Close) or a multi-step workflow (header X plus step/lower-bar navigation). Record any exception when a panel needs browser-style history or a different navigation model.
+
 ## Controls and interaction
 
 - Use PrimeVue controls for standard form interactions.
@@ -69,6 +85,8 @@ Before merging a UI change, check:
 - Does an existing PrimeVue component or Rivvon primitive already cover this?
 - Does this introduce a repeated visual value that should become a token?
 - Does every scrollable panel use PrimeVue `ScrollPanel` with `rivvon-scroll-panel`?
+- Does the header use only the shared context plus close contract, with parent navigation placed in an upper or lower `PanelActionBar`?
+- If the panel has both a header X and a lower Done/Close action, do both remain because they serve complementary interaction purposes?
 - Are loading, empty, error, disabled, focus, and narrow-screen states handled where relevant?
 - Are icon names registered in `main.js`?
 - If this is an exception, is the reason documented close to the implementation?

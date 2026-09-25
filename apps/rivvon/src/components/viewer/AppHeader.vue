@@ -39,7 +39,7 @@
         'request-close-realtime-mode',
         'request-close-panel',
         'request-close-toolbar-overlay',
-        'request-navigation-back',
+        'request-navigation-dismiss',
         'request-navigation-exit',
         'request-viewer-title-kind-activate',
         'request-viewer-title-drawing-activate',
@@ -82,8 +82,13 @@
     const hasNavigationModel = computed(() => Array.isArray(props.navigationModel?.breadcrumbs) && props.navigationModel.breadcrumbs.length > 0);
     const navigationBreadcrumbs = computed(() => hasNavigationModel.value ? props.navigationModel.breadcrumbs : []);
     const navigationStatusLabel = computed(() => props.navigationModel?.statusLabel ?? null);
-    const showNavigationBack = computed(() => props.navigationModel?.canGoBack === true);
-    const showNavigationExit = computed(() => props.navigationModel?.canExit === true);
+    const showNavigationClose = computed(() => (
+        props.navigationModel?.canExit === true
+        || props.navigationModel?.canDismiss === true
+    ));
+    const navigationCloseLabel = computed(() => (
+        props.navigationModel?.canExit === true ? 'Close workflow' : 'Close panel'
+    ));
     const headerContext = computed(() => resolveViewerHeaderContext(app, {
         panelTitle: props.panelTitle,
         toolbarOverlayTitle: props.toolbarOverlayTitle,
@@ -244,16 +249,6 @@
 
             </a>
 
-            <button
-                v-if="hasNavigationModel && showNavigationBack"
-                type="button"
-                class="header-nav-button"
-                aria-label="Go back"
-                @click="emit('request-navigation-back')"
-            >
-                <span class="material-symbols-outlined">arrow_back</span>
-            </button>
-
             <Transition name="fade">
                 <div
                     v-if="hasNavigationModel"
@@ -341,11 +336,13 @@
 
         <div class="header-actions">
             <button
-                v-if="hasNavigationModel && showNavigationExit"
+                v-if="hasNavigationModel && showNavigationClose"
                 type="button"
                 class="header-action"
-                aria-label="Close workflow"
-                @click="emit('request-navigation-exit')"
+                :aria-label="navigationCloseLabel"
+                @click="props.navigationModel?.canExit === true
+                    ? emit('request-navigation-exit')
+                    : emit('request-navigation-dismiss')"
             >
                 <span class="material-symbols-outlined">close</span>
             </button>
@@ -353,6 +350,7 @@
             <button
                 v-else-if="!hasNavigationModel && activeContext"
                 class="header-action"
+                aria-label="Close panel"
                 @click="closeContext"
             >
                 <span class="material-symbols-outlined">close</span>
@@ -361,6 +359,7 @@
             <button
                 v-else-if="!hasNavigationModel"
                 class="header-action"
+                :aria-label="app.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
                 @click="toggleFullscreen"
             >
                 <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
@@ -565,31 +564,6 @@
         fill: #fff;
     }
 
-
-    .header-nav-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.5rem;
-        height: 2.5rem;
-        margin-left: 0.5rem;
-        border: none;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.82);
-        cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
-        flex-shrink: 0;
-    }
-
-    .header-nav-button:hover {
-        background: rgba(255, 255, 255, 0.16);
-        color: #fff;
-    }
-
-    .header-nav-button .material-symbols-outlined {
-        font-size: 1.2rem;
-    }
 
     .navigation-summary {
         display: flex;
