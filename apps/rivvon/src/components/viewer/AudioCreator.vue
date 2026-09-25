@@ -16,6 +16,13 @@ import {
 } from '../../modules/viewer/audioProcessing.js';
 import { publishAudioBlob } from '../../services/audioService.js';
 
+const props = defineProps({
+    initialMode: {
+        type: String,
+        default: 'file',
+        validator: (value) => ['file', 'record'].includes(value),
+    },
+});
 const emit = defineEmits(['request-close']);
 
 const router = useRouter();
@@ -37,7 +44,20 @@ const progress = ref(0);
 const status = ref('');
 const error = ref('');
 const objectUrl = ref('');
+const sourceMode = ref(props.initialMode);
+const isRecording = ref(false);
+const recordingDuration = ref(0);
+const recordingSupported = computed(() => (
+    typeof navigator !== 'undefined'
+    && Boolean(navigator.mediaDevices?.getUserMedia)
+    && typeof globalThis.MediaRecorder !== 'undefined'
+));
 let activeHandle = null;
+let mediaRecorder = null;
+let recordingStream = null;
+let recordingChunks = [];
+let recordingStartedAt = 0;
+let recordingTimer = null;
 
 const hasSource = computed(() => Boolean(sourceFile.value && sourceMetadata.value));
 const sourceIsVideo = computed(() => sourceFile.value?.type?.startsWith('video/'));
@@ -171,6 +191,173 @@ function beginWaveformPointer(event) {
     window.addEventListener('pointerup', releaseWaveformPointer, { once: true });
 }
 
+function stopRecordingTimer() {
+    if (recordingTimer) window.clearInterval(recordingTimer);
+    recordingTimer = null;
+}
+
+function releaseRecordingStream() {
+    recordingStream?.getTracks().forEach((track) => track.stop());
+    recordingStream = null;
+}
+
+function discardRecording() {
+    stopRecordingTimer();
+    const recorder = mediaRecorder;
+    mediaRecorder = null;
+    if (recorder && recorder.state !== 'inactive') {
+        recorder.ondataavailable = null;
+        recorder.onerror = null;
+        recorder.onstop = null;
+        try {
+            recorder.stop();
+        } catch {
+            // The recorder may already have transitioned to inactive.
+        }
+    }
+    releaseRecordingStream();
+    recordingChunks = [];
+    recordingStartedAt = 0;
+    recordingDuration.value = 0;
+    isRecording.value = false;
+}
+
+function getRecordingMimeType() {
+    const supportedTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/mp4',
+    ];
+    return supportedTypes.find((type) => (
+        typeof globalThis.MediaRecorder?.isTypeSupported !== 'function'
+            || globalThis.MediaRecorder.isTypeSupported(type)
+    )) || '';
+}
+
+function getRecordingExtension(mimeType) {
+    if (mimeType.includes('ogg')) return 'ogg';
+    if (mimeType.includes('mp4')) return 'm4a';
+    return 'webm';
+}
+
+async function prepareSource(file, { titleOverride = '', readyStatus = 'Ready to trim and save.' } = {}) {
+    clearSource();
+    const metadata = await inspectAudioSource(file);
+    const waveformResult = await createAudioWaveform(file, {
+        onProgress: (value) => { progress.value = value; },
+    });
+    sourceFile.value = file;
+    sourceMetadata.value = metadata;
+    waveform.value = waveformResult.peaks;
+    title.value = titleOverride || filenameTitle(file);
+    start.value = 0;
+    end.value = metadata.duration;
+    objectUrl.value = URL.createObjectURL(file);
+    status.value = readyStatus;
+    await nextTick();
+    applyPreviewPlaybackRate();
+    drawWaveform();
+}
+
+async function startRecording() {
+    if (isRecording.value || isLoading.value || isSaving.value) return;
+    if (!recordingSupported.value) {
+        error.value = 'This browser does not support microphone recording.';
+        return;
+    }
+
+    error.value = '';
+    status.value = 'Requesting microphone access…';
+    try {
+        clearSource();
+        recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = getRecordingMimeType();
+        mediaRecorder = mimeType
+            ? new MediaRecorder(recordingStream, { mimeType })
+            : new MediaRecorder(recordingStream);
+        recordingChunks = [];
+        recordingStartedAt = Date.now();
+        recordingDuration.value = 0;
+        isRecording.value = true;
+        status.value = 'Recording…';
+        recordingTimer = window.setInterval(() => {
+            recordingDuration.value = (Date.now() - recordingStartedAt) / 1000;
+        }, 250);
+
+        const recorder = mediaRecorder;
+        recorder.addEventListener('dataavailable', (event) => {
+            if (event.data?.size) recordingChunks.push(event.data);
+        });
+        recorder.addEventListener('error', () => {
+            error.value = 'The microphone recording failed.';
+            status.value = '';
+            discardRecording();
+        }, { once: true });
+        recorder.addEventListener('stop', async () => {
+            stopRecordingTimer();
+            isRecording.value = false;
+            recordingDuration.value = (Date.now() - recordingStartedAt) / 1000;
+            const recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
+            const blob = new Blob(recordingChunks, { type: recordedMimeType });
+            mediaRecorder = null;
+            releaseRecordingStream();
+            recordingChunks = [];
+            recordingStartedAt = 0;
+            if (!blob.size) {
+                isLoading.value = false;
+                error.value = 'No audio was captured. Try recording again.';
+                status.value = '';
+                return;
+            }
+
+            isLoading.value = true;
+            progress.value = 0;
+            error.value = '';
+            status.value = 'Preparing recording…';
+            try {
+                const extension = getRecordingExtension(recordedMimeType);
+                const file = new File([blob], `audio-recording.${extension}`, { type: recordedMimeType });
+                await prepareSource(file, {
+                    titleOverride: 'Audio recording',
+                    readyStatus: 'Recording ready to trim and save.',
+                });
+            } catch (loadError) {
+                error.value = loadError?.message || 'Unable to prepare the recording.';
+                status.value = '';
+            } finally {
+                isLoading.value = false;
+            }
+        }, { once: true });
+        recorder.start(250);
+    } catch (recordingError) {
+        discardRecording();
+        error.value = recordingError?.name === 'NotAllowedError'
+            ? 'Microphone access was denied. Allow microphone access and try again.'
+            : recordingError?.message || 'Unable to start microphone recording.';
+        status.value = '';
+    }
+}
+
+function stopRecording() {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    stopRecordingTimer();
+    isRecording.value = false;
+    isLoading.value = true;
+    status.value = 'Processing recording…';
+    mediaRecorder.stop();
+}
+
+function selectSourceMode(mode) {
+    if (isRecording.value || isSaving.value) return;
+    discardRecording();
+    clearSource();
+    error.value = '';
+    status.value = '';
+    sourceMode.value = mode;
+}
+
 function clearSource() {
     releaseWaveformPointer();
     if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
@@ -189,26 +376,12 @@ function clearSource() {
 async function handleFileSelected(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+    sourceMode.value = 'file';
     isLoading.value = true;
     error.value = '';
     status.value = 'Reading audio track…';
     try {
-        clearSource();
-        const metadata = await inspectAudioSource(file);
-        const waveformResult = await createAudioWaveform(file, {
-            onProgress: (value) => { progress.value = value; },
-        });
-        sourceFile.value = file;
-        sourceMetadata.value = metadata;
-        waveform.value = waveformResult.peaks;
-        title.value = filenameTitle(file);
-        start.value = 0;
-        end.value = metadata.duration;
-        objectUrl.value = URL.createObjectURL(file);
-        status.value = 'Ready to trim and save.';
-        await nextTick();
-        applyPreviewPlaybackRate();
-        drawWaveform();
+        await prepareSource(file);
     } catch (loadError) {
         error.value = loadError?.message || 'Unable to read the selected media.';
         status.value = '';
@@ -273,6 +446,7 @@ async function saveAudio() {
 }
 
 function close() {
+    discardRecording();
     clearSource();
     emit('request-close');
 }
@@ -285,6 +459,7 @@ watch(objectUrl, async () => {
 });
 onBeforeUnmount(() => {
     releaseWaveformPointer();
+    discardRecording();
     if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
 });
 </script>
@@ -297,17 +472,60 @@ onBeforeUnmount(() => {
                     <div>
                         <p class="eyebrow">Create / Audio</p>
                         <h1>Create audio</h1>
-                        <p>Extract a soundtrack from an audio or video file, trim it, and save it to your library.</p>
+                        <p>Extract a soundtrack from a file or record from your microphone, trim it, and save it to your library.</p>
                     </div>
                     <Button severity="secondary" variant="outlined" :disabled="isSaving" @click="close">Close</Button>
                 </div>
 
-                <label class="audio-file-picker">
-                    <span class="material-symbols-outlined">upload_file</span>
-                    <span>{{ sourceFile ? 'Choose another file' : 'Choose audio or video file' }}</span>
-                    <small>Audio files and videos with an audio track</small>
-                    <input ref="fileInput" type="file" accept="audio/*,video/*" :disabled="isLoading || isSaving" @change="handleFileSelected">
-                </label>
+                <div v-if="!hasSource" class="audio-source-options">
+                    <div class="source-mode-tabs" role="tablist" aria-label="Audio source">
+                        <Button
+                            severity="secondary"
+                            variant="outlined"
+                            :class="{ 'source-mode-active': sourceMode === 'file' }"
+                            role="tab"
+                            :aria-selected="sourceMode === 'file'"
+                            :disabled="isLoading || isSaving || isRecording"
+                            @click="selectSourceMode('file')"
+                        ><span class="material-symbols-outlined">upload_file</span>Audio or video file</Button>
+                        <Button
+                            severity="secondary"
+                            variant="outlined"
+                            :class="{ 'source-mode-active': sourceMode === 'record' }"
+                            role="tab"
+                            :aria-selected="sourceMode === 'record'"
+                            :disabled="isLoading || isSaving || isRecording"
+                            @click="selectSourceMode('record')"
+                        ><span class="material-symbols-outlined">mic</span>Record audio</Button>
+                    </div>
+
+                    <label v-if="sourceMode === 'file'" class="audio-file-picker">
+                        <span class="material-symbols-outlined">upload_file</span>
+                        <span>Choose audio or video file</span>
+                        <small>Audio files and videos with an audio track</small>
+                        <input ref="fileInput" type="file" accept="audio/*,video/*" :disabled="isLoading || isSaving" @change="handleFileSelected">
+                    </label>
+
+                    <section v-else class="audio-recording-card" aria-label="Record audio">
+                        <span class="material-symbols-outlined recording-icon">mic</span>
+                        <h2>Record from your microphone</h2>
+                        <p v-if="!recordingSupported" class="recording-error">This browser does not support microphone recording.</p>
+                        <p v-else>Record a clip, then trim it before saving it to your audio library.</p>
+                        <output class="recording-timer" aria-live="polite">{{ formatDuration(recordingDuration) }}</output>
+                        <Button
+                            v-if="!isRecording"
+                            :disabled="isLoading || isSaving || !recordingSupported"
+                            @click="startRecording"
+                        ><span class="material-symbols-outlined">mic</span>Start recording</Button>
+                        <Button v-else severity="danger" :disabled="isLoading || isSaving" @click="stopRecording"><span class="material-symbols-outlined">stop</span>Stop recording</Button>
+                        <p class="recording-hint">Microphone access is requested only when you start recording.</p>
+                    </section>
+                    <div v-if="status || error" class="audio-status" :class="{ error }" role="status">
+                        <span class="material-symbols-outlined">{{ error ? 'warning' : 'mic' }}</span>
+                        <span>{{ error || status }}</span>
+                    </div>
+                    <progress v-if="isLoading" :value="progress" max="1" aria-label="Audio processing progress"></progress>
+                </div>
 
                 <section v-if="hasSource" class="audio-editor" aria-label="Audio editor">
                     <div class="audio-source-row">
@@ -315,7 +533,14 @@ onBeforeUnmount(() => {
                             <strong>{{ sourceFile.name }}</strong>
                             <span>{{ formatDuration(sourceMetadata.duration) }} · {{ sourceMetadata.channelCount }} channel{{ sourceMetadata.channelCount === 1 ? '' : 's' }}</span>
                         </div>
-                        <Button severity="secondary" variant="outlined" size="small" :disabled="isSaving" @click="clearSource">Remove</Button>
+                        <div class="audio-source-actions">
+                            <label class="replace-source-picker" :class="{ disabled: isLoading || isSaving }">
+                                <span class="material-symbols-outlined">upload_file</span>
+                                Choose another file
+                                <input ref="fileInput" type="file" accept="audio/*,video/*" :disabled="isLoading || isSaving" @change="handleFileSelected">
+                            </label>
+                            <Button severity="secondary" variant="outlined" size="small" :disabled="isSaving" @click="clearSource">Remove</Button>
+                        </div>
                     </div>
 
                     <div class="waveform-shell">
@@ -419,8 +644,24 @@ h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
 .audio-file-picker .material-symbols-outlined { font-size: 2rem; color: #60a5fa; }
 .audio-file-picker small { color: #94a3b8; }
 .audio-file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.audio-source-options { display: grid; gap: 1rem; }
+.source-mode-tabs { display: flex; gap: .65rem; flex-wrap: wrap; }
+.source-mode-tabs button { display: inline-flex; align-items: center; gap: .4rem; }
+.source-mode-tabs .source-mode-active { border-color: #60a5fa; color: #dbeafe; background: #172554; }
+.audio-recording-card { display: grid; min-height: 14rem; padding: 1.5rem; border: 1px solid #51709a; color: #dbeafe; background: #111827; place-items: center; text-align: center; }
+.recording-icon { font-size: 2.5rem; color: #f87171; }
+.audio-recording-card h2 { margin: .25rem 0 0; color: #f8fafc; }
+.audio-recording-card p { max-width: 34rem; margin: .25rem 0; color: #94a3b8; }
+.recording-timer { color: #f8fafc; font-variant-numeric: tabular-nums; font-size: 2rem; font-weight: 600; }
+.recording-error { color: #fca5a5 !important; }
+.recording-hint { font-size: .75rem; }
 .audio-editor { margin-top: 1.5rem; padding: 1rem; border: 1px solid #334155; background: #111827; }
 .audio-source-row, .audio-actions { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+.audio-source-actions { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; justify-content: flex-end; }
+.replace-source-picker { display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .65rem; border: 1px solid #475569; color: #cbd5e1; cursor: pointer; font-size: .8rem; }
+.replace-source-picker:hover { border-color: #60a5fa; color: #dbeafe; }
+.replace-source-picker.disabled { cursor: default; opacity: .55; }
+.replace-source-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .audio-source-row span { display: block; margin-top: .25rem; color: #94a3b8; font-size: .8rem; }
 .waveform-shell { position: relative; height: 11rem; margin-top: 1rem; overflow: hidden; border: 1px solid #334155; touch-action: none; }
 .waveform-shell canvas { position: relative; z-index: 1; display: block; width: 100%; height: 100%; cursor: ew-resize; }

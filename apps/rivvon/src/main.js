@@ -33,7 +33,7 @@ loadMaterialSymbols([
     'stop_circle','cameraswitch','construction','check_circle','memory','movie','camera_video','schedule','directions_walk',
     'play_circle','download_done','line_curve','crop_free','layers','content_cut','tag','aspect_ratio','cloud_done','subtitles','sync_alt',
     'repeat','swap_horiz','vr180_create2d','height','waves','vertical_align_center','motion_photos_on','linear_scale',
-    'camera','flip_camera_android','upload_file','photo_camera',
+    'camera','flip_camera_android','upload_file','photo_camera','mic',
     'crop_landscape','crop_16_9','crop_9_16','crop_portrait',
     'crop_square','settings_panorama','person_book','panorama','water',
     'task_alt','panorama_horizontal','panorama_vertical',

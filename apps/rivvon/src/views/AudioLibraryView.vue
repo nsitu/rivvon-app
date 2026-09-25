@@ -108,7 +108,7 @@ onMounted(loadAudios);
                 <section v-else-if="!hasAudios" class="audio-library-empty">
                     <span class="material-symbols-outlined">equalizer</span>
                     <h2>No saved audio yet</h2>
-                    <p>Choose Create / Audio to extract and save your first track.</p>
+                    <p>Choose Create / Audio to extract or record your first track.</p>
                     <RouterLink to="/" class="viewer-link">Open the viewer</RouterLink>
                 </section>
                 <section v-else class="audio-card-grid" aria-live="polite">

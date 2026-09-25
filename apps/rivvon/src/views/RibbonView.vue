@@ -112,6 +112,7 @@
     const texturePreviewVisible = createViewerPanelVisibility('texturePreview');
     const textureCreatorVisible = createViewerPanelVisibility('textureCreator');
     const audioCreatorVisible = createViewerPanelVisibility('audioCreator');
+    const audioCreatorMode = ref('file');
     const realtimeSamplerVisible = createViewerPanelVisibility('realtimeSampler');
     const isNarrowViewport = ref(false);
 
@@ -3456,8 +3457,9 @@ const activeToolbarOverlayTitle = computed(() => {
         app.showDrawingBrowser();
     }
 
-    function openAudioCreator() {
+    function openAudioCreator(mode = 'file') {
         app.hideToolsPanel();
+        audioCreatorMode.value = mode;
         app.showAudioCreator();
     }
 
@@ -4027,6 +4029,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-enter-contour-mode="enterContourMode"
             @request-open-drawing-browser="openDrawingBrowser"
             @request-open-audio-creator="openAudioCreator"
+            @request-open-audio-recorder="() => openAudioCreator('record')"
             @request-open-texture-file="openCreateTextureFileMode"
             @request-open-texture-camera="openCreateTextureCameraMode"
             @request-close-realtime-mode="handleRealtimeClose"
@@ -4195,6 +4198,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         <AudioCreator
             v-if="audioCreatorVisible"
+            :initial-mode="audioCreatorMode"
             @request-close="app.hideAudioCreator"
         />
 
