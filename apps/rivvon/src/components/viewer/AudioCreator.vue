@@ -47,21 +47,14 @@ const formattedPlaybackRate = computed(() => {
     const rate = normalizeAudioPlaybackRate(playbackRate.value);
     return `${Number.isInteger(rate) ? rate : rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}×`;
 });
-const trimRange = computed({
-    get: () => [start.value, end.value],
-    set: (value) => {
-        if (!Array.isArray(value) || value.length < 2) return;
-        const duration = sourceMetadata.value?.duration || 0;
-        const nextStart = Math.max(0, Math.min(Number(value[0]) || 0, duration));
-        const nextEnd = Math.max(0, Math.min(Number(value[1]) || 0, duration));
-        if (nextEnd - nextStart < .05) return;
-        start.value = nextStart;
-        end.value = nextEnd;
-        if (playhead.value < nextStart || playhead.value > nextEnd) seekTo(nextStart);
-    },
-});
 const startPercent = computed(() => sourceMetadata.value?.duration ? (start.value / sourceMetadata.value.duration) * 100 : 0);
 const endPercent = computed(() => sourceMetadata.value?.duration ? (end.value / sourceMetadata.value.duration) * 100 : 100);
+const rateTrackWidth = 'calc(100% - 1rem)';
+
+function getRatePosition(value) {
+    const rate = normalizeAudioPlaybackRate(value);
+    return `${((rate - MIN_AUDIO_PLAYBACK_RATE) / (MAX_AUDIO_PLAYBACK_RATE - MIN_AUDIO_PLAYBACK_RATE)) * 100}%`;
+}
 
 function formatDuration(value) {
     const total = Math.max(0, Math.round(Number(value) || 0));
@@ -127,6 +120,13 @@ function seekTo(time) {
     drawWaveform();
 }
 
+function setTrimHandle(handle, time) {
+    const duration = sourceMetadata.value?.duration || 0;
+    const boundedTime = Math.min(Math.max(0, Number(time) || 0), duration);
+    if (handle === 'start') start.value = Math.min(boundedTime, end.value - .05);
+    else end.value = Math.max(boundedTime, start.value + .05);
+}
+
 function handleWaveformPointer(event) {
     if (!sourceMetadata.value || !waveformCanvas.value) return;
     const rect = waveformCanvas.value.getBoundingClientRect();
@@ -135,10 +135,27 @@ function handleWaveformPointer(event) {
     if (!activeHandle) {
         activeHandle = Math.abs(time - start.value) <= Math.abs(time - end.value) ? 'start' : 'end';
     }
-    if (activeHandle === 'start') start.value = Math.min(time, end.value - .05);
-    else end.value = Math.max(time, start.value + .05);
+    setTrimHandle(activeHandle, time);
     seekTo(time);
     drawWaveform();
+}
+
+function beginWaveformMarker(handle, event) {
+    event.preventDefault();
+    activeHandle = handle;
+    handleWaveformPointer(event);
+    window.addEventListener('pointermove', handleWaveformPointer);
+    window.addEventListener('pointerup', releaseWaveformPointer, { once: true });
+}
+
+function nudgeWaveformMarker(handle, event) {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || !sourceMetadata.value) return;
+    const step = event.shiftKey ? 1 : .01;
+    const direction = event.key === 'ArrowLeft' ? -1 : 1;
+    const current = handle === 'start' ? start.value : end.value;
+    setTrimHandle(handle, current + direction * step);
+    seekTo(handle === 'start' ? start.value : end.value);
+    event.preventDefault();
 }
 
 function releaseWaveformPointer() {
@@ -304,23 +321,39 @@ onBeforeUnmount(() => {
                     <div class="waveform-shell">
                         <canvas ref="waveformCanvas" @pointerdown="beginWaveformPointer"></canvas>
                         <div class="selection-window" :style="{ left: `${startPercent}%`, width: `${endPercent - startPercent}%` }"></div>
+                        <button
+                            type="button"
+                            role="slider"
+                            class="waveform-marker waveform-marker-in"
+                            :style="{ left: `${startPercent}%` }"
+                            :aria-valuenow="start.toFixed(2)"
+                            aria-valuemin="0"
+                            :aria-valuemax="sourceMetadata.duration"
+                            aria-label="Trim in marker"
+                            @pointerdown.stop="beginWaveformMarker('start', $event)"
+                            @keydown="nudgeWaveformMarker('start', $event)"
+                        >
+                            <span>IN {{ formatDuration(start) }}</span>
+                        </button>
+                        <button
+                            type="button"
+                            role="slider"
+                            class="waveform-marker waveform-marker-out"
+                            :style="{ left: `${endPercent}%` }"
+                            :aria-valuenow="end.toFixed(2)"
+                            aria-valuemin="0"
+                            :aria-valuemax="sourceMetadata.duration"
+                            aria-label="Trim out marker"
+                            @pointerdown.stop="beginWaveformMarker('end', $event)"
+                            @keydown="nudgeWaveformMarker('end', $event)"
+                        >
+                            <span>OUT {{ formatDuration(end) }}</span>
+                        </button>
                     </div>
                     <div class="trim-controls">
                         <div class="trim-controls-heading">
-                            <span>Trim range</span>
+                            <span>Trim range <small>Drag the IN and OUT markers</small></span>
                             <strong>{{ formatDuration(start) }} – {{ formatDuration(end) }}</strong>
-                        </div>
-                        <Slider
-                            v-model="trimRange"
-                            range
-                            :min="0"
-                            :max="sourceMetadata.duration"
-                            :step="0.01"
-                            class="audio-trim-slider"
-                        />
-                        <div class="trim-controls-caption">
-                            <span>Start</span>
-                            <span>End</span>
                         </div>
                     </div>
 
@@ -342,11 +375,11 @@ onBeforeUnmount(() => {
                             class="audio-rate-slider"
                             aria-label="Playback rate"
                         />
-                        <div class="rate-controls-caption">
-                            <span>{{ MIN_AUDIO_PLAYBACK_RATE }}×</span>
-                            <span>1×</span>
-                            <span>8×</span>
-                            <span>{{ MAX_AUDIO_PLAYBACK_RATE }}×</span>
+                        <div class="rate-controls-caption" :style="{ width: rateTrackWidth }">
+                            <span :style="{ left: getRatePosition(MIN_AUDIO_PLAYBACK_RATE) }">{{ MIN_AUDIO_PLAYBACK_RATE }}×</span>
+                            <span :style="{ left: getRatePosition(1) }">1×</span>
+                            <span :style="{ left: getRatePosition(8) }">8×</span>
+                            <span :style="{ left: getRatePosition(MAX_AUDIO_PLAYBACK_RATE) }">{{ MAX_AUDIO_PLAYBACK_RATE }}×</span>
                         </div>
                         <p class="rate-help">Speed changes also change pitch. The saved audio will be {{ formatDuration(outputDuration) }} long.</p>
                     </div>
@@ -392,18 +425,23 @@ h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
 .waveform-shell { position: relative; height: 11rem; margin-top: 1rem; overflow: hidden; border: 1px solid #334155; touch-action: none; }
 .waveform-shell canvas { position: relative; z-index: 1; display: block; width: 100%; height: 100%; cursor: ew-resize; }
 .selection-window { position: absolute; z-index: 2; top: 0; bottom: 0; border-inline: 2px solid #f8fafc; background: rgba(96, 165, 250, .11); pointer-events: none; }
+.waveform-marker { position: absolute; z-index: 3; top: 0; bottom: 0; width: 0; padding: 0; border: 0; border-left: 2px solid #f8fafc; background: transparent; cursor: ew-resize; }
+.waveform-marker::after { position: absolute; top: .35rem; left: -6px; width: 10px; height: 10px; border: 2px solid #f8fafc; border-radius: 2px; background: #60a5fa; content: ''; transform: rotate(45deg); }
+.waveform-marker span { position: absolute; top: .75rem; left: .6rem; padding: .2rem .35rem; border-radius: .25rem; color: #f8fafc; background: rgba(15, 23, 42, .88); font-size: .68rem; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+.waveform-marker-out span { right: .6rem; left: auto; }
+.waveform-marker:focus-visible { outline: 2px solid #fbbf24; outline-offset: 3px; }
 .trim-controls { display: grid; gap: .65rem; margin: 1rem 0; padding: .75rem; border: 1px solid #26364d; }
 .trim-controls-heading, .trim-controls-caption { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #cbd5e1; font-size: .8rem; }
 .trim-controls-heading strong { color: #f8fafc; font-weight: 500; }
-.trim-controls-caption { color: #94a3b8; font-size: .72rem; }
-.audio-trim-slider { width: calc(100% - 1rem); margin: 0 .5rem; }
-:deep(.audio-trim-slider .p-slider-handle) { background: #60a5fa; border-color: #60a5fa; }
-:deep(.audio-trim-slider .p-slider-range) { background: #60a5fa; }
+.trim-controls-heading small { display: block; margin-top: .25rem; color: #94a3b8; font-size: .7rem; font-weight: 400; }
 .rate-controls { display: grid; gap: .55rem; margin: 1.25rem 0; padding: 1rem; border: 1px solid #2b3548; border-radius: .75rem; background: #111827; }
 .audio-rate-slider { width: calc(100% - 1rem); margin: 0 .5rem; }
 :deep(.audio-rate-slider .p-slider-handle) { background: #fbbf24; border-color: #fbbf24; }
 :deep(.audio-rate-slider .p-slider-range) { background: #fbbf24; }
-.rate-controls-caption { display: flex; justify-content: space-between; color: #94a3b8; font-size: .72rem; }
+.rate-controls-caption { position: relative; height: 1rem; margin: 0 .5rem; color: #94a3b8; font-size: .72rem; }
+.rate-controls-caption span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.rate-controls-caption span:first-child { transform: none; }
+.rate-controls-caption span:last-child { transform: translateX(-100%); }
 .rate-help { margin: .15rem 0 0; color: #94a3b8; font-size: .78rem; }
 .audio-title-field label { display: grid; gap: .45rem; color: #cbd5e1; font-size: .8rem; }
 .audio-preview { margin: 1rem 0; }
