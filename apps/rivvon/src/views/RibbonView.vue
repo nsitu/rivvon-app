@@ -69,6 +69,7 @@
     const router = useRouter();
     const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
     const isVideoPlayerRoute = computed(() => route.name === 'video-player');
+    const videoPlayerTitle = ref('');
     const isAudioLibraryRoute = computed(() => route.name === 'audio-library');
     const isAudioPlayerRoute = computed(() => route.name === 'audio-player');
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
@@ -2910,7 +2911,7 @@ const activeToolbarOverlayTitle = computed(() => {
             return {
                 id: 'videoPlayer',
                 group: 'gallery',
-                breadcrumbs: ['Video Gallery', 'Video Player'],
+                breadcrumbs: ['Video Gallery', videoPlayerTitle.value || 'Video Player'],
                 statusLabel: null,
                 canGoBack: true,
                 back: () => {
@@ -3254,6 +3255,10 @@ const activeToolbarOverlayTitle = computed(() => {
         }
     }
 
+    function handleVideoPlayerTitleChange(title) {
+        videoPlayerTitle.value = typeof title === 'string' ? title.trim() : '';
+    }
+
     function closeAudioLibrary() {
         if (isAudioLibraryRoute.value) router.push({ name: 'home' });
     }
@@ -3465,6 +3470,10 @@ const activeToolbarOverlayTitle = computed(() => {
         app.hideToolsPanel();
         audioCreatorMode.value = mode;
         app.showAudioCreator();
+    }
+
+    function handleAudioCreatorModeChange(mode) {
+        audioCreatorMode.value = mode;
     }
 
     async function resolveSavedDrawingPaths(drawing) {
@@ -4021,6 +4030,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :camera-motion-closure-duration="threeCanvasRef?.cameraMotion?.closureDuration?.value ?? 0"
             :technical-overlay="showTechnicalOverlay"
             :active-toolbar-overlay="activeToolbarOverlay"
+            :audio-creator-mode="audioCreatorMode"
             :can-share-view-url="canShareCurrentViewUrl"
             :export-image-visible="showExportImageDialog"
             :export-video-visible="showExportDialog"
@@ -4178,6 +4188,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         <VideoPlayerPanel
             v-if="isVideoPlayerRoute"
+            @video-title-change="handleVideoPlayerTitleChange"
         />
 
         <AudioLibraryPanel
@@ -4203,6 +4214,7 @@ const activeToolbarOverlayTitle = computed(() => {
         <AudioCreator
             v-if="audioCreatorVisible"
             :initial-mode="audioCreatorMode"
+            @mode-change="handleAudioCreatorModeChange"
             @request-close="app.hideAudioCreator"
         />
 

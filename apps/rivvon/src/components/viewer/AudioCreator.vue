@@ -4,6 +4,8 @@ import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Slider from 'primevue/slider';
 import ScrollPanel from 'primevue/scrollpanel';
+import AudioFileSource from './AudioFileSource.vue';
+import AudioRecorderSource from './AudioRecorderSource.vue';
 import { useRouter } from 'vue-router';
 import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
 import {
@@ -24,16 +26,16 @@ const props = defineProps({
         validator: (value) => ['file', 'record'].includes(value),
     },
 });
-const emit = defineEmits(['request-close']);
+const emit = defineEmits(['request-close', 'mode-change']);
 
 const router = useRouter();
 const { isAuthenticated, login, user } = useGoogleAuth();
-const fileInput = ref(null);
 const sourceFile = ref(null);
 const sourceMetadata = ref(null);
 const waveform = ref([]);
 const waveformCanvas = ref(null);
 const recordingWaveformCanvas = ref(null);
+const filePickerResetKey = ref(0);
 const mediaElement = ref(null);
 const title = ref('');
 const start = ref(0);
@@ -469,6 +471,12 @@ function selectSourceMode(mode) {
     error.value = '';
     status.value = '';
     sourceMode.value = mode;
+    emit('mode-change', mode);
+}
+
+function handleRecordingCanvasReady(canvas) {
+    recordingWaveformCanvas.value = canvas;
+    drawRecordingWaveform();
 }
 
 function clearSource() {
@@ -483,13 +491,13 @@ function clearSource() {
     end.value = 0;
     playbackRate.value = 1;
     playhead.value = 0;
-    if (fileInput.value) fileInput.value.value = '';
+    filePickerResetKey.value += 1;
 }
 
-async function handleFileSelected(event) {
-    const file = event.target.files?.[0];
+async function handleFileSelected(file) {
     if (!file) return;
     sourceMode.value = 'file';
+    emit('mode-change', 'file');
     isLoading.value = true;
     error.value = '';
     status.value = 'Reading audio track…';
@@ -559,6 +567,9 @@ async function saveAudio() {
     }
 }
 
+watch(() => props.initialMode, (mode) => {
+    if (mode !== sourceMode.value) selectSourceMode(mode);
+});
 watch([start, end, waveform], drawWaveform);
 watch(playbackRate, applyPreviewPlaybackRate);
 watch(objectUrl, async () => {
@@ -598,28 +609,23 @@ onBeforeUnmount(() => {
                         ><span class="material-symbols-outlined">mic</span>Record audio</Button>
                     </div>
 
-                    <label v-if="sourceMode === 'file'" class="audio-file-picker">
-                        <span class="material-symbols-outlined">upload_file</span>
-                        <span>Choose audio or video file</span>
-                        <small>Audio files and videos with an audio track</small>
-                        <input ref="fileInput" type="file" accept="audio/*,video/*" :disabled="isLoading || isSaving" @change="handleFileSelected">
-                    </label>
+                    <AudioFileSource
+                        v-if="sourceMode === 'file'"
+                        :disabled="isLoading || isSaving"
+                        :reset-key="filePickerResetKey"
+                        @file-selected="handleFileSelected"
+                    />
 
-                    <section v-else class="audio-recording-card" aria-label="Record audio">
-                        <span class="material-symbols-outlined recording-icon">mic</span>
-                        <h2>Record from your microphone</h2>
-                        <p v-if="!recordingSupported" class="recording-error">This browser does not support microphone recording.</p>
-                        <p v-else>Record a clip, then trim it before saving it to your audio library.</p>
-                        <canvas ref="recordingWaveformCanvas" class="recording-waveform" aria-label="Live recording waveform"></canvas>
-                        <output class="recording-timer" aria-live="polite">{{ formatDuration(recordingDuration) }}</output>
-                        <Button
-                            v-if="!isRecording"
-                            :disabled="isLoading || isSaving || !recordingSupported"
-                            @click="startRecording"
-                        ><span class="material-symbols-outlined">mic</span>Start recording</Button>
-                        <Button v-else severity="danger" :disabled="isLoading || isSaving" @click="stopRecording"><span class="material-symbols-outlined">stop</span>Stop recording</Button>
-                        <p class="recording-hint">Microphone access is requested only when you start recording.</p>
-                    </section>
+                    <AudioRecorderSource
+                        v-else
+                        :disabled="isLoading || isSaving"
+                        :is-recording="isRecording"
+                        :recording-duration="recordingDuration"
+                        :recording-supported="recordingSupported"
+                        @canvas-ready="handleRecordingCanvasReady"
+                        @start="startRecording"
+                        @stop="stopRecording"
+                    />
                     <div v-if="status || error" class="audio-status" :class="{ error }" role="status">
                         <span class="material-symbols-outlined">{{ error ? 'warning' : 'mic' }}</span>
                         <span>{{ error || status }}</span>
@@ -634,11 +640,12 @@ onBeforeUnmount(() => {
                             <span>{{ formatDuration(sourceMetadata.duration) }} · {{ sourceMetadata.channelCount }} channel{{ sourceMetadata.channelCount === 1 ? '' : 's' }}</span>
                         </div>
                         <div class="audio-source-actions">
-                            <label class="replace-source-picker" :class="{ disabled: isLoading || isSaving }">
-                                <span class="material-symbols-outlined">upload_file</span>
-                                Choose another file
-                                <input ref="fileInput" type="file" accept="audio/*,video/*" :disabled="isLoading || isSaving" @change="handleFileSelected">
-                            </label>
+                            <AudioFileSource
+                                compact
+                                :disabled="isLoading || isSaving"
+                                :reset-key="filePickerResetKey"
+                                @file-selected="handleFileSelected"
+                            />
                             <Button severity="secondary" variant="outlined" size="small" :disabled="isSaving" @click="clearSource">Remove</Button>
                         </div>
                     </div>
@@ -732,29 +739,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .audio-creator-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
 .audio-creator-content { width: min(100%, 62rem); margin: 0 auto; padding: 1.5rem 1.25rem 5rem; }
-.audio-file-picker { display: grid; min-height: 8rem; padding: 1.25rem; border: 1px dashed #51709a; color: #dbeafe; background: #111827; cursor: pointer; place-items: center; text-align: center; }
-.audio-file-picker .material-symbols-outlined { font-size: 2rem; color: #60a5fa; }
-.audio-file-picker small { color: #94a3b8; }
-.audio-file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .audio-source-options { display: grid; gap: 1rem; }
 .source-mode-tabs { display: flex; gap: .65rem; flex-wrap: wrap; }
 .source-mode-tabs button { display: inline-flex; align-items: center; gap: .4rem; }
 .source-mode-tabs .source-mode-active { border-color: #60a5fa; color: #dbeafe; background: #172554; }
-.audio-recording-card { display: grid; min-height: 14rem; padding: 1.5rem; border: 1px solid #51709a; color: #dbeafe; background: #111827; place-items: center; text-align: center; }
-.recording-icon { font-size: 2.5rem; color: #f87171; }
-.audio-recording-card h2 { margin: .25rem 0 0; color: #f8fafc; }
-.audio-recording-card p { max-width: 34rem; margin: .25rem 0; color: #94a3b8; }
-.recording-waveform { display: block; width: min(100%, 38rem); height: 6rem; border: 1px solid #334155; background: #101522; }
-.recording-timer { color: #f8fafc; font-variant-numeric: tabular-nums; font-size: 2rem; font-weight: 600; }
-.recording-error { color: #fca5a5 !important; }
-.recording-hint { font-size: .75rem; }
 .audio-editor { margin-top: 1.5rem; padding: 1rem; border: 1px solid #334155; background: #111827; }
 .audio-source-row, .audio-actions { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
 .audio-source-actions { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; justify-content: flex-end; }
-.replace-source-picker { display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .65rem; border: 1px solid #475569; color: #cbd5e1; cursor: pointer; font-size: .8rem; }
-.replace-source-picker:hover { border-color: #60a5fa; color: #dbeafe; }
-.replace-source-picker.disabled { cursor: default; opacity: .55; }
-.replace-source-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .audio-source-row span { display: block; margin-top: .25rem; color: #94a3b8; font-size: .8rem; }
 .waveform-shell { position: relative; height: 11rem; margin-top: 1rem; overflow: hidden; border: 1px solid #334155; touch-action: none; }
 .waveform-shell canvas { position: relative; z-index: 1; display: block; width: 100%; height: 100%; cursor: ew-resize; }

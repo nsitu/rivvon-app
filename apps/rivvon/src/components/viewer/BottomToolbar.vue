@@ -211,6 +211,11 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         cameraMotionClosureDuration: { type: Number, default: 0 },
         technicalOverlay: { type: Boolean, default: false },
         activeToolbarOverlay: { type: String, default: null },
+        audioCreatorMode: {
+            type: String,
+            default: 'file',
+            validator: (value) => ['file', 'record'].includes(value),
+        },
         canShareViewUrl: { type: Boolean, default: false },
         exportImageVisible: { type: Boolean, default: false },
         exportVideoVisible: { type: Boolean, default: false },
@@ -392,6 +397,26 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
     function isToolbarContextActive(contextId) {
         return viewerToolbarContextMap.value[contextId]?.isActive?.() ?? false;
+    }
+
+    function isAudioCreatorModeActive(mode) {
+        return isToolbarContextActive('audioCreator') && props.audioCreatorMode === mode;
+    }
+
+    function toggleAudioCreator(mode, openAction) {
+        if (isToolbarContextActive('audioCreator')) {
+            if (props.audioCreatorMode === mode) {
+                handleBack();
+                return;
+            }
+
+            // Keep the shared panel open while changing its source workflow.
+            closeLaunchers();
+            openAction();
+            return;
+        }
+
+        activateContext(openAction);
     }
 
     const createGroupActive = computed(() => (
@@ -900,16 +925,16 @@ const activeLauncherTitle = computed(() => {
                     label: 'Create...',
                     description: 'Trim audio from an audio or video file.',
                     icon: 'equalizer',
-                    active: isToolbarContextActive('audioCreator'),
-                    command: () => toggleContextItem('audioCreator', () => emit('request-open-audio-creator')),
+                    active: isAudioCreatorModeActive('file'),
+                    command: () => toggleAudioCreator('file', () => emit('request-open-audio-creator')),
                 },
                 {
                     contextLabel: 'Audio Recording',
                     label: 'Record...',
                     description: 'Record audio from your microphone, trim it, and save it to your library.',
                     icon: 'mic',
-                    active: isToolbarContextActive('audioCreator'),
-                    command: () => toggleContextItem('audioCreator', () => emit('request-open-audio-recorder')),
+                    active: isAudioCreatorModeActive('record'),
+                    command: () => toggleAudioCreator('record', () => emit('request-open-audio-recorder')),
                 },
             ],
         },

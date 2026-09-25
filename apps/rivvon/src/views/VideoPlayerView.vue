@@ -8,6 +8,8 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import { fetchVideo, uploadVideoThumbnail } from '../services/videoService.js';
     import { createVideoThumbnailFromUrl } from '../modules/viewer/videoThumbnail.js';
 
+    const emit = defineEmits(['video-title-change']);
+
     const { isAuthenticated, isAdmin } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
@@ -45,9 +47,11 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
         error.value = '';
         thumbnailStatus.value = '';
         thumbnailError.value = '';
+        emit('video-title-change', '');
         try {
             const response = await fetchVideo(route.params.videoId);
             video.value = response.video;
+            emit('video-title-change', video.value?.name || '');
         } catch (loadError) {
             error.value = loadError?.message || 'Unable to load this video.';
         } finally {
@@ -102,7 +106,10 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
 
     watch(() => route.params.videoId, loadVideo);
     onMounted(() => document.addEventListener('fullscreenchange', handleFullscreenChange));
-    onBeforeUnmount(() => document.removeEventListener('fullscreenchange', handleFullscreenChange));
+    onBeforeUnmount(() => {
+        emit('video-title-change', '');
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    });
     loadVideo();
 </script>
 
@@ -118,6 +125,29 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
                     <span class="material-symbols-outlined">arrow_back</span>
                     Back to Video Gallery
                 </Button>
+                <template v-if="video">
+                    <Button type="button" @click="copyLink">
+                        <span class="material-symbols-outlined">link</span>
+                        {{ copied ? 'Copied' : 'Copy Link' }}
+                    </Button>
+                    <a
+                        class="video-player-download"
+                        :href="video.playback_url"
+                        :download="`${video.name}.${video.format}`"
+                    >
+                        <span class="material-symbols-outlined">download</span>
+                        Download
+                    </a>
+                    <Button
+                        v-if="canRegenerateThumbnail"
+                        type="button"
+                        :disabled="isRegeneratingThumbnail"
+                        @click="regenerateThumbnail"
+                    >
+                        <span class="material-symbols-outlined">{{ isRegeneratingThumbnail ? 'progress_activity' : 'refresh' }}</span>
+                        {{ isRegeneratingThumbnail ? 'Regenerating…' : 'Regenerate Thumbnail' }}
+                    </Button>
+                </template>
             </PanelActionBar>
             <ScrollPanel class="rivvon-scroll-panel video-player-scroll">
             <section v-if="isLoading" class="player-message">
@@ -147,34 +177,12 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
 
                 <div class="video-detail-row">
                     <div>
-                        <div class="video-title-line">
-                            <h1>{{ video.name }}</h1>
-                            <span v-if="!video.is_public" class="private-badge">Private</span>
-                        </div>
+                        <span v-if="!video.is_public" class="private-badge">Private</span>
                         <p v-if="video.description" class="video-description">{{ video.description }}</p>
                         <p class="video-meta">
                             {{ video.owner_name || 'Rivvon artist' }} · {{ video.width }}×{{ video.height }} ·
                             {{ video.format.toUpperCase() }} · {{ formatFileSize(video.file_size) }}
                         </p>
-                    </div>
-                    <div class="video-actions">
-                        <button type="button" @click="copyLink">
-                            <span class="material-symbols-outlined">link</span>
-                            {{ copied ? 'Copied' : 'Copy Link' }}
-                        </button>
-                        <a :href="video.playback_url" :download="`${video.name}.${video.format}`">
-                            <span class="material-symbols-outlined">download</span>
-                            Download
-                        </a>
-                        <button
-                            v-if="canRegenerateThumbnail"
-                            type="button"
-                            :disabled="isRegeneratingThumbnail"
-                            @click="regenerateThumbnail"
-                        >
-                            <span class="material-symbols-outlined">{{ isRegeneratingThumbnail ? 'progress_activity' : 'refresh' }}</span>
-                            {{ isRegeneratingThumbnail ? 'Regenerating…' : 'Regenerate Thumbnail' }}
-                        </button>
                     </div>
                 </div>
                 <p v-if="thumbnailStatus" class="thumbnail-status" role="status">{{ thumbnailStatus }}</p>
@@ -197,16 +205,13 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
     .video-player-frame:fullscreen video { max-height: 100vh; }
     .fullscreen-button { position: absolute; top: .75rem; right: .75rem; display: grid; width: 2.75rem; height: 2.75rem; border: 1px solid rgba(255,255,255,.22); border-radius: .2rem; color: white; background: rgba(0,0,0,.55); cursor: pointer; place-items: center; backdrop-filter: blur(8px); }
     .video-detail-row { display: flex; justify-content: space-between; gap: 1.5rem; padding: 1.4rem .25rem; border-bottom: 1px solid #3a3a3a; }
-    .video-title-line { display: flex; align-items: center; gap: .7rem; }
-    h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 2.1rem); }
     .private-badge { padding: .2rem .5rem; border: 1px solid #5b4c2d; border-radius: .2rem; color: #e0b96b; background: #342b1b; font-size: .72rem; }
     .video-description { max-width: 60rem; color: #c1c5d0; line-height: 1.55; }
     .video-meta { color: #858b9b; font-size: .82rem; }
-    .video-actions { display: flex; align-items: flex-start; gap: .55rem; flex-shrink: 0; }
-    .video-actions button, .video-actions a { display: inline-flex; align-items: center; gap: .4rem; padding: .65rem .8rem; border: 1px solid #3c3c3c; border-radius: .2rem; color: #eef2ff; background: #202020; font: inherit; font-size: .82rem; text-decoration: none; cursor: pointer; }
-    .video-actions button:hover, .video-actions a:hover { border-color: #3987da; background: #252525; }
-    .video-actions button:disabled { cursor: wait; opacity: .65; }
-    .video-actions .material-symbols-outlined { font-size: 1.1rem; }
+    .video-player-header-actions :deep(.panel-action-bar-actions) { justify-content: flex-start; }
+    .video-player-download { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .4rem; box-sizing: border-box; padding: .65rem .8rem; border: 1px solid var(--p-button-secondary-border-color, #64748b); border-radius: var(--p-button-border-radius, .2rem); color: var(--p-button-secondary-color, #eef2ff); background: var(--p-button-secondary-background, transparent); font: inherit; font-size: .82rem; text-decoration: none; cursor: pointer; }
+    .video-player-download:hover { background: var(--p-button-secondary-hover-background, rgba(255, 255, 255, .08)); }
+    .video-player-download .material-symbols-outlined { font-size: 1.1rem; }
     .thumbnail-status { margin: 1rem .25rem 0; color: #65c878; font-size: .82rem; }
     .thumbnail-error { color: #fca5a5; }
     .player-message { display: flex; min-height: 55vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
@@ -215,5 +220,5 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
     .player-message .error-icon { color: #f87171; }
     .player-spinner { animation: player-spin .9s linear infinite; }
     @keyframes player-spin { to { transform: rotate(360deg); } }
-    @media (max-width: 700px) { .video-detail-row { flex-direction: column; } .video-actions { width: 100%; flex-wrap: wrap; } .video-actions > * { flex: 1; justify-content: center; } }
+    @media (max-width: 700px) { .video-detail-row { flex-direction: column; } .video-player-header-actions :deep(.panel-action-bar-actions) { align-items: stretch; flex-direction: column; } .video-player-header-actions :deep(.p-button), .video-player-download { width: 100%; justify-content: center; } }
 </style>
