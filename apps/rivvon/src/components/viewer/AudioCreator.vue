@@ -6,11 +6,10 @@ import Slider from 'primevue/slider';
 import { useRouter } from 'vue-router';
 import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
 import {
+    AUDIO_PLAYBACK_RATE_STOPS,
     createAudioWaveform,
     getAudioOutputDuration,
     inspectAudioSource,
-    MAX_AUDIO_PLAYBACK_RATE,
-    MIN_AUDIO_PLAYBACK_RATE,
     normalizeAudioPlaybackRate,
     trimAudioSource,
 } from '../../modules/viewer/audioProcessing.js';
@@ -36,7 +35,17 @@ const mediaElement = ref(null);
 const title = ref('');
 const start = ref(0);
 const end = ref(0);
-const playbackRate = ref(1);
+const playbackRateStopIndex = ref(AUDIO_PLAYBACK_RATE_STOPS.indexOf(1));
+const playbackRate = computed({
+    get: () => AUDIO_PLAYBACK_RATE_STOPS[playbackRateStopIndex.value],
+    set: (value) => {
+        const index = Math.round(Number(value));
+        playbackRateStopIndex.value = Math.min(
+            AUDIO_PLAYBACK_RATE_STOPS.length - 1,
+            Math.max(0, Number.isFinite(index) ? index : AUDIO_PLAYBACK_RATE_STOPS.indexOf(1)),
+        );
+    },
+});
 const playhead = ref(0);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -65,15 +74,15 @@ const selectedDuration = computed(() => Math.max(0, end.value - start.value));
 const outputDuration = computed(() => getAudioOutputDuration(start.value, end.value, playbackRate.value));
 const formattedPlaybackRate = computed(() => {
     const rate = normalizeAudioPlaybackRate(playbackRate.value);
-    return `${Number.isInteger(rate) ? rate : rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}×`;
+    const formatted = Number.isInteger(rate) ? String(rate) : rate.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+    return `${formatted}×`;
 });
 const startPercent = computed(() => sourceMetadata.value?.duration ? (start.value / sourceMetadata.value.duration) * 100 : 0);
 const endPercent = computed(() => sourceMetadata.value?.duration ? (end.value / sourceMetadata.value.duration) * 100 : 100);
 const rateTrackWidth = 'calc(100% - 1rem)';
 
-function getRatePosition(value) {
-    const rate = normalizeAudioPlaybackRate(value);
-    return `${((rate - MIN_AUDIO_PLAYBACK_RATE) / (MAX_AUDIO_PLAYBACK_RATE - MIN_AUDIO_PLAYBACK_RATE)) * 100}%`;
+function getRatePosition(index) {
+    return `${(index / (AUDIO_PLAYBACK_RATE_STOPS.length - 1)) * 100}%`;
 }
 
 function formatDuration(value) {
@@ -593,18 +602,15 @@ onBeforeUnmount(() => {
                             <strong>{{ formattedPlaybackRate }}</strong>
                         </div>
                         <Slider
-                            v-model="playbackRate"
-                            :min="MIN_AUDIO_PLAYBACK_RATE"
-                            :max="MAX_AUDIO_PLAYBACK_RATE"
-                            :step="0.25"
+                            v-model="playbackRateStopIndex"
+                            :min="0"
+                            :max="AUDIO_PLAYBACK_RATE_STOPS.length - 1"
+                            :step="1"
                             class="audio-rate-slider"
                             aria-label="Playback rate"
                         />
                         <div class="rate-controls-caption" :style="{ width: rateTrackWidth }">
-                            <span :style="{ left: getRatePosition(MIN_AUDIO_PLAYBACK_RATE) }">{{ MIN_AUDIO_PLAYBACK_RATE }}×</span>
-                            <span :style="{ left: getRatePosition(1) }">1×</span>
-                            <span :style="{ left: getRatePosition(8) }">8×</span>
-                            <span :style="{ left: getRatePosition(MAX_AUDIO_PLAYBACK_RATE) }">{{ MAX_AUDIO_PLAYBACK_RATE }}×</span>
+                            <span v-for="(rate, index) in AUDIO_PLAYBACK_RATE_STOPS" :key="rate" :style="{ left: getRatePosition(index) }">{{ rate }}×</span>
                         </div>
                         <p class="rate-help">Speed changes also change pitch. The saved audio will be {{ formatDuration(outputDuration) }} long.</p>
                     </div>

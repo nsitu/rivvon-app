@@ -11,8 +11,9 @@ import {
 } from 'mediabunny';
 
 const DEFAULT_WAVEFORM_BINS = 1200;
-export const MIN_AUDIO_PLAYBACK_RATE = 0.25;
+export const MIN_AUDIO_PLAYBACK_RATE = 0.125;
 export const MAX_AUDIO_PLAYBACK_RATE = 16;
+export const AUDIO_PLAYBACK_RATE_STOPS = Object.freeze([0.125, 0.25, 0.5, 1, 2, 4, 8]);
 
 export function normalizeAudioPlaybackRate(value) {
     const numericValue = Number(value);
