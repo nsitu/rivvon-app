@@ -44,6 +44,8 @@ Full-screen viewer panels should use the `viewer-chrome-panel-container` layout 
 
 Persistent actions must not be placed inside a scrolling content region unless they are intentionally part of the scrollable content.
 
+The shared shell owns the panel's title, context, and close action. Do not repeat that purpose with a second heading, eyebrow, description, or close button inside the panel content. Content headings should introduce a distinct task or subsection rather than restating the panel title.
+
 ## Controls and interaction
 
 - Use PrimeVue controls for standard form interactions.

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Slider from 'primevue/slider';
+import PanelScrollArea from '../shared/PanelScrollArea.vue';
 import { useRouter } from 'vue-router';
 import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
 import {
@@ -558,12 +559,6 @@ async function saveAudio() {
     }
 }
 
-function close() {
-    discardRecording();
-    clearSource();
-    emit('request-close');
-}
-
 watch([start, end, waveform], drawWaveform);
 watch(playbackRate, applyPreviewPlaybackRate);
 watch(objectUrl, async () => {
@@ -579,17 +574,8 @@ onBeforeUnmount(() => {
 
 <template>
     <main class="audio-creator-panel">
-        <div class="audio-creator-scroll viewer-chrome-panel-container">
+        <PanelScrollArea class="viewer-chrome-panel-container">
             <section class="audio-creator-content">
-                <div class="audio-creator-heading">
-                    <div>
-                        <p class="eyebrow">Create / Audio</p>
-                        <h1>Create audio</h1>
-                        <p>Extract a soundtrack from a file or record from your microphone, trim it, and save it to your library.</p>
-                    </div>
-                    <Button severity="secondary" variant="outlined" :disabled="isSaving" @click="close">Close</Button>
-                </div>
-
                 <div v-if="!hasSource" class="audio-source-options">
                     <div class="source-mode-tabs" role="tablist" aria-label="Audio source">
                         <Button
@@ -739,18 +725,13 @@ onBeforeUnmount(() => {
                 <section v-else-if="isLoading" class="audio-empty"><span class="material-symbols-outlined audio-spinner">progress_activity</span><h2>Preparing audio…</h2></section>
                 <section v-else class="audio-empty"><span class="material-symbols-outlined">equalizer</span><h2>Choose a source file to begin</h2><p>Your saved result will be available from Browse / Audio Library.</p></section>
             </section>
-        </div>
+        </PanelScrollArea>
     </main>
 </template>
 
 <style scoped>
 .audio-creator-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
-.audio-creator-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .audio-creator-content { width: min(100%, 62rem); margin: 0 auto; padding: 1.5rem 1.25rem 5rem; }
-.audio-creator-heading { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
-.eyebrow { margin: 0 0 .3rem; color: #60a5fa; font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
-h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
-.audio-creator-heading p:last-child { max-width: 42rem; color: #a1a1aa; line-height: 1.5; }
 .audio-file-picker { display: grid; min-height: 8rem; padding: 1.25rem; border: 1px dashed #51709a; color: #dbeafe; background: #111827; cursor: pointer; place-items: center; text-align: center; }
 .audio-file-picker .material-symbols-outlined { font-size: 2rem; color: #60a5fa; }
 .audio-file-picker small { color: #94a3b8; }
@@ -811,5 +792,5 @@ progress { width: 100%; accent-color: #60a5fa; }
 .audio-empty p { color: #94a3b8; }
 .audio-spinner { animation: audio-spin .9s linear infinite; }
 @keyframes audio-spin { to { transform: rotate(360deg); } }
-@media (max-width: 700px) { .audio-creator-heading { align-items: flex-start; flex-direction: column; } .trim-controls { grid-template-columns: 1fr; } .audio-source-row { align-items: flex-start; flex-direction: column; } .audio-actions > * { flex: 1; } }
+@media (max-width: 700px) { .trim-controls { grid-template-columns: 1fr; } .audio-source-row { align-items: flex-start; flex-direction: column; } .audio-actions > * { flex: 1; } }
 </style>
