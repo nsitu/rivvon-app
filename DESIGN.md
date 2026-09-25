@@ -27,9 +27,9 @@ When introducing a repeated color, spacing value, radius, elevation, or breakpoi
 
 ## Standard scroll regions
 
-Scrollable product panels must use the shared `PanelScrollArea` primitive from `apps/rivvon/src/components/shared/PanelScrollArea.vue`.
+Scrollable product panels must use PrimeVue's `ScrollPanel` component directly with the shared `rivvon-scroll-panel` class. The class is defined globally in `apps/rivvon/src/components/viewer/toolsPanelShared.css`.
 
-Do not add `overflow-y: auto` directly to a product panel unless there is a documented exception. The shared primitive provides the standard PrimeVue scrollbar, flex sizing, horizontal overflow protection, and hover/focus behavior.
+Do not add `overflow-y: auto` directly to a product panel unless there is a documented exception. The shared class provides the standard PrimeVue scrollbar, flex sizing, horizontal overflow protection, and hover/focus behavior without hiding the PrimeVue component API behind another wrapper.
 
 The parent panel must provide a constrained flex layout (`height: 100%`, `min-height: 0`) so the scroll region can calculate its viewport. Content-specific padding belongs on the slotted content, not on the scroll component itself.
 
@@ -68,7 +68,7 @@ Before merging a UI change, check:
 
 - Does an existing PrimeVue component or Rivvon primitive already cover this?
 - Does this introduce a repeated visual value that should become a token?
-- Does every scrollable panel use `PanelScrollArea`?
+- Does every scrollable panel use PrimeVue `ScrollPanel` with `rivvon-scroll-panel`?
 - Are loading, empty, error, disabled, focus, and narrow-screen states handled where relevant?
 - Are icon names registered in `main.js`?
 - If this is an exception, is the reason documented close to the implementation?

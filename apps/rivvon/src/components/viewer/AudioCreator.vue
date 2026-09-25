@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Slider from 'primevue/slider';
-import PanelScrollArea from '../shared/PanelScrollArea.vue';
+import ScrollPanel from 'primevue/scrollpanel';
 import { useRouter } from 'vue-router';
 import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
 import {
@@ -574,7 +574,7 @@ onBeforeUnmount(() => {
 
 <template>
     <main class="audio-creator-panel">
-        <PanelScrollArea class="viewer-chrome-panel-container">
+        <ScrollPanel class="rivvon-scroll-panel viewer-chrome-panel-container">
             <section class="audio-creator-content">
                 <div v-if="!hasSource" class="audio-source-options">
                     <div class="source-mode-tabs" role="tablist" aria-label="Audio source">
@@ -725,7 +725,7 @@ onBeforeUnmount(() => {
                 <section v-else-if="isLoading" class="audio-empty"><span class="material-symbols-outlined audio-spinner">progress_activity</span><h2>Preparing audio…</h2></section>
                 <section v-else class="audio-empty"><span class="material-symbols-outlined">equalizer</span><h2>Choose a source file to begin</h2><p>Your saved result will be available from Browse / Audio Library.</p></section>
             </section>
-        </PanelScrollArea>
+        </ScrollPanel>
     </main>
 </template>
 

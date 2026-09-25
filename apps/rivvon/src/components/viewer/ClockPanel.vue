@@ -84,7 +84,7 @@
         :class="{ active: props.active }"
     >
         <div class="clock-panel-container viewer-chrome-panel-container">
-            <ScrollPanel class="clock-panel-scrollpanel">
+            <ScrollPanel class="rivvon-scroll-panel clock-panel-scrollpanel">
                 <div class="clock-panel-content">
                     <div class="tools-section">
                         <div class="tools-section-label">Clock Face</div>
@@ -179,37 +179,6 @@
         min-height: 0;
         width: 100%;
         background: transparent;
-    }
-
-    .clock-panel-scrollpanel {
-        --p-scrollpanel-bar-size: 0.55rem;
-        --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
-        flex: 1;
-        height: 100%;
-        min-height: 0;
-        width: 100%;
-    }
-
-    :deep(.clock-panel-scrollpanel .p-scrollpanel-content-container) {
-        height: 100%;
-        min-height: 0;
-    }
-
-    :deep(.clock-panel-scrollpanel .p-scrollpanel-content) {
-        height: 100%;
-        min-height: 100%;
-        overflow-x: hidden;
-        padding-bottom: 0;
-    }
-
-    :deep(.clock-panel-scrollpanel .p-scrollpanel-bar) {
-        opacity: 0.55;
-    }
-
-    :deep(.clock-panel-scrollpanel:hover .p-scrollpanel-bar),
-    :deep(.clock-panel-scrollpanel:active .p-scrollpanel-bar),
-    :deep(.clock-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
-        opacity: 0.9;
     }
 
     .clock-panel-content {

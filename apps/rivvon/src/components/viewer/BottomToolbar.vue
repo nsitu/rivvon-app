@@ -2,9 +2,9 @@
     import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
     import PanelActionBar from '../shared/PanelActionBar.vue';
-    import PanelScrollArea from '../shared/PanelScrollArea.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import CameraMotionControls from './CameraMotionControls.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -1063,7 +1063,7 @@ const activeLauncherTitle = computed(() => {
         :aria-label="`${activeLauncherTitle} actions`"
     >
         <div class="launcher-panel-container viewer-chrome-panel-container">
-            <PanelScrollArea>
+            <ScrollPanel class="rivvon-scroll-panel">
                 <div ref="launcherPanelContentRef" class="launcher-panel-content">
                     <template
                         v-for="entry in activeLauncherSections"
@@ -1175,7 +1175,7 @@ const activeLauncherTitle = computed(() => {
                         </div>
                     </div>
                 </div>
-            </PanelScrollArea>
+            </ScrollPanel>
         </div>
     </div>
 
@@ -1185,7 +1185,7 @@ const activeLauncherTitle = computed(() => {
         :class="{ active: isToolbarContextActive('tools') }"
     >
         <div class="tools-panel-container viewer-chrome-panel-container">
-            <PanelScrollArea>
+            <ScrollPanel class="rivvon-scroll-panel">
                 <div ref="toolsPanelContentRef" class="tools-panel-content">
                     <div class="tools-section-host">
                         <ViewerSettingsControls
@@ -1399,7 +1399,7 @@ const activeLauncherTitle = computed(() => {
                         </div>
                     </div>
                 </div>
-            </PanelScrollArea>
+            </ScrollPanel>
             <!-- Apply changes footer -->
             <PanelActionBar
                 v-if="showToolsPanelCheckmark"

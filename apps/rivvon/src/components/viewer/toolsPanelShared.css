@@ -12,6 +12,39 @@
     --viewer-toolbar-panel-background: rgba(0,0,0,0.75);
     --viewer-tools-section-background: rgba(0, 0, 0, 0.75);
 }
+
+/* Standard PrimeVue ScrollPanel treatment for full-height product panels. */
+.rivvon-scroll-panel {
+    --p-scrollpanel-bar-size: 0.55rem;
+    --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.rivvon-scroll-panel .p-scrollpanel-content-container {
+    height: 100%;
+    min-height: 0;
+}
+
+.rivvon-scroll-panel .p-scrollpanel-content {
+    height: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    padding-bottom: 0;
+}
+
+.rivvon-scroll-panel .p-scrollpanel-bar {
+    opacity: 0.55;
+}
+
+.rivvon-scroll-panel:hover .p-scrollpanel-bar,
+.rivvon-scroll-panel:active .p-scrollpanel-bar,
+.rivvon-scroll-panel .p-scrollpanel-bar:focus-visible {
+    opacity: 0.9;
+}
 /* 
 .launcher-panel-content,
 .tools-panel-content {
