@@ -21,6 +21,15 @@ export function normalizeAudioPlaybackRate(value) {
     return Math.min(MAX_AUDIO_PLAYBACK_RATE, Math.max(MIN_AUDIO_PLAYBACK_RATE, numericValue));
 }
 
+export function getSuggestedAudioPlaybackRate({ sourceKind = 'file', frameRate } = {}) {
+    if (sourceKind === 'recording') return 1;
+
+    const roundedFrameRate = Math.round(Number(frameRate));
+    if (roundedFrameRate === 240) return 8;
+    if (roundedFrameRate === 120) return 4;
+    return 1;
+}
+
 export function getAudioOutputDuration(start, end, playbackRate = 1) {
     const sourceDuration = Math.max(0, Number(end) - Number(start));
     return sourceDuration / normalizeAudioPlaybackRate(playbackRate);
@@ -39,11 +48,16 @@ export async function inspectAudioSource(file) {
         if (!(await track.canDecode())) throw new Error('This browser cannot decode the audio track in that file.');
         const duration = await track.computeDuration();
         if (!Number.isFinite(duration) || duration <= 0) throw new Error('The audio track has an invalid duration.');
+        const videoTrack = await input.getPrimaryVideoTrack();
+        const frameRate = videoTrack
+            ? (await videoTrack.computePacketStats()).averagePacketRate
+            : null;
         return {
             duration,
             sampleRate: track.sampleRate,
             channelCount: track.numberOfChannels,
             codec: track.codec,
+            frameRate,
             sourceType: file.type || 'application/octet-stream',
         };
     } finally {

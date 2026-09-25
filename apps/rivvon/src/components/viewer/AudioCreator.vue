@@ -9,6 +9,7 @@ import {
     AUDIO_PLAYBACK_RATE_STOPS,
     createAudioWaveform,
     getAudioOutputDuration,
+    getSuggestedAudioPlaybackRate,
     inspectAudioSource,
     normalizeAudioPlaybackRate,
     trimAudioSource,
@@ -31,6 +32,7 @@ const sourceFile = ref(null);
 const sourceMetadata = ref(null);
 const waveform = ref([]);
 const waveformCanvas = ref(null);
+const recordingWaveformCanvas = ref(null);
 const mediaElement = ref(null);
 const title = ref('');
 const start = ref(0);
@@ -67,6 +69,13 @@ let recordingStream = null;
 let recordingChunks = [];
 let recordingStartedAt = 0;
 let recordingTimer = null;
+let recordingAudioContext = null;
+let recordingAnalyser = null;
+let recordingAudioSource = null;
+let recordingAnalyserData = null;
+let recordingAnimationFrame = null;
+let recordingWaveformPeaks = [];
+let recordingWaveformSampleTime = 0;
 
 const hasSource = computed(() => Boolean(sourceFile.value && sourceMetadata.value));
 const sourceIsVideo = computed(() => sourceFile.value?.type?.startsWith('video/'));
@@ -210,8 +219,89 @@ function releaseRecordingStream() {
     recordingStream = null;
 }
 
+function drawRecordingWaveform() {
+    const canvas = recordingWaveformCanvas.value;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(rect.width * dpr));
+    const height = Math.max(1, Math.round(rect.height * dpr));
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cssWidth = rect.width;
+    const cssHeight = rect.height;
+    context.clearRect(0, 0, cssWidth, cssHeight);
+    context.fillStyle = '#101522';
+    context.fillRect(0, 0, cssWidth, cssHeight);
+    const middle = cssHeight / 2;
+    const barWidth = cssWidth / Math.max(1, recordingWaveformPeaks.length || 1);
+    context.fillStyle = '#68b8ff';
+    recordingWaveformPeaks.forEach((peak, index) => {
+        const barHeight = Math.max(2, peak * (cssHeight * .82));
+        const x = index * barWidth;
+        context.fillRect(x, middle - barHeight / 2, Math.max(1, barWidth - .5), barHeight);
+    });
+}
+
+function animateRecordingWaveform(timestamp) {
+    if (!recordingAnalyser || !recordingAnalyserData) return;
+    recordingAnalyser.getByteTimeDomainData(recordingAnalyserData);
+    if (timestamp - recordingWaveformSampleTime >= 50) {
+        let sum = 0;
+        for (const value of recordingAnalyserData) {
+            const normalized = (value - 128) / 128;
+            sum += normalized * normalized;
+        }
+        const amplitude = Math.min(1, Math.sqrt(sum / recordingAnalyserData.length) * 3.2);
+        recordingWaveformPeaks.push(amplitude);
+        if (recordingWaveformPeaks.length > 180) recordingWaveformPeaks.shift();
+        recordingWaveformSampleTime = timestamp;
+        drawRecordingWaveform();
+    }
+    recordingAnimationFrame = window.requestAnimationFrame(animateRecordingWaveform);
+}
+
+async function startRecordingVisualizer(stream) {
+    const AudioContextConstructor = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!AudioContextConstructor) return;
+    try {
+        recordingAudioContext = new AudioContextConstructor();
+        recordingAnalyser = recordingAudioContext.createAnalyser();
+        recordingAnalyser.fftSize = 1024;
+        recordingAnalyserData = new Uint8Array(recordingAnalyser.fftSize);
+        recordingAudioSource = recordingAudioContext.createMediaStreamSource(stream);
+        recordingAudioSource.connect(recordingAnalyser);
+        await recordingAudioContext.resume();
+        recordingWaveformSampleTime = 0;
+        drawRecordingWaveform();
+        recordingAnimationFrame = window.requestAnimationFrame(animateRecordingWaveform);
+    } catch {
+        stopRecordingVisualizer();
+    }
+}
+
+function stopRecordingVisualizer({ clearHistory = true } = {}) {
+    if (recordingAnimationFrame) window.cancelAnimationFrame(recordingAnimationFrame);
+    recordingAnimationFrame = null;
+    recordingAudioSource?.disconnect();
+    recordingAudioSource = null;
+    recordingAnalyser = null;
+    recordingAnalyserData = null;
+    if (recordingAudioContext) recordingAudioContext.close().catch(() => {});
+    recordingAudioContext = null;
+    recordingWaveformSampleTime = 0;
+    if (clearHistory) {
+        recordingWaveformPeaks = [];
+        drawRecordingWaveform();
+    }
+}
+
 function discardRecording() {
     stopRecordingTimer();
+    stopRecordingVisualizer();
     const recorder = mediaRecorder;
     mediaRecorder = null;
     if (recorder && recorder.state !== 'inactive') {
@@ -251,7 +341,11 @@ function getRecordingExtension(mimeType) {
     return 'webm';
 }
 
-async function prepareSource(file, { titleOverride = '', readyStatus = 'Ready to trim and save.' } = {}) {
+async function prepareSource(file, {
+    sourceKind = 'file',
+    titleOverride = '',
+    readyStatus = 'Ready to trim and save.',
+} = {}) {
     clearSource();
     const metadata = await inspectAudioSource(file);
     const waveformResult = await createAudioWaveform(file, {
@@ -263,6 +357,10 @@ async function prepareSource(file, { titleOverride = '', readyStatus = 'Ready to
     title.value = titleOverride || filenameTitle(file);
     start.value = 0;
     end.value = metadata.duration;
+    playbackRate.value = getSuggestedAudioPlaybackRate({
+        sourceKind,
+        frameRate: metadata.frameRate,
+    });
     objectUrl.value = URL.createObjectURL(file);
     status.value = readyStatus;
     await nextTick();
@@ -282,6 +380,9 @@ async function startRecording() {
     try {
         clearSource();
         recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordingWaveformPeaks = [];
+        drawRecordingWaveform();
+        await startRecordingVisualizer(recordingStream);
         const mimeType = getRecordingMimeType();
         mediaRecorder = mimeType
             ? new MediaRecorder(recordingStream, { mimeType })
@@ -311,6 +412,7 @@ async function startRecording() {
             const recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
             const blob = new Blob(recordingChunks, { type: recordedMimeType });
             mediaRecorder = null;
+            stopRecordingVisualizer({ clearHistory: false });
             releaseRecordingStream();
             recordingChunks = [];
             recordingStartedAt = 0;
@@ -329,6 +431,7 @@ async function startRecording() {
                 const extension = getRecordingExtension(recordedMimeType);
                 const file = new File([blob], `audio-recording.${extension}`, { type: recordedMimeType });
                 await prepareSource(file, {
+                    sourceKind: 'recording',
                     titleOverride: 'Audio recording',
                     readyStatus: 'Recording ready to trim and save.',
                 });
@@ -429,6 +532,7 @@ async function saveAudio() {
                 sourceFilename: sourceFile.value.name,
                 sourceMimeType: sourceFile.value.type,
                 sourceDuration: sourceMetadata.value.duration,
+                sourceFrameRate: sourceMetadata.value.frameRate,
                 sourceTrimStart: start.value,
                 sourceTrimEnd: end.value,
                 playbackRate: playbackRate.value,
@@ -520,6 +624,7 @@ onBeforeUnmount(() => {
                         <h2>Record from your microphone</h2>
                         <p v-if="!recordingSupported" class="recording-error">This browser does not support microphone recording.</p>
                         <p v-else>Record a clip, then trim it before saving it to your audio library.</p>
+                        <canvas ref="recordingWaveformCanvas" class="recording-waveform" aria-label="Live recording waveform"></canvas>
                         <output class="recording-timer" aria-live="polite">{{ formatDuration(recordingDuration) }}</output>
                         <Button
                             v-if="!isRecording"
@@ -658,6 +763,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
 .recording-icon { font-size: 2.5rem; color: #f87171; }
 .audio-recording-card h2 { margin: .25rem 0 0; color: #f8fafc; }
 .audio-recording-card p { max-width: 34rem; margin: .25rem 0; color: #94a3b8; }
+.recording-waveform { display: block; width: min(100%, 38rem); height: 6rem; border: 1px solid #334155; background: #101522; }
 .recording-timer { color: #f8fafc; font-variant-numeric: tabular-nums; font-size: 2rem; font-weight: 600; }
 .recording-error { color: #fca5a5 !important; }
 .recording-hint { font-size: .75rem; }

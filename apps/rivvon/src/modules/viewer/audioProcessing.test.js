@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     AUDIO_PLAYBACK_RATE_STOPS,
     getAudioOutputDuration,
+    getSuggestedAudioPlaybackRate,
     MAX_AUDIO_PLAYBACK_RATE,
     MIN_AUDIO_PLAYBACK_RATE,
     normalizeAudioPlaybackRate,
@@ -10,6 +11,13 @@ import {
 describe('audio playback-rate processing', () => {
     it('exposes the discrete playback-rate stops used by the editor', () => {
         expect(AUDIO_PLAYBACK_RATE_STOPS).toEqual([0.125, 0.25, 0.5, 1, 2, 4, 8]);
+    });
+
+    it('suggests deliberate rates for recordings and high-frame-rate video', () => {
+        expect(getSuggestedAudioPlaybackRate({ sourceKind: 'recording' })).toBe(1);
+        expect(getSuggestedAudioPlaybackRate({ frameRate: 119.88 })).toBe(4);
+        expect(getSuggestedAudioPlaybackRate({ frameRate: 239.76 })).toBe(8);
+        expect(getSuggestedAudioPlaybackRate({ frameRate: 60 })).toBe(1);
     });
 
     it('maps a source selection to the expected saved duration', () => {

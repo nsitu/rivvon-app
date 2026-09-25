@@ -2,9 +2,9 @@
     import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import PanelScrollArea from '../shared/PanelScrollArea.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import CameraMotionControls from './CameraMotionControls.vue';
-    import ScrollPanel from 'primevue/scrollpanel';
     import Select from 'primevue/select';
 import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -577,7 +577,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
     onMounted(() => {
         window.addEventListener('keydown', handleGlobalKeydown);
-        setupToolsPanelMasonry();
+        setupPanelMasonry();
 
         if (typeof window.matchMedia !== 'function') {
             return;
@@ -595,7 +595,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
 
     onBeforeUnmount(() => {
         window.removeEventListener('keydown', handleGlobalKeydown);
-        teardownToolsPanelMasonry();
+        teardownPanelMasonry();
 
         if (!finePointerMediaQuery) {
             return;
@@ -610,66 +610,95 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         finePointerMediaQuery = null;
     });
 
-    // --- Tools panel masonry (span trick) ----------------------------------
-    // The desktop tools panel uses CSS Grid (`repeat(auto-fill, minmax(24rem, 1fr))`)
+    // --- Panel masonry (span trick) ----------------------------------------
+    // The desktop tools and launcher panels use CSS Grid
+    // (`repeat(auto-fill, minmax(24rem, 1fr))`)
     // for performance: CSS multi-column with `column-fill: balance` triggered a full
     // column reflow on every text mutation (~60ms per slider drag tick). A row-based
     // grid is free during mutations but leaves vertical gaps because every grid row
     // is sized to the tallest item across all columns.
     //
-    // The span trick: a tiny base row height (`--masonry-row: 8px`) plus a JS
+    // The span trick: a tiny base row height plus a JS
     // observer that sets each child's `grid-row: span N` to ceil(height / row).
     // This packs each column independently, eliminating the gaps without giving up
     // grid's performance characteristics.
     const toolsPanelContentRef = ref(null);
+    const launcherPanelContentRef = ref(null);
     // Smaller row size → smaller worst-case gap overhead. Final gaps land in
     // [MASONRY_GAP_PX, MASONRY_GAP_PX + MASONRY_ROW_PX + MASONRY_GAP_PX).
     const MASONRY_ROW_PX = 2;
     const MASONRY_GAP_PX = 20; // matches row-gap: 1.25rem (20px @ default font size)
     let masonryResizeObserver = null;
+    let masonryMutationObserver = null;
     let masonryRecomputePending = false;
 
-    function recomputeToolsPanelMasonry() {
+    function getMasonryRoots() {
+        return [toolsPanelContentRef.value, launcherPanelContentRef.value].filter(Boolean);
+    }
+
+    function recomputePanelMasonry() {
         masonryRecomputePending = false;
-        const root = toolsPanelContentRef.value;
-        if (!root) return;
-        // Only apply the trick when the grid is actually a multi-column grid.
-        const cs = getComputedStyle(root);
-        if (cs.display !== 'grid') {
-            for (const child of root.children) child.style.gridRow = '';
-            return;
-        }
         const totalRow = MASONRY_ROW_PX + MASONRY_GAP_PX;
-        for (const child of root.children) {
-            // Measure intrinsic height excluding the span we previously set.
-            child.style.gridRow = '';
-            const h = child.getBoundingClientRect().height;
-            const span = Math.max(1, Math.ceil((h + MASONRY_GAP_PX) / totalRow));
-            child.style.gridRow = `span ${span}`;
+
+        for (const root of getMasonryRoots()) {
+            // Only apply the trick when the grid is actually a multi-column grid.
+            const cs = getComputedStyle(root);
+            if (cs.display !== 'grid') {
+                for (const child of root.children) child.style.gridRow = '';
+                continue;
+            }
+
+            for (const child of root.children) {
+                // Measure intrinsic height excluding the span we previously set.
+                child.style.gridRow = '';
+                const h = child.getBoundingClientRect().height;
+                const span = Math.max(1, Math.ceil((h + MASONRY_GAP_PX) / totalRow));
+                child.style.gridRow = `span ${span}`;
+            }
         }
     }
 
-    function scheduleToolsPanelMasonry() {
+    function schedulePanelMasonry() {
         if (masonryRecomputePending) return;
         masonryRecomputePending = true;
-        requestAnimationFrame(recomputeToolsPanelMasonry);
+        requestAnimationFrame(recomputePanelMasonry);
     }
 
-    function setupToolsPanelMasonry() {
-        nextTick(() => {
-            const root = toolsPanelContentRef.value;
-            if (!root) return;
-            masonryResizeObserver = new ResizeObserver(() => scheduleToolsPanelMasonry());
+    function observeMasonryRoots() {
+        if (!masonryResizeObserver) return;
+
+        masonryResizeObserver.disconnect();
+        for (const root of getMasonryRoots()) {
             masonryResizeObserver.observe(root);
             for (const child of root.children) masonryResizeObserver.observe(child);
-            scheduleToolsPanelMasonry();
+        }
+    }
+
+    function setupPanelMasonry() {
+        nextTick(() => {
+            masonryResizeObserver = new ResizeObserver(() => schedulePanelMasonry());
+            observeMasonryRoots();
+
+            masonryMutationObserver = new MutationObserver(() => {
+                observeMasonryRoots();
+                schedulePanelMasonry();
+            });
+            for (const root of getMasonryRoots()) {
+                // Launcher sections can appear/disappear when the active overlay changes.
+                masonryMutationObserver.observe(root, { childList: true });
+            }
+            schedulePanelMasonry();
         });
     }
 
-    function teardownToolsPanelMasonry() {
+    function teardownPanelMasonry() {
         if (masonryResizeObserver) {
             masonryResizeObserver.disconnect();
             masonryResizeObserver = null;
+        }
+        if (masonryMutationObserver) {
+            masonryMutationObserver.disconnect();
+            masonryMutationObserver = null;
         }
     }
 
@@ -1034,8 +1063,8 @@ const activeLauncherTitle = computed(() => {
         :aria-label="`${activeLauncherTitle} actions`"
     >
         <div class="launcher-panel-container viewer-chrome-panel-container">
-            <ScrollPanel class="launcher-panel-scrollpanel">
-<div class="launcher-panel-content">
+            <PanelScrollArea>
+                <div ref="launcherPanelContentRef" class="launcher-panel-content">
                     <template
                         v-for="entry in activeLauncherSections"
                         :key="entry.type === 'column-group' ? entry.sections.map(s => s.label).join('-') : entry.label"
@@ -1146,7 +1175,7 @@ const activeLauncherTitle = computed(() => {
                         </div>
                     </div>
                 </div>
-            </ScrollPanel>
+            </PanelScrollArea>
         </div>
     </div>
 
@@ -1156,7 +1185,7 @@ const activeLauncherTitle = computed(() => {
         :class="{ active: isToolbarContextActive('tools') }"
     >
         <div class="tools-panel-container viewer-chrome-panel-container">
-            <ScrollPanel class="tools-panel-scrollpanel">
+            <PanelScrollArea>
                 <div ref="toolsPanelContentRef" class="tools-panel-content">
                     <div class="tools-section-host">
                         <ViewerSettingsControls
@@ -1370,7 +1399,7 @@ const activeLauncherTitle = computed(() => {
                         </div>
                     </div>
                 </div>
-            </ScrollPanel>
+            </PanelScrollArea>
             <!-- Apply changes footer -->
             <PanelActionBar
                 v-if="showToolsPanelCheckmark"
@@ -1485,38 +1514,6 @@ const activeLauncherTitle = computed(() => {
         background: transparent;
     }
 
-    .launcher-panel-scrollpanel {
-        --p-scrollpanel-bar-size: 0.55rem;
-        --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
-        flex: 1;
-        height: 100%;
-        min-height: 0;
-        width: 100%;
-        margin: 0 auto;
-    }
-
-    :deep(.launcher-panel-scrollpanel .p-scrollpanel-content-container) {
-        height: 100%;
-        min-height: 0;
-    }
-
-    :deep(.launcher-panel-scrollpanel .p-scrollpanel-content) {
-        height: 100%;
-        min-height: 100%;
-        overflow-x: hidden;
-        padding-bottom: 0px;
-    }
-
-    :deep(.launcher-panel-scrollpanel .p-scrollpanel-bar) {
-        opacity: 0.55;
-    }
-
-    :deep(.launcher-panel-scrollpanel:hover .p-scrollpanel-bar),
-    :deep(.launcher-panel-scrollpanel:active .p-scrollpanel-bar),
-    :deep(.launcher-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
-        opacity: 0.9;
-    }
-
     .launcher-panel-content {
         box-sizing: border-box;
         padding: 1.5rem 1.25rem;
@@ -1530,18 +1527,21 @@ const activeLauncherTitle = computed(() => {
 
 @media (min-width: 769px) {
         .launcher-panel-content {
-            flex-direction: row;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+            grid-auto-rows: 2px;
+            column-gap: 2rem;
+            row-gap: 20px;
             justify-content: center;
-            align-content: flex-end;
+            align-content: end;
             align-items: flex-start;
-            gap: 1.5rem 2rem;
         }
 
         .launcher-panel-content>.tools-section,
         .launcher-panel-content>.launcher-column-group {
-            flex: 0 1 22rem;
             min-width: 15rem;
+            width: 100%;
+            margin-bottom: 0;
         }
 
         .launcher-panel-content > .video-drop-section {
@@ -1555,24 +1555,6 @@ const activeLauncherTitle = computed(() => {
             gap: 1.5rem;
         }
 
-        .create-launcher-panel .launcher-panel-content {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
-            justify-content: center;
-            align-content: end;
-            align-items: start;
-        }
-
-        .create-launcher-panel .launcher-panel-content > .video-drop-section {
-            grid-column: span 1;
-            grid-row: auto;
-            width: 100%;
-            max-width: none;
-        }
-
-        .create-launcher-panel .launcher-panel-content > .tools-section:not(.video-drop-section) {
-            width: 100%;
-        }
     }
 
     .toolbar-button-content {
@@ -1750,45 +1732,6 @@ const activeLauncherTitle = computed(() => {
         --panel-action-bar-padding: 1rem 1.25rem;
     }
 
-    .tools-panel-scrollpanel {
-        --p-scrollpanel-bar-size: 0.55rem;
-        --p-scrollpanel-bar-background: rgba(255, 255, 255, 0.34);
-        flex: 1;
-        height: 100%;
-        min-height: 0;
-        width: 100%;
-        /* max-width: 480px; */
-        margin: 0 auto;
-    }
-
-    @media (min-width: 769px) {
-        .tools-panel-scrollpanel {
-            max-width: none;
-        }
-    }
-
-    :deep(.tools-panel-scrollpanel .p-scrollpanel-content-container) {
-        height: 100%;
-        min-height: 0;
-    }
-
-    :deep(.tools-panel-scrollpanel .p-scrollpanel-content) {
-        height: 100%;
-        min-height: 100%;
-        overflow-x: hidden;
-        padding-bottom: 0px;
-    }
-
-    :deep(.tools-panel-scrollpanel .p-scrollpanel-bar) {
-        opacity: 0.55;
-    }
-
-    :deep(.tools-panel-scrollpanel:hover .p-scrollpanel-bar),
-    :deep(.tools-panel-scrollpanel:active .p-scrollpanel-bar),
-    :deep(.tools-panel-scrollpanel .p-scrollpanel-bar:focus-visible) {
-        opacity: 0.9;
-    }
-
     .tools-panel-content {
         box-sizing: border-box;
         padding: 1.5rem 1.25rem;
@@ -1807,7 +1750,7 @@ const activeLauncherTitle = computed(() => {
 
        To eliminate the per-row vertical gaps that a row-based grid produces
        (rows size to the tallest item across all columns), each child's
-       `grid-row` span is set imperatively by `recomputeToolsPanelMasonry()`
+       `grid-row` span is set imperatively by `recomputePanelMasonry()`
        based on its measured height. The grid auto-rows are tiny (8px) so the
        span math gives near-pixel-accurate packing per column. */
     @media (min-width: 769px) {

@@ -13,6 +13,7 @@
     import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import MultiSelect from 'primevue/multiselect';
+    import PanelScrollArea from '../shared/PanelScrollArea.vue';
     const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
 
     const props = defineProps({
@@ -2063,7 +2064,8 @@
 
 
             <!-- Normal browser content -->
-            <div class="texture-browser-content">
+            <PanelScrollArea>
+                <div class="texture-browser-content">
                 <!-- Header -->
                 <div class="texture-browser-header">
 
@@ -2408,7 +2410,8 @@
                     </div>
                 </div>
 
-            </div>
+                </div>
+            </PanelScrollArea>
 
             <!-- Preview panel (side-by-side on desktop, replaces browser on mobile) -->
             <div
@@ -2871,7 +2874,7 @@
     }
 
     /* On mobile, hide browser content when preview is active */
-    .texture-browser-container.has-preview .texture-browser-content {
+    .texture-browser-container.has-preview .panel-scroll-area {
         display: none;
     }
 
@@ -2881,7 +2884,7 @@
             flex-direction: row;
         }
 
-        .texture-browser-container.has-preview .texture-browser-content {
+        .texture-browser-container.has-preview .panel-scroll-area {
             display: block;
         }
 
@@ -2893,8 +2896,6 @@
     }
 
     .texture-browser-content {
-        flex: 1;
-        overflow-y: auto;
         padding: 20px;
         width: 100%;
     }
