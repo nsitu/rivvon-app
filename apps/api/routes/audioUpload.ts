@@ -14,6 +14,8 @@ import {
 
 const MAX_AUDIO_BYTES = 512 * 1024 * 1024;
 const MAX_AUDIO_DURATION = 2 * 60 * 60;
+const MIN_AUDIO_PLAYBACK_RATE = 0.25;
+const MAX_AUDIO_PLAYBACK_RATE = 16;
 const UPLOAD_URL_TTL_SECONDS = 60 * 60;
 const AUDIO_TYPES = new Map([
     ['audio/mp4', { format: 'mp4', extension: 'mp4' }],
@@ -87,11 +89,24 @@ audioUploadRoutes.post('/', async (c) => {
     const mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
     const typeInfo = AUDIO_TYPES.get(mimeType);
     const duration = Number(body.duration);
+    const sourceDuration = body.sourceDuration === undefined ? null : Number(body.sourceDuration);
+    const sourceTrimStart = body.sourceTrimStart === undefined ? null : Number(body.sourceTrimStart);
+    const sourceTrimEnd = body.sourceTrimEnd === undefined ? null : Number(body.sourceTrimEnd);
+    const playbackRate = body.playbackRate === undefined ? 1 : Number(body.playbackRate);
+    const pitchMode = typeof body.pitchMode === 'string' ? body.pitchMode.trim().slice(0, 32) : 'tape-speed';
     const sampleRate = Number(body.sampleRate);
     const channelCount = Number(body.channelCount);
     const fileSize = Number(body.fileSize);
 
+    const hasSourceEdit = sourceDuration !== null || sourceTrimStart !== null || sourceTrimEnd !== null;
+    const sourceEditIsValid = !hasSourceEdit
+        || (Number.isFinite(sourceDuration) && sourceDuration > 0 && sourceDuration <= MAX_AUDIO_DURATION
+            && Number.isFinite(sourceTrimStart) && Number.isFinite(sourceTrimEnd)
+            && sourceTrimStart >= 0 && sourceTrimEnd > sourceTrimStart && sourceTrimEnd <= sourceDuration
+            && pitchMode === 'tape-speed');
     if (!name || !typeInfo || !Number.isFinite(duration) || duration <= 0 || duration > MAX_AUDIO_DURATION
+        || !sourceEditIsValid
+        || !Number.isFinite(playbackRate) || playbackRate < MIN_AUDIO_PLAYBACK_RATE || playbackRate > MAX_AUDIO_PLAYBACK_RATE
         || !Number.isInteger(fileSize) || fileSize <= 0 || fileSize > MAX_AUDIO_BYTES
         || !Number.isInteger(sampleRate) || sampleRate <= 0 || sampleRate > 384000
         || !Number.isInteger(channelCount) || channelCount <= 0 || channelCount > 32) {
@@ -107,13 +122,15 @@ audioUploadRoutes.post('/', async (c) => {
     await c.env.DB.prepare(`
         INSERT INTO audio_assets (
             id, owner_id, name, source_filename, source_mime_type,
-            mime_type, format, duration, sample_rate, channel_count,
+            mime_type, format, duration, source_duration, source_trim_start, source_trim_end,
+            playback_rate, pitch_mode, sample_rate, channel_count,
             expected_file_size, storage_provider, r2_key, playback_url,
             status, is_public
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, ?, 'uploading', 0)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, ?, 'uploading', 0)
     `).bind(
         audioId, auth.userId, name, sourceFilename, sourceMimeType,
-        'audio/mp4', typeInfo.format, duration, sampleRate, channelCount,
+        'audio/mp4', typeInfo.format, duration, sourceDuration, sourceTrimStart, sourceTrimEnd,
+        playbackRate, pitchMode, sampleRate, channelCount,
         fileSize, r2Key, playbackUrl,
     ).run();
 

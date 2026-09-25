@@ -1,15 +1,29 @@
 import {
     ALL_FORMATS,
+    AudioBufferSink,
+    AudioBufferSource as MediaAudioBufferSource,
     AudioSampleSink,
     BlobSource,
     BufferTarget,
-    Conversion,
     Input,
     Mp4OutputFormat,
     Output,
 } from 'mediabunny';
 
 const DEFAULT_WAVEFORM_BINS = 1200;
+export const MIN_AUDIO_PLAYBACK_RATE = 0.25;
+export const MAX_AUDIO_PLAYBACK_RATE = 16;
+
+export function normalizeAudioPlaybackRate(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 1;
+    return Math.min(MAX_AUDIO_PLAYBACK_RATE, Math.max(MIN_AUDIO_PLAYBACK_RATE, numericValue));
+}
+
+export function getAudioOutputDuration(start, end, playbackRate = 1) {
+    const sourceDuration = Math.max(0, Number(end) - Number(start));
+    return sourceDuration / normalizeAudioPlaybackRate(playbackRate);
+}
 
 function createInput(file) {
     return new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
@@ -78,29 +92,96 @@ export async function createAudioWaveform(file, { bins = DEFAULT_WAVEFORM_BINS, 
     }
 }
 
-export async function trimAudioSource(file, { start = 0, end, onProgress } = {}) {
+async function renderAudioAtPlaybackRate(track, { start, end, playbackRate, onProgress }) {
+    const OfflineAudioContextConstructor = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+    if (!OfflineAudioContextConstructor) {
+        throw new Error('This browser does not support offline audio processing.');
+    }
+
+    const sink = new AudioBufferSink(track);
+    const decodedBuffers = [];
+    const sourceDuration = end - start;
+    let sampleRate = Number(track.sampleRate) || 0;
+    let channelCount = Number(track.numberOfChannels) || 0;
+
+    for await (const wrappedBuffer of sink.buffers(start, end)) {
+        const { buffer } = wrappedBuffer;
+        sampleRate ||= buffer.sampleRate;
+        channelCount ||= buffer.numberOfChannels;
+        if (buffer.sampleRate !== sampleRate || buffer.numberOfChannels !== channelCount) {
+            throw new Error('The audio track changes format during decoding.');
+        }
+        decodedBuffers.push(wrappedBuffer);
+        const decodedEnd = Math.min(end, wrappedBuffer.timestamp + wrappedBuffer.duration);
+        onProgress?.(.05 + Math.max(0, Math.min(1, (decodedEnd - start) / sourceDuration)) * .45);
+    }
+
+    if (!decodedBuffers.length || !sampleRate || !channelCount) {
+        throw new Error('The selected audio range could not be decoded.');
+    }
+
+    const rate = normalizeAudioPlaybackRate(playbackRate);
+    const inputFrameCount = Math.max(1, Math.ceil(sourceDuration * sampleRate));
+    const outputFrameCount = Math.max(1, Math.ceil((sourceDuration / rate) * sampleRate));
+    const context = new OfflineAudioContextConstructor(channelCount, outputFrameCount, sampleRate);
+    const inputBuffer = context.createBuffer(channelCount, inputFrameCount, sampleRate);
+
+    for (const wrappedBuffer of decodedBuffers) {
+        const { buffer } = wrappedBuffer;
+        const sourceRate = buffer.sampleRate;
+        const firstFrame = Math.max(0, Math.floor((start - wrappedBuffer.timestamp) * sourceRate));
+        const lastFrame = Math.min(buffer.length, Math.ceil((end - wrappedBuffer.timestamp) * sourceRate));
+        const frameCount = Math.max(0, lastFrame - firstFrame);
+        const destinationFrame = Math.max(0, Math.floor(
+            (wrappedBuffer.timestamp + firstFrame / sourceRate - start) * sampleRate,
+        ));
+        const copyFrameCount = Math.min(frameCount, inputFrameCount - destinationFrame);
+        if (copyFrameCount <= 0) continue;
+
+        for (let channel = 0; channel < channelCount; channel += 1) {
+            const sourceData = buffer.getChannelData(channel).subarray(firstFrame, firstFrame + copyFrameCount);
+            inputBuffer.getChannelData(channel).set(sourceData, destinationFrame);
+        }
+    }
+
+    onProgress?.(.55);
+    const source = context.createBufferSource();
+    source.buffer = inputBuffer;
+    source.playbackRate.value = rate;
+    source.connect(context.destination);
+    source.start(0);
+    const renderedBuffer = await context.startRendering();
+    onProgress?.(.82);
+    return renderedBuffer;
+}
+
+export async function trimAudioSource(file, { start = 0, end, playbackRate = 1, onProgress } = {}) {
     if (!(file instanceof Blob) || !file.size) throw new Error('A source file is required.');
     const sourceInput = createInput(file);
     const target = new BufferTarget();
     const output = new Output({ format: new Mp4OutputFormat(), target });
     try {
-        const duration = await sourceInput.computeDuration();
+        const track = await sourceInput.getPrimaryAudioTrack();
+        if (!track) throw new Error('The selected file does not contain an audio track.');
+        if (!(await track.canDecode())) throw new Error('This browser cannot decode the audio track in that file.');
+        const duration = await track.computeDuration();
         const boundedStart = Math.max(0, Number(start) || 0);
         const boundedEnd = Math.min(duration, Number.isFinite(Number(end)) ? Number(end) : duration);
         if (!(boundedEnd > boundedStart)) throw new Error('The selected audio range is invalid.');
-
-        const conversion = await Conversion.init({
-            input: sourceInput,
-            output,
-            video: { discard: true },
-            audio: { forceTranscode: true, codec: 'aac', bitrate: 128_000 },
-            trim: { start: boundedStart, end: boundedEnd },
-            showWarnings: false,
+        const rate = normalizeAudioPlaybackRate(playbackRate);
+        const renderedBuffer = await renderAudioAtPlaybackRate(track, {
+            start: boundedStart,
+            end: boundedEnd,
+            playbackRate: rate,
+            onProgress,
         });
-        if (!conversion.isValid) throw new Error('The selected audio cannot be encoded in this browser.');
-        conversion.onProgress = (progress) => onProgress?.(progress);
-        await conversion.execute();
+        const audioSource = new MediaAudioBufferSource({ codec: 'aac', bitrate: 128_000 });
+        output.addAudioTrack(audioSource);
+        await output.start();
+        await audioSource.add(renderedBuffer);
+        onProgress?.(.95);
         await output.finalize();
+        onProgress?.(1);
         const buffer = target.buffer;
         if (!buffer?.byteLength) throw new Error('Audio encoding produced an empty file.');
         return new Blob([buffer], { type: 'audio/mp4' });

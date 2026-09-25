@@ -5,7 +5,8 @@ import { jsonResponse, notFoundResponse } from '../utils/response';
 
 const AUDIO_COLUMNS = `
     a.id, a.owner_id, a.name, a.source_filename, a.source_mime_type,
-    a.mime_type, a.format, a.duration, a.sample_rate, a.channel_count,
+    a.mime_type, a.format, a.duration, a.source_duration, a.source_trim_start,
+    a.source_trim_end, a.playback_rate, a.pitch_mode, a.sample_rate, a.channel_count,
     a.file_size, a.storage_provider, a.playback_url, a.status, a.is_public,
     a.created_at, a.updated_at,
     u.name AS owner_name, u.picture AS owner_picture

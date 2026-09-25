@@ -5,7 +5,15 @@ import InputText from 'primevue/inputtext';
 import Slider from 'primevue/slider';
 import { useRouter } from 'vue-router';
 import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
-import { createAudioWaveform, inspectAudioSource, trimAudioSource } from '../../modules/viewer/audioProcessing.js';
+import {
+    createAudioWaveform,
+    getAudioOutputDuration,
+    inspectAudioSource,
+    MAX_AUDIO_PLAYBACK_RATE,
+    MIN_AUDIO_PLAYBACK_RATE,
+    normalizeAudioPlaybackRate,
+    trimAudioSource,
+} from '../../modules/viewer/audioProcessing.js';
 import { publishAudioBlob } from '../../services/audioService.js';
 
 const emit = defineEmits(['request-close']);
@@ -21,6 +29,7 @@ const mediaElement = ref(null);
 const title = ref('');
 const start = ref(0);
 const end = ref(0);
+const playbackRate = ref(1);
 const playhead = ref(0);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -33,6 +42,11 @@ let activeHandle = null;
 const hasSource = computed(() => Boolean(sourceFile.value && sourceMetadata.value));
 const sourceIsVideo = computed(() => sourceFile.value?.type?.startsWith('video/'));
 const selectedDuration = computed(() => Math.max(0, end.value - start.value));
+const outputDuration = computed(() => getAudioOutputDuration(start.value, end.value, playbackRate.value));
+const formattedPlaybackRate = computed(() => {
+    const rate = normalizeAudioPlaybackRate(playbackRate.value);
+    return `${Number.isInteger(rate) ? rate : rate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}×`;
+});
 const trimRange = computed({
     get: () => [start.value, end.value],
     set: (value) => {
@@ -52,6 +66,17 @@ const endPercent = computed(() => sourceMetadata.value?.duration ? (end.value / 
 function formatDuration(value) {
     const total = Math.max(0, Math.round(Number(value) || 0));
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function applyPreviewPlaybackRate() {
+    const media = mediaElement.value;
+    if (!media) return;
+    const rate = normalizeAudioPlaybackRate(playbackRate.value);
+    media.defaultPlaybackRate = rate;
+    media.playbackRate = rate;
+    if ('preservesPitch' in media) media.preservesPitch = false;
+    if ('webkitPreservesPitch' in media) media.webkitPreservesPitch = false;
+    if ('mozPreservesPitch' in media) media.mozPreservesPitch = false;
 }
 
 function filenameTitle(file) {
@@ -139,6 +164,7 @@ function clearSource() {
     title.value = '';
     start.value = 0;
     end.value = 0;
+    playbackRate.value = 1;
     playhead.value = 0;
     if (fileInput.value) fileInput.value.value = '';
 }
@@ -164,6 +190,7 @@ async function handleFileSelected(event) {
         objectUrl.value = URL.createObjectURL(file);
         status.value = 'Ready to trim and save.';
         await nextTick();
+        applyPreviewPlaybackRate();
         drawWaveform();
     } catch (loadError) {
         error.value = loadError?.message || 'Unable to read the selected media.';
@@ -191,16 +218,22 @@ async function saveAudio() {
         const blob = await trimAudioSource(sourceFile.value, {
             start: start.value,
             end: end.value,
+            playbackRate: playbackRate.value,
             onProgress: (value) => { progress.value = value; },
         });
         await publishAudioBlob({
             metadata: {
                 name: title.value.trim(),
-                duration: selectedDuration.value,
+                duration: outputDuration.value,
                 sampleRate: sourceMetadata.value.sampleRate,
                 channelCount: sourceMetadata.value.channelCount,
                 sourceFilename: sourceFile.value.name,
                 sourceMimeType: sourceFile.value.type,
+                sourceDuration: sourceMetadata.value.duration,
+                sourceTrimStart: start.value,
+                sourceTrimEnd: end.value,
+                playbackRate: playbackRate.value,
+                pitchMode: 'tape-speed',
                 userProfile: user.value ? {
                     name: user.value.name,
                     email: user.value.email,
@@ -228,6 +261,11 @@ function close() {
 }
 
 watch([start, end, waveform], drawWaveform);
+watch(playbackRate, applyPreviewPlaybackRate);
+watch(objectUrl, async () => {
+    await nextTick();
+    applyPreviewPlaybackRate();
+});
 onBeforeUnmount(() => {
     releaseWaveformPointer();
     if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
@@ -291,11 +329,33 @@ onBeforeUnmount(() => {
                         <audio v-else ref="mediaElement" :src="objectUrl" controls preload="metadata" @timeupdate="updateMediaTime"></audio>
                     </div>
 
+                    <div class="rate-controls">
+                        <div class="trim-controls-heading">
+                            <span>Playback rate</span>
+                            <strong>{{ formattedPlaybackRate }}</strong>
+                        </div>
+                        <Slider
+                            v-model="playbackRate"
+                            :min="MIN_AUDIO_PLAYBACK_RATE"
+                            :max="MAX_AUDIO_PLAYBACK_RATE"
+                            :step="0.25"
+                            class="audio-rate-slider"
+                            aria-label="Playback rate"
+                        />
+                        <div class="rate-controls-caption">
+                            <span>{{ MIN_AUDIO_PLAYBACK_RATE }}×</span>
+                            <span>1×</span>
+                            <span>8×</span>
+                            <span>{{ MAX_AUDIO_PLAYBACK_RATE }}×</span>
+                        </div>
+                        <p class="rate-help">Speed changes also change pitch. The saved audio will be {{ formatDuration(outputDuration) }} long.</p>
+                    </div>
+
                     <div class="audio-title-field">
                         <label for="audio-title">Title</label>
                         <InputText id="audio-title" v-model="title" maxlength="120" :disabled="isSaving" required />
                     </div>
-                    <p class="audio-selection-summary">Selected {{ formatDuration(selectedDuration) }} from {{ formatDuration(start) }} to {{ formatDuration(end) }}.</p>
+                    <p class="audio-selection-summary">Selected {{ formatDuration(selectedDuration) }} from {{ formatDuration(start) }} to {{ formatDuration(end) }}. Saved output: {{ formatDuration(outputDuration) }} at {{ formattedPlaybackRate }}.</p>
                     <div v-if="status || error" class="audio-status" :class="{ error }" role="status">
                         <span class="material-symbols-outlined">{{ error ? 'warning' : 'cloud_upload' }}</span>
                         <span>{{ error || status }}</span>
@@ -339,6 +399,12 @@ h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
 .audio-trim-slider { width: calc(100% - 1rem); margin: 0 .5rem; }
 :deep(.audio-trim-slider .p-slider-handle) { background: #60a5fa; border-color: #60a5fa; }
 :deep(.audio-trim-slider .p-slider-range) { background: #60a5fa; }
+.rate-controls { display: grid; gap: .55rem; margin: 1.25rem 0; padding: 1rem; border: 1px solid #2b3548; border-radius: .75rem; background: #111827; }
+.audio-rate-slider { width: calc(100% - 1rem); margin: 0 .5rem; }
+:deep(.audio-rate-slider .p-slider-handle) { background: #fbbf24; border-color: #fbbf24; }
+:deep(.audio-rate-slider .p-slider-range) { background: #fbbf24; }
+.rate-controls-caption { display: flex; justify-content: space-between; color: #94a3b8; font-size: .72rem; }
+.rate-help { margin: .15rem 0 0; color: #94a3b8; font-size: .78rem; }
 .audio-title-field label { display: grid; gap: .45rem; color: #cbd5e1; font-size: .8rem; }
 .audio-preview { margin: 1rem 0; }
 .audio-preview audio, .audio-preview video { display: block; width: 100%; max-height: 18rem; background: #05070d; }
