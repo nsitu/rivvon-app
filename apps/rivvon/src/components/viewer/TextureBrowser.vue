@@ -2064,60 +2064,60 @@
         >
 
 
+            <PanelActionBar
+                placement="top"
+                aria-label="Texture browser collections"
+                class="texture-browser-header-actions"
+            >
+                <div class="texture-browser-tabs">
+                    <button
+                        :class="['tab-button', 'multi-select-toggle', { active: multiSelectMode }]"
+                        @click="toggleMultiSelectMode"
+                        :title="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
+                    >
+                        <span
+                            class="material-symbols-outlined"
+                            style="font-size: 18px;"
+                        >checklist</span>
+                    </button>
+                    <button
+                        :class="['tab-button', { active: activeTab === 'all' }]"
+                        @click="activeTab = 'all'"
+                    >
+                        All
+                    </button>
+                    <button
+                        :class="['tab-button', { active: activeTab === 'local' }]"
+                        @click="activeTab = 'local'"
+                    >
+                        Drafts
+                    </button>
+                    <button
+                        v-if="isAuthenticated"
+                        :class="['tab-button', { active: activeTab === 'my-cloud' }]"
+                        @click="activeTab = 'my-cloud'"
+                    >
+                        My Published
+                    </button>
+                    <button
+                        :class="['tab-button', { active: activeTab === 'public' }]"
+                        @click="activeTab = 'public'"
+                    >
+                        Published
+                    </button>
+                    <button
+                        v-if="cachedCloudIds.size > 0"
+                        :class="['tab-button', { active: activeTab === 'cached' }]"
+                        @click="activeTab = 'cached'"
+                    >
+                        Cloud Cache
+                    </button>
+                </div>
+            </PanelActionBar>
+
             <!-- Normal browser content -->
             <ScrollPanel class="rivvon-scroll-panel">
                 <div class="texture-browser-content">
-                <!-- Header -->
-                <div class="texture-browser-header">
-
-                    <!-- Tabs + Multi-select toggle -->
-                    <div class="texture-browser-tabs">
-                        <!-- Multi-select toggle -->
-                        <button
-                            :class="['tab-button', 'multi-select-toggle', { active: multiSelectMode }]"
-                            @click="toggleMultiSelectMode"
-                            :title="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
-                        >
-                            <span
-                                class="material-symbols-outlined"
-                                style="font-size: 18px;"
-                            >checklist</span>
-                        </button>
-                        <button
-                            :class="['tab-button', { active: activeTab === 'all' }]"
-                            @click="activeTab = 'all'"
-                        >
-                            All
-                        </button>
-                        <button
-                            :class="['tab-button', { active: activeTab === 'local' }]"
-                            @click="activeTab = 'local'"
-                        >
-                            Drafts
-                        </button>
-                        <button
-                            v-if="isAuthenticated"
-                            :class="['tab-button', { active: activeTab === 'my-cloud' }]"
-                            @click="activeTab = 'my-cloud'"
-                        >
-                            My Published
-                        </button>
-                        <button
-                            :class="['tab-button', { active: activeTab === 'public' }]"
-                            @click="activeTab = 'public'"
-                        >
-                            Published
-                        </button>
-                        <button
-                            v-if="cachedCloudIds.size > 0"
-                            :class="['tab-button', { active: activeTab === 'cached' }]"
-                            @click="activeTab = 'cached'"
-                        >
-                            Cloud Cache
-                        </button>
-                    </div>
-
-                </div>
 
                 <!-- Loading state -->
                 <LoadingIndicator
@@ -2911,30 +2911,17 @@
         width: 100%;
     }
 
-    .texture-browser-header {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+    .texture-browser-header-actions {
+        padding-inline: 1rem;
     }
 
-    @media (min-width: 640px) {
-        .texture-browser-header {
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-        }
-    }
-
-    .texture-browser-header h2 {
-        margin: 0;
-        color: #fff;
-        font-size: 1.5rem;
-        font-weight: 600;
+    .texture-browser-header-actions :deep(.panel-action-bar-actions) {
+        justify-content: flex-start;
     }
 
     .texture-browser-tabs {
         display: flex;
+        flex-wrap: wrap;
         gap: 0.5rem;
     }
 
@@ -4087,6 +4074,10 @@
     }
 
     @media (max-width: 767px) {
+
+        .texture-browser-container.has-preview .texture-browser-header-actions {
+            display: none;
+        }
 
         .preview-dimension-grid,
         .preview-control-custom-row {

@@ -249,8 +249,7 @@
 
             </a>
 
-            <Transition name="fade">
-                <div
+            <div
                     v-if="hasNavigationModel"
                     class="navigation-summary"
                 >
@@ -331,7 +330,6 @@
                     </template>
                     <template v-else>{{ passiveViewerTitleModel.text }}</template>
                 </div>
-            </Transition>
         </div>
 
         <div class="header-actions">

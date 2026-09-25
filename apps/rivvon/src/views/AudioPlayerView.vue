@@ -62,7 +62,7 @@ onMounted(loadAudio);
             >
                 <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'audio-library' })">
                     <span class="material-symbols-outlined">arrow_back</span>
-                    Back to Audio Library
+                    Audio Gallery
                 </Button>
             </PanelActionBar>
             <ScrollPanel class="rivvon-scroll-panel audio-player-scroll">

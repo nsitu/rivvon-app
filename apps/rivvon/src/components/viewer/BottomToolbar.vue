@@ -950,7 +950,7 @@ const activeLauncherTitle = computed(() => {
             items: textureLauncherSections.value[1].items,
         },
         {
-            label: 'Gallery',
+            label: 'Video',
             items: [
                 {
                     label: 'Browse',
@@ -959,6 +959,11 @@ const activeLauncherTitle = computed(() => {
                     icon: 'video_library',
                     command: () => handleOpenGallery(),
                 },
+            ],
+        },
+        {
+            label: 'Audio',
+            items: [
                 {
                     label: 'Browse',
                     contextLabel: 'Audio Library',
@@ -1083,6 +1088,7 @@ const activeLauncherTitle = computed(() => {
         :class="{
             active: !!props.activeToolbarOverlay,
             'create-launcher-panel': props.activeToolbarOverlay === 'create',
+            'share-launcher-panel': props.activeToolbarOverlay === 'share',
         }"
         role="dialog"
         :aria-label="`${activeLauncherTitle} actions`"
@@ -1580,6 +1586,16 @@ const activeLauncherTitle = computed(() => {
             gap: 1.5rem;
         }
 
+    }
+
+    .share-launcher-panel .launcher-panel-content {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .share-launcher-panel .launcher-panel-content > .tools-section {
+        width: min(100%, 24rem);
     }
 
     .toolbar-button-content {

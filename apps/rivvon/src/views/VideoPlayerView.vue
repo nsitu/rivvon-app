@@ -123,7 +123,7 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
             >
                 <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'video-gallery' })">
                     <span class="material-symbols-outlined">arrow_back</span>
-                    Back to Video Gallery
+                    Video Gallery
                 </Button>
                 <template v-if="video">
                     <Button type="button" @click="copyLink">
