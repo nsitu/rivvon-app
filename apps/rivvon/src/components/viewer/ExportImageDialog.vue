@@ -4,6 +4,7 @@
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import { useViewerStore } from '../../stores/viewerStore';
     import {
         EXPORT_ASPECT_RATIO_OPTIONS,
@@ -147,7 +148,8 @@
     >
         <div class="export-image-panel-container viewer-chrome-panel-container">
             <div class="export-image-panel-content">
-                <div class="export-image-panel-body">
+                <ScrollPanel class="rivvon-scroll-panel export-image-panel-scroll">
+                    <div class="export-image-panel-body">
                     <div class="form-grid">
                         <div class="form-field format-field">
                             <label>Format</label>
@@ -241,7 +243,7 @@
                         </div>
                     </div>
 
-                    <div class="image-preview-stage">
+                    <ScrollPanel class="rivvon-scroll-panel image-preview-stage">
                         <div class="image-preview-frame">
                             <Button
                                 type="button"
@@ -266,7 +268,7 @@
                                 Preview unavailable
                             </div>
                         </div>
-                    </div>
+                    </ScrollPanel>
 
                     <div class="image-meta-row">
                         <span class="image-meta-label">{{ filename }}</span>
@@ -274,7 +276,8 @@
                             {{ outputSummary }}
                         </span>
                     </div>
-                </div>
+                    </div>
+                    </ScrollPanel>
 
                 <PanelActionBar class="export-image-panel-footer">
                     <Button
@@ -342,9 +345,6 @@
     }
 
     .export-image-panel-body {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
         padding: 1rem 1.25rem;
         display: flex;
         flex-direction: column;
@@ -478,13 +478,17 @@
     }
 
     .image-preview-stage {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
         width: 100%;
+        height: min(50vh, 32rem);
+        max-height: 50vh;
+    }
+
+    .image-preview-stage :deep(.p-scrollpanel-content) {
         display: flex;
         align-items: center;
         justify-content: center;
-        max-height: 50vh;
-        overflow: auto;
+        min-height: 100%;
     }
 
     .image-preview-frame {

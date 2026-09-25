@@ -2419,7 +2419,7 @@
                 v-if="previewTexture"
                 class="texture-preview-panel"
             >
-                <div class="preview-scroll-area">
+                <ScrollPanel class="rivvon-scroll-panel preview-scroll-area">
                     <TileLinearViewer
                         ref="previewViewerRef"
                         v-if="!previewError"
@@ -2436,7 +2436,7 @@
                     >
                         Failed to load preview: {{ previewError }}
                     </div>
-                </div>
+                </ScrollPanel>
                 <div
                     v-if="!previewError && !previewIsBusy && (previewTileCount > 0 || previewTexture?.tile_count)"
                     class="preview-tile-info"
@@ -4023,14 +4023,17 @@
 
     .preview-scroll-area {
         flex: 1;
+    }
+
+    .preview-scroll-area :deep(.p-scrollpanel-content) {
         display: flex;
         align-items: center;
         justify-content: safe center;
-        overflow: overlay;
+        min-height: 100%;
         padding: 1rem;
     }
 
-    .preview-scroll-area>* {
+    .preview-scroll-area :deep(.p-scrollpanel-content > *) {
         margin-block: auto;
     }
 

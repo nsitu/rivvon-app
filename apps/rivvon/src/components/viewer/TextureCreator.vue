@@ -10,6 +10,7 @@
     import OutputActions from '../slyce/OutputActions.vue';
     import RealtimeSampler from '../slyce/RealtimeSampler.vue';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
 
     import { useTilePlan } from '../../composables/slyce/useTilePlan';
     import { processVideo } from '../../modules/slyce/videoProcessor';
@@ -512,7 +513,7 @@
     >
         <div class="slyce-container viewer-chrome-panel-container">
             <!-- Main content area -->
-            <div class="slyce-content">
+            <ScrollPanel class="rivvon-scroll-panel slyce-content">
                 <Stepper
                     :value="stepperValue"
                     linear
@@ -633,7 +634,7 @@
                         </template>
                     </StepPanels>
                 </Stepper>
-            </div>
+            </ScrollPanel>
 
             <PanelActionBar
                 v-if="showFileSettingsFooter || showFileResultsFooter"
@@ -793,8 +794,6 @@
     }
 
     .slyce-content {
-        flex: 1;
-        overflow-y: auto;
         padding: 20px;
         width: 100%;
         --texture-creator-step-muted: var(--p-stepper-step-number-color, var(--p-text-muted-color, #888));

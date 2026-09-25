@@ -393,6 +393,8 @@
                     aria-modal="true"
                     aria-labelledby="gallery-upload-title"
                 >
+                    <ScrollPanel class="rivvon-scroll-panel gallery-upload-dialog-scroll">
+                    <div class="gallery-upload-dialog-content">
                     <div class="gallery-upload-dialog-header">
                         <div>
                             <h2 id="gallery-upload-title">Upload video</h2>
@@ -504,6 +506,8 @@
                             </Button>
                         </div>
                     </form>
+                    </div>
+                    </ScrollPanel>
                 </section>
             </div>
         </Teleport>
@@ -572,16 +576,19 @@
         place-items: center;
     }
     .gallery-upload-dialog {
+        display: flex;
+        flex-direction: column;
         width: min(100%, 34rem);
         max-height: min(90vh, 46rem);
-        overflow: auto;
-        padding: 1.25rem;
+        overflow: hidden;
         border: 1px solid #373b52;
         border-radius: 1rem;
         color: #f8fafc;
         background: #171827;
         box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .45);
     }
+    .gallery-upload-dialog-scroll { flex: 1; min-height: 0; }
+    .gallery-upload-dialog-content { padding: 1.25rem; }
     .gallery-upload-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
     .gallery-upload-dialog h2 { margin: 0; font-size: 1.25rem; }
     .gallery-upload-dialog-header p { margin: .35rem 0 0; color: #9ca3af; font-size: .85rem; }

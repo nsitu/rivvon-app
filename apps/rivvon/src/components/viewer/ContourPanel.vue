@@ -3,6 +3,7 @@
     import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import { inferContours, preloadModel } from '../../modules/viewer/contourInference.js';
 
     const props = defineProps({
@@ -350,7 +351,7 @@
         :class="{ active }"
     >
         <div class="contour-container viewer-chrome-panel-container">
-            <div class="contour-scroll">
+            <ScrollPanel class="rivvon-scroll-panel contour-scroll">
                 <!-- Camera live feed -->
                 <div
                     v-if="showCamera"
@@ -486,7 +487,7 @@
                         </p>
                     </div>
                 </div>
-            </div>
+            </ScrollPanel>
 
             <PanelActionBar
                 v-if="!showCamera && hasPendingContour"
@@ -549,11 +550,6 @@
         width: 100%;
         background: #1a1a1a;
         overflow: hidden;
-    }
-
-    .contour-scroll {
-        flex: 1;
-        overflow-y: auto;
     }
 
     .contour-content {

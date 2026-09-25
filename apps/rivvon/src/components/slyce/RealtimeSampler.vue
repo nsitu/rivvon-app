@@ -2,6 +2,7 @@
     import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import Button from 'primevue/button';
+    import ScrollPanel from 'primevue/scrollpanel';
     import LocalSaveStatus from './LocalSaveStatus.vue';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
     import { useLocalStorage } from '../../services/localStorage.js';
@@ -528,6 +529,10 @@
             :class="{ embedded: embedded }"
         >
             <!-- Main content area -->
+            <ScrollPanel
+                class="rivvon-scroll-panel realtime-scroll"
+                :class="{ embedded }"
+            >
             <div
                 class="realtime-content"
                 :class="{ embedded: embedded }"
@@ -972,6 +977,7 @@
                     </Button>
                 </div>
             </div>
+            </ScrollPanel>
         </div>
     </div>
 </template>
@@ -1019,9 +1025,20 @@
         padding-bottom: 0;
     }
 
+    .realtime-scroll.embedded {
+        flex: none;
+        height: auto;
+    }
+
+    .realtime-scroll.embedded :deep(.p-scrollpanel-content-container),
+    .realtime-scroll.embedded :deep(.p-scrollpanel-content) {
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+    }
+
     .realtime-content {
         flex: 1;
-        overflow-y: auto;
         padding: 20px;
         display: flex;
         flex-direction: column;

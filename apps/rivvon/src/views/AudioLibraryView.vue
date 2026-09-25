@@ -2,6 +2,7 @@
 import { computed, onMounted, watch, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import Button from 'primevue/button';
+import ScrollPanel from 'primevue/scrollpanel';
 import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
 import { deleteAudioPublication, fetchMyAudios } from '../services/audioService.js';
 
@@ -78,7 +79,8 @@ onMounted(loadAudios);
 
 <template>
     <main class="audio-library-panel">
-        <div class="audio-library-scroll viewer-chrome-panel-container">
+        <div class="audio-library-container viewer-chrome-panel-container">
+            <ScrollPanel class="rivvon-scroll-panel audio-library-scroll">
             <div class="audio-library-content">
                 <div class="audio-library-heading">
                     <div>
@@ -132,13 +134,14 @@ onMounted(loadAudios);
                     </article>
                 </section>
             </div>
+            </ScrollPanel>
         </div>
     </main>
 </template>
 
 <style scoped>
 .audio-library-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
-.audio-library-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.audio-library-container { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; box-sizing: border-box; }
 .audio-library-content { width: min(100%, 72rem); margin: auto; padding: 1.5rem 1.25rem 5rem; }
 .audio-library-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
 .eyebrow { margin: 0 0 .3rem; color: #60a5fa; font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }

@@ -33,6 +33,8 @@ Do not add `overflow-y: auto` directly to a product panel unless there is a docu
 
 The parent panel must provide a constrained flex layout (`height: 100%`, `min-height: 0`) so the scroll region can calculate its viewport. Content-specific padding belongs on the slotted content, not on the scroll component itself.
 
+When a full-screen panel sits beneath the shared app header and above the bottom toolbar, wrap its action bar and scroll region in a `viewer-chrome-panel-container`. That container owns the header/footer insets; the `ScrollPanel` must be the constrained flex child between those insets, so its viewport and scrollbar never extend underneath either piece of chrome. Do not compensate for missing insets with content-only padding on the scroll slot.
+
 ## Panel composition
 
 Full-screen viewer panels should use the `viewer-chrome-panel-container` layout class where appropriate. A panel should clearly separate:

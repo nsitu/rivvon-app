@@ -1,6 +1,7 @@
 <script setup>
     import { computed } from 'vue';
     import { useSlyceStore } from '../../stores/slyceStore';
+    import ScrollPanel from 'primevue/scrollpanel';
     import StatusBox from './StatusBox.vue';
     import TilePreview from './TilePreview.vue';
 
@@ -32,23 +33,23 @@
         >
             <StatusBox />
         </div>
-        <div class="results-main">
+        <ScrollPanel class="rivvon-scroll-panel results-main">
             <!-- Static tile summary and preview, visible as soon as the tile plan exists. -->
             <TilePreview
                 v-if="hasTilePlan"
                 :tilePlan="app.tilePlan"
                 :showTileStatuses="true"
             />
-        </div>
+        </ScrollPanel>
     </div>
     <!-- No results and not processing -->
     <div
         v-else
         class="results-panel results-placeholder"
     >
-        <div class="results-main">
+        <ScrollPanel class="rivvon-scroll-panel results-main">
             <p>No results available yet.</p>
-        </div>
+        </ScrollPanel>
     </div>
 </template>
 
@@ -100,7 +101,6 @@
     .results-main {
         flex: 1;
         min-height: 0;
-        overflow-y: auto;
     }
 
     .results-placeholder {

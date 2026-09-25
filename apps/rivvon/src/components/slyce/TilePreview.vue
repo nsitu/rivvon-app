@@ -114,7 +114,10 @@
                 </template>
             </div>
             <div :class="props.showTileStatuses ? 'tile-status-slot' : 'tile-column-slot'">
-                <div :class="props.showTileStatuses ? 'tile-status-list' : 'tile-container-cols'">
+                <component
+                    :is="props.showTileStatuses ? 'div' : ScrollPanel"
+                    :class="props.showTileStatuses ? 'tile-status-list' : ['tile-container-cols', 'rivvon-scroll-panel']"
+                >
                     <template
                         v-for="(tile, index) in tiles"
                         :key="`col-${tile.start}`"
@@ -181,7 +184,7 @@
                             :previewUrl="previewUrls[index]"
                         />
                     </template>
-                </div>
+                </component>
             </div>
         </div>
 
@@ -198,6 +201,7 @@
 
 <script setup>
     import { computed, watch, onBeforeUnmount } from 'vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { TileSnapshotPreview, clearCanvasRegistry } from '../../modules/slyce/tileSnapshotPreview.js';
     import Tile from './Tile.vue';
@@ -453,15 +457,17 @@
     .tile-container-cols {
         position: absolute;
         inset: 0;
+        width: 100%;
+    }
+
+    .tile-container-cols :deep(.p-scrollpanel-content) {
         display: flex;
+        min-height: 100%;
         flex-direction: column;
         align-items: end;
         gap: 0.5rem;
-        overflow-y: auto;
-        overflow-x: hidden;
         padding-right: 0.5rem;
-        width: 100%;
-        scrollbar-gutter: stable;
+        overflow-x: hidden;
         scroll-snap-type: y mandatory;
     }
 
@@ -594,28 +600,9 @@
         color: #ef4444;
     }
 
-    .tile-container-cols> :deep(.tile) {
+    .tile-container-cols :deep(.tile) {
         flex-shrink: 0;
         scroll-snap-align: start;
-    }
-
-    /* Custom scrollbar styling */
-    .tile-container-cols::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    .tile-container-cols::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 4px;
-    }
-
-    .tile-container-cols::-webkit-scrollbar-thumb {
-        background: #10b981;
-        border-radius: 4px;
-    }
-
-    .tile-container-cols::-webkit-scrollbar-thumb:hover {
-        background: #059669;
     }
 
     .tile-preview-notes {

@@ -3,6 +3,7 @@
     import Button from 'primevue/button';
     import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { useViewerStore } from '../../stores/viewerStore.js';
     import {
@@ -137,7 +138,7 @@
     >
         <div class="texture-overview-panel-container viewer-chrome-panel-container">
             <section class="texture-overview-panel-content">
-                <div class="texture-overview-panel-body">
+                <ScrollPanel class="rivvon-scroll-panel texture-overview-panel-body">
                     <div class="texture-overview-meta">
                         <p class="texture-overview-name">{{ texture?.name || 'Untitled Texture' }}</p>
                         <p class="texture-overview-subtitle">{{ sourceLabel }}</p>
@@ -246,7 +247,7 @@
                             <span v-if="displayScale < 1">({{ Math.round(displayScale * 100) }}% scale)</span>
                         </div>
                     </div>
-                </div>
+                </ScrollPanel>
 
                 <PanelActionBar class="texture-overview-panel-footer">
                     <Button
@@ -331,14 +332,15 @@
     }
 
     .texture-overview-panel-body {
-        flex: 1;
-        min-height: 0;
+        padding-right: 0.25rem;
+    }
+
+    .texture-overview-panel-body :deep(.p-scrollpanel-content) {
         display: flex;
         flex-direction: column;
         gap: 1rem;
-        overflow-y: auto;
+        min-height: 100%;
         overscroll-behavior: contain;
-        padding-right: 0.25rem;
     }
 
     .texture-overview-meta {

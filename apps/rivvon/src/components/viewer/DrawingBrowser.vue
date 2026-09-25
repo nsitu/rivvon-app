@@ -1,6 +1,7 @@
 <script setup>
     import { computed, ref, watch } from 'vue';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { createDrawingThumbnailDataUrl } from '../../modules/shared/drawingLibrary.js';
     import { useRivvonAPI } from '../../services/api.js';
@@ -752,7 +753,8 @@
         :class="{ active: visible }"
     >
         <div class="drawing-browser-container viewer-chrome-panel-container">
-            <div class="drawing-browser-content">
+            <ScrollPanel class="rivvon-scroll-panel drawing-browser-scroll">
+                <div class="drawing-browser-content">
                 <div class="drawing-browser-header">
                     <h2>Saved Drawings</h2>
 
@@ -945,7 +947,8 @@
                         </div>
                     </article>
                 </div>
-            </div>
+                </div>
+            </ScrollPanel>
         </div>
     </div>
 </template>
@@ -979,11 +982,7 @@
     }
 
     .drawing-browser-content {
-        flex: 1;
-        min-height: 0;
         padding: 20px;
-        overflow-y: auto;
-        scrollbar-gutter: stable;
     }
 
     .drawing-browser-header {

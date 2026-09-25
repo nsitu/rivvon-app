@@ -5,6 +5,7 @@
     import Tab from 'primevue/tab';
     import TabPanels from 'primevue/tabpanels';
     import TabPanel from 'primevue/tabpanel';
+    import ScrollPanel from 'primevue/scrollpanel';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import { useEmojiPicker } from '../../composables/viewer/useEmojiPicker';
 
@@ -162,7 +163,8 @@
         ></div>
 
         <div class="emoji-picker-container viewer-chrome-panel-container">
-            <div class="emoji-picker-content">
+            <ScrollPanel class="rivvon-scroll-panel emoji-picker-scroll">
+                <div class="emoji-picker-content">
                 <!-- Loading spinner for initial data load -->
                 <LoadingIndicator
                     v-if="!isDataLoaded"
@@ -255,7 +257,8 @@
                         rel="noopener"
                     >CC BY-SA 4.0</a>
                 </div>
-            </div>
+                </div>
+            </ScrollPanel>
         </div>
     </div>
 </template>
@@ -289,8 +292,6 @@
     }
 
     .emoji-picker-content {
-        flex: 1;
-        overflow-y: auto;
         padding: 20px;
         width: 100%;
     }

@@ -1,4 +1,6 @@
 <script setup>
+    import ScrollPanel from 'primevue/scrollpanel';
+
     defineProps({
         active: { type: Boolean, default: false },
         buildTimestampDisplay: { type: String, default: 'Unavailable' },
@@ -11,7 +13,8 @@
         :class="{ active }"
     >
         <div class="about-panel-container viewer-chrome-panel-container">
-            <div class="about-panel-content">
+            <ScrollPanel class="rivvon-scroll-panel about-panel-scroll">
+                <div class="about-panel-content">
                 <div class="about-layout">
                     <div class="info-content about-primary">
                         <div class="about-primary-layout">
@@ -283,7 +286,8 @@
                         </div>
                     </div>
                 </div>
-            </div>
+                </div>
+            </ScrollPanel>
         </div>
     </div>
 </template>
@@ -332,9 +336,6 @@
     }
 
     .about-panel-content {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
         padding: 2rem 1.5rem;
         width: 100%;
         max-width: 720px;

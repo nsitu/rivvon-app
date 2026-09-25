@@ -8,6 +8,7 @@
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import RadioButton from 'primevue/radiobutton';
     import Slider from 'primevue/slider';
+    import ScrollPanel from 'primevue/scrollpanel';
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useTextToSvg } from '../../composables/viewer/useTextToSvg';
@@ -366,7 +367,8 @@
     >
         <div class="text-input-container viewer-chrome-panel-container">
             <div class="text-input-panel-content">
-                <div class="text-input-panel-body">
+                <ScrollPanel class="rivvon-scroll-panel text-input-panel-scroll">
+                    <div class="text-input-panel-body">
                     <div class="text-form">
                         <div class="form-group">
                             <div class="toggle-row">
@@ -601,7 +603,8 @@
                         </div>
 
                     </div>
-                </div>
+                    </div>
+                </ScrollPanel>
 
                 <PanelActionBar class="text-input-panel-footer">
                     <template #leading>
@@ -666,8 +669,6 @@
     }
 
     .text-input-panel-body {
-        flex: 1;
-        overflow-y: auto;
         display: flex;
         flex-direction: column;
         gap: 1rem;

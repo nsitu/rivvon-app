@@ -1,24 +1,31 @@
 <script setup>
 
     import { useSlyceStore } from '../../stores/slyceStore';
+    import ScrollPanel from 'primevue/scrollpanel';
     const app = useSlyceStore()  // Pinia store
 
 </script>
 <template>
-    <div
-        id="activity-log"
+    <ScrollPanel
         v-if="app.messages.length > 0"
+        class="rivvon-scroll-panel activity-log-scroll"
     >
-        <p v-for="message in app.messages">{{ message }}</p>
-    </div>
+        <div id="activity-log">
+            <p v-for="message in app.messages">{{ message }}</p>
+        </div>
+    </ScrollPanel>
 </template>
 <style scoped>
 
     #activity-log {
-        max-height: 15rem;
-        overflow-y: scroll;
         padding: 1rem;
         border: 1px solid #ccc;
         border-radius: 0.5rem;
+    }
+
+    .activity-log-scroll {
+        flex: none;
+        height: 15rem;
+        max-height: 15rem;
     }
 </style>

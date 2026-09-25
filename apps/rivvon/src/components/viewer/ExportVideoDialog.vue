@@ -11,6 +11,7 @@
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import ScrollPanel from 'primevue/scrollpanel';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -529,7 +530,8 @@
     >
         <div class="export-video-panel-container viewer-chrome-panel-container">
             <div class="export-video-panel-content">
-                <div class="export-video-panel-body">
+                <ScrollPanel class="rivvon-scroll-panel export-video-panel-scroll">
+                    <div class="export-video-panel-body">
                     <div
                         v-if="!hasWebCodecs"
                         class="warning-banner"
@@ -810,7 +812,8 @@
                         </Accordion>
 
                     </div>
-                </div>
+                    </div>
+                </ScrollPanel>
 
                 <div
                     v-if="exportStatus"
@@ -1078,8 +1081,6 @@
     }
 
     .export-video-panel-body {
-        flex: 1;
-        overflow-y: auto;
         display: flex;
         flex-direction: column;
         gap: 1rem;

@@ -108,17 +108,18 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
 
 <template>
     <main class="video-player-panel">
-        <PanelActionBar
-            placement="top"
-            aria-label="Video player navigation"
-            class="video-player-header-actions"
-        >
-            <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'video-gallery' })">
-                <span class="material-symbols-outlined">arrow_back</span>
-                Back to Video Gallery
-            </Button>
-        </PanelActionBar>
-        <ScrollPanel class="rivvon-scroll-panel video-player-scroll">
+        <div class="video-player-container viewer-chrome-panel-container">
+            <PanelActionBar
+                placement="top"
+                aria-label="Video player navigation"
+                class="video-player-header-actions"
+            >
+                <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'video-gallery' })">
+                    <span class="material-symbols-outlined">arrow_back</span>
+                    Back to Video Gallery
+                </Button>
+            </PanelActionBar>
+            <ScrollPanel class="rivvon-scroll-panel video-player-scroll">
             <section v-if="isLoading" class="player-message">
                 <span class="material-symbols-outlined player-spinner">progress_activity</span>
                 <h1>Loading video…</h1>
@@ -179,15 +180,16 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
                 <p v-if="thumbnailStatus" class="thumbnail-status" role="status">{{ thumbnailStatus }}</p>
                 <p v-if="thumbnailError" class="thumbnail-status thumbnail-error" role="alert">{{ thumbnailError }}</p>
             </article>
-        </ScrollPanel>
+            </ScrollPanel>
+        </div>
     </main>
 </template>
 
 <style scoped>
     .video-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; overflow: hidden; color: #f8fafc; background: #1a1a1a; }
-    .video-player-header-actions { padding-top: var(--viewer-header-chrome-height); padding-inline: 1rem; }
+    .video-player-container { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; box-sizing: border-box; }
+    .video-player-header-actions { padding-inline: 1rem; }
     .video-player-scroll { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; }
-    .video-player-scroll :deep(.p-scrollpanel-content) { padding-bottom: var(--viewer-bottom-chrome-height); }
     .video-player-content { box-sizing: border-box; width: min(100%, 84rem); margin-inline: auto; padding: 1.5rem 1.25rem; }
     .video-player-frame { position: relative; display: grid; overflow: hidden; width: 100%; max-height: 76vh; border: 1px solid #345379; border-radius: 0; background: #080910; box-shadow: none; place-items: center; }
     .video-player-frame:fullscreen { border: 0; border-radius: 0; }
