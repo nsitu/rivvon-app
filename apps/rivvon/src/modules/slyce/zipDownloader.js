@@ -13,7 +13,7 @@ export async function downloadAllAsZip(blobURLs, fileInfo, format, appStore) {
 
     // Create metadata object with video info and settings
     const metadata = {
-        generatedBy: 'Slyce',
+        generatedBy: 'Rivvon',
         generatedAt: new Date().toISOString(),
 
         // Original video metadata

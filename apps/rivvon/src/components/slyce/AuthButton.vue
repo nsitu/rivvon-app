@@ -1,13 +1,16 @@
 <template>
   <div class="auth-button">
-    <button
+    <Button
       v-if="!isAuthenticated"
+      type="button"
       @click="openBetaModal"
-      class="btn-login"
+      severity="secondary"
+      text
+      class="auth-action-button login-action rivvon-workflow-button--compact"
     >
       <span class="material-symbols-outlined">login</span>
       <span class="login-text">Login</span>
-    </button>
+    </Button>
 
     <template v-else>
       <!-- User info - stays in header row -->
@@ -30,19 +33,22 @@
       <!-- Navigation menu - separate on mobile -->
       <nav class="nav-menu">
         <router-link
-          to="/slyce"
+          to="/create"
           class="nav-link"
-          :class="$route.path === '/slyce' ? 'nav-link-active' : ''"
+          :class="$route.path === '/create' ? 'nav-link-active' : ''"
         >
           Create
         </router-link>
-        <button
+        <Button
+          type="button"
           @click="logout"
-          class="btn-logout"
+          severity="secondary"
+          text
+          class="auth-action-button logout-action rivvon-workflow-button--compact"
         >
           <span class="material-symbols-outlined">logout</span>
           <span class="logout-text">Logout</span>
-        </button>
+        </Button>
       </nav>
     </template>
 
@@ -53,6 +59,7 @@
 
 <script setup>
   import { ref } from 'vue'
+  import Button from 'primevue/button'
   import { useGoogleAuth } from '../../composables/shared/useGoogleAuth'
   import { useRoute } from 'vue-router'
   import BetaModal from './BetaModal.vue'
@@ -134,8 +141,7 @@
     }
   }
 
-  .btn-login,
-  .btn-logout {
+  .auth-action-button {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -150,41 +156,38 @@
 
   @media (min-width: 640px) {
 
-    .btn-login,
-    .btn-logout {
+    .auth-action-button {
       gap: 0.5rem;
       padding: 0.5rem 1rem;
       font-size: 0.9rem;
     }
   }
 
-  .btn-login {
+  .login-action {
     background-color: #4a4a4a;
     color: white;
   }
 
-  .btn-login:hover {
+  .login-action:hover {
     background-color: #1a1a1a;
   }
 
-  .btn-logout {
+  .logout-action {
     background-color: var(--bg-muted);
     color: var(--text-primary);
   }
 
-  .btn-logout:hover {
+  .logout-action:hover {
     background-color: var(--bg-muted-alt);
   }
 
-  .btn-login .material-symbols-outlined,
-  .btn-logout .material-symbols-outlined {
+  .auth-action-button .material-symbols-outlined {
     font-size: 16px;
   }
 
   @media (min-width: 640px) {
 
-    .btn-login .material-symbols-outlined,
-    .btn-logout .material-symbols-outlined {
+    .auth-action-button .material-symbols-outlined {
       font-size: 18px;
     }
   }

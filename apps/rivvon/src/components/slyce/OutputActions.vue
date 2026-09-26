@@ -825,7 +825,7 @@
 
     async function openTextureBrowser() {
         await syncLocalDraftMetadata();
-        viewerStore.hideSlyce();
+        viewerStore.hideTextureCreator();
         const targetTab = app.publishedCloudRootId ? 'my-cloud' : 'local';
         router.push({ path: route.path, query: { ...route.query, textures: targetTab } });
     }

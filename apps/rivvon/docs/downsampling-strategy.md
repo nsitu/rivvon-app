@@ -2,7 +2,7 @@
 
 ## Background
 
-Slyce previously offered two downsampling strategies when the target tile resolution was smaller than the source video frame dimension:
+The texture creator previously offered two downsampling strategies when the target tile resolution was smaller than the source video frame dimension:
 
 - **`upfront`** — Downscale the entire video frame once before extracting cross-section samples
 - **`perSample`** — Let each `drawImage` call implicitly scale the 1px-wide (or 1px-tall) strip from source resolution to tile resolution

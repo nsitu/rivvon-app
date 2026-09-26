@@ -2058,7 +2058,7 @@
         tabindex="-1"
     >
         <div
-            class="texture-browser-container viewer-chrome-panel-container"
+            class="texture-browser-container viewer-panel viewer-chrome-panel-container"
             :class="{ 'has-preview': previewTexture }"
             :style="previewTexture ? { '--preview-tile-size': previewCanvasWidth + 'px' } : undefined"
         >
@@ -2071,7 +2071,7 @@
             >
                 <div class="texture-browser-tabs">
                     <button
-                        :class="['tab-button', 'multi-select-toggle', { active: multiSelectMode }]"
+                        :class="['tab-button', 'rivvon-segmented-button', 'multi-select-toggle', { active: multiSelectMode }]"
                         @click="toggleMultiSelectMode"
                         :title="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
                     >
@@ -2081,33 +2081,33 @@
                         >checklist</span>
                     </button>
                     <button
-                        :class="['tab-button', { active: activeTab === 'all' }]"
+                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'all' }]"
                         @click="activeTab = 'all'"
                     >
                         All
                     </button>
                     <button
-                        :class="['tab-button', { active: activeTab === 'local' }]"
+                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'local' }]"
                         @click="activeTab = 'local'"
                     >
                         Drafts
                     </button>
                     <button
                         v-if="isAuthenticated"
-                        :class="['tab-button', { active: activeTab === 'my-cloud' }]"
+                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'my-cloud' }]"
                         @click="activeTab = 'my-cloud'"
                     >
                         My Published
                     </button>
                     <button
-                        :class="['tab-button', { active: activeTab === 'public' }]"
+                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'public' }]"
                         @click="activeTab = 'public'"
                     >
                         Published
                     </button>
                     <button
                         v-if="cachedCloudIds.size > 0"
-                        :class="['tab-button', { active: activeTab === 'cached' }]"
+                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'cached' }]"
                         @click="activeTab = 'cached'"
                     >
                         Cloud Cache
@@ -2132,10 +2132,12 @@
                     class="texture-browser-error"
                 >
                     {{ error }}
-                    <button
-                        class="retry-button"
+                    <Button
+                        type="button"
+                        severity="success"
+                        class="retry-button rivvon-workflow-button--compact"
                         @click="loadTextures"
-                    >Retry</button>
+                    >Retry</Button>
                 </div>
 
                 <!-- Empty state -->
@@ -2146,15 +2148,15 @@
                     <template v-if="activeTab === 'local'">
                         No draft textures yet.
                         <a
-                            href="/slyce"
-                            class="slyce-link"
+                            href="/create"
+                            class="rivvon-text-link"
                         >Create one in Create Texture</a>
                     </template>
                     <template v-else-if="activeTab === 'my-cloud'">
                         You haven't published any textures yet.
                         <a
-                            href="/slyce"
-                            class="slyce-link"
+                            href="/create"
+                            class="rivvon-text-link"
                         >Create one in Create Texture</a>
                     </template>
                     <template v-else-if="activeTab === 'cached'">
@@ -2298,14 +2300,15 @@
                                     </option>
                                 </select>
 
-                                <button
+                                <Button
                                     v-if="!multiSelectMode"
                                     type="button"
-                                    class="texture-apply-button"
+                                    severity="info"
+                                    class="texture-apply-button rivvon-workflow-button--compact"
                                     @click="applyTextureSelection(texture, $event)"
                                 >
                                     Apply
-                                </button>
+                                </Button>
                             </div>
 
                             <!-- Frame info / Created date -->
@@ -2348,64 +2351,92 @@
                             <!-- Action buttons (inline in info area) -->
                             <div class="texture-card-actions">
                                 <!-- Preview button -->
-                                <button
-                                    class="action-button preview-button"
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action preview-button"
                                     title="Preview animation"
+                                    aria-label="Preview animation"
                                     @click="openPreview(getFamilySelectionTexture(texture), $event)"
                                 >
                                     <span class="material-symbols-outlined">play_circle</span>
-                                </button>
-                                <button
-                                    class="action-button overview-button"
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action overview-button"
                                     title="Open texture overview"
+                                    aria-label="Open texture overview"
                                     @click="openOverview(getFamilySelectionTexture(texture), $event)"
                                 >
                                     <span class="material-symbols-outlined">grid_view</span>
-                                </button>
+                                </Button>
                                 <!-- Edit button (owner or admin) -->
-                                <button
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
                                     v-if="isLocalTexture(texture) || isOwner(getFamilyActionTexture(texture)) || isAdmin"
-                                    class="action-button edit-button"
+                                    class="action-button rivvon-icon-action edit-button"
                                     title="Edit metadata"
+                                    aria-label="Edit metadata"
                                     @click="startEdit(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">edit</span>
-                                </button>
+                                </Button>
                                 <!-- Copy button -->
-                                <button
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
                                     v-if="canCopyTexture(texture)"
-                                    class="action-button copy-button"
+                                    class="action-button rivvon-icon-action copy-button"
                                     title="Copy to another storage"
+                                    aria-label="Copy to another storage"
                                     @click="toggleCopyMenu(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">content_copy</span>
-                                </button>
-                                <button
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
                                     v-if="canDeriveVariant(texture)"
-                                    class="action-button derive-button"
+                                    class="action-button rivvon-icon-action derive-button"
                                     title="Publish lower-resolution variants"
+                                    aria-label="Publish lower-resolution variants"
                                     @click="startDeriveVariant(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">resize</span>
-                                </button>
+                                </Button>
                                 <!-- Delete button (owner, admin, or local) -->
-                                <button
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
                                     v-if="isLocalTexture(texture) || isOwner(getFamilyActionTexture(texture)) || isAdmin"
-                                    class="action-button delete-button"
+                                    class="action-button rivvon-icon-action delete-button"
                                     title="Delete texture"
+                                    aria-label="Delete texture"
                                     @click="confirmDelete(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">delete</span>
-                                </button>
+                                </Button>
                                 <!-- Evict cache button (cloud textures with local cache) -->
-                                <button
+                                <Button
+                                    type="button"
+                                    variant="text"
+                                    size="small"
                                     v-if="!isLocalTexture(texture) && texture.isCached"
-                                    class="action-button evict-button"
+                                    class="action-button rivvon-icon-action evict-button"
                                     title="Remove local cache"
+                                    aria-label="Remove local cache"
                                     @click="evictCache(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">delete_sweep</span>
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -2485,12 +2516,14 @@
                 >
                     <span class="multi-select-count">{{ multiSelectCount }} texture{{ multiSelectCount > 1 ? 's' : '' }}
                         selected</span>
-                    <button
-                        class="multi-select-apply"
+                    <Button
+                        type="button"
+                        severity="success"
+                        class="multi-select-apply rivvon-workflow-button--compact"
                         @click="applyMultiSelection"
                     >
                         Apply ({{ multiSelectCount }})
-                    </button>
+                    </Button>
                 </div>
             </Transition>
         </div>
@@ -2519,21 +2552,24 @@
                                 : 'This action cannot be undone.')
                         }}
                     </p>
-                    <div class="delete-modal-actions">
-                        <button
-                            class="cancel-button"
+                    <div class="delete-modal-actions rivvon-modal-actions">
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="cancelDelete"
                             :disabled="deletingId"
                         >
                             Cancel
-                        </button>
-                        <button
-                            class="confirm-delete-button"
+                        </Button>
+                        <Button
+                            type="button"
+                            severity="danger"
                             @click="performDelete"
                             :disabled="deletingId"
                         >
                             {{ deletingId ? 'Deleting...' : 'Delete' }}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -2567,21 +2603,24 @@
                     >
                         Error: {{ copyError }}
                     </p>
-                    <div class="delete-modal-actions">
-                        <button
-                            class="cancel-button"
+                    <div class="delete-modal-actions rivvon-modal-actions">
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="cancelCopy"
                             :disabled="isCopying"
                         >
                             Cancel
-                        </button>
-                        <button
-                            class="confirm-copy-button"
+                        </Button>
+                        <Button
+                            type="button"
+                            severity="info"
                             @click="performCopy"
                             :disabled="isCopying"
                         >
                             {{ copyPrimaryActionLabel }}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -2737,22 +2776,26 @@
                         </div>
                     </details>
 
-                    <div class="delete-modal-actions derive-modal-actions">
-                        <button
-                            class="cancel-button"
+                    <div class="delete-modal-actions derive-modal-actions rivvon-modal-actions">
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="cancelDeriveVariant"
                             :disabled="isDeriving"
                         >
                             {{ hasDeriveCompleted ? 'Done' : 'Cancel' }}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             v-if="!hasDeriveCompleted"
-                            class="confirm-copy-button derive-run-button"
+                            type="button"
+                            severity="info"
+                            class="derive-run-button"
                             @click="performDeriveVariant"
                             :disabled="isDeriving || deriveTargetResolutions.length === 0 || deriveTargetOptions.length === 0"
                         >
                             {{ derivePrimaryActionLabel }}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -2767,9 +2810,11 @@
                 @click.stop
             >
                 <div class="copy-menu-header">Copy to:</div>
-                <button
+                <Button
                     v-for="dest in getCopyDestinations(copyMenuTexture)"
                     :key="dest.value"
+                    type="button"
+                    variant="text"
                     class="copy-menu-item"
                     @click="startCopy(copyMenuTexture, dest.value, $event)"
                 >
@@ -2779,7 +2824,7 @@
                         class="copy-menu-icon"
                     />
                     {{ dest.label }}
-                </button>
+                </Button>
             </div>
         </Teleport>
 
@@ -2832,21 +2877,24 @@
                     >
                         {{ editError }}
                     </p>
-                    <div class="delete-modal-actions">
-                        <button
-                            class="cancel-button"
+                    <div class="delete-modal-actions rivvon-modal-actions">
+                        <Button
+                            type="button"
+                            severity="secondary"
+                            variant="outlined"
                             @click="cancelEdit"
                             :disabled="isEditing"
                         >
                             Cancel
-                        </button>
-                        <button
-                            class="confirm-edit-button"
+                        </Button>
+                        <Button
+                            type="button"
+                            severity="success"
                             @click="performEdit"
                             :disabled="isEditing || !editName.trim()"
                         >
                             {{ isEditing ? 'Saving...' : 'Save' }}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -2881,7 +2929,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        background: #1a1a1a;
     }
 
     /* On mobile, hide browser content when preview is active */
@@ -2926,26 +2973,7 @@
     }
 
     .tab-button {
-        background: transparent;
-        border: 1px solid #555;
-        border-radius: 8px;
-        color: #888;
         font-size: 14px;
-        padding: 8px 16px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .tab-button:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.05);
-        border-color: #888;
-    }
-
-    .tab-button.active {
-        color: #4caf50;
-        border-color: #4caf50;
-        background: rgba(76, 175, 80, 0.1);
     }
 
     .texture-browser-loading,
@@ -3138,20 +3166,19 @@
     }
 
     .texture-apply-button {
-        border: none;
-        border-radius: 6px;
-        padding: 8px 12px;
-        background: #60a5fa;
-        color: #0f172a;
+        min-height: var(--rivvon-button-height-compact);
+        border-radius: var(--rivvon-button-radius);
+        padding: 0.5rem 0.75rem;
+        background: var(--p-info-color, #60a5fa);
+        color: var(--p-primary-contrast-color, #0f172a);
         font-size: 12px;
         font-weight: 700;
-        cursor: pointer;
-        transition: background 0.2s ease, transform 0.2s ease;
+        transition: var(--rivvon-button-transition), transform 0.2s ease;
         flex-shrink: 0;
     }
 
     .texture-apply-button:hover {
-        background: #93c5fd;
+        background: var(--p-info-hover-color, #93c5fd);
     }
 
     .texture-apply-button:active {
@@ -3231,7 +3258,7 @@
         white-space: pre;
     }
 
-    .texture-browser-create .slyce-link {
+    .texture-browser-create .rivvon-text-link {
         font-family: 'Cascadia Code', sans-serif;
         font-optical-sizing: auto;
         font-weight: 900;
@@ -3244,7 +3271,7 @@
         transition: transform 0.2s, color 0.2s;
     }
 
-    .texture-browser-create .slyce-link:hover {
+    .texture-browser-create .rivvon-text-link:hover {
         color: #ffffff;
         transform: scale(1.05);
     }
@@ -3252,16 +3279,6 @@
     /* Retry button */
     .retry-button {
         margin-top: 12px;
-        background: #4caf50;
-        border: none;
-        color: white;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-    .retry-button:hover {
-        background: #45a049;
     }
 
     /* Delete modal */
@@ -3303,45 +3320,6 @@
         font-size: 13px;
     }
 
-    .delete-modal-actions {
-        display: flex;
-        gap: 12px;
-        justify-content: flex-end;
-        margin-top: 20px;
-    }
-
-    .cancel-button {
-        background: #444;
-        border: none;
-        color: #fff;
-        padding: 10px 20px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-    .cancel-button:hover:not(:disabled) {
-        background: #555;
-    }
-
-    .confirm-delete-button {
-        background: #dc2626;
-        border: none;
-        color: #fff;
-        padding: 10px 20px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-
-    .confirm-delete-button:hover:not(:disabled) {
-        background: #b91c1c;
-    }
-
-    .cancel-button:disabled,
-    .confirm-delete-button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-
     /* Local Texture Styling */
     .local-texture-card {
         border: 2px solid rgba(59, 130, 246, 0.3);
@@ -3370,19 +3348,8 @@
     }
 
     .action-button {
-        border: none;
-        border-radius: 4px;
-        padding: 4px;
-        width: 28px;
-        height: 28px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         opacity: 0;
         pointer-events: none;
-        flex-shrink: 0;
     }
 
     .texture-card:hover .action-button {
@@ -3397,11 +3364,6 @@
             opacity: 1;
             pointer-events: auto;
         }
-    }
-
-    .action-button .material-symbols-outlined {
-        font-size: 18px;
-        color: #fff;
     }
 
     .action-button.copy-button {
@@ -3480,13 +3442,21 @@
         gap: 8px;
         width: 100%;
         padding: 8px 10px;
-        background: transparent;
-        border: none;
-        color: #fff;
+        min-height: var(--rivvon-button-height-compact);
+        padding: 0.5rem 0.625rem;
+        background: transparent !important;
+        border: none !important;
+        border-radius: var(--rivvon-button-radius);
+        color: var(--rivvon-button-text-color) !important;
         font-size: 12px;
         cursor: pointer;
         text-align: left;
-        transition: background 0.2s ease;
+        transition: var(--rivvon-button-transition);
+    }
+
+    .copy-menu-item:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .copy-menu-item:hover {
@@ -3521,25 +3491,6 @@
         color: #f87171;
         font-size: 14px;
         margin: 12px 0;
-    }
-
-    .confirm-copy-button {
-        background: #3b82f6;
-        border: none;
-        color: #fff;
-        padding: 10px 20px;
-        cursor: pointer;
-        font-size: 14px;
-        border-radius: 4px;
-    }
-
-    .confirm-copy-button:hover:not(:disabled) {
-        background: #2563eb;
-    }
-
-    .confirm-copy-button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
     }
 
     .derive-modal {
@@ -3673,10 +3624,6 @@
         color: #f87171 !important;
     }
 
-    .derive-modal-actions {
-        flex-wrap: wrap;
-    }
-
     .derive-run-button {
         min-width: 120px;
     }
@@ -3745,25 +3692,6 @@
         color: #f87171;
         font-size: 13px;
         margin: 8px 0;
-    }
-
-    .confirm-edit-button {
-        background: #22c55e;
-        border: none;
-        color: #fff;
-        padding: 10px 20px;
-        cursor: pointer;
-        font-size: 14px;
-        border-radius: 4px;
-    }
-
-    .confirm-edit-button:hover:not(:disabled) {
-        background: #16a34a;
-    }
-
-    .confirm-edit-button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
     }
 
     /* Multi-select mode */
@@ -3842,19 +3770,19 @@
     }
 
     .multi-select-apply {
-        background: #4caf50;
+        min-height: var(--rivvon-button-height-compact);
+        background: var(--p-success-color, #4caf50);
         border: none;
-        color: #fff;
+        border-radius: var(--rivvon-button-radius);
+        color: var(--p-primary-contrast-color, #fff);
         padding: 10px 24px;
-        cursor: pointer;
         font-size: 14px;
         font-weight: 600;
-        border-radius: 4px;
-        transition: background 0.2s;
+        transition: var(--rivvon-button-transition);
     }
 
     .multi-select-apply:hover {
-        background: #45a049;
+        background: var(--p-success-hover-color, #45a049);
     }
 
     /* Slide-up transition for apply bar */

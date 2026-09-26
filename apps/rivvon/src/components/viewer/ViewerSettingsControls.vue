@@ -1,7 +1,9 @@
 <script setup>
     import { computed, nextTick, ref } from 'vue';
+    import Button from 'primevue/button';
     import Select from 'primevue/select';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import {
@@ -241,6 +243,26 @@
             app.setScreenWakeLockEnabled(!!value);
         }
     });
+
+    const viewerPanelBackgroundColorModel = computed({
+        get: () => app.viewerPanelBackgroundColor,
+        set: (value) => app.setViewerPanelBackgroundColor(value),
+    });
+
+    const viewerPanelBackgroundColorPickerModel = computed({
+        get: () => viewerPanelBackgroundColorModel.value.replace('#', ''),
+        set: (value) => app.setViewerPanelBackgroundColor(
+            typeof value === 'string' ? `#${value.replace(/^#/, '')}` : value,
+        ),
+    });
+
+    const viewerPanelBackgroundColorInputModel = computed(
+        () => viewerPanelBackgroundColorModel.value.toUpperCase(),
+    );
+
+    function onViewerPanelBackgroundColorInput(event) {
+        app.setViewerPanelBackgroundColor(event.target.value);
+    }
 </script>
 
 <template>
@@ -351,6 +373,39 @@
                     </div>
                 </div>
 
+                <div class="tools-color-row">
+                    <label
+                        class="tools-color-main"
+                        for="viewer-panel-background-color"
+                    >
+                        <span
+                            class="tools-color-swatch"
+                            :style="{ backgroundColor: viewerPanelBackgroundColorModel }"
+                        ></span>
+                        <span>UI Panel Background</span>
+                    </label>
+                    <div class="tools-color-control">
+                        <input
+                            id="viewer-panel-background-color-hex"
+                            type="text"
+                            class="background-overlay-hex"
+                            :value="viewerPanelBackgroundColorInputModel"
+                            maxlength="9"
+                            spellcheck="false"
+                            autocomplete="off"
+                            aria-label="UI panel background hex code"
+                            @change="onViewerPanelBackgroundColorInput"
+                        />
+                        <ColorPickerPopover
+                            input-id="viewer-panel-background-color"
+                            v-model="viewerPanelBackgroundColorPickerModel"
+                            format="hexa"
+                            aria-label="Choose UI panel background color"
+                            class="tools-color-picker"
+                        />
+                    </div>
+                </div>
+
                 <div class="tools-toggle-row">
                     <label
                         class="tools-toggle-main"
@@ -371,14 +426,15 @@
                     </div>
                 </div>
 
-                <button
+                <Button
                     type="button"
-                    class="tools-option"
+                    variant="text"
+                    class="tools-option rivvon-tool-option"
                     @click="emit('request-reset-viewer')"
                 >
                     <span class="material-symbols-outlined">restart_alt</span>
                     <span>Reset View</span>
-                </button>
+                </Button>
 
                 <div
                     v-if="showHeadTrackingTools"
@@ -390,15 +446,16 @@
                         <div class="tools-status-copy">
                             <div class="tools-status-label-row">
                                 <span class="tools-status-label-text">{{ headTrackingStatusLabel }}</span>
-                                <button
+                                <Button
                                     v-if="app.viewerControlMode === 'headTracking'"
                                     type="button"
+                                    variant="text"
                                     class="tools-inline-action"
                                     @click="app.requestHeadTrackingRecenter()"
                                 >
                                     <span class="material-symbols-outlined">center_focus_strong</span>
                                     <span>Re-center</span>
-                                </button>
+                                </Button>
                             </div>
                             <div class="tools-status-message">{{ headTrackingDisplayMessage }}</div>
                         </div>
@@ -640,13 +697,18 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.35rem 0.55rem;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.9);
+        border-radius: var(--rivvon-button-inline-radius);
+        border: 1px solid var(--rivvon-button-border-color);
+        background: var(--rivvon-button-surface-hover);
+        color: var(--rivvon-button-text-color);
         cursor: pointer;
         font-size: 0.74rem;
         font-weight: 600;
+    }
+
+    .tools-inline-action:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .tools-inline-action .material-symbols-outlined {
@@ -670,29 +732,6 @@
 
     :deep(.tools-select .p-select-label) {
         font-size: 0.95rem;
-    }
-
-    .tools-option {
-        display: flex;
-        align-items: center;
-        gap: 0.875rem;
-        padding: 0.875rem 1rem;
-        background: transparent;
-        border: none;
-        border-radius: 8px;
-        color: var(--p-text-color, #fff);
-        cursor: pointer;
-        font-size: 0.95rem;
-        transition: background 0.15s ease;
-    }
-
-    .tools-option:hover {
-        background: rgba(255, 255, 255, 0.08);
-    }
-
-    .tools-option .material-symbols-outlined {
-        font-size: 1.35rem;
-        opacity: 0.85;
     }
 
     .tools-toggle-row {

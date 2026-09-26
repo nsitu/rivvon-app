@@ -1,0 +1,172 @@
+:root {
+    --rivvon-button-height: 2.75rem;
+    --rivvon-button-height-compact: 2.25rem;
+    --rivvon-button-height-large: 3rem;
+    --rivvon-button-radius: var(--p-button-border-radius, 0.2rem);
+    --rivvon-button-tool-radius: 0.5rem;
+    --rivvon-button-inline-radius: 999px;
+    --rivvon-button-border-color: var(--p-content-border-color, #555);
+    --rivvon-button-surface-hover: var(--p-content-hover-background, rgba(255, 255, 255, 0.08));
+    --rivvon-button-text-color: var(--p-text-color, #fff);
+    --rivvon-button-muted-color: var(--p-text-muted-color, #888);
+    --rivvon-button-disabled-opacity: 0.35;
+    --rivvon-button-tool-padding: 0.875rem 1rem;
+    --rivvon-button-transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    --rivvon-button-focus-ring: 0 0 0 2px var(--p-focus-ring-color, var(--p-primary-color, #10b981));
+    --rivvon-icon-action-size: 2rem;
+    --rivvon-button-icon-size: 1.1rem;
+    --rivvon-segmented-active-color: var(--p-primary-color, #10b981);
+    --rivvon-segmented-active-background: color-mix(in srgb, var(--rivvon-segmented-active-color) 14%, transparent);
+}
+
+/* Shared compact action surface used by cards, lists, and media controls. */
+.rivvon-icon-action {
+    display: inline-flex;
+    width: var(--rivvon-icon-action-size);
+    min-width: var(--rivvon-icon-action-size);
+    height: var(--rivvon-icon-action-size);
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    border: 0;
+    border-radius: var(--rivvon-button-radius);
+    color: var(--rivvon-button-text-color);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: var(--rivvon-button-transition), opacity 0.2s ease, transform 0.2s ease;
+}
+
+.rivvon-icon-action:focus-visible,
+.rivvon-segmented-button:focus-visible {
+    outline: none;
+    box-shadow: var(--rivvon-button-focus-ring);
+}
+
+.rivvon-icon-action:disabled {
+    cursor: not-allowed;
+}
+
+.rivvon-icon-action .material-symbols-outlined {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+/* Shared segmented/tab surface for compact collection and mode selectors. */
+.rivvon-segmented-button {
+    display: inline-flex;
+    min-height: var(--rivvon-button-height-compact);
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0.55rem 1.1rem;
+    border: 1px solid var(--rivvon-button-border-color);
+    border-radius: var(--rivvon-button-radius);
+    color: var(--rivvon-button-muted-color);
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.rivvon-segmented-button:hover:not(:disabled) {
+    border-color: var(--rivvon-button-text-color);
+    color: var(--rivvon-button-text-color);
+    background: color-mix(in srgb, var(--rivvon-button-text-color) 5%, transparent);
+}
+
+.rivvon-segmented-button.active,
+.rivvon-segmented-button[aria-selected="true"] {
+    border-color: var(--rivvon-segmented-active-color);
+    color: var(--rivvon-segmented-active-color);
+    background: var(--rivvon-segmented-active-background);
+}
+
+.rivvon-segmented-button:disabled {
+    cursor: not-allowed;
+    opacity: var(--rivvon-button-disabled-opacity);
+}
+
+/* Shared tool-panel action surface used by camera and viewer settings controls. */
+.rivvon-tool-option {
+    display: flex;
+    width: 100%;
+    min-height: var(--rivvon-button-height);
+    align-items: center;
+    gap: 0.875rem;
+    box-sizing: border-box;
+    padding: var(--rivvon-button-tool-padding);
+    border: 0 !important;
+    border-radius: var(--rivvon-button-tool-radius);
+    color: var(--rivvon-button-text-color) !important;
+    background: transparent !important;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: var(--rivvon-button-transition);
+}
+
+.rivvon-tool-option:hover:not(:disabled) {
+    background: var(--rivvon-button-surface-hover) !important;
+}
+
+.rivvon-tool-option:focus-visible {
+    outline: none;
+    box-shadow: var(--rivvon-button-focus-ring);
+}
+
+.rivvon-tool-option:disabled {
+    cursor: not-allowed;
+    opacity: var(--rivvon-button-disabled-opacity);
+}
+
+.rivvon-tool-option .material-symbols-outlined {
+    font-size: 1.35rem;
+    opacity: 0.85;
+}
+
+/* Shared layout for ordinary panel-level action groups outside PanelActionBar. */
+.rivvon-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+/* Shared action surface for dialogs, confirmation sheets, and teleported modals. */
+.rivvon-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.rivvon-modal-actions .p-button {
+    min-height: var(--rivvon-button-height, 2.75rem);
+}
+
+/* Shared labeled workflow buttons. PrimeVue still owns severity and variant. */
+.rivvon-workflow-button {
+    display: inline-flex;
+    min-height: var(--rivvon-button-height, 2.75rem);
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rivvon-workflow-button--compact {
+    min-height: var(--rivvon-button-height-compact, 2.25rem);
+    font-size: 0.8125rem;
+}
+
+.rivvon-workflow-button--large {
+    min-height: var(--rivvon-button-height-large);
+    font-weight: 600;
+}
+
+.rivvon-workflow-button .material-symbols-outlined {
+    font-size: 1.1rem;
+    line-height: 1;
+}

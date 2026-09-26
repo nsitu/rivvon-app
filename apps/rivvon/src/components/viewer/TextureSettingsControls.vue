@@ -1,5 +1,6 @@
 <script setup>
     import { computed, ref, watch, getCurrentInstance, onBeforeUnmount } from 'vue';
+    import Button from 'primevue/button';
     import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
@@ -952,8 +953,9 @@
                 >
                     <div class="gradient-map-header">
                         <span>Color Stops</span>
-                        <button
+                        <Button
                             type="button"
+                            variant="text"
                             class="gradient-map-add"
                             :disabled="gradientMapStops.length >= MAX_GRADIENT_MAP_STOPS"
                             title="Add color stop"
@@ -961,7 +963,7 @@
                         >
                             <span class="material-symbols-outlined">add</span>
                             Add
-                        </button>
+                        </Button>
                     </div>
 
                     <div class="gradient-map-track-wrap">
@@ -1025,15 +1027,16 @@
                                 />
                                 <span>%</span>
                             </div>
-                            <button
+                            <Button
                                 type="button"
+                                variant="text"
                                 class="gradient-map-remove"
                                 :disabled="gradientMapStops.length <= 2"
                                 title="Remove color stop"
                                 @click.stop="removeGradientStop(stop.id)"
                             >
                                 <span class="material-symbols-outlined">close</span>
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
@@ -1181,9 +1184,10 @@
     .gradient-map-remove {
         appearance: none;
         border: 0;
-        color: rgba(255, 255, 255, 0.72);
-        background: rgba(255, 255, 255, 0.08);
+        color: var(--rivvon-button-muted-color);
+        background: var(--rivvon-button-surface-hover);
         cursor: pointer;
+        transition: var(--rivvon-button-transition);
     }
 
     .gradient-map-add {
@@ -1191,7 +1195,7 @@
         align-items: center;
         gap: 0.15rem;
         padding: 0.3rem 0.5rem;
-        border-radius: 6px;
+        border-radius: var(--rivvon-button-radius);
         font-size: 0.7rem;
     }
 
@@ -1202,8 +1206,15 @@
 
     .gradient-map-add:disabled,
     .gradient-map-remove:disabled {
-        opacity: 0.3;
+        opacity: var(--rivvon-button-disabled-opacity);
         cursor: default;
+    }
+
+    .gradient-map-add:focus-visible,
+    .gradient-map-remove:focus-visible,
+    .gradient-map-handle:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .gradient-map-track-wrap {
@@ -1227,7 +1238,7 @@
         padding: 0;
         transform: translate(-50%, -50%);
         border: 3px solid rgba(255, 255, 255, 0.95);
-        border-radius: 999px;
+        border-radius: var(--rivvon-button-inline-radius);
         background: var(--stop-color);
         box-shadow: 0 0 0 2px rgba(11, 34, 46, 0.95);
         cursor: grab;
@@ -1259,7 +1270,7 @@
         gap: 0.45rem;
         padding: 0.45rem;
         border: 1px solid transparent;
-        border-radius: 9px;
+        border-radius: var(--rivvon-button-tool-radius);
         background: rgba(255, 255, 255, 0.035);
     }
 
@@ -1274,7 +1285,7 @@
         min-width: 0;
         box-sizing: border-box;
         border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 6px;
+        border-radius: var(--rivvon-button-radius);
         background: rgba(0, 0, 0, 0.2);
         color: rgba(255, 255, 255, 0.9);
         font: 0.75rem/1.2 monospace;
@@ -1304,7 +1315,7 @@
         height: 1.75rem;
         place-items: center;
         padding: 0;
-        border-radius: 50%;
+        border-radius: var(--rivvon-button-inline-radius);
     }
 
     .gradient-map-caption {

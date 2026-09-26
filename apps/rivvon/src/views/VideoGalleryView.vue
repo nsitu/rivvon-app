@@ -284,7 +284,7 @@
 </script>
 
 <template>
-    <main class="video-gallery-panel">
+    <main class="video-gallery-panel viewer-panel">
         <div class="video-gallery-content viewer-chrome-panel-container">
             <PanelActionBar
                 placement="top"
@@ -292,8 +292,8 @@
                 class="gallery-controls"
             >
                 <nav class="gallery-tabs" aria-label="Video collections">
-                    <button :class="{ active: activeTab === 'public' }" @click="activeTab = 'public'">Public</button>
-                    <button :class="{ active: activeTab === 'mine' }" @click="activeTab = 'mine'">My Videos</button>
+                    <button class="rivvon-segmented-button" :class="{ active: activeTab === 'public' }" type="button" role="tab" :aria-selected="activeTab === 'public'" @click="activeTab = 'public'">Public</button>
+                    <button class="rivvon-segmented-button" :class="{ active: activeTab === 'mine' }" type="button" role="tab" :aria-selected="activeTab === 'mine'" @click="activeTab = 'mine'">My Videos</button>
                 </nav>
                 <div v-if="canUpload || !isAuthenticated" class="gallery-upload-action">
                     <span
@@ -365,15 +365,18 @@
                             </div>
                             <div class="video-card-footer">
                                 <span>{{ video.owner_name || 'Rivvon artist' }} · {{ formatDate(video.created_at) }}</span>
-                                <button
+                                <Button
                                     v-if="isMyVideos"
-                                    class="delete-video-button"
+                                    type="button"
+                                    severity="danger"
+                                    variant="text"
+                                    class="delete-video-button rivvon-icon-action"
                                     :disabled="deletingIds.has(video.id)"
                                     :aria-label="`Delete ${video.name}`"
                                     @click="deleteVideo(video)"
                                 >
                                     <span class="material-symbols-outlined">delete</span>
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </article>
@@ -400,15 +403,17 @@
                             <h2 id="gallery-upload-title">Upload video</h2>
                             <p>Add a rendered loop directly to the video gallery.</p>
                         </div>
-                        <button
+                        <Button
                             type="button"
-                            class="gallery-dialog-close"
+                            variant="text"
+                            rounded
+                            class="gallery-dialog-close rivvon-icon-action"
                             aria-label="Close upload dialog"
                             :disabled="isUploading"
                             @click="closeUploadDialog"
                         >
                             <span class="material-symbols-outlined">close</span>
-                        </button>
+                        </Button>
                     </div>
 
                     <form class="gallery-upload-form" @submit.prevent="handleUpload">
@@ -522,7 +527,6 @@
         display: flex;
         flex-direction: column;
         color: #f8fafc;
-        background: #1a1a1a;
     }
     .video-gallery-content { display: flex; flex: 1; min-height: 0; flex-direction: column; width: 100%; }
     .video-gallery-scroll { flex: 1; min-height: 0; width: 100%; }
@@ -534,9 +538,7 @@
     .gallery-upload-button { flex-shrink: 0; white-space: nowrap; }
     .gallery-upload-button .material-symbols-outlined { font-size: 1.1rem; }
     .gallery-tabs { display: flex; flex-wrap: wrap; gap: .55rem; }
-    .gallery-tabs button { min-height: 2.8rem; padding: .55rem 1.1rem; border: 1px solid #555; border-radius: 8px; color: #888; background: transparent; cursor: pointer; font: inherit; transition: border-color .2s ease, color .2s ease, background .2s ease; }
-    .gallery-tabs button:hover { border-color: #5a5a5a; color: #e6e6e6; }
-    .gallery-tabs button.active { border-color: #4caf50; color: #4caf50; background: rgba(76, 175, 80, .1); }
+    .gallery-tabs .rivvon-segmented-button { flex: 0 1 auto; }
     .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 20px; }
     .video-card { overflow: hidden; border: 2px solid transparent; border-radius: 0; background: #252525; box-shadow: none; transition: all .2s ease; }
     .video-card:hover { border-color: #4caf50; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .3); }
@@ -554,7 +556,7 @@
     .video-card-meta, .video-card-footer { display: flex; align-items: center; gap: .7rem; color: #929292; font-size: .72rem; }
     .video-card-meta span + span::before { content: '·'; margin-right: .7rem; }
     .video-card-footer { justify-content: space-between; padding-top: .7rem; border-top: 1px solid #3a3a3a; }
-    .delete-video-button { display: grid; width: 2rem; height: 2rem; border: 0; border-radius: .2rem; color: #fca5a5; background: transparent; cursor: pointer; place-items: center; }
+    .delete-video-button { color: #fca5a5; background: transparent; }
     .delete-video-button:hover { background: rgba(239,68,68,.12); }
     .delete-video-button .material-symbols-outlined { font-size: 1.1rem; }
     .gallery-empty { display: flex; min-height: 45vh; max-width: 42rem; margin: auto; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
@@ -592,8 +594,8 @@
     .gallery-upload-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
     .gallery-upload-dialog h2 { margin: 0; font-size: 1.25rem; }
     .gallery-upload-dialog-header p { margin: .35rem 0 0; color: #9ca3af; font-size: .85rem; }
-    .gallery-dialog-close { display: grid; width: 2rem; height: 2rem; border: 0; border-radius: 50%; color: #cbd5e1; background: transparent; cursor: pointer; place-items: center; }
-    .gallery-dialog-close:hover { background: rgba(255, 255, 255, .08); }
+    .gallery-dialog-close { display: grid; width: var(--rivvon-icon-action-size); height: var(--rivvon-icon-action-size); border: 0; border-radius: var(--rivvon-button-inline-radius); color: #cbd5e1; background: transparent; place-items: center; }
+    .gallery-dialog-close:hover { background: var(--rivvon-button-surface-hover); }
     .gallery-dialog-close:disabled { cursor: not-allowed; opacity: .45; }
     .gallery-upload-form { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.25rem; }
     .gallery-file-picker, .gallery-upload-field { display: flex; flex-direction: column; gap: .4rem; }

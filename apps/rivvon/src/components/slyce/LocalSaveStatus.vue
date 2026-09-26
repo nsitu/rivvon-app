@@ -158,7 +158,7 @@
 
         <div
             v-if="hasVisibleActions"
-            class="local-save-actions"
+            class="local-save-actions rivvon-action-row"
         >
             <Button
                 v-if="state === 'error'"
@@ -257,10 +257,6 @@
 
     .local-save-actions {
         grid-column: 2;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        flex-wrap: wrap;
         justify-content: flex-start;
     }
 

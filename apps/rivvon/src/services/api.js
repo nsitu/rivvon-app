@@ -10,7 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
  */
 export function useRivvonAPI() {
     const { isAuthenticated, user } = useGoogleAuth()
-    const { ensureSlyceFolder, createAssetFolder, createTextureSetFolder, uploadTile: uploadTileToDrive, uploadFile: uploadDriveFile } = useGoogleDrive()
+    const { ensureRivvonFolder, createAssetFolder, createTextureSetFolder, uploadTile: uploadTileToDrive, uploadFile: uploadDriveFile } = useGoogleDrive()
 
     /**
      * Make an authenticated API request
@@ -270,11 +270,11 @@ export function useRivvonAPI() {
         })
 
         if (onProgress) onProgress('preparing', formatUploadProgressDetail(progressLabelPrefix, 'Setting up Google Drive folder...'))
-        const slyceFolderId = await ensureSlyceFolder()
+        const rivvonFolderId = await ensureRivvonFolder()
 
         const timestamp = new Date().toISOString().slice(0, 10)
         const folderName = `${name} (${timestamp})`
-        const drawingFolderId = await createAssetFolder(slyceFolderId, folderName)
+        const drawingFolderId = await createAssetFolder(rivvonFolderId, folderName)
 
         if (onProgress) onProgress('creating', formatUploadProgressDetail(progressLabelPrefix, 'Creating drawing...'))
         const { drawingId } = await createDrawing({
@@ -416,14 +416,14 @@ export function useRivvonAPI() {
             progressLabelPrefix = '',
         } = options
 
-        // 1. Ensure Slyce folder exists in Google Drive
+        // 1. Ensure the Rivvon texture folder exists in Google Drive
         if (onProgress) onProgress('preparing', formatUploadProgressDetail(progressLabelPrefix, 'Setting up Google Drive folder...'))
-        const slyceFolderId = await ensureSlyceFolder()
+        const rivvonFolderId = await ensureRivvonFolder()
 
         // 2. Create a subfolder for this texture set
         const timestamp = new Date().toISOString().slice(0, 10)
         const folderName = `${name} (${timestamp})`
-        const textureSetFolderId = await createTextureSetFolder(slyceFolderId, folderName)
+        const textureSetFolderId = await createTextureSetFolder(rivvonFolderId, folderName)
 
         // 3. Create texture set in API (with google-drive storage provider)
         if (onProgress) onProgress('creating', formatUploadProgressDetail(progressLabelPrefix, 'Creating texture set...'))

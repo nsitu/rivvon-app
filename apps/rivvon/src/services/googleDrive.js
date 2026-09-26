@@ -1,12 +1,13 @@
 /**
- * Google Drive Service for Slyce
- * Handles texture uploads to user's Google Drive as bring-your-own storage
+ * Google Drive service for Rivvon texture assets.
+ * Handles uploads to the user's Google Drive as bring-your-own storage.
  */
 
 import { useGoogleAuth } from '../composables/shared/useGoogleAuth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
-const SLYCE_FOLDER_NAME = 'Slyce Textures'
+const RIVVON_FOLDER_NAME = 'Rivvon Textures'
+const LEGACY_TEXTURE_FOLDER_NAME = 'Slyce Textures'
 const DRIVE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024 // 8 MiB; must remain a multiple of 256 KiB
 
 /**
@@ -17,10 +18,11 @@ export function useGoogleDrive() {
     const { getAccessToken, getDriveFolderId } = useGoogleAuth()
 
     /**
-     * Get or create the Slyce folder in the user's Google Drive
+     * Get or create the Rivvon texture folder in the user's Google Drive.
+     * Existing Slyce folders are reused so users do not get duplicate storage.
      * Returns the folder ID
      */
-    async function ensureSlyceFolder() {
+    async function ensureRivvonFolder() {
         // Check if we already have the folder ID cached
         const cachedFolderId = await getDriveFolderId()
         if (cachedFolderId) {
@@ -36,9 +38,13 @@ export function useGoogleDrive() {
             throw new Error('Not authenticated with Google Drive')
         }
 
-        // Search for existing Slyce folder
+        // Search both the current and legacy names. Prefer the current name
+        // when both exist, otherwise reuse the legacy folder in place.
+        const folderNames = [RIVVON_FOLDER_NAME, LEGACY_TEXTURE_FOLDER_NAME]
+            .map((name) => `name='${name.replace(/'/g, "\\'")}'`)
+            .join(' or ')
         const searchResponse = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='${SLYCE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&spaces=drive&fields=files(id,name)`,
+            `https://www.googleapis.com/drive/v3/files?q=(${folderNames}) and mimeType='application/vnd.google-apps.folder' and trashed=false&spaces=drive&fields=files(id,name)`,
             {
                 headers: { Authorization: `Bearer ${accessToken}` },
             }
@@ -51,13 +57,15 @@ export function useGoogleDrive() {
         const searchResult = await searchResponse.json()
 
         if (searchResult.files && searchResult.files.length > 0) {
-            const folderId = searchResult.files[0].id
+            const folder = searchResult.files.find((file) => file.name === RIVVON_FOLDER_NAME)
+                || searchResult.files[0]
+            const folderId = folder.id
             // Save folder ID to backend
             await saveFolderIdToBackend(folderId)
             return folderId
         }
 
-        // Create new Slyce folder
+        // Create the current Rivvon folder for new users.
         const createResponse = await fetch(
             'https://www.googleapis.com/drive/v3/files',
             {
@@ -67,14 +75,14 @@ export function useGoogleDrive() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    name: SLYCE_FOLDER_NAME,
+                    name: RIVVON_FOLDER_NAME,
                     mimeType: 'application/vnd.google-apps.folder',
                 }),
             }
         )
 
         if (!createResponse.ok) {
-            throw new Error('Failed to create Slyce folder')
+            throw new Error('Failed to create Rivvon texture folder')
         }
 
         const folder = await createResponse.json()
@@ -127,7 +135,7 @@ export function useGoogleDrive() {
 
     /**
      * Create a subfolder for a specific texture set
-     * @param {string} parentFolderId - The Slyce folder ID
+     * @param {string} parentFolderId - The Rivvon texture folder ID
      * @param {string} textureSetName - Name for the subfolder
      * @returns {string} The created subfolder ID
      */
@@ -422,7 +430,9 @@ export function useGoogleDrive() {
     }
 
     return {
-        ensureSlyceFolder,
+        ensureRivvonFolder,
+        // Temporary compatibility alias for older callers.
+        ensureSlyceFolder: ensureRivvonFolder,
         createAssetFolder,
         createTextureSetFolder,
         uploadFile,

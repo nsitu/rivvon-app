@@ -1463,7 +1463,7 @@ const activeLauncherTitle = computed(() => {
         display: flex;
         height: var(--viewer-bottom-chrome-height);
         min-height: var(--viewer-bottom-chrome-height);
-        background: rgba(0, 0, 0, 0.5);
+        background: #00000080;
         justify-content: center;
         align-items: center;
         pointer-events: none;

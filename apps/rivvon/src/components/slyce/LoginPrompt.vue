@@ -8,13 +8,15 @@
     <p class="prompt-description">
       Log in to upload and manage your textures on Rivvon CDN
     </p>
-    <button
+    <Button
+      type="button"
       @click="openBetaModal"
-      class="btn-login-large"
+      severity="info"
+      class="login-action rivvon-workflow-button rivvon-workflow-button--large"
     >
       <span class="icon">🚀</span>
       Sign in with Google
-    </button>
+    </Button>
     <p class="hint">Your textures will be stored in your Google Drive</p>
 
     <!-- Beta Access Modal -->
@@ -24,6 +26,7 @@
 
 <script setup>
   import { ref } from 'vue'
+  import Button from 'primevue/button'
   import { useGoogleAuth } from '../../composables/shared/useGoogleAuth'
   import BetaModal from './BetaModal.vue'
 
@@ -84,32 +87,11 @@
     line-height: 1.6;
   }
 
-  .btn-login-large {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1rem 2.5rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
+  .login-action {
+    min-width: 14rem;
   }
 
-  .btn-login-large:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
-  }
-
-  .btn-login-large:active {
-    transform: translateY(0);
-  }
-
-  .btn-login-large .icon {
+  .login-action .icon {
     font-size: 1.2rem;
   }
 
@@ -125,9 +107,9 @@
       margin: 1rem;
     }
 
-    .btn-login-large {
-      padding: 0.875rem 2rem;
-      font-size: 1rem;
+    .login-action {
+      min-width: 0;
+      width: 100%;
     }
   }
 </style>

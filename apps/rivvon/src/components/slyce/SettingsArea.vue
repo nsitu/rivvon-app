@@ -823,15 +823,17 @@
                     class="inline-select"
                 />
                 <span>backend.</span>
-                <button
+                <Button
                     type="button"
-                    class="info-toggle-button"
+                    variant="text"
+                    rounded
+                    class="info-toggle-button rivvon-icon-action"
                     :aria-expanded="gpuTileAssemblyInfoOpen ? 'true' : 'false'"
                     :aria-label="gpuTileAssemblyInfoOpen ? 'Hide tile builder details' : 'Show tile builder details'"
                     @click="gpuTileAssemblyInfoOpen = !gpuTileAssemblyInfoOpen"
                 >
                     <span class="material-symbols-outlined">info</span>
-                </button>
+                </Button>
             </p>
             <div
                 v-if="gpuTileAssemblyInfoOpen"
@@ -877,11 +879,11 @@
 
             <div
                 v-if="props.showActionButtons"
-                class="action-buttons"
+                class="action-buttons rivvon-action-row"
             >
                 <Button
                     type="button"
-                    class="back-button"
+                    class="back-button rivvon-workflow-button"
                     severity="secondary"
                     variant="outlined"
                     @click="emit('request-back')"
@@ -892,7 +894,7 @@
                 <Button
                     id="process-button"
                     type="button"
-                    class="process-button"
+                    class="process-button rivvon-workflow-button"
                     label="Process"
                     :disabled="!canProcessVideo"
                     :title="processDisabledReason || null"
@@ -1105,21 +1107,27 @@
         margin-left: 0.1rem;
         padding: 0;
         border: none;
-        border-radius: 999px;
+        border-radius: var(--rivvon-button-inline-radius);
         background: transparent;
-        color: rgba(255, 255, 255, 0.55);
+        color: var(--rivvon-button-muted-color);
         cursor: pointer;
         flex-shrink: 0;
+        transition: var(--rivvon-button-transition);
+    }
+
+    .info-toggle-button:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .info-toggle-button:hover {
-        color: rgba(255, 255, 255, 0.85);
-        background: rgba(255, 255, 255, 0.08);
+        color: var(--rivvon-button-text-color);
+        background: var(--rivvon-button-surface-hover);
     }
 
     .info-toggle-button[aria-expanded="true"] {
-        color: rgba(255, 255, 255, 0.9);
-        background: rgba(255, 255, 255, 0.12);
+        color: var(--rivvon-button-text-color);
+        background: color-mix(in srgb, var(--rivvon-button-text-color) 12%, transparent);
     }
 
     .info-toggle-button .material-symbols-outlined {
@@ -1284,9 +1292,6 @@
 
     /* Step navigation */
     .action-buttons {
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
         margin-top: 0.5rem;
     }
 

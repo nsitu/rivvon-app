@@ -78,7 +78,7 @@ onMounted(loadAudios);
 </script>
 
 <template>
-    <main class="audio-library-panel">
+    <main class="audio-library-panel viewer-panel">
         <div class="audio-library-container viewer-chrome-panel-container">
             <ScrollPanel class="rivvon-scroll-panel audio-library-scroll">
             <div class="audio-library-content">
@@ -127,9 +127,9 @@ onMounted(loadAudios);
                         </div>
                         <div class="audio-card-footer">
                             <RouterLink :to="{ name: 'audio-player', params: { audioId: audio.id } }">Open player</RouterLink>
-                            <button type="button" class="delete-audio-button" :disabled="deletingIds.has(audio.id)" :aria-label="`Delete ${audio.name}`" @click="deleteAudio(audio)">
+                            <Button type="button" severity="danger" variant="text" class="delete-audio-button rivvon-icon-action" :disabled="deletingIds.has(audio.id)" :aria-label="`Delete ${audio.name}`" @click="deleteAudio(audio)">
                                 <span class="material-symbols-outlined">delete</span>
-                            </button>
+                            </Button>
                         </div>
                     </article>
                 </section>
@@ -140,7 +140,7 @@ onMounted(loadAudios);
 </template>
 
 <style scoped>
-.audio-library-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
+.audio-library-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; }
 .audio-library-container { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; box-sizing: border-box; }
 .audio-library-content { width: min(100%, 72rem); margin: auto; padding: 1.5rem 1.25rem 5rem; }
 .audio-library-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
@@ -158,7 +158,7 @@ h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
 .audio-card-meta { display: flex; gap: .7rem; color: #94a3b8; font-size: .75rem; }
 .audio-card-meta span + span::before { content: '·'; margin-right: .7rem; }
 .audio-card-footer { display: flex; align-items: center; justify-content: space-between; padding-top: .65rem; border-top: 1px solid #26364d; font-size: .8rem; }
-.delete-audio-button { display: grid; width: 2rem; height: 2rem; border: 0; color: #fca5a5; background: transparent; cursor: pointer; place-items: center; }
+.delete-audio-button { color: #fca5a5; background: transparent; }
 .delete-audio-button:hover { background: rgba(239,68,68,.12); }
 .audio-library-empty { display: flex; min-height: 45vh; max-width: 36rem; margin: auto; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .audio-library-empty > .material-symbols-outlined { font-size: 3rem; color: #60a5fa; }

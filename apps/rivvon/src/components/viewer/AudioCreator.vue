@@ -581,7 +581,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="audio-creator-panel">
+    <main class="audio-creator-panel viewer-panel">
         <ScrollPanel class="rivvon-scroll-panel viewer-chrome-panel-container">
             <section class="audio-creator-content">
                 <div v-if="!hasSource" class="audio-source-options">
@@ -720,7 +720,7 @@ onBeforeUnmount(() => {
                         <span>{{ error || status }}</span>
                     </div>
                     <progress v-if="isLoading || isSaving" :value="progress" max="1" aria-label="Audio processing progress"></progress>
-                    <div class="audio-actions">
+                    <div class="audio-actions rivvon-action-row">
                         <Button severity="secondary" variant="outlined" :disabled="isSaving" @click="seekTo(start)"><span class="material-symbols-outlined">play_arrow</span>Preview start</Button>
                         <Button :disabled="isSaving || selectedDuration < .05" @click="saveAudio"><span class="material-symbols-outlined">cloud_upload</span>{{ isAuthenticated ? 'Save to library' : 'Sign in to save' }}</Button>
                     </div>
@@ -734,7 +734,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.audio-creator-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
+.audio-creator-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; }
 .audio-creator-content { width: min(100%, 62rem); margin: 0 auto; padding: 1.5rem 1.25rem 5rem; }
 .audio-source-options { display: grid; gap: 1rem; }
 .source-mode-tabs { display: flex; gap: .65rem; flex-wrap: wrap; }
@@ -773,7 +773,7 @@ onBeforeUnmount(() => {
 .audio-status { display: flex; align-items: center; gap: .5rem; margin: 1rem 0; color: #86efac; font-size: .85rem; }
 .audio-status.error { color: #fca5a5; }
 progress { width: 100%; accent-color: #60a5fa; }
-.audio-actions { justify-content: flex-end; margin-top: 1rem; flex-wrap: wrap; }
+.audio-actions { margin-top: 1rem; }
 .audio-empty { display: grid; min-height: 30rem; place-items: center; text-align: center; }
 .audio-empty .material-symbols-outlined { font-size: 3rem; color: #60a5fa; }
 .audio-empty h2 { margin: .75rem 0 .25rem; }

@@ -1,5 +1,6 @@
 <script setup>
     import { computed } from 'vue';
+    import Button from 'primevue/button';
 
     const props = defineProps({
         isCapturing: Boolean,
@@ -40,8 +41,10 @@
         <!-- Controls row -->
         <div class="realtime-actions">
             <!-- Start / Stop -->
-            <button
-                class="realtime-btn"
+            <Button
+                type="button"
+                variant="text"
+                class="realtime-btn rivvon-workflow-button--compact"
                 :class="{ active: isCapturing }"
                 @click="isCapturing ? emit('stop') : emit('start')"
             >
@@ -49,17 +52,19 @@
                     {{ isCapturing ? 'stop_circle' : 'videocam' }}
                 </span>
                 <span class="btn-label">{{ isCapturing ? 'Stop' : 'Start' }}</span>
-            </button>
+            </Button>
 
             <!-- Camera flip -->
-            <button
-                class="realtime-btn"
+            <Button
+                type="button"
+                variant="text"
+                class="realtime-btn rivvon-workflow-button--compact"
                 :disabled="!isCapturing"
                 @click="emit('toggle-camera')"
             >
                 <span class="material-symbols-outlined">video_camera_back_add</span>
                 <span class="btn-label">Flip</span>
-            </button>
+            </Button>
 
             <!-- Resolution selector -->
             <select
@@ -142,18 +147,24 @@
         display: flex;
         align-items: center;
         gap: 4px;
-        background: rgba(255, 255, 255, 0.12);
-        border: none;
-        border-radius: 8px;
+        min-height: var(--rivvon-button-height-compact);
+        background: var(--rivvon-button-surface-hover);
+        border: 1px solid var(--rivvon-button-border-color);
+        border-radius: var(--rivvon-button-radius);
         padding: 6px 10px;
-        color: white;
+        color: var(--rivvon-button-text-color);
         cursor: pointer;
         font-size: 12px;
-        transition: background 0.15s;
+        transition: var(--rivvon-button-transition);
+    }
+
+    .realtime-btn:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .realtime-btn:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.22);
+        background: color-mix(in srgb, var(--rivvon-button-text-color) 22%, transparent);
     }
 
     .realtime-btn:disabled {

@@ -1,5 +1,6 @@
 <script setup>
     import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+    import Button from 'primevue/button';
     import { resolveViewerHeaderContext } from '../../modules/viewer/viewerHeaderContext.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -166,7 +167,7 @@
                 :class="{ 'logo-is-mobile': isMobile }"
                 aria-label="Rivvon"
             >
-                <!-- Desktop ribbon: flies in/out from the left via translateX -->
+                <!-- Desktop ribbon: flies in/out from the left via translateX
                 <svg
                     class="app-logo-rivvon app-logo-ribbon app-logo-ribbon-desktop"
                     xmlns="http://www.w3.org/2000/svg"
@@ -180,8 +181,9 @@
                         points="0 0 634 0 594 94.1000031 634 187 0 187"
                     />
                 </svg>
+                -->
 
-                <!-- Mobile ribbon: square viewBox — no rotation needed, flies in from top -->
+                <!-- Mobile ribbon: square viewBox — no rotation needed, flies in from top
                 <svg
                     class="app-logo-rivvon app-logo-ribbon app-logo-ribbon-mobile"
                     xmlns="http://www.w3.org/2000/svg"
@@ -196,6 +198,7 @@
                         points="0 0 188.1999969 0 188.1999969 228.1999969 94.0999985 188.1999969 0 228.1999969"
                     />
                 </svg>
+                -->
 
                 <img
                     class="app-logo-rivvon app-logo-letters app-logo-letters-desktop"
@@ -211,7 +214,7 @@
                     aria-hidden="true"
                 />
 
-                <!-- inline letters kept for reference, hidden via CSS -->
+                <!-- Inline letters kept for reference, hidden via CSS
                 <svg
                     class="app-logo-rivvon app-logo-letters app-logo-letters-inline"
                     xmlns="http://www.w3.org/2000/svg"
@@ -246,6 +249,7 @@
                         d="M490.5999452,55.6824397c.5510306,9.096487-5.6145126,28.2405164-8.893316,38.8616398-9.0726339,33.8927721-19.4034351,44.2018601-34.1364599,5.1393965-3.9398167-10.6612398-8.3957376-23.9891159-9.9578898-34.3665532-.860328-5.3963623-.9742065-9.1439765-.3333264-10.3839341,2.5800849-3.5805054,9.807423,17.7074866,11.0952315,22.0624731,2.5703317,8.2090026,5.2614346,18.5041759,9.6849082,25.3432985,8.4168514,12.4745515,14.5083735-6.0503841,17.8722861-15.7039178,2.3724881-7.3643431,4.4834097-15.0006275,7.4598629-22.130045.9203186-2.2742968,6.3110244-15.2063292,7.2014566-8.9001635l.0072741.0778079-.0000272-.0000021Z"
                     />
                 </svg>
+                -->
 
             </a>
 
@@ -333,9 +337,10 @@
         </div>
 
         <div class="header-actions">
-            <button
+            <Button
                 v-if="hasNavigationModel && showNavigationClose"
                 type="button"
+                variant="text"
                 class="header-action"
                 :aria-label="navigationCloseLabel"
                 @click="props.navigationModel?.canExit === true
@@ -343,25 +348,29 @@
                     : emit('request-navigation-dismiss')"
             >
                 <span class="material-symbols-outlined">close</span>
-            </button>
+            </Button>
 
-            <button
+            <Button
                 v-else-if="!hasNavigationModel && activeContext"
+                type="button"
+                variant="text"
                 class="header-action"
                 aria-label="Close panel"
                 @click="closeContext"
             >
                 <span class="material-symbols-outlined">close</span>
-            </button>
+            </Button>
 
-            <button
+            <Button
                 v-else-if="!hasNavigationModel"
+                type="button"
+                variant="text"
                 class="header-action"
                 :aria-label="app.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
                 @click="toggleFullscreen"
             >
                 <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
-            </button>
+            </Button>
         </div>
     </header>
 
@@ -378,14 +387,16 @@
                 aria-hidden="true"
             >videocam</span>
             <span class="camera-indicator-label">Camera on</span>
-            <button
+            <Button
                 type="button"
+                variant="text"
+                rounded
                 class="camera-indicator-dismiss"
                 :aria-label="props.cameraDismissLabel"
                 @click="emit('request-turn-off-camera')"
             >
                 <span class="material-symbols-outlined">close</span>
-            </button>
+            </Button>
         </div>
     </Transition>
 </template>
@@ -416,7 +427,7 @@
         pointer-events: none;
         transition: opacity 0.3s ease, transform 0.3s ease;
         background: #000000;
-        background: linear-gradient(90deg, rgb(0 0 0 / 0%) 15%, rgba(0, 0, 0, 0.37) 50%, rgba(0, 0, 0, 0.68) 100%);
+        background: #00000080;
     }
 
     .header-main {
@@ -634,21 +645,25 @@
         height: 1.6rem;
         padding: 0;
         border: none;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.82);
-        cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
+        border-radius: var(--rivvon-button-inline-radius);
+        background: var(--rivvon-button-surface-hover);
+        color: var(--rivvon-button-text-color);
+        transition: var(--rivvon-button-transition);
         flex-shrink: 0;
     }
 
     .camera-indicator-dismiss:hover {
-        background: rgba(255, 255, 255, 0.18);
-        color: #fff;
+        background: color-mix(in srgb, var(--rivvon-button-text-color) 18%, transparent);
+        color: var(--rivvon-button-text-color);
     }
 
     .camera-indicator-dismiss .material-symbols-outlined {
         font-size: 1rem;
+    }
+
+    .camera-indicator-dismiss:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .context-title {
@@ -713,19 +728,23 @@
         padding: 2rem 2.5rem;
         background: transparent;
         border: none;
-        color: rgba(255, 255, 255, 0.7);
-        cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
+        color: var(--rivvon-button-muted-color);
+        transition: var(--rivvon-button-transition);
         flex-shrink: 0;
     }
 
     .header-action:hover {
-        background: rgba(0, 0, 0, 0.25);
-        color: #fff;
+        background: color-mix(in srgb, #000 25%, transparent);
+        color: var(--rivvon-button-text-color);
     }
 
     .header-action .material-symbols-outlined {
         font-size: 1.5rem;
+    }
+
+    .header-action:focus-visible {
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     /* Transition */

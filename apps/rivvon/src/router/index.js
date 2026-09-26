@@ -39,12 +39,18 @@ const routes = [
         props: true
     },
     
-    // ============ SLYCE ROUTES ============
+    // ============ TEXTURE CREATION ROUTES ============
     {
-        // Redirect to viewer with slyce panel open
+        // Canonical creator entry point.
+        path: '/create',
+        name: 'create-texture',
+        redirect: { path: '/', query: { create: 'true' } }
+    },
+    {
+        // Legacy Slyce URL. Keep it working while the product moves to Rivvon naming.
         path: '/slyce',
-        name: 'slyce',
-        redirect: { path: '/', query: { slyce: 'true' } }
+        name: 'slyce-legacy',
+        redirect: { path: '/', query: { create: 'true' } }
     },
     {
         // Redirect to viewer with realtime webcam panel open
@@ -55,13 +61,21 @@ const routes = [
     {
         // Legacy route - redirect to viewer with texture browser open
         path: '/slyce/my-textures',
-        name: 'my-textures',
+        name: 'my-textures-legacy',
         redirect: { path: '/', query: { textures: 'mine' } }
     },
     {
-        path: '/slyce/local',
+        // Canonical local texture library.
+        path: '/local-textures',
         name: 'local-textures',
-        component: () => import('../views/LocalTexturesView.vue')
+        component: () => import('../views/LocalTexturesView.vue'),
+        meta: { layout: 'document' }
+    },
+    {
+        // Legacy Slyce URL. Keep it as a redirect rather than exposing the old brand.
+        path: '/slyce/local',
+        name: 'local-textures-legacy',
+        redirect: { name: 'local-textures' }
     },
     
     // ============ SHARED ROUTES ============

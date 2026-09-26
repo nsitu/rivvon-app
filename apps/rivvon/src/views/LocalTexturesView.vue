@@ -1,5 +1,5 @@
 <template>
-    <div class="local-textures-page slyce-page">
+    <div class="local-textures-page rivvon-page">
 
 
         <div class="max-w-6xl mx-auto px-4 py-8">
@@ -30,8 +30,8 @@
                     Create textures in Create Texture mode and save them to your browser for offline access.
                 </p>
                 <router-link
-                    to="/slyce"
-                    class="inline-block action-button px-6 py-2"
+                    to="/create"
+                    class="inline-flex rivvon-workflow-button local-texture-action px-6 py-2"
                 >
                     Create Your First Texture
                 </router-link>
@@ -84,26 +84,34 @@
                         <div class="flex gap-2">
                             <router-link
                                 :to="`/?local=${texture.id}`"
-                                class="flex-1 text-center px-3 py-1.5 text-sm action-button"
+                                class="flex-1 text-center rivvon-workflow-button rivvon-workflow-button--compact local-texture-action"
                             >
                                 View
                             </router-link>
-                            <button
+                            <Button
                                 @click="exportTexture(texture)"
                                 :disabled="exporting === texture.id"
-                                class="px-3 py-1.5 text-sm action-button"
-                                title="Export as .zip"
+                                type="button"
+                                severity="secondary"
+                                text
+                                class="rivvon-workflow-button rivvon-workflow-button--compact local-texture-action"
+                                aria-label="Export texture as ZIP"
+                                title="Export as ZIP"
                             >
-                                📦
-                            </button>
-                            <button
+                                <span class="material-symbols-outlined">folder_zip</span>
+                            </Button>
+                            <Button
                                 @click="confirmDelete(texture)"
                                 :disabled="deletingId === texture.id"
-                                class="px-3 py-1.5 text-sm action-button disabled:opacity-50"
+                                type="button"
+                                severity="danger"
+                                text
+                                class="rivvon-workflow-button rivvon-workflow-button--compact local-texture-action"
+                                aria-label="Delete texture"
                             >
                                 <span v-if="deletingId === texture.id">...</span>
-                                <span v-else>🗑️</span>
-                            </button>
+                                <span v-else class="material-symbols-outlined">delete</span>
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -122,21 +130,24 @@
                     Are you sure you want to delete "<strong>{{ textureToDelete.name }}</strong>"?
                     This will remove it from your browser storage.
                 </p>
-                <div class="flex gap-3 justify-end">
-                    <button
+                <div class="flex gap-3 justify-end rivvon-modal-actions">
+                    <Button
+                        type="button"
+                        severity="secondary"
+                        variant="outlined"
                         @click="textureToDelete = null"
-                        class="px-4 py-2 cancel-button rounded"
                     >
                         Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        type="button"
+                        severity="danger"
                         @click="performDelete"
                         :disabled="deletingId"
-                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
                     >
                         <span v-if="deletingId">Deleting...</span>
                         <span v-else>Delete</span>
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -146,6 +157,7 @@
 
 <script setup>
     import { ref, onMounted } from 'vue'
+    import Button from 'primevue/button'
     import LoadingIndicator from '../components/shared/LoadingIndicator.vue'
     import { useLocalStorage } from '../services/localStorage.js'
 
@@ -238,7 +250,7 @@
 </script>
 
 <style scoped>
-    .slyce-page {
+    .rivvon-page {
         min-height: 100vh;
         background: #1a1a2e;
         color: white;
@@ -253,21 +265,13 @@
         background: #3a3a4e;
     }
 
-    .action-button {
+    .local-texture-action {
         background: #4a4a5e;
         border-radius: 0.25rem;
         transition: background 0.2s;
     }
 
-    .action-button:hover {
-        background: #5a5a6e;
-    }
-
-    .cancel-button {
-        background: #4a4a5e;
-    }
-
-    .cancel-button:hover {
+    .local-texture-action:hover {
         background: #5a5a6e;
     }
 

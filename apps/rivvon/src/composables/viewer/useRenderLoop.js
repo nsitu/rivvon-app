@@ -106,7 +106,7 @@ export function useRenderLoop(ctx, deps = {}) {
     let renderCallback = null;
     let renderLoopPaused = false;
     let lastFrameTime = 0;
-    let pausedByVisibility = false; // tracks tab-hidden pausing (separate from Slyce)
+    let pausedByVisibility = false; // tracks tab-hidden pausing (separate from texture processing)
 
     // FPS measurement — updates ~4 times per second
     const fps = ref(0);
@@ -333,7 +333,7 @@ export function useRenderLoop(ctx, deps = {}) {
 
     /**
      * Pause the render loop to free GPU/CPU resources
-     * (e.g., during Slyce video processing)
+     * (e.g., during texture video processing)
      */
     function pauseRenderLoop() {
         if (renderLoopPaused) return;
@@ -376,7 +376,7 @@ export function useRenderLoop(ctx, deps = {}) {
         if (document.visibilityState === 'hidden') {
             ctx.headTracking?.pauseForVisibility?.();
 
-            // Only pause if we initiated it (don't interfere with Slyce pausing)
+            // Only pause if we initiated it (don't interfere with texture processing)
             if (ctx.isInitialized.value && !renderLoopPaused && !ctx.isDeviceLost.value) {
                 pausedByVisibility = true;
                 pauseRenderLoop();
@@ -443,7 +443,7 @@ export function useRenderLoop(ctx, deps = {}) {
 
         renderCallback = callback;
 
-        // If the loop is paused (e.g., during Slyce processing), store the
+        // If the loop is paused (e.g., during texture processing), store the
         // callback but don't actually start animating. resumeRenderLoop will
         // kick it off when ready.
         if (renderLoopPaused) return;

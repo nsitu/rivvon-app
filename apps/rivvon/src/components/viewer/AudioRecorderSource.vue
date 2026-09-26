@@ -43,7 +43,7 @@ onBeforeUnmount(() => emit('canvas-ready', null));
         <output class="recording-timer" aria-live="polite">{{ formatDuration(recordingDuration) }}</output>
         <Button
             v-if="!isRecording"
-            class="recording-action"
+            class="recording-action rivvon-workflow-button"
             :disabled="disabled || !recordingSupported"
             @click="emit('start')"
         >
@@ -52,7 +52,7 @@ onBeforeUnmount(() => emit('canvas-ready', null));
         <Button
             v-else
             severity="danger"
-            class="recording-action recording-stop-action"
+            class="recording-action recording-stop-action rivvon-workflow-button"
             :disabled="disabled"
             @click="emit('stop')"
         >

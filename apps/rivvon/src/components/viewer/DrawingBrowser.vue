@@ -1,5 +1,6 @@
 <script setup>
     import { computed, ref, watch } from 'vue';
+    import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
@@ -763,7 +764,7 @@
                             v-for="tab in drawingTabs"
                             :key="tab.value"
                             type="button"
-                            class="drawing-browser-tab"
+                            class="drawing-browser-tab rivvon-segmented-button"
                             :class="{ active: activeTab === tab.value, disabled: tab.disabled }"
                             :disabled="tab.disabled"
                             @click="activeTab = tab.value"
@@ -877,53 +878,68 @@
                             <p class="drawing-card-desc">{{ getDrawingSummary(drawing) }}</p>
 
                             <div class="drawing-card-actions">
-                                <button
+                                <Button
                                     type="button"
-                                    class="action-button open-button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action open-button"
                                     title="Open drawing"
+                                    aria-label="Open drawing"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleOpen(drawing)"
                                 >
                                     <span class="material-symbols-outlined">visibility</span>
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
-                                    class="action-button download-button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action download-button"
                                     title="Download as SVG"
+                                    aria-label="Download as SVG"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDownloadSvg(drawing)"
                                 >
                                     <span class="material-symbols-outlined">download</span>
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
-                                    class="action-button edit-button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action edit-button"
                                     title="Edit metadata"
+                                    aria-label="Edit metadata"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleEdit(drawing)"
                                 >
                                     <span class="material-symbols-outlined">edit</span>
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
-                                    class="action-button copy-button local-copy-button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action copy-button local-copy-button"
                                     title="Copy to local storage"
+                                    aria-label="Copy to local storage"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDuplicateLocal(drawing)"
                                 >
                                     <span class="material-symbols-outlined">content_copy</span>
                                     <span class="action-provider-badge material-symbols-outlined">hard_drive</span>
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     v-for="action in getCloudCopyActions(drawing)"
                                     :key="`${getDrawingIdentity(drawing)}-${action.destination}`"
                                     type="button"
-                                    class="action-button copy-button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action copy-button"
                                     :class="{
                                         'drive-copy-button': action.destination === 'google-drive',
                                         'r2-copy-button': action.destination === 'r2'
                                     }"
                                     :title="getCopyActionTitle(action)"
+                                    :aria-label="getCopyActionTitle(action)"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDuplicateCloud(drawing, action.destination)"
                                 >
@@ -933,16 +949,19 @@
                                         :alt="getCopyActionTitle(action)"
                                         class="action-provider-icon"
                                     />
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="button"
-                                    class="action-button delete-button"
+                                    variant="text"
+                                    size="small"
+                                    class="action-button rivvon-icon-action delete-button"
                                     title="Delete drawing"
+                                    aria-label="Delete drawing"
                                     :disabled="isDrawingBusy(drawing)"
                                     @click="handleDelete(drawing)"
                                 >
                                     <span class="material-symbols-outlined">delete</span>
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </article>
@@ -1014,29 +1033,8 @@
     }
 
     .drawing-browser-tab {
-        background: transparent;
-        border: 1px solid #555;
-        border-radius: 8px;
-        color: #888;
         font-size: 14px;
-        padding: 8px 16px;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: inline-flex;
-        align-items: center;
         gap: 0.5rem;
-    }
-
-    .drawing-browser-tab:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.05);
-        border-color: #888;
-    }
-
-    .drawing-browser-tab.active {
-        color: #4caf50;
-        border-color: #4caf50;
-        background: rgba(76, 175, 80, 0.1);
     }
 
     .drawing-browser-tab.disabled {
@@ -1262,19 +1260,8 @@
     }
 
     .action-button {
-        border: none;
-        border-radius: 4px;
-        padding: 4px;
-        width: 28px;
-        height: 28px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         opacity: 0;
         pointer-events: none;
-        flex-shrink: 0;
         position: relative;
     }
 
@@ -1287,11 +1274,6 @@
         opacity: 0.4;
         cursor: not-allowed;
         pointer-events: auto;
-    }
-
-    .action-button .material-symbols-outlined {
-        font-size: 18px;
-        color: #fff;
     }
 
     .action-button.open-button {

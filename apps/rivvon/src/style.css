@@ -1,5 +1,5 @@
 /* src/style.css */
-/* Global styles for Vue 3 rivvon app (merged: viewer + slyce) */
+/* Global styles for the Vue 3 Rivvon app. */
 
 @import "tailwindcss";
 @import "./components/viewer/toolsPanelShared.css";
@@ -11,7 +11,7 @@
 @source "../node_modules/@vuelor/picker";
 
 /* ========================================
-   CSS Custom Properties for light/dark mode theming (Slyce)
+   CSS Custom Properties for light/dark mode theming
    ======================================== */
 :root {
     --special-blue: #3b82f6;
@@ -101,7 +101,7 @@ body:has(.viewer-mode) {
 }
 
 /* ========================================
-   Slyce mode styles
+   Document-mode styles
    ======================================== */
 body:not(:has(.viewer-mode)) {
     min-height: 100vh;
@@ -111,7 +111,7 @@ body:not(:has(.viewer-mode)) {
 
 /* App container */
 #app {
-    /* Normal flow by default for Slyce */
+    /* Normal flow by default for document-mode pages */
 }
 
 /* Fixed positioning only in viewer mode */
@@ -262,19 +262,6 @@ body.debug-mode .renderer-indicator {
     @apply flex flex-col gap-3 my-6;
 }
 
-.beta-btn {
-    @apply w-full py-3 px-6 rounded text-center no-underline;
-    @apply transition-colors duration-200;
-}
-
-.beta-btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-500;
-}
-
-.beta-btn-secondary {
-    @apply bg-gray-700 text-white hover:bg-gray-600;
-}
-
 .beta-note {
     @apply text-gray-500 text-sm italic;
 }
@@ -286,7 +273,7 @@ body.debug-mode .renderer-indicator {
 }
 
 /* ========================================
-   Slyce-specific styles
+   Shared document-mode styles
    ======================================== */
 
 /* Cascadia Code font */
@@ -295,8 +282,8 @@ body.debug-mode .renderer-indicator {
     font-optical-sizing: auto;
 }
 
-/* Slyce branding */
-.slyce {
+/* Rivvon wordmark */
+.rivvon-wordmark {
     font-weight: 900;
     font-style: italic;
     font-size: clamp(2rem, 8vw, 4rem);
@@ -305,7 +292,7 @@ body.debug-mode .renderer-indicator {
 }
 
 @media (min-width: 640px) {
-    .slyce {
+    .rivvon-wordmark {
         letter-spacing: -0.25rem;
     }
 }
@@ -349,20 +336,20 @@ body.hover .upload-area {
     }
 }
 
-/* Slyce body overrides (applied via .slyce-view class on route) */
-.slyce-view {
+/* Document-mode body overrides */
+.rivvon-document-view {
     font-family: Arial, sans-serif;
     text-align: center;
     background-color: var(--bg-primary);
     color: var(--text-primary);
 }
 
-.slyce-view body {
+.rivvon-document-view body {
     padding: 12px;
 }
 
 @media (min-width: 640px) {
-    .slyce-view body {
+    .rivvon-document-view body {
         padding: 20px;
     }
 }

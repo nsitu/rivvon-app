@@ -2,7 +2,7 @@
 
 ## Current Backends
 
-File-mode Slyce now exposes a `tileBuilderBackend` selector with four options:
+File-mode texture creation now exposes a `tileBuilderBackend` selector with four options:
 
 - `canvas` for the legacy 2D canvas path in [src/modules/slyce/tileBuilder.js](../src/modules/slyce/tileBuilder.js)
 - `webgl` for the WebGL2 atlas builder in [src/modules/slyce/webglTileBuilder.js](../src/modules/slyce/webglTileBuilder.js)

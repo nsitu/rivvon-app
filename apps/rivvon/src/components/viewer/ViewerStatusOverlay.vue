@@ -1,5 +1,6 @@
 <script setup>
     import { ref, computed, watch, onUnmounted } from 'vue';
+    import Button from 'primevue/button';
     import TechnicalOverlayFrame from './TechnicalOverlayFrame.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { getStorageUsage } from '../../services/localStorage.js';
@@ -207,8 +208,10 @@
                     <span class="fps-sparkline-value">{{ sparkline.latest }}</span>
                 </div>
                 <div class="fps-sparkline-actions">
-                    <button
+                    <Button
                         type="button"
+                        variant="text"
+                        rounded
                         class="technical-overlay-close"
                         aria-label="Dismiss technical overlay"
                         @click="emit('dismiss')"
@@ -217,7 +220,7 @@
                             class="material-symbols-outlined"
                             aria-hidden="true"
                         >close</span>
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -303,20 +306,19 @@
         width: 1.35rem;
         height: 1.35rem;
         padding: 0;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.76);
-        cursor: pointer;
+        border: 1px solid var(--rivvon-button-border-color);
+        border-radius: var(--rivvon-button-inline-radius);
+        background: var(--rivvon-button-surface-hover);
+        color: var(--rivvon-button-muted-color);
         pointer-events: auto;
-        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        transition: var(--rivvon-button-transition);
     }
 
     .technical-overlay-close:hover,
     .technical-overlay-close:focus-visible {
-        border-color: rgba(255, 255, 255, 0.24);
-        background: rgba(255, 255, 255, 0.16);
-        color: rgba(255, 255, 255, 0.94);
+        border-color: var(--rivvon-button-text-color);
+        background: color-mix(in srgb, var(--rivvon-button-text-color) 16%, transparent);
+        color: var(--rivvon-button-text-color);
     }
 
     .technical-overlay-close .material-symbols-outlined {

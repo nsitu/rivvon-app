@@ -350,7 +350,7 @@
         class="contour-panel"
         :class="{ active }"
     >
-        <div class="contour-container viewer-chrome-panel-container">
+        <div class="contour-container viewer-panel viewer-chrome-panel-container">
             <ScrollPanel class="rivvon-scroll-panel contour-scroll">
                 <!-- Camera live feed -->
                 <div
@@ -412,7 +412,7 @@
                             type="button"
                             :disabled="isProcessing || isInitializing"
                             @click="openFilePicker"
-                            class="action-button"
+                            class="contour-action-button rivvon-workflow-button"
                         >
                             <span class="material-symbols-outlined">upload_file</span>
                             <span class="whitespace-pre">Upload Image</span>
@@ -421,7 +421,7 @@
                             type="button"
                             :disabled="isProcessing || isInitializing"
                             @click="openCamera"
-                            class="action-button"
+                            class="contour-action-button rivvon-workflow-button"
                         >
                             <span class="material-symbols-outlined">photo_camera</span>
                             <span class="whitespace-pre">Use Camera</span>
@@ -548,7 +548,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        background: #1a1a1a;
         overflow: hidden;
     }
 
@@ -578,7 +577,7 @@
         justify-content: center;
     }
 
-    :deep(.action-button) {
+    :deep(.contour-action-button) {
         flex: 1;
         min-width: 140px;
         display: flex;
@@ -587,7 +586,7 @@
         gap: 0.5rem;
     }
 
-    :deep(.action-button .material-symbols-outlined) {
+    :deep(.contour-action-button .material-symbols-outlined) {
         font-size: 1.25rem;
     }
 

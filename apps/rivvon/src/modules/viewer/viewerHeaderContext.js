@@ -75,7 +75,7 @@ const VIEWER_CONTEXT_DEFINITIONS = {
                 options.onResetSlyceProcessing();
             }
 
-            app.hideSlyce();
+            app.hideTextureCreator();
             return true;
         },
     },

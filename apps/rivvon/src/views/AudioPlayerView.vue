@@ -53,7 +53,7 @@ onMounted(loadAudio);
 </script>
 
 <template>
-    <main class="audio-player-panel">
+    <main class="audio-player-panel viewer-panel">
         <div class="audio-player-container viewer-chrome-panel-container">
             <PanelActionBar
                 placement="top"
@@ -73,7 +73,7 @@ onMounted(loadAudio);
                 <h1>{{ audio.name }}</h1>
                 <p class="audio-player-meta">{{ formatDuration(audio.duration) }} · {{ formatFileSize(audio.file_size) }} · {{ audio.channel_count }} channel{{ audio.channel_count === 1 ? '' : 's' }}</p>
                 <audio ref="audioElement" :src="playbackUrl" controls autoplay preload="metadata"></audio>
-                <div class="audio-player-actions">
+                <div class="audio-player-actions rivvon-action-row">
                     <Button type="button" @click="copyLink"><span class="material-symbols-outlined">link</span>{{ copied ? 'Copied' : 'Copy Link' }}</Button>
                     <a :href="playbackUrl" :download="`${audio.name}.mp4`"><span class="material-symbols-outlined">download</span>Download</a>
                 </div>
@@ -84,7 +84,7 @@ onMounted(loadAudio);
 </template>
 
 <style scoped>
-.audio-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; background: #1a1a1a; }
+.audio-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; color: #f8fafc; }
 .audio-player-container { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; box-sizing: border-box; }
 .audio-player-header-actions { padding-inline: 1rem; }
 .audio-player-scroll { flex: 1; min-height: 0; }
@@ -94,7 +94,7 @@ onMounted(loadAudio);
 .audio-player-content h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.6rem); }
 .audio-player-meta { color: #94a3b8; }
 .audio-player-content audio { width: 100%; margin: 1.5rem 0; }
-.audio-player-actions { display: flex; justify-content: center; gap: .6rem; flex-wrap: wrap; }
+.audio-player-actions { justify-content: center; gap: .6rem; }
 .audio-player-actions a, .audio-player-actions button { display: inline-flex; align-items: center; gap: .4rem; padding: .65rem .85rem; border: 1px solid #3c3c3c; color: #eef2ff; background: #202020; font: inherit; text-decoration: none; cursor: pointer; }
 .audio-player-message { display: flex; min-height: 55vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .audio-player-message > .material-symbols-outlined { font-size: 3rem; color: #60a5fa; }

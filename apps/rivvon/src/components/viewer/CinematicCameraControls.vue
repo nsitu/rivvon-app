@@ -1,4 +1,5 @@
 <script setup>
+    import Button from 'primevue/button';
     import { useViewerStore } from '../../stores/viewerStore';
 
     const props = defineProps({
@@ -36,27 +37,33 @@
         <div class="tools-section">
             <div class="tools-section-label">Cinematic Camera</div>
             <div class="tools-section-items">
-                <button
-                    class="tools-option"
+                <Button
+                    type="button"
+                    variant="text"
+                    class="tools-option rivvon-tool-option"
                     :disabled="props.cinematicPlaying"
                     @click="handleCapture"
                 >
                     <span class="material-symbols-outlined">center_focus_strong</span>
                     <span>Capture View</span>
                     <span class="tools-hint">C</span>
-                </button>
+                </Button>
 
-                <button
-                    class="tools-option"
+                <Button
+                    type="button"
+                    variant="text"
+                    class="tools-option rivvon-tool-option"
                     @click="handleToggle"
                 >
                     <span class="material-symbols-outlined">{{ props.cinematicPlaying ? 'stop' : 'theaters' }}</span>
                     <span>{{ props.cinematicPlaying ? 'Stop Cinematic' : 'Play Cinematic' }}</span>
                     <span class="tools-hint">P</span>
-                </button>
+                </Button>
 
-                <button
-                    class="tools-option"
+                <Button
+                    type="button"
+                    variant="text"
+                    class="tools-option rivvon-tool-option"
                     :disabled="props.cinematicPlaying || props.cinematicRoiCount === 0"
                     @click="handleClear"
                 >
@@ -67,7 +74,7 @@
                         class="tools-badge"
                     >{{ props.cinematicRoiCount }}</span>
                     <span class="tools-hint">X</span>
-                </button>
+                </Button>
             </div>
         </div>
     </div>
@@ -76,38 +83,6 @@
 <style scoped>
     .cinematic-camera-controls {
         width: 100%;
-    }
-
-    .tools-option {
-        display: flex;
-        align-items: center;
-        gap: 0.875rem;
-        padding: 0.875rem 1rem;
-        background: transparent;
-        border: none;
-        border-radius: 8px;
-        color: var(--p-text-color, #fff);
-        cursor: pointer;
-        font-size: 0.95rem;
-        transition: background 0.15s ease;
-    }
-
-    .tools-option:hover {
-        background: rgba(255, 255, 255, 0.08);
-    }
-
-    .tools-option .material-symbols-outlined {
-        font-size: 1.35rem;
-        opacity: 0.85;
-    }
-
-    .tools-option:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-    }
-
-    .tools-option:disabled:hover {
-        background: transparent;
     }
 
     .tools-hint {

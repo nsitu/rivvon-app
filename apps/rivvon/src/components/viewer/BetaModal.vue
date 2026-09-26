@@ -1,5 +1,6 @@
 <script setup>
     import { computed } from 'vue';
+    import Button from 'primevue/button';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
 
@@ -21,7 +22,7 @@
     const description = computed(() => {
         switch (app.betaModalReason) {
             case 'texture-auth':
-                return 'This texture is stored on Google Drive and requires beta access to load. Textures created with Slyce are stored securely in your Google Drive.';
+                return 'This texture is stored on Google Drive and requires beta access to load. Textures created with Rivvon are stored securely in your Google Drive.';
             case 'access-denied':
                 return 'Unable to access this texture. You may need to sign in with the Google account that owns this texture, or request access from the owner.';
             default:
@@ -70,23 +71,25 @@
 
 
 
-                    <div class="beta-modal-actions">
-                        <a
+                    <div class="beta-modal-actions rivvon-modal-actions">
+                        <Button
                             v-if="showRequestAccess"
                             href="https://docs.google.com/forms/d/e/1FAIpQLSeRF-9eEIPWz4Es1IVMcS5TSSDcSnsFvPj1wS9QKkHVKFeAqA/viewform?usp=publish-editor"
+                            as="a"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="beta-btn beta-btn-primary"
+                            severity="info"
+                            class="rivvon-workflow-button"
                         >
                             Request Beta Access
-                        </a>
-                        <button
-                            class="beta-btn"
-                            :class="showRequestAccess ? 'beta-btn-secondary' : 'beta-btn-primary'"
+                        </Button>
+                        <Button
+                            type="button"
+                            :severity="showRequestAccess ? 'secondary' : 'info'"
                             @click="proceed"
                         >
                             {{ signInButtonText }}
-                        </button>
+                        </Button>
                     </div>
 
                     <p class="beta-note">
@@ -100,10 +103,17 @@
                     </p>
                 </div>
 
-                <button
+                <Button
+                    type="button"
                     class="beta-modal-close"
+                    text
+                    rounded
+                    severity="secondary"
+                    aria-label="Close beta access dialog"
                     @click="close"
-                >&times;</button>
+                >
+                    <span class="material-symbols-outlined">close</span>
+                </Button>
             </div>
         </div>
     </Teleport>
@@ -157,34 +167,9 @@
         margin: 1.5rem 0;
     }
 
-    .beta-btn {
+    .beta-modal-actions .p-button {
         width: 100%;
-        padding: 0.75rem 1.5rem;
-        border-radius: 0.25rem;
-        text-align: center;
-        text-decoration: none;
-        font-size: 1rem;
-        transition: background-color 0.2s ease;
-        cursor: pointer;
-        border: none;
-    }
-
-    .beta-btn-primary {
-        background: #2563eb;
-        color: white;
-    }
-
-    .beta-btn-primary:hover {
-        background: #3b82f6;
-    }
-
-    .beta-btn-secondary {
-        background: #374151;
-        color: white;
-    }
-
-    .beta-btn-secondary:hover {
-        background: #4b5563;
+        justify-content: center;
     }
 
     .beta-note {
@@ -215,17 +200,8 @@
         position: absolute;
         top: 1rem;
         right: 1rem;
-        background: transparent;
-        color: #6b7280;
-        font-size: 1.5rem;
+        width: 2.25rem;
+        height: 2.25rem;
         padding: 0;
-        min-width: auto;
-        min-height: auto;
-        line-height: 1;
-    }
-
-    .beta-modal-close:hover {
-        color: white;
-        background: transparent;
     }
 </style>

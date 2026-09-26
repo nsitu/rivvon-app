@@ -525,7 +525,7 @@
         :class="{ active: active, embedded: embedded }"
     >
         <div
-            class="realtime-container viewer-chrome-panel-container"
+            class="realtime-container viewer-panel viewer-chrome-panel-container"
             :class="{ embedded: embedded }"
         >
             <!-- Main content area -->
@@ -630,7 +630,7 @@
                     >
                         <Button
                             type="button"
-                            class="done-summary-retry-btn"
+                        class="done-summary-retry-btn rivvon-workflow-button"
                             severity="danger"
                             variant="outlined"
                             @click="handleRetryLocalSave"
@@ -731,7 +731,7 @@
                         tiles</span>
                     <Button
                         type="button"
-                        class="downgrade-btn"
+                        class="downgrade-btn rivvon-workflow-button rivvon-workflow-button--compact"
                         severity="danger"
                         variant="outlined"
                         size="small"
@@ -753,7 +753,7 @@
                         <span class="control-label">Capture</span>
                         <Button
                             type="button"
-                            class="ctrl-btn"
+                            class="ctrl-btn rivvon-workflow-button rivvon-workflow-button--compact"
                             :severity="realtime.isCapturing.value ? 'danger' : 'secondary'"
                             :variant="realtime.isCapturing.value ? null : 'outlined'"
                             size="small"
@@ -771,7 +771,7 @@
                         <span class="control-label">Active Camera</span>
                         <Button
                             type="button"
-                            class="ctrl-btn"
+                            class="ctrl-btn rivvon-workflow-button rivvon-workflow-button--compact"
                             severity="secondary"
                             variant="outlined"
                             size="small"
@@ -838,7 +838,7 @@
                         <div class="type-toggle">
                             <Button
                                 type="button"
-                                class="type-btn"
+                                class="type-btn rivvon-workflow-button rivvon-workflow-button--compact"
                                 :severity="realtime.crossSectionType.value === 'planes' ? 'primary' : 'secondary'"
                                 :variant="realtime.crossSectionType.value === 'planes' ? null : 'outlined'"
                                 size="small"
@@ -849,7 +849,7 @@
                             </Button>
                             <Button
                                 type="button"
-                                class="type-btn"
+                                class="type-btn rivvon-workflow-button rivvon-workflow-button--compact"
                                 :severity="realtime.crossSectionType.value === 'waves' ? 'primary' : 'secondary'"
                                 :variant="realtime.crossSectionType.value === 'waves' ? null : 'outlined'"
                                 size="small"
@@ -908,11 +908,11 @@
 
                 <div
                     v-if="isSetupPhase"
-                    class="setup-action-bar"
+                    class="setup-action-bar rivvon-action-row"
                 >
                     <Button
                         type="button"
-                        class="primary-action-btn"
+                        class="primary-action-btn rivvon-workflow-button rivvon-workflow-button--large"
                         size="large"
                         :disabled="!realtime.isCameraActive.value"
                         @click="handleStart"
@@ -924,11 +924,11 @@
 
                 <div
                     v-else-if="isProcessingPhase && realtime.isCapturing.value"
-                    class="setup-action-bar"
+                    class="setup-action-bar rivvon-action-row"
                 >
                     <Button
                         type="button"
-                        class="primary-action-btn"
+                        class="primary-action-btn rivvon-workflow-button rivvon-workflow-button--large"
                         severity="danger"
                         size="large"
                         @click="handleStop"
@@ -941,11 +941,11 @@
                 <!-- Action buttons (Apply / Discard) -->
                 <div
                     v-if="canApply"
-                    class="action-bar"
+                    class="action-bar rivvon-action-row"
                 >
                     <Button
                         type="button"
-                        class="action-btn"
+                        class="action-btn rivvon-workflow-button"
                         severity="success"
                         @click="handleApply"
                     >
@@ -955,7 +955,7 @@
                     <Button
                         type="button"
                         v-if="realtime.savedLocalTextureId.value"
-                        class="action-btn"
+                        class="action-btn rivvon-workflow-button"
                         severity="secondary"
                         variant="outlined"
                         @click="handleOpenTextureLibrary"
@@ -966,7 +966,7 @@
 
                     <Button
                         type="button"
-                        class="action-btn"
+                        class="action-btn rivvon-workflow-button"
                         severity="danger"
                         variant="outlined"
                         :disabled="realtime.isSavingLocally.value"
@@ -1016,7 +1016,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        background: #1a1a1a;
     }
 
     .realtime-container.embedded {
@@ -1286,17 +1285,13 @@
     }
 
     .setup-action-bar {
-        display: flex;
         justify-content: center;
         width: 100%;
         padding-top: 0.25rem;
     }
 
     .primary-action-btn {
-        gap: 0.55rem;
-        min-height: 48px;
         font-size: 0.95rem;
-        font-weight: 600;
     }
 
     .primary-action-btn:disabled {
@@ -1505,16 +1500,11 @@
     }
 
     .ctrl-btn {
-        gap: 4px;
         font-size: 13px;
     }
 
     .ctrl-btn:disabled {
         opacity: 0.4;
-    }
-
-    .ctrl-btn .material-symbols-outlined {
-        font-size: 18px;
     }
 
     .btn-label {
@@ -1568,22 +1558,14 @@
 
     /* Action buttons */
     .action-bar {
-        display: flex;
         gap: 12px;
-        flex-wrap: wrap;
         justify-content: center;
         padding-top: 0.5rem;
     }
 
     .action-btn {
-        gap: 6px;
-        min-height: 44px;
         font-size: 14px;
         font-weight: 500;
-    }
-
-    .action-btn .material-symbols-outlined {
-        font-size: 20px;
     }
 
     .action-btn:disabled {

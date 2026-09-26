@@ -1,5 +1,6 @@
 <script setup>
     import { ref, watch, onUnmounted } from 'vue';
+    import Button from 'primevue/button';
 
     const props = defineProps({
         visible: Boolean
@@ -54,13 +55,15 @@
                 <p class="device-lost-message">
                     The graphics device was disconnected. This can happen after the tab is idle for a while.
                 </p>
-                <button
-                    class="restart-btn"
+                <Button
+                    type="button"
+                    severity="info"
+                    class="restart-btn rivvon-workflow-button"
                     @click="handleRestart"
                 >
                     <span class="material-symbols-outlined">refresh</span>
                     Restart Viewer
-                </button>
+                </Button>
                 <p class="countdown-text">
                     Auto-restarting in {{ countdown }}s
                 </p>
@@ -118,19 +121,11 @@
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
+        min-height: var(--rivvon-button-height);
         padding: 0.625rem 1.5rem;
-        border: none;
-        border-radius: 0.5rem;
-        background: #6366f1;
-        color: #fff;
+        border-radius: var(--rivvon-button-radius);
         font-size: 0.9375rem;
         font-weight: 500;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
-
-    .restart-btn:hover {
-        background: #818cf8;
     }
 
     .restart-btn .material-symbols-outlined {

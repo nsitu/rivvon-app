@@ -24,6 +24,7 @@
     } from '../services/videoService.js';
     import { createVideoThumbnail } from '../modules/viewer/videoThumbnail.js';
     import Toast from 'primevue/toast';
+    import Button from 'primevue/button';
     import { getProceduralSourceFrame, normalizeProceduralSourceType } from '../modules/viewer/proceduralPaths.js';
     import { useToast } from 'primevue/usetoast';
     import * as THREE from 'three';
@@ -75,7 +76,7 @@
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
     const { getDrawing } = useRivvonAPI();
     const {
-        ensureSlyceFolder,
+        ensureRivvonFolder,
         createAssetFolder: createDriveAssetFolder,
         uploadFile: uploadDriveFile,
     } = useGoogleDrive();
@@ -274,7 +275,7 @@ const activeToolbarOverlayTitle = computed(() => {
         returnToCreateTextureOnRealtimeClose.value = false;
         textureCreatorLaunchSource.value = null;
         textureCreatorReturnOverlay.value = null;
-        app.showSlyce();
+        app.showTextureCreator();
     }
 
     const INVALID_QUERY_EMOJI_FALLBACK_HEXCODE = '26A0';
@@ -303,7 +304,7 @@ const activeToolbarOverlayTitle = computed(() => {
             slyce.beginFileWorkflowWithFile(file);
         }
 
-        app.showSlyce();
+        app.showTextureCreator();
     }
 
     async function openCreateTextureCameraMode() {
@@ -317,7 +318,7 @@ const activeToolbarOverlayTitle = computed(() => {
         textureCreatorLaunchSource.value = null;
         textureCreatorReturnOverlay.value = null;
         textureCreatorNavigationState.value = null;
-        app.hideSlyce();
+        app.hideTextureCreator();
 
         if (reopenToolbarOverlay) {
             activeToolbarOverlay.value = reopenToolbarOverlay;
@@ -477,7 +478,7 @@ const activeToolbarOverlayTitle = computed(() => {
         returnToCreateTextureOnRealtimeClose.value = false;
 
         if (shouldReturnToCreateTexture) {
-            app.showSlyce();
+            app.showTextureCreator();
         }
     }
 
@@ -2511,7 +2512,7 @@ const activeToolbarOverlayTitle = computed(() => {
         videoDriveState.value.status = 'Preparing Google Drive folder…';
 
         try {
-            const rootFolderId = await ensureSlyceFolder();
+            const rootFolderId = await ensureRivvonFolder();
             const baseName = exportRecord.filename.replace(/\.[^.]+$/, '');
             const date = new Date().toISOString().slice(0, 10);
             const folderId = await createDriveAssetFolder(rootFolderId, `${baseName} (${date})`);
@@ -3553,10 +3554,11 @@ const activeToolbarOverlayTitle = computed(() => {
         }
     }, { immediate: true });
 
-    // Check for slyce panel query param
-    watch(() => route.query.slyce, (slyceParam) => {
-        if (slyceParam === 'true') {
-            app.showSlyce();
+    // Open the creator from the canonical query param while accepting the
+    // legacy Slyce param for existing links and bookmarks.
+    watch(() => route.query.create ?? route.query.slyce, (creatorParam) => {
+        if (creatorParam === 'true') {
+            app.showTextureCreator();
             // Clear the query param to prevent reopening on refresh
             router.replace({ path: route.path, query: {} });
         }
@@ -3946,7 +3948,7 @@ const activeToolbarOverlayTitle = computed(() => {
     async function handleApplyCreatedTexture(texture) {
         console.log('[RibbonView] Applying created texture:', texture);
 
-        // Close the Slyce panel
+        // Close the texture creator panel
         closeCreateTextureMode();
 
         if (texture?.source === 'local' || texture?.isLocal) {
@@ -4086,15 +4088,16 @@ const activeToolbarOverlayTitle = computed(() => {
             >
                 <span class="camera-motion-recording-dot" aria-hidden="true"></span>
                 <span class="camera-motion-recording-label">Recording camera motion</span>
-                <button
+                <Button
                     type="button"
+                    variant="text"
                     class="camera-motion-recording-stop"
                     aria-label="Stop recording camera motion"
                     @click="handleCameraMotionRecord"
                 >
                     <span class="material-symbols-outlined" aria-hidden="true">stop</span>
                     <span>Stop</span>
-                </button>
+                </Button>
             </div>
         </Transition>
 
@@ -4199,7 +4202,7 @@ const activeToolbarOverlayTitle = computed(() => {
             v-if="isAudioPlayerRoute"
         />
 
-        <!-- Full-page Slyce panel (like drawing mode) -->
+        <!-- Full-page texture creator panel (like drawing mode) -->
         <TextureCreator
             ref="textureCreatorRef"
             v-if="textureCreatorVisible"
@@ -4218,7 +4221,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-close="app.hideAudioCreator"
         />
 
-        <!-- Full-page Realtime Sampler (like Slyce panel) -->
+        <!-- Full-page Realtime Sampler -->
         <RealtimeSampler
             v-if="realtimeSamplerVisible"
             :active="realtimeSamplerVisible"
@@ -4346,7 +4349,7 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.audio-creator-panel),
     .ribbon-view :deep(.audio-library-panel),
     .ribbon-view :deep(.audio-player-panel),
-    .ribbon-view :deep(.slyce-panel.active),
+    .ribbon-view :deep(.texture-creator-panel.active),
     .ribbon-view :deep(.realtime-panel.active),
     .ribbon-view :deep(.draw-canvas.active),
     .ribbon-view :deep(.walk-canvas.active),
@@ -4395,25 +4398,25 @@ const activeToolbarOverlayTitle = computed(() => {
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
-        min-height: 1.85rem;
+        min-height: var(--rivvon-button-height-compact);
         padding: 0.2rem 0.6rem;
-        color: rgba(255, 255, 255, 0.94);
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 999px;
-        cursor: pointer;
+        color: var(--rivvon-button-text-color);
+        background: var(--rivvon-button-surface-hover);
+        border: 1px solid var(--rivvon-button-border-color);
+        border-radius: var(--rivvon-button-inline-radius);
         font: inherit;
         font-size: 0.74rem;
         font-weight: 600;
+        transition: var(--rivvon-button-transition);
     }
 
     .camera-motion-recording-stop:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: color-mix(in srgb, var(--rivvon-button-text-color) 20%, transparent);
     }
 
     .camera-motion-recording-stop:focus-visible {
-        outline: 2px solid rgba(255, 255, 255, 0.85);
-        outline-offset: 2px;
+        outline: none;
+        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     .camera-motion-recording-stop .material-symbols-outlined {

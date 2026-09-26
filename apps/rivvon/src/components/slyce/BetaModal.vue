@@ -16,26 +16,31 @@
         <!-- Body -->
         <div class="p-6">
           <p class="text-white/85 leading-relaxed mb-4">
-            Slyce is currently in <span class="text-amber-400 font-semibold">beta</span>. To use Google Drive features,
+            Rivvon is currently in <span class="text-amber-400 font-semibold">beta</span>. To use Google Drive features,
             you'll need to be added as a beta tester.
           </p>
 
           <!-- Actions -->
-          <div class="flex flex-col gap-3">
-            <a
+          <div class="flex flex-col gap-3 rivvon-modal-actions">
+            <Button
               href="https://docs.google.com/forms/d/e/1FAIpQLSeRF-9eEIPWz4Es1IVMcS5TSSDcSnsFvPj1wS9QKkHVKFeAqA/viewform?usp=publish-editor"
+              as="a"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center justify-center px-6 py-3.5 text-base font-semibold text-white no-underline bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40 transition-all duration-200"
+              severity="info"
+              class="rivvon-workflow-button"
             >
               Request Beta Access
-            </a>
-            <button
+            </Button>
+            <Button
+              type="button"
               @click="proceedToLogin"
-              class="flex items-center justify-center px-6 py-3.5 text-base font-semibold text-white/90 bg-white/10 border border-white/20 hover:bg-white/15 hover:border-white/30 transition-all duration-200 cursor-pointer"
+              severity="secondary"
+              variant="outlined"
+              class="rivvon-workflow-button"
             >
               I'm already a tester — Sign in
-            </button>
+            </Button>
           </div>
 
           <p class="text-sm text-white/50 mt-6 mb-0">
@@ -44,12 +49,17 @@
         </div>
 
         <!-- Close button -->
-        <button
+        <Button
+          type="button"
           @click="close"
-          class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-transparent border-none text-white/50 text-2xl cursor-pointer hover:text-white transition-colors"
+          text
+          rounded
+          severity="secondary"
+          aria-label="Close beta access dialog"
+          class="absolute top-3 right-3"
         >
-          &times;
-        </button>
+          <span class="material-symbols-outlined">close</span>
+        </Button>
       </div>
     </div>
   </Teleport>
@@ -57,6 +67,7 @@
 
 <script setup>
   import { ref } from 'vue'
+  import Button from 'primevue/button'
   import { useGoogleAuth } from '../../composables/shared/useGoogleAuth'
 
   const { login } = useGoogleAuth()

@@ -106,6 +106,7 @@ const DEFAULT_BACKGROUND_FLOW_SPEED = 0.25;
 const MIN_BACKGROUND_FLOW_SPEED = 0.05;
 const MAX_BACKGROUND_FLOW_SPEED = 2.0;
 const DEFAULT_BACKGROUND_OVERLAY_COLOR = "#ffffff";
+const DEFAULT_VIEWER_PANEL_BACKGROUND_COLOR = "#1a1a1aff";
 const DEFAULT_BACKGROUND_OVERLAY_OPACITY = 0.35;
 const DEFAULT_BACKGROUND_LAYER_INDEX = 0;
 const DEFAULT_BACKGROUND_BASE_ENABLED = true;
@@ -240,6 +241,25 @@ function normalizeBackgroundOverlayColor(value) {
   return /^[0-9a-f]{6}$/.test(normalized)
     ? `#${normalized}`
     : DEFAULT_BACKGROUND_OVERLAY_COLOR;
+}
+
+function normalizeViewerPanelBackgroundColor(value) {
+  if (typeof value !== "string") {
+    return DEFAULT_VIEWER_PANEL_BACKGROUND_COLOR;
+  }
+
+  const normalized = value.trim().replace(/^#/, "").toLowerCase();
+
+  if (/^[0-9a-f]{3,4}$/.test(normalized)) {
+    return `#${normalized
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("")}`;
+  }
+
+  return /^[0-9a-f]{6}([0-9a-f]{2})?$/.test(normalized)
+    ? `#${normalized}`
+    : DEFAULT_VIEWER_PANEL_BACKGROUND_COLOR;
 }
 
 function normalizeTransparentShadowsThresholdValue(value, fallback) {
@@ -780,6 +800,9 @@ export const useViewerStore = defineStore("viewer", {
       screenWakeLockSupported: null,
       screenWakeLockActive: false,
       screenWakeLockErrorMessage: "",
+      viewerPanelBackgroundColor: normalizeViewerPanelBackgroundColor(
+        readViewerPreferences().viewerPanelBackgroundColor,
+      ),
 
       // Ribbon/3D state
       flowState: "off", // 'off' | 'forward' | 'backward'
@@ -1029,7 +1052,7 @@ export const useViewerStore = defineStore("viewer", {
       // Three.js references (set by composable)
       threeContext: null,
 
-      // Suspension state — true when viewer is paused to free resources for Slyce
+      // Suspension state — true when viewer is paused to free resources for texture processing
       isSuspended: false,
 
       // Full resource release state (interventions 5+6)
@@ -1248,6 +1271,7 @@ export const useViewerStore = defineStore("viewer", {
       this.sphericalProjectionArtworkAspectRatio = 1;
       this.showTextureMetadataOverlay = false;
       this.screenWakeLockEnabled = true;
+      this.viewerPanelBackgroundColor = DEFAULT_VIEWER_PANEL_BACKGROUND_COLOR;
       this.clearHeadTrackingFeedback();
 
       writeViewerPreferences({
@@ -1338,6 +1362,7 @@ export const useViewerStore = defineStore("viewer", {
         sphericalProjectionWrapDegrees: DEFAULT_SPHERICAL_WRAP_DEGREES,
         showTextureMetadataOverlay: false,
         screenWakeLockEnabled: true,
+        viewerPanelBackgroundColor: DEFAULT_VIEWER_PANEL_BACKGROUND_COLOR,
       });
     },
 
@@ -1429,6 +1454,12 @@ export const useViewerStore = defineStore("viewer", {
       } else {
         this.setFlowState("off");
       }
+    },
+
+    setViewerPanelBackgroundColor(color) {
+      const nextValue = normalizeViewerPanelBackgroundColor(color);
+      this.viewerPanelBackgroundColor = nextValue;
+      writeViewerPreferences({ viewerPanelBackgroundColor: nextValue });
     },
 
     setFlowState(state) {
@@ -1858,6 +1889,7 @@ sphericalProjectionVerticalWrapAuto:
         sceneShadowOpacity: this.sceneShadowOpacity,
         showTextureMetadataOverlay: this.showTextureMetadataOverlay,
         screenWakeLockEnabled: this.screenWakeLockEnabled,
+        viewerPanelBackgroundColor: this.viewerPanelBackgroundColor,
       };
 
       if (store) {
@@ -1997,7 +2029,8 @@ this.sphericalProjectionVerticalWrapAuto !==
         this.sceneShadowOpacity !== original.sceneShadowOpacity ||
         this.showTextureMetadataOverlay !==
           original.showTextureMetadataOverlay ||
-        this.screenWakeLockEnabled !== original.screenWakeLockEnabled
+        this.screenWakeLockEnabled !== original.screenWakeLockEnabled ||
+        this.viewerPanelBackgroundColor !== original.viewerPanelBackgroundColor
       );
     },
 
@@ -2055,16 +2088,29 @@ this.sphericalProjectionVerticalWrapAuto !==
       hideViewerFlag(this, VIEWER_PANEL_KEYS.about);
     },
 
-    showSlyce() {
+    showTextureCreator() {
       showViewerFlag(this, VIEWER_PANEL_KEYS.textureCreator);
     },
 
-    hideSlyce() {
+    hideTextureCreator() {
       hideViewerFlag(this, VIEWER_PANEL_KEYS.textureCreator);
     },
 
-    toggleSlyce() {
+    toggleTextureCreator() {
       toggleViewerFlag(this, VIEWER_PANEL_KEYS.textureCreator);
+    },
+
+    // Compatibility aliases for integrations that still call the legacy API.
+    showSlyce() {
+      return this.showTextureCreator();
+    },
+
+    hideSlyce() {
+      return this.hideTextureCreator();
+    },
+
+    toggleSlyce() {
+      return this.toggleTextureCreator();
     },
 
     showRealtimeSampler() {
@@ -2455,7 +2501,7 @@ this.sphericalProjectionVerticalWrapAuto !==
     },
 
     /**
-     * Suspend the viewer to free GPU/CPU resources for Slyce processing.
+     * Suspend the viewer to free GPU/CPU resources for texture processing.
      * @param {boolean} releaseResources — if true, fully dispose renderer + textures (interventions 5+6)
      */
     suspendViewer(releaseResources = false) {
@@ -2477,7 +2523,7 @@ this.sphericalProjectionVerticalWrapAuto !==
     },
 
     /**
-     * Resume the viewer after Slyce processing completes.
+     * Resume the viewer after texture processing completes.
      * If resources were released, performs full reinitialization.
      */
     async resumeViewer() {

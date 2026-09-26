@@ -4136,7 +4136,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
     /**
      * Public dispose — releases all GPU resources held by this TileManager.
-     * Call this when you want to fully free VRAM (e.g., during Slyce processing).
+     * Call this when you want to fully free VRAM (e.g., during texture processing).
      */
     dispose() {
         this.#disposeMaterials();

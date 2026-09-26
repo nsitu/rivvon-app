@@ -1,5 +1,6 @@
 <script setup>
     import { computed } from 'vue';
+    import Button from 'primevue/button';
 
     const props = defineProps({
         recording: { type: Boolean, default: false },
@@ -40,8 +41,10 @@
         <div class="tools-section">
             <div class="tools-section-label">Recorded Camera Motion</div>
             <div class="tools-section-items">
-                <button
-                    class="tools-option"
+                <Button
+                    type="button"
+                    variant="text"
+                    class="tools-option rivvon-tool-option"
                     :class="{ 'motion-recording': props.recording }"
                     :disabled="props.disabled || props.playing || props.previewing"
                     @click="emit('request-motion-record')"
@@ -49,7 +52,7 @@
                     <span class="material-symbols-outlined">{{ props.recording ? 'stop' : 'motion_photos_on' }}</span>
                     <span>{{ props.recording ? 'Stop Recording' : 'Record Orbit Motion' }}</span>
                     <span class="tools-hint">R</span>
-                </button>
+                </Button>
 
                 <div
                     v-if="props.recording"
@@ -61,14 +64,16 @@
                 </div>
 
                 <template v-else>
-                    <button
-                        class="tools-option"
+                    <Button
+                        type="button"
+                        variant="text"
+                        class="tools-option rivvon-tool-option"
                         :disabled="props.disabled || !props.hasRecording"
                         @click="emit('request-motion-playback')"
                     >
                         <span class="material-symbols-outlined">{{ props.playing || props.previewing ? 'stop' : 'play_arrow' }}</span>
                         <span>{{ props.playing || props.previewing ? 'Stop Playback' : 'Play Recorded Motion' }}</span>
-                    </button>
+                    </Button>
 
                     <div
                         v-if="props.hasRecording"
@@ -94,14 +99,16 @@
                         </div>
                     </div>
 
-                    <button
-                        class="tools-option"
+                    <Button
+                        type="button"
+                        variant="text"
+                        class="tools-option rivvon-tool-option"
                         :disabled="props.disabled || !props.hasRecording"
                         @click="emit('request-motion-clear')"
                     >
                         <span class="material-symbols-outlined">delete_sweep</span>
                         <span>Clear Recording</span>
-                    </button>
+                    </Button>
                 </template>
             </div>
         </div>
@@ -119,42 +126,8 @@
         gap: 0.35rem;
     }
 
-    .tools-option {
-        display: flex;
-        align-items: center;
-        gap: 0.875rem;
-        width: 100%;
-        padding: 0.875rem 1rem;
-        background: transparent;
-        border: none;
-        border-radius: 8px;
-        color: var(--p-text-color, #fff);
-        cursor: pointer;
-        font-size: 0.95rem;
-        text-align: left;
-        transition: background 0.15s ease;
-    }
-
-    .tools-option:hover {
-        background: rgba(255, 255, 255, 0.08);
-    }
-
-    .tools-option .material-symbols-outlined {
-        font-size: 1.35rem;
-        opacity: 0.85;
-    }
-
-    .tools-option:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-    }
-
-    .tools-option:disabled:hover {
-        background: transparent;
-    }
-
     .motion-recording {
-        color: #ff8f8f;
+        color: #ff8f8f !important;
     }
 
     .tools-hint {

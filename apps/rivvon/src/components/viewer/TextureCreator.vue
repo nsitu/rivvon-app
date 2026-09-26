@@ -506,14 +506,14 @@
 
 <template>
     <div
-        class="slyce-panel"
+        class="texture-creator-panel"
         :class="{ active: active }"
         @dragover="handleDragOver"
         @drop="handleDrop"
     >
-        <div class="slyce-container viewer-chrome-panel-container">
+        <div class="texture-creator-container viewer-panel viewer-chrome-panel-container">
             <!-- Main content area -->
-            <ScrollPanel class="rivvon-scroll-panel slyce-content">
+            <ScrollPanel class="rivvon-scroll-panel texture-creator-content">
                 <Stepper
                     :value="stepperValue"
                     linear
@@ -760,7 +760,7 @@
 </template>
 
 <style scoped>
-    .slyce-panel {
+    .texture-creator-panel {
         position: absolute;
         top: 0;
         left: 0;
@@ -774,17 +774,16 @@
         flex-direction: column;
     }
 
-    .slyce-panel.active {
+    .texture-creator-panel.active {
         pointer-events: auto;
         opacity: 1;
     }
 
-    .slyce-container {
+    .texture-creator-container {
         display: flex;
         flex-direction: column;
         height: 100%;
         width: 100%;
-        background: #1a1a1a;
         /* note, this is based on the button dimensions
          in the app header and bottom toolbar, ie.
         height: 1.5rem 
@@ -793,7 +792,7 @@
          */
     }
 
-    .slyce-content {
+    .texture-creator-content {
         padding: 20px;
         width: 100%;
         --texture-creator-step-muted: var(--p-stepper-step-number-color, var(--p-text-muted-color, #888));
@@ -835,7 +834,7 @@
         line-height: 1.45;
     }
 
-    .slyce-content :deep(.p-steplist) {
+    .texture-creator-content :deep(.p-steplist) {
         justify-content: center;
         padding: 0 0 1rem 0;
         width: min(100%, 760px);
@@ -912,7 +911,7 @@
     }
 
     @media (max-width: 720px) {
-        .slyce-content :deep(.p-steplist) {
+        .texture-creator-content :deep(.p-steplist) {
             width: 100%;
             justify-content: center;
             padding-bottom: 0.5rem;

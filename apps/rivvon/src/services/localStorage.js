@@ -1,5 +1,5 @@
 /**
- * Local Storage Service for Slyce Textures
+ * Local Storage Service for Rivvon Textures
  * 
  * Provides IndexedDB-backed storage for texture sets and tiles,
  * allowing users to save textures locally without Google OAuth.
@@ -717,7 +717,7 @@ async function exportTextureSetAsZip(textureSetId) {
 
     // Create metadata.json (similar to zipDownloader.js format)
     const metadata = {
-        generatedBy: 'Slyce',
+        generatedBy: 'Rivvon',
         generatedAt: new Date().toISOString(),
         video: {
             name: textureSet.source_metadata?.filename,

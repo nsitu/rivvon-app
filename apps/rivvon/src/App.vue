@@ -7,8 +7,9 @@
     const app = useViewerStore();
     const route = useRoute();
 
-    // Viewer mode is active when NOT on slyce routes
-    const isViewerMode = computed(() => route.meta.layout !== 'document' && !route.path.startsWith('/slyce'));
+    // Viewer mode is active for the canvas shell; document-style pages opt out
+    // through route metadata rather than relying on legacy URL names.
+    const isViewerMode = computed(() => route.meta.layout !== 'document');
 
     onMounted(() => {
         // Add app-active class to body when Vue app loads
@@ -17,7 +18,10 @@
 </script>
 
 <template>
-    <div :class="{ 'viewer-mode': isViewerMode }">
+    <div
+        :class="{ 'viewer-mode': isViewerMode }"
+        :style="{ '--viewer-panel-background': app.viewerPanelBackgroundColor }"
+    >
         <AuthLoadingState />
         <RouterView />
     </div>

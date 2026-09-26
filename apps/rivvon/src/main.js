@@ -1,5 +1,5 @@
 // src/main.js
-// Vue 3 entry point for unified rivvon app (viewer + slyce)
+// Vue 3 entry point for the unified Rivvon app.
 
 import { createPinia } from 'pinia';
 import { createApp } from 'vue';
@@ -14,6 +14,7 @@ import router from './router';
 import * as Sentry from "@sentry/vue";
 
 import './style.css';
+import './components/shared/buttonPrimitives.css';
 
 // Material Icons - combined from both apps
 import { loadMaterialSymbols } from './modules/shared/iconLoader';
@@ -106,12 +107,12 @@ app.use(ToastService);
 import Tooltip from 'primevue/tooltip';
 app.directive('tooltip', Tooltip);
 
-// Lazy load BASIS module only when visiting Slyce routes
-async function loadBasisForSlyce() {
+// Lazy load BASIS only when visiting texture-creation routes.
+async function loadCreatorRuntime() {
     try {
         const { loadBasisModule } = await import('./modules/slyce/load_basis.js');
         await loadBasisModule();
-        console.log('[Main] BASIS module preloaded for Slyce');
+        console.log('[Main] BASIS module preloaded for texture creation');
     } catch (error) {
         console.warn('[Main] BASIS module load failed (non-critical for viewer):', error);
     }
@@ -147,15 +148,17 @@ async function loadBasisForSlyce() {
         // Also initialize vanilla auth module (used by TileManager for Drive API)
         await initAuth();
 
-        // Preload BASIS module if starting on Slyce route
-        if (window.location.pathname.startsWith('/slyce')) {
-            loadBasisForSlyce();
+        const isCreatorRoute = (path) => path === '/create' || path.startsWith('/slyce');
+
+        // Preload BASIS module if starting on a texture-creation route.
+        if (isCreatorRoute(window.location.pathname)) {
+            loadCreatorRuntime();
         }
 
-        // Load BASIS module when navigating to Slyce routes
+        // Load BASIS module when navigating to texture-creation routes.
         router.beforeEach((to, from, next) => {
-            if (to.path.startsWith('/slyce') && !from.path.startsWith('/slyce')) {
-                loadBasisForSlyce();
+            if (isCreatorRoute(to.path) && !isCreatorRoute(from.path)) {
+                loadCreatorRuntime();
             }
             next();
         });

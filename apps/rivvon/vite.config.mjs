@@ -1,5 +1,5 @@
 // vite.config.mjs
-// Unified Vue 3 rivvon app (viewer + slyce)
+// Unified Vue 3 Rivvon app.
 import { defineConfig, loadEnv, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
@@ -115,7 +115,7 @@ export default defineConfig(({ mode }) => {
                 'Cross-Origin-Embedder-Policy': 'credentialless',
             },
         },
-        // Worker configuration for Slyce's web workers
+        // Worker configuration for the texture-creation workers.
         worker: {
             format: 'es',
         },

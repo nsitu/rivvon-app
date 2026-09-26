@@ -34,11 +34,11 @@
 
 <style scoped>
     .panel-action-bar {
-        --panel-action-bar-gap: 0.75rem;
+        --panel-action-bar-gap: var(--rivvon-action-gap, 0.75rem);
         --panel-action-bar-padding: 0.85rem 0 0;
         --panel-action-bar-border-color: var(--p-content-border-color, rgba(255, 255, 255, 0.1));
         --panel-action-bar-background: transparent;
-        --panel-action-bar-button-min-width: 8rem;
+        --panel-action-bar-button-min-width: var(--rivvon-panel-button-min-width, 8rem);
         --panel-action-bar-mobile-basis: 12rem;
         display: flex;
         flex-shrink: 0;
@@ -72,7 +72,7 @@
     }
 
     .panel-action-bar-actions :deep(.p-button) {
-        min-height: 2.75rem;
+        min-height: var(--rivvon-button-height, 2.75rem);
         min-width: var(--panel-action-bar-button-min-width);
     }
 

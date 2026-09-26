@@ -1,5 +1,6 @@
 <script setup>
     import { ref, onMounted, onUnmounted, computed, watch, toValue } from 'vue';
+    import Button from 'primevue/button';
 
     const props = defineProps({
         videoRef: {
@@ -130,15 +131,17 @@
 
 <template>
     <div class="video-controls">
-        <button
-            class="control-button"
+        <Button
+            type="button"
+            variant="text"
+            class="control-button rivvon-icon-action"
             @click="togglePlay"
             :title="isPlaying ? 'Pause' : 'Play'"
         >
             <span class="material-symbols-outlined">
                 {{ isPlaying ? 'pause' : 'play_arrow' }}
             </span>
-        </button>
+        </Button>
 
         <input
             type="range"
@@ -169,21 +172,12 @@
     }
 
     .control-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
         background: transparent;
-        border: none;
-        color: #fff;
-        cursor: pointer;
-        border-radius: 4px;
-        transition: background-color 0.15s;
+        color: var(--rivvon-button-text-color);
     }
 
     .control-button:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--rivvon-button-surface-hover);
     }
 
     .control-button .material-symbols-outlined {

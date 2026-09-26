@@ -365,7 +365,7 @@
         class="text-input-panel"
         :class="{ active: visible }"
     >
-        <div class="text-input-container viewer-chrome-panel-container">
+        <div class="text-input-container viewer-panel viewer-chrome-panel-container">
             <div class="text-input-panel-content">
                 <ScrollPanel class="rivvon-scroll-panel text-input-panel-scroll">
                     <div class="text-input-panel-body">
@@ -652,7 +652,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        background: #1a1a1a;
     }
 
     .text-input-panel-content {

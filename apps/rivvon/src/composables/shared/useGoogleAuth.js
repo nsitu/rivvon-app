@@ -1,5 +1,5 @@
 // src/composables/shared/useGoogleAuth.js
-// Unified Google Auth composable for both Viewer and Slyce
+// Unified Google Auth composable for viewer and texture-creation flows.
 
 import { ref, computed } from 'vue'
 import { useAuthStore } from '../../stores/authStore'

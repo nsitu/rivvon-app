@@ -162,7 +162,7 @@
             style="position:absolute;width:0;height:0;overflow:hidden"
         ></div>
 
-        <div class="emoji-picker-container viewer-chrome-panel-container">
+        <div class="emoji-picker-container viewer-panel viewer-chrome-panel-container">
             <ScrollPanel class="rivvon-scroll-panel emoji-picker-scroll">
                 <div class="emoji-picker-content">
                 <!-- Loading spinner for initial data load -->
@@ -288,7 +288,6 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
-        background: #1a1a1a;
     }
 
     .emoji-picker-content {

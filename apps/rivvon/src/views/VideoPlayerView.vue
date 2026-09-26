@@ -114,7 +114,7 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
 </script>
 
 <template>
-    <main class="video-player-panel">
+    <main class="video-player-panel viewer-panel">
         <div class="video-player-container viewer-chrome-panel-container">
             <PanelActionBar
                 placement="top"
@@ -170,9 +170,9 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
                         playsinline
                         preload="metadata"
                     ></video>
-                    <button class="fullscreen-button" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" @click="toggleFullscreen">
+                    <Button type="button" variant="text" rounded class="fullscreen-button rivvon-icon-action" :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" @click="toggleFullscreen">
                         <span class="material-symbols-outlined">{{ isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
-                    </button>
+                    </Button>
                 </div>
 
                 <div class="video-detail-row">
@@ -194,7 +194,7 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
 </template>
 
 <style scoped>
-    .video-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; overflow: hidden; color: #f8fafc; background: #1a1a1a; }
+    .video-player-panel { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; overflow: hidden; color: #f8fafc; }
     .video-player-container { display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; box-sizing: border-box; }
     .video-player-header-actions { padding-inline: 1rem; }
     .video-player-scroll { flex: 1; min-height: 0; width: 100%; box-sizing: border-box; }
@@ -203,13 +203,15 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
     .video-player-frame:fullscreen { border: 0; border-radius: 0; }
     video { display: block; width: 100%; max-height: 76vh; background: #000; }
     .video-player-frame:fullscreen video { max-height: 100vh; }
-    .fullscreen-button { position: absolute; top: .75rem; right: .75rem; display: grid; width: 2.75rem; height: 2.75rem; border: 1px solid rgba(255,255,255,.22); border-radius: .2rem; color: white; background: rgba(0,0,0,.55); cursor: pointer; place-items: center; backdrop-filter: blur(8px); }
+    .fullscreen-button { position: absolute; top: .75rem; right: .75rem; display: grid; width: var(--rivvon-button-height); height: var(--rivvon-button-height); border: 1px solid var(--rivvon-button-border-color); border-radius: var(--rivvon-button-radius); color: var(--rivvon-button-text-color); background: rgba(0,0,0,.55); place-items: center; backdrop-filter: blur(8px); }
+    .fullscreen-button:focus-visible { outline: none; box-shadow: var(--rivvon-button-focus-ring); }
     .video-detail-row { display: flex; justify-content: space-between; gap: 1.5rem; padding: 1.4rem .25rem; border-bottom: 1px solid #3a3a3a; }
     .private-badge { padding: .2rem .5rem; border: 1px solid #5b4c2d; border-radius: .2rem; color: #e0b96b; background: #342b1b; font-size: .72rem; }
     .video-description { max-width: 60rem; color: #c1c5d0; line-height: 1.55; }
     .video-meta { color: #858b9b; font-size: .82rem; }
     .video-player-header-actions :deep(.panel-action-bar-actions) { justify-content: flex-start; }
-    .video-player-download { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .4rem; box-sizing: border-box; padding: .65rem .8rem; border: 1px solid var(--p-button-secondary-border-color, #64748b); border-radius: var(--p-button-border-radius, .2rem); color: var(--p-button-secondary-color, #eef2ff); background: var(--p-button-secondary-background, transparent); font: inherit; font-size: .82rem; text-decoration: none; cursor: pointer; }
+    .video-player-download { display: inline-flex; min-height: var(--rivvon-button-height); align-items: center; gap: .4rem; box-sizing: border-box; padding: .65rem .8rem; border: 1px solid var(--p-button-secondary-border-color, var(--rivvon-button-border-color)); border-radius: var(--rivvon-button-radius); color: var(--p-button-secondary-color, var(--rivvon-button-text-color)); background: var(--p-button-secondary-background, transparent); font: inherit; font-size: .82rem; text-decoration: none; cursor: pointer; }
+    .video-player-download:focus-visible { outline: none; box-shadow: var(--rivvon-button-focus-ring); }
     .video-player-download:hover { background: var(--p-button-secondary-hover-background, rgba(255, 255, 255, .08)); }
     .video-player-download .material-symbols-outlined { font-size: 1.1rem; }
     .thumbnail-status { margin: 1rem .25rem 0; color: #65c878; font-size: .82rem; }
