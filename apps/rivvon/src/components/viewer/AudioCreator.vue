@@ -12,6 +12,7 @@ import {
     AUDIO_PLAYBACK_RATE_STOPS,
     createAudioWaveform,
     getAudioOutputDuration,
+    getAudioPlaybackRateStopIndex,
     getSuggestedAudioPlaybackRate,
     inspectAudioSource,
     normalizeAudioPlaybackRate,
@@ -44,11 +45,7 @@ const playbackRateStopIndex = ref(AUDIO_PLAYBACK_RATE_STOPS.indexOf(1));
 const playbackRate = computed({
     get: () => AUDIO_PLAYBACK_RATE_STOPS[playbackRateStopIndex.value],
     set: (value) => {
-        const index = Math.round(Number(value));
-        playbackRateStopIndex.value = Math.min(
-            AUDIO_PLAYBACK_RATE_STOPS.length - 1,
-            Math.max(0, Number.isFinite(index) ? index : AUDIO_PLAYBACK_RATE_STOPS.indexOf(1)),
-        );
+        playbackRateStopIndex.value = getAudioPlaybackRateStopIndex(value);
     },
 });
 const playhead = ref(0);

@@ -15,6 +15,17 @@ export const MIN_AUDIO_PLAYBACK_RATE = 0.125;
 export const MAX_AUDIO_PLAYBACK_RATE = 16;
 export const AUDIO_PLAYBACK_RATE_STOPS = Object.freeze([0.125, 0.25, 0.5, 1, 2, 4, 8]);
 
+export function getAudioPlaybackRateStopIndex(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return AUDIO_PLAYBACK_RATE_STOPS.indexOf(1);
+
+    return AUDIO_PLAYBACK_RATE_STOPS.reduce((closestIndex, stop, index, stops) => (
+        Math.abs(stop - numericValue) < Math.abs(stops[closestIndex] - numericValue)
+            ? index
+            : closestIndex
+    ), AUDIO_PLAYBACK_RATE_STOPS.indexOf(1));
+}
+
 export function normalizeAudioPlaybackRate(value) {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) return 1;
