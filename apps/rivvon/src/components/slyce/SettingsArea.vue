@@ -35,9 +35,16 @@
 
     // when a file is uploaded get the metadata (skip if file is null/undefined)
     watch(() => app.file, (newFile) => {
-        if (newFile) {
-            getMetaData();
+        if (!newFile) {
+            return;
         }
+
+        if (app.skipNextFileMetadataExtraction) {
+            app.set('skipNextFileMetadataExtraction', false);
+            return;
+        }
+
+        getMetaData();
     }, { immediate: true })
 
     import FileInfo from './FileInfo.vue';
@@ -125,7 +132,6 @@
         }
 
         processVideo({
-            file: app.file,
             tilePlan: tilePlan.value,
             samplingMode: app.samplingAxis,
             config: app.config,

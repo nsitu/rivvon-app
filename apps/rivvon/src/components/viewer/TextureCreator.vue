@@ -279,7 +279,6 @@
         }
 
         processVideo({
-            file: slyce.file,
             tilePlan: tilePlan.value,
             samplingMode: slyce.samplingAxis,
             config: slyce.config,

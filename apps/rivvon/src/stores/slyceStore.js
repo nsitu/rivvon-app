@@ -28,6 +28,8 @@ export const useSlyceStore = defineStore('slyce', {
         tileBuilderBackend: DEFAULT_TILE_BUILDER_BACKEND,
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
+        // Used when processing replaces an MTS source with its remuxed MP4.
+        skipNextFileMetadataExtraction: false,
         fileInfo: null,
         textureName: '',
         textureDescription: '',
@@ -181,6 +183,7 @@ export const useSlyceStore = defineStore('slyce', {
 
             this.file = null;
             this.fileURL = null;
+            this.skipNextFileMetadataExtraction = false;
             this.fileInfo = null;
             this.frameCount = 0;
             this.frameStart = 1;
@@ -274,6 +277,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.textureDescription = '';
             this.file = null;
             this.fileURL = null;
+            this.skipNextFileMetadataExtraction = false;
             this.samplePixelCount = 0;
             this.messages = [];
             this.status = {};

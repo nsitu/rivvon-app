@@ -19,6 +19,8 @@ import {
 } from './encodingPolicy.js';
 import { runSamplingPipeline } from './samplingPipeline.js';
 import { VideoFileFrameSource } from './samplingSources.js';
+import { getVideoProcessingFile } from './videoPreview.js';
+import { isTransportStreamFile } from './videoFile.js';
 import {
     abortProcessing,
     cleanupKTX2Workers,
@@ -535,8 +537,37 @@ const processVideo = async (settings) => {
         app.setStatus(`Tile ${tileIndex + 1}`, 'Queued');
     }
 
+    let processingFile = app.file;
+    if (isTransportStreamFile(processingFile)) {
+        const originalFile = processingFile;
+        app.setStatus('Decoding', 'Preparing MPEG-TS video for the decoder...');
+
+        try {
+            processingFile = await getVideoProcessingFile(originalFile);
+
+            if (abortSignal.aborted) {
+                throw new DOMException('Video processing aborted.', 'AbortError');
+            }
+
+            // The original MTS is no longer needed after metadata extraction and
+            // remuxing. Keep the extracted filename in fileInfo, but replace the
+            // active source and object URL so only the decoder-friendly MP4 stays
+            // strongly referenced by the workflow.
+            if (app.file === originalFile) {
+                if (app.fileURL) {
+                    URL.revokeObjectURL(app.fileURL);
+                }
+                app.set('skipNextFileMetadataExtraction', true);
+                app.set('file', processingFile);
+                app.set('fileURL', URL.createObjectURL(processingFile));
+            }
+        } finally {
+            app.removeStatus('Decoding');
+        }
+    }
+
     const source = new VideoFileFrameSource({
-        file: app.file,
+        file: processingFile,
         fileInfo,
         tilePlan: resolvedTilePlan,
         frameStart,
