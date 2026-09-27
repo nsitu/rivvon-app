@@ -23,6 +23,7 @@
         publishVideoBlob,
     } from '../services/videoService.js';
     import { createVideoThumbnail } from '../modules/viewer/videoThumbnail.js';
+    import { isVideoFile, VIDEO_FILE_ACCEPT } from '../modules/slyce/videoFile.js';
     import Toast from 'primevue/toast';
     import Button from 'primevue/button';
     import { getProceduralSourceFrame, normalizeProceduralSourceType } from '../modules/viewer/proceduralPaths.js';
@@ -1970,7 +1971,7 @@ const activeToolbarOverlayTitle = computed(() => {
         const file = event.target.files?.[0];
         event.target.value = '';
 
-        if (!file || !file.type.startsWith('video/')) {
+        if (!isVideoFile(file)) {
             return;
         }
 
@@ -4119,7 +4120,7 @@ const activeToolbarOverlayTitle = computed(() => {
         <input
             ref="textureVideoInputRef"
             type="file"
-            accept="video/*"
+            :accept="VIDEO_FILE_ACCEPT"
             style="display: none"
             @change="handleTextureVideoImport"
         />
