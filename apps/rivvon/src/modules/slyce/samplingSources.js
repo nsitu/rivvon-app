@@ -1,6 +1,8 @@
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 import { RealtimeCamera } from './realtimeCamera.js';
 import { createLazyLoader } from '../shared/lazyLoader.js';
+import { getVideoProcessingFile } from './videoPreview.js';
+import { isTransportStreamFile } from './videoFile.js';
 
 const loadRifeInterpolator = createLazyLoader(async () => {
     const { RIFEInterpolator } = await import('./rifeInterpolator.js');
@@ -103,12 +105,32 @@ export class VideoFileFrameSource {
         this.onSeekProgress = options.onSeekProgress ?? null;
         this.onRangeStart = options.onRangeStart ?? null;
         this.onInterpolationStatus = options.onInterpolationStatus ?? null;
+        this.onPreparationStatus = options.onPreparationStatus ?? null;
     }
 
     async *frames() {
+        const needsTransportStreamPreparation = isTransportStreamFile(this.file);
+        if (needsTransportStreamPreparation && typeof this.onPreparationStatus === 'function') {
+            this.onPreparationStatus('Preparing MPEG-TS video for the decoder...');
+        }
+
+        let processingFile;
+        try {
+            processingFile = await getVideoProcessingFile(this.file);
+        } catch (error) {
+            if (needsTransportStreamPreparation && typeof this.onPreparationStatus === 'function') {
+                this.onPreparationStatus(null);
+            }
+            throw error;
+        }
+
+        if (needsTransportStreamPreparation && typeof this.onPreparationStatus === 'function') {
+            this.onPreparationStatus(null);
+        }
+
         const input = new Input({
             formats: ALL_FORMATS,
-            source: new BlobSource(this.file),
+            source: new BlobSource(processingFile),
         });
 
         const videoTrack = await input.getPrimaryVideoTrack();

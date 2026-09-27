@@ -551,6 +551,13 @@ const processVideo = async (settings) => {
         onRangeStart() {
             app.removeStatus('Seeking');
         },
+        onPreparationStatus(message) {
+            if (message) {
+                app.setStatus('Decoding', message);
+            } else {
+                app.removeStatus('Decoding');
+            }
+        },
         onInterpolationStatus(message) {
             if (message) {
                 app.setStatus('Interpolation', message);

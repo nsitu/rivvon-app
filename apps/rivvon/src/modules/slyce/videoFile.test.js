@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BlobSource, Input, MPEG_TS } from 'mediabunny';
 import { isTransportStreamFile, isVideoFile, VIDEO_FILE_ACCEPT } from './videoFile.js';
+import { getVideoProcessingFile } from './videoPreview.js';
 
 describe('video file intake', () => {
     it('includes MTS in the picker accept value', () => {
@@ -22,6 +23,16 @@ describe('video file intake', () => {
         expect(isTransportStreamFile({ name: 'clip.m2ts', type: 'application/octet-stream' })).toBe(true);
         expect(isTransportStreamFile({ name: 'clip.bin', type: 'video/mp2t' })).toBe(true);
         expect(isTransportStreamFile({ name: 'clip.mp4', type: 'video/mp4' })).toBe(false);
+    });
+
+    it('passes browser-native video files through without remuxing', async () => {
+        const file = new Blob(['video'], { type: 'video/mp4' });
+        await expect(getVideoProcessingFile(file)).resolves.toBe(file);
+    });
+
+    it('rejects an empty transport stream before attempting remuxing', async () => {
+        const file = new Blob([], { type: 'video/mp2t' });
+        await expect(getVideoProcessingFile(file)).rejects.toThrow('non-empty transport stream');
     });
 
     it('does not treat unrelated files as videos', () => {

@@ -7,6 +7,9 @@ import {
     Mp4OutputFormat,
     Output,
 } from 'mediabunny';
+import { isTransportStreamFile } from './videoFile.js';
+
+const remuxPromises = new WeakMap();
 
 /**
  * Remux an MPEG transport stream into a browser-playable, video-only MP4.
@@ -15,7 +18,7 @@ import {
  * tracks are intentionally omitted because the setup preview is muted and
  * texture generation only consumes video frames.
  */
-export async function remuxTransportStreamToMp4(file) {
+async function createTransportStreamMp4(file) {
     if (!(file instanceof Blob) || !file.size) {
         throw new Error('A non-empty transport stream file is required for preview remuxing.');
     }
@@ -60,4 +63,34 @@ export async function remuxTransportStreamToMp4(file) {
     } finally {
         input.dispose();
     }
+}
+
+/**
+ * Return a browser/WebCodecs-friendly source for a video file. MPEG transport
+ * streams are remuxed once and shared by the preview and texture sampler.
+ */
+export function getVideoProcessingFile(file) {
+    if (!isTransportStreamFile(file)) {
+        return Promise.resolve(file);
+    }
+
+    return remuxTransportStreamToMp4(file);
+}
+
+export function remuxTransportStreamToMp4(file) {
+    if (!(file instanceof Blob) || !file.size) {
+        return Promise.reject(new Error('A non-empty transport stream file is required for preview remuxing.'));
+    }
+
+    const cachedPromise = remuxPromises.get(file);
+    if (cachedPromise) {
+        return cachedPromise;
+    }
+
+    const remuxPromise = createTransportStreamMp4(file).catch((error) => {
+        remuxPromises.delete(file);
+        throw error;
+    });
+    remuxPromises.set(file, remuxPromise);
+    return remuxPromise;
 }
