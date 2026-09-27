@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BlobSource, Input, MPEG_TS } from 'mediabunny';
-import { isVideoFile, VIDEO_FILE_ACCEPT } from './videoFile.js';
+import { isTransportStreamFile, isVideoFile, VIDEO_FILE_ACCEPT } from './videoFile.js';
 
 describe('video file intake', () => {
     it('includes MTS in the picker accept value', () => {
@@ -15,6 +15,13 @@ describe('video file intake', () => {
 
     it('accepts regular browser-reported video files', () => {
         expect(isVideoFile({ name: 'clip.mp4', type: 'video/mp4' })).toBe(true);
+    });
+
+    it('identifies transport streams by MIME type or extension', () => {
+        expect(isTransportStreamFile({ name: 'clip.mts', type: '' })).toBe(true);
+        expect(isTransportStreamFile({ name: 'clip.m2ts', type: 'application/octet-stream' })).toBe(true);
+        expect(isTransportStreamFile({ name: 'clip.bin', type: 'video/mp2t' })).toBe(true);
+        expect(isTransportStreamFile({ name: 'clip.mp4', type: 'video/mp4' })).toBe(false);
     });
 
     it('does not treat unrelated files as videos', () => {

@@ -90,6 +90,7 @@
                 ref="videoPlayerRef"
                 v-if="app.fileURL"
                 :url="app.fileURL"
+                :sourceFile="app.file"
                 :hasControls="false"
                 @ready="onVideoReady"
             ></VideoPlayer>
