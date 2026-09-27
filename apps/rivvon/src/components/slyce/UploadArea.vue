@@ -4,6 +4,7 @@
     import Card from 'primevue/card';
 
     import { useSlyceStore } from '../../stores/slyceStore';
+    import { VIDEO_FILE_ACCEPT } from '../../modules/slyce/videoFile.js';
     const app = useSlyceStore()  // Pinia store
 
     const props = defineProps({
@@ -84,7 +85,7 @@
             type="file"
             id="file-input"
             style="display: none;"
-            accept="video/*"
+            :accept="VIDEO_FILE_ACCEPT"
             @change="handleFileChange"
         >
     </section>

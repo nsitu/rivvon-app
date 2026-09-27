@@ -14,6 +14,7 @@
 
     import { useTilePlan } from '../../composables/slyce/useTilePlan';
     import { processVideo } from '../../modules/slyce/videoProcessor';
+    import { isVideoFile } from '../../modules/slyce/videoFile.js';
 
     import Stepper from 'primevue/stepper';
     import StepList from 'primevue/steplist';
@@ -467,7 +468,7 @@
         e.preventDefault();
         e.stopPropagation();
         const file = e.dataTransfer?.files[0];
-        if (file && file.type.startsWith('video/')) {
+        if (isVideoFile(file)) {
             selectedSource.value = 'file';
             cameraStep.value = '1';
             slyce.beginFileWorkflowWithFile(file);

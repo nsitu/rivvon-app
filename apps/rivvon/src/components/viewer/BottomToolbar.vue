@@ -24,6 +24,7 @@ import InputNumber from 'primevue/inputnumber';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
+    import { isVideoFile } from '../../modules/slyce/videoFile.js';
     import { useRouter } from 'vue-router';
 
     const app = useViewerStore();
@@ -493,7 +494,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         const file = event.dataTransfer?.files?.[0];
         resetVideoDragState();
 
-        if (file?.type?.startsWith('video/')) {
+        if (isVideoFile(file)) {
             emit('request-open-texture-file', { file });
         }
     }
