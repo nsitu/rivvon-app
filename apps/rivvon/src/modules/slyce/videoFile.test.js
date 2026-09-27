@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BlobSource, Input, MPEG_TS } from 'mediabunny';
 import { isVideoFile, VIDEO_FILE_ACCEPT } from './videoFile.js';
 
 describe('video file intake', () => {
@@ -20,5 +21,28 @@ describe('video file intake', () => {
         expect(isVideoFile({ name: 'notes.mtsx', type: 'application/octet-stream' })).toBe(false);
         expect(isVideoFile({ name: 'notes.txt', type: 'text/plain' })).toBe(false);
         expect(isVideoFile(null)).toBe(false);
+    });
+
+    it('recognizes the 192-byte packet layout used by AVCHD-style transport streams', async () => {
+        const packetSize = 192;
+        const transportPacketSize = 188;
+        const bytes = new Uint8Array(packetSize * 3);
+
+        for (let packetIndex = 0; packetIndex < 3; packetIndex += 1) {
+            const packetStart = packetIndex * packetSize;
+            const transportStart = packetStart + (packetSize - transportPacketSize);
+            bytes[transportStart] = 0x47;
+            bytes[transportStart + 1] = 0x40;
+            bytes[transportStart + 2] = 0x00;
+            bytes[transportStart + 3] = 0x10;
+        }
+
+        const input = new Input({
+            formats: [MPEG_TS],
+            source: new BlobSource(new Blob([bytes])),
+        });
+
+        await expect(input.getFormat()).resolves.toBe(MPEG_TS);
+        input.dispose();
     });
 });
