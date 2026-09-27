@@ -1,6 +1,11 @@
 const DEFAULT_LAYER_WORKER_COUNT = 4;
 const MAX_CONCURRENT_TILE_ENCODES = 1;
 const MEMORY_SAFE_LAYER_WORKER_CAP = 2;
+// Each encoder worker loads the Basis WASM runtime and temporarily owns both
+// an RGBA input buffer and a KTX2 output buffer. On high-core-count machines,
+// using navigator.hardwareConcurrency workers can exhaust browser memory while
+// processing a large video tile.
+const MAX_BACKGROUND_LAYER_WORKER_COUNT = 4;
 
 export const TILE_BUILDER_BACKEND_CANVAS = 'canvas';
 export const TILE_BUILDER_BACKEND_WEBGL = 'webgl';
@@ -102,7 +107,7 @@ export function getSharedBackgroundEncodeConfig() {
 
     return {
         maxConcurrentTileEncodes: MAX_CONCURRENT_TILE_ENCODES,
-        layerWorkerCount: cores,
-        reason: 'hardware-concurrency',
+        layerWorkerCount: Math.min(MAX_BACKGROUND_LAYER_WORKER_COUNT, cores),
+        reason: 'hardware-concurrency-cap',
     };
 }

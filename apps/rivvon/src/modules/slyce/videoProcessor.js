@@ -1115,6 +1115,9 @@ const processVideo = async (settings) => {
         },
         onError(error) {
             console.error('[VideoProcessor] Error processing frame:', error);
+            const message = error?.message || 'Unable to decode the video frame.';
+            app.setStatus('Processing Error', message);
+            app.set('processingProgress', null);
             return false;
         }
     });
