@@ -7,6 +7,8 @@ const COPY_BYTES_ALIGNMENT = 256;
 const WGSL_PI = '3.1415926535897932384626433832795';
 const WORKGROUP_SIZE_X = 8;
 const WORKGROUP_SIZE_Y = 8;
+const GPU_QUEUE_SYNC_INTERVAL = 8;
+const GPU_QUEUE_SYNC_TIMEOUT_MS = 30_000;
 
 let sharedWebGPUContextPromise = null;
 
@@ -60,9 +62,27 @@ async function getSharedWebGPUContext() {
             }
 
             const device = await adapter.requestDevice();
+            if (device?.addEventListener) {
+                device.addEventListener('uncapturederror', event => {
+                    const error = event?.error;
+                    console.error(
+                        '[WebGPU] Uncaptured device error:',
+                        error?.message || error || event
+                    );
+                });
+            }
+
             if (device?.lost) {
                 device.lost
-                    .catch(() => { })
+                    .then(info => {
+                        console.error(
+                            '[WebGPU] Device lost during video processing:',
+                            info?.reason || 'unknown reason',
+                            info?.message || ''
+                        );
+                    }, error => {
+                        console.error('[WebGPU] Device-loss promise rejected:', error);
+                    })
                     .finally(() => {
                         sharedWebGPUContextPromise = null;
                     });
@@ -525,6 +545,30 @@ export class WebGPUDirectArrayTileBuilder extends EventEmitter {
         this._device.queue.submit([encoder.finish()]);
     }
 
+    async _waitForQueue(label) {
+        if (typeof this._device.queue.onSubmittedWorkDone !== 'function') {
+            return;
+        }
+
+        let timeoutId = null;
+        const timeout = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error(`WebGPU queue did not complete ${label} within ${GPU_QUEUE_SYNC_TIMEOUT_MS / 1000}s.`));
+            }, GPU_QUEUE_SYNC_TIMEOUT_MS);
+        });
+
+        try {
+            await Promise.race([
+                this._device.queue.onSubmittedWorkDone(),
+                timeout,
+            ]);
+        } finally {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+            }
+        }
+    }
+
     async _readImages() {
         const bytesPerPixelRow = this._tileWidth * 4;
         const bytesPerRow = alignTo(bytesPerPixelRow, COPY_BYTES_ALIGNMENT);
@@ -618,7 +662,7 @@ export class WebGPUDirectArrayTileBuilder extends EventEmitter {
         this.removeAllListeners();
     }
 
-    processFrame(data) {
+    async processFrame(data) {
         const {
             videoFrame,
             frameNumber,
@@ -630,6 +674,14 @@ export class WebGPUDirectArrayTileBuilder extends EventEmitter {
             this._uploadSourceFrame(videoFrame);
             this._dispatchFrame(drawLocation, frameNumber);
             this._updatePreview(videoFrame, drawLocation, frameNumber);
+
+            // Keep the browser GPU queue bounded. Without periodic waits, a
+            // long video can submit hundreds of copy/compute operations before
+            // the first queue completion is observed, which can look like a
+            // decoder hang when the GPU is under pressure.
+            if (frameNumber % GPU_QUEUE_SYNC_INTERVAL === 0) {
+                await this._waitForQueue(`frame ${frameNumber}`);
+            }
         } finally {
             videoFrame.close?.();
         }

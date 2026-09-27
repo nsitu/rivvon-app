@@ -906,7 +906,7 @@ const processVideo = async (settings) => {
             app.setStatus(`Tile ${item.tileNumber + 1}`, `Decoding frame ${frameIndex}/${frameCount}${formatProgressFps(app.fps)}`);
             updateProcessingStatus();
 
-            builder.processFrame({
+            await builder.processFrame({
                 videoFrame: item.videoFrame,
                 frameNumber: item.frameNumber
             });
