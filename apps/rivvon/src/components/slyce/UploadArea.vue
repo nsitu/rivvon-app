@@ -28,12 +28,12 @@
     }
 
     // Add a method to handle the file selection
-    const handleFileChange = () => {
+    const handleFileChange = async () => {
         const files = fileInput.value.files;
         if (files && files.length > 0) {
             const nextFile = files[0];
 
-            if (app.beginFileWorkflowWithFile(nextFile)) {
+            if (await app.beginFileWorkflowWithFile(nextFile)) {
                 emit('request-next');
             }
         }

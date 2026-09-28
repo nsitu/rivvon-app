@@ -39,11 +39,6 @@
             return;
         }
 
-        if (app.skipNextFileMetadataExtraction) {
-            app.set('skipNextFileMetadataExtraction', false);
-            return;
-        }
-
         getMetaData();
     }, { immediate: true })
 

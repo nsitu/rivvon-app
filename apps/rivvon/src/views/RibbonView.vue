@@ -285,7 +285,7 @@ const activeToolbarOverlayTitle = computed(() => {
         textureVideoInputRef.value?.click();
     }
 
-    function openCreateTextureFileMode(options = {}) {
+    async function openCreateTextureFileMode(options = {}) {
         const {
             directBrowse = false,
             file = null,
@@ -302,7 +302,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         if (file) {
             activeToolbarOverlay.value = null;
-            slyce.beginFileWorkflowWithFile(file);
+            await slyce.beginFileWorkflowWithFile(file);
         }
 
         app.showTextureCreator();
@@ -1967,7 +1967,7 @@ const activeToolbarOverlayTitle = computed(() => {
         fileInputRef.value?.click();
     }
 
-    function handleTextureVideoImport(event) {
+    async function handleTextureVideoImport(event) {
         const file = event.target.files?.[0];
         event.target.value = '';
 
@@ -1975,7 +1975,7 @@ const activeToolbarOverlayTitle = computed(() => {
             return;
         }
 
-        openCreateTextureFileMode({ file });
+        await openCreateTextureFileMode({ file });
     }
 
     async function handleFileImport(event) {

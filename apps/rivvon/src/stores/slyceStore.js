@@ -6,6 +6,7 @@ import { abortProcessing } from '../modules/slyce/videoProcessingControl.js';
 import { createLocalSaveState, createObjectLocalSaveController } from '../modules/slyce/localSaveController.js';
 import { createPublishState, createObjectPublishController } from '../modules/slyce/publishController.js';
 import { getDefaultTileBuilderBackend } from '../modules/slyce/encodingPolicy.js';
+import { getVideoProcessingFile } from '../modules/slyce/videoPreview.js';
 
 const DEFAULT_TILE_BUILDER_BACKEND = getDefaultTileBuilderBackend();
 
@@ -28,8 +29,6 @@ export const useSlyceStore = defineStore('slyce', {
         tileBuilderBackend: DEFAULT_TILE_BUILDER_BACKEND,
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
-        // Used when processing replaces an MTS source with its remuxed MP4.
-        skipNextFileMetadataExtraction: false,
         fileInfo: null,
         textureName: '',
         textureDescription: '',
@@ -158,15 +157,29 @@ export const useSlyceStore = defineStore('slyce', {
         cancelLocalSave() {
             return this.getLocalSaveController().cancelLocalSave();
         },
-        beginFileWorkflowWithFile(file) {
+        async beginFileWorkflowWithFile(file) {
             if (!file) {
                 return false;
             }
 
             this.resetForNewFileSelection();
-            this.file = file;
-            this.fileURL = URL.createObjectURL(file);
-            this.textureName = file.name?.replace(/\.[^.]+$/, '') || 'texture';
+
+            let normalizedFile;
+            try {
+                this.setStatus('Video Setup', 'Preparing video source...');
+                normalizedFile = await getVideoProcessingFile(file);
+            } catch (error) {
+                console.error('[Slyce] Failed to prepare video source:', error);
+                this.setStatus('Video Setup', `Error: ${error?.message || 'Unable to prepare video source.'}`);
+                return false;
+            }
+
+            // From this point onward every consumer—metadata extraction,
+            // preview, tile planning, and processing—sees the same decoder-
+            // friendly source. For MTS this is the remuxed MP4.
+            this.file = normalizedFile;
+            this.fileURL = URL.createObjectURL(normalizedFile);
+            this.textureName = normalizedFile.name?.replace(/\.[^.]+$/, '') || 'texture';
             this.textureDescription = '';
             this.currentStep = '2';
             return true;
@@ -183,7 +196,6 @@ export const useSlyceStore = defineStore('slyce', {
 
             this.file = null;
             this.fileURL = null;
-            this.skipNextFileMetadataExtraction = false;
             this.fileInfo = null;
             this.frameCount = 0;
             this.frameStart = 1;
@@ -277,7 +289,6 @@ export const useSlyceStore = defineStore('slyce', {
             this.textureDescription = '';
             this.file = null;
             this.fileURL = null;
-            this.skipNextFileMetadataExtraction = false;
             this.samplePixelCount = 0;
             this.messages = [];
             this.status = {};

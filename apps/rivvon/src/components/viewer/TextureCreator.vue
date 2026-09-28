@@ -463,14 +463,14 @@
         e.stopPropagation();
     }
 
-    function handleDrop(e) {
+    async function handleDrop(e) {
         e.preventDefault();
         e.stopPropagation();
         const file = e.dataTransfer?.files[0];
         if (isVideoFile(file)) {
             selectedSource.value = 'file';
             cameraStep.value = '1';
-            slyce.beginFileWorkflowWithFile(file);
+            await slyce.beginFileWorkflowWithFile(file);
         }
     }
 
