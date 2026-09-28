@@ -49,6 +49,11 @@ export default defineConfig(({ mode }) => {
     const shouldCopyRuntimeAssets = env.VITE_ASSET_MODE === 'local' || !env.VITE_ASSET_BASE_URL;
     const staticCopyTargets = [
         {
+            // Ship the adapted shader source and its LGPL attribution/license.
+            src: normalizePath(resolve(__dirname, 'src/modules/slyce/deinterlace/{bwdif.wgsl,COPYING.LGPLv2.1,NOTICE.md}')),
+            dest: 'licenses/bwdif',
+        },
+        {
             src: TASKS_VISION_WASM_SOURCE,
             dest: TASKS_VISION_WASM_DEST,
         },

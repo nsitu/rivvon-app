@@ -544,6 +544,7 @@ const processVideo = async (settings) => {
         frameStart,
         frameEnd,
         frameInterpolationFactor: requestedInterpolationFactor,
+        signal: abortSignal,
         onSeekProgress(currentFrame) {
             const progressText = currentFrame && currentFrame !== frameStart
                 ? `Seeking to frame ${frameStart} (decoder at frame ${currentFrame})`
@@ -1093,6 +1094,10 @@ const processVideo = async (settings) => {
             return false;
         }
         });
+        if (!abortSignal.aborted && frameNumber < lastTileEnd) {
+            throw new Error(`Video decoding ended after ${frameNumber} of ${lastTileEnd} required frames. The remaining tiles could not be generated.`);
+        }
+        app.set('readerIsFinished', true);
     } catch (error) {
         if (error?.name === 'AbortError' || abortSignal.aborted) {
             return false;

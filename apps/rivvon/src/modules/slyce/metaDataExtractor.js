@@ -1,5 +1,6 @@
 import { useSlyceStore } from '../../stores/slyceStore';
 import { Input, ALL_FORMATS, BlobSource } from 'mediabunny';
+import { getInterlacedSource } from './videoPreview.js';
 
 const getMetaData = async () => {
 
@@ -9,11 +10,12 @@ const getMetaData = async () => {
     app.set('frameCount', 0)
     app.set('fileInfo', null)
 
+    let input;
     try {
         app.setStatus('Video Setup', 'Loading video file...');
 
         // Create mediabunny input from file blob
-        const input = new Input({
+        input = new Input({
             formats: ALL_FORMATS,
             source: new BlobSource(app.file),
         });
@@ -32,25 +34,27 @@ const getMetaData = async () => {
         const stats = await videoTrack.computePacketStats();
         const codecString = await videoTrack.getCodecParameterString();
         const duration = await videoTrack.computeDuration(); // Get actual duration from track
+        const profile = getInterlacedSource(app.file)?.profile;
 
         console.log('videoTrack', videoTrack);
         console.log('decoderConfig', config);
         console.log('packetStats', stats);
         console.log('duration', duration);
 
-        app.set('frameCount', stats.packetCount);
+        app.set('frameCount', profile?.frameCount ?? stats.packetCount);
         app.set('fileInfo', {
             name: app.file.name,
             // Use coded dimensions (before rotation) for video processing
-            width: videoTrack.codedWidth,
-            height: videoTrack.codedHeight,
+            width: profile?.width ?? videoTrack.codedWidth,
+            height: profile?.height ?? videoTrack.codedHeight,
             // mediabunny reports rotation as clockwise degrees
             // web-demuxer reported counter-clockwise, so negate for compatibility
             rotation: -videoTrack.rotation,
             codec_string: codecString,
-            duration: duration,
-            r_frame_rate: `${Math.round(stats.averagePacketRate)}/1`, // Convert to fraction format
-            nb_frames: stats.packetCount,
+            duration: profile?.duration ?? duration,
+            r_frame_rate: profile ? '60000/1001' : `${Math.round(stats.averagePacketRate)}/1`,
+            nb_frames: profile?.frameCount ?? stats.packetCount,
+            deinterlacing: profile ? 'BWDIF (WebGPU)' : null,
             bit_rate: stats.averageBitrate
         });
         app.set('config', config);
@@ -61,6 +65,8 @@ const getMetaData = async () => {
     } catch (error) {
         console.error('Failed to get file meta data:', error);
         app.setStatus('Video Setup', `Error: ${error.message}`);
+    } finally {
+        input?.dispose();
     }
 }
 

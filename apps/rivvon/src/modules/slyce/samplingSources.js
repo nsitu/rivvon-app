@@ -1,7 +1,7 @@
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
 import { RealtimeCamera } from './realtimeCamera.js';
 import { createLazyLoader } from '../shared/lazyLoader.js';
-import { getVideoProcessingFile } from './videoPreview.js';
+import { getVideoProcessingFile, getInterlacedSource } from './videoPreview.js';
 import { isTransportStreamFile } from './videoFile.js';
 
 const loadRifeInterpolator = createLazyLoader(async () => {
@@ -106,6 +106,7 @@ export class VideoFileFrameSource {
         this.onRangeStart = options.onRangeStart ?? null;
         this.onInterpolationStatus = options.onInterpolationStatus ?? null;
         this.onPreparationStatus = options.onPreparationStatus ?? null;
+        this.signal = options.signal ?? null;
     }
 
     async *frames() {
@@ -133,11 +134,20 @@ export class VideoFileFrameSource {
             source: new BlobSource(processingFile),
         });
 
+        try {
+            yield* this._framesFromInput(input, processingFile, needsTransportStreamPreparation);
+        } finally {
+            input.dispose();
+        }
+    }
+
+    async *_framesFromInput(input, processingFile, needsTransportStreamPreparation) {
+        const interlaced = getInterlacedSource(processingFile);
         const videoTrack = await input.getPrimaryVideoTrack();
         const sink = new VideoSampleSink(videoTrack);
         let samplingFileInfo = this.fileInfo;
 
-        if (needsTransportStreamPreparation) {
+        if (needsTransportStreamPreparation && !interlaced) {
             // AVCHD transport streams commonly carry a non-zero PTS start
             // offset. Remuxing normalizes that timeline in the MP4, so using
             // the original MTS duration here can make frame-range timestamps
@@ -165,8 +175,15 @@ export class VideoFileFrameSource {
             });
         }
 
+        if (interlaced) samplingFileInfo = {
+            ...samplingFileInfo, width: interlaced.profile.width, height: interlaced.profile.height,
+            duration: interlaced.profile.duration, nb_frames: interlaced.profile.frameCount,
+        };
+
         const sampleRange = getSampleRangeTimestamps(samplingFileInfo, this.frameStart, this.frameEnd);
-        const sampleIterator = sampleRange
+        const sampleIterator = interlaced
+            ? (await import('./deinterlace/sonyVideoSamples.js')).sonyVideoSamples(interlaced, this.frameStart, this.frameEnd, this.signal)
+            : sampleRange
             ? sink.samples(sampleRange.startTimestamp, sampleRange.endTimestamp)
             : sink.samples();
 
@@ -218,6 +235,10 @@ export class VideoFileFrameSource {
 
         try {
             for await (const videoSample of sampleIterator) {
+                if (this.signal?.aborted) {
+                    videoSample.close();
+                    throw new DOMException('Video processing aborted.', 'AbortError');
+                }
                 absoluteFrameNumber++;
 
                 if (!sampleRange) {
@@ -242,6 +263,7 @@ export class VideoFileFrameSource {
                 const videoFrame = videoSample.toVideoFrame();
                 let processedFrame = videoFrame;
                 let effectiveFileInfo = samplingFileInfo;
+                let handedOff = false;
 
                 try {
                     if (this.tilePlan.isCropping) {
@@ -313,6 +335,7 @@ export class VideoFileFrameSource {
 
                     if (pendingFrame === null) {
                         pendingFrame = currentFrame;
+                        handedOff = true;
                         continue;
                     }
 
@@ -381,12 +404,17 @@ export class VideoFileFrameSource {
                     }
 
                     pendingFrame = currentFrame;
+                    handedOff = true;
                 } catch (error) {
                     if (processedFrame?.close) {
                         processedFrame.close();
                     }
                     videoSample.close();
                     throw error;
+                } finally {
+                    // A consumer can return while the preceding frame is being
+                    // yielded, before this newly decoded frame is handed over.
+                    if (!handedOff) processedFrame?.close();
                 }
             }
 
@@ -407,6 +435,8 @@ export class VideoFileFrameSource {
                 } else if (pendingFrame.videoFrame?.close) {
                     pendingFrame.videoFrame.close();
                 }
+            } else {
+                pendingFrame?.videoFrame?.close();
             }
 
             reportInterpolationStatus(null);
