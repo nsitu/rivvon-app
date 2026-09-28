@@ -135,7 +135,37 @@ export class VideoFileFrameSource {
 
         const videoTrack = await input.getPrimaryVideoTrack();
         const sink = new VideoSampleSink(videoTrack);
-        const sampleRange = getSampleRangeTimestamps(this.fileInfo, this.frameStart, this.frameEnd);
+        let samplingFileInfo = this.fileInfo;
+
+        if (needsTransportStreamPreparation) {
+            // AVCHD transport streams commonly carry a non-zero PTS start
+            // offset. Remuxing normalizes that timeline in the MP4, so using
+            // the original MTS duration here can make frame-range timestamps
+            // drift away from the actual decoder timeline.
+            const [processingDuration, processingStats] = await Promise.all([
+                videoTrack.computeDuration(),
+                videoTrack.computePacketStats(),
+            ]);
+            const processingFrameCount = Number(processingStats?.packetCount);
+
+            samplingFileInfo = {
+                ...this.fileInfo,
+                duration: Number.isFinite(processingDuration) && processingDuration > 0
+                    ? processingDuration
+                    : this.fileInfo?.duration,
+                nb_frames: Number.isFinite(processingFrameCount) && processingFrameCount > 0
+                    ? processingFrameCount
+                    : this.fileInfo?.nb_frames,
+            };
+
+            console.info('[VideoFileFrameSource] Using remuxed MP4 timing:', {
+                source: this.file?.name || 'transport stream',
+                duration: samplingFileInfo.duration,
+                frameCount: samplingFileInfo.nb_frames,
+            });
+        }
+
+        const sampleRange = getSampleRangeTimestamps(samplingFileInfo, this.frameStart, this.frameEnd);
         const sampleIterator = sampleRange
             ? sink.samples(sampleRange.startTimestamp, sampleRange.endTimestamp)
             : sink.samples();
@@ -211,7 +241,7 @@ export class VideoFileFrameSource {
 
                 const videoFrame = videoSample.toVideoFrame();
                 let processedFrame = videoFrame;
-                let effectiveFileInfo = this.fileInfo;
+                let effectiveFileInfo = samplingFileInfo;
 
                 try {
                     if (this.tilePlan.isCropping) {
@@ -233,7 +263,7 @@ export class VideoFileFrameSource {
                             timestamp: videoFrame.timestamp
                         });
                         effectiveFileInfo = {
-                            ...this.fileInfo,
+                            ...samplingFileInfo,
                             width: this.tilePlan.cropWidth,
                             height: this.tilePlan.cropHeight
                         };

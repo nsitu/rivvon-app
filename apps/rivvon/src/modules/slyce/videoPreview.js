@@ -59,7 +59,25 @@ async function createTransportStreamMp4(file) {
             throw new Error('The MP4 preview remux produced no output.');
         }
 
-        return new Blob([target.buffer], { type: 'video/mp4' });
+        const sourceName = typeof file.name === 'string' && file.name.trim()
+            ? file.name.trim()
+            : 'video.mts';
+        const outputName = sourceName.replace(/\.(?:mts|m2ts)$/i, '') + '.mp4';
+        const outputBlob = new Blob([target.buffer], { type: 'video/mp4' });
+
+        // Keep the remuxed source identifiable as a video file. In particular,
+        // do not hand the rest of the workflow an anonymous Blob after the
+        // original MTS is replaced in the store.
+        if (typeof File === 'function') {
+            return new File([outputBlob], outputName, {
+                type: 'video/mp4',
+                lastModified: typeof file.lastModified === 'number'
+                    ? file.lastModified
+                    : Date.now(),
+            });
+        }
+
+        return outputBlob;
     } finally {
         input.dispose();
     }
