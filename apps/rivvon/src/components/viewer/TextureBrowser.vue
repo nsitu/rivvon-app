@@ -3348,11 +3348,14 @@
     }
 
     .action-button {
+        /* Reserve the text-button border in every state so icons do not shift. */
+        border: 1px solid transparent;
         opacity: 0;
         pointer-events: none;
     }
 
-    .texture-card:hover .action-button {
+    .texture-card:hover .action-button,
+    .texture-card:focus-within .action-button {
         opacity: 1;
         pointer-events: auto;
     }
@@ -3364,56 +3367,6 @@
             opacity: 1;
             pointer-events: auto;
         }
-    }
-
-    .action-button.copy-button {
-        background: rgba(59, 130, 246, 0.9);
-    }
-
-    .action-button.copy-button:hover {
-        background: #3b82f6;
-        transform: scale(1.1);
-    }
-
-    .action-button.delete-button {
-        background: rgba(220, 38, 38, 0.9);
-    }
-
-    .action-button.delete-button:hover {
-        background: #dc2626;
-        transform: scale(1.1);
-    }
-
-    .action-button.edit-button {
-        background: rgba(34, 197, 94, 0.9);
-    }
-
-    .action-button.edit-button:hover {
-        background: #22c55e;
-        transform: scale(1.1);
-    }
-
-    .action-button.derive-button {
-        background: rgba(245, 158, 11, 0.9);
-    }
-
-    .action-button.derive-button:hover {
-        background: #f59e0b;
-        transform: scale(1.1);
-    }
-
-    .action-button.delete-button:hover {
-        background: #dc2626;
-        transform: scale(1.1);
-    }
-
-    .action-button.evict-button {
-        background: rgba(234, 179, 8, 0.9);
-    }
-
-    .action-button.evict-button:hover {
-        background: #eab308;
-        transform: scale(1.1);
     }
 
     /* Teleported copy menu */
@@ -3795,24 +3748,6 @@
     .slide-up-leave-to {
         transform: translateY(100%);
         opacity: 0;
-    }
-
-    /* Preview button */
-    .preview-button {
-        color: #64b5f6;
-    }
-
-    .preview-button:hover {
-        color: #90caf9;
-    }
-
-    .action-button.overview-button {
-        background: rgba(14, 165, 233, 0.9);
-    }
-
-    .action-button.overview-button:hover {
-        background: #0ea5e9;
-        transform: scale(1.1);
     }
 
     /* Animated preview fullscreen overlay */

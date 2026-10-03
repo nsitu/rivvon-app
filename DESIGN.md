@@ -87,6 +87,8 @@ On narrow screens the bottom toolbar uses equal-width slots with compact horizon
 
 Other purposes should use the existing shared primitives rather than another button wrapper. Migrate remaining native standard actions to PrimeVue when touching them; retain native controls only for documented specialized behavior. `PanelActionBar` and `rivvon-modal-actions` arrange actions; they do not decide an action's purpose or severity. Completion actions inside shell chrome still use workflow styling (for example, finish capture uses `severity="success"`).
 
+Texture-card icon actions use the same PrimeVue text-button treatment. Their icons, accessible names, and tooltips communicate purpose; do not assign per-action background colors or foreground palettes. The Delete launcher opens a confirmation dialog, where the destructive confirmation retains `severity="danger"`.
+
 Keep border width and padding constant across rest, hover, pressed, selected, disabled, and focus states. For a borderless styled PrimeVue button, reserve a transparent border of the theme's width or explicitly cover its state selectors; removing only the rest-state border allows theme hover rules to change the box. Prefer a shared purpose surface over local specificity fixes.
 
 - Use PrimeVue controls for standard form interactions.
