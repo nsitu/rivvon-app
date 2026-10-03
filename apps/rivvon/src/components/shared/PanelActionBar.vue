@@ -1,5 +1,10 @@
 <script setup>
     const props = defineProps({
+        appearance: {
+            type: String,
+            default: 'standard',
+            validator: (value) => ['standard', 'chrome'].includes(value),
+        },
         placement: {
             type: String,
             default: 'bottom',
@@ -15,7 +20,7 @@
 <template>
     <div
         class="panel-action-bar"
-        :class="`panel-action-bar-${props.placement}`"
+        :class="[`panel-action-bar-${props.placement}`, `panel-action-bar-${props.appearance}`]"
         role="toolbar"
         :aria-label="props.ariaLabel"
     >
@@ -71,7 +76,7 @@
         gap: var(--panel-action-bar-gap);
     }
 
-    .panel-action-bar-actions :deep(.p-button) {
+    .panel-action-bar-standard .panel-action-bar-actions :deep(.p-button) {
         min-height: var(--rivvon-button-height, 2.75rem);
         min-width: var(--panel-action-bar-button-min-width);
     }
@@ -81,8 +86,43 @@
         line-height: 1;
     }
 
+    /* Higher-order viewer actions share the shell surface; dialogs keep standard. */
+    .panel-action-bar-chrome {
+        --panel-action-bar-background: var(--rivvon-chrome-bar-background);
+        --panel-action-bar-border-color: var(--rivvon-chrome-bar-border-color);
+        --panel-action-bar-gap: 0;
+        --rivvon-chrome-button-padding: var(--rivvon-chrome-action-padding);
+        padding: 0;
+    }
+
+    .panel-action-bar-chrome .panel-action-bar-leading {
+        padding: var(--rivvon-chrome-action-padding);
+    }
+
+    .panel-action-bar-chrome .panel-action-bar-actions {
+        align-items: stretch;
+        gap: 0;
+    }
+
+    .panel-action-bar-chrome .panel-action-bar-actions :deep(.rivvon-chrome-button) {
+        flex: 1 1 var(--rivvon-chrome-action-min-width);
+        min-width: min(100%, var(--rivvon-chrome-action-min-width));
+        min-height: var(--rivvon-chrome-action-height);
+        flex-direction: row;
+        gap: var(--rivvon-chrome-action-gap);
+        font-size: 0.875rem;
+        line-height: 1.25;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .panel-action-bar-chrome .panel-action-bar-actions :deep(.rivvon-chrome-button.active) {
+        color: var(--p-primary-color, #10b981);
+        box-shadow: inset 0 -2px var(--p-primary-color, #10b981);
+    }
+
     @media (max-width: 767px) {
-        .panel-action-bar-actions :deep(.p-button) {
+        .panel-action-bar-standard .panel-action-bar-actions :deep(.p-button) {
             flex: 1 1 var(--panel-action-bar-mobile-basis);
         }
     }

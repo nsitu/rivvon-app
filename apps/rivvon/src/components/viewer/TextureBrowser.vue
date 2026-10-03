@@ -13,6 +13,7 @@
     import Button from 'primevue/button';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import PanelActionBar from '../shared/PanelActionBar.vue';
+    import ChromeButton from '../shared/ChromeButton.vue';
     import MultiSelect from 'primevue/multiselect';
     import ScrollPanel from 'primevue/scrollpanel';
     const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
@@ -2066,53 +2067,60 @@
 
             <PanelActionBar
                 placement="top"
+                appearance="chrome"
                 aria-label="Texture browser collections"
                 class="texture-browser-header-actions"
             >
-                <div class="texture-browser-tabs">
-                    <button
-                        :class="['tab-button', 'rivvon-segmented-button', 'multi-select-toggle', { active: multiSelectMode }]"
-                        @click="toggleMultiSelectMode"
-                        :title="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
-                    >
-                        <span
-                            class="material-symbols-outlined"
-                            style="font-size: 18px;"
-                        >checklist</span>
-                    </button>
-                    <button
-                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'all' }]"
-                        @click="activeTab = 'all'"
-                    >
-                        All
-                    </button>
-                    <button
-                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'local' }]"
-                        @click="activeTab = 'local'"
-                    >
-                        Drafts
-                    </button>
-                    <button
-                        v-if="isAuthenticated"
-                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'my-cloud' }]"
-                        @click="activeTab = 'my-cloud'"
-                    >
-                        My Published
-                    </button>
-                    <button
-                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'public' }]"
-                        @click="activeTab = 'public'"
-                    >
-                        Published
-                    </button>
-                    <button
-                        v-if="cachedCloudIds.size > 0"
-                        :class="['tab-button', 'rivvon-segmented-button', { active: activeTab === 'cached' }]"
-                        @click="activeTab = 'cached'"
-                    >
-                        Cloud Cache
-                    </button>
-                </div>
+                <ChromeButton
+                    :active="multiSelectMode"
+                    @click="toggleMultiSelectMode"
+                    :title="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
+                    :aria-label="multiSelectMode ? 'Exit multi-select' : 'Select multiple textures'"
+                    :aria-pressed="multiSelectMode"
+                >
+                    <span
+                        class="material-symbols-outlined"
+                        aria-hidden="true"
+                    >checklist</span>
+                    <span>Select</span>
+                </ChromeButton>
+                <ChromeButton
+                    :active="activeTab === 'all'"
+                    :aria-pressed="activeTab === 'all'"
+                    @click="activeTab = 'all'"
+                >
+                    All
+                </ChromeButton>
+                <ChromeButton
+                    :active="activeTab === 'local'"
+                    :aria-pressed="activeTab === 'local'"
+                    @click="activeTab = 'local'"
+                >
+                    Drafts
+                </ChromeButton>
+                <ChromeButton
+                    v-if="isAuthenticated"
+                    :active="activeTab === 'my-cloud'"
+                    :aria-pressed="activeTab === 'my-cloud'"
+                    @click="activeTab = 'my-cloud'"
+                >
+                    My Published
+                </ChromeButton>
+                <ChromeButton
+                    :active="activeTab === 'public'"
+                    :aria-pressed="activeTab === 'public'"
+                    @click="activeTab = 'public'"
+                >
+                    Published
+                </ChromeButton>
+                <ChromeButton
+                    v-if="cachedCloudIds.size > 0"
+                    :active="activeTab === 'cached'"
+                    :aria-pressed="activeTab === 'cached'"
+                    @click="activeTab = 'cached'"
+                >
+                    Cloud Cache
+                </ChromeButton>
             </PanelActionBar>
 
             <!-- Normal browser content -->
@@ -2939,7 +2947,13 @@
     /* Desktop: side-by-side columns */
     @media (min-width: 768px) {
         .texture-browser-container.has-preview {
-            flex-direction: row;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-rows: auto minmax(0, 1fr);
+        }
+
+        .texture-browser-container.has-preview > .texture-browser-header-actions {
+            grid-column: 1 / -1;
         }
 
         .texture-browser-container.has-preview .rivvon-scroll-panel {
@@ -2956,24 +2970,6 @@
     .texture-browser-content {
         padding: 20px;
         width: 100%;
-    }
-
-    .texture-browser-header-actions {
-        padding-inline: 1rem;
-    }
-
-    .texture-browser-header-actions :deep(.panel-action-bar-actions) {
-        justify-content: flex-start;
-    }
-
-    .texture-browser-tabs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-
-    .tab-button {
-        font-size: 14px;
     }
 
     .texture-browser-loading,
@@ -3648,19 +3644,6 @@
     }
 
     /* Multi-select mode */
-    .multi-select-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px 10px !important;
-    }
-
-    .multi-select-toggle.active {
-        color: #60a5fa !important;
-        border-color: #60a5fa !important;
-        background: rgba(96, 165, 250, 0.1) !important;
-    }
-
     .multi-select-checkbox {
         position: absolute;
         top: 8px;

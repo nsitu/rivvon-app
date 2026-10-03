@@ -20,6 +20,12 @@
     --rivvon-chrome-button-opacity: 0.92;
     --rivvon-chrome-button-hover-background: rgba(0, 0, 0, 0.25);
     --rivvon-chrome-button-pressed-background: rgba(0, 0, 0, 0.35);
+    --rivvon-chrome-bar-background: rgba(0, 0, 0, 0.5);
+    --rivvon-chrome-bar-border-color: var(--p-content-border-color, rgba(255, 255, 255, 0.1));
+    --rivvon-chrome-action-height: 3.25rem;
+    --rivvon-chrome-action-min-width: 8rem;
+    --rivvon-chrome-action-padding: 0.875rem 1rem;
+    --rivvon-chrome-action-gap: 0.5rem;
     --rivvon-segmented-active-color: var(--p-primary-color, #10b981);
     --rivvon-segmented-active-background: color-mix(in srgb, var(--rivvon-segmented-active-color) 14%, transparent);
 }

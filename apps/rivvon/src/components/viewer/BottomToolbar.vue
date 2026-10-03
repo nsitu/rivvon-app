@@ -1442,15 +1442,16 @@ const activeLauncherTitle = computed(() => {
             <!-- Apply changes footer -->
             <PanelActionBar
                 v-if="showToolsPanelCheckmark"
+                appearance="chrome"
                 class="tools-panel-footer"
             >
-                <Button
+                <ChromeButton
                     type="button"
                     @click="handleToolsPanelCheckmark"
                 >
-                    <span class="material-symbols-outlined">check</span>
+                    <span class="material-symbols-outlined" aria-hidden="true">check</span>
                     <span>Done</span>
-                </Button>
+                </ChromeButton>
             </PanelActionBar>
         </div>
     </div>
@@ -1754,12 +1755,6 @@ const activeLauncherTitle = computed(() => {
         min-height: 0;
         width: 100%;
         background: transparent;
-    }
-
-    .tools-panel-footer {
-        --panel-action-bar-background: var(--viewer-toolbar-panel-background);
-        --panel-action-bar-border-color: #374151;
-        --panel-action-bar-padding: 1rem 1.25rem;
     }
 
     .tools-panel-content {

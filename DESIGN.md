@@ -54,6 +54,11 @@ The application header has one global navigation contract: it presents the curre
 
 Use a `PanelActionBar` for deliberate in-panel actions:
 
+- Use `appearance="chrome"` with direct `ChromeButton` children for higher-order viewer navigation and context actions, such as the texture collection bar and Tools Done bar. The shared surface uses rectangular buttons that fill equal-width slots, with icons and labels inline. Top and bottom placement share the same background, density, and interaction states; only the separator edge changes. Slots wrap into additional horizontal rows on narrow screens instead of overflowing.
+- The default `appearance="standard"` retains PrimeVue styling for dialogs and ordinary task/workflow panels. Keep severity and variant on those PrimeVue buttons. Do not style all action-bar descendants globally to make a viewer bar look like chrome.
+
+Chrome action bars use `ChromeButton active` plus the appropriate ARIA state for selected collections/toggles. Selection uses the theme's primary foreground and an inset underline without changing the button's dimensions. In a desktop browser with a side preview, the collection bar spans both columns above the scroll regions; on mobile, the established preview replacement hides that collection bar.
+
 - Use `placement="top"` for an upper action surface that navigates to a parent screen or exposes persistent context actions.
 - Use the default bottom placement for step actions, completion actions, and panel-level Apply/Done/Close controls.
 - A parent-navigation action should name its destination, such as `Back to Audio Library` or `Back to Textures`.
@@ -73,6 +78,7 @@ Choose a button's purpose before choosing its visual treatment. Purpose determin
 | Purpose | Implementation | Style ownership |
 | --- | --- | --- |
 | Viewer shell navigation/display (launch Create/Browse/Tools/Share, close a context, fullscreen) | `components/shared/ChromeButton.vue` | `rivvon-chrome-button` in `buttonPrimitives.css`; neutral square surface, shared hover/pressed/active/focus/disabled states |
+| Higher-order viewer action bar | `PanelActionBar appearance="chrome"` with direct `ChromeButton` children | Shared chrome surface and states; bar owns equal-width slots, inline icon/label layout, density, and wrapping |
 | Task/workflow action (Apply, Done, Save, Cancel, finish capture) | PrimeVue `Button`, optionally `rivvon-workflow-button` and its compact/large modifiers | PrimeVue owns severity, variant, borders, and interaction colors; shared class owns density |
 | Compact item/media action | PrimeVue `Button` with `rivvon-icon-action` and an accessible label | Shared size/layout; PrimeVue severity/variant and deliberate context treatment own colors |
 | Tool-panel option | PrimeVue `Button` with `rivvon-tool-option` | Shared full-width tool surface and states |
@@ -85,7 +91,7 @@ Shell components own placement, height, responsive sizing, and icon/label compos
 
 On narrow screens the bottom toolbar uses equal-width slots with compact horizontal padding, including the conditional finish-capture action. Preserve at least `--rivvon-button-min-target-size` (44px) for each target instead of allowing desktop padding to overflow the screen.
 
-Other purposes should use the existing shared primitives rather than another button wrapper. Migrate remaining native standard actions to PrimeVue when touching them; retain native controls only for documented specialized behavior. `PanelActionBar` and `rivvon-modal-actions` arrange actions; they do not decide an action's purpose or severity. Completion actions inside shell chrome still use workflow styling (for example, finish capture uses `severity="success"`).
+Other purposes should use the existing shared primitives rather than another button wrapper. Migrate remaining native standard actions to PrimeVue when touching them; retain native controls only for documented specialized behavior. Declare higher-order viewer action bars with `appearance="chrome"`; standard action bars and `rivvon-modal-actions` arrange ordinary actions without deciding severity. Finish capture retains workflow styling (`severity="success"`) because it creates content rather than dismissing a context.
 
 Texture-card icon actions use the same PrimeVue text-button treatment. Their icons, accessible names, and tooltips communicate purpose; do not assign per-action background colors or foreground palettes. The Delete launcher opens a confirmation dialog, where the destructive confirmation retains `severity="danger"`.
 
