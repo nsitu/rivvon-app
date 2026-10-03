@@ -54,7 +54,7 @@ The application header has one global navigation contract: it presents the curre
 
 Use a `PanelActionBar` for deliberate in-panel actions:
 
-- Use `appearance="chrome"` with direct `ChromeButton` children for higher-order viewer navigation and context actions, such as the texture collection bar and Tools Done bar. The shared surface uses rectangular buttons that fill equal-width slots, with icons and labels inline. Top and bottom placement share the same background, density, and interaction states; only the separator edge changes. Slots wrap into additional horizontal rows on narrow screens instead of overflowing.
+- Use `appearance="chrome"` with direct `ChromeButton` children for higher-order viewer navigation and context actions, such as the texture and video collection bars and Tools Done bar. The shared surface uses rectangular buttons that fill equal-width slots, with icons and labels inline. Top and bottom placement share the same background, density, and interaction states; only the separator edge changes. Slots wrap into additional horizontal rows on narrow screens instead of overflowing.
 - The default `appearance="standard"` retains PrimeVue styling for dialogs and ordinary task/workflow panels. Keep severity and variant on those PrimeVue buttons. Do not style all action-bar descendants globally to make a viewer bar look like chrome.
 
 Chrome action bars use `ChromeButton active` plus the appropriate ARIA state for selected collections/toggles. Selection uses the theme's primary foreground and an inset underline without changing the button's dimensions. In a desktop browser with a side preview, the collection bar spans both columns above the scroll regions; on mobile, the established preview replacement hides that collection bar.

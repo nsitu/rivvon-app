@@ -4,6 +4,7 @@
     import Button from 'primevue/button';
     import ScrollPanel from 'primevue/scrollpanel';
     import PanelActionBar from '../components/shared/PanelActionBar.vue';
+    import ChromeButton from '../components/shared/ChromeButton.vue';
     import InputText from 'primevue/inputtext';
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -288,35 +289,37 @@
         <div class="video-gallery-content viewer-chrome-panel-container">
             <PanelActionBar
                 placement="top"
+                appearance="chrome"
                 aria-label="Video gallery controls"
                 class="gallery-controls"
             >
-                <nav class="gallery-tabs" aria-label="Video collections">
-                    <button class="rivvon-segmented-button" :class="{ active: activeTab === 'public' }" type="button" role="tab" :aria-selected="activeTab === 'public'" @click="activeTab = 'public'">Public</button>
-                    <button class="rivvon-segmented-button" :class="{ active: activeTab === 'mine' }" type="button" role="tab" :aria-selected="activeTab === 'mine'" @click="activeTab = 'mine'">My Videos</button>
-                </nav>
-                <div v-if="canUpload || !isAuthenticated" class="gallery-upload-action">
-                    <span
-                        v-if="!isAuthenticated"
-                        id="gallery-upload-login-notice"
-                        class="gallery-upload-login-notice"
-                        role="status"
-                    >
-                        Login required to upload videos.
-                    </span>
-                    <Button
-                        type="button"
-                        class="gallery-upload-button"
-                        :disabled="!canUpload"
-                        :title="!canUpload ? 'Login required to upload videos' : undefined"
-                        :aria-describedby="!canUpload ? 'gallery-upload-login-notice' : undefined"
-                        @click="openUploadDialog"
-                    >
-                        <span class="material-symbols-outlined">upload_file</span>
-                        Upload video
-                    </Button>
-                </div>
+                <ChromeButton
+                    :active="activeTab === 'public'"
+                    :aria-pressed="activeTab === 'public'"
+                    @click="activeTab = 'public'"
+                >Public</ChromeButton>
+                <ChromeButton
+                    :active="activeTab === 'mine'"
+                    :aria-pressed="activeTab === 'mine'"
+                    @click="activeTab = 'mine'"
+                >My Videos</ChromeButton>
+                <ChromeButton
+                    v-if="canUpload || !isAuthenticated"
+                    :disabled="!canUpload"
+                    :title="!canUpload ? 'Login required to upload videos' : undefined"
+                    :aria-describedby="!canUpload ? 'gallery-upload-login-notice' : undefined"
+                    @click="openUploadDialog"
+                >
+                    <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+                    <span>Upload video</span>
+                </ChromeButton>
             </PanelActionBar>
+            <p
+                v-if="!isAuthenticated"
+                id="gallery-upload-login-notice"
+                class="gallery-upload-login-notice"
+                role="status"
+            >Login required to upload videos.</p>
 
             <ScrollPanel class="rivvon-scroll-panel video-gallery-scroll">
 
@@ -531,14 +534,7 @@
     .video-gallery-content { display: flex; flex: 1; min-height: 0; flex-direction: column; width: 100%; }
     .video-gallery-scroll { flex: 1; min-height: 0; width: 100%; }
     .video-gallery-scroll :deep(.p-scrollpanel-content) { padding: 20px 20px var(--viewer-bottom-chrome-height); }
-    .gallery-controls { padding-inline: 20px; }
-    .gallery-controls :deep(.panel-action-bar-actions) { justify-content: space-between; align-items: flex-start; }
-    .gallery-upload-action { display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap; }
-    .gallery-upload-login-notice { color: #929292; font-size: .8rem; }
-    .gallery-upload-button { flex-shrink: 0; white-space: nowrap; }
-    .gallery-upload-button .material-symbols-outlined { font-size: 1.1rem; }
-    .gallery-tabs { display: flex; flex-wrap: wrap; gap: .55rem; }
-    .gallery-tabs .rivvon-segmented-button { flex: 0 1 auto; }
+    .gallery-upload-login-notice { flex-shrink: 0; margin: 0; padding: .5rem 1rem; color: var(--rivvon-button-muted-color); font-size: .8rem; }
     .video-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 20px; }
     .video-card { overflow: hidden; border: 2px solid transparent; border-radius: 0; background: #252525; box-shadow: none; transition: all .2s ease; }
     .video-card:hover { border-color: #4caf50; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, .3); }
@@ -616,9 +612,6 @@
     .gallery-upload-actions { display: flex; justify-content: flex-end; gap: .65rem; }
 
     @media (max-width: 600px) {
-        .gallery-controls :deep(.panel-action-bar-actions) { align-items: stretch; flex-direction: column; }
-        .gallery-upload-action { align-items: stretch; flex-direction: column; }
-        .gallery-upload-button { width: 100%; }
         .gallery-selected-file { flex-wrap: wrap; }
         .gallery-selected-file-meta { width: 100%; margin-left: 1.6rem; }
     }
