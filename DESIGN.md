@@ -66,6 +66,29 @@ For a new panel, decide explicitly whether it is a self-contained context (heade
 
 ## Controls and interaction
 
+### Button purpose and styling
+
+Choose a button's purpose before choosing its visual treatment. Purpose determines the shared surface; PrimeVue `severity` expresses emphasis or danger, and `variant` expresses filled, outlined, text, or link treatment. A component's location or use of a native `<button>` must not implicitly decide these.
+
+| Purpose | Implementation | Style ownership |
+| --- | --- | --- |
+| Viewer shell navigation/display (launch Create/Browse/Tools/Share, close a context, fullscreen) | `components/shared/ChromeButton.vue` | `rivvon-chrome-button` in `buttonPrimitives.css`; neutral square surface, shared hover/pressed/active/focus/disabled states |
+| Task/workflow action (Apply, Done, Save, Cancel, finish capture) | PrimeVue `Button`, optionally `rivvon-workflow-button` and its compact/large modifiers | PrimeVue owns severity, variant, borders, and interaction colors; shared class owns density |
+| Compact item/media action | PrimeVue `Button` with `rivvon-icon-action` and an accessible label | Shared size/layout; PrimeVue severity/variant and deliberate context treatment own colors |
+| Tool-panel option | PrimeVue `Button` with `rivvon-tool-option` | Shared full-width tool surface and states |
+| Mutually exclusive mode/collection selector | PrimeVue `ToggleButton`/`SelectButton` when appropriate; existing tab patterns use `rivvon-segmented-button` | Shared segmented surface; retain the pattern's selection and keyboard semantics |
+| Text navigation | Router link/anchor for navigation, PrimeVue `Button variant="link"` for an action | Link treatment; use an accessible name describing the destination/action |
+
+`ChromeButton` intentionally uses PrimeVue's `unstyled` mode because shell chrome has a product-specific surface independent of primary-button tokens. It forwards button attributes/events (including disabled/loading), accepts content through its default slot, and takes `active` for persistent context highlighting. Callers supply accessible names and the appropriate `aria-expanded`/`aria-pressed` state; `active` alone does not imply a toggle. Icon glyphs alongside an accessible label should be `aria-hidden="true"`.
+
+Shell components own placement, height, responsive sizing, and icon/label composition. Set `--rivvon-chrome-button-padding` for context-specific padding; keep colors and interaction states in `buttonPrimitives.css`. Do not reintroduce header/toolbar hover or border rules, or descendant selectors that style every button by location.
+
+On narrow screens the bottom toolbar uses equal-width slots with compact horizontal padding, including the conditional finish-capture action. Preserve at least `--rivvon-button-min-target-size` (44px) for each target instead of allowing desktop padding to overflow the screen.
+
+Other purposes should use the existing shared primitives rather than another button wrapper. Migrate remaining native standard actions to PrimeVue when touching them; retain native controls only for documented specialized behavior. `PanelActionBar` and `rivvon-modal-actions` arrange actions; they do not decide an action's purpose or severity. Completion actions inside shell chrome still use workflow styling (for example, finish capture uses `severity="success"`).
+
+Keep border width and padding constant across rest, hover, pressed, selected, disabled, and focus states. For a borderless styled PrimeVue button, reserve a transparent border of the theme's width or explicitly cover its state selectors; removing only the rest-state border allows theme hover rules to change the box. Prefer a shared purpose surface over local specificity fixes.
+
 - Use PrimeVue controls for standard form interactions.
 - Preserve visible focus states and accessible names for icon-only actions.
 - Use tooltips only as supplemental context, not as the only accessible label.

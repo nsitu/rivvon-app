@@ -15,8 +15,53 @@
     --rivvon-button-focus-ring: 0 0 0 2px var(--p-focus-ring-color, var(--p-primary-color, #10b981));
     --rivvon-icon-action-size: 2rem;
     --rivvon-button-icon-size: 1.1rem;
+    --rivvon-button-min-target-size: 44px;
+    --rivvon-chrome-button-color: #fff;
+    --rivvon-chrome-button-opacity: 0.92;
+    --rivvon-chrome-button-hover-background: rgba(0, 0, 0, 0.25);
+    --rivvon-chrome-button-pressed-background: rgba(0, 0, 0, 0.35);
     --rivvon-segmented-active-color: var(--p-primary-color, #10b981);
     --rivvon-segmented-active-background: color-mix(in srgb, var(--rivvon-segmented-active-color) 14%, transparent);
+}
+
+/* ChromeButton owns shell navigation/display actions; callers own placement. */
+.rivvon-chrome-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: var(--rivvon-button-min-target-size);
+    min-height: var(--rivvon-button-min-target-size);
+    padding: var(--rivvon-chrome-button-padding, 2rem);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--rivvon-chrome-button-color);
+    opacity: var(--rivvon-chrome-button-opacity);
+    font: inherit;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    transition: var(--rivvon-button-transition);
+}
+
+.rivvon-chrome-button:hover:not(:disabled),
+.rivvon-chrome-button.active {
+    background: var(--rivvon-chrome-button-hover-background);
+}
+
+.rivvon-chrome-button:active:not(:disabled) {
+    background: var(--rivvon-chrome-button-pressed-background);
+}
+
+.rivvon-chrome-button:focus-visible {
+    outline: 2px solid var(--p-focus-ring-color, var(--p-primary-color, #10b981));
+    outline-offset: -2px;
+}
+
+.rivvon-chrome-button:disabled {
+    cursor: not-allowed;
+    opacity: var(--rivvon-button-disabled-opacity);
 }
 
 /* Shared compact action surface used by cards, lists, and media controls. */

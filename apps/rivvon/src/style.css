@@ -188,24 +188,6 @@ body:not(:has(.viewer-mode)) {
     opacity: 1;
 }
 
-/* Viewer-specific button styles (dark semi-transparent for overlay on 3D canvas) */
-/* Only applies to toolbar buttons, not header auth buttons, form controls, or panel buttons */
-.viewer-mode .bottom-toolbar button {
-    @apply px-4 py-3 text-lg text-white border-none cursor-pointer select-none;
-    @apply min-w-[44px] min-h-[44px] flex items-center justify-center;
-    background: transparent;
-    opacity: 0.92;
-    padding: 2rem;
-}
-
-.viewer-mode .bottom-toolbar button:hover {
-    background: rgba(0, 0, 0, 0.25);
-}
-
-.viewer-mode .bottom-toolbar button:active {
-    background: rgba(0, 0, 0, 0.35);
-}
-
 /* Renderer indicator (debug mode) */
 .renderer-indicator {
     @apply fixed top-2 left-1/2 -translate-x-1/2 z-[100];

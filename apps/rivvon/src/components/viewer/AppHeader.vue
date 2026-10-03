@@ -1,6 +1,7 @@
 <script setup>
     import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
     import Button from 'primevue/button';
+    import ChromeButton from '../shared/ChromeButton.vue';
     import { resolveViewerHeaderContext } from '../../modules/viewer/viewerHeaderContext.js';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
@@ -337,40 +338,38 @@
         </div>
 
         <div class="header-actions">
-            <Button
+            <ChromeButton
                 v-if="hasNavigationModel && showNavigationClose"
                 type="button"
-                variant="text"
                 class="header-action"
                 :aria-label="navigationCloseLabel"
                 @click="props.navigationModel?.canExit === true
                     ? emit('request-navigation-exit')
                     : emit('request-navigation-dismiss')"
             >
-                <span class="material-symbols-outlined">close</span>
-            </Button>
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </ChromeButton>
 
-            <Button
+            <ChromeButton
                 v-else-if="!hasNavigationModel && activeContext"
                 type="button"
-                variant="text"
                 class="header-action"
                 aria-label="Close panel"
                 @click="closeContext"
             >
-                <span class="material-symbols-outlined">close</span>
-            </Button>
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </ChromeButton>
 
-            <Button
+            <ChromeButton
                 v-else-if="!hasNavigationModel"
                 type="button"
-                variant="text"
                 class="header-action"
                 :aria-label="app.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+                :aria-pressed="app.isFullscreen"
                 @click="toggleFullscreen"
             >
-                <span class="material-symbols-outlined">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
-            </Button>
+                <span class="material-symbols-outlined" aria-hidden="true">{{ app.isFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+            </ChromeButton>
         </div>
     </header>
 
@@ -722,29 +721,11 @@
     }
 
     .header-action {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem 2.5rem;
-        background: transparent;
-        border: none;
-        color: var(--rivvon-button-muted-color);
-        transition: var(--rivvon-button-transition);
-        flex-shrink: 0;
-    }
-
-    .header-action:hover {
-        background: color-mix(in srgb, #000 25%, transparent);
-        color: var(--rivvon-button-text-color);
+        --rivvon-chrome-button-padding: 2rem 2.5rem;
     }
 
     .header-action .material-symbols-outlined {
         font-size: 1.5rem;
-    }
-
-    .header-action:focus-visible {
-        outline: none;
-        box-shadow: var(--rivvon-button-focus-ring);
     }
 
     /* Transition */
@@ -784,7 +765,7 @@
         }
 
         .header-action {
-            padding: 2rem 1.5rem;
+            --rivvon-chrome-button-padding: 2rem 1.5rem;
         }
 
         /* On mobile show the round logo, hide the desktop one */

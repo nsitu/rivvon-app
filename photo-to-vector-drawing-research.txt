@@ -1,0 +1,18 @@
+https://github.com/tanguymagne/SLDgen
+"Single-Line Drawing Generation via Semantics-Driven Optimization "
+
+https://studios.disneyresearch.com/2026/07/16/2d-gaussian-splatting-for-bezier-spline-line-art-vectorization/
+2D Gaussian Splatting for Bézier Spline Line Art Vectorization
+In this work, we leverage several recent advances in the field to introduce a new state-of-the-art method for line art vectorization.
+
+SmartTracer: : Interactive tracing-based stroke extraction for complex line art
+https://dl.acm.org/doi/10.1016/j.cagd.2026.102568
+
+
+General Virtual Sketching Framework for Vector Line Art
+https://mo-haoran.com/virtual_sketching/
+https://github.com/MarkMoHR/virtual_sketching
+
+
+Informative Drawings: Learning to generate line drawings that convey geometry and semantics
+https://github.com/carolineec/informative-drawings

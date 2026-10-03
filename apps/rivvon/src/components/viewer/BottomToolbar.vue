@@ -1,6 +1,7 @@
 <script setup>
     import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
+    import ChromeButton from '../shared/ChromeButton.vue';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import CinematicCameraControls from './CinematicCameraControls.vue';
     import CameraMotionControls from './CameraMotionControls.vue';
@@ -513,13 +514,14 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         return app.isDrawingMode && app.hasActiveStrokes;
     });
 
-    const finishCaptureTooltip = computed(() => {
+    const finishCaptureLabel = computed(() => {
         if (app.isWalkMode) {
-            return tip('Finish walk and create ribbon');
+            return 'Finish walk and create ribbon';
         }
 
-        return tip('Finish drawing and create ribbons');
+        return 'Finish drawing and create ribbons';
     });
+    const finishCaptureTooltip = computed(() => tip(finishCaptureLabel.value));
 
     const showToolsPanelCheckmark = computed(() => app.toolsPanelHasChanges);
 
@@ -1011,77 +1013,82 @@ const activeLauncherTitle = computed(() => {
         :class="{ hidden: app.isFullscreen || isToolbarContextActive('textureCreator') }"
     >
         <div class="toolbar-launcher">
-            <button
+            <ChromeButton
                 type="button"
                 class="toolbar-main-button"
-                :class="{ active: createGroupActive }"
+                :active="createGroupActive"
                 :aria-expanded="props.activeToolbarOverlay === 'create'"
                 aria-label="Create actions"
                 aria-haspopup="dialog"
                 @click="toggleLauncher('create')"
             >
                 <span class="toolbar-button-content">
-                    <span class="material-symbols-outlined toolbar-button-icon">add</span>
+                    <span class="material-symbols-outlined toolbar-button-icon" aria-hidden="true">add</span>
                     <span class="toolbar-button-label">Create</span>
                 </span>
-            </button>
+            </ChromeButton>
         </div>
 
 <div class="toolbar-launcher">
-            <button
+            <ChromeButton
                 type="button"
                 class="toolbar-main-button"
-                :class="{ active: browseGroupActive }"
+                :active="browseGroupActive"
                 :aria-expanded="props.activeToolbarOverlay === 'browse'"
                 aria-label="Browse actions"
                 aria-haspopup="dialog"
                 @click="toggleLauncher('browse')"
             >
                 <span class="toolbar-button-content">
-                    <span class="material-symbols-outlined toolbar-button-icon">grid_view</span>
+                    <span class="material-symbols-outlined toolbar-button-icon" aria-hidden="true">grid_view</span>
                     <span class="toolbar-button-label">Browse</span>
                 </span>
-            </button>
+            </ChromeButton>
         </div>
 
         <!-- Tools panel toggle -->
-        <button
+        <ChromeButton
             class="toolbar-utility-button"
-            :class="{ active: isToolbarContextActive('tools') }"
+            :active="isToolbarContextActive('tools')"
+            :aria-expanded="isToolbarContextActive('tools')"
+            aria-label="Tools"
+            aria-haspopup="dialog"
             @click="isToolbarContextActive('tools') ? handleBack() : openToolsOverlay()"
         >
             <span class="toolbar-button-content">
-                <span class="material-symbols-outlined toolbar-button-icon">instant_mix</span>
+                <span class="material-symbols-outlined toolbar-button-icon" aria-hidden="true">instant_mix</span>
                 <span class="toolbar-button-label">Tools</span>
             </span>
-        </button>
+        </ChromeButton>
 
         <div class="toolbar-launcher">
-            <button
+            <ChromeButton
                 type="button"
                 class="toolbar-main-button"
-                :class="{ active: props.activeToolbarOverlay === 'share' || props.exportImageVisible || props.exportVideoVisible }"
+                :active="props.activeToolbarOverlay === 'share' || props.exportImageVisible || props.exportVideoVisible"
                 :aria-expanded="props.activeToolbarOverlay === 'share'"
                 aria-label="Share actions"
                 aria-haspopup="dialog"
                 @click="toggleLauncher('share')"
             >
                 <span class="toolbar-button-content">
-                    <span class="material-symbols-outlined toolbar-button-icon">share</span>
+                    <span class="material-symbols-outlined toolbar-button-icon" aria-hidden="true">share</span>
                     <span class="toolbar-button-label">Share</span>
                 </span>
-            </button>
+            </ChromeButton>
         </div>
 
         <!-- Finish capture button (draw or walk mode) -->
-        <button
+        <Button
             v-if="showFinishCaptureButton"
-            class="toolbar-utility-button finish-drawing-btn"
+            severity="success"
+            class="toolbar-utility-button finish-drawing-btn rivvon-workflow-button"
             v-tooltip.top="finishCaptureTooltip"
+            :aria-label="finishCaptureLabel"
             @click="handleFinishCapture"
         >
-            <span class="material-symbols-outlined">check</span>
-        </button>
+            <span class="material-symbols-outlined" aria-hidden="true">check</span>
+        </Button>
     </div>
 
     <div
@@ -1487,34 +1494,19 @@ const activeLauncherTitle = computed(() => {
     }
 
     .toolbar-main-button,
-    .toolbar-utility-button,
-    .finish-drawing-btn {
-        box-sizing: border-box;
+    .toolbar-utility-button {
         height: 100%;
-        padding: 0 1rem;
-        font-size: 1.1em;
-        color: #fff;
-        border: none;
-        cursor: pointer;
-        opacity: 0.92;
-        min-width: 44px;
-        min-height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: transparent;
         pointer-events: auto;
     }
 
-    .toolbar-main-button:hover,
-    .toolbar-utility-button:hover {
-        background: rgba(0, 0, 0, 0.25);
+    .finish-drawing-btn {
+        min-width: var(--rivvon-button-min-target-size);
+        padding: 2rem;
+        border-radius: 0;
     }
 
-    .toolbar-main-button.active,
-    .toolbar-utility-button.active {
-        background: rgba(0, 0, 0, 0.25);
-
+    .finish-drawing-btn .material-symbols-outlined {
+        font-size: 1.5rem;
     }
 
     .launcher-panel {
@@ -1709,13 +1701,15 @@ const activeLauncherTitle = computed(() => {
     /* Mobile: buttons expand to fill available space */
     @media (max-width: 768px) {
 
-        .toolbar-launcher,
-        .toolbar-utility-button,
-        .finish-drawing-btn {
-            flex-grow: 1;
+        .bottom-toolbar {
+            --rivvon-chrome-button-padding: 0 0.5rem;
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(var(--rivvon-button-min-target-size), 1fr);
         }
 
         .toolbar-launcher {
+            min-width: 0;
             justify-content: center;
         }
 
@@ -1723,19 +1717,13 @@ const activeLauncherTitle = computed(() => {
             width: 100%;
         }
 
+        .finish-drawing-btn {
+            padding: 0 0.5rem;
+        }
+
         .video-drop-section {
             display: none;
         }
-    }
-
-    .finish-drawing-btn {
-        background: rgba(34, 197, 94, 1) !important;
-        color: #ffffff !important;
-        box-shadow: none !important;
-    }
-
-    .finish-drawing-btn:hover {
-        background: rgba(34, 197, 94, 0.8) !important;
     }
 
     /* ─── Tools panel (full-screen overlay) ─────────────────────── */
