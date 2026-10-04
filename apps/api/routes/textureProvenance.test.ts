@@ -23,7 +23,7 @@ function environment() {
 describe('private texture source provenance', () => {
     it.each([null, { ...user, id: 'someone-else', googleId: 'other-google' }])('does not expose source IDs or capture metadata to public or other users', async (viewer) => {
         const { env } = environment();
-        const headers = viewer ? { Cookie: `session=${await createSessionToken(viewer, env.SESSION_SECRET)}` } : {};
+        const headers: Record<string, string> = viewer ? { Cookie: `session=${await createSessionToken(viewer, env.SESSION_SECRET)}` } : {};
         const response = await textureRoutes.request('/root', { headers }, env);
         const data = await response.json() as any;
         expect(data.source_provenance).toBeUndefined();

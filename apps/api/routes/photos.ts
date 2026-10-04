@@ -10,9 +10,11 @@ export const PHOTOS_SCOPE = 'https://www.googleapis.com/auth/photospicker.mediai
 export const MAX_PHOTOS_VIDEO_BYTES = 2048 * 1024 * 1024;
 const PICKER_API = 'https://photospicker.googleapis.com/v1';
 const COOKIE_PATH = '/api/auth';
-type Flow = { state: string; attempt: string; userId: string; googleId: string; expiresAt: number };
+type Flow = { state: string; attempt: string; userId: string; googleId: string; expiresAt: number; continueToPicker?: boolean };
 type Grant = { accessToken: string; attempt: string; userId: string; googleId: string; expiresAt: number };
 type Outcome = { attempt: string; userId: string; error: string; expiresAt: number };
+type PickerSession = { id: string; pickerUri: string; expireTime?: string; pollingConfig?: { pollInterval?: string; timeoutIn?: string }; mediaItemsSet: boolean };
+type PendingPicker = { attempt: string; userId: string; googleId: string; session: PickerSession; expiresAt: number };
 
 function setCookie(c: Context<AppEnv>, name: string, value: string, maxAge: number, sameSite?: 'Lax') {
     c.header('Set-Cookie', buildCookieString(name, value, {
@@ -72,6 +74,23 @@ export async function finishPhotosAuthorization(c: Context<AppEnv>) {
         const cookie = await sealPhotosCookie(grant, c.env.SESSION_SECRET, 'photos-grant');
         if (cookie.length > 3800) throw new Error('Google Photos returned credentials that cannot be stored.');
         setCookie(c, 'photos_grant', cookie, lifetime);
+        if (flow.continueToPicker) {
+            error = 'Google Photos connected, but the picker could not open. Please try again.';
+            const session = await createPickerSession(tokens.access_token);
+            try {
+                const pending: PendingPicker = { attempt: flow.attempt, userId: user.id, googleId: user.googleId,
+                    session, expiresAt: Date.now() + 600000 };
+                const sealed = await sealPhotosCookie(pending, c.env.SESSION_SECRET, 'photos-picker');
+                if (sealed.length > 3800) throw new Error('Picker session is too large.');
+                setCookie(c, 'photos_picker', sealed, 600);
+            } catch (failure) {
+                await pickerRequest(tokens.access_token, `/sessions/${encodeURIComponent(session.id)}`, 'DELETE').catch(() => {});
+                throw failure;
+            }
+            setCookie(c, 'photos_outcome', '', 0);
+            c.header('Cache-Control', 'private, no-store');
+            return c.redirect(`${session.pickerUri.replace(/\/$/, '')}/autoclose`);
+        }
         setCookie(c, 'photos_outcome', '', 0);
         return finishPage(c, true);
     } catch (e) {
@@ -111,9 +130,11 @@ photosRoutes.get('/connect', async (c) => {
     const attempt = c.req.query('attempt') || '';
     if (!/^[a-f0-9-]{36}$/i.test(attempt)) return c.json({ error: 'Invalid authorization attempt.' }, 400);
     const user = (await sessionUser(c))!;
-    const flow: Flow = { state: crypto.randomUUID(), attempt, userId: user.id, googleId: user.googleId, expiresAt: Date.now() + 600000 };
+    const flow: Flow = { state: crypto.randomUUID(), attempt, userId: user.id, googleId: user.googleId,
+        expiresAt: Date.now() + 600000, continueToPicker: c.req.query('picker') === '1' };
     setCookie(c, 'photos_flow', await sealPhotosCookie(flow, c.env.SESSION_SECRET, 'photos-flow'), 600, 'Lax');
     setCookie(c, 'photos_outcome', '', 0);
+    setCookie(c, 'photos_picker', '', 0);
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.search = new URLSearchParams({ client_id: c.env.GOOGLE_CLIENT_ID, redirect_uri: `${c.env.API_URL}/api/auth/callback`,
         response_type: 'code', scope: `openid email profile ${PHOTOS_SCOPE}`, include_granted_scopes: 'true',
@@ -126,7 +147,10 @@ photosRoutes.get('/authorization', async (c) => {
     const grant = await grantFor(c, user);
     const attempt = c.req.query('attempt');
     const outcome = await openPhotosCookie<Outcome>(getCookie(c, 'photos_outcome'), c.env.SESSION_SECRET, 'photos-outcome');
+    const pending = attempt ? await openPhotosCookie<PendingPicker>(getCookie(c, 'photos_picker'), c.env.SESSION_SECRET, 'photos-picker') : null;
     return c.json({ connected: !!grant && (!attempt || grant.attempt === attempt),
+        pickerSession: grant && pending && grant.attempt === attempt && pending.attempt === attempt
+            && pending.userId === user.id && pending.googleId === user.googleId ? pending.session : null,
         error: outcome?.userId === user.id && outcome.attempt === attempt ? outcome.error : null });
 });
 
@@ -149,10 +173,22 @@ async function pickerRequest(token: string, path: string, method = 'GET', body?:
 async function token(c: Context<AppEnv>) { return (await grantFor(c, (await sessionUser(c))!))!.accessToken; }
 function sessionPath(c: Context<AppEnv>) { return `/sessions/${encodeURIComponent(c.req.param('sessionId'))}`; }
 
-photosRoutes.post('/sessions', async (c) => c.json(await pickerRequest(await token(c), '/sessions', 'POST', { pickingConfig: { maxItemCount: '1' } })));
+async function createPickerSession(accessToken: string): Promise<PickerSession> {
+    const result = await pickerRequest(accessToken, '/sessions', 'POST', { pickingConfig: { maxItemCount: '1' } });
+    const uri = new URL(result.pickerUri);
+    if (uri.protocol !== 'https:' || uri.hostname !== 'photos.google.com' || uri.username || uri.password || uri.port
+        || typeof result.id !== 'string' || !result.id || result.id.length > 512) throw new PhotosError('Google Photos returned an invalid selection session.');
+    return { id: result.id, pickerUri: result.pickerUri, mediaItemsSet: result.mediaItemsSet === true,
+        ...(typeof result.expireTime === 'string' ? { expireTime: result.expireTime } : {}),
+        ...(result.pollingConfig ? { pollingConfig: { pollInterval: result.pollingConfig.pollInterval, timeoutIn: result.pollingConfig.timeoutIn } } : {}) };
+}
+
+photosRoutes.post('/sessions', async (c) => c.json(await createPickerSession(await token(c))));
 photosRoutes.get('/sessions/:sessionId', async (c) => c.json(await pickerRequest(await token(c), sessionPath(c))));
 photosRoutes.delete('/sessions/:sessionId', async (c) => {
     await pickerRequest(await token(c), sessionPath(c), 'DELETE');
+    const pending = await openPhotosCookie<PendingPicker>(getCookie(c, 'photos_picker'), c.env.SESSION_SECRET, 'photos-picker');
+    if (pending?.session.id === c.req.param('sessionId') && pending.userId === c.get('auth').userId) setCookie(c, 'photos_picker', '', 0);
     return c.json({ success: true });
 });
 

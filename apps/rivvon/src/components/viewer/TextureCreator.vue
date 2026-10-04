@@ -30,6 +30,10 @@
         launchSource: {
             type: String,
             default: null
+        },
+        photosLaunch: {
+            type: Object,
+            default: null,
         }
     });
 
@@ -38,6 +42,7 @@
         'request-apply-texture',
         'request-apply-realtime-texture',
         'navigation-state-change',
+        'photos-launch-consumed',
     ]);
 
     const slyce = useSlyceStore();
@@ -632,6 +637,8 @@
                                 <UploadArea
                                     v-if="selectingPhotos || !slyce.file"
                                     :photos-only="selectingPhotos"
+                                    :photos-launch="props.photosLaunch"
+                                    @photos-launch-consumed="emit('photos-launch-consumed')"
                                     :can-resume-file-flow="hasExistingFileFlow"
                                     @request-resume-file-flow="selectFileMode"
                                     @request-next="handleFileSelected"

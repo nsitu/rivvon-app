@@ -26,6 +26,7 @@ import InputNumber from 'primevue/inputnumber';
     import { useSlyceStore } from '../../stores/slyceStore';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth';
     import { isVideoFile } from '../../modules/slyce/videoFile.js';
+    import { openGooglePhotosWindow } from '../../services/googlePhotos.js';
     import { useRouter } from 'vue-router';
 
     const app = useViewerStore();
@@ -897,6 +898,7 @@ const activeLauncherTitle = computed(() => {
                     icon: 'photo_library',
                     command: () => activateContext(() => emit('request-open-texture-file', {
                         source: 'google-photos',
+                        photosLaunch: { popup: openGooglePhotosWindow() },
                     }))
                 }] : []),
             ]

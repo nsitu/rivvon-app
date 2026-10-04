@@ -2,6 +2,15 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 const PHOTOS_URL = `${API_URL}/api/auth/photos`;
 export const MAX_PHOTOS_VIDEO_BYTES = 2048 * 1024 * 1024;
 
+// Called synchronously from a click, before any request can lose user activation.
+export function openGooglePhotosWindow(url = 'about:blank') {
+    const width = Math.min(960, window.screen.availWidth);
+    const height = Math.min(800, window.screen.availHeight);
+    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+    return window.open(url, '_blank', `popup=yes,width=${width},height=${height},left=${left},top=${top}`);
+}
+
 function checkAbort(signal) { signal?.throwIfAborted(); }
 
 function delay(milliseconds, signal) {
@@ -78,35 +87,45 @@ export async function importGooglePhotosVideo({ signal, popup, onStatus, onProgr
     let sessionId = null;
     const navigate = (url, label) => {
         checkAbort(signal);
+        // Completion depends on API polling rather than window.opener. Show a
+        // continuation link only when the browser blocked or closed the window.
+        try {
+            if (popup && !popup.closed) {
+                popup.location.href = url;
+                onExternalLink?.(null);
+                return;
+            }
+        } catch { /* use the link */ }
         onExternalLink?.({ url, label });
-        // COOP can sever the popup handle. The visible link remains available,
-        // and completion depends on API polling rather than window.opener.
-        try { if (popup && !popup.closed) popup.location.href = url; } catch { /* use the link */ }
     };
     try {
+        let session = null;
         onStatus?.('Checking Google Photos permission…');
         const authorization = await (await request('/authorization', { signal })).json();
         if (!authorization.connected) {
             const attempt = crypto.randomUUID();
-            navigate(`${PHOTOS_URL}/connect?attempt=${attempt}`, 'Continue with Google');
+            navigate(`${PHOTOS_URL}/connect?attempt=${attempt}&picker=1`, 'Continue with Google');
             onStatus?.('Grant access to selected videos in the Google window.');
             const deadline = Date.now() + 10 * 60 * 1000;
             while (true) {
                 await delay(1500, signal);
                 const result = await (await request(`/authorization?attempt=${attempt}`, { signal })).json();
                 if (result.error) throw new Error(result.error);
-                if (result.connected) break;
+                // Older API deployments finish consent without staging a
+                // picker. Keep the link fallback working during rollout.
+                if (result.connected) { session = result.pickerSession || null; break; }
                 if (Date.now() >= deadline) throw new Error('Google authorization timed out. Please try again.');
             }
-            // The authorization window may have been isolated by COOP. A fresh
-            // user click on the link can open the picker without popup blocking.
-            popup = null;
+            // The callback redirects this same Google window to the picker,
+            // even when COOP has severed Rivvon's handle to it.
+            onExternalLink?.(null);
         }
-        let session = await (await request('/sessions', { method: 'POST', signal })).json();
+        const alreadyOpened = !!session;
+        session ||= await (await request('/sessions', { method: 'POST', signal })).json();
         sessionId = session.id;
         const pickerUrl = new URL(session.pickerUri);
         if (pickerUrl.protocol !== 'https:' || pickerUrl.hostname !== 'photos.google.com') throw new Error('Google Photos returned an invalid picker address.');
-        navigate(`${session.pickerUri.replace(/\/$/, '')}/autoclose`, 'Open Google Photos');
+        if (!alreadyOpened) navigate(`${session.pickerUri.replace(/\/$/, '')}/autoclose`, 'Open Google Photos');
         onStatus?.('Search Google Photos and select one video, then finish your selection.');
         const expiry = Date.parse(session.expireTime);
         let deadline = Math.min(Number.isFinite(expiry) ? expiry : Infinity,

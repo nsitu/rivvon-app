@@ -1,17 +1,21 @@
 <script setup>
-    import { ref, onBeforeUnmount, watch } from 'vue';
+    import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
     import Card from 'primevue/card';
     import ProgressBar from 'primevue/progressbar';
     import Message from 'primevue/message';
     import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
-    import { importGooglePhotosVideo } from '../../services/googlePhotos.js';
+    import { importGooglePhotosVideo, openGooglePhotosWindow } from '../../services/googlePhotos.js';
 
     import { useSlyceStore } from '../../stores/slyceStore';
     import { VIDEO_FILE_ACCEPT } from '../../modules/slyce/videoFile.js';
     const app = useSlyceStore()  // Pinia store
 
     const props = defineProps({
+        photosLaunch: {
+            type: Object,
+            default: null,
+        },
         photosOnly: {
             type: Boolean,
             default: false,
@@ -22,7 +26,7 @@
         }
     });
 
-    const emit = defineEmits(['request-next', 'request-resume-file-flow']);
+    const emit = defineEmits(['request-next', 'request-resume-file-flow', 'photos-launch-consumed']);
 
     const fileInput = ref(null);
     const { isAuthenticated } = useGoogleAuth();
@@ -39,9 +43,19 @@
     }
     onBeforeUnmount(cancelPhotosImport);
     watch(isAuthenticated, (signedIn) => { if (!signedIn) cancelPhotosImport(); });
+    onMounted(() => {
+        if (props.photosLaunch) {
+            const popup = props.photosLaunch.popup;
+            emit('photos-launch-consumed');
+            importFromPhotos(popup);
+        }
+    });
 
-    async function importFromPhotos() {
-        if (importingPhotos.value || !isAuthenticated.value) return;
+    async function importFromPhotos(popup) {
+        if (importingPhotos.value || !isAuthenticated.value) {
+            try { popup?.close(); } catch { /* isolated window */ }
+            return;
+        }
         importingPhotos.value = true;
         photosError.value = '';
         photosProgress.value = null;
@@ -49,7 +63,7 @@
         importController = controller;
         // Open while the click still has browser user activation. A visible
         // fallback link supports blocked popups and COOP-isolated auth windows.
-        const popup = window.open('about:blank', '_blank');
+        if (popup === undefined) popup = openGooglePhotosWindow();
         try {
             const { file, provenance } = await importGooglePhotosVideo({
                 signal: controller.signal, popup,
@@ -68,6 +82,10 @@
             importController = null;
             importingPhotos.value = false;
         }
+    }
+
+    function continuePhotosInWindow() {
+        if (photosLink.value) openGooglePhotosWindow(photosLink.value.url);
     }
 
     function handleFileCardAction() {
@@ -138,10 +156,10 @@
                 </template>
                 <template #footer>
                     <div class="source-actions">
-                        <Button label="Import from Google Photos" :loading="importingPhotos" :disabled="importingPhotos" @click="importFromPhotos" />
+                        <Button v-if="!importingPhotos" :label="photosError ? 'Try Again' : 'Import from Google Photos'" @click="importFromPhotos()" />
                         <Button v-if="photosOnly && canResumeFileFlow" label="Continue Current Video" severity="secondary" :disabled="importingPhotos" @click="emit('request-resume-file-flow')" />
                         <Button v-if="importingPhotos" label="Cancel Import" severity="secondary" @click="cancelPhotosImport" />
-                        <Button v-if="photosLink" as="a" :href="photosLink.url" target="_blank" rel="noopener noreferrer" :label="photosLink.label" severity="secondary" />
+                        <Button v-if="photosLink" as="a" :href="photosLink.url" target="_blank" rel="noopener noreferrer" :label="photosLink.label" severity="secondary" @click.prevent="continuePhotosInWindow" />
                     </div>
                     <p v-if="photosStatus" role="status" aria-live="polite" class="source-card-detail">{{ photosStatus }}</p>
                     <ProgressBar v-if="importingPhotos" :mode="photosProgress === null ? 'indeterminate' : 'determinate'" :value="photosProgress" aria-label="Google Photos import progress" />

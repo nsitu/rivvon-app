@@ -50,6 +50,11 @@ describe('Photos import authorization and transfer', () => {
         expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ pickingConfig: { maxItemCount: '1' } });
         expect(await response.text()).not.toContain('photos-access');
     });
+    it('checks existing permission without requiring a staged picker or an attempt', async () => {
+        const response = await photosRoutes.request('/authorization', { headers: headers(cookie) }, env);
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ connected: true, pickerSession: null, error: null });
+    });
     it('returns a reauthorization error on revoked Google access', async () => {
         fetchMock.mockResolvedValue(json({}, 403));
         const response = await photosRoutes.request('/sessions/id', { headers: headers(cookie) }, env);
@@ -94,8 +99,8 @@ describe('Photos import authorization and transfer', () => {
         expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
-    async function connect() {
-        const response = await authRoutes.request(`/photos/connect?attempt=${attempt}`, { headers: headers(cookie) }, env);
+    async function connect(continueToPicker = false) {
+        const response = await authRoutes.request(`/photos/connect?attempt=${attempt}${continueToPicker ? '&picker=1' : ''}`, { headers: headers(cookie) }, env);
         const flow = cookieFrom(response, 'photos_flow')!;
         const state = new URL(response.headers.get('Location')!).searchParams.get('state')!;
         return { flow, state, response };
@@ -146,6 +151,53 @@ describe('Photos import authorization and transfer', () => {
         expect(raw).not.toContain('google_refresh_token');
         const grant = await openPhotosCookie<any>(cookieFrom(response, 'photos_grant'), env.SESSION_SECRET, 'photos-grant');
         expect(grant).toMatchObject({ accessToken: 'new-access', userId: user.id, attempt });
+    });
+
+    it('continues from consent into the picker in the same window and exposes its session to Rivvon', async () => {
+        const { flow, state } = await connect(true);
+        const picker = { id: 'picker-session', pickerUri: 'https://photos.google.com/picker/selection', mediaItemsSet: false,
+            pollingConfig: { pollInterval: '2s', timeoutIn: '600s' } };
+        fetchMock.mockResolvedValueOnce(json({ access_token: 'new-access', scope: `openid ${PHOTOS_SCOPE}`, expires_in: 3600 }))
+            .mockResolvedValueOnce(json({ sub: user.googleId })).mockResolvedValueOnce(json(picker));
+        const response = await authRoutes.request(`/callback?state=${state}&code=code`, { headers: headers(`${cookie}; photos_flow=${flow}`) }, env);
+        expect(response.status).toBe(302);
+        expect(response.headers.get('Location')).toBe(`${picker.pickerUri}/autoclose`);
+        const updatedCookies = `session=${session}; photos_grant=${cookieFrom(response, 'photos_grant')}; photos_picker=${cookieFrom(response, 'photos_picker')}`;
+        const status = await photosRoutes.request(`/authorization?attempt=${attempt}`, { headers: headers(updatedCookies) }, env);
+        expect(await status.json()).toMatchObject({ connected: true, pickerSession: picker, error: null });
+        const otherAttempt = await photosRoutes.request('/authorization?attempt=different', { headers: headers(updatedCookies) }, env);
+        expect(await otherAttempt.json()).toMatchObject({ connected: false, pickerSession: null });
+        fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+        const deleted = await photosRoutes.request('/sessions/picker-session', { method: 'DELETE', headers: headers(updatedCookies) }, env);
+        expect(deleted.headers.get('Set-Cookie')).toContain('photos_picker=; Max-Age=0');
+    });
+
+    it('does not return a staged session belonging to another account', async () => {
+        const pending = await sealPhotosCookie({ attempt, userId: 'another-owner', googleId: 'another-google-user',
+            session: { id: 'private-selection' }, expiresAt: Date.now() + 600000 }, env.SESSION_SECRET, 'photos-picker');
+        const response = await photosRoutes.request(`/authorization?attempt=${attempt}`, { headers: headers(`${cookie}; photos_picker=${pending}`) }, env);
+        expect(await response.json()).toMatchObject({ connected: true, pickerSession: null });
+    });
+
+    it('reports a picker creation failure while preserving the new Photos grant', async () => {
+        const { flow, state } = await connect(true);
+        fetchMock.mockResolvedValueOnce(json({ access_token: 'new-access', scope: `openid ${PHOTOS_SCOPE}`, expires_in: 3600 }))
+            .mockResolvedValueOnce(json({ sub: user.googleId })).mockResolvedValueOnce(json({}, 503));
+        const response = await authRoutes.request(`/callback?state=${state}&code=code`, { headers: headers(`${cookie}; photos_flow=${flow}`) }, env);
+        expect(cookieFrom(response, 'photos_grant')).toBeTruthy();
+        expect(response.headers.get('Location')).toBeNull();
+        const outcome = await openPhotosCookie<any>(cookieFrom(response, 'photos_outcome'), env.SESSION_SECRET, 'photos-outcome');
+        expect(outcome.error).toContain('picker could not open');
+    });
+
+    it('rejects a non-Google picker redirect after consent', async () => {
+        const { flow, state } = await connect(true);
+        fetchMock.mockResolvedValueOnce(json({ access_token: 'new-access', scope: `openid ${PHOTOS_SCOPE}`, expires_in: 3600 }))
+            .mockResolvedValueOnce(json({ sub: user.googleId }))
+            .mockResolvedValueOnce(json({ id: 'picker-session', pickerUri: 'https://attacker.example/picker' }));
+        const response = await authRoutes.request(`/callback?state=${state}&code=code`, { headers: headers(`${cookie}; photos_flow=${flow}`) }, env);
+        expect(response.headers.get('Location')).toBeNull();
+        expect(cookieFrom(response, 'photos_picker')).toBeUndefined();
     });
 });
 

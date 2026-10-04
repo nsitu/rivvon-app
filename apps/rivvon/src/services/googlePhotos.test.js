@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { detectVideoMime, importedVideoFilename, importGooglePhotosVideo, pollingMilliseconds, readVideoDownload } from './googlePhotos.js';
+import { detectVideoMime, importedVideoFilename, importGooglePhotosVideo, openGooglePhotosWindow, pollingMilliseconds, readVideoDownload } from './googlePhotos.js';
 
 describe('Google Photos video transfer', () => {
     it('names the actual transcode separately from the source MOV filename', () => {
@@ -42,6 +42,39 @@ describe('Google Photos import workflow', () => {
         pollingConfig: { pollInterval: '1s', timeoutIn: '30s' } };
     afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+    it('requests a centered popup synchronously from the initiating click', () => {
+        const open = vi.fn().mockReturnValue({});
+        vi.stubGlobal('window', { open, screen: { availWidth: 1920, availHeight: 1080 }, screenX: 0, screenY: 0, outerWidth: 1200, outerHeight: 1000 });
+        openGooglePhotosWindow();
+        expect(open).toHaveBeenCalledWith('about:blank', '_blank', 'popup=yes,width=960,height=800,left=120,top=100');
+    });
+
+    it('uses the callback-created session after consent without opening another window or creating another session', async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi.fn().mockResolvedValueOnce(json({ connected: false }))
+            .mockResolvedValueOnce(json({ connected: true, pickerSession: { ...selection, mediaItemsSet: true } }))
+            .mockResolvedValueOnce(json({ provenance: { originalFilename: 'video.mov' } }))
+            .mockResolvedValueOnce(new Response(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]), { headers: { 'Content-Type': 'video/mp4' } }))
+            .mockResolvedValueOnce(json({ success: true }));
+        vi.stubGlobal('fetch', fetchMock);
+        const video = { videoWidth: 1920, videoHeight: 1080, duration: 3, removeAttribute: vi.fn(), load: vi.fn(),
+            set src(value) { queueMicrotask(() => this.onloadedmetadata?.()); } };
+        vi.stubGlobal('document', { createElement: () => video });
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:video');
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+        const destinations = [];
+        const links = [];
+        // Simulate losing the opener handle when Google applies COOP.
+        const popup = { closed: false, location: { set href(value) { destinations.push(value); popup.closed = true; } }, close: vi.fn() };
+        const result = importGooglePhotosVideo({ popup, signal: new AbortController().signal, onExternalLink: value => links.push(value) });
+        await vi.advanceTimersByTimeAsync(1500);
+        expect((await result).file.name).toBe('video.mp4');
+        expect(destinations).toHaveLength(1);
+        expect(new URL(destinations[0]).searchParams.get('picker')).toBe('1');
+        expect(links.every(link => link === null)).toBe(true);
+        expect(fetchMock.mock.calls.some(([, options]) => options.method === 'POST')).toBe(false);
+    });
+
     it('polls selection, validates the download, and cleans up before returning the video', async () => {
         vi.useFakeTimers();
         const provenance = { provider: 'google-photos', originalFilename: 'original.mov', mediaItemId: 'source-id' };
@@ -82,6 +115,25 @@ describe('Google Photos import workflow', () => {
         expect(links[0].label).toBe('Continue with Google');
         expect(links.at(-1)).toBeNull();
         expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('retains a continuation fallback when the old API finishes consent without staging a picker', async () => {
+        vi.useFakeTimers();
+        const controller = new AbortController();
+        const fetchMock = vi.fn().mockResolvedValueOnce(json({ connected: false }))
+            .mockResolvedValueOnce(json({ connected: true })).mockResolvedValueOnce(json(selection))
+            .mockResolvedValueOnce(json({ success: true }));
+        vi.stubGlobal('fetch', fetchMock);
+        const popup = { closed: false, location: { set href(value) { popup.closed = true; } }, close: vi.fn() };
+        const links = [];
+        const result = expect(importGooglePhotosVideo({ popup, signal: controller.signal, onExternalLink: value => {
+            links.push(value);
+            if (value?.label === 'Open Google Photos') controller.abort();
+        } })).rejects.toMatchObject({ name: 'AbortError' });
+        await vi.advanceTimersByTimeAsync(1500);
+        await result;
+        expect(links).toContainEqual({ url: `${selection.pickerUri}/autoclose`, label: 'Open Google Photos' });
+        expect(fetchMock.mock.calls[2][1].method).toBe('POST');
     });
 
     it('deletes the picker session with a fresh signal after cancellation', async () => {

@@ -270,6 +270,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
     const returnToCreateTextureOnRealtimeClose = ref(false);
     const textureCreatorLaunchSource = ref(null);
+    const textureCreatorPhotosLaunch = shallowRef(null);
     const textureCreatorReturnOverlay = ref(null);
 
     function openCreateTextureMode() {
@@ -290,6 +291,7 @@ const activeToolbarOverlayTitle = computed(() => {
             directBrowse = false,
             file = null,
             source = 'file',
+            photosLaunch = null,
         } = options;
 
         if (directBrowse && !file) {
@@ -299,6 +301,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         returnToCreateTextureOnRealtimeClose.value = false;
         textureCreatorLaunchSource.value = source === 'google-photos' ? 'google-photos' : 'file';
+        textureCreatorPhotosLaunch.value = photosLaunch;
         textureCreatorReturnOverlay.value = 'create';
 
         if (file) {
@@ -317,6 +320,8 @@ const activeToolbarOverlayTitle = computed(() => {
 
     function closeCreateTextureMode(options = {}) {
         const { reopenToolbarOverlay = null } = options;
+        try { textureCreatorPhotosLaunch.value?.popup?.close(); } catch { /* isolated window */ }
+        textureCreatorPhotosLaunch.value = null;
         textureCreatorLaunchSource.value = null;
         textureCreatorReturnOverlay.value = null;
         textureCreatorNavigationState.value = null;
@@ -4210,6 +4215,8 @@ const activeToolbarOverlayTitle = computed(() => {
             v-if="textureCreatorVisible"
             :active="textureCreatorVisible"
             :launch-source="textureCreatorLaunchSource"
+            :photos-launch="textureCreatorPhotosLaunch"
+            @photos-launch-consumed="textureCreatorPhotosLaunch = null"
             @navigation-state-change="handleTextureCreatorNavigationStateChange"
             @request-close="closeCreateTextureMode"
             @request-apply-realtime-texture="handleRealtimeApplyFromTextureCreator"
