@@ -30,6 +30,7 @@ export const useSlyceStore = defineStore('slyce', {
         // outputMode removed — always 'rows' by convention (rotation handled at render time if needed)
         readerIsFinished: false,
         fileInfo: null,
+        sourceProvenance: null,
         textureName: '',
         textureDescription: '',
         samplePixelCount: 0, /** equals width or height depending on samplingSide */
@@ -157,7 +158,7 @@ export const useSlyceStore = defineStore('slyce', {
         cancelLocalSave() {
             return this.getLocalSaveController().cancelLocalSave();
         },
-        async beginFileWorkflowWithFile(file) {
+        async beginFileWorkflowWithFile(file, provenance = null) {
             if (!file) {
                 return false;
             }
@@ -178,6 +179,7 @@ export const useSlyceStore = defineStore('slyce', {
             // preview, tile planning, and processing—sees the same decoder-
             // friendly source. For MTS this is the remuxed MP4.
             this.file = normalizedFile;
+            this.sourceProvenance = provenance;
             this.fileURL = URL.createObjectURL(normalizedFile);
             this.textureName = normalizedFile.name?.replace(/\.[^.]+$/, '') || 'texture';
             this.textureDescription = '';
@@ -197,6 +199,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.file = null;
             this.fileURL = null;
             this.fileInfo = null;
+            this.sourceProvenance = null;
             this.frameCount = 0;
             this.frameStart = 1;
             this.frameEnd = 0;
@@ -285,6 +288,7 @@ export const useSlyceStore = defineStore('slyce', {
             this.tileBuilderBackend = DEFAULT_TILE_BUILDER_BACKEND;
             this.frameInterpolationFactor = 1;
             this.fileInfo = null;
+            this.sourceProvenance = null;
             this.textureName = '';
             this.textureDescription = '';
             this.file = null;

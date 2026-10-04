@@ -132,6 +132,18 @@
                 <AccordionContent>
                     <table class="file-info-table">
                         <tbody>
+                            <tr v-if="app.sourceProvenance">
+                                <td class="file-info-label">Source</td>
+                                <td class="file-info-value">Google Photos · high-quality transcoded copy</td>
+                            </tr>
+                            <tr v-if="app.sourceProvenance?.originalFilename">
+                                <td class="file-info-label">Original File Name</td>
+                                <td class="file-info-value file-name-value">{{ app.sourceProvenance.originalFilename }}</td>
+                            </tr>
+                            <tr v-if="app.sourceProvenance?.createTime">
+                                <td class="file-info-label">Captured</td>
+                                <td class="file-info-value">{{ new Date(app.sourceProvenance.createTime).toLocaleString() }}</td>
+                            </tr>
                             <tr>
                                 <td class="file-info-label">File Name <span class="material-symbols-outlined">
                                         video_file

@@ -65,8 +65,6 @@ export async function verifySessionToken(
         const expectedSignature = await sign(payloadB64, secret);
         if (signature !== expectedSignature) {
             console.log('Session verify: signature mismatch');
-            console.log('  received:', signature.substring(0, 20) + '...');
-            console.log('  expected:', expectedSignature.substring(0, 20) + '...');
             return null;
         }
 

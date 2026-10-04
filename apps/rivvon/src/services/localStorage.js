@@ -720,6 +720,7 @@ async function exportTextureSetAsZip(textureSetId) {
         generatedBy: 'Rivvon',
         generatedAt: new Date().toISOString(),
         video: {
+            ...(textureSet.source_metadata?.provenance ? { provenance: textureSet.source_metadata.provenance } : {}),
             name: textureSet.source_metadata?.filename,
             width: textureSet.source_metadata?.width,
             height: textureSet.source_metadata?.height,

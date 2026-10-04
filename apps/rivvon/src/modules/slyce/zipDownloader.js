@@ -18,6 +18,7 @@ export async function downloadAllAsZip(blobURLs, fileInfo, format, appStore) {
 
         // Original video metadata
         video: {
+            ...(appStore?.sourceProvenance ? { provenance: appStore.sourceProvenance } : {}),
             name: fileInfo?.name,
             size: fileInfo?.size,
             type: fileInfo?.type,

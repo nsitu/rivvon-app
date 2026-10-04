@@ -459,6 +459,7 @@
 
         return {
             ...(source.sourceMetadata || {}),
+            ...(source.sourceProvenance ? { provenance: source.sourceProvenance } : {}),
             filename: source.fileInfo?.name,
             width: source.fileInfo?.width,
             height: source.fileInfo?.height,

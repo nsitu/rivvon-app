@@ -139,6 +139,9 @@ export function clearAuthCookies(c: Context, localDev: boolean = false): void {
     // Set multiple Set-Cookie headers using Hono's append option
     c.header('Set-Cookie', clearSession);
     c.header('Set-Cookie', clearRefreshToken, { append: true });
+    for (const name of ['photos_grant', 'photos_flow', 'photos_outcome']) {
+        c.header('Set-Cookie', buildCookieString(name, '', { path: '/api/auth', maxAge: 0, isLocalDev: localDev }), { append: true });
+    }
 }
 
 /**

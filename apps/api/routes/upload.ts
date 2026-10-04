@@ -21,6 +21,7 @@ import {
   successResponse,
 } from '../utils/response';
 import { nanoid } from 'nanoid';
+import { normalizeSourceProvenance, readSourceProvenance } from '../utils/sourceProvenance';
 
 export const uploadRoutes = new Hono<AppEnv>();
 
@@ -141,6 +142,7 @@ uploadRoutes.post('/', async (c) => {
     normalizedCrossSectionType = familyRootTextureSet.cross_section_type || normalizedCrossSectionType;
     normalizedThumbnailUrl = familyRootTextureSet.thumbnail_url || null;
     normalizedSourceMetadata = {
+      provenance: readSourceProvenance(familyRootTextureSet.source_provenance),
       filename: familyRootTextureSet.source_filename || null,
       width: familyRootTextureSet.source_width ?? null,
       height: familyRootTextureSet.source_height ?? null,
@@ -170,6 +172,12 @@ uploadRoutes.post('/', async (c) => {
   }
 
   const textureSetId = nanoid();
+  let provenance;
+  try {
+    provenance = normalizeSourceProvenance(normalizedSourceMetadata?.provenance);
+  } catch {
+    return badRequestResponse('Invalid source provenance');
+  }
 
   // Insert texture set record with storage provider.
   // Derived variants point to the root/original texture set ID via parent_texture_set_id.
@@ -177,10 +185,10 @@ uploadRoutes.post('/', async (c) => {
     INSERT INTO texture_sets (
       id, owner_id, parent_texture_set_id, name, description, thumbnail_url,
       tile_resolution, tile_count, layer_count, cross_section_type,
-      source_filename, source_width, source_height, 
+      source_filename, source_width, source_height, source_provenance,
       source_duration, source_frame_count, sampled_frame_count, frame_interpolation_factor,
       storage_provider, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'uploading')
   `).bind(
     textureSetId,
     auth.userId,
@@ -195,6 +203,7 @@ uploadRoutes.post('/', async (c) => {
     normalizedSourceMetadata?.filename || null,
     normalizedSourceMetadata?.width || null,
     normalizedSourceMetadata?.height || null,
+    provenance ? JSON.stringify(provenance) : null,
     normalizedSourceMetadata?.duration || null,
     normalizedSourceMetadata?.sourceFrameCount || null,
     normalizedSourceMetadata?.sampledFrameCount || null,

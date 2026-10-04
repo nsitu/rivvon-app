@@ -79,6 +79,7 @@ function buildDefaultSourceMetadata(source, effectiveFrameCount) {
 
     return {
         filename: source.fileInfo?.name,
+        ...(source.sourceProvenance ? { provenance: source.sourceProvenance } : {}),
         width: source.fileInfo?.width,
         height: source.fileInfo?.height,
         duration: source.fileInfo?.duration,
@@ -173,6 +174,7 @@ export function buildFileTextureSaveSource(app, overrides = {}) {
     return {
         ktx2BlobURLs: app.ktx2BlobURLs,
         fileInfo: app.fileInfo,
+        sourceProvenance: app.sourceProvenance,
         textureName: app.textureName,
         description: app.textureDescription,
         framesToSample: app.framesToSample,

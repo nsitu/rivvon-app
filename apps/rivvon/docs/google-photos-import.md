@@ -1,0 +1,20 @@
+# Google Photos import
+
+Signed-in users can choose **Import from Google Photos** in Create → Video File. The first import opens Google's authorization screen. After granting permission, use **Open Google Photos**, search inside Google's picker, choose one video, and finish the selection. Rivvon downloads the video and opens the existing video settings workflow. Popup-blocked browsers can use the visible continuation links.
+
+The importer uses REST calls through `/api/auth/photos`, with no Google SDK. Search remains in Google's picker. Selected photos and videos that have not finished processing are rejected. Imports are bounded to **2048 MiB (2 GiB)** and a **five-minute transfer timeout**; downloads support byte progress without Content-Length and can be cancelled. Closing Create also cancels the import and cleans up the Picker session.
+
+Photos authorization uses the existing Web OAuth client and `/api/auth/callback`. It requests the Picker scope only in the import flow. The signed-in Google identity is checked before accepting the grant. Short-lived access tokens are encrypted using a purpose-specific AES-GCM key derived from `SESSION_SECRET`, stored in HttpOnly cookies under `/api/auth`, and never exposed to the browser's JavaScript. The Photos flow leaves Drive refresh credentials and the Rivvon login unchanged. A new authorization is needed after the Photos token expires or is revoked. Logout clears the Photos cookies. No additional Worker secret or SDK is needed.
+
+Google provides a high-quality transcode, not a guaranteed byte-identical original. Rivvon inspects the downloaded container and measures the processing file independently. Source provenance records the selected media ID, original filename, creation timestamp, reported dimensions/frame rate, available camera details, import timestamp, and download variant. Temporary URLs and credentials are never retained as source metadata. Source details are shown in Video Details, retained in local saves and texture variants, and included in user-requested ZIP exports. The ZIP viewer retains the imported metadata object.
+
+Cloud uploads store allowlisted provenance in the `source_provenance` column. Texture detail responses return it only to the signed-in owner; public/other-user responses omit it. Cloud detail reads are private and not cacheable. Deleting the texture removes its associated provenance. Importing itself does not save the source video to R2 or publish a texture.
+
+## Deployment
+
+1. Keep Google Photos Picker API enabled in the existing OAuth client project and the scope declared in Google Auth Platform → Data Access. Configure Google review/test access for the intended audience.
+2. Apply migration `011_texture_source_provenance.sql` before deploying the API. The existing main-branch deployment workflow applies pending D1 migrations automatically; for a manual deployment, use `pnpm --filter api db:migrations:apply:remote` first.
+3. Deploy the API and frontend together. Existing login, client secret, API URL and CORS configuration are reused. Development callbacks still need to be registered for the actual local API origin.
+4. Verify one real account through additional consent, picker selection, download, processing, local save/ZIP, and cloud publish/reload. Check Chrome, Safari/iOS, and Android using deployed COOP/COEP headers. The importer polls server state and does not require popup opener communication.
+
+Automated tests cover authorization denial, mismatched state/account, expired/tampered credentials, grant ownership, single-video validation, revoked access, download limits and redirects, cancellation, metadata retention on local/cloud variants, and private owner reads. Real Google account consent and provider download behavior require an authenticated deployment smoke test.

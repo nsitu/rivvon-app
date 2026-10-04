@@ -21,8 +21,10 @@ import {
 } from '../utils/response';
 import { createSessionToken, verifySessionToken, type SessionUser } from '../utils/session';
 import { isAdminUser } from '../utils/user';
+import { photosRoutes, finishPhotosAuthorization } from './photos';
 
 const authRoutes = new Hono<AppEnv>();
+authRoutes.route('/photos', photosRoutes);
 
 // OAuth scopes for Google
 const SCOPES = [
@@ -83,6 +85,7 @@ authRoutes.get('/login', async (c) => {
 
     // Store state in HTTP-only cookie for validation on callback
     setOAuthStateCookie(c, state, localDev);
+    c.header('Set-Cookie', buildCookieString('photos_flow', '', { path: '/api/auth', maxAge: 0, isLocalDev: localDev }), { append: true });
 
     // Store redirect destination in HTTP-only cookie
     // NOTE: Must use { append: true } to not overwrite the oauth_state cookie
@@ -116,6 +119,7 @@ authRoutes.get('/login', async (c) => {
  * - Redirects back to originating app (stored in oauth_redirect cookie)
  */
 authRoutes.get('/callback', async (c) => {
+    if (getCookie(c, 'photos_flow')) return finishPhotosAuthorization(c);
     // Detect local development for cookie settings
     const localDev = isLocalDev(c);
     
@@ -139,7 +143,7 @@ authRoutes.get('/callback', async (c) => {
     // Validate CSRF state
     const storedState = getCookie(c, 'oauth_state');
     if (!state || state !== storedState) {
-        console.error('CSRF state mismatch:', { received: state, expected: storedState });
+        console.error('OAuth state mismatch');
         return c.redirect(`${redirectTo}/login?error=invalid_state`);
     }
 
@@ -211,7 +215,6 @@ authRoutes.get('/callback', async (c) => {
             path: '/',
             isLocalDev: localDev,
         });
-        console.log('[callback] Session cookie:', sessionCookie.substring(0, 100) + '...');
         headers.append('Set-Cookie', sessionCookie);
 
         // Refresh token cookie (if provided)
@@ -259,7 +262,6 @@ authRoutes.get('/me', async (c) => {
     // Debug: log incoming cookies
     const cookieHeader = c.req.header('Cookie');
     console.log('[/me] Cookie header present:', !!cookieHeader);
-    console.log('[/me] Cookie header:', cookieHeader?.substring(0, 100) || 'missing');
     
     const sessionToken = getCookie(c, 'session');
     console.log('[/me] Session token present:', !!sessionToken);
@@ -291,7 +293,6 @@ authRoutes.get('/me', async (c) => {
 authRoutes.get('/drive-token', async (c) => {
     // Debug: log incoming cookies
     const cookieHeader = c.req.header('Cookie');
-    console.log('[drive-token] Cookie header:', cookieHeader ? cookieHeader.substring(0, 100) : 'missing');
     
     // Verify session first
     const sessionToken = getCookie(c, 'session');
@@ -385,7 +386,6 @@ authRoutes.post('/logout', (c) => {
     const localDev = isLocalDev(c);
     console.log('[Auth] Logout called, clearing cookies, localDev:', localDev);
     clearAuthCookies(c, localDev);
-    console.log('[Auth] Set-Cookie header:', c.res.headers.get('set-cookie') || 'N/A');
     return successResponse();
 });
 

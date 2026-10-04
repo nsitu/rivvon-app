@@ -4,6 +4,9 @@ import type { AppEnv } from '../types/hono';
 import { buildTextureFamilySummaries, decorateTextureFamilyRoot, getRootTextureId } from '../utils/textureFamilies';
 import { buildCdnUrl, buildGoogleDriveDownloadUrl } from '../utils/storagePaths';
 import { errorResponse, jsonResponse, notFoundResponse } from '../utils/response';
+import { getCookie } from '../utils/cookies';
+import { verifySessionToken } from '../utils/session';
+import { readSourceProvenance } from '../utils/sourceProvenance';
 
 export const textureRoutes = new Hono<AppEnv>();
 
@@ -109,13 +112,28 @@ textureRoutes.get('/:id', async (c) => {
         };
     });
 
+    const sessionCookie = getCookie(c, 'session');
+    const owner = sessionCookie ? await verifySessionToken(sessionCookie, c.env.SESSION_SECRET) : null;
+    const { source_provenance: privateProvenance, ...publicTextureSet } = textureSet;
+    // Private provenance must never leak through ts.* on this public endpoint.
+    const sourceMetadata = {
+        filename: textureSet.source_filename,
+        width: textureSet.source_width,
+        height: textureSet.source_height,
+        duration: textureSet.source_duration,
+        sourceFrameCount: textureSet.source_frame_count,
+        sampledFrameCount: textureSet.sampled_frame_count,
+        frameInterpolationFactor: textureSet.frame_interpolation_factor,
+        ...(owner?.id === textureSet.owner_id ? { provenance: readSourceProvenance(privateProvenance) } : {}),
+    };
     return jsonResponse({
-        ...textureSet,
+        ...publicTextureSet,
+        source_metadata: sourceMetadata,
         root_texture_id: rootTextureId,
         available_resolutions: currentFamily?.availableResolutions || [Number(textureSet.tile_resolution)].filter(Number.isFinite),
         variant_summaries: currentFamily?.variantSummaries || [],
         tiles: tileUrls,
-    });
+    }, 200, { 'Cache-Control': 'private, no-store', 'Vary': 'Cookie, Origin' });
 });
 
 // Download texture tile (proxy through worker if needed)

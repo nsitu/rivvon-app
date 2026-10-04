@@ -1,7 +1,11 @@
 <script setup>
-    import { ref } from 'vue';
+    import { ref, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
     import Card from 'primevue/card';
+    import ProgressBar from 'primevue/progressbar';
+    import Message from 'primevue/message';
+    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
+    import { importGooglePhotosVideo } from '../../services/googlePhotos.js';
 
     import { useSlyceStore } from '../../stores/slyceStore';
     import { VIDEO_FILE_ACCEPT } from '../../modules/slyce/videoFile.js';
@@ -17,6 +21,50 @@
     const emit = defineEmits(['request-next', 'request-resume-file-flow']);
 
     const fileInput = ref(null);
+    const { isAuthenticated } = useGoogleAuth();
+    const importingPhotos = ref(false);
+    const photosStatus = ref('');
+    const photosError = ref('');
+    const photosProgress = ref(null);
+    const photosLink = ref(null);
+    let importController = null;
+
+    function cancelPhotosImport() {
+        importController?.abort();
+        photosStatus.value = 'Import cancelled.';
+    }
+    onBeforeUnmount(cancelPhotosImport);
+    watch(isAuthenticated, (signedIn) => { if (!signedIn) cancelPhotosImport(); });
+
+    async function importFromPhotos() {
+        if (importingPhotos.value || !isAuthenticated.value) return;
+        importingPhotos.value = true;
+        photosError.value = '';
+        photosProgress.value = null;
+        const controller = new AbortController();
+        importController = controller;
+        // Open while the click still has browser user activation. A visible
+        // fallback link supports blocked popups and COOP-isolated auth windows.
+        const popup = window.open('about:blank', '_blank');
+        try {
+            const { file, provenance } = await importGooglePhotosVideo({
+                signal: controller.signal, popup,
+                onStatus: value => { photosStatus.value = value; },
+                onExternalLink: value => { photosLink.value = value; },
+                onProgress: ({ received, total }) => {
+                    photosProgress.value = total ? Math.min(100, Math.round(received / total * 100)) : null;
+                    photosStatus.value = `Downloading video… ${(received / (1024 * 1024)).toFixed(1)} MiB`;
+                },
+            });
+            controller.signal.throwIfAborted();
+            if (await app.beginFileWorkflowWithFile(file, provenance)) emit('request-next');
+        } catch (error) {
+            if (!controller.signal.aborted) photosError.value = error?.message || 'Unable to import this video.';
+        } finally {
+            importController = null;
+            importingPhotos.value = false;
+        }
+    }
 
     function handleFileCardAction() {
         if (props.canResumeFileFlow) {
@@ -61,6 +109,7 @@
                         <Button
                             type="button"
                             @click="handleFileCardAction"
+                            :disabled="importingPhotos"
                             :label="canResumeFileFlow ? 'Continue Video File' : 'Browse Video'"
                         />
                         <Button
@@ -69,8 +118,29 @@
                             severity="secondary"
                             @click="fileInput.click()"
                             label="Choose Different Video"
+                            :disabled="importingPhotos"
                         />
                     </div>
+                </template>
+            </Card>
+
+            <Card v-if="isAuthenticated" class="source-card">
+                <template #title><h4 class="source-card-title">Google Photos</h4></template>
+                <template #content>
+                    <span class="source-card-detail">
+                        Choose one video from Google Photos, up to 2048 MiB. Rivvon downloads a high-quality copy
+                        for processing and saves its source details with your textures. Publishing is a separate action.
+                    </span>
+                </template>
+                <template #footer>
+                    <div class="source-actions">
+                        <Button label="Import from Google Photos" :loading="importingPhotos" :disabled="importingPhotos" @click="importFromPhotos" />
+                        <Button v-if="importingPhotos" label="Cancel Import" severity="secondary" @click="cancelPhotosImport" />
+                        <Button v-if="photosLink" as="a" :href="photosLink.url" target="_blank" rel="noopener noreferrer" :label="photosLink.label" severity="secondary" />
+                    </div>
+                    <p v-if="photosStatus" role="status" aria-live="polite" class="source-card-detail">{{ photosStatus }}</p>
+                    <ProgressBar v-if="importingPhotos" :mode="photosProgress === null ? 'indeterminate' : 'determinate'" :value="photosProgress" aria-label="Google Photos import progress" />
+                    <Message v-if="photosError" severity="error" :closable="false">{{ photosError }}</Message>
                 </template>
             </Card>
 

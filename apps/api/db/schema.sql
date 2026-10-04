@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS texture_sets (
     
     -- Source video metadata
     source_filename TEXT,
+    source_provenance TEXT,               -- JSON, returned only to the owner
     source_width INTEGER,
     source_height INTEGER,
     source_duration REAL,
