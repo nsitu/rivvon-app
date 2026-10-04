@@ -72,6 +72,7 @@
     const transparencyMethodOptions = [
         { label: 'Brightness', value: 'brightness', icon: 'brightness_6' },
         { label: 'Reference Color', value: 'color', icon: 'colorize' },
+        { label: 'Saturation', value: 'saturation', icon: 'palette' },
     ];
 
     const selectedTransparencyMethodOption = computed({
@@ -118,11 +119,15 @@
     const transparencyModeLabel = computed(
         () => app.transparencyMethod === 'color'
             ? (transparencyHighlightsModel.value ? 'Inverted' : 'Match')
-            : (transparencyHighlightsModel.value ? 'Highlights' : 'Shadows')
+            : app.transparencyMethod === 'saturation'
+                ? (transparencyHighlightsModel.value ? 'High saturation' : 'Low saturation')
+                : (transparencyHighlightsModel.value ? 'Highlights' : 'Shadows')
     );
 
     const transparencyInversionLabel = computed(
-        () => app.transparencyMethod === 'color' ? 'Invert Color Match' : 'Highlights',
+        () => app.transparencyMethod === 'color'
+            ? 'Invert Color Match'
+            : app.transparencyMethod === 'saturation' ? 'Reverse' : 'Highlights',
     );
 
     const transparentShadowsThresholdRangeModel = computed({
@@ -262,7 +267,9 @@
     );
 
     const transparencyRangeLabel = computed(
-        () => app.transparencyMethod === 'color' ? 'Color Match Range' : 'Transparency Range',
+        () => app.transparencyMethod === 'color'
+            ? 'Color Match Range'
+            : app.transparencyMethod === 'saturation' ? 'Saturation Range' : 'Transparency Range',
     );
 
     const gradientBarRef = ref(null);
@@ -588,9 +595,11 @@
                     v-if="showTransparentShadowsFilter && transparentShadowsFilterModel"
                     class="tools-select-block"
                 >
-                    <label class="tools-select-label">Transparency Basis</label>
+                    <label class="tools-select-label" :for="getInputId('transparency-basis')">Transparency Basis</label>
                     <div class="tools-select-wrap">
                         <Select
+                            :labelId="getInputId('transparency-basis')"
+                            aria-label="Transparency Basis"
                             v-model="selectedTransparencyMethodOption"
                             :options="transparencyMethodOptions"
                             option-label="label"
@@ -601,7 +610,7 @@
                                     v-if="slotProps.value"
                                     class="tools-select-row"
                                 >
-                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
+                                    <span class="material-symbols-outlined tools-select-icon" aria-hidden="true">{{ slotProps.value.icon
                                         }}</span>
                                     <span>{{ slotProps.value.label }}</span>
                                 </div>
@@ -609,7 +618,7 @@
                             </template>
                             <template #option="slotProps">
                                 <div class="tools-select-row">
-                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
+                                    <span class="material-symbols-outlined tools-select-icon" aria-hidden="true">{{ slotProps.option.icon
                                         }}</span>
                                     <span>{{ slotProps.option.label }}</span>
                                 </div>
@@ -725,6 +734,7 @@
                     </div>
                     <Slider
                         v-model="transparentShadowsThresholdRangeModel"
+                        :aria-label="transparencyRangeLabel"
                         range
                         :min="0"
                         :max="100"
@@ -740,6 +750,12 @@
                         class="tools-slider-note"
                     >
                         0% means no reference-color match; 100% means an exact match.
+                    </div>
+                    <div
+                        v-else-if="app.transparencyMethod === 'saturation'"
+                        class="tools-slider-note"
+                    >
+                        0% means grayscale; 100% means fully saturated. Measured before color adjustments.
                     </div>
                 </div>
 

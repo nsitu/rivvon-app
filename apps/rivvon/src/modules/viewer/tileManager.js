@@ -305,6 +305,24 @@ function normalizeSceneSaturation(value) {
     return Math.min(2.0, Math.max(0.0, parsed));
 }
 
+// HSV saturation is measured on sampled RGB before scene color adjustments.
+// Guard the denominator so black has zero saturation without producing NaN.
+const TRANSPARENCY_SATURATION_GLSL = /* glsl */`
+                float computeTransparencySaturation(vec3 color) {
+                    float highest = max(color.r, max(color.g, color.b));
+                    float lowest = min(color.r, min(color.g, color.b));
+                    return clamp((highest - lowest) / max(highest, 0.00001), 0.0, 1.0);
+                }
+`;
+
+function createTransparencySaturationNode(threeTSL, colorNode) {
+    const { float, max, min } = threeTSL;
+    const highest = max(colorNode.r, max(colorNode.g, colorNode.b));
+    const lowest = min(colorNode.r, min(colorNode.g, colorNode.b));
+    return highest.sub(lowest).div(highest.max(float(0.00001)))
+        .max(float(0.0)).min(float(1.0));
+}
+
 const SCENE_COLOR_ADJUST_GLSL = /* glsl */`
                 vec3 applySceneColorAdjustments(vec3 color, float contrast, float saturation) {
                     float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
@@ -1528,7 +1546,7 @@ export class TileManager {
                 uNextTileIndex: { value: nextTileIndex },
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
-                uTransparentColorMode: { value: 0 },
+                uTransparencyMethod: { value: 0 },
                 uTransparentReferenceColor: { value: new THREE.Color(0xffffff) },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
@@ -1612,7 +1630,7 @@ export class TileManager {
                 uniform float uNextTileIndex;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
-                uniform int uTransparentColorMode;
+                uniform int uTransparencyMethod;
                 uniform vec3 uTransparentReferenceColor;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
@@ -1639,6 +1657,7 @@ ${PEAK_TROUGH_MASK_GLSL}
 ${PEAK_TROUGH_BLUR_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
+${TRANSPARENCY_SATURATION_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
 ${CAMERA_KEY_LIGHTING_GLSL}
 
@@ -1749,12 +1768,20 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
                     if (uTransparentShadows == 1) {
                         float alphaScale;
-                        if (uTransparentColorMode == 1) {
+                        if (uTransparencyMethod == 1) {
                             vec3 colorDelta = texColor.rgb - uTransparentReferenceColor;
                             float colorDistanceSquared = dot(colorDelta, colorDelta);
                             float colorSimilarity = 1.0 - clamp(colorDistanceSquared / 3.0, 0.0, 1.0);
                             alphaScale = clamp(
                                 (colorSimilarity - uTransparentShadowsThresholdMin)
+                                    / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
+                                0.0,
+                                1.0
+                            );
+                        } else if (uTransparencyMethod == 2) {
+                            float saturation = computeTransparencySaturation(texColor.rgb);
+                            alphaScale = clamp(
+                                (saturation - uTransparentShadowsThresholdMin)
                                     / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
                                 0.0,
                                 1.0
@@ -1813,7 +1840,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
         material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
-        material._transparentColorModeUniform = material.uniforms.uTransparentColorMode;
+        material._transparencyMethodUniform = material.uniforms.uTransparencyMethod;
         material._transparentReferenceColorUniform = material.uniforms.uTransparentReferenceColor;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
@@ -1869,7 +1896,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const peakTroughGradientEndUniform = uniform(float(PEAK_TROUGH_FADE_END));
         const transparentShadowsUniform = uniform(0);
         const transparentHighlightsUniform = uniform(0);
-        const transparentColorModeUniform = uniform(0);
+        const transparencyMethodUniform = uniform(0);
         const sceneLightingEnabledUniform = uniform(this.sceneLightingEnabled ? 1 : 0);
         const sceneLightingIntensityUniform = uniform(this.sceneLightingIntensity);
         const transparentReferenceColorUniform = uniform(new THREE.Color(0xffffff));
@@ -2028,9 +2055,14 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             .div(transparentShadowsSpan)
             .max(float(0.0))
             .min(float(1.0));
-        const transparencyFactor = transparentColorModeUniform.equal(1).select(
+        const saturationFactor = createTransparencySaturationNode(threeTSL, finalColor.rgb)
+            .sub(transparentShadowsMinUniform)
+            .div(transparentShadowsSpan)
+            .max(float(0.0))
+            .min(float(1.0));
+        const transparencyFactor = transparencyMethodUniform.equal(1).select(
             colorMatchFactor,
-            luminanceFactor,
+            transparencyMethodUniform.equal(2).select(saturationFactor, luminanceFactor),
         );
         const mappedTransparencyFactor = transparentHighlightsUniform.equal(1).select(
             float(1.0).sub(transparencyFactor),
@@ -2100,7 +2132,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
         material._transparentHighlightsUniform = transparentHighlightsUniform;
-        material._transparentColorModeUniform = transparentColorModeUniform;
+        material._transparencyMethodUniform = transparencyMethodUniform;
         material._transparentReferenceColorUniform = transparentReferenceColorUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;
@@ -2247,7 +2279,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uTileIndex: { value: tileIndex },
                 uTransparentShadows: { value: 0 },
                 uTransparentHighlights: { value: 0 },
-                uTransparentColorMode: { value: 0 },
+                uTransparencyMethod: { value: 0 },
                 uTransparentReferenceColor: { value: new THREE.Color(0xffffff) },
                 uTransparentShadowsThresholdMin: { value: TRANSPARENT_SHADOWS_LUMA_MIN },
                 uTransparentShadowsThresholdMax: { value: TRANSPARENT_SHADOWS_LUMA_MAX },
@@ -2327,7 +2359,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uniform float uTileIndex;
                 uniform int uTransparentShadows;
                 uniform int uTransparentHighlights;
-                uniform int uTransparentColorMode;
+                uniform int uTransparencyMethod;
                 uniform vec3 uTransparentReferenceColor;
                 uniform float uTransparentShadowsThresholdMin;
                 uniform float uTransparentShadowsThresholdMax;
@@ -2354,6 +2386,7 @@ ${PEAK_TROUGH_MASK_GLSL}
 ${PEAK_TROUGH_BLUR_GLSL}
 ${EDGE_NOISE_GLSL}
 ${FILMSTRIP_GLSL}
+${TRANSPARENCY_SATURATION_GLSL}
 ${SCENE_COLOR_ADJUST_GLSL}
 ${CAMERA_KEY_LIGHTING_GLSL}
 
@@ -2408,12 +2441,20 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
                     if (uTransparentShadows == 1) {
                         float alphaScale;
-                        if (uTransparentColorMode == 1) {
+                        if (uTransparencyMethod == 1) {
                             vec3 colorDelta = texColor.rgb - uTransparentReferenceColor;
                             float colorDistanceSquared = dot(colorDelta, colorDelta);
                             float colorSimilarity = 1.0 - clamp(colorDistanceSquared / 3.0, 0.0, 1.0);
                             alphaScale = clamp(
                                 (colorSimilarity - uTransparentShadowsThresholdMin)
+                                    / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
+                                0.0,
+                                1.0
+                            );
+                        } else if (uTransparencyMethod == 2) {
+                            float saturation = computeTransparencySaturation(texColor.rgb);
+                            alphaScale = clamp(
+                                (saturation - uTransparentShadowsThresholdMin)
                                     / max(uTransparentShadowsThresholdMax - uTransparentShadowsThresholdMin, 0.00001),
                                 0.0,
                                 1.0
@@ -2457,7 +2498,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = material.uniforms.uTransparentShadows;
         material._transparentHighlightsUniform = material.uniforms.uTransparentHighlights;
-        material._transparentColorModeUniform = material.uniforms.uTransparentColorMode;
+        material._transparencyMethodUniform = material.uniforms.uTransparencyMethod;
         material._transparentReferenceColorUniform = material.uniforms.uTransparentReferenceColor;
         material._transparentShadowsMinUniform = material.uniforms.uTransparentShadowsThresholdMin;
         material._transparentShadowsMaxUniform = material.uniforms.uTransparentShadowsThresholdMax;
@@ -2540,7 +2581,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const peakTroughGradientStartUniform = uniform(float(PEAK_TROUGH_FADE_START));
         const peakTroughGradientEndUniform = uniform(float(PEAK_TROUGH_FADE_END));
         const transparentHighlightsUniform = uniform(0);
-        const transparentColorModeUniform = uniform(0);
+        const transparencyMethodUniform = uniform(0);
         const sceneLightingEnabledUniform = uniform(this.sceneLightingEnabled ? 1 : 0);
         const sceneLightingIntensityUniform = uniform(this.sceneLightingIntensity);
         const transparentReferenceColorUniform = uniform(new THREE.Color(0xffffff));
@@ -2667,9 +2708,14 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             .div(transparentShadowsSpan)
             .max(float(0.0))
             .min(float(1.0));
-        const transparencyFactor = transparentColorModeUniform.equal(1).select(
+        const saturationFactor = createTransparencySaturationNode(threeTSL, finalColor.rgb)
+            .sub(transparentShadowsMinUniform)
+            .div(transparentShadowsSpan)
+            .max(float(0.0))
+            .min(float(1.0));
+        const transparencyFactor = transparencyMethodUniform.equal(1).select(
             colorMatchFactor,
-            luminanceFactor,
+            transparencyMethodUniform.equal(2).select(saturationFactor, luminanceFactor),
         );
         const mappedTransparencyFactor = transparentHighlightsUniform.equal(1).select(
             float(1.0).sub(transparencyFactor),
@@ -2735,7 +2781,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._hasCapMask = hasCapMask;
         material._transparentShadowsUniform = transparentShadowsUniform;
         material._transparentHighlightsUniform = transparentHighlightsUniform;
-        material._transparentColorModeUniform = transparentColorModeUniform;
+        material._transparencyMethodUniform = transparencyMethodUniform;
         material._transparentReferenceColorUniform = transparentReferenceColorUniform;
         material._transparentShadowsMinUniform = transparentShadowsMinUniform;
         material._transparentShadowsMaxUniform = transparentShadowsMaxUniform;

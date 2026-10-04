@@ -81,8 +81,10 @@ export function useRenderFilter(ctx) {
         return ctx.app.transparencyMode === 'highlights';
     }
 
-    function isTransparencyColorMode() {
-        return ctx.app.transparencyMethod === 'color';
+    function getTransparencyMethodId() {
+        if (ctx.app.transparencyMethod === 'color') return 1;
+        if (ctx.app.transparencyMethod === 'saturation') return 2;
+        return 0;
     }
 
     function getTransparencyReferenceColor() {
@@ -648,7 +650,7 @@ export function useRenderFilter(ctx) {
         const peakTroughGradient = getPeakTroughGradientRange();
         const useHighlights = isTransparencyHighlightsMode();
         const overlapOnlyEnabled = isOverlapOnlyTransparencyEnabled();
-        const useColorMode = isTransparencyColorMode();
+        const transparencyMethodId = getTransparencyMethodId();
         const referenceColor = getTransparencyReferenceColor();
         const { min, max } = getTransparentShadowsThresholds();
 
@@ -681,8 +683,8 @@ export function useRenderFilter(ctx) {
                 if (material._transparentHighlightsUniform) {
                     material._transparentHighlightsUniform.value = useHighlights ? 1 : 0;
                 }
-                if (material._transparentColorModeUniform) {
-                    material._transparentColorModeUniform.value = useColorMode ? 1 : 0;
+                if (material._transparencyMethodUniform) {
+                    material._transparencyMethodUniform.value = transparencyMethodId;
                 }
                 if (material._transparentReferenceColorUniform) {
                     const uniformColor = material._transparentReferenceColorUniform.value;

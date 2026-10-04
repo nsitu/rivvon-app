@@ -55,7 +55,7 @@ import {
 const VIEWER_PREFERENCES_STORAGE_KEY = "rivvon.viewer.preferences";
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
 const VIEWER_FILTER_MODES = ["none", "gradientMap"];
-const TRANSPARENCY_METHODS = ["brightness", "color"];
+const TRANSPARENCY_METHODS = ["brightness", "color", "saturation"];
 const DEFAULT_TRANSPARENCY_METHOD = "brightness";
 const TRANSPARENCY_MODES = ["shadows", "highlights"];
 const DEFAULT_TRANSPARENCY_MODE = "shadows";
