@@ -289,6 +289,7 @@ const activeToolbarOverlayTitle = computed(() => {
         const {
             directBrowse = false,
             file = null,
+            source = 'file',
         } = options;
 
         if (directBrowse && !file) {
@@ -297,7 +298,7 @@ const activeToolbarOverlayTitle = computed(() => {
         }
 
         returnToCreateTextureOnRealtimeClose.value = false;
-        textureCreatorLaunchSource.value = 'file';
+        textureCreatorLaunchSource.value = source === 'google-photos' ? 'google-photos' : 'file';
         textureCreatorReturnOverlay.value = 'create';
 
         if (file) {

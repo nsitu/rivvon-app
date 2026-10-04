@@ -1,6 +1,6 @@
 # Google Photos import
 
-Signed-in users can choose **Import from Google Photos** in Create → Video File. The first import opens Google's authorization screen. After granting permission, use **Open Google Photos**, search inside Google's picker, choose one video, and finish the selection. Rivvon downloads the video and opens the existing video settings workflow. Popup-blocked browsers can use the visible continuation links.
+Signed-in users can choose **Google Photos → Import…** in the Create menu's Texture section, then **Import from Google Photos**. The action is also available on the Video File source screen. Opening the Photos source screen preserves the current video workflow until a new video is imported; **Continue Current Video** returns to that workflow. The first import opens Google's authorization screen. After granting permission, use **Open Google Photos**, search inside Google's picker, choose one video, and finish the selection. Rivvon downloads the video and opens the existing video settings workflow. Popup-blocked browsers can use the visible continuation links.
 
 The importer uses REST calls through `/api/auth/photos`, with no Google SDK. Search remains in Google's picker. Selected photos and videos that have not finished processing are rejected. Imports are bounded to **2048 MiB (2 GiB)** and a **five-minute transfer timeout**; downloads support byte progress without Content-Length and can be cancelled. Closing Create also cancels the import and cleans up the Picker session.
 

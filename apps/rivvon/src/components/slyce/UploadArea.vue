@@ -12,6 +12,10 @@
     const app = useSlyceStore()  // Pinia store
 
     const props = defineProps({
+        photosOnly: {
+            type: Boolean,
+            default: false,
+        },
         canResumeFileFlow: {
             type: Boolean,
             default: false,
@@ -92,7 +96,7 @@
     <section class="upload-area">
 
         <div class="source-grid">
-            <Card class="source-card source-card-file">
+            <Card v-if="!photosOnly" class="source-card source-card-file">
                 <template #title>
                     <h4 class="flex items-center gap-2 source-card-header">
                         <span class="material-symbols-outlined source-icon">movie</span>
@@ -135,6 +139,7 @@
                 <template #footer>
                     <div class="source-actions">
                         <Button label="Import from Google Photos" :loading="importingPhotos" :disabled="importingPhotos" @click="importFromPhotos" />
+                        <Button v-if="photosOnly && canResumeFileFlow" label="Continue Current Video" severity="secondary" :disabled="importingPhotos" @click="emit('request-resume-file-flow')" />
                         <Button v-if="importingPhotos" label="Cancel Import" severity="secondary" @click="cancelPhotosImport" />
                         <Button v-if="photosLink" as="a" :href="photosLink.url" target="_blank" rel="noopener noreferrer" :label="photosLink.label" severity="secondary" />
                     </div>
@@ -143,6 +148,8 @@
                     <Message v-if="photosError" severity="error" :closable="false">{{ photosError }}</Message>
                 </template>
             </Card>
+
+            <Message v-if="photosOnly && !isAuthenticated" severity="info" :closable="false">Sign in to Rivvon to import from Google Photos.</Message>
 
         </div>
 

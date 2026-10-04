@@ -47,6 +47,7 @@
     // Check if processing is in progress
     const isProcessing = computed(() => Object.keys(slyce.status).length > 0);
     const selectedSource = ref(null);
+    const selectingPhotos = ref(false);
     const cameraStep = ref('1');
     const suppressRealtimeAutoStart = ref(false);
     const outputActionsRef = ref(null);
@@ -76,6 +77,7 @@
     );
 
     const fileDisplayStep = computed(() => {
+        if (selectingPhotos.value) return '2';
         if (slyce.currentStep === '1') return '2';
         if (slyce.currentStep !== '3') return slyce.currentStep;
         return isFileFinished.value ? '4' : '3';
@@ -119,6 +121,7 @@
         return false;
     });
     const canGoBack = computed(() => {
+        if (selectingPhotos.value) return false;
         if (selectedSource.value === 'camera') {
             return cameraDisplayStep.value !== '2';
         }
@@ -131,11 +134,13 @@
     });
     const showFileSettingsFooter = computed(() => (
         selectedSource.value === 'file'
+        && !selectingPhotos.value
         && slyce.currentStep === '2'
         && Boolean(slyce.file)
     ));
     const showFileResultsFooter = computed(() => (
         selectedSource.value === 'file'
+        && !selectingPhotos.value
         && slyce.currentStep === '3'
     ));
     const showFileCompletedFooter = computed(() => showFileResultsFooter.value && slyce.isComplete);
@@ -166,6 +171,7 @@
     ));
 
     function selectFileMode() {
+        selectingPhotos.value = false;
         selectedSource.value = 'file';
         cameraStep.value = '1';
         suppressRealtimeAutoStart.value = false;
@@ -176,6 +182,7 @@
     }
 
     function handleFileSelected() {
+        selectingPhotos.value = false;
         selectedSource.value = 'file';
         cameraStep.value = '1';
         suppressRealtimeAutoStart.value = false;
@@ -193,6 +200,7 @@
     }
 
     function selectWebcamMode() {
+        selectingPhotos.value = false;
         if (hasRealtimeWork.value || realtime.completedKtx2Buffers.value.length > 0) {
             clearRealtimeFlow();
         }
@@ -238,7 +246,7 @@
         const breadcrumbs = ['Create Texture'];
 
         if (selectedSource.value === 'file') {
-            breadcrumbs.push('Video');
+            breadcrumbs.push(selectingPhotos.value ? 'Google Photos' : 'Video');
         }
 
         if (selectedSource.value === 'camera') {
@@ -470,12 +478,20 @@
         if (isVideoFile(file)) {
             selectedSource.value = 'file';
             cameraStep.value = '1';
-            await slyce.beginFileWorkflowWithFile(file);
+            if (await slyce.beginFileWorkflowWithFile(file)) handleFileSelected();
         }
     }
 
     function applyLaunchSource(source) {
         if (!props.active) return;
+
+        if (source === 'google-photos') {
+            selectedSource.value = 'file';
+            selectingPhotos.value = true;
+            return;
+        }
+
+        selectingPhotos.value = false;
 
         if (source === 'camera') {
             if (selectedSource.value !== 'camera') {
@@ -614,7 +630,8 @@
                                 value="2"
                             >
                                 <UploadArea
-                                    v-if="!slyce.file"
+                                    v-if="selectingPhotos || !slyce.file"
+                                    :photos-only="selectingPhotos"
                                     :can-resume-file-flow="hasExistingFileFlow"
                                     @request-resume-file-flow="selectFileMode"
                                     @request-next="handleFileSelected"

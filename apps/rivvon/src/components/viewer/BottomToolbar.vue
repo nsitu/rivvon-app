@@ -890,6 +890,15 @@ const activeLauncherTitle = computed(() => {
                         directBrowse: !hasExistingTextureFileFlow.value,
                     }))
                 },
+                ...(isAuthenticated.value ? [{
+                    contextLabel: 'Google Photos',
+                    label: 'Import...',
+                    description: 'Choose a video from your Google Photos account.',
+                    icon: 'photo_library',
+                    command: () => activateContext(() => emit('request-open-texture-file', {
+                        source: 'google-photos',
+                    }))
+                }] : []),
             ]
         },
         {
