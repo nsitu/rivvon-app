@@ -82,9 +82,31 @@ describe('Photos import authorization and transfer', () => {
             .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'video/mp4', 'Content-Length': '3' } }));
         const response = await photosRoutes.request('/sessions/id/video/bytes', { headers: headers(cookie) }, env);
         expect(response.status).toBe(200);
+        expect(response.headers.get('X-Rivvon-Video-Length')).toBe('3');
+        expect(response.headers.get('Access-Control-Expose-Headers')).toContain('X-Rivvon-Video-Length');
+        expect(response.headers.get('Server-Timing')).toMatch(/photos-metadata;dur=\d+\.\d, google-video-headers;dur=\d+\.\d/);
         expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
         expect(fetchMock.mock.calls[2][0]).toBe('https://lh3.googleusercontent.com/video=dv');
         expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('Bearer photos-access');
+    });
+    it('delivers the first chunk before Google finishes its response and propagates cancellation', async () => {
+        const cancel = vi.fn();
+        const upstream = new ReadableStream<Uint8Array>({
+            start(controller) { controller.enqueue(new Uint8Array([1, 2, 3])); }, cancel,
+        });
+        fetchMock.mockResolvedValueOnce(json({ mediaItemsSet: true })).mockResolvedValueOnce(json({ mediaItems: [video] }))
+            .mockResolvedValueOnce(new Response(upstream, { headers: { 'Content-Type': 'video/mp4' } }));
+        const response = await photosRoutes.request('/sessions/id/video/bytes', { headers: headers(cookie) }, env);
+        const reader = response.body!.getReader();
+        try {
+            const first = await reader.read();
+            expect(first.done).toBe(false);
+            expect([...first.value!]).toEqual([1, 2, 3]);
+        } finally {
+            await reader.cancel();
+            reader.releaseLock();
+        }
+        expect(cancel).toHaveBeenCalled();
     });
     it('rejects oversized videos before forwarding bytes', async () => {
         fetchMock.mockResolvedValueOnce(json({ mediaItemsSet: true })).mockResolvedValueOnce(json({ mediaItems: [video] }))

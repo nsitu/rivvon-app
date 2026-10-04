@@ -15,7 +15,21 @@ describe('Google Photos video transfer', () => {
         const response = new Response(new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array([1, 2, 3])); controller.close(); } }));
         const blob = await readVideoDownload(response, { onProgress: value => progress.push(value) });
         expect(blob.size).toBe(3);
-        expect(progress).toEqual([{ received: 3, total: null }]);
+        expect(progress).toEqual([{ received: 0, total: null }, { received: 3, total: null }]);
+    });
+    it('uses the forwarded Google size when Workers cannot supply Content-Length', async () => {
+        const progress = [];
+        const response = new Response(new Uint8Array([1, 2, 3]), { headers: { 'X-Rivvon-Video-Length': '3' } });
+        await readVideoDownload(response, { onProgress: value => progress.push(value) });
+        expect(progress).toEqual([{ received: 0, total: 3 }, { received: 3, total: 3 }]);
+    });
+    it('rejects an oversized forwarded size before reading the stream', async () => {
+        const cancel = vi.fn();
+        const progress = vi.fn();
+        const response = new Response(new ReadableStream({ cancel }), { headers: { 'X-Rivvon-Video-Length': '5' } });
+        await expect(readVideoDownload(response, { maxBytes: 4, onProgress: progress })).rejects.toThrow('2048 MiB');
+        expect(cancel).toHaveBeenCalled();
+        expect(progress).not.toHaveBeenCalled();
     });
     it('enforces the byte limit on unknown-length streams and cancels upstream', async () => {
         let cancelled = false;
@@ -90,12 +104,15 @@ describe('Google Photos import workflow', () => {
         vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-video');
         const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
         const popup = { closed: false, location: {}, close: vi.fn() };
-        const result = importGooglePhotosVideo({ popup, signal: new AbortController().signal });
+        const phases = [];
+        const result = importGooglePhotosVideo({ popup, signal: new AbortController().signal,
+            onStatus: (_, details) => { if (details?.phase) phases.push(details.phase); } });
         await vi.advanceTimersByTimeAsync(1000);
         const imported = await result;
         expect(imported.file.name).toBe('original.mp4');
         expect(imported.file.type).toBe('video/mp4');
         expect(imported.provenance).toEqual(provenance);
+        expect(phases).toEqual(['metadata', 'requesting-video', 'waiting-data']);
         expect(popup.location.href).toBe(`${selection.pickerUri}/autoclose`);
         expect(fetchMock.mock.calls.at(-1)).toMatchObject(['https://api.rivvon.ca/api/auth/photos/sessions/selection', { method: 'DELETE', credentials: 'include' }]);
         expect(popup.close).toHaveBeenCalled();

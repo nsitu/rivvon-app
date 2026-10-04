@@ -58,13 +58,16 @@ export async function detectVideoMime(blob, responseMime) {
 }
 
 export async function readVideoDownload(response, { signal, onProgress, maxBytes = MAX_PHOTOS_VIDEO_BYTES } = {}) {
-    const length = Number(response.headers.get('Content-Length'));
+    const length = Number(response.headers.get('X-Rivvon-Video-Length') || response.headers.get('Content-Length'));
+    const total = Number.isSafeInteger(length) && length > 0 ? length : null;
     if (length > maxBytes) { await response.body?.cancel(); throw new Error('Choose a video no larger than 2048 MiB.'); }
     if (!response.body) throw new Error('Google Photos returned an empty video.');
     const reader = response.body.getReader();
     const chunks = [];
     let received = 0;
     try {
+        checkAbort(signal);
+        onProgress?.({ received: 0, total });
         while (true) {
             checkAbort(signal);
             const { done, value } = await reader.read();
@@ -73,7 +76,7 @@ export async function readVideoDownload(response, { signal, onProgress, maxBytes
             received += value.byteLength;
             if (received > maxBytes) throw new Error('Choose a video no larger than 2048 MiB.');
             chunks.push(value);
-            onProgress?.({ received, total: length > 0 ? length : null });
+            onProgress?.({ received, total });
         }
         if (!received) throw new Error('Google Photos returned an empty video.');
         return new Blob(chunks);
@@ -139,9 +142,11 @@ export async function importGooglePhotosVideo({ signal, popup, onStatus, onProgr
         }
         onExternalLink?.(null);
         const path = `/sessions/${encodeURIComponent(sessionId)}/video`;
+        onStatus?.('Reading the selected video’s details…', { phase: 'metadata' });
         const { provenance } = await (await request(path, { signal })).json();
-        onStatus?.('Downloading your video…');
+        onStatus?.('Requesting video from Google Photos…', { phase: 'requesting-video' });
         const response = await request(`${path}/bytes`, { signal });
+        onStatus?.('Waiting for the first video data…', { phase: 'waiting-data' });
         const blob = await readVideoDownload(response, { signal, onProgress });
         checkAbort(signal);
         const mimeType = await detectVideoMime(blob, (response.headers.get('Content-Type') || '').split(';')[0]);

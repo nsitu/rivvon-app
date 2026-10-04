@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+    import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
     import Button from 'primevue/button';
     import Card from 'primevue/card';
     import ProgressBar from 'primevue/progressbar';
@@ -35,10 +35,15 @@
     const photosError = ref('');
     const photosProgress = ref(null);
     const photosLink = ref(null);
+    const photosWaitingSince = ref(null);
+    const photosClock = ref(Date.now());
+    const photosWaitingSeconds = computed(() => photosWaitingSince.value === null ? null
+        : Math.max(0, Math.floor((photosClock.value - photosWaitingSince.value) / 1000)));
     let importController = null;
 
     function cancelPhotosImport() {
         importController?.abort();
+        photosWaitingSince.value = null;
         photosStatus.value = 'Import cancelled.';
     }
     onBeforeUnmount(cancelPhotosImport);
@@ -59,19 +64,28 @@
         importingPhotos.value = true;
         photosError.value = '';
         photosProgress.value = null;
+        photosWaitingSince.value = null;
+        const clock = setInterval(() => { photosClock.value = Date.now(); }, 1000);
         const controller = new AbortController();
         importController = controller;
         // Open while the click still has browser user activation. A visible
         // fallback link supports blocked popups and COOP-isolated auth windows.
-        if (popup === undefined) popup = openGooglePhotosWindow();
         try {
+            if (popup === undefined) popup = openGooglePhotosWindow();
             const { file, provenance } = await importGooglePhotosVideo({
                 signal: controller.signal, popup,
-                onStatus: value => { photosStatus.value = value; },
+                onStatus: (value, details) => {
+                    photosStatus.value = value;
+                    photosClock.value = Date.now();
+                    photosWaitingSince.value = ['metadata', 'requesting-video', 'waiting-data'].includes(details?.phase) ? photosClock.value : null;
+                },
                 onExternalLink: value => { photosLink.value = value; },
                 onProgress: ({ received, total }) => {
                     photosProgress.value = total ? Math.min(100, Math.round(received / total * 100)) : null;
-                    photosStatus.value = `Downloading video… ${(received / (1024 * 1024)).toFixed(1)} MiB`;
+                    if (received > 0) {
+                        photosWaitingSince.value = null;
+                        photosStatus.value = `Downloading video… ${(received / (1024 * 1024)).toFixed(1)} MiB${total ? ` of ${(total / (1024 * 1024)).toFixed(1)} MiB` : ''}`;
+                    }
                 },
             });
             controller.signal.throwIfAborted();
@@ -79,6 +93,8 @@
         } catch (error) {
             if (!controller.signal.aborted) photosError.value = error?.message || 'Unable to import this video.';
         } finally {
+            clearInterval(clock);
+            photosWaitingSince.value = null;
             importController = null;
             importingPhotos.value = false;
         }
@@ -162,6 +178,7 @@
                         <Button v-if="photosLink" as="a" :href="photosLink.url" target="_blank" rel="noopener noreferrer" :label="photosLink.label" severity="secondary" @click.prevent="continuePhotosInWindow" />
                     </div>
                     <p v-if="photosStatus" role="status" aria-live="polite" class="source-card-detail">{{ photosStatus }}</p>
+                    <p v-if="importingPhotos && photosWaitingSeconds !== null" class="source-card-detail">{{ photosWaitingSeconds }}s elapsed in this step</p>
                     <ProgressBar v-if="importingPhotos" :mode="photosProgress === null ? 'indeterminate' : 'determinate'" :value="photosProgress" aria-label="Google Photos import progress" />
                     <Message v-if="photosError" severity="error" :closable="false">{{ photosError }}</Message>
                 </template>

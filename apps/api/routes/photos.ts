@@ -243,7 +243,9 @@ async function fetchMedia(address: string, accessToken: string, signal: AbortSig
 }
 
 photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
+    const metadataStarted = performance.now();
     const { item, accessToken } = await selectedVideo(c);
+    const metadataMs = performance.now() - metadataStarted;
     const controller = new AbortController();
     const abort = () => controller.abort();
     c.req.raw.signal.addEventListener('abort', abort, { once: true });
@@ -251,7 +253,9 @@ photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
     const cleanup = () => { clearTimeout(timeout); c.req.raw.signal.removeEventListener('abort', abort); };
     try {
         if (c.req.raw.signal.aborted) controller.abort();
+        const googleStarted = performance.now();
         const upstream = await fetchMedia(googleMediaUrl(item.mediaFile.baseUrl), accessToken, controller.signal);
+        const googleHeadersMs = performance.now() - googleStarted;
         if (upstream.status === 401 || upstream.status === 403) throw new PhotosError('Reconnect Google Photos to download this video.', 403);
         if (!upstream.ok || !upstream.body) throw new PhotosError('Unable to download this video from Google Photos.');
         const length = Number(upstream.headers.get('Content-Length'));
@@ -276,7 +280,12 @@ photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
         });
         return new Response(stream, { headers: {
             'Content-Type': contentType || 'application/octet-stream', 'Cache-Control': 'private, no-store',
-            'X-Content-Type-Options': 'nosniff', ...(length > 0 ? { 'Content-Length': String(length) } : {}),
+            'X-Content-Type-Options': 'nosniff',
+            // Workers ignores a manually supplied Content-Length for arbitrary
+            // streams. Preserve Google's size separately without buffering.
+            ...(Number.isSafeInteger(length) && length > 0 ? { 'X-Rivvon-Video-Length': String(length) } : {}),
+            'Server-Timing': `photos-metadata;dur=${metadataMs.toFixed(1)}, google-video-headers;dur=${googleHeadersMs.toFixed(1)}`,
+            'Access-Control-Expose-Headers': 'X-Rivvon-Video-Length, Server-Timing',
         } });
     } catch (error) { cleanup(); controller.abort(); throw error; }
 });
