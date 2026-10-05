@@ -6,6 +6,7 @@ import ScrollPanel from 'primevue/scrollpanel';
 import PanelActionBar from '../components/shared/PanelActionBar.vue';
 import ChromeButton from '../components/shared/ChromeButton.vue';
 import { fetchAudio } from '../services/audioService.js';
+import { getAudioPlaybackUrl } from '../modules/viewer/audioPlayback.js';
 
 const route = useRoute();
 const emit = defineEmits(['request-use-audio']);
@@ -15,7 +16,7 @@ const isLoading = ref(true);
 const error = ref('');
 const copied = ref(false);
 const audioElement = ref(null);
-const playbackUrl = computed(() => audio.value?.playback_url || '');
+const playbackUrl = computed(() => getAudioPlaybackUrl(audio.value?.playback_url));
 
 function formatDuration(seconds) {
     const total = Math.max(0, Math.round(Number(seconds) || 0));
@@ -81,7 +82,7 @@ onBeforeUnmount(() => audioElement.value?.pause());
                 <div class="audio-player-art"><span class="material-symbols-outlined">equalizer</span></div>
                 <h1>{{ audio.name }}</h1>
                 <p class="audio-player-meta">{{ formatDuration(audio.duration) }} · {{ formatFileSize(audio.file_size) }} · {{ audio.channel_count }} channel{{ audio.channel_count === 1 ? '' : 's' }}</p>
-                <audio ref="audioElement" :src="playbackUrl" controls autoplay preload="metadata"></audio>
+                <audio ref="audioElement" :src="playbackUrl" crossorigin="anonymous" controls autoplay preload="metadata"></audio>
                 <div class="audio-player-actions rivvon-action-row">
                     <Button type="button" @click="useInViewer"><span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>Use in viewer</Button>
                     <Button type="button" @click="copyLink"><span class="material-symbols-outlined">link</span>{{ copied ? 'Copied' : 'Copy Link' }}</Button>

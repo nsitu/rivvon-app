@@ -7,6 +7,7 @@ import ScrollPanel from 'primevue/scrollpanel';
 import PanelActionBar from '../components/shared/PanelActionBar.vue';
 import ChromeButton from '../components/shared/ChromeButton.vue';
 import { VIEWER_AUDIO_KEY } from '../modules/viewer/audioReactivity.js';
+import { getAudioPlaybackUrl } from '../modules/viewer/audioPlayback.js';
 import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
 import { deleteAudioPublication, fetchMyAudios } from '../services/audioService.js';
 
@@ -139,7 +140,7 @@ onBeforeUnmount(pausePreviews);
                             <span class="material-symbols-outlined">equalizer</span>
                             <span>{{ audio.name }}</span>
                         </RouterLink>
-                        <audio :ref="(element) => setAudioElement(audio.id, element)" :src="audio.playback_url" controls preload="metadata" @play="handlePlay"></audio>
+                        <audio :ref="(element) => setAudioElement(audio.id, element)" :src="getAudioPlaybackUrl(audio.playback_url)" crossorigin="anonymous" controls preload="metadata" @play="handlePlay"></audio>
                         <div class="audio-card-meta">
                             <span>{{ formatDuration(audio.duration) }}</span>
                             <span>{{ formatFileSize(audio.file_size) }}</span>

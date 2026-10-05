@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted, reactive } from 'vue';
+import { getAudioPlaybackUrl } from '../../modules/viewer/audioPlayback.js';
 import {
     clampAudioValue, getAmplitudeTarget, getAudioRms, smoothAudioAmplitude,
 } from '../../modules/viewer/audioReactivity.js';
@@ -195,7 +196,7 @@ export function createViewerAudioController({
         state.currentTime = 0;
         state.analysisError = '';
         const element = ensureMedia();
-        element.src = track.playback_url;
+        element.src = getAudioPlaybackUrl(track.playback_url);
         // Trim and tape-speed changes are already encoded into the published asset.
         element.playbackRate = 1;
         element.load();

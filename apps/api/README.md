@@ -106,6 +106,8 @@ npx wrangler r2 bucket cors set rivvon-textures --file=./r2-cors.json
 
 R2 CORS configuration is managed separately with Wrangler when it changes. D1 migrations are applied automatically by the GitHub Actions API deployment before the Worker is released. The API verifies the finished R2 object and its byte size before a video becomes visible in the gallery.
 
+Audio previews and viewer playback must both request media with anonymous CORS. A prior preview fetched without an `Origin` header can leave an immutable browser-cache entry without CORS headers, which later blocks Web Audio playback even when the bucket policy is correct. The frontend's shared `audioPlayback.js` helper versions public CDN audio URLs with `rivvon_audio_cors=1` to avoid those legacy entries while retaining stable caching. If the bucket policy changes, also purge the custom-domain CDN cache so existing cached objects pick up the new headers. See [Cloudflare's CORS caching guidance](https://developers.cloudflare.com/r2/buckets/cors/#use-cors-with-a-custom-domain).
+
 ## Configuration
 
 See `wrangler.toml` for Cloudflare configuration.

@@ -39,6 +39,14 @@ function harness() {
 }
 
 describe('viewer audio controller', () => {
+    it('avoids immutable CDN responses cached by older non-CORS previews', async () => {
+        const { controller, media } = harness();
+        await controller.activate({ ...track, playback_url: 'https://cdn.rivvon.ca/audio/test/audio.mp4' });
+        expect(media.crossOrigin).toBe('anonymous');
+        expect(media.src).toBe('https://cdn.rivvon.ca/audio/test/audio.mp4?rivvon_audio_cors=1');
+        expect(controller.state.track.playback_url).toBe('https://cdn.rivvon.ca/audio/test/audio.mp4');
+    });
+
     it('activates published audio at 1x and requests playback and context resume immediately', async () => {
         const { controller, media, context } = harness();
         const activated = controller.activate(track);
