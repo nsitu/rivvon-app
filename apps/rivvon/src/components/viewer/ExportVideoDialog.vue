@@ -534,9 +534,10 @@
             <div class="export-video-panel-content">
                 <ScrollPanel class="rivvon-scroll-panel export-video-panel-scroll">
                     <div class="export-video-panel-body">
-                    <p v-if="viewerAudio?.state.track" class="warning-banner" role="status">
+                    <p v-if="viewerAudio?.state.track || viewerAudio?.state.microphoneActive || viewerAudio?.state.microphonePending" class="warning-banner" role="status">
                         Viewer audio and audio reactive zoom are available during live viewing only.
-                        Video exports do not include them. Playback pauses during encoding and resumes afterward.
+                        Video exports do not include them. Library playback pauses during encoding and resumes afterward.
+                        Microphone input stops during encoding; start it again afterward.
                     </p>
                     <div
                         v-if="!hasWebCodecs"

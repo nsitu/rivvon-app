@@ -11,12 +11,20 @@ export function createViewerAudioController({
         if (!Constructor) throw new Error('Audio analysis is unavailable in this browser.');
         return new Constructor();
     },
+    getUserMedia = (constraints) => {
+        if (!globalThis.navigator?.mediaDevices?.getUserMedia) {
+            throw new Error('Microphone input requires HTTPS and a browser with microphone support.');
+        }
+        return navigator.mediaDevices.getUserMedia(constraints);
+    },
 } = {}) {
     const state = reactive({
         track: null, playing: false, pending: false, buffering: false,
         currentTime: 0, duration: 0, volume: 0.8, muted: false, loop: true,
         reactiveEnabled: false, sensitivity: 3, amount: 0.2, level: 0,
         error: '', analysisError: '', blocked: false,
+        microphoneActive: false, microphonePending: false, microphoneName: '',
+        microphoneError: '', microphoneNotice: '',
     });
     let media = null;
     let context = null;
@@ -31,6 +39,13 @@ export function createViewerAudioController({
     let lastMeter = 0;
     let generation = 0;
     let disposed = false;
+    let microphoneGeneration = 0;
+    let microphoneStream = null;
+    let microphoneSource = null;
+    let microphoneSplitter = null;
+    let microphoneAnalysers = [];
+    let microphoneSamples = [];
+    let microphoneListeners = [];
     let resumeWhenUnblocked = false;
     const blockers = new Set();
     const listeners = [];
@@ -59,7 +74,7 @@ export function createViewerAudioController({
             listeners.push([type, callback]);
         };
         on('playing', () => {
-            if (state.blocked) { media.pause(); return; }
+            if (state.blocked || state.microphoneActive || state.microphonePending) { media.pause(); return; }
             state.playing = true;
             state.pending = false;
             state.buffering = false;
@@ -136,6 +151,7 @@ export function createViewerAudioController({
 
     async function play() {
         if (disposed || !state.track || state.blocked) return;
+        stopMicrophone();
         const element = ensureMedia();
         const request = ++generation;
         state.pending = true;
@@ -185,6 +201,7 @@ export function createViewerAudioController({
 
     function activate(track) {
         if (disposed) return;
+        stopMicrophone();
         pause();
         if (!track?.playback_url) {
             state.error = 'This track is unavailable.';
@@ -215,6 +232,92 @@ export function createViewerAudioController({
         if (media) media.loop = state.loop;
     }
 
+    function stopMicrophone() {
+        microphoneGeneration += 1;
+        microphoneListeners.forEach(([track, listener]) => track.removeEventListener('ended', listener));
+        microphoneListeners = [];
+        microphoneStream?.getTracks().forEach((track) => track.stop());
+        microphoneStream = null;
+        microphoneSource?.disconnect();
+        microphoneSplitter?.disconnect();
+        microphoneAnalysers.forEach((analyser) => analyser.disconnect());
+        microphoneSource = null;
+        microphoneSplitter = null;
+        microphoneAnalysers = [];
+        microphoneSamples = [];
+        state.microphoneActive = false;
+        state.microphonePending = false;
+        state.microphoneName = '';
+        state.microphoneError = '';
+        state.microphoneNotice = '';
+        resetSignal();
+    }
+
+    async function startMicrophone() {
+        if (disposed || state.blocked || state.microphoneActive || state.microphonePending) return;
+        pause();
+        stopMicrophone();
+        const request = microphoneGeneration;
+        state.microphonePending = true;
+        let stream;
+        try {
+            if (!context) context = createContext();
+            // Resume inside the button gesture; handle rejection even if permission stays pending.
+            const resumed = Promise.resolve(context.resume()).then(() => null, (error) => error);
+            stream = await getUserMedia({ audio: {
+                echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+            }, video: false });
+            // Permission can resolve after cancellation, suspension, replacement, or unmount.
+            if (disposed || request !== microphoneGeneration) {
+                stream.getTracks().forEach((track) => track.stop());
+                return;
+            }
+            microphoneStream = stream;
+            const tracks = stream.getAudioTracks();
+            if (!tracks.length || tracks.some((track) => track.readyState === 'ended')) {
+                throw new DOMException('No live microphone input.', 'NotFoundError');
+            }
+            for (const track of tracks) {
+                const ended = () => {
+                    stopMicrophone();
+                    state.microphoneError = 'Microphone disconnected. Connect an input and start again.';
+                };
+                track.addEventListener('ended', ended);
+                microphoneListeners.push([track, ended]);
+            }
+            const resumeError = await resumed;
+            if (disposed || request !== microphoneGeneration) return;
+            if (resumeError) throw new Error('Audio analysis could not start. Start the microphone again.');
+            microphoneSource = context.createMediaStreamSource(stream);
+            const channels = Math.round(clampAudioValue(tracks[0].getSettings?.().channelCount, 1, 32, 1));
+            microphoneSplitter = context.createChannelSplitter(channels);
+            microphoneSource.connect(microphoneSplitter);
+            for (let index = 0; index < channels; index += 1) {
+                const analyser = context.createAnalyser();
+                analyser.fftSize = 1024;
+                microphoneSplitter.connect(analyser, index);
+                microphoneAnalysers.push(analyser);
+                microphoneSamples.push(new Float32Array(analyser.fftSize));
+            }
+            // Analysis only: never connect the microphone to speakers or a recorder.
+            state.microphoneName = tracks[0].label || 'Microphone';
+            state.microphonePending = false;
+            state.microphoneActive = true;
+            state.reactiveEnabled = true;
+        } catch (error) {
+            if (disposed || request !== microphoneGeneration) return;
+            // Also release a stream if graph construction failed after permission was granted.
+            stopMicrophone();
+            state.microphoneError = error.name === 'NotAllowedError'
+                ? 'Microphone access was denied. Allow microphone access in your browser and try again.'
+                : error.name === 'NotFoundError'
+                    ? 'No microphone was found. Connect an input and try again.'
+                    : error.name === 'NotReadableError'
+                        ? 'Microphone is unavailable. Check whether another app is using it and try again.'
+                        : error.message || 'Unable to start the microphone. Try again.';
+        }
+    }
+
     function setBlocked(reason, blocked) {
         if (disposed) return;
         const wasBlocked = blockers.size > 0;
@@ -222,6 +325,10 @@ export function createViewerAudioController({
         else blockers.delete(reason);
         state.blocked = blockers.size > 0;
         if (!wasBlocked && state.blocked) {
+            if (state.microphoneActive || state.microphonePending) {
+                stopMicrophone();
+                state.microphoneNotice = 'Microphone stopped while the viewer was inactive. Start it again when ready.';
+            }
             resumeWhenUnblocked = state.playing || state.pending;
             pause({ preserveResume: true });
         } else if (wasBlocked && !state.blocked && resumeWhenUnblocked) {
@@ -234,7 +341,10 @@ export function createViewerAudioController({
         const delta = lastTick === null ? 1 / 60 : Math.max(0, (now - lastTick) / 1000);
         lastTick = now;
         let target = 0;
-        if (state.playing && !state.buffering && !state.blocked && !state.analysisError
+        if (state.microphoneActive && !state.blocked && context?.state === 'running') {
+            microphoneAnalysers.forEach((analyser, index) => analyser.getFloatTimeDomainData(microphoneSamples[index]));
+            target = getAmplitudeTarget(getAudioRms(microphoneSamples), state.sensitivity);
+        } else if (state.playing && !state.buffering && !state.blocked && !state.analysisError
             && context?.state === 'running' && !media?.seeking) {
             analysers.forEach((analyser, index) => analyser.getFloatTimeDomainData(samples[index]));
             target = getAmplitudeTarget(getAudioRms(samples), state.sensitivity);
@@ -248,6 +358,7 @@ export function createViewerAudioController({
     }
 
     function remove() {
+        stopMicrophone();
         pause();
         if (media) {
             media.removeAttribute('src');
@@ -273,7 +384,8 @@ export function createViewerAudioController({
     }
 
     return { state, activate, play, pause, seek, remove, dispose, tick, setVolume, setMuted,
-        setLoop, setBlocked, getAmplitude: () => state.reactiveEnabled && !state.blocked ? amplitude : 0 };
+        setLoop, setBlocked, startMicrophone, stopMicrophone,
+        getAmplitude: () => state.reactiveEnabled && !state.blocked ? amplitude : 0 };
 }
 
 export function useViewerAudio() {

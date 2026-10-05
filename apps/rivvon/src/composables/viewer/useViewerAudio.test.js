@@ -17,11 +17,19 @@ function harness() {
     media.load = vi.fn();
     media.removeAttribute = vi.fn(() => { media.src = ''; });
     const source = { connect: vi.fn(), disconnect: vi.fn() };
+    const microphoneSource = { connect: vi.fn(), disconnect: vi.fn() };
+    const microphoneTrack = Object.assign(new EventTarget(), {
+        label: 'Test microphone', readyState: 'live', stop: vi.fn(),
+        getSettings: () => ({ channelCount: 2 }),
+    });
+    const stream = { getTracks: () => [microphoneTrack], getAudioTracks: () => [microphoneTrack] };
+    const getUserMedia = vi.fn(async () => stream);
     const gain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
     const analysers = [];
     const context = {
         state: 'running', destination: {},
         createMediaElementSource: vi.fn(() => source),
+        createMediaStreamSource: vi.fn(() => microphoneSource),
         createGain: vi.fn(() => gain),
         createChannelSplitter: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
         createAnalyser: vi.fn(() => {
@@ -34,8 +42,9 @@ function harness() {
     };
     const createContext = vi.fn(() => context);
     const createMedia = vi.fn(() => media);
-    const controller = createViewerAudioController({ createMedia, createContext });
-    return { controller, media, context, source, gain, analysers, createContext, createMedia };
+    const controller = createViewerAudioController({ createMedia, createContext, getUserMedia });
+    return { controller, media, context, source, gain, analysers, createContext, createMedia,
+        microphoneSource, microphoneTrack, stream, getUserMedia };
 }
 
 describe('viewer audio controller', () => {
@@ -180,5 +189,162 @@ describe('viewer audio controller', () => {
         expect(source.disconnect).toHaveBeenCalled();
         await controller.play();
         expect(media.play).toHaveBeenCalledOnce();
+    });
+});
+
+describe('viewer microphone input', () => {
+    it('requests permission in the gesture and analyses stereo input without speaker playback', async () => {
+        const { controller, context, microphoneSource, stream, getUserMedia, createMedia } = harness();
+        const pending = controller.startMicrophone();
+        expect(context.resume).toHaveBeenCalledOnce();
+        expect(getUserMedia).toHaveBeenCalledWith({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false,
+        });
+        expect(controller.state.microphonePending).toBe(true);
+        await controller.startMicrophone();
+        await pending;
+        await controller.startMicrophone();
+        expect(getUserMedia).toHaveBeenCalledOnce();
+        expect(context.createMediaStreamSource).toHaveBeenCalledWith(stream);
+        expect(context.createChannelSplitter).toHaveBeenCalledWith(2);
+        expect(microphoneSource.connect).toHaveBeenCalledOnce();
+        expect(microphoneSource.connect).not.toHaveBeenCalledWith(context.destination);
+        expect(context.createGain).not.toHaveBeenCalled();
+        expect(createMedia).not.toHaveBeenCalled();
+        expect(controller.state.microphoneActive).toBe(true);
+        expect(controller.state.microphonePending).toBe(false);
+        expect(controller.state.microphoneName).toBe('Test microphone');
+        expect(controller.state.reactiveEnabled).toBe(true);
+        controller.tick(100);
+        expect(controller.state.level).toBeGreaterThan(0);
+        expect(controller.getAmplitude()).toBeGreaterThan(0);
+        controller.setMuted(true);
+        controller.tick(116);
+        expect(controller.getAmplitude()).toBeGreaterThan(0);
+    });
+
+    it.each(['play', 'activate'])('pauses the library track and switches back through %s using its existing media source', async (action) => {
+        const { controller, microphoneTrack, context } = harness();
+        await controller.activate(track);
+        await controller.startMicrophone();
+        expect(controller.state.playing).toBe(false);
+        expect(controller.state.track.id).toBe(track.id);
+        if (action === 'play') await controller.play();
+        else await controller.activate(track);
+        expect(microphoneTrack.stop).toHaveBeenCalledOnce();
+        expect(controller.state.microphoneActive).toBe(false);
+        expect(controller.state.playing).toBe(true);
+        expect(context.createMediaElementSource).toHaveBeenCalledOnce();
+        controller.tick(100);
+        expect(controller.getAmplitude()).toBeGreaterThan(0);
+    });
+
+    it.each(['stop', 'remove', 'dispose'])('stops capture and resets the signal immediately on %s', async (action) => {
+        const { controller, microphoneTrack, microphoneSource, analysers } = harness();
+        await controller.startMicrophone();
+        controller.tick(100);
+        if (action === 'stop') controller.stopMicrophone();
+        if (action === 'remove') controller.remove();
+        if (action === 'dispose') controller.dispose();
+        expect(controller.getAmplitude()).toBe(0);
+        expect(controller.state.level).toBe(0);
+        expect(controller.state.microphoneActive).toBe(false);
+        expect(microphoneTrack.stop).toHaveBeenCalledOnce();
+        expect(microphoneSource.disconnect).toHaveBeenCalledOnce();
+        expect(analysers.every((node) => node.disconnect.mock.calls.length === 1)).toBe(true);
+    });
+
+    it.each(['cancel', 'suspend', 'replace', 'remove', 'dispose'])('releases a late permission grant after %s', async (action) => {
+        const { controller, microphoneTrack, stream, getUserMedia, context } = harness();
+        let grant;
+        getUserMedia.mockImplementationOnce(() => new Promise((resolve) => { grant = resolve; }));
+        const pending = controller.startMicrophone();
+        if (action === 'cancel') controller.stopMicrophone();
+        if (action === 'suspend') controller.setBlocked('visibility', true);
+        if (action === 'replace') await controller.activate(track);
+        if (action === 'remove') controller.remove();
+        if (action === 'dispose') controller.dispose();
+        grant(stream);
+        await pending;
+        expect(microphoneTrack.stop).toHaveBeenCalledOnce();
+        expect(controller.state.microphoneActive).toBe(false);
+        expect(controller.state.microphonePending).toBe(false);
+        expect(context.createMediaStreamSource).not.toHaveBeenCalled();
+    });
+
+    it('stops on suspension and requires explicit restart after all blockers clear', async () => {
+        const { controller, microphoneTrack, getUserMedia, media } = harness();
+        await controller.activate(track);
+        await controller.startMicrophone();
+        controller.tick(100);
+        controller.setBlocked('visibility', true);
+        controller.setBlocked('export', true);
+        expect(microphoneTrack.stop).toHaveBeenCalledOnce();
+        expect(controller.getAmplitude()).toBe(0);
+        expect(controller.state.microphoneNotice).toContain('Start it again');
+        await controller.startMicrophone();
+        expect(getUserMedia).toHaveBeenCalledOnce();
+        controller.setBlocked('visibility', false);
+        controller.setBlocked('export', false);
+        expect(getUserMedia).toHaveBeenCalledOnce();
+        expect(media.play).toHaveBeenCalledOnce();
+        expect(controller.state.microphoneActive).toBe(false);
+    });
+
+    it('releases capture on device disconnection and reports a retryable error', async () => {
+        const { controller, microphoneTrack } = harness();
+        await controller.startMicrophone();
+        controller.tick(100);
+        microphoneTrack.dispatchEvent(new Event('ended'));
+        expect(controller.state.microphoneActive).toBe(false);
+        expect(controller.getAmplitude()).toBe(0);
+        expect(microphoneTrack.stop).toHaveBeenCalledOnce();
+        expect(controller.state.microphoneError).toContain('disconnected');
+    });
+
+    it.each([
+        ['NotAllowedError', 'denied'], ['NotFoundError', 'No microphone'], ['NotReadableError', 'unavailable'],
+    ])('reports %s and lets the user retry', async (name, message) => {
+        const { controller, getUserMedia } = harness();
+        getUserMedia.mockRejectedValueOnce(new DOMException('Input failed', name));
+        await controller.startMicrophone();
+        expect(controller.state.microphonePending).toBe(false);
+        expect(controller.state.microphoneActive).toBe(false);
+        expect(controller.state.microphoneError).toContain(message);
+        await controller.startMicrophone();
+        expect(controller.state.microphoneError).toBe('');
+        expect(controller.state.microphoneActive).toBe(true);
+    });
+
+    it.each(['resume', 'graph'])('releases an acquired stream when %s fails', async (failure) => {
+        const { controller, context, microphoneTrack } = harness();
+        if (failure === 'resume') context.resume.mockRejectedValueOnce(new Error('resume failed'));
+        else context.createMediaStreamSource.mockImplementationOnce(() => { throw new Error('graph failed'); });
+        await controller.startMicrophone();
+        expect(microphoneTrack.stop).toHaveBeenCalledOnce();
+        expect(controller.state.microphoneActive).toBe(false);
+        expect(controller.state.microphoneError).not.toBe('');
+    });
+
+    it('does not acquire input when analysis is unsupported', async () => {
+        const { controller, createContext, getUserMedia } = harness();
+        createContext.mockImplementationOnce(() => { throw new Error('Audio analysis unavailable'); });
+        await controller.startMicrophone();
+        expect(getUserMedia).not.toHaveBeenCalled();
+        expect(controller.state.microphonePending).toBe(false);
+        expect(controller.state.microphoneError).toBe('Audio analysis unavailable');
+    });
+
+    it('ignores a cancelled request rejection while a newer microphone request succeeds', async () => {
+        const { controller, getUserMedia } = harness();
+        let reject;
+        getUserMedia.mockImplementationOnce(() => new Promise((resolve, fail) => { reject = fail; }));
+        const old = controller.startMicrophone();
+        controller.stopMicrophone();
+        await controller.startMicrophone();
+        reject(new DOMException('denied', 'NotAllowedError'));
+        await old;
+        expect(controller.state.microphoneActive).toBe(true);
+        expect(controller.state.microphoneError).toBe('');
     });
 });

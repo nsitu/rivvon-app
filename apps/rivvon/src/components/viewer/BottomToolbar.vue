@@ -10,6 +10,7 @@
 import InputNumber from 'primevue/inputnumber';
     import ToggleSwitch from 'primevue/toggleswitch';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
+    import AudioSettingsControls from './AudioSettingsControls.vue';
     import AboutPanel from './AboutPanel.vue';
     import GeometrySettingsControls from './GeometrySettingsControls.vue';
     import LightingSettingsControls from './LightingSettingsControls.vue';
@@ -1248,6 +1249,10 @@ const activeLauncherTitle = computed(() => {
 
                     <div class="tools-section-host">
                         <AnimationSettingsControls />
+                    </div>
+
+                    <div class="tools-section-host">
+                        <AudioSettingsControls v-if="isToolbarContextActive('tools')" />
                     </div>
 
                     <div class="tools-section-host">
