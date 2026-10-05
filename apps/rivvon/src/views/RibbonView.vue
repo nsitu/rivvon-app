@@ -1130,6 +1130,9 @@ const activeToolbarOverlayTitle = computed(() => {
 
     // ─── Cinematic camera keyboard bindings ────────────────────────
     function handleCinematicKeydown(e) {
+        // Leave modified shortcuts to the browser and toggle only once per press.
+        if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
+
         // Ignore if focus is in a text input
         const tag = e.target?.tagName?.toLowerCase();
         if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
@@ -1153,7 +1156,7 @@ const activeToolbarOverlayTitle = computed(() => {
                 handleCinematicClear();
                 break;
             }
-            case 'r': {
+            case 'o': {
                 handleCameraMotionRecord();
                 break;
             }

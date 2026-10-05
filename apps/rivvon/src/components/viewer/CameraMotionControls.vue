@@ -51,7 +51,7 @@
                 >
                     <span class="material-symbols-outlined">{{ props.recording ? 'stop' : 'motion_photos_on' }}</span>
                     <span>{{ props.recording ? 'Stop Recording' : 'Record Orbit Motion' }}</span>
-                    <span class="tools-hint">R</span>
+                    <span class="tools-hint">O</span>
                 </Button>
 
                 <div
