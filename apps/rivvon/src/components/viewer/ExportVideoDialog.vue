@@ -1,5 +1,6 @@
 <script setup>
-    import { ref, computed, watch } from 'vue';
+    import { ref, computed, watch, inject } from 'vue';
+    import { VIEWER_AUDIO_KEY } from '../../modules/viewer/audioReactivity.js';
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
     import AccordionHeader from 'primevue/accordionheader';
@@ -30,6 +31,7 @@
     } from '../../modules/viewer/seamlessLoop.js';
 
     const app = useViewerStore();
+    const viewerAudio = inject(VIEWER_AUDIO_KEY, null);
 
     const props = defineProps({
         visible: { type: Boolean, default: false },
@@ -532,6 +534,10 @@
             <div class="export-video-panel-content">
                 <ScrollPanel class="rivvon-scroll-panel export-video-panel-scroll">
                     <div class="export-video-panel-body">
+                    <p v-if="viewerAudio?.state.track" class="warning-banner" role="status">
+                        Viewer audio and audio reactive zoom are available during live viewing only.
+                        Video exports do not include them. Playback pauses during encoding and resumes afterward.
+                    </p>
                     <div
                         v-if="!hasWebCodecs"
                         class="warning-banner"

@@ -4,7 +4,8 @@
 // This is the top-level coordinator that wires together the sub-composables.
 // The public API surface is unchanged — consumers import { useThreeSetup }.
 
-import { ref, shallowRef, onUnmounted } from "vue";
+import { ref, shallowRef, onUnmounted, inject } from "vue";
+import { VIEWER_AUDIO_KEY, renderWithAudioZoom } from "../../modules/viewer/audioReactivity.js";
 import { useViewerStore } from "../../stores/viewerStore";
 import { initThree as initThreeModule } from "../../modules/viewer/threeSetup";
 import { TileManager } from "../../modules/viewer/tileManager";
@@ -24,6 +25,7 @@ import { useCameraMotionCapture } from "./useCameraMotionCapture";
 
 export function useThreeSetup() {
   const app = useViewerStore();
+  const audio = inject(VIEWER_AUDIO_KEY, null);
 
   // ── Shared reactive state ──────────────────────────────────────────
 
@@ -69,6 +71,7 @@ export function useThreeSetup() {
   // Context object shared by all sub-composables
   const ctx = {
     app,
+    audio,
     scene,
     camera,
     renderer,
@@ -110,9 +113,19 @@ export function useThreeSetup() {
   const ribbons = useRibbonBuilder(ctx);
 
   function renderSceneWithBackground(renderOptions = {}) {
-    background.updateBackground(renderOptions);
-    lighting.tick();
-    renderFilter.renderScene(renderOptions.target ?? null);
+    const render = () => {
+      background.updateBackground(renderOptions);
+      lighting.tick();
+      renderFilter.renderScene(renderOptions.target ?? null);
+    };
+    // Still-image captures use the latest signal. Synthetic video frames opt out
+    // until an audio envelope and soundtrack can share the export timeline.
+    return renderWithAudioZoom(
+      camera.value,
+      renderOptions.audioReactive === false ? 0 : (audio?.getAmplitude() ?? 0),
+      audio?.state.amount ?? 0,
+      render,
+    );
   }
 
   function updateBackground() {

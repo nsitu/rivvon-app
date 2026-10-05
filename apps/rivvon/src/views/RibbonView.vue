@@ -1,5 +1,5 @@
 <script setup>
-    import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent, nextTick } from 'vue';
+    import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent, nextTick, provide } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useSlyceStore } from '../stores/slyceStore';
     import { useViewerStore } from '../stores/viewerStore';
@@ -7,6 +7,9 @@
     import { useEmojiPicker } from '../composables/viewer/useEmojiPicker';
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
     import { useThreeSetup } from '../composables/viewer/useThreeSetup';
+    import { useViewerAudio } from '../composables/viewer/useViewerAudio.js';
+    import { VIEWER_AUDIO_KEY } from '../modules/viewer/audioReactivity.js';
+    import ViewerAudioControls from '../components/viewer/ViewerAudioControls.vue';
     import { createDefaultDrawingName, createDrawingDocument, createDrawingPayload, getKindLabel, inflateDrawingPaths, normalizeDrawingKind, serializeDrawingPaths } from '../modules/shared/drawingLibrary.js';
     import { createRenderSnapshot } from '../modules/shared/renderSnapshot.js';
     import { createLazyLoader } from '../modules/shared/lazyLoader.js';
@@ -69,6 +72,22 @@
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
+    const viewerAudio = useViewerAudio();
+    provide(VIEWER_AUDIO_KEY, viewerAudio);
+    const audioReturnLocation = ref('/');
+    watch(() => route.fullPath, (location) => {
+        if (route.name === 'home' || route.name === 'texture') audioReturnLocation.value = location;
+    }, { immediate: true });
+    watch(isAuthenticated, (authenticated) => {
+        if (!authenticated) viewerAudio.remove();
+    });
+
+    function handleAudioActivate(audio) {
+        // The explicit activation gesture replaces the standalone player's preview.
+        viewerAudio.setBlocked('audio-player', false);
+        void viewerAudio.activate(audio);
+        router.push(audioReturnLocation.value);
+    }
     const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
     const isVideoPlayerRoute = computed(() => route.name === 'video-player');
     const videoPlayerTitle = ref('');
@@ -117,6 +136,10 @@
     const audioCreatorVisible = createViewerPanelVisibility('audioCreator');
     const audioCreatorMode = ref('file');
     const realtimeSamplerVisible = createViewerPanelVisibility('realtimeSampler');
+    watch(() => app.isSuspended, (suspended) => viewerAudio.setBlocked('processing', suspended), { flush: 'sync' });
+    watch(audioCreatorVisible, (visible) => viewerAudio.setBlocked('audio-creator', visible), { immediate: true, flush: 'sync' });
+    watch(isAudioPlayerRoute, (visible) => viewerAudio.setBlocked('audio-player', visible), { immediate: true, flush: 'sync' });
+    watch(isVideoPlayerRoute, (visible) => viewerAudio.setBlocked('video-player', visible), { immediate: true, flush: 'sync' });
     const isNarrowViewport = ref(false);
 
     let narrowViewportMediaQuery = null;
@@ -3310,6 +3333,7 @@ const activeToolbarOverlayTitle = computed(() => {
         videoExportStatus.value = 'Preparing export…';
 
         exportAbortController.value = new AbortController();
+        viewerAudio.setBlocked('encoding', true);
 
         try {
             const progressHandlers = {
@@ -3418,6 +3442,7 @@ const activeToolbarOverlayTitle = computed(() => {
             videoExportStatus.value = 'Export failed: ' + errorMessage;
         } finally {
             exportAbortController.value = null;
+            viewerAudio.setBlocked('encoding', false);
         }
     }
 
@@ -4006,6 +4031,8 @@ const activeToolbarOverlayTitle = computed(() => {
             @initialized="handleThreeInitialized"
         />
 
+        <ViewerAudioControls :audio="viewerAudio" />
+
         <!-- Drawing canvas overlay -->
         <DrawCanvas
             ref="drawCanvasRef"
@@ -4203,10 +4230,12 @@ const activeToolbarOverlayTitle = computed(() => {
 
         <AudioLibraryPanel
             v-if="isAudioLibraryRoute"
+            @request-use-audio="handleAudioActivate"
         />
 
         <AudioPlayerPanel
             v-if="isAudioPlayerRoute"
+            @request-use-audio="handleAudioActivate"
         />
 
         <!-- Full-page texture creator panel (like drawing mode) -->

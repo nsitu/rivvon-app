@@ -1,12 +1,14 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Button from 'primevue/button';
 import ScrollPanel from 'primevue/scrollpanel';
 import PanelActionBar from '../components/shared/PanelActionBar.vue';
+import ChromeButton from '../components/shared/ChromeButton.vue';
 import { fetchAudio } from '../services/audioService.js';
 
 const route = useRoute();
+const emit = defineEmits(['request-use-audio']);
 const router = useRouter();
 const audio = ref(null);
 const isLoading = ref(true);
@@ -48,8 +50,14 @@ async function copyLink() {
     }
 }
 
+function useInViewer() {
+    audioElement.value?.pause();
+    emit('request-use-audio', audio.value);
+}
+
 watch(() => route.params.audioId, loadAudio);
 onMounted(loadAudio);
+onBeforeUnmount(() => audioElement.value?.pause());
 </script>
 
 <template>
@@ -57,13 +65,14 @@ onMounted(loadAudio);
         <div class="audio-player-container viewer-chrome-panel-container">
             <PanelActionBar
                 placement="top"
+                appearance="chrome"
                 aria-label="Audio player navigation"
                 class="audio-player-header-actions"
             >
-                <Button type="button" severity="secondary" variant="outlined" @click="router.push({ name: 'audio-library' })">
-                    <span class="material-symbols-outlined">arrow_back</span>
-                    Audio Gallery
-                </Button>
+                <ChromeButton @click="router.push({ name: 'audio-library' })">
+                    <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+                    Back to Audio Library
+                </ChromeButton>
             </PanelActionBar>
             <ScrollPanel class="rivvon-scroll-panel audio-player-scroll">
             <section v-if="isLoading" class="audio-player-message"><span class="material-symbols-outlined audio-spinner">progress_activity</span><h1>Loading audio…</h1></section>
@@ -74,11 +83,15 @@ onMounted(loadAudio);
                 <p class="audio-player-meta">{{ formatDuration(audio.duration) }} · {{ formatFileSize(audio.file_size) }} · {{ audio.channel_count }} channel{{ audio.channel_count === 1 ? '' : 's' }}</p>
                 <audio ref="audioElement" :src="playbackUrl" controls autoplay preload="metadata"></audio>
                 <div class="audio-player-actions rivvon-action-row">
+                    <Button type="button" @click="useInViewer"><span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>Use in viewer</Button>
                     <Button type="button" @click="copyLink"><span class="material-symbols-outlined">link</span>{{ copied ? 'Copied' : 'Copy Link' }}</Button>
                     <a :href="playbackUrl" :download="`${audio.name}.mp4`"><span class="material-symbols-outlined">download</span>Download</a>
                 </div>
             </article>
             </ScrollPanel>
+            <PanelActionBar aria-label="Audio player actions">
+                <Button type="button" severity="secondary" @click="router.push({ name: 'audio-library' })">Done</Button>
+            </PanelActionBar>
         </div>
     </main>
 </template>
@@ -95,7 +108,7 @@ onMounted(loadAudio);
 .audio-player-meta { color: #94a3b8; }
 .audio-player-content audio { width: 100%; margin: 1.5rem 0; }
 .audio-player-actions { justify-content: center; gap: .6rem; }
-.audio-player-actions a, .audio-player-actions button { display: inline-flex; align-items: center; gap: .4rem; padding: .65rem .85rem; border: 1px solid #3c3c3c; color: #eef2ff; background: #202020; font: inherit; text-decoration: none; cursor: pointer; }
+.audio-player-actions a { display: inline-flex; align-items: center; gap: .4rem; padding: .65rem .85rem; border: 1px solid #3c3c3c; color: #eef2ff; background: #202020; font: inherit; text-decoration: none; cursor: pointer; }
 .audio-player-message { display: flex; min-height: 55vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .audio-player-message > .material-symbols-outlined { font-size: 3rem; color: #60a5fa; }
 .audio-player-error > .material-symbols-outlined { color: #f87171; }

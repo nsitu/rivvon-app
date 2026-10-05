@@ -633,6 +633,7 @@ export function useSceneExport(ctx, deps = {}) {
         // 4. Render
         renderScene({
             ...renderOptions,
+            audioReactive: false,
             blurMode: 'export',
             timeSeconds: waveTime,
             width: ctx.renderer.value.domElement.width,
@@ -1060,14 +1061,23 @@ export function useSceneExport(ctx, deps = {}) {
         };
     }
 
+    async function withoutViewerAudio(exporter, options) {
+        ctx.audio?.setBlocked('scene-export', true);
+        try {
+            return await exporter(options);
+        } finally {
+            ctx.audio?.setBlocked('scene-export', false);
+        }
+    }
+
     return {
         captureImagePreview,
         captureImagePreviewWithSettings,
         captureImageBlobWithSettings,
         exportImageWithSettings,
         exportImage,
-        exportVideoLegacy,
-        exportVideo,
+        exportVideoLegacy: (options) => withoutViewerAudio(exportVideoLegacy, options),
+        exportVideo: (options) => withoutViewerAudio(exportVideo, options),
         renderFrameAtTime,
         getExportInfo
     };

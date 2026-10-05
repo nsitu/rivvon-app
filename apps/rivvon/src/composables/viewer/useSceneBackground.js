@@ -639,7 +639,9 @@ function attachCameraBackgroundPlane(ctx, material) {
         2 *
         Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) *
         BACKGROUND_DISTANCE;
-      mesh.scale.set(1, 1, 1);
+      // Compensate projection zoom without deforming every background vertex
+      // on each audio sample. The underlying FOV still owns the base geometry.
+      mesh.scale.set(1 / camera.zoom, 1 / camera.zoom, 1);
       syncGeometry(height * camera.aspect, height);
       return;
     }

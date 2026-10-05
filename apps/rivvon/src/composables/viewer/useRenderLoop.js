@@ -455,6 +455,7 @@ export function useRenderLoop(ctx, deps = {}) {
             // Compute per-frame delta; clamp to avoid jumps after tab-switch
             const deltaSec = lastFrameTime === 0 ? 0.016 : Math.min((now - lastFrameTime) / 1000, 0.1);
             lastFrameTime = now;
+            ctx.audio?.tick?.(now);
 
             let tileTickMs = 0;
             let flowUpdateMs = 0;
