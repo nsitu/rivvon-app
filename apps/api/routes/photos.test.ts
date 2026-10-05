@@ -22,6 +22,7 @@ describe('Photos import authorization and transfer', () => {
     let session: string;
     let fetchMock: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => {});
         session = await createSessionToken(user, env.SESSION_SECRET);
         const grant = await sealPhotosCookie({ userId: user.id, googleId: user.googleId, accessToken: 'photos-access', attempt,
             expiresAt: Date.now() + 3600000 }, env.SESSION_SECRET, 'photos-grant');
@@ -29,7 +30,7 @@ describe('Photos import authorization and transfer', () => {
         fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
     });
-    afterEach(() => vi.unstubAllGlobals());
+    afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
     const headers = (cookie: string) => ({ Cookie: cookie, Origin: 'https://rivvon.ca' });
 
     it('requires login, Photos consent, and an allowed mutation origin', async () => {
@@ -76,6 +77,9 @@ describe('Photos import authorization and transfer', () => {
         const response = await photosRoutes.request('/sessions/id/video', { headers: headers(cookie) }, env);
         expect(await response.json()).toMatchObject({ provenance: { mediaItemId: 'original-id', originalFilename: 'original.mov', reportedFps: 30 } });
         expect(response.headers.get('Cache-Control')).toContain('no-store');
+        expect(response.headers.get('Server-Timing')).toContain('google-session;dur=');
+        expect(response.headers.get('Server-Timing')).toContain('google-items;dur=');
+        expect(response.headers.get('Access-Control-Expose-Headers')).toContain('Server-Timing');
     });
     it('streams video bytes with server-side authorization', async () => {
         fetchMock.mockResolvedValueOnce(json({ mediaItemsSet: true })).mockResolvedValueOnce(json({ mediaItems: [video] }))
@@ -84,7 +88,8 @@ describe('Photos import authorization and transfer', () => {
         expect(response.status).toBe(200);
         expect(response.headers.get('X-Rivvon-Video-Length')).toBe('3');
         expect(response.headers.get('Access-Control-Expose-Headers')).toContain('X-Rivvon-Video-Length');
-        expect(response.headers.get('Server-Timing')).toMatch(/photos-metadata;dur=\d+\.\d, google-video-headers;dur=\d+\.\d/);
+        expect(response.headers.get('Server-Timing')).toMatch(/photos-metadata;dur=\d+\.\d/);
+        expect(response.headers.get('Server-Timing')).toMatch(/google-video-headers;dur=\d+\.\d/);
         expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
         expect(fetchMock.mock.calls[2][0]).toBe('https://lh3.googleusercontent.com/video=dv');
         expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe('Bearer photos-access');
@@ -107,6 +112,39 @@ describe('Photos import authorization and transfer', () => {
             reader.releaseLock();
         }
         expect(cancel).toHaveBeenCalled();
+    });
+    it('distinguishes metadata, redirect, and first-body delays without logging private source data', async () => {
+        let clock = 0;
+        vi.spyOn(performance, 'now').mockImplementation(() => clock);
+        let upstream!: ReadableStreamDefaultController<Uint8Array>;
+        const body = new ReadableStream<Uint8Array>({ start(controller) { upstream = controller; } });
+        fetchMock.mockImplementationOnce(async () => { clock += 120; return json({ mediaItemsSet: true }); })
+            .mockImplementationOnce(async () => { clock += 80; return json({ mediaItems: [video] }); })
+            .mockImplementationOnce(async () => { clock += 25000; return new Response(null, { status: 302, headers: { Location: 'https://lh4.googleusercontent.com/download' } }); })
+            .mockImplementationOnce(async () => { clock += 500; return new Response(body, { headers: { 'Content-Type': 'video/mp4' } }); });
+        const response = await photosRoutes.request('/sessions/id/video/bytes', { headers: headers(cookie) }, env);
+        expect(response.headers.get('Server-Timing')).toContain('google-session;dur=120.0');
+        expect(response.headers.get('Server-Timing')).toContain('google-items;dur=80.0');
+        expect(response.headers.get('Server-Timing')).toContain('google-video-headers;dur=25500.0');
+        expect(response.headers.get('Server-Timing')).toContain('google-media-hop-1;dur=25000.0');
+        expect(response.headers.get('Server-Timing')).toContain('google-media-hop-2;dur=500.0');
+        const reader = response.body!.getReader();
+        try {
+            clock += 1000;
+            upstream.enqueue(new Uint8Array([1, 2, 3]));
+            await reader.read();
+            clock += 2000;
+            upstream.close();
+            await reader.read();
+        } finally { await reader.cancel(); reader.releaseLock(); }
+        const logs = vi.mocked(console.info).mock.calls.map(([, value]) => JSON.parse(value as string));
+        expect(logs.map(value => value.phase)).toEqual(['headers', 'first-byte', 'complete']);
+        expect(logs[0].firstByteMs).toBeNull();
+        expect(logs[1]).toMatchObject({ firstByteMs: 26700, receivedBytes: 3 });
+        expect(logs[2]).toMatchObject({ bodyMs: 3000, receivedBytes: 3, traceId: response.headers.get('X-Rivvon-Import-Trace') });
+        for (const privateValue of ['photos-access', 'original.mov', 'original-id', 'google-owner', 'googleusercontent.com']) {
+            expect(JSON.stringify(logs)).not.toContain(privateValue);
+        }
     });
     it('rejects oversized videos before forwarding bytes', async () => {
         fetchMock.mockResolvedValueOnce(json({ mediaItemsSet: true })).mockResolvedValueOnce(json({ mediaItems: [video] }))

@@ -192,11 +192,20 @@ photosRoutes.delete('/sessions/:sessionId', async (c) => {
     return c.json({ success: true });
 });
 
-async function selectedVideo(c: Context<AppEnv>) {
+type PhotosTimings = Record<string, number>;
+function timingHeader(timings: PhotosTimings) {
+    return Object.entries(timings).map(([name, duration]) => `${name};dur=${duration.toFixed(1)}`).join(', ');
+}
+
+async function selectedVideo(c: Context<AppEnv>, timings: PhotosTimings = {}) {
     const accessToken = await token(c);
+    const sessionStarted = performance.now();
     const session = await pickerRequest(accessToken, sessionPath(c));
+    timings['google-session'] = performance.now() - sessionStarted;
     if (!session.mediaItemsSet) throw new PhotosError('Finish selecting your video in Google Photos first.', 400);
+    const itemsStarted = performance.now();
     const items = await pickerRequest(accessToken, `/mediaItems?${new URLSearchParams({ sessionId: c.req.param('sessionId'), pageSize: '2' })}`);
+    timings['google-items'] = performance.now() - itemsStarted;
     if (items.nextPageToken || items.mediaItems?.length !== 1 || items.mediaItems[0].type !== 'VIDEO') {
         throw new PhotosError('Please select one video rather than a photo.', 400);
     }
@@ -211,7 +220,12 @@ async function selectedVideo(c: Context<AppEnv>) {
 }
 
 photosRoutes.get('/sessions/:sessionId/video', async (c) => {
-    const { provenance } = await selectedVideo(c);
+    const timings: PhotosTimings = {};
+    const started = performance.now();
+    const { provenance } = await selectedVideo(c, timings);
+    timings['photos-metadata'] = performance.now() - started;
+    c.header('Server-Timing', timingHeader(timings));
+    c.header('Access-Control-Expose-Headers', 'Server-Timing');
     return c.json({ provenance, maxBytes: MAX_PHOTOS_VIDEO_BYTES });
 });
 
@@ -228,11 +242,13 @@ function validateGoogleMediaUrl(address: string) {
     return url;
 }
 
-async function fetchMedia(address: string, accessToken: string, signal: AbortSignal) {
+async function fetchMedia(address: string, accessToken: string, signal: AbortSignal, hops: { status: number; durationMs: number }[]) {
     // Follow only validated Google media redirects, never arbitrary hosts.
     for (let hop = 0; hop < 5; hop++) {
         validateGoogleMediaUrl(address);
+        const started = performance.now();
         const response = await fetch(address, { headers: { Authorization: `Bearer ${accessToken}` }, signal, redirect: 'manual' });
+        hops.push({ status: response.status, durationMs: Math.round(performance.now() - started) });
         if (![301, 302, 303, 307, 308].includes(response.status)) return response;
         const location = response.headers.get('Location');
         await response.body?.cancel();
@@ -243,9 +259,25 @@ async function fetchMedia(address: string, accessToken: string, signal: AbortSig
 }
 
 photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
+    const traceId = crypto.randomUUID();
+    const timings: PhotosTimings = {};
     const metadataStarted = performance.now();
-    const { item, accessToken } = await selectedVideo(c);
+    const { item, accessToken } = await selectedVideo(c, timings);
     const metadataMs = performance.now() - metadataStarted;
+    timings['photos-metadata'] = metadataMs;
+    const hops: { status: number; durationMs: number }[] = [];
+    let headersAt: number | null = null;
+    let firstByteAt: number | null = null;
+    let received = 0;
+    let finished = false;
+    // Only durations, HTTP statuses and byte counts; never credentials, URLs,
+    // filenames, account IDs or provider media/session IDs.
+    const logTiming = (phase: string) => console.info('Google Photos download timing', JSON.stringify({
+        traceId, phase, timings, hops, receivedBytes: received,
+        firstByteMs: firstByteAt === null ? null : Math.round(firstByteAt - metadataStarted),
+        bodyMs: headersAt === null ? null : Math.round(performance.now() - headersAt),
+    }));
+    const finishTiming = (phase: string) => { if (!finished) { finished = true; logTiming(phase); } };
     const controller = new AbortController();
     const abort = () => controller.abort();
     c.req.raw.signal.addEventListener('abort', abort, { once: true });
@@ -254,8 +286,12 @@ photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
     try {
         if (c.req.raw.signal.aborted) controller.abort();
         const googleStarted = performance.now();
-        const upstream = await fetchMedia(googleMediaUrl(item.mediaFile.baseUrl), accessToken, controller.signal);
+        const upstream = await fetchMedia(googleMediaUrl(item.mediaFile.baseUrl), accessToken, controller.signal, hops);
         const googleHeadersMs = performance.now() - googleStarted;
+        headersAt = performance.now();
+        timings['google-video-headers'] = googleHeadersMs;
+        hops.forEach((hop, index) => { timings[`google-media-hop-${index + 1}`] = hop.durationMs; });
+        logTiming('headers');
         if (upstream.status === 401 || upstream.status === 403) throw new PhotosError('Reconnect Google Photos to download this video.', 403);
         if (!upstream.ok || !upstream.body) throw new PhotosError('Unable to download this video from Google Photos.');
         const length = Number(upstream.headers.get('Content-Length'));
@@ -265,18 +301,21 @@ photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
             controller.abort(); throw new PhotosError('Google Photos did not return a supported video.');
         }
         const reader = upstream.body.getReader();
-        let received = 0;
         const stream = new ReadableStream<Uint8Array>({
             async pull(target) {
                 try {
                     const chunk = await reader.read();
-                    if (chunk.done) { cleanup(); target.close(); return; }
+                    if (chunk.done) { cleanup(); finishTiming('complete'); target.close(); return; }
                     received += chunk.value.byteLength;
                     if (received > MAX_PHOTOS_VIDEO_BYTES) throw new Error('Video exceeds the import limit.');
+                    if (firstByteAt === null && chunk.value.byteLength > 0) {
+                        firstByteAt = performance.now();
+                        logTiming('first-byte');
+                    }
                     target.enqueue(chunk.value);
-                } catch (error) { cleanup(); controller.abort(); target.error(error); }
+                } catch (error) { cleanup(); finishTiming(controller.signal.aborted ? 'aborted' : 'failed'); controller.abort(); target.error(error); }
             },
-            async cancel() { cleanup(); controller.abort(); await reader.cancel().catch(() => {}); },
+            async cancel() { cleanup(); finishTiming('cancelled'); controller.abort(); await reader.cancel().catch(() => {}); },
         });
         return new Response(stream, { headers: {
             'Content-Type': contentType || 'application/octet-stream', 'Cache-Control': 'private, no-store',
@@ -284,8 +323,9 @@ photosRoutes.get('/sessions/:sessionId/video/bytes', async (c) => {
             // Workers ignores a manually supplied Content-Length for arbitrary
             // streams. Preserve Google's size separately without buffering.
             ...(Number.isSafeInteger(length) && length > 0 ? { 'X-Rivvon-Video-Length': String(length) } : {}),
-            'Server-Timing': `photos-metadata;dur=${metadataMs.toFixed(1)}, google-video-headers;dur=${googleHeadersMs.toFixed(1)}`,
-            'Access-Control-Expose-Headers': 'X-Rivvon-Video-Length, Server-Timing',
+            'Server-Timing': timingHeader(timings),
+            'X-Rivvon-Import-Trace': traceId,
+            'Access-Control-Expose-Headers': 'X-Rivvon-Video-Length, Server-Timing, X-Rivvon-Import-Trace',
         } });
-    } catch (error) { cleanup(); controller.abort(); throw error; }
+    } catch (error) { cleanup(); finishTiming(controller.signal.aborted ? 'aborted' : 'failed'); controller.abort(); throw error; }
 });

@@ -8,6 +8,28 @@ The Worker relays chunks as they arrive from Google; it does not buffer the comp
 
 When Google supplies a size, the API forwards it in `X-Rivvon-Video-Length` for percentage and total-size progress. Cloudflare Workers ignores manually set Content-Length on arbitrary streams, so using a separate exposed header preserves progress without buffering. Unknown-size downloads show received MiB. The bytes endpoint also exposes `Server-Timing`: `photos-metadata` measures selection revalidation, and `google-video-headers` measures the media fetch including redirects until response headers. Inspect those response headers and the browser Network timing to diagnose a real import. These timings become available after the upstream headers arrive, not while Google is still waiting to respond.
 
+## Investigating a slow response
+
+Both `/video` and `/video/bytes` expose `Server-Timing`. `google-session` and `google-items` measure the individual Picker metadata calls, including reading their JSON responses. The bytes response also reports `google-media-hop-1` through `google-media-hop-5` for media requests and redirects. `photos-metadata` already includes the metadata calls, and `google-video-headers` already includes the media hops; do not add overlapping metrics together.
+
+The browser prints one **Google Photos import timing** JSON summary after an attempt has reached selection validation and finished cleanup. It contains only timings, byte count, outcome, and a random trace ID:
+
+| Measurement (milliseconds) | Interpretation |
+| --- | --- |
+| `metadataRequestMs` | Browser round trip for the first selection validation, including reading JSON. Compare with `metadataServer`. |
+| `downloadHeadersMs` | Browser wait for the bytes response headers. Compare with `downloadServer`, which includes the second selection validation. |
+| `firstDataAfterHeadersMs` | Additional browser wait for the first nonempty video chunk after response headers. |
+| `selectionReadyToFirstByteMs` | Total delay from Rivvon detecting a finished selection until its first video chunk. Excludes time spent in consent, choosing a video, and selection polling. |
+| `transferMs` | Time from the first chunk to the end of the downloaded response. |
+| `inspectionMs` / `cleanupMs` | Local video validation and the final session-delete round trip. Cleanup is awaited before the imported file returns to the workflow. |
+| `selectionReadyToFinishMs` | Entire post-selection attempt, including cleanup. |
+
+Worker console entries labelled **Google Photos download timing** report `headers`, `first-byte`, then `complete`, `cancelled`, `aborted`, or `failed`. Match their random `traceId` to the browser summary or `X-Rivvon-Import-Trace` response header. Worker `firstByteMs` is measured from the beginning of the bytes handler; `bodyMs` is elapsed time since the Google response headers. Use configured Worker logs or `pnpm --filter api exec wrangler tail --format pretty` while reproducing an import. The diagnostic payloads omit credentials, filenames, source URLs, account IDs, and provider media/session IDs. They do not create a database record or send browser diagnostics to another endpoint.
+
+To capture evidence, open browser DevTools, filter Console for **Google Photos import timing**, and import a video. Copy that JSON summary, rather than a HAR containing cookies or provider URLs. Repeat with the same video, then a different video, to check whether the delay is consistent or changes after the first request. If most time is in `google-video-headers`, Google's media response is the bottleneck, but timings alone cannot prove on-demand transcoding. If the server is quick and the browser remains slow, investigate browser/network/relay delivery. If metadata or cleanup dominates, optimize those calls instead. Unknown or failed stages may omit measurements; a failed attempt is not a successful latency sample.
+
+## Authorization and source metadata
+
 Photos authorization uses the existing Web OAuth client and `/api/auth/callback`. It requests the Picker scope only in the import flow. The signed-in Google identity is checked before accepting the grant. Short-lived access tokens are encrypted using a purpose-specific AES-GCM key derived from `SESSION_SECRET`, stored in HttpOnly cookies under `/api/auth`, and never exposed to the browser's JavaScript. For first-time authorization, an encrypted `photos_picker` cookie stages the callback-created session for ten minutes; authorization polling returns that session only to the matching signed-in account and import attempt. Session cleanup clears the matching staged session. The Photos flow leaves Drive refresh credentials and the Rivvon login unchanged. A new authorization is needed after the Photos token expires or is revoked. Logout clears the Photos cookies. No additional Worker secret, migration, or SDK is needed for this flow improvement.
 
 Google provides a high-quality transcode, not a guaranteed byte-identical original. Rivvon inspects the downloaded container and measures the processing file independently. Source provenance records the selected media ID, original filename, creation timestamp, reported dimensions/frame rate, available camera details, import timestamp, and download variant. Temporary URLs and credentials are never retained as source metadata. Source details are shown in Video Details, retained in local saves and texture variants, and included in user-requested ZIP exports. The ZIP viewer retains the imported metadata object.

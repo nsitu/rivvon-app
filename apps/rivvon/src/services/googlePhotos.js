@@ -86,8 +86,23 @@ export async function readVideoDownload(response, { signal, onProgress, maxBytes
     } finally { reader.releaseLock(); }
 }
 
-export async function importGooglePhotosVideo({ signal, popup, onStatus, onProgress, onExternalLink }) {
+function serverTimings(response) {
+    const timings = {};
+    for (const metric of (response.headers.get('Server-Timing') || '').split(',')) {
+        const match = metric.trim().match(/^(photos-metadata|google-session|google-items|google-video-headers|google-media-hop-[1-5]);dur=(\d+(?:\.\d+)?)$/);
+        if (match && Number.isFinite(Number(match[2]))) timings[match[1]] = Number(match[2]);
+    }
+    return timings;
+}
+
+export async function importGooglePhotosVideo({ signal, popup, onStatus, onProgress, onExternalLink,
+    onDiagnostics = report => console.info('Google Photos import timing', JSON.stringify(report)) }) {
     let sessionId = null;
+    const diagnostics = { outcome: 'failed', metadataServer: {}, downloadServer: {}, receivedBytes: 0 };
+    let selectedAt = null;
+    let downloadStarted = null;
+    let headersAt = null;
+    let firstByteAt = null;
     const navigate = (url, label) => {
         checkAbort(signal);
         // Completion depends on API polling rather than window.opener. Show a
@@ -141,26 +156,57 @@ export async function importGooglePhotosVideo({ signal, popup, onStatus, onProgr
             session = await (await request(`/sessions/${encodeURIComponent(sessionId)}`, { signal })).json();
         }
         onExternalLink?.(null);
+        selectedAt = performance.now();
         const path = `/sessions/${encodeURIComponent(sessionId)}/video`;
         onStatus?.('Reading the selected video’s details…', { phase: 'metadata' });
-        const { provenance } = await (await request(path, { signal })).json();
+        const metadataResponse = await request(path, { signal });
+        diagnostics.metadataServer = serverTimings(metadataResponse);
+        const { provenance } = await metadataResponse.json();
+        diagnostics.metadataRequestMs = Math.round(performance.now() - selectedAt);
         onStatus?.('Requesting video from Google Photos…', { phase: 'requesting-video' });
+        downloadStarted = performance.now();
         const response = await request(`${path}/bytes`, { signal });
+        headersAt = performance.now();
+        diagnostics.downloadHeadersMs = Math.round(headersAt - downloadStarted);
+        diagnostics.downloadServer = serverTimings(response);
+        const traceId = response.headers.get('X-Rivvon-Import-Trace');
+        if (/^[a-f0-9-]{36}$/i.test(traceId || '')) diagnostics.traceId = traceId;
         onStatus?.('Waiting for the first video data…', { phase: 'waiting-data' });
-        const blob = await readVideoDownload(response, { signal, onProgress });
+        const blob = await readVideoDownload(response, { signal, onProgress: progress => {
+            if (progress.received > 0 && firstByteAt === null) {
+                firstByteAt = performance.now();
+                diagnostics.firstDataAfterHeadersMs = Math.round(firstByteAt - headersAt);
+                diagnostics.selectionReadyToFirstByteMs = Math.round(firstByteAt - selectedAt);
+            }
+            diagnostics.receivedBytes = progress.received;
+            onProgress?.(progress);
+        } });
+        diagnostics.transferMs = Math.round(performance.now() - firstByteAt);
         checkAbort(signal);
+        const inspectionStarted = performance.now();
         const mimeType = await detectVideoMime(blob, (response.headers.get('Content-Type') || '').split(';')[0]);
         const file = new File([blob], importedVideoFilename(provenance.originalFilename, mimeType), { type: mimeType });
         onStatus?.('Checking the imported video…');
         await inspectImportedVideo(file, signal);
+        diagnostics.inspectionMs = Math.round(performance.now() - inspectionStarted);
         checkAbort(signal);
+        diagnostics.outcome = 'complete';
         return { file, provenance };
     } finally {
         try { popup?.close(); } catch { /* COOP-isolated tab */ }
         onExternalLink?.(null);
         if (sessionId) {
+            const cleanupStarted = performance.now();
             // Do not reuse the aborted import signal for cleanup.
             await request(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal: AbortSignal.timeout(10000) }).catch(() => {});
+            diagnostics.cleanupMs = Math.round(performance.now() - cleanupStarted);
+        }
+        if (selectedAt !== null) {
+            if (signal?.aborted) diagnostics.outcome = 'cancelled';
+            diagnostics.selectionReadyToFinishMs = Math.round(performance.now() - selectedAt);
+            // Diagnostic output must never expose provenance, response headers,
+            // provider URLs or credentials, or affect the import's outcome.
+            try { onDiagnostics?.(diagnostics); } catch { /* diagnostics only */ }
         }
     }
 }

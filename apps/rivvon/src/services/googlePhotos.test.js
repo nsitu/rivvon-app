@@ -134,6 +134,47 @@ describe('Google Photos import workflow', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
+    it('separates a slow header response from a delayed first chunk and cleanup in safe diagnostics', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+        const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const traceId = '12345678-1234-1234-1234-123456789abc';
+        const fetchMock = vi.fn().mockResolvedValueOnce(json({ connected: true }))
+            .mockResolvedValueOnce(json({ ...selection, mediaItemsSet: true }))
+            .mockImplementationOnce(async () => {
+                await pause(5000);
+                return new Response(JSON.stringify({ provenance: { originalFilename: 'private.mov', mediaItemId: 'private-id' } }),
+                    { headers: { 'Server-Timing': 'google-session;dur=1000, google-items;dur=3000, photos-metadata;dur=4000, private-name;desc="private.mov"' } });
+            })
+            .mockImplementationOnce(async () => {
+                await pause(25000);
+                return new Response(new ReadableStream({ start(controller) {
+                    setTimeout(() => { controller.enqueue(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+                        setTimeout(() => controller.close(), 1000); }, 2000);
+                } }), { headers: { 'Content-Type': 'video/mp4', 'X-Rivvon-Import-Trace': traceId,
+                    'Server-Timing': 'photos-metadata;dur=200, google-video-headers;dur=24800' } });
+            })
+            .mockImplementationOnce(async () => { await pause(500); return json({ success: true }); });
+        vi.stubGlobal('fetch', fetchMock);
+        const video = { videoWidth: 1920, videoHeight: 1080, duration: 3, removeAttribute: vi.fn(), load: vi.fn(),
+            set src(value) { queueMicrotask(() => this.onloadedmetadata?.()); } };
+        vi.stubGlobal('document', { createElement: () => video });
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:video');
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+        const diagnostics = vi.fn();
+        const result = importGooglePhotosVideo({ signal: new AbortController().signal,
+            popup: { closed: false, location: {}, close: vi.fn() }, onDiagnostics: diagnostics });
+        await vi.advanceTimersByTimeAsync(33500);
+        await result;
+        expect(diagnostics).toHaveBeenCalledOnce();
+        expect(diagnostics.mock.calls[0][0]).toEqual({ outcome: 'complete', traceId, receivedBytes: 8,
+            metadataServer: { 'google-session': 1000, 'google-items': 3000, 'photos-metadata': 4000 },
+            downloadServer: { 'photos-metadata': 200, 'google-video-headers': 24800 },
+            metadataRequestMs: 5000, downloadHeadersMs: 25000, firstDataAfterHeadersMs: 2000,
+            selectionReadyToFirstByteMs: 32000, transferMs: 1000, inspectionMs: 0, cleanupMs: 500,
+            selectionReadyToFinishMs: 33500 });
+        expect(JSON.stringify(diagnostics.mock.calls)).not.toContain('private');
+    });
+
     it('retains a continuation fallback when the old API finishes consent without staging a picker', async () => {
         vi.useFakeTimers();
         const controller = new AbortController();
