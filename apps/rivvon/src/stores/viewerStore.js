@@ -4,6 +4,9 @@
 import { defineStore } from "pinia";
 import {
   DEFAULT_FILMSTRIP_STYLE_ENABLED,
+  DEFAULT_FILMSTRIP_MOTION_ENABLED,
+  DEFAULT_FILMSTRIP_MOTION_SPEED,
+  normalizeFilmstripMotionSpeed,
   DEFAULT_FILMSTRIP_GAP_LENGTH,
   MIN_FILMSTRIP_GAP_LENGTH,
   MAX_FILMSTRIP_GAP_LENGTH,
@@ -1006,6 +1009,13 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().filmstripStyleEnabled,
         DEFAULT_FILMSTRIP_STYLE_ENABLED,
       ),
+      filmstripMotionEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().filmstripMotionEnabled,
+        DEFAULT_FILMSTRIP_MOTION_ENABLED,
+      ),
+      filmstripMotionSpeed: normalizeFilmstripMotionSpeed(
+        readViewerPreferences().filmstripMotionSpeed,
+      ),
       filmstripGapLength: normalizeFilmstripGapLength(
         readViewerPreferences().filmstripGapLength ??
           readViewerPreferences().filmstripHoleSpacing,
@@ -1242,6 +1252,8 @@ export const useViewerStore = defineStore("viewer", {
       this.edgeNoisePatternLength = DEFAULT_EDGE_NOISE_PATTERN_LENGTH;
       this.edgeNoiseMirrored = false;
       this.filmstripStyleEnabled = DEFAULT_FILMSTRIP_STYLE_ENABLED;
+      this.filmstripMotionEnabled = DEFAULT_FILMSTRIP_MOTION_ENABLED;
+      this.filmstripMotionSpeed = DEFAULT_FILMSTRIP_MOTION_SPEED;
       this.filmstripGapLength = DEFAULT_FILMSTRIP_GAP_LENGTH;
       this.filmstripHoleLength = DEFAULT_FILMSTRIP_HOLE_LENGTH;
       this.filmstripAperture = DEFAULT_FILMSTRIP_APERTURE;
@@ -1346,6 +1358,8 @@ export const useViewerStore = defineStore("viewer", {
         edgeNoisePatternLength: DEFAULT_EDGE_NOISE_PATTERN_LENGTH,
         edgeNoiseMirrored: false,
         filmstripStyleEnabled: DEFAULT_FILMSTRIP_STYLE_ENABLED,
+        filmstripMotionEnabled: DEFAULT_FILMSTRIP_MOTION_ENABLED,
+        filmstripMotionSpeed: DEFAULT_FILMSTRIP_MOTION_SPEED,
         filmstripGapLength: DEFAULT_FILMSTRIP_GAP_LENGTH,
         filmstripHoleLength: DEFAULT_FILMSTRIP_HOLE_LENGTH,
         filmstripAperture: DEFAULT_FILMSTRIP_APERTURE,
@@ -1858,6 +1872,8 @@ export const useViewerStore = defineStore("viewer", {
         edgeNoisePatternLength: this.edgeNoisePatternLength,
         edgeNoiseMirrored: this.edgeNoiseMirrored,
         filmstripStyleEnabled: this.filmstripStyleEnabled,
+        filmstripMotionEnabled: this.filmstripMotionEnabled,
+        filmstripMotionSpeed: this.filmstripMotionSpeed,
         filmstripGapLength: this.filmstripGapLength,
         filmstripHoleLength: this.filmstripHoleLength,
         filmstripAperture: this.filmstripAperture,
@@ -1992,6 +2008,8 @@ sphericalProjectionVerticalWrapAuto:
         this.edgeNoisePatternLength !== original.edgeNoisePatternLength ||
         this.edgeNoiseMirrored !== original.edgeNoiseMirrored ||
         this.filmstripStyleEnabled !== original.filmstripStyleEnabled ||
+        this.filmstripMotionEnabled !== original.filmstripMotionEnabled ||
+        this.filmstripMotionSpeed !== original.filmstripMotionSpeed ||
         this.filmstripGapLength !== original.filmstripGapLength ||
         this.filmstripHoleLength !== original.filmstripHoleLength ||
         this.filmstripAperture !== original.filmstripAperture ||
@@ -2324,6 +2342,20 @@ this.sphericalProjectionVerticalWrapAuto !==
       const nextValue = !!enabled;
       this.filmstripStyleEnabled = nextValue;
       writeViewerPreferences({ filmstripStyleEnabled: nextValue });
+      return nextValue;
+    },
+
+    setFilmstripMotionEnabled(enabled) {
+      const nextValue = !!enabled;
+      this.filmstripMotionEnabled = nextValue;
+      writeViewerPreferences({ filmstripMotionEnabled: nextValue });
+      return nextValue;
+    },
+
+    setFilmstripMotionSpeed(value) {
+      const nextValue = normalizeFilmstripMotionSpeed(value);
+      this.filmstripMotionSpeed = nextValue;
+      writeViewerPreferences({ filmstripMotionSpeed: nextValue });
       return nextValue;
     },
 

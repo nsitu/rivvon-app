@@ -382,6 +382,7 @@ export function useRibbonBuilder(ctx) {
             const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
             for (const tm of targets) {
                 if (state === 'off') {
+                    tm.setFlowSpeed(baseSpeed);
                     tm.setFlowEnabled(false);
                 } else {
                     const speed = state === 'forward' ? baseSpeed : -baseSpeed;
@@ -625,6 +626,19 @@ export function useRibbonBuilder(ctx) {
         }
     }
 
+    /** Apply filmstrip motion settings across all active TileManagers. */
+    function setFilmstripMotionEnabled(enabled) {
+        const normalized = ctx.app.setFilmstripMotionEnabled(enabled);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        for (const tm of targets) tm.setFilmstripMotionEnabled(normalized);
+    }
+
+    function setFilmstripMotionSpeed(value) {
+        const normalized = ctx.app.setFilmstripMotionSpeed(value);
+        const targets = ctx.tileManagers.value.length > 0 ? ctx.tileManagers.value : (ctx.tileManager.value ? [ctx.tileManager.value] : []);
+        for (const tm of targets) tm.setFilmstripMotionSpeed(normalized);
+    }
+
     /**
      * Set filmstrip hole spacing across all TileManagers.
      * @param {number} value
@@ -730,6 +744,8 @@ export function useRibbonBuilder(ctx) {
         setEdgeNoiseMirrored,
         setFilmstripStyleEnabled,
         setFilmstripGapLength,
+        setFilmstripMotionEnabled,
+        setFilmstripMotionSpeed,
         setFilmstripHoleLength,
         setFilmstripAperture,
         setFilmstripHoleRoundedness,

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import {
     DEFAULT_FILMSTRIP_STYLE_ENABLED,
+    DEFAULT_FILMSTRIP_MOTION_ENABLED,
+    DEFAULT_FILMSTRIP_MOTION_SPEED,
+    normalizeFilmstripMotionSpeed,
     DEFAULT_FILMSTRIP_GAP_LENGTH,
     MIN_FILMSTRIP_GAP_LENGTH,
     MAX_FILMSTRIP_GAP_LENGTH,
@@ -203,7 +206,7 @@ const FILMSTRIP_GLSL = /* glsl */`
                     return outside + inside;
                 }
 
-                float computeFilmstripAlpha(vec2 uv, float edgeNoiseU, float enabled, float gapLength, float holeLength, float aperture, float roundedness) {
+                float computeFilmstripAlpha(vec2 uv, float edgeNoiseU, float enabled, float gapLength, float holeLength, float aperture, float roundedness, float motionOffset) {
                     if (enabled < 0.5) {
                         return 1.0;
                     }
@@ -215,7 +218,7 @@ const FILMSTRIP_GLSL = /* glsl */`
                     float cycleLength = safeHoleLength + safeGapLength;
                     float edgeDistance = min(uv.y, 1.0 - uv.y);
                     float bandWidth = ${FILMSTRIP_EDGE_BAND_WIDTH.toFixed(2)};
-                    float localX = (fract(edgeNoiseU / max(cycleLength, 0.0001)) - 0.5) * cycleLength;
+                    float localX = (fract((edgeNoiseU + motionOffset) / max(cycleLength, 0.0001)) - 0.5) * cycleLength;
                     float localY = edgeDistance - bandWidth * 0.5;
                     float halfWidth = max(0.01, safeHoleLength * 0.5);
                     float halfHeight = bandWidth * (0.18 + holeAperture * 0.38);
@@ -404,7 +407,7 @@ function createEdgeNoiseAlphaNode(threeTSL, baseUV, edgeNoiseU, maxUniform, phas
     return maxUniform.lessThanEqual(float(0.0001)).select(float(1.0), edgeAlpha);
 }
 
-function createFilmstripAlphaNode(threeTSL, baseUV, edgeNoiseU, enabledUniform, gapLengthUniform, holeLengthUniform, apertureUniform, roundednessUniform) {
+function createFilmstripAlphaNode(threeTSL, baseUV, edgeNoiseU, enabledUniform, gapLengthUniform, holeLengthUniform, apertureUniform, roundednessUniform, offsetUniform) {
     const { float, vec2, abs, max, min, fract, smoothstep, length } = threeTSL;
     const safeGapLength = gapLengthUniform.max(float(0.0001));
     const safeHoleLength = holeLengthUniform.max(float(MIN_FILMSTRIP_HOLE_LENGTH)).min(float(MAX_FILMSTRIP_HOLE_LENGTH));
@@ -413,7 +416,7 @@ function createFilmstripAlphaNode(threeTSL, baseUV, edgeNoiseU, enabledUniform, 
     const cycleLength = safeHoleLength.add(safeGapLength);
     const edgeDistance = min(baseUV.y, float(1.0).sub(baseUV.y));
     const bandWidth = float(FILMSTRIP_EDGE_BAND_WIDTH);
-    const localX = fract(edgeNoiseU.div(cycleLength.max(float(0.0001)))).sub(float(0.5)).mul(cycleLength);
+    const localX = fract(edgeNoiseU.add(offsetUniform).div(cycleLength.max(float(0.0001)))).sub(float(0.5)).mul(cycleLength);
     const localY = edgeDistance.sub(bandWidth.mul(float(0.5)));
     const halfWidth = safeHoleLength.mul(float(0.5)).max(float(0.01));
     const halfHeight = bandWidth.mul(float(0.18).add(holeAperture.mul(float(0.38))));
@@ -774,6 +777,8 @@ export class TileManager {
             edgeNoisePatternLength = DEFAULT_EDGE_NOISE_PATTERN_LENGTH,
             edgeNoiseMirrored = false,
             filmstripStyleEnabled = DEFAULT_FILMSTRIP_STYLE_ENABLED,
+            filmstripMotionEnabled = DEFAULT_FILMSTRIP_MOTION_ENABLED,
+            filmstripMotionSpeed = DEFAULT_FILMSTRIP_MOTION_SPEED,
             filmstripGapLength = DEFAULT_FILMSTRIP_GAP_LENGTH,
             filmstripHoleLength = DEFAULT_FILMSTRIP_HOLE_LENGTH,
             filmstripAperture = DEFAULT_FILMSTRIP_APERTURE,
@@ -834,6 +839,10 @@ export class TileManager {
         this.edgeNoisePatternLength = normalizeEdgeNoisePatternLength(edgeNoisePatternLength);
         this.edgeNoiseMirrored = !!edgeNoiseMirrored;
         this.filmstripStyleEnabled = !!filmstripStyleEnabled;
+        this.filmstripMotionEnabled = !!filmstripMotionEnabled;
+        this.filmstripMotionSpeed = normalizeFilmstripMotionSpeed(filmstripMotionSpeed);
+        this.lastMotionFrameTime = null;
+        this.sharedFilmstripOffsetUniform = { value: 0 };
         this.filmstripGapLength = normalizeFilmstripGapLength(filmstripGapLength);
         this.filmstripHoleLength = normalizeFilmstripHoleLength(filmstripHoleLength);
         this.filmstripAperture = normalizeFilmstripAperture(filmstripAperture);
@@ -1300,6 +1309,9 @@ export class TileManager {
         if (material._overlapMaskTextureNode) {
             material._overlapMaskTextureNode.value = this.sharedOverlapMaskUniform.value;
         }
+        if (material._filmstripOffsetUniform) {
+            material._filmstripOffsetUniform.value = this.sharedFilmstripOffsetUniform.value;
+        }
         this.#syncEdgeNoiseMaterialState(material);
     }
 
@@ -1568,6 +1580,7 @@ export class TileManager {
                 uFilmstripHoleLength: this.sharedFilmstripHoleLengthUniform,
                 uFilmstripAperture: this.sharedFilmstripApertureUniform,
                 uFilmstripRoundedness: this.sharedFilmstripRoundednessUniform,
+                uFilmstripOffset: this.sharedFilmstripOffsetUniform,
             },
             vertexShader: /* glsl */`
                 in float edgeNoiseU;
@@ -1652,6 +1665,7 @@ export class TileManager {
                 uniform float uFilmstripHoleLength;
                 uniform float uFilmstripAperture;
                 uniform float uFilmstripRoundedness;
+                uniform float uFilmstripOffset;
                 out vec4 outColor;
 
 ${CAP_ALPHA_GLSL}
@@ -1756,7 +1770,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
                     float capAlpha = computeCapAlpha(vec2(vCapStartU, vMaskV), vec2(vCapEndU, vMaskV), vCapStartStyle, vCapEndStyle);
                     float edgeNoiseAlpha = computeEdgeNoiseAlpha(maskUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
-                    float filmstripAlpha = computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
+                    float filmstripAlpha = computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness, uFilmstripOffset);
                     texColor.a *= capAlpha * edgeNoiseAlpha * filmstripAlpha;
                     if (uOverlapMaskPass == 1) {
                         // Match the ribbon's real visibility, including cap and cutout alpha.
@@ -1862,6 +1876,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._filmstripHoleLengthUniform = material.uniforms.uFilmstripHoleLength;
         material._filmstripApertureUniform = material.uniforms.uFilmstripAperture;
         material._filmstripRoundednessUniform = material.uniforms.uFilmstripRoundedness;
+        material._filmstripOffsetUniform = material.uniforms.uFilmstripOffset;
         material.alphaToCoverage = hasCapMask || this.#hasEdgeAlphaEffects();
 
         return this.#decorateTransparentShadowsMaterial(material, hasCapMask);
@@ -1916,6 +1931,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const filmstripHoleLengthUniform = uniform(float(this.sharedFilmstripHoleLengthUniform.value));
         const filmstripApertureUniform = uniform(float(this.sharedFilmstripApertureUniform.value));
         const filmstripRoundednessUniform = uniform(float(this.sharedFilmstripRoundednessUniform.value));
+        const filmstripOffsetUniform = uniform(float(this.sharedFilmstripOffsetUniform.value));
         const contrastUniform = uniform(float(this.sharedContrastUniform.value));
         const saturationUniform = uniform(float(this.sharedSaturationUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
@@ -2034,7 +2050,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             filmstripGapLengthUniform,
             filmstripHoleLengthUniform,
             filmstripApertureUniform,
-            filmstripRoundednessUniform
+            filmstripRoundednessUniform,
+            filmstripOffsetUniform
         );
         const finalColor = hasCapMask
             ? vec4(effectColor.rgb, effectColor.a.mul(peakTroughAlpha).mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
@@ -2155,6 +2172,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._filmstripHoleLengthUniform = filmstripHoleLengthUniform;
         material._filmstripApertureUniform = filmstripApertureUniform;
         material._filmstripRoundednessUniform = filmstripRoundednessUniform;
+        material._filmstripOffsetUniform = filmstripOffsetUniform;
         material._contrastUniform = contrastUniform;
         material._saturationUniform = saturationUniform;
 
@@ -2301,6 +2319,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uFilmstripHoleLength: this.sharedFilmstripHoleLengthUniform,
                 uFilmstripAperture: this.sharedFilmstripApertureUniform,
                 uFilmstripRoundedness: this.sharedFilmstripRoundednessUniform,
+                uFilmstripOffset: this.sharedFilmstripOffsetUniform,
             },
             vertexShader: /* glsl */`
                 in float edgeNoiseU;
@@ -2381,6 +2400,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                 uniform float uFilmstripHoleLength;
                 uniform float uFilmstripAperture;
                 uniform float uFilmstripRoundedness;
+                uniform float uFilmstripOffset;
                 out vec4 outColor;
 
 ${CAP_ALPHA_GLSL}
@@ -2429,7 +2449,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
                     texColor.a *= mix(1.0, ${PEAK_TROUGH_MIN_ALPHA.toFixed(1)}, peakTroughMask * uPeakTroughTransparency);
                     float capAlpha = computeCapAlpha(vec2(vCapStartU, vMaskV), vec2(vCapEndU, vMaskV), vCapStartStyle, vCapEndStyle);
                     float edgeNoiseAlpha = computeEdgeNoiseAlpha(maskUv, vEdgeNoiseU, uEdgeNoiseMax, uEdgeNoisePhase, uEdgeNoiseSpatialFrequency, uEdgeNoiseMirror);
-                    float filmstripAlpha = computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness);
+                    float filmstripAlpha = computeFilmstripAlpha(maskUv, vEdgeNoiseU, uFilmstripEnabled, uFilmstripGapLength, uFilmstripHoleLength, uFilmstripAperture, uFilmstripRoundedness, uFilmstripOffset);
                     texColor.a *= capAlpha * edgeNoiseAlpha * filmstripAlpha;
                     if (uOverlapMaskPass == 1) {
                         // Match the ribbon's real visibility, including cap and cutout alpha.
@@ -2520,6 +2540,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._filmstripHoleLengthUniform = material.uniforms.uFilmstripHoleLength;
         material._filmstripApertureUniform = material.uniforms.uFilmstripAperture;
         material._filmstripRoundednessUniform = material.uniforms.uFilmstripRoundedness;
+        material._filmstripOffsetUniform = material.uniforms.uFilmstripOffset;
         material.defaultAttributeValues = {
             ...(material.defaultAttributeValues || {}),
             capStartStyle: [0],
@@ -2601,6 +2622,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         const filmstripHoleLengthUniform = uniform(float(this.sharedFilmstripHoleLengthUniform.value));
         const filmstripApertureUniform = uniform(float(this.sharedFilmstripApertureUniform.value));
         const filmstripRoundednessUniform = uniform(float(this.sharedFilmstripRoundednessUniform.value));
+        const filmstripOffsetUniform = uniform(float(this.sharedFilmstripOffsetUniform.value));
         const contrastUniform = uniform(float(this.sharedContrastUniform.value));
         const saturationUniform = uniform(float(this.sharedSaturationUniform.value));
         const transparentShadowsSpan = transparentShadowsMaxUniform
@@ -2687,7 +2709,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             filmstripGapLengthUniform,
             filmstripHoleLengthUniform,
             filmstripApertureUniform,
-            filmstripRoundednessUniform
+            filmstripRoundednessUniform,
+            filmstripOffsetUniform
         );
         const finalColor = hasCapMask
             ? vec4(effectColor.rgb, effectColor.a.mul(peakTroughAlpha).mul(capAlpha).mul(edgeNoiseAlpha).mul(filmstripAlpha))
@@ -2804,6 +2827,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         material._filmstripHoleLengthUniform = filmstripHoleLengthUniform;
         material._filmstripApertureUniform = filmstripApertureUniform;
         material._filmstripRoundednessUniform = filmstripRoundednessUniform;
+        material._filmstripOffsetUniform = filmstripOffsetUniform;
         material._contrastUniform = contrastUniform;
         material._saturationUniform = saturationUniform;
         material.defaultAttributeValues = {
@@ -3484,7 +3508,11 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
         if (this.lastFrameTime === 0) this.lastFrameTime = nowMs;
         const elapsed = nowMs - this.lastFrameTime;
-        const elapsedSec = elapsed / 1000;
+        // Continuous motion must use per-render deltas, independent of the
+        // frame-limited layer cycling timer.
+        const elapsedSec = this.lastMotionFrameTime === null ? 0 : Math.max(0, (nowMs - this.lastMotionFrameTime) / 1000);
+        this.lastMotionFrameTime = nowMs;
+        if (!(suppressFlowAnimation && this.flowEnabled)) this.#advanceFilmstripMotion(this.getFilmstripMotionSpeed() * elapsedSec);
 
         this.#syncEdgeNoisePhase(nowMs);
 
@@ -3700,6 +3728,41 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         return true;
     }
 
+    /** Enable motion without changing the current pattern position. */
+    setFilmstripMotionEnabled(enabled) {
+        this.filmstripMotionEnabled = !!enabled;
+    }
+
+    setFilmstripMotionSpeed(value) {
+        this.filmstripMotionSpeed = normalizeFilmstripMotionSpeed(value);
+    }
+
+    /** Signed ribbon widths per second; 100% tracks applied conveyor flow. */
+    getFilmstripMotionSpeed() {
+        return (this.flowEnabled ? this.flowSpeed : this.requestedFlowSpeed) * this.filmstripMotionSpeed;
+    }
+
+    getFilmstripCyclePeriod() {
+        if (!this.filmstripStyleEnabled || !this.filmstripMotionEnabled) return 0;
+        const speed = Math.abs(this.getFilmstripMotionSpeed());
+        return speed > 0 ? (this.filmstripGapLength + this.filmstripHoleLength) / speed : 0;
+    }
+
+    #syncFilmstripOffsetUniforms() {
+        const sync = material => {
+            if (material?._filmstripOffsetUniform) material._filmstripOffsetUniform.value = this.sharedFilmstripOffsetUniform.value;
+        };
+        this.#forEachStaticMaterial(sync);
+        this.flowMaterials.forEach(sync);
+    }
+
+    #advanceFilmstripMotion(deltaTiles) {
+        if (!this.filmstripStyleEnabled || !this.filmstripMotionEnabled) return;
+        const cycle = this.filmstripGapLength + this.filmstripHoleLength;
+        this.sharedFilmstripOffsetUniform.value = positiveModulo(this.sharedFilmstripOffsetUniform.value + deltaTiles, cycle);
+        this.#syncFilmstripOffsetUniforms();
+    }
+
     /**
      * Set filmstrip gap length in ribbon-segment units.
      * @param {number} value 0.05..2
@@ -3880,6 +3943,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         }
 
         this.flowOffset += parsed;
+        this.#advanceFilmstripMotion(parsed * this.filmstripMotionSpeed);
         this.#syncFlowOffsetUniforms();
         return true;
     }
@@ -3950,6 +4014,9 @@ ${CAMERA_KEY_LIGHTING_GLSL}
      * Call before a deterministic (frame-accurate) render pass.
      */
     resetAnimationState() {
+        this.lastMotionFrameTime = null;
+        this.sharedFilmstripOffsetUniform.value = 0;
+        this.#syncFilmstripOffsetUniforms();
         this.currentLayer = 0;
         this.direction = 1;
         this.lastFrameTime = 0;
@@ -3978,6 +4045,7 @@ ${CAMERA_KEY_LIGHTING_GLSL}
      */
     tickDeterministic(deltaSec) {
         if (!this.isKTX2) return;
+        this.#advanceFilmstripMotion(this.getFilmstripMotionSpeed() * deltaSec);
 
         // --- Flow animation ---
         if (this.flowEnabled && this.flowSpeed !== 0) {
@@ -4039,6 +4107,16 @@ ${CAMERA_KEY_LIGHTING_GLSL}
             if (flowCycleFraction) {
                 periods.push(flowCycleFraction);
             }
+        }
+
+        const filmstripPeriod = this.getFilmstripCyclePeriod();
+        if (filmstripPeriod > 0) {
+            // Form the ratio from its component fractions so aligned conveyor
+            // speeds retain precision in the common-loop calculation.
+            const cycle = numberToFraction(this.filmstripGapLength + this.filmstripHoleLength);
+            const speed = numberToFraction(Math.abs(this.flowEnabled ? this.flowSpeed : this.requestedFlowSpeed));
+            const multiplier = numberToFraction(this.filmstripMotionSpeed);
+            periods.push(reduceFraction(cycle.numerator * speed.denominator * multiplier.denominator, cycle.denominator * speed.numerator * multiplier.numerator));
         }
 
         if (periods.length === 0) {

@@ -29,6 +29,8 @@ export function useTextureLoader(ctx, deps = {}) {
             edgeNoisePatternLength: ctx.app.edgeNoisePatternLength,
             edgeNoiseMirrored: ctx.app.edgeNoiseMirrored,
             filmstripStyleEnabled: ctx.app.filmstripStyleEnabled,
+            filmstripMotionEnabled: ctx.app.filmstripMotionEnabled,
+            filmstripMotionSpeed: ctx.app.filmstripMotionSpeed,
             filmstripGapLength: ctx.app.filmstripGapLength,
             filmstripHoleLength: ctx.app.filmstripHoleLength,
             filmstripAperture: ctx.app.filmstripAperture,

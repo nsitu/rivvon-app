@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useViewerStore } from './viewerStore.js';
 
-describe('transparency preferences', () => {
+describe('viewer preferences', () => {
     let preferences;
 
     beforeEach(() => {
@@ -43,5 +43,32 @@ describe('transparency preferences', () => {
         useViewerStore().setTransparencyMethod('unknown');
         setActivePinia(createPinia());
         expect(useViewerStore().transparencyMethod).toBe('brightness');
+    });
+
+    it('persists filmstrip motion and captures it in viewer settings', () => {
+        const store = useViewerStore();
+        expect(store.filmstripMotionEnabled).toBe(false);
+        expect(store.filmstripMotionSpeed).toBe(1);
+        store.captureToolsPanelOriginalState();
+        store.setFilmstripMotionEnabled(true);
+        store.setFilmstripMotionSpeed(1.7);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        setActivePinia(createPinia());
+        expect(useViewerStore().captureToolsPanelOriginalState({ store: false })).toMatchObject({
+            filmstripMotionEnabled: true,
+            filmstripMotionSpeed: 1.7,
+        });
+    });
+
+    it('resets filmstrip motion and normalizes unsupported speeds', () => {
+        const store = useViewerStore();
+        expect(store.setFilmstripMotionSpeed(Infinity)).toBe(1);
+        expect(store.setFilmstripMotionSpeed(-1)).toBe(0.1);
+        expect(store.setFilmstripMotionSpeed(20)).toBe(3);
+        store.setFilmstripMotionEnabled(true);
+        store.resetToolbarSettingsToDefaults();
+        setActivePinia(createPinia());
+        expect(useViewerStore().filmstripMotionEnabled).toBe(false);
+        expect(useViewerStore().filmstripMotionSpeed).toBe(1);
     });
 });

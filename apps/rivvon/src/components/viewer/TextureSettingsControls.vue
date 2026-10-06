@@ -198,6 +198,15 @@
         }
     });
 
+    const filmstripMotionEnabledModel = computed({
+        get: () => app.filmstripMotionEnabled,
+        set: value => app.setFilmstripMotionEnabled(value),
+    });
+    const filmstripMotionSpeedModel = computed({
+        get: () => Math.round(app.filmstripMotionSpeed * 100),
+        set: value => app.setFilmstripMotionSpeed(Number(value) / 100),
+    });
+
     const filmstripGapLengthModel = computed({
         get: () => Math.round(app.filmstripGapLength * 100),
         set: (value) => {
@@ -852,6 +861,41 @@
                         />
                     </div>
                 </label>
+
+                <div v-if="filmstripStyleEnabledModel" class="tools-toggle-row">
+                    <label :for="getInputId('filmstrip-motion-enabled')" class="tools-toggle-label">
+                        <div class="tools-toggle-copy">
+                            <span class="tools-toggle-title">Animate Filmstrip</span>
+                        </div>
+                        <div class="tools-toggle-control">
+                            <span class="tools-hint tools-toggle-hint">{{ filmstripMotionEnabledModel ? 'On' : 'Off' }}</span>
+                            <ToggleSwitch
+                                :inputId="getInputId('filmstrip-motion-enabled')"
+                                v-model="filmstripMotionEnabledModel"
+                            />
+                        </div>
+                    </label>
+                </div>
+
+                <div v-if="filmstripStyleEnabledModel && filmstripMotionEnabledModel" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label :id="getInputId('filmstrip-motion-speed-label')" class="tools-slider-label">Motion Speed</label>
+                        <span class="tools-hint tools-slider-hint">{{ filmstripMotionSpeedModel }}%</span>
+                    </div>
+                    <Slider
+                        v-model="filmstripMotionSpeedModel"
+                        :min="10"
+                        :max="300"
+                        :step="10"
+                        :aria-labelledby="getInputId('filmstrip-motion-speed-label')"
+                        class="tools-range-slider"
+                    />
+                    <div class="tools-slider-caption">
+                        <span>Slower</span>
+                        <span>Faster</span>
+                    </div>
+                    <p class="tools-hint">100% matches conveyor flow. With flow off, motion uses the selected conveyor speed.</p>
+                </div>
 
                 <div
                     v-if="filmstripStyleEnabledModel"

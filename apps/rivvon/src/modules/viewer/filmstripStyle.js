@@ -17,3 +17,16 @@ export const DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS = 0.33;
 export const MIN_FILMSTRIP_HOLE_ROUNDEDNESS = 0;
 export const MAX_FILMSTRIP_HOLE_ROUNDEDNESS = 1;
 export const FILMSTRIP_EDGE_BAND_WIDTH = 0.17;
+
+export const DEFAULT_FILMSTRIP_MOTION_ENABLED = false;
+export const DEFAULT_FILMSTRIP_MOTION_SPEED = 1;
+export const MIN_FILMSTRIP_MOTION_SPEED = 0.1;
+export const MAX_FILMSTRIP_MOTION_SPEED = 3;
+
+// A multiplier keeps 100% aligned with the conveyor's applied speed.
+export function normalizeFilmstripMotionSpeed(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed)
+        ? Math.min(MAX_FILMSTRIP_MOTION_SPEED, Math.max(MIN_FILMSTRIP_MOTION_SPEED, parsed))
+        : DEFAULT_FILMSTRIP_MOTION_SPEED;
+}

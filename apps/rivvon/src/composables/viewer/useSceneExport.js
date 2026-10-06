@@ -180,6 +180,7 @@ export function useSceneExport(ctx, deps = {}) {
                 textureCyclePeriod: 0,
                 undulationPeriod: 0,
                 flowCyclePeriod: 0,
+                filmstripCyclePeriod: 0,
                 cinematicAutoDuration: seamlessLoopDuration,
                 cycleDetails: [],
             };
@@ -200,6 +201,8 @@ export function useSceneExport(ctx, deps = {}) {
         const flowCyclePeriod = flowEnabled && flowSpeed !== 0 && effectiveTileCount > 0
             ? (flowAlignmentInfo?.flowCyclePeriod ?? (effectiveTileCount / appliedFlowSpeed))
             : 0;
+
+        const filmstripCyclePeriod = tm.getFilmstripCyclePeriod?.() ?? 0;
 
         const buildCycleDetail = ({ key, label, active, duration, detail, inactiveDetail, statusLabel }) => {
             const repeatCount = active ? getCycleRepeatCount(seamlessLoopDuration, duration) : null;
@@ -263,6 +266,15 @@ export function useSceneExport(ctx, deps = {}) {
                 inactiveDetail: 'Flow does not contribute to the seamless loop while disabled.',
                 statusLabel: 'Off',
             }),
+            buildCycleDetail({
+                key: 'filmstrip',
+                label: 'Filmstrip Cycle',
+                active: filmstripCyclePeriod > 0,
+                duration: filmstripCyclePeriod,
+                detail: 'The holes and gaps move along the ribbon and repeat once per hole-and-gap spacing.',
+                inactiveDetail: 'Filmstrip motion does not contribute to the loop while disabled.',
+                statusLabel: 'Off',
+            }),
         ];
 
         const cinematicDuration = ctx.cinematicCamera.getLoopDuration();
@@ -275,6 +287,7 @@ export function useSceneExport(ctx, deps = {}) {
             textureCyclePeriod,
             undulationPeriod,
             flowCyclePeriod,
+            filmstripCyclePeriod,
             cinematicAutoDuration,
             cycleDetails,
         };
@@ -1046,6 +1059,7 @@ export function useSceneExport(ctx, deps = {}) {
             undulationPeriod: cycleInfo.undulationPeriod,
             undulationEnabled: (ctx.app.proceduralPathMode !== 'mobius' && ctx.app.undulationEnabled),
             flowCyclePeriod: cycleInfo.flowCyclePeriod,
+            filmstripCyclePeriod: cycleInfo.filmstripCyclePeriod,
             cycleDetails: cycleInfo.cycleDetails,
             layerCount: tm?.getLayerCount?.() ?? 0,
             fps: tm?.getFps?.() ?? 30,

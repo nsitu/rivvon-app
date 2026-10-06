@@ -69,6 +69,8 @@
         setEdgeNoiseMirrored,
         setFilmstripStyleEnabled,
         setFilmstripGapLength,
+        setFilmstripMotionEnabled,
+        setFilmstripMotionSpeed,
         setFilmstripHoleLength,
         setFilmstripAperture,
         setFilmstripHoleRoundedness,
@@ -300,6 +302,9 @@
         setFilmstripStyleEnabled(enabled);
     });
 
+    watch(() => app.filmstripMotionEnabled, enabled => setFilmstripMotionEnabled(enabled));
+    watch(() => app.filmstripMotionSpeed, speed => setFilmstripMotionSpeed(speed));
+
     watch(() => app.filmstripGapLength, (value) => {
         setFilmstripGapLength(value);
     });
@@ -360,6 +365,8 @@
         setEdgeNoiseMirrored,
         setFilmstripStyleEnabled,
         setFilmstripGapLength,
+        setFilmstripMotionEnabled,
+        setFilmstripMotionSpeed,
         setFilmstripHoleLength,
         setFilmstripAperture,
         setFilmstripHoleRoundedness,

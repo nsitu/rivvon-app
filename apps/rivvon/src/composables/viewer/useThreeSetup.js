@@ -202,6 +202,8 @@ export function useThreeSetup() {
         edgeNoisePatternLength: app.edgeNoisePatternLength,
         edgeNoiseMirrored: app.edgeNoiseMirrored,
         filmstripStyleEnabled: app.filmstripStyleEnabled,
+        filmstripMotionEnabled: app.filmstripMotionEnabled,
+        filmstripMotionSpeed: app.filmstripMotionSpeed,
         filmstripGapLength: app.filmstripGapLength,
         filmstripHoleLength: app.filmstripHoleLength,
         filmstripAperture: app.filmstripAperture,
