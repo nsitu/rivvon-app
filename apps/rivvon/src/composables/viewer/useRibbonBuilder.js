@@ -22,6 +22,7 @@ import {
 export function useRibbonBuilder(ctx) {
 
     function resetSphericalVerticalWrapForArtwork(pathsPoints) {
+        if (ctx.app.isRestoringPreset) return;
         const aspectRatio = getSphericalProjectionArtworkAspectRatio(pathsPoints);
         ctx.app.resetSphericalProjectionVerticalWrapForArtwork?.(aspectRatio);
     }
@@ -50,6 +51,12 @@ export function useRibbonBuilder(ctx) {
     }
 
     function syncProceduralSourceToStore(type, settings) {
+        if (ctx.app.isRestoringPreset) {
+            ctx.app.proceduralSourceType = type;
+            ctx.app.proceduralPathMode = type;
+            ctx.app[type === 'mobius' ? 'mobiusSettings' : type === 'clock' ? 'clockSettings' : 'sineWaveSettings'] = { ...settings };
+            return;
+        }
         ctx.app.setProceduralSourceType?.(type);
         ctx.app.setProceduralPathMode?.(type);
 
@@ -111,7 +118,8 @@ export function useRibbonBuilder(ctx) {
         // Build from single path (wrapped in array)
         ctx.ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
         ctx.ribbonSeries.value.initFlowMaterials();
-        ctx.app.setProceduralPathMode?.(null);
+        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
+        else ctx.app.setProceduralPathMode?.(null);
 
         // New geometry invalidates all previous ROIs
         ctx.cinematicCamera.clearROIs();
@@ -152,7 +160,8 @@ export function useRibbonBuilder(ctx) {
         // Build from multiple paths
         ctx.ribbonSeries.value.buildFromMultiplePaths(pointsArray, options.width || 1.2);
         ctx.ribbonSeries.value.initFlowMaterials();
-        ctx.app.setProceduralPathMode?.(null);
+        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
+        else ctx.app.setProceduralPathMode?.(null);
 
         // New geometry invalidates all previous ROIs
         ctx.cinematicCamera.clearROIs();
@@ -210,7 +219,8 @@ export function useRibbonBuilder(ctx) {
         // Build from processed points
         ctx.ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
         ctx.ribbonSeries.value.initFlowMaterials();
-        ctx.app.setProceduralPathMode?.(null);
+        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
+        else ctx.app.setProceduralPathMode?.(null);
 
         // New geometry invalidates all previous ROIs
         ctx.cinematicCamera.clearROIs();
@@ -241,7 +251,7 @@ export function useRibbonBuilder(ctx) {
 
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
-        ctx.ribbonSeries.value.setHelixOptions({
+        ctx.ribbonSeries.value.setHelixOptions(ctx.app.isRestoringPreset ? ctx.app.helixOptions : {
             ...ctx.app.helixOptions,
             helixMode: false,
             sphericalProjectionEnabled: false,

@@ -55,6 +55,13 @@ export function clearCanvasRegistry() {
     canvasRegistry.clear();
 }
 
+/** Clear live pixels without unregistering canvases that are still mounted. */
+export function clearTilePreviewCanvases() {
+    for (const { canvas, ctx } of canvasRegistry.values()) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        delete canvas.dataset.hasContent;
+    }
+}
 
 export class TileSnapshotPreview {
 
@@ -142,6 +149,7 @@ export class TileSnapshotPreview {
      * @returns {Promise<string|null>} The blob URL, or null if canvas not found
      */
     async bake(tileIndex) {
+        if (this.disposed) return null;
         const entry = canvasRegistry.get(tileIndex);
         if (!entry) return null;
 
@@ -152,6 +160,9 @@ export class TileSnapshotPreview {
                     'image/png'
                 );
             });
+
+            // Cancellation may dispose this preview while toBlob is pending.
+            if (this.disposed) return null;
 
             const url = URL.createObjectURL(blob);
             this._bakedUrls.set(tileIndex, url);

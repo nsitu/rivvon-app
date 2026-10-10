@@ -2,6 +2,7 @@
 // Pinia store for rivvon viewer state
 
 import { defineStore } from "pinia";
+import { normalizeArtworkSettings } from '../../../../packages/shared-types/src/scenePreset.js';
 import {
   DEFAULT_FILMSTRIP_STYLE_ENABLED,
   DEFAULT_FILMSTRIP_MOTION_ENABLED,
@@ -725,6 +726,7 @@ export const useViewerStore = defineStore("viewer", {
 
     return {
       // Renderer state
+      isRestoringPreset: false,
       rendererType:
         readViewerPreferences().rendererType === "webgpu" ? "webgpu" : "webgl",
       renderAntialiasEnabled: normalizeViewerBooleanPreference(
@@ -1772,6 +1774,9 @@ export const useViewerStore = defineStore("viewer", {
       showViewerFlag(this, VIEWER_PANEL_KEYS.drawings);
     },
 
+    showPresetBrowser() { showViewerFlag(this, VIEWER_PANEL_KEYS.presets); },
+    hidePresetBrowser() { hideViewerFlag(this, VIEWER_PANEL_KEYS.presets); },
+
     hideDrawingBrowser() {
       hideViewerFlag(this, VIEWER_PANEL_KEYS.drawings);
     },
@@ -1923,6 +1928,16 @@ sphericalProjectionVerticalWrapAuto:
      */
     getViewerSettingsSnapshot() {
       return this.captureToolsPanelOriginalState({ store: false });
+    },
+
+    getArtworkSettingsSnapshot() {
+      return normalizeArtworkSettings(this.$state);
+    },
+
+    applyArtworkSettingsSnapshot(settings) {
+      // A preset changes this scene, never localStorage or device preferences.
+      this.$patch(normalizeArtworkSettings(settings));
+      this.roundedCaps = this.capStyle === 'rounded';
     },
 
     /**

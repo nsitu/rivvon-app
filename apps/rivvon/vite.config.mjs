@@ -49,6 +49,11 @@ export default defineConfig(({ mode }) => {
     const shouldCopyRuntimeAssets = env.VITE_ASSET_MODE === 'local' || !env.VITE_ASSET_BASE_URL;
     const staticCopyTargets = [
         {
+            // Pinned single-threaded core: works without SharedArrayBuffer/COEP.
+            src: normalizePath(resolve(__dirname, 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.{js,wasm}')),
+            dest: 'vendor/ffmpeg/0.12.10',
+        },
+        {
             // Ship the adapted shader source and its LGPL attribution/license.
             src: normalizePath(resolve(__dirname, 'src/modules/slyce/deinterlace/{bwdif.wgsl,COPYING.LGPLv2.1,NOTICE.md}')),
             dest: 'licenses/bwdif',
@@ -86,6 +91,7 @@ export default defineConfig(({ mode }) => {
             },
         },
         optimizeDeps: {
+            exclude: ['@ffmpeg/ffmpeg'],
             esbuildOptions: {
                 target: 'esnext',
             }

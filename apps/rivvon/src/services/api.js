@@ -766,14 +766,25 @@ export function useRivvonAPI() {
      * Delete a texture set (authenticated, owner only)
      * DELETE /texture-set/:id
      */
-    async function deleteTextureSet(textureSetId) {
+    async function getTexturePresetDependencies(textureSetId) {
+        const response = await authFetch(`${API_BASE_URL}/texture-set/${textureSetId}/preset-dependencies`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not check linked presets');
+        return data;
+    }
+
+    async function deleteTextureSet(textureSetId, acceptedPresetIds = []) {
         const response = await authFetch(`${API_BASE_URL}/texture-set/${textureSetId}`, {
             method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acceptedPresetIds }),
         })
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Failed to delete texture set' }))
-            throw new Error(error.error || 'Failed to delete texture set')
+            const failure = new Error(error.error || 'Failed to delete texture set');
+            failure.payload = error;
+            throw failure;
         }
 
         return response.json()
@@ -857,6 +868,7 @@ export function useRivvonAPI() {
         getMyDrawings,
         getDrawing,
         deleteTextureSet,
+        getTexturePresetDependencies,
         deleteDrawing,
         updateTextureSet,
         updateDrawing,

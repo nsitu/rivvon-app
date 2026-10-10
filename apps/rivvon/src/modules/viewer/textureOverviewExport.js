@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay';
+import { createCanvasVideoExport } from './canvasVideoExport.js';
+import { applyRendererDisplayConfig } from './rendererConfig.js';
 import { TileManager } from './tileManager';
 import { calculateTextureOverviewLayout } from './textureOverviewLayout';
 import {
@@ -84,7 +85,7 @@ function createRenderer(width = 1, height = 1) {
     });
     renderer.setPixelRatio(1);
     renderer.setSize(Math.max(1, width), Math.max(1, height), false);
-    renderer.setClearColor(0x000000, 0);
+    applyRendererDisplayConfig(renderer);
     return renderer;
 }
 
@@ -237,7 +238,7 @@ function createOverviewScene(tileManager, width, height, options = {}) {
         targetHeight: height,
         tileWidth: tileResolution,
         tileHeight: tileResolution,
-        strategy: viewerSettings?.textureOverviewLayoutStrategy,
+        strategy: options.viewerSettings?.textureOverviewLayoutStrategy,
     });
     const geometry = new THREE.PlaneGeometry(layout.tileWidth, layout.tileHeight);
     const vertexCount = geometry.getAttribute('position')?.count ?? 0;
@@ -340,6 +341,8 @@ export async function exportTextureOverviewVideo(options = {}) {
         height = 1080,
         fps = 30,
         format = 'mp4',
+        encodingMethod = 'ffmpeg',
+        hardwareAcceleration = 'no-preference',
         duration = null,
         loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
         quality = 'very-high',
@@ -348,31 +351,17 @@ export async function exportTextureOverviewVideo(options = {}) {
         signal = null,
         onProgress = null,
         onStatus = null,
+        onColourMetadata = null,
     } = options;
 
     if (!texture) {
         throw new Error('Texture-only export requires a texture source.');
     }
 
-    const MB = await import('mediabunny');
-
-    if (typeof VideoEncoder === 'undefined') {
-        throw new Error('WebCodecs API is not available in this browser. Use Chrome 94+, Edge 94+, or Firefox 130+.');
-    }
-
-    let OutputFormat;
-    let codec;
-    if (format === 'webm') {
-        OutputFormat = MB.WebMOutputFormat;
-        codec = 'vp9';
-    } else {
-        OutputFormat = MB.Mp4OutputFormat;
-        codec = 'avc';
-    }
-
     const renderer = createRenderer(width, height);
     let tileManager = null;
     let overviewScene = null;
+    let videoExport = null;
 
     try {
         tileManager = await loadTemporaryTileManager({
@@ -385,7 +374,7 @@ export async function exportTextureOverviewVideo(options = {}) {
             viewerSettings,
         });
 
-        overviewScene = createOverviewScene(tileManager, width, height);
+        overviewScene = createOverviewScene(tileManager, width, height, { viewerSettings });
         tileManager.resetAnimationState?.();
         overviewScene.syncMaterials(true);
 
@@ -397,49 +386,16 @@ export async function exportTextureOverviewVideo(options = {}) {
         const totalFrames = Math.ceil(exportDuration * fps);
         const deltaSec = 1 / fps;
 
-        const qualityMap = {
-            'very-low': MB.QUALITY_VERY_LOW,
-            'low': MB.QUALITY_LOW,
-            'medium': MB.QUALITY_MEDIUM,
-            'high': MB.QUALITY_HIGH,
-            'very-high': MB.QUALITY_VERY_HIGH,
-        };
-        const bitrate = qualityMap[quality] ?? MB.QUALITY_VERY_HIGH;
-
-        const output = new MB.Output({
-            format: new OutputFormat(),
-            target: new MB.BufferTarget(),
+        videoExport = await createCanvasVideoExport(renderer.domElement, {
+            width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+            renderContext: renderer.getContext?.(),
+            signal, onStatus, onColourMetadata,
         });
-
-        const renderCanvas = renderer.domElement;
-        let exportCanvas = renderCanvas;
-        let exportCanvasContext = null;
-        let exportLogoAsset = null;
-
-        if (logoOverlayEnabled) {
-            exportLogoAsset = await loadExportLogoAsset();
-            exportCanvas = document.createElement('canvas');
-            exportCanvas.width = width;
-            exportCanvas.height = height;
-            exportCanvasContext = exportCanvas.getContext('2d', { alpha: true });
-
-            if (!exportCanvasContext) {
-                throw new Error('Failed to create export overlay compositor.');
-            }
-        }
-
-        const videoSource = new MB.CanvasSource(exportCanvas, {
-            codec,
-            bitrate,
-        });
-        output.addVideoTrack(videoSource);
-        await output.start();
 
         onStatus?.(`Encoding ${totalFrames} overview frames…`);
 
         for (let frame = 0; frame < totalFrames; frame += 1) {
             if (signal?.aborted) {
-                await output.finalize();
                 return null;
             }
 
@@ -450,29 +406,19 @@ export async function exportTextureOverviewVideo(options = {}) {
             overviewScene.syncMaterials();
             renderer.render(overviewScene.scene, overviewScene.camera);
 
-            if (exportCanvasContext && exportLogoAsset) {
-                exportCanvasContext.clearRect(0, 0, width, height);
-                exportCanvasContext.drawImage(renderCanvas, 0, 0, width, height);
-                drawExportLogoOverlay(
-                    exportCanvasContext,
-                    exportLogoAsset.image,
-                    width,
-                    height,
-                    exportLogoAsset.aspectRatio,
-                    logoOverlayCorner,
-                );
-            }
-
-            await videoSource.add(time, deltaSec);
-            onProgress?.((frame + 1) / totalFrames);
+            await videoExport.add(time, deltaSec);
+            onProgress?.(0.95 * (frame + 1) / totalFrames);
         }
 
         onStatus?.('Finalizing…');
-        await output.finalize();
-
-        const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
-        return new Blob([output.target.buffer], { type: mimeType });
+        const blob = await videoExport.finalize();
+        onProgress?.(1);
+        return blob;
+    } catch (error) {
+        if (signal?.aborted) return null;
+        throw error;
     } finally {
+        await videoExport?.dispose();
         overviewScene?.dispose?.();
         tileManager?.dispose?.();
         disposeRenderer(renderer);

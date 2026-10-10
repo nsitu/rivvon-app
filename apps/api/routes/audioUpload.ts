@@ -1,5 +1,6 @@
 import { AwsClient } from 'aws4fetch';
 import { Hono, type Context } from 'hono';
+import { getLinkedPresets, parseAcceptedPresetIds, prepareMediaDeletion } from '../utils/presetDependencies';
 import { nanoid } from 'nanoid';
 import { verifySession } from '../middleware/session';
 import type { AppEnv, SessionAuthContext } from '../types/hono';
@@ -183,7 +184,18 @@ audioUploadRoutes.delete('/:id', async (c) => {
     const audioId = c.req.param('id');
     const access = await getOwnedAudio(c, audioId);
     if (access.error || !access.audio) return access.error;
+    const consent = await c.req.json().catch(() => ({}));
+    const deletion = await prepareMediaDeletion(c.env, 'audio', [audioId], c.get('auth').userId,
+        parseAcceptedPresetIds(consent.acceptedPresetIds ? JSON.stringify(consent.acceptedPresetIds) : c.req.query('acceptedPresetIds')));
+    if (deletion.conflict) return c.json({ error: 'Deleting this audio also deletes linked presets. Review and confirm the cascade.',
+        code: 'PRESET_DEPENDENCIES', linkedPresets: deletion.conflict }, 409);
     if (access.audio.r2_key) await c.env.BUCKET.delete(access.audio.r2_key);
     await c.env.DB.prepare('DELETE FROM audio_assets WHERE id = ?').bind(audioId).run();
-    return successResponse({ audioId }, 'Audio deleted');
+    return successResponse({ audioId, deletedPresets: deletion.deletedPresets }, 'Audio deleted');
+});
+
+audioUploadRoutes.get('/:id/preset-dependencies', async (c) => {
+    const audioId = c.req.param('id'), access = await getOwnedAudio(c, audioId);
+    if (access.error || !access.audio) return access.error;
+    return c.json({ linkedPresets: await getLinkedPresets(c.env.DB, 'audio', [audioId], c.get('auth').userId) });
 });

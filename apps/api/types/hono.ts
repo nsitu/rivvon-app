@@ -9,6 +9,7 @@ export interface SessionAuthContext {
 export interface AppBindings {
     DB: D1Database;
     BUCKET: R2Bucket;
+    PRESETS_BUCKET: R2Bucket;
     GOOGLE_CLIENT_ID: string;
     GOOGLE_CLIENT_SECRET: string;
     SESSION_SECRET: string;

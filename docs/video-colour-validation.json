@@ -1,0 +1,5881 @@
+{
+  "date": "2026-10-09",
+  "unitTests": {
+    "files": 30,
+    "tests": 225,
+    "result": "passed",
+    "excluded": "src/modules/slyce/sonyAvchd.test.js (deleted 00023.MTS fixture; unrelated to colour export)"
+  },
+  "productionBuild": "passed",
+  "runs": [
+    {
+      "run": "chrome-hardware",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "legacyHardwarePreference": "prefer-hardware",
+      "chartMaxError": 0,
+      "cancellation": "passed",
+      "exports": [
+        {
+          "name": "chart-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-hardware"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "chart-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-hardware"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "ribbon-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-hardware"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-hardware"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        }
+      ]
+    },
+    {
+      "run": "chrome-software",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "legacyHardwarePreference": "prefer-software",
+      "chartMaxError": 0,
+      "cancellation": "passed",
+      "exports": [
+        {
+          "name": "chart-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-software"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "chart-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-software"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "ribbon-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-software"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "prefer-software"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        }
+      ]
+    },
+    {
+      "run": "edge",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "legacyHardwarePreference": "no-preference",
+      "chartMaxError": 0,
+      "cancellation": "passed",
+      "exports": [
+        {
+          "name": "chart-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "chart-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "ribbon-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": false,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        }
+      ]
+    },
+    {
+      "run": "chrome-1080",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 1920,
+      "height": 1080,
+      "fps": 29.97,
+      "frames": 25,
+      "legacyHardwarePreference": "no-preference",
+      "chartMaxError": 0,
+      "cancellation": "passed",
+      "exports": [
+        {
+          "name": "chart-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.640028",
+            "codedWidth": 1920,
+            "codedHeight": 1080,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "chart-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "chart-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.640028",
+            "codedWidth": 1920,
+            "codedHeight": 1080,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "chart-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "ribbon-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.640028",
+            "codedWidth": 1920,
+            "codedHeight": 1080,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.640028",
+            "codedWidth": 1920,
+            "codedHeight": 1080,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 40,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 1920,
+              "height": 1080,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          }
+        }
+      ],
+      "sequence": {
+        "name": "sequence-after.mp4",
+        "sequence": "Every frame marker in order, including batch boundaries",
+        "frames": 25
+      }
+    },
+    {
+      "run": "final",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "legacyHardwarePreference": "no-preference",
+      "chartMaxError": 0,
+      "cancellation": "passed",
+      "exports": [
+        {
+          "name": "chart-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "chart-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "chart-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          },
+          "patchMaxError": 0
+        },
+        {
+          "name": "ribbon-logo-off-before.mp4",
+          "videoFrame": {
+            "format": "RGBX",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-before.mp4",
+          "videoFrame": {
+            "format": "RGBA",
+            "colour": {
+              "fullRange": true,
+              "matrix": "rgb",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            }
+          },
+          "decoderConfig": {
+            "codec": "avc1.64001f",
+            "codedWidth": 960,
+            "codedHeight": 540,
+            "colorSpace": {
+              "fullRange": true,
+              "matrix": "bt709",
+              "primaries": "bt709",
+              "transfer": "iec61966-2-1"
+            },
+            "hardwareAcceleration": "no-preference"
+          },
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "3.000000",
+            "nb_read_frames": "90"
+          }
+        }
+      ],
+      "sequence": {
+        "name": "sequence-after.mp4",
+        "sequence": "Every frame marker in order, including batch boundaries",
+        "frames": 90
+      }
+    }
+  ],
+  "gallery": [
+    {
+      "id": "Ye6d1sitg7SBoTF1lQwnc",
+      "url": "https://cdn.rivvon.ca/videos/Ye6d1sitg7SBoTF1lQwnc/video.mp4",
+      "width": 2160,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 13,
+          "matrix": 1,
+          "fullRange": true
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 2160,
+          "height": 2160,
+          "fullRange": null,
+          "primaries": null,
+          "transfer": null,
+          "matrix": null
+        }
+      ],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "-mp3xqDYvGXHD3_SAPUxr",
+      "url": "https://cdn.rivvon.ca/videos/-mp3xqDYvGXHD3_SAPUxr/video.mp4",
+      "width": 3840,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "av01"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 1,
+          "matrix": 1,
+          "fullRange": false
+        }
+      ],
+      "sps": [],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "PjE4tkSCq_8TBu8N-ZjnF",
+      "url": "https://cdn.rivvon.ca/videos/PjE4tkSCq_8TBu8N-ZjnF/video.mp4",
+      "width": 2160,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 6,
+          "transfer": 6,
+          "matrix": 6,
+          "fullRange": false
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 2160,
+          "height": 2160,
+          "fullRange": false,
+          "primaries": 6,
+          "transfer": 6,
+          "matrix": 6
+        }
+      ],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "bTS18RiP0dYVf17RdXCwp",
+      "url": "https://cdn.rivvon.ca/videos/bTS18RiP0dYVf17RdXCwp/video.mp4",
+      "width": 2160,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 1,
+          "matrix": 1,
+          "fullRange": false
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 2160,
+          "height": 2160,
+          "fullRange": null,
+          "primaries": null,
+          "transfer": null,
+          "matrix": null
+        }
+      ],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "7ssfTJLEXCUujRuIHcvWC",
+      "url": "https://cdn.rivvon.ca/videos/7ssfTJLEXCUujRuIHcvWC/video.mp4",
+      "width": 2160,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 1,
+          "matrix": 1,
+          "fullRange": false
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 2160,
+          "height": 2160,
+          "fullRange": null,
+          "primaries": null,
+          "transfer": null,
+          "matrix": null
+        }
+      ],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "RYYFWwjUDbNq-F6z8kb8G",
+      "url": "https://cdn.rivvon.ca/videos/RYYFWwjUDbNq-F6z8kb8G/video.mp4",
+      "width": 2160,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 1,
+          "matrix": 1,
+          "fullRange": false
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 2160,
+          "height": 2160,
+          "fullRange": null,
+          "primaries": null,
+          "transfer": null,
+          "matrix": null
+        }
+      ],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "3NFsKsfsMmIJyW4Pnpk6N",
+      "url": "https://cdn.rivvon.ca/videos/3NFsKsfsMmIJyW4Pnpk6N/video.mp4",
+      "width": 1900,
+      "height": 1900,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 1,
+          "matrix": 1,
+          "fullRange": false
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 1900,
+          "height": 1900,
+          "fullRange": null,
+          "primaries": null,
+          "transfer": null,
+          "matrix": null
+        }
+      ],
+      "requiresColourNormalization": true
+    },
+    {
+      "id": "uqf5_Gpxokjtn9h9noFgl",
+      "url": "https://cdn.rivvon.ca/videos/uqf5_Gpxokjtn9h9noFgl/video.mp4",
+      "width": 2160,
+      "height": 2160,
+      "fps": 30,
+      "sampleEntries": [
+        "avc1"
+      ],
+      "container": [
+        {
+          "primaries": 1,
+          "transfer": 1,
+          "matrix": 1,
+          "fullRange": false
+        }
+      ],
+      "sps": [
+        {
+          "profile": 100,
+          "level": 50,
+          "chromaFormat": 1,
+          "bitDepthLuma": 8,
+          "bitDepthChroma": 8,
+          "width": 2160,
+          "height": 2160,
+          "fullRange": null,
+          "primaries": null,
+          "transfer": null,
+          "matrix": null
+        }
+      ],
+      "requiresColourNormalization": true
+    }
+  ],
+  "android": {
+    "os": "Android 13",
+    "model": "t982_ar301",
+    "gpu": "ARM Mali-G52",
+    "tests": [
+      {
+        "file": "chart-logo-off-before.mp4",
+        "surface": "SURFACE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: SurfaceView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Full range/sRGB/8/8",
+          "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)",
+          "Compare with TextureView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "chart-logo-off-before.mp4",
+        "surface": "TEXTURE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: TextureView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Full range/sRGB/8/8",
+          "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)",
+          "Compare with SurfaceView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "chart-logo-off-after.mp4",
+        "surface": "SURFACE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: SurfaceView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with TextureView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "chart-logo-off-after.mp4",
+        "surface": "TEXTURE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 29.9 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: TextureView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with SurfaceView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "chart-logo-on-after.mp4",
+        "surface": "SURFACE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 29.9 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: SurfaceView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with TextureView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "chart-logo-on-after.mp4",
+        "surface": "TEXTURE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: TextureView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with SurfaceView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "ribbon-logo-off-after.mp4",
+        "surface": "SURFACE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 29.9 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: SurfaceView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with TextureView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "ribbon-logo-off-after.mp4",
+        "surface": "TEXTURE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.9 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: TextureView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with SurfaceView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "ribbon-logo-on-after.mp4",
+        "surface": "SURFACE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: SurfaceView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with TextureView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "ribbon-logo-on-after.mp4",
+        "surface": "TEXTURE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 2",
+          "Last boundary interval: 33.333 ms",
+          "Video: 960 × 540",
+          "Surface: TextureView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.64001F · 960×540",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with SurfaceView",
+          "Choose another video"
+        ]
+      }
+    ],
+    "existingSceneTests": [
+      {
+        "file": "PjE4tkSCq_8TBu8N-ZjnF-normalized.mp4",
+        "surface": "SURFACE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.9 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 1",
+          "Last boundary interval: 33.333 ms",
+          "Video: 2160 × 2160",
+          "Surface: SurfaceView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.640032 · 2160×2160",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with TextureView",
+          "Choose another video"
+        ]
+      },
+      {
+        "file": "PjE4tkSCq_8TBu8N-ZjnF-normalized.mp4",
+        "surface": "TEXTURE_VIEW",
+        "texts": [
+          "Playing",
+          "Selected: Local device video",
+          "Source: 30.000 fps",
+          "Rendered: 30.0 fps",
+          "Dropped frames: 0",
+          "Loop transitions: 1",
+          "Last boundary interval: 33.333 ms",
+          "Video: 2160 × 2160",
+          "Surface: TextureView",
+          "Decoder: c2.amlogic.avc.decoder",
+          "Input format: video/avc · avc1.640032 · 2160×2160",
+          "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+          "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)",
+          "Compare with SurfaceView",
+          "Choose another video"
+        ]
+      }
+    ]
+  },
+  "existingScene": [
+    {
+      "name": "PjE4tkSCq_8TBu8N-ZjnF-before.mp4",
+      "containerAndSps": {
+        "container": [
+          {
+            "primaries": 6,
+            "transfer": 6,
+            "matrix": 6,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 50,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 2160,
+            "height": 2160,
+            "fullRange": false,
+            "primaries": 6,
+            "transfer": 6,
+            "matrix": 6
+          }
+        ],
+        "sampleEntries": [
+          "avc1"
+        ],
+        "frameCount": 480,
+        "durationTicks": 921600,
+        "timescale": 57600,
+        "mediaDurationTicks": 921600,
+        "movieTimescale": 1000,
+        "movieDurationTicks": 16000
+      },
+      "ffprobe": {
+        "codec_name": "h264",
+        "width": 2160,
+        "height": 2160,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "smpte170m",
+        "color_transfer": "smpte170m",
+        "color_primaries": "smpte170m",
+        "r_frame_rate": "30/1",
+        "duration": "16.000000",
+        "nb_read_frames": "480"
+      }
+    },
+    {
+      "name": "PjE4tkSCq_8TBu8N-ZjnF-normalized.mp4",
+      "containerAndSps": {
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 50,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 2160,
+            "height": 2160,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "sampleEntries": [
+          "avc1"
+        ],
+        "frameCount": 480,
+        "durationTicks": 480000,
+        "timescale": 30000,
+        "mediaDurationTicks": 480000,
+        "movieTimescale": 30000,
+        "movieDurationTicks": 480000
+      },
+      "ffprobe": {
+        "codec_name": "h264",
+        "width": 2160,
+        "height": 2160,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "color_transfer": "bt709",
+        "color_primaries": "bt709",
+        "r_frame_rate": "30/1",
+        "duration": "16.000000",
+        "nb_read_frames": "480"
+      }
+    }
+  ],
+  "encoderChoice": {
+    "date": "2026-10-09",
+    "environment": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "platform": "Win32",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "155.0.8059.39"
+        },
+        {
+          "brand": "Not(A:Brand",
+          "version": "24.0.0.0"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": {
+        "vendor": "Google Inc. (Intel)",
+        "renderer": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      },
+      "context": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+    },
+    "ui": "Both MP4 method selections emitted; native/software reports rendered at 1280 and 390 pixels; JSON download passed.",
+    "exports": [
+      {
+        "name": "chart-logo-off-before.mp4",
+        "encodingMethod": "webcodecs",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "chart-logo-off-after.mp4",
+        "encodingMethod": "ffmpeg",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "chart-logo-on-before.mp4",
+        "encodingMethod": "webcodecs",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "chart-logo-on-after.mp4",
+        "encodingMethod": "ffmpeg",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-off-before.mp4",
+        "encodingMethod": "webcodecs",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-off-after.mp4",
+        "encodingMethod": "ffmpeg",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-on-before.mp4",
+        "encodingMethod": "webcodecs",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-on-after.mp4",
+        "encodingMethod": "ffmpeg",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      }
+    ],
+    "cancellation": "passed"
+  },
+  "spsRepair": {
+    "date": "2026-10-09",
+    "tool": "Pinned FFmpeg WASM h264_metadata with stream copy",
+    "colourSource": "Complete agreeing encoder output colour and MP4 nclx; preserves observed values",
+    "sampleConversion": false,
+    "environment": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "platform": "Win32",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "155.0.8059.39"
+        },
+        {
+          "brand": "Not(A:Brand",
+          "version": "24.0.0.0"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": {
+        "vendor": "Google Inc. (Intel)",
+        "renderer": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      },
+      "context": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+    },
+    "width": 960,
+    "height": 540,
+    "frames": 90,
+    "fps": 30,
+    "exports": [
+      {
+        "name": "chart-logo-off-webcodecs-repaired.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": true,
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1
+          }
+        ],
+        "spsRepair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "decodedFramesAndTimingUnchanged": true
+      },
+      {
+        "name": "chart-logo-off-before.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "spsRepair": {
+          "status": "unrepaired-comparison-copy"
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "chart-logo-off-after.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "chart-logo-on-webcodecs-repaired.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": true,
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1
+          }
+        ],
+        "spsRepair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "decodedFramesAndTimingUnchanged": true
+      },
+      {
+        "name": "chart-logo-on-before.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "spsRepair": {
+          "status": "unrepaired-comparison-copy"
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "chart-logo-on-after.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-off-webcodecs-repaired.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": true,
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1
+          }
+        ],
+        "spsRepair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "decodedFramesAndTimingUnchanged": true
+      },
+      {
+        "name": "ribbon-logo-off-before.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "spsRepair": {
+          "status": "unrepaired-comparison-copy"
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-off-after.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-on-webcodecs-repaired.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": true,
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1
+          }
+        ],
+        "spsRepair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "decodedFramesAndTimingUnchanged": true
+      },
+      {
+        "name": "ribbon-logo-on-before.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": null,
+            "primaries": null,
+            "transfer": null,
+            "matrix": null
+          }
+        ],
+        "spsRepair": {
+          "status": "unrepaired-comparison-copy"
+        },
+        "verification": {
+          "matchesSdrTarget": false,
+          "containerAndBitstream": "incomplete",
+          "pixelConversion": "browser-managed-unverified",
+          "warnings": [
+            "H.264 SPS colour declaration is absent or incomplete.",
+            "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+            "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+          ]
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      },
+      {
+        "name": "ribbon-logo-on-after.mp4",
+        "container": [
+          {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          }
+        ],
+        "sps": [
+          {
+            "profile": 100,
+            "level": 31,
+            "chromaFormat": 1,
+            "bitDepthLuma": 8,
+            "bitDepthChroma": 8,
+            "width": 960,
+            "height": 540,
+            "fullRange": false,
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1
+          }
+        ],
+        "verification": {
+          "matchesSdrTarget": true,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "width": 960,
+          "height": 540,
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        }
+      }
+    ],
+    "fractional": {
+      "requestedFps": 29.97,
+      "frames": 25,
+      "exports": [
+        {
+          "name": "chart-logo-off-webcodecs-repaired.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": true,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "spsRepair": {
+            "status": "added",
+            "colour": {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            },
+            "tool": "FFmpeg h264_metadata",
+            "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+            "originalSps": [
+              {
+                "profile": 100,
+                "level": 31,
+                "chromaFormat": 1,
+                "bitDepthLuma": 8,
+                "bitDepthChroma": 8,
+                "width": 960,
+                "height": 540,
+                "fullRange": null,
+                "primaries": null,
+                "transfer": null,
+                "matrix": null
+              }
+            ],
+            "sampleConversion": false,
+            "timingPreserved": true
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          },
+          "decodedFramesAndTimingUnchanged": true
+        },
+        {
+          "name": "chart-logo-off-before.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "spsRepair": {
+            "status": "unrepaired-comparison-copy"
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "incomplete",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "H.264 SPS colour declaration is absent or incomplete.",
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "chart-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "verification": {
+            "matchesSdrTarget": true,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+            "warnings": []
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "chart-logo-on-webcodecs-repaired.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": true,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "spsRepair": {
+            "status": "added",
+            "colour": {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            },
+            "tool": "FFmpeg h264_metadata",
+            "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+            "originalSps": [
+              {
+                "profile": 100,
+                "level": 31,
+                "chromaFormat": 1,
+                "bitDepthLuma": 8,
+                "bitDepthChroma": 8,
+                "width": 960,
+                "height": 540,
+                "fullRange": null,
+                "primaries": null,
+                "transfer": null,
+                "matrix": null
+              }
+            ],
+            "sampleConversion": false,
+            "timingPreserved": true
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          },
+          "decodedFramesAndTimingUnchanged": true
+        },
+        {
+          "name": "chart-logo-on-before.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "spsRepair": {
+            "status": "unrepaired-comparison-copy"
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "incomplete",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "H.264 SPS colour declaration is absent or incomplete.",
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "chart-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "verification": {
+            "matchesSdrTarget": true,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+            "warnings": []
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-webcodecs-repaired.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": true,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "spsRepair": {
+            "status": "added",
+            "colour": {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            },
+            "tool": "FFmpeg h264_metadata",
+            "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+            "originalSps": [
+              {
+                "profile": 100,
+                "level": 31,
+                "chromaFormat": 1,
+                "bitDepthLuma": 8,
+                "bitDepthChroma": 8,
+                "width": 960,
+                "height": 540,
+                "fullRange": null,
+                "primaries": null,
+                "transfer": null,
+                "matrix": null
+              }
+            ],
+            "sampleConversion": false,
+            "timingPreserved": true
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          },
+          "decodedFramesAndTimingUnchanged": true
+        },
+        {
+          "name": "ribbon-logo-off-before.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "spsRepair": {
+            "status": "unrepaired-comparison-copy"
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "incomplete",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "H.264 SPS colour declaration is absent or incomplete.",
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-off-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "verification": {
+            "matchesSdrTarget": true,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+            "warnings": []
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-webcodecs-repaired.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": true,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "spsRepair": {
+            "status": "added",
+            "colour": {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            },
+            "tool": "FFmpeg h264_metadata",
+            "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+            "originalSps": [
+              {
+                "profile": 100,
+                "level": 31,
+                "chromaFormat": 1,
+                "bitDepthLuma": 8,
+                "bitDepthChroma": 8,
+                "width": 960,
+                "height": 540,
+                "fullRange": null,
+                "primaries": null,
+                "transfer": null,
+                "matrix": null
+              }
+            ],
+            "sampleConversion": false,
+            "timingPreserved": true
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          },
+          "decodedFramesAndTimingUnchanged": true
+        },
+        {
+          "name": "ribbon-logo-on-before.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "spsRepair": {
+            "status": "unrepaired-comparison-copy"
+          },
+          "verification": {
+            "matchesSdrTarget": false,
+            "containerAndBitstream": "incomplete",
+            "pixelConversion": "browser-managed-unverified",
+            "warnings": [
+              "H.264 SPS colour declaration is absent or incomplete.",
+              "This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.",
+              "Colour tags describe the output; they do not prove correct browser-managed pixel conversion."
+            ]
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "iec61966-2-1",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "30000/1001",
+            "duration": "0.834167",
+            "nb_read_frames": "25"
+          }
+        },
+        {
+          "name": "ribbon-logo-on-after.mp4",
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "verification": {
+            "matchesSdrTarget": true,
+            "containerAndBitstream": "agree",
+            "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+            "warnings": []
+          },
+          "ffprobe": {
+            "codec_name": "h264",
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "2997/100",
+            "avg_frame_rate": "2997/100",
+            "duration": "0.834168",
+            "nb_read_frames": "25"
+          }
+        }
+      ]
+    },
+    "ui": "Method choices, final range reports, responsive report bounds and JSON download passed",
+    "android": {
+      "model": "t982_ar301",
+      "version": "13",
+      "decoder": "c2.amlogic.avc.decoder",
+      "cases": 24,
+      "comparisons": [
+        {
+          "file": "chart-logo-off-before.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-off-before.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-off-webcodecs-repaired.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-off-webcodecs-repaired.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-off-after.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "chart-logo-off-after.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "chart-logo-on-before.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-on-before.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-on-webcodecs-repaired.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-on-webcodecs-repaired.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "chart-logo-on-after.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "chart-logo-on-after.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-off-before.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-off-before.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-off-webcodecs-repaired.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-off-webcodecs-repaired.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-off-after.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-off-after.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-on-before.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-on-before.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-on-webcodecs-repaired.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-on-webcodecs-repaired.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Full range/sRGB/8/8",
+            "Codec colour: standard BT.709 (1) · range full (1) · transfer sRGB (2)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-on-after.mp4",
+          "surface": "SURFACE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        },
+        {
+          "file": "ribbon-logo-on-after.mp4",
+          "surface": "TEXTURE_VIEW",
+          "diagnostics": [
+            "Dropped frames: 0",
+            "Loop transitions: 2",
+            "Last boundary interval: 33.333 ms",
+            "Decoder: c2.amlogic.avc.decoder",
+            "Input colour: BT709/Limited range/SDR SMPTE 170M/8/8",
+            "Codec colour: standard BT.709 (1) · range limited (2) · transfer SDR (3)"
+          ]
+        }
+      ],
+      "chartSamples": [
+        {
+          "name": "chart-logo-off-before-surface_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-off-webcodecs-repaired-surface_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-off-after-surface_view.png",
+          "white": [
+            255,
+            255,
+            255
+          ],
+          "black": [
+            0,
+            0,
+            0
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                32,
+                32
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                65,
+                65,
+                65
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                96,
+                96
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                160,
+                160
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                192,
+                192
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                223,
+                224,
+                224
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                241,
+                241
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-off-before-texture_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-off-webcodecs-repaired-texture_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-off-after-texture_view.png",
+          "white": [
+            255,
+            255,
+            255
+          ],
+          "black": [
+            0,
+            0,
+            0
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                16,
+                16,
+                16
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                49,
+                49,
+                49
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                81,
+                82,
+                82
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                115,
+                115,
+                115
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                150,
+                150,
+                150
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                185,
+                185,
+                185
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                220,
+                220,
+                220
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                238,
+                238,
+                239
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-on-before-surface_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-on-webcodecs-repaired-surface_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-on-after-surface_view.png",
+          "white": [
+            255,
+            255,
+            255
+          ],
+          "black": [
+            0,
+            0,
+            0
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                32,
+                32
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                65,
+                65,
+                65
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                96,
+                96
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                160,
+                160
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                192,
+                192
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                223,
+                224,
+                224
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                241,
+                241
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-on-before-texture_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-on-webcodecs-repaired-texture_view.png",
+          "white": [
+            255,
+            128,
+            128
+          ],
+          "black": [
+            0,
+            128,
+            128
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                32,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                64,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                96,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                128,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                160,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                192,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                224,
+                128,
+                128
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                240,
+                128,
+                128
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chart-logo-on-after-texture_view.png",
+          "white": [
+            255,
+            255,
+            255
+          ],
+          "black": [
+            0,
+            0,
+            0
+          ],
+          "neutralPatches": [
+            {
+              "source": 32,
+              "screen": [
+                16,
+                16,
+                16
+              ]
+            },
+            {
+              "source": 64,
+              "screen": [
+                49,
+                49,
+                49
+              ]
+            },
+            {
+              "source": 96,
+              "screen": [
+                81,
+                82,
+                82
+              ]
+            },
+            {
+              "source": 128,
+              "screen": [
+                115,
+                115,
+                115
+              ]
+            },
+            {
+              "source": 160,
+              "screen": [
+                150,
+                150,
+                150
+              ]
+            },
+            {
+              "source": 192,
+              "screen": [
+                185,
+                185,
+                185
+              ]
+            },
+            {
+              "source": 224,
+              "screen": [
+                220,
+                220,
+                220
+              ]
+            },
+            {
+              "source": 240,
+              "screen": [
+                238,
+                238,
+                239
+              ]
+            }
+          ]
+        }
+      ],
+      "spsRepairImprovedColour": false,
+      "observed": "Before and repaired full-range sRGB charts retain pink whites, teal blacks and shifted primaries on both surfaces, logo on/off. Ribbon retains colour fault. Explicit BT.709 limited encoding fixes primary colours and neutral greys. SurfaceView and TextureView have different SDR presentation curves.",
+      "originalPreferencesRestored": true,
+      "temporaryDeviceFilesRemoved": true
+    }
+  }
+}

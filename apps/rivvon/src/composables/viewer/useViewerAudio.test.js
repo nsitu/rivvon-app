@@ -69,6 +69,16 @@ describe('viewer audio controller', () => {
         expect(controller.state.duration).toBe(20);
     });
 
+    it('loads preset audio with session credentials without starting playback or requesting a microphone', async () => {
+        const { controller, media, getUserMedia, context } = harness();
+        await controller.activate({ ...track, sourcePresetId: 'preset', playback_url: 'https://api.rivvon.ca/presets/preset/assets/audio' }, { autoplay: false });
+        expect(media.crossOrigin).toBe('use-credentials');
+        expect(media.play).not.toHaveBeenCalled();
+        expect(getUserMedia).not.toHaveBeenCalled();
+        expect(context.resume).not.toHaveBeenCalled();
+        expect(controller.state.track.sourcePresetId).toBe('preset');
+    });
+
     it('keeps playback volume and mute independent of the stereo amplitude signal', async () => {
         const { controller, media, gain } = harness();
         await controller.activate(track);

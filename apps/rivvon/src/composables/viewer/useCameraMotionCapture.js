@@ -232,6 +232,16 @@ export function useCameraMotionCapture(ctx) {
         return track.value;
     }
 
+    function loadRecording(snapshot) {
+        clearRecording();
+        if (!snapshot) return;
+        const next = createCameraMotionTrack(snapshot.samples, { closureDuration: snapshot.closureDuration });
+        if (!next) throw new Error('Invalid saved camera motion.');
+        track.value = next;
+        duration.value = next.duration;
+        sampleCount.value = next.samples.length;
+    }
+
     function getLoopDuration() {
         return duration.value;
     }
@@ -273,6 +283,7 @@ export function useCameraMotionCapture(ctx) {
         tick,
         applyAtTime,
         getTrack,
+        loadRecording,
         getLoopDuration,
         dispose,
     };

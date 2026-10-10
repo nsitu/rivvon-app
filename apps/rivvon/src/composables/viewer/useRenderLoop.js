@@ -107,6 +107,9 @@ export function useRenderLoop(ctx, deps = {}) {
     let renderLoopPaused = false;
     let lastFrameTime = 0;
     let pausedByVisibility = false; // tracks tab-hidden pausing (separate from texture processing)
+    let artworkTimeOffset = 0;
+    const getArtworkTime = () => performance.now() / 1000 + artworkTimeOffset;
+    const setArtworkTime = (time) => { artworkTimeOffset = time - performance.now() / 1000; };
 
     // FPS measurement — updates ~4 times per second
     const fps = ref(0);
@@ -451,7 +454,7 @@ export function useRenderLoop(ctx, deps = {}) {
         function animate() {
             const frameStartMs = performance.now();
             const now = frameStartMs;
-            const elapsedTime = now / 1000;
+            const elapsedTime = now / 1000 + artworkTimeOffset;
             // Compute per-frame delta; clamp to avoid jumps after tab-switch
             const deltaSec = lastFrameTime === 0 ? 0.016 : Math.min((now - lastFrameTime) / 1000, 0.1);
             lastFrameTime = now;
@@ -638,6 +641,8 @@ export function useRenderLoop(ctx, deps = {}) {
         pauseRenderLoop,
         resumeRenderLoop,
         resetState,
+        getArtworkTime,
+        setArtworkTime,
         cleanupVisibility
     };
 }

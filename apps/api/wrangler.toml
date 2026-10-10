@@ -14,6 +14,11 @@ migrations_dir = "db/migrations"
 binding = "BUCKET"
 bucket_name = "rivvon-textures"
 
+# Private: do not enable r2.dev or attach a public custom domain.
+[[r2_buckets]]
+binding = "PRESETS_BUCKET"
+bucket_name = "rivvon-presets"
+
 # Environment variables (non-secret)
 [vars]
 CORS_ORIGINS = "https://slyce.rivvon.ca,https://rivvon.ca,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://127.0.0.1:5176,http://127.0.0.1:5177"

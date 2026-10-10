@@ -237,6 +237,8 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         'request-enter-walk-mode',
         'request-enter-contour-mode',
         'request-open-drawing-browser',
+        'request-open-preset-browser',
+        'request-save-preset',
         'request-toggle-flow',
         'request-open-text-panel',
         'request-open-emoji-picker',
@@ -282,7 +284,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     ));
 
     const viewerToolbarContextMap = computed(() => Object.fromEntries(createViewerContexts(app, {
-        order: ['walk', 'draw', 'drawings', 'textureCreator', 'audioCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'mobius', 'tools', 'about', 'realtimeSampler'],
+        order: ['walk', 'draw', 'drawings', 'presets', 'textureCreator', 'audioCreator', 'textureBrowser', 'text', 'emoji', 'contour', 'sineWave', 'clock', 'mobius', 'tools', 'about', 'realtimeSampler'],
         onCloseRealtimeMode: (payload) => emit('request-close-realtime-mode', payload),
         onResetSlyceProcessing: () => slyce.resetProcessing(),
         isSlyceProcessing: isSlyceProcessing.value,
@@ -329,6 +331,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         viewerToolbarContextMap.value.walk,
         viewerToolbarContextMap.value.draw,
         viewerToolbarContextMap.value.drawings,
+        viewerToolbarContextMap.value.presets,
         viewerToolbarContextMap.value.textureCreator,
         viewerToolbarContextMap.value.audioCreator,
         viewerToolbarContextMap.value.textureBrowser,
@@ -356,6 +359,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
         viewerToolbarContextMap.value.walk,
         viewerToolbarContextMap.value.draw,
         viewerToolbarContextMap.value.drawings,
+        viewerToolbarContextMap.value.presets,
         viewerToolbarContextMap.value.textureCreator,
         viewerToolbarContextMap.value.audioCreator,
         viewerToolbarContextMap.value.textureBrowser,
@@ -441,6 +445,7 @@ const buildTimestampRaw = import.meta.env.VITE_BUILD_TIMESTAMP || '';
     const browseGroupActive = computed(() => (
         props.navigationWorkflowGroup === 'drawings'
         || isToolbarContextActive('drawings')
+        || isToolbarContextActive('presets')
         || isToolbarContextActive('textureBrowser')
         || props.activeToolbarOverlay === 'browse'
     ));
@@ -957,6 +962,12 @@ const activeLauncherTitle = computed(() => {
 
     const browseLauncherSections = computed(() => ([
         {
+            label: 'Preset',
+            items: [{ label: 'Browse', contextLabel: 'Presets', description: 'Reopen saved ribbons and complete scenes.',
+                icon: 'collections_bookmark', active: isToolbarContextActive('presets'),
+                command: () => toggleContextItem('presets', () => emit('request-open-preset-browser')) }],
+        },
+        {
             label: 'Drawing',
             items: [drawLauncherSections.value[1].sections[1].items[0]],
         },
@@ -992,6 +1003,11 @@ const activeLauncherTitle = computed(() => {
 
     const shareLauncherItems = computed(() => ([
         {
+            label: 'Save Preset', icon: 'bookmark_add', description: 'Save the complete ribbon and its scene settings.',
+            disabled: !props.canShareViewUrl,
+            command: () => { closeLaunchers(); app.hideToolsPanel(); emit('request-save-preset'); },
+        },
+        {
             label: 'Export Image',
             icon: 'image',
             command: () => {
@@ -1002,8 +1018,8 @@ const activeLauncherTitle = computed(() => {
             label: 'Share View URL',
             icon: 'link',
             description: props.canShareViewUrl
-                ? 'Copy or share a link that recreates the current view.'
-                : 'Unavailable for local textures, multi-texture scenes, and custom drawing states.',
+                ? 'Save a preset and share a link that recreates this ribbon.'
+                : 'Finish creating the ribbon before sharing.',
             disabled: !props.canShareViewUrl,
             command: () => {
                 handleShareViewUrl();

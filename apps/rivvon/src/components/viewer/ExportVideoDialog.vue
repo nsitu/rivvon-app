@@ -15,6 +15,7 @@
     import ScrollPanel from 'primevue/scrollpanel';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
+    import ExportColourReport from './ExportColourReport.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import {
         EXPORT_ASPECT_RATIO_OPTIONS,
@@ -41,6 +42,7 @@
         exportStatus: { type: String, default: '' },
         encodedFilename: { type: String, default: '' },
         encodedSize: { type: Number, default: 0 },
+        colourReport: { type: Object, default: null },
         canShare: { type: Boolean, default: false },
         canPublish: { type: Boolean, default: false },
         isAuthenticated: { type: Boolean, default: false },
@@ -58,6 +60,8 @@
 
     // --- Form state ---
     const format = ref('mp4');
+    const encodingMethod = ref('ffmpeg');
+    const hardwareAcceleration = ref('no-preference');
     const exportMode = ref('ribbons');
     const durationMode = ref('loop');
     const customDuration = ref(5);
@@ -198,6 +202,17 @@
         { label: 'MP4 (H.264)', value: 'mp4' },
         { label: 'WebM (VP9)', value: 'webm' }
     ];
+
+    const encodingMethodOptions = [
+        { label: 'FFmpeg WASM', value: 'ffmpeg' },
+        { label: 'WebCodecs', value: 'webcodecs' },
+    ];
+    const hardwareAccelerationOptions = [
+        { label: 'Browser decides', value: 'no-preference' },
+        { label: 'Prefer hardware', value: 'prefer-hardware' },
+        { label: 'Prefer software', value: 'prefer-software' },
+    ];
+    const usesWebCodecs = computed(() => format.value === 'webm' || encodingMethod.value === 'webcodecs');
 
     const durationOptions = [
         { label: 'Looping Cycle', value: 'loop', icon: 'all_inclusive' },
@@ -355,8 +370,8 @@
         return `~${(bytes / 1024).toFixed(0)} KB`;
     });
 
-    const hasWebCodecs = computed(() => {
-        return props.exportInfo?.hasWebCodecs ?? false;
+    const canEncode = computed(() => {
+        return usesWebCodecs.value ? (props.exportInfo?.hasWebCodecs ?? false) : typeof WebAssembly !== 'undefined';
     });
 
     const hasEncodedVideo = computed(() => Boolean(props.encodedFilename));
@@ -425,6 +440,8 @@
         customHeight,
         alignTilesToEdge,
         format,
+        encodingMethod,
+        hardwareAcceleration,
         exportMode,
         durationMode,
         customDuration,
@@ -490,6 +507,8 @@
             height: resolvedHeight.value,
             fps: fps.value,
             format: format.value,
+            encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg',
+            hardwareAcceleration: usesWebCodecs.value ? hardwareAcceleration.value : null,
             duration: durationMode.value === 'custom' ? resolvedDuration.value : null,
             resolvedDuration: resolvedDuration.value,
             loopCount: durationMode.value === 'loop'
@@ -545,11 +564,11 @@
                         Microphone input stops during encoding; start it again afterward.
                     </p>
                     <div
-                        v-if="!hasWebCodecs"
+                        v-if="!canEncode"
                         class="warning-banner"
                     >
                         <span class="material-symbols-outlined">warning</span>
-                        <span>WebCodecs API not available. Use Chrome 94+ or Edge 94+.</span>
+                        <span>The selected video encoder is not available in this browser.</span>
                     </div>
 
                     <div class="form-grid">
@@ -578,6 +597,24 @@
                                 :disabled="isEncoding"
                                 class="w-full"
                             />
+                        </div>
+
+                        <div v-if="format === 'mp4'" class="form-field">
+                            <label for="videoEncodingMethod">Encoding method</label>
+                            <Select v-model="encodingMethod" :options="encodingMethodOptions" option-label="label"
+                                option-value="value" input-id="videoEncodingMethod" :disabled="isEncoding" class="w-full" />
+                            <div class="field-description">
+                                {{ encodingMethod === 'ffmpeg'
+                                    ? 'Consistent BT.709 limited colour. Uses CPU encoding and loads a 32 MB encoder.'
+                                    : 'Uses the browser encoder. Colour can vary by browser and device. Missing H.264 declarations may load a 32 MB repair tool; inspect the final report.' }}
+                            </div>
+                        </div>
+
+                        <div v-if="usesWebCodecs" class="form-field">
+                            <label for="videoHardwarePreference">Encoder preference</label>
+                            <Select v-model="hardwareAcceleration" :options="hardwareAccelerationOptions" option-label="label"
+                                option-value="value" input-id="videoHardwarePreference" :disabled="isEncoding" class="w-full" />
+                            <div class="field-description">A preference; the browser may choose another encoder.</div>
                         </div>
 
                         <div class="form-field">
@@ -824,6 +861,8 @@
                         </Accordion>
 
                     </div>
+                    <ExportColourReport v-if="hasEncodedVideo && colourReport?.phase === 'complete'"
+                        :report="colourReport" :filename="encodedFilename" />
                     </div>
                 </ScrollPanel>
 
@@ -1040,7 +1079,7 @@
                         </Button>
                         <Button
                             type="button"
-                            :disabled="!hasWebCodecs"
+                            :disabled="!canEncode"
                             @click="handleExport"
                         >
                             <span class="material-symbols-outlined">videocam</span>

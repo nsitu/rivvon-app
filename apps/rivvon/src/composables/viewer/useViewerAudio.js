@@ -199,7 +199,7 @@ export function createViewerAudioController({
         resetSignal();
     }
 
-    function activate(track) {
+    function activate(track, { autoplay = true } = {}) {
         if (disposed) return;
         stopMicrophone();
         pause();
@@ -208,16 +208,17 @@ export function createViewerAudioController({
             return;
         }
         state.track = { id: track.id, name: track.name, playback_url: track.playback_url,
-            channel_count: track.channel_count };
+            channel_count: track.channel_count, sourcePresetId: track.sourcePresetId };
         state.duration = Math.max(0, Number(track.duration) || 0);
         state.currentTime = 0;
         state.analysisError = '';
         const element = ensureMedia();
+        element.crossOrigin = track.sourcePresetId ? 'use-credentials' : 'anonymous';
         element.src = getAudioPlaybackUrl(track.playback_url);
         // Trim and tape-speed changes are already encoded into the published asset.
         element.playbackRate = 1;
         element.load();
-        return play();
+        if (autoplay) return play();
     }
 
     function seek(value) {

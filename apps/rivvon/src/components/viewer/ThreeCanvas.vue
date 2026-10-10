@@ -25,6 +25,7 @@
         renderer,
         controls,
         tileManager,
+        tileManagers,
         ribbonSeries,
         isInitialized,
         isDeviceLost,
@@ -77,6 +78,8 @@
         setHelixMode,
         cameraMotion,
         captureImagePreview,
+        captureScene,
+        restoreScene,
         captureImagePreviewWithSettings,
         captureImageBlobWithSettings,
         exportImageWithSettings,
@@ -194,52 +197,66 @@
 
     // Watch for flow state changes
     watch(() => app.flowState, (state) => {
+        if (app.isRestoringPreset) return;
         setFlowState(state);
     });
 
     watch(() => app.flowSpeed, (speed) => {
+        if (app.isRestoringPreset) return;
         setFlowSpeed(speed);
     });
 
     watch(() => app.flowCycleAlignmentEnabled, (enabled) => {
+        if (app.isRestoringPreset) return;
         setFlowCycleAlignmentEnabled(enabled);
     });
 
     watch(() => app.textureAnimationEnabled, (enabled) => {
+        if (app.isRestoringPreset) return;
         setTextureAnimationEnabled(enabled);
     });
 
     watch(() => app.textureAnimationReversed, (reversed) => {
+        if (app.isRestoringPreset) return;
         setTextureAnimationReversed(reversed);
     });
 
     watch(() => app.animatedBackgroundEnabled, () => {
+        if (app.isRestoringPreset) return;
         setBackgroundFromTileManager().catch((error) => {
+        if (app.isRestoringPreset) return;
             console.error('[ThreeCanvas] Failed to update animated scene background:', error);
         });
     });
 
     watch(() => app.backgroundLayerIndex, () => {
+        if (app.isRestoringPreset) return;
         updateBackground();
     });
 
     watch(() => app.backgroundBlurEnabled, () => {
+        if (app.isRestoringPreset) return;
         setBackgroundFromTileManager().catch((error) => {
+        if (app.isRestoringPreset) return;
             console.error('[ThreeCanvas] Failed to update scene background blur:', error);
         });
     });
 
     watch(() => [app.backgroundTextureEnabled, app.backgroundTexture], () => {
+        if (app.isRestoringPreset) return;
         setBackgroundFromTileManager().catch((error) => {
+        if (app.isRestoringPreset) return;
             console.error('[ThreeCanvas] Failed to update scene background texture:', error);
         });
     });
 
     watch(() => app.backgroundBaseEnabled, () => {
+        if (app.isRestoringPreset) return;
         updateBackground();
     });
 
     watch(() => [app.backgroundSphericalLayersEnabled, app.backgroundCurvature], () => {
+        if (app.isRestoringPreset) return;
         updateBackground();
     });
 
@@ -251,78 +268,96 @@
         app.backgroundWaterSpeed,
         app.backgroundWaterStrength,
     ], () => {
+        if (app.isRestoringPreset) return;
         updateBackground();
     });
 
     watch(() => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity], () => {
+        if (app.isRestoringPreset) return;
         updateBackground();
     });
 
     watch(() => app.renderFilterMode, () => {
+        if (app.isRestoringPreset) return;
         syncSceneColorAdjustments();
     });
 
     watch(() => app.contrast, (value) => {
+        if (app.isRestoringPreset) return;
         setContrast(value);
     });
 
     watch(() => app.saturation, (value) => {
+        if (app.isRestoringPreset) return;
         setSaturation(value);
     });
 
     watch(() => app.textureRepeatMode, (mode) => {
+        if (app.isRestoringPreset) return;
         setTextureRepeatMode(mode);
     });
 
     watch(() => app.textureFlipVertical, (enabled) => {
+        if (app.isRestoringPreset) return;
         setTextureFlipVertical(enabled);
     });
 
     watch(() => app.normalizeTextureOrientation, (enabled) => {
+        if (app.isRestoringPreset) return;
         setNormalizeTextureOrientation(enabled);
     });
 
     watch(() => app.edgeDriftEnabled, (enabled) => {
+        if (app.isRestoringPreset) return;
         setEdgeDriftEnabled(enabled);
     });
 
     watch(() => app.edgeNoiseTransparencyMax, (value) => {
+        if (app.isRestoringPreset) return;
         setEdgeNoiseTransparencyMax(value);
     });
 
     watch(() => app.edgeNoisePatternLength, (value) => {
+        if (app.isRestoringPreset) return;
         setEdgeNoisePatternLength(value);
     });
 
     watch(() => app.edgeNoiseMirrored, (enabled) => {
+        if (app.isRestoringPreset) return;
         setEdgeNoiseMirrored(enabled);
     });
 
     watch(() => app.filmstripStyleEnabled, (enabled) => {
+        if (app.isRestoringPreset) return;
         setFilmstripStyleEnabled(enabled);
     });
 
-    watch(() => app.filmstripMotionEnabled, enabled => setFilmstripMotionEnabled(enabled));
-    watch(() => app.filmstripMotionSpeed, speed => setFilmstripMotionSpeed(speed));
+    watch(() => app.filmstripMotionEnabled, enabled => { if (!app.isRestoringPreset) setFilmstripMotionEnabled(enabled); });
+    watch(() => app.filmstripMotionSpeed, speed => { if (!app.isRestoringPreset) setFilmstripMotionSpeed(speed); });
 
     watch(() => app.filmstripGapLength, (value) => {
+        if (app.isRestoringPreset) return;
         setFilmstripGapLength(value);
     });
 
     watch(() => app.filmstripHoleLength, (value) => {
+        if (app.isRestoringPreset) return;
         setFilmstripHoleLength(value);
     });
 
     watch(() => app.filmstripAperture, (value) => {
+        if (app.isRestoringPreset) return;
         setFilmstripAperture(value);
     });
 
     watch(() => app.filmstripHoleRoundedness, (value) => {
+        if (app.isRestoringPreset) return;
         setFilmstripHoleRoundedness(value);
     });
 
     // Watch for helix mode/option changes and rebuild ribbons
     watch(() => app.helixOptions, (options) => {
+        if (app.isRestoringPreset) return;
         setHelixMode(options);
     }, { deep: true });
 
@@ -333,6 +368,7 @@
         renderer,
         controls,
         tileManager,
+        tileManagers,
         ribbonSeries,
         isInitialized,
         isDeviceLost,
@@ -372,6 +408,8 @@
         setFilmstripHoleRoundedness,
         setHelixMode,
         captureImagePreview,
+        captureScene,
+        restoreScene,
         captureImagePreviewWithSettings,
         captureImageBlobWithSettings,
         exportImageWithSettings,

@@ -485,8 +485,8 @@ const processVideo = async (settings) => {
         return false;
     }
 
-    // Abort any previous processing
-    abortProcessing();
+    // Start each run with fresh results, previews, and status.
+    app.resetProcessing();
 
     // Suspend the viewer to free GPU/CPU resources for encoding
     const viewerStore = useViewerStore();
@@ -502,13 +502,8 @@ const processVideo = async (settings) => {
     const tileBuilders = {};  // to store builder for each tileNumber
     let completedTiles = 0;  // Track completed tiles 
 
-    const localSave = app.getLocalSaveController();
-    const publish = app.getPublishController();
-
     // Store tilePlan so TilePreview and other consumers can access it
     app.set('tilePlan', resolvedTilePlan);
-    localSave.resetLocalSaveState();
-    publish.resetPublishState();
     app.set('autoDeriveResolutions', []);
     app.set('publishDestination', 'google-drive');
     app.set('thumbnailBlob', null);
@@ -546,15 +541,18 @@ const processVideo = async (settings) => {
         frameInterpolationFactor: requestedInterpolationFactor,
         signal: abortSignal,
         onSeekProgress(currentFrame) {
+            if (abortSignal.aborted) return;
             const progressText = currentFrame && currentFrame !== frameStart
                 ? `Seeking to frame ${frameStart} (decoder at frame ${currentFrame})`
                 : `Seeking to frame ${frameStart}`;
             app.setStatus('Seeking', progressText);
         },
         onRangeStart() {
+            if (abortSignal.aborted) return;
             app.removeStatus('Seeking');
         },
         onPreparationStatus(message) {
+            if (abortSignal.aborted) return;
             if (message) {
                 app.setStatus('Decoding', message);
             } else {
@@ -562,6 +560,7 @@ const processVideo = async (settings) => {
             }
         },
         onInterpolationStatus(message) {
+            if (abortSignal.aborted) return;
             if (message) {
                 app.setStatus('Interpolation', message);
             } else {
@@ -655,6 +654,7 @@ const processVideo = async (settings) => {
     }
 
     function updateProcessingStatus() {
+        if (abortSignal.aborted) return;
         const decodedTilesEquivalent = tileProgress.reduce((sum, tile) => sum + tile.decodeProgress, 0);
         const encodedTilesEquivalent = tileProgress.reduce((sum, tile) => sum + tile.encodeProgress, 0);
         const decodeProgress = totalTiles > 0 ? decodedTilesEquivalent / totalTiles : 1;
@@ -758,6 +758,7 @@ const processVideo = async (settings) => {
             return item.tileNumber;
         },
         async createBuilder(item, tileNumber) {
+            abortSignal.throwIfAborted();
             const builderSettings = {
                 tileNumber,
                 tilePlan: resolvedTilePlan,
@@ -777,6 +778,7 @@ const processVideo = async (settings) => {
                     console.log('[VideoProcessor] Canvas tile builder selected; using 2D canvas sampling.');
                 } else if (requestedTileBuilderBackend === TILE_BUILDER_BACKEND_WEBGPU_ARRAY) {
                     gpuSupportReport = await WebGPUDirectArrayTileBuilder.getSupportReport(builderSettings);
+                    abortSignal.throwIfAborted();
                     if (gpuSupportReport.supported) {
                         sampledTileBuilderBackend = TILE_BUILDER_BACKEND_WEBGPU_ARRAY;
                         app.set('processingResourceTelemetry', createWebGPUDirectArrayTelemetry(gpuSupportReport, builderSettings));
@@ -788,6 +790,7 @@ const processVideo = async (settings) => {
                     }
                 } else if (requestedTileBuilderBackend === TILE_BUILDER_BACKEND_WEBGPU) {
                     gpuSupportReport = await WebGPUTileBuilder.getSupportReport(builderSettings);
+                    abortSignal.throwIfAborted();
                     if (gpuSupportReport.supported) {
                         sampledTileBuilderBackend = TILE_BUILDER_BACKEND_WEBGPU;
                         app.set('processingResourceTelemetry', createWebGPUTelemetry(gpuSupportReport, builderSettings));
@@ -853,6 +856,7 @@ const processVideo = async (settings) => {
             return new TileBuilder(builderSettings);
         },
         onBuilderCreated({ builderKey, builder }) {
+            if (abortSignal.aborted) return;
             tileBuilders[builderKey] = builder;
 
             if (
@@ -864,6 +868,7 @@ const processVideo = async (settings) => {
             }
         },
         async processItem({ builder, item }) {
+            if (abortSignal.aborted) return false;
             frameNumber = item.frameNumber;
             absoluteFrameNumber = item.absoluteFrameNumber;
             app.frameNumber = frameNumber;
@@ -887,6 +892,7 @@ const processVideo = async (settings) => {
             return true;
         },
         async onItemProcessed({ builderKey, builder }) {
+            if (abortSignal.aborted) return false;
             // Snapshot the tile's layer 0 canvas for the static preview.
             // Must be AFTER processFrame so the canvas has the latest pixels.
             if (app.tileSnapshotPreview) {
@@ -912,6 +918,7 @@ const processVideo = async (settings) => {
             return true;
         },
         onTileComplete: async ({ builderKey, builder, payload }) => {
+            if (abortSignal.aborted) return;
             delete tileBuilders[builderKey];
 
             const { tileId = builderKey, canvasSet = null, readImages = null } = payload;
@@ -959,12 +966,14 @@ const processVideo = async (settings) => {
                         images = typeof readImages === 'function'
                             ? await readImages()
                             : readCanvasSetImages(canvasSet);
+                        if (abortSignal.aborted) return;
 
                         if (tileTiming && Number.isFinite(tileTiming.assemblyStartedAt)) {
                             tileTiming.assemblyDurationMs = Math.max(0, performance.now() - tileTiming.assemblyStartedAt);
                             tileTiming.assembledLayerCount = images.length;
                         }
                     } catch (error) {
+                        if (abortSignal.aborted || error?.name === 'AbortError') return;
                         console.error(`[VideoProcessor] Failed to read back tile ${tileId}:`, error);
                         app.setStatus(`Tile ${tileId + 1} Error`, error.message);
                         return;
@@ -973,11 +982,14 @@ const processVideo = async (settings) => {
                     if (tileId === 0 && images.length > 0) {
                         try {
                             const thumbnailBlob = await createThumbnailFromRGBA(images[0]);
+                            if (abortSignal.aborted) return;
                             app.set('thumbnailBlob', thumbnailBlob);
                         } catch (err) {
                             console.warn('[VideoProcessor] Failed to create thumbnail:', err);
                         }
                     }
+
+                    if (abortSignal.aborted) return;
 
                     if (images.length > 0) {
                         try {
@@ -987,6 +999,7 @@ const processVideo = async (settings) => {
                             if (!ktx2WorkerPool) {
                                 ktx2WorkerPool = registerKtx2WorkerPool(new KTX2WorkerPool(encodeConfig.layerWorkerCount));
                                 await ktx2WorkerPool.init();
+                                if (abortSignal.aborted) return;
                                 console.log(`[KTX2] Worker pool created with ${encodeConfig.layerWorkerCount} workers and will be reused for all tiles`);
                             }
 
@@ -998,6 +1011,7 @@ const processVideo = async (settings) => {
                             updateProcessingStatus();
 
                             const onProgress = (layersEncoded, totalLayers, phase = 'encoding') => {
+                                if (abortSignal.aborted) return;
                                 if (phase === 'assembling') {
                                     updateTileProgress(tileId, {
                                         encodeProgress: totalLayers > 0 ? 0.999 : 0.999,
@@ -1020,6 +1034,7 @@ const processVideo = async (settings) => {
                             };
 
                             const ktx2Buffer = await KTX2Assembler.encodeParallelWithPool(ktx2WorkerPool, images, onProgress);
+                            if (abortSignal.aborted) return;
                             if (tileTiming && Number.isFinite(tileTiming.encodeStartedAt)) {
                                 tileTiming.encodeDurationMs = Math.max(0, performance.now() - tileTiming.encodeStartedAt);
                             }
@@ -1069,24 +1084,27 @@ const processVideo = async (settings) => {
                     }
                 });
             } catch (error) {
-                if (error.name !== 'AbortError') {
+                if (!abortSignal.aborted && error.name !== 'AbortError') {
                     console.error(`[VideoProcessor] Failed to process queued tile ${tileId}:`, error);
                     app.setStatus(`Tile ${tileId + 1} Error`, error.message);
                 }
             } finally {
                 if (
-                    builder instanceof WebGLTileBuilder
-                    || builder instanceof WebGPUTileBuilder
-                    || builder instanceof WebGPUDirectArrayTileBuilder
+                    !abortSignal.aborted && (
+                        builder instanceof WebGLTileBuilder
+                        || builder instanceof WebGPUTileBuilder
+                        || builder instanceof WebGPUDirectArrayTileBuilder
+                    )
                 ) {
                     decrementGpuAtlasCount(app);
                 }
 
                 builder.dispose?.();
-                resourceUsageReport();
+                if (!abortSignal.aborted) resourceUsageReport();
             }
         },
         onError(error) {
+            if (abortSignal.aborted || error?.name === 'AbortError') return false;
             console.error('[VideoProcessor] Error processing frame:', error);
             const message = error?.message || 'Unable to decode the video frame.';
             app.setStatus('Processing Error', message);
@@ -1094,7 +1112,8 @@ const processVideo = async (settings) => {
             return false;
         }
         });
-        if (!abortSignal.aborted && frameNumber < lastTileEnd) {
+        if (abortSignal.aborted) return false;
+        if (frameNumber < lastTileEnd) {
             throw new Error(`Video decoding ended after ${frameNumber} of ${lastTileEnd} required frames. The remaining tiles could not be generated.`);
         }
         app.set('readerIsFinished', true);

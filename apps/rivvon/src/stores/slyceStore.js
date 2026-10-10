@@ -7,6 +7,7 @@ import { createLocalSaveState, createObjectLocalSaveController } from '../module
 import { createPublishState, createObjectPublishController } from '../modules/slyce/publishController.js';
 import { getDefaultTileBuilderBackend } from '../modules/slyce/encodingPolicy.js';
 import { getVideoProcessingFile } from '../modules/slyce/videoPreview.js';
+import { clearTilePreviewCanvases } from '../modules/slyce/tileSnapshotPreview.js';
 
 const DEFAULT_TILE_BUILDER_BACKEND = getDefaultTileBuilderBackend();
 
@@ -123,6 +124,7 @@ export const useSlyceStore = defineStore('slyce', {
                 if (url) URL.revokeObjectURL(url);
             });
             this.tilePreviewUrls = {};
+            clearTilePreviewCanvases();
         },
         // Revoke all KTX2 blob URLs
         revokeBlobURLs() {
@@ -237,6 +239,7 @@ export const useSlyceStore = defineStore('slyce', {
         resetProcessing() {
             // Abort any ongoing processing
             abortProcessing();
+            this.clearTilePreviewState();
 
             // Revoke all KTX2 blob URLs before clearing
             Object.values(this.ktx2BlobURLs).forEach(url => {
@@ -245,6 +248,7 @@ export const useSlyceStore = defineStore('slyce', {
 
             // Reset only processing-related state (preserve file, fileInfo, settings)
             this.currentStep = '2';
+            this.tilePlan = {};
             this.frameNumber = 0;
             this.readerIsFinished = false;
             this.messages = [];

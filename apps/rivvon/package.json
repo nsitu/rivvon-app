@@ -13,6 +13,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:deinterlace": "node scripts/test-deinterlace.mjs",
+    "test:video-colour": "node scripts/test-video-colour.mjs",
     "lint": "echo 'No linter configured'",
     "generate:sprites": "node scripts/build-emoji-sprites.mjs",
     "publish:runtime-assets": "node scripts/publish-runtime-assets.mjs"
@@ -26,6 +27,8 @@
     "vitest": "^4.1.7"
   },
   "dependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
     "@lucide/vue": "^1.28.0",
     "@mediapipe/tasks-vision": "^0.10.34",
     "@primeuix/themes": "^2.0.3",

@@ -4037,6 +4037,19 @@ ${CAMERA_KEY_LIGHTING_GLSL}
         console.log('[TileManager] Animation state reset to t=0');
     }
 
+    restorePresetAnimation(state = {}) {
+        this.resetAnimationState();
+        this.setLayerCycleProgress(state.layerProgress || 0);
+        this.flowOffset = state.flowOffset || 0;
+        this.tileFlowOffset = state.tileFlowOffset || 0;
+        this._lastCheckedTileOffset = this.tileFlowOffset;
+        this.sharedFlowOffsetUniform.value = this.flowOffset;
+        this.sharedFilmstripOffsetUniform.value = state.filmstripOffset || 0;
+        this.#syncFilmstripOffsetUniforms();
+        this.lastFrameTime = performance.now();
+        this.lastMotionFrameTime = null;
+    }
+
     /**
      * Deterministic tick — advance animation by exactly `deltaSec` seconds
      * from the current state. Unlike tick(nowMs) which depends on wall-clock

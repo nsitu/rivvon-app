@@ -9,6 +9,7 @@ import { myVideoRoutes, videoRoutes } from './routes/videos';
 import { videoUploadRoutes } from './routes/videoUpload';
 import { audioRoutes } from './routes/audios';
 import { audioUploadRoutes } from './routes/audioUpload';
+import { presetRoutes } from './routes/presets';
 import { verifySession } from './middleware/session';
 import type { AppEnv } from './types/hono';
 import { isAdminRequest, queryAccessibleRows } from './utils/resourceAccess';
@@ -105,5 +106,6 @@ app.route('/my-videos', myVideoRoutes);
 app.route('/video', videoUploadRoutes);
 app.route('/audios', audioRoutes);
 app.route('/audio', audioUploadRoutes);
+app.route('/presets', presetRoutes);
 
 export default app;

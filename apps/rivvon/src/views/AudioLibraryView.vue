@@ -9,7 +9,7 @@ import ChromeButton from '../components/shared/ChromeButton.vue';
 import { VIEWER_AUDIO_KEY } from '../modules/viewer/audioReactivity.js';
 import { getAudioPlaybackUrl } from '../modules/viewer/audioPlayback.js';
 import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
-import { deleteAudioPublication, fetchMyAudios } from '../services/audioService.js';
+import { deleteAudioPublication, fetchMyAudios, fetchAudioPresetDependencies } from '../services/audioService.js';
 
 const { isAuthenticated, login } = useGoogleAuth();
 const audios = ref([]);
@@ -21,6 +21,17 @@ const router = useRouter();
 const emit = defineEmits(['request-use-audio']);
 const viewerAudio = inject(VIEWER_AUDIO_KEY, null);
 const pendingDeletion = ref(null);
+const linkedPresetsToDelete = ref([]), checkingDependencies = ref(false), dependencyError = ref('');
+watch(pendingDeletion, async (audio) => {
+    linkedPresetsToDelete.value = []; dependencyError.value = '';
+    if (!audio) { checkingDependencies.value = false; return; }
+    checkingDependencies.value = true;
+    try {
+        const data = await fetchAudioPresetDependencies(audio.id);
+        if (pendingDeletion.value?.id === audio.id) linkedPresetsToDelete.value = data.linkedPresets;
+    } catch (failure) { if (pendingDeletion.value?.id === audio.id) dependencyError.value = failure.message; }
+    finally { if (pendingDeletion.value?.id === audio.id) checkingDependencies.value = false; }
+});
 
 const hasAudios = computed(() => audios.value.length > 0);
 
@@ -81,13 +92,19 @@ function useInViewer(audio) {
 async function deleteAudio(audio) {
     deletingIds.value = new Set([...deletingIds.value, audio.id]);
     try {
-        await deleteAudioPublication(audio.id);
+        await deleteAudioPublication(audio.id, linkedPresetsToDelete.value.map(preset => preset.id));
         audioElements.get(audio.id)?.pause();
         audios.value = audios.value.filter((entry) => entry.id !== audio.id);
         if (viewerAudio?.state.track?.id === audio.id) viewerAudio.remove();
         pendingDeletion.value = null;
     } catch (deleteError) {
+        if (deleteError.payload?.code === 'PRESET_DEPENDENCIES') {
+            linkedPresetsToDelete.value = deleteError.payload.linkedPresets;
+            dependencyError.value = '';
+            return;
+        }
         error.value = deleteError?.message || 'Unable to delete the audio.';
+        dependencyError.value = error.value;
     } finally {
         const next = new Set(deletingIds.value);
         next.delete(audio.id);
@@ -165,11 +182,20 @@ onBeforeUnmount(pausePreviews);
             </PanelActionBar>
         </div>
         <Dialog :visible="!!pendingDeletion" modal header="Delete audio" :style="{ width: 'min(26rem, 90vw)' }"
+            :closable="!deletingIds.has(pendingDeletion?.id)" :close-on-escape="!deletingIds.has(pendingDeletion?.id)"
             @update:visible="(visible) => { if (!visible) pendingDeletion = null; }">
             <p>Delete “{{ pendingDeletion?.name }}” from your audio library?</p>
+            <p v-if="checkingDependencies" role="status">Checking linked presets…</p>
+            <div v-if="linkedPresetsToDelete.length" role="alert">
+                <p>This also deletes {{ linkedPresetsToDelete.length }} linked preset(s) and disables their shared links:</p>
+                <ul><li v-for="preset in linkedPresetsToDelete.slice(0, 6)" :key="preset.id">{{ preset.name }}</li></ul>
+                <p v-if="linkedPresetsToDelete.length > 6">And {{ linkedPresetsToDelete.length - 6 }} more.</p>
+                <p>Cancel to keep the audio and presets.</p>
+            </div>
+            <p v-if="dependencyError" role="alert">{{ dependencyError }}</p>
             <template #footer>
-                <Button type="button" severity="secondary" variant="text" @click="pendingDeletion = null">Cancel</Button>
-                <Button type="button" severity="danger" :loading="deletingIds.has(pendingDeletion?.id)" @click="deleteAudio(pendingDeletion)">Delete</Button>
+                <Button type="button" severity="secondary" variant="text" :disabled="deletingIds.has(pendingDeletion?.id)" @click="pendingDeletion = null">Cancel</Button>
+                <Button type="button" severity="danger" :loading="deletingIds.has(pendingDeletion?.id)" :disabled="checkingDependencies || Boolean(dependencyError)" @click="deleteAudio(pendingDeletion)">{{ linkedPresetsToDelete.length ? 'Delete Audio and Presets' : 'Delete' }}</Button>
             </template>
         </Dialog>
     </main>

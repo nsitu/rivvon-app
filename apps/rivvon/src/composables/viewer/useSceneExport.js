@@ -1,7 +1,8 @@
 // src/composables/viewer/useSceneExport.js
-// Scene export: PNG image, legacy WebM video, and frame-accurate MP4/WebM via WebCodecs
+// Scene export: PNG, legacy WebM, and frame-accurate SDR MP4 / WebCodecs WebM.
 
 import { Quaternion, Vector3 } from 'three';
+import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
@@ -108,7 +109,7 @@ export function useSceneExport(ctx, deps = {}) {
                 ctx.controls.value.update();
             }
 
-            renderScene();
+            renderScene({ audioReactive: options.audioReactive });
 
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = width;
@@ -655,9 +656,10 @@ export function useSceneExport(ctx, deps = {}) {
     }
 
     /**
-     * Frame-accurate video export using WebCodecs via mediabunny.
+     * Frame-accurate video export using deterministic software SDR AVC for MP4,
+     * or WebCodecs/Mediabunny for WebM.
      * Pauses the live render loop, resizes the renderer, renders each frame
-     * under a synthetic clock, encodes via CanvasSource, and restores state.
+     * under a synthetic clock, encodes, and restores state.
      *
      * @param {Object} options
      * @param {number} options.width - Output width in pixels (default: 1920)
@@ -681,6 +683,8 @@ export function useSceneExport(ctx, deps = {}) {
             height = 1080,
             fps = 30,
             format = 'mp4',
+            encodingMethod = 'ffmpeg',
+            hardwareAcceleration = 'no-preference',
             duration = null,
             loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
             filename = null,
@@ -691,6 +695,7 @@ export function useSceneExport(ctx, deps = {}) {
             quality = 'very-high',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
+            onColourMetadata = null,
         } = options;
 
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value || !ctx.tileManager.value) {
@@ -698,23 +703,13 @@ export function useSceneExport(ctx, deps = {}) {
             return null;
         }
 
-        // Lazy-import mediabunny to keep it tree-shaken out of the main bundle
-        const MB = await import('mediabunny');
-
-        // Check WebCodecs support
-        if (typeof VideoEncoder === 'undefined') {
+        // MP4 uses pinned software x264; WebM still requires WebCodecs.
+        if ((format === 'webm' || encodingMethod === 'webcodecs') && typeof VideoEncoder === 'undefined') {
             throw new Error('WebCodecs API is not available in this browser. Use Chrome 94+, Edge 94+, or Firefox 130+.');
         }
 
         // --- Determine codec ---
-        let OutputFormat, codec;
-        if (format === 'webm') {
-            OutputFormat = MB.WebMOutputFormat;
-            codec = 'vp9';
-        } else {
-            OutputFormat = MB.Mp4OutputFormat;
-            codec = 'avc';
-        }
+        const codec = format === 'webm' ? 'vp9' : 'avc';
 
         // --- Calculate duration ---
         const loopDuration = getSeamlessLoopDuration();
@@ -745,6 +740,7 @@ export function useSceneExport(ctx, deps = {}) {
         const savedCameraPos = ctx.camera.value.position.clone();
         const savedCameraQuat = ctx.camera.value.quaternion.clone();
         const savedControlsTarget = ctx.controls.value?.target?.clone() ?? null;
+        const savedControlsEnabled = ctx.controls.value?.enabled;
 
         // --- Cinematic camera setup for export ---
         let cinematicReady = false;
@@ -803,6 +799,7 @@ export function useSceneExport(ctx, deps = {}) {
         // --- Pause live render loop ---
         deps.pauseRenderLoop?.();
 
+        let videoExport = null;
         try {
             // --- Resize renderer for export ---
             ctx.renderer.value.setPixelRatio(1); // Exact pixel output
@@ -864,46 +861,11 @@ export function useSceneExport(ctx, deps = {}) {
             // them to match the reset state before rendering frame 0.
             ctx.ribbonSeries.value?.initFlowMaterials?.();
 
-            // --- Create mediabunny output ---
-            const output = new MB.Output({
-                format: new OutputFormat(),
-                target: new MB.BufferTarget()
+            videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
+                width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+                renderContext: ctx.renderer.value.getContext?.(),
+                signal, onStatus, onColourMetadata,
             });
-
-            // Map quality preset to mediabunny subjective quality constants
-            const qualityMap = {
-                'very-low': MB.QUALITY_VERY_LOW,
-                'low': MB.QUALITY_LOW,
-                'medium': MB.QUALITY_MEDIUM,
-                'high': MB.QUALITY_HIGH,
-                'very-high': MB.QUALITY_VERY_HIGH,
-            };
-            const bitrate = qualityMap[quality] ?? MB.QUALITY_VERY_HIGH;
-
-            const renderCanvas = ctx.renderer.value.domElement;
-            let exportCanvas = renderCanvas;
-            let exportCanvasContext = null;
-            let exportLogoAsset = null;
-
-            if (logoOverlayEnabled) {
-                exportLogoAsset = await loadExportLogoAsset();
-                exportCanvas = document.createElement('canvas');
-                exportCanvas.width = width;
-                exportCanvas.height = height;
-                exportCanvasContext = exportCanvas.getContext('2d', { alpha: true });
-
-                if (!exportCanvasContext) {
-                    throw new Error('Failed to create export overlay compositor.');
-                }
-            }
-
-            const videoSource = new MB.CanvasSource(exportCanvas, {
-                codec,
-                bitrate
-            });
-            output.addVideoTrack(videoSource);
-
-            await output.start();
 
             if (onStatus) onStatus(`Encoding ${totalFrames} frames…`);
 
@@ -912,7 +874,6 @@ export function useSceneExport(ctx, deps = {}) {
                 // Check for cancellation
                 if (signal?.aborted) {
                     console.log('[ThreeSetup] Export cancelled by user');
-                    await output.finalize();
                     return null;
                 }
 
@@ -966,38 +927,25 @@ export function useSceneExport(ctx, deps = {}) {
                     height,
                 });
 
-                if (exportCanvasContext && exportLogoAsset) {
-                    exportCanvasContext.clearRect(0, 0, width, height);
-                    exportCanvasContext.drawImage(renderCanvas, 0, 0, width, height);
-                    drawExportLogoOverlay(
-                        exportCanvasContext,
-                        exportLogoAsset.image,
-                        width,
-                        height,
-                        exportLogoAsset.aspectRatio,
-                        logoOverlayCorner,
-                    );
-                }
-
-                // Feed the rendered frame to mediabunny
-                await videoSource.add(t, deltaSec);
+                await videoExport.add(t, deltaSec);
 
                 // Report progress
-                if (onProgress) onProgress((frame + 1) / totalFrames);
+                if (onProgress) onProgress(0.95 * (frame + 1) / totalFrames);
             }
 
             // --- Finalize ---
             if (onStatus) onStatus('Finalizing…');
-            await output.finalize();
-
-            const buffer = output.target.buffer;
-            const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
-            const blob = new Blob([buffer], { type: mimeType });
+            const blob = await videoExport.finalize();
+            onProgress?.(1);
 
             console.log(`[ThreeSetup] Export complete: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
 
             return blob;
+        } catch (error) {
+            if (signal?.aborted) return null;
+            throw error;
         } finally {
+            await videoExport?.dispose();
             circularTiltController?.deactivate({ restoreBaseline: true });
 
             if (circularOrbitRoot && circularOrbitBasePosition && circularOrbitBaseQuaternion) {
@@ -1021,7 +969,7 @@ export function useSceneExport(ctx, deps = {}) {
             ctx.camera.value.aspect = savedAspect;
             ctx.camera.value.updateProjectionMatrix();
 
-            if (ctx.controls.value) ctx.controls.value.enabled = true;
+            if (ctx.controls.value) ctx.controls.value.enabled = savedControlsEnabled;
 
             // Restore camera position and orientation
             ctx.camera.value.position.copy(savedCameraPos);

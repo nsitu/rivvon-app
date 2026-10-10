@@ -22,6 +22,7 @@ import { useRibbonBuilder } from "./useRibbonBuilder";
 import { useTextureLoader } from "./useTextureLoader";
 import { useSceneExport } from "./useSceneExport";
 import { useCameraMotionCapture } from "./useCameraMotionCapture";
+import { useScenePreset } from './useScenePreset.js';
 
 export function useThreeSetup() {
   const app = useViewerStore();
@@ -114,7 +115,7 @@ export function useThreeSetup() {
 
   function renderSceneWithBackground(renderOptions = {}) {
     const render = () => {
-      background.updateBackground(renderOptions);
+      background.updateBackground({ timeSeconds: renderLoop.getArtworkTime(), ...renderOptions });
       lighting.tick();
       renderFilter.renderScene(renderOptions.target ?? null);
     };
@@ -142,6 +143,10 @@ export function useThreeSetup() {
     pauseRenderLoop: renderLoop.pauseRenderLoop,
     resumeRenderLoop: renderLoop.resumeRenderLoop,
     renderScene: renderSceneWithBackground,
+  });
+
+  const presets = useScenePreset(ctx, { textures, ribbons, renderLoop,
+    updateBackground: () => background.setBackgroundFromTileManager(),
   });
 
   // ── Initialization ─────────────────────────────────────────────────
@@ -420,6 +425,8 @@ export function useThreeSetup() {
     resetCamera,
 
     // Methods
+    captureScene: presets.captureScene,
+    restoreScene: presets.restoreScene,
     initThree,
     startRenderLoop: renderLoop.startRenderLoop,
     stopRenderLoop: renderLoop.stopRenderLoop,

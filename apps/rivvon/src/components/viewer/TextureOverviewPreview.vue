@@ -6,7 +6,7 @@
     import { TileManager } from '../../modules/viewer/tileManager';
     import { applyRendererDisplayConfig, readRendererDisplayConfig } from '../../modules/viewer/rendererConfig.js';
     import { useLocalStorage } from '../../services/localStorage.js';
-    import { drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
+    import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
     import {
@@ -1128,6 +1128,8 @@
             height = props.targetHeight,
             fps = 30,
             format = 'mp4',
+            encodingMethod = 'ffmpeg',
+            hardwareAcceleration = 'no-preference',
             duration = null,
             loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
             quality = 'very-high',
@@ -1136,28 +1138,11 @@
             signal = null,
             onProgress = null,
             onStatus = null,
+            onColourMetadata = null,
         } = options;
 
-        const MB = await import('mediabunny');
-
-        if (typeof VideoEncoder === 'undefined') {
-            throw new Error('WebCodecs API is not available in this browser. Use Chrome 94+, Edge 94+, or Firefox 130+.');
-        }
-
-        let OutputFormat;
-        let codec;
-        if (format === 'webm') {
-            OutputFormat = MB.WebMOutputFormat;
-            codec = 'vp9';
-        } else {
-            OutputFormat = MB.Mp4OutputFormat;
-            codec = 'avc';
-        }
-
         const shouldResumeLoop = stopAnimationLoop();
-        let exportCanvas = renderer.domElement;
-        let exportCanvasContext = null;
-        let exportLogoAsset = null;
+        let videoExport = null;
 
         try {
             rebuildLayout(width, height);
@@ -1174,44 +1159,16 @@
             const totalFrames = Math.ceil(exportDuration * fps);
             const deltaSec = 1 / fps;
 
-            const qualityMap = {
-                'very-low': MB.QUALITY_VERY_LOW,
-                'low': MB.QUALITY_LOW,
-                'medium': MB.QUALITY_MEDIUM,
-                'high': MB.QUALITY_HIGH,
-                'very-high': MB.QUALITY_VERY_HIGH,
-            };
-            const bitrate = qualityMap[quality] ?? MB.QUALITY_HIGH;
-
-            if (logoOverlayEnabled) {
-                if (logoOverlayEnabled) exportLogoAsset = await loadExportLogoAsset();
-                exportCanvas = document.createElement('canvas');
-                exportCanvas.width = width;
-                exportCanvas.height = height;
-                exportCanvasContext = exportCanvas.getContext('2d', { alpha: true });
-
-                if (!exportCanvasContext) {
-                    throw new Error('Failed to create export overlay compositor.');
-                }
-            }
-
-            const output = new MB.Output({
-                format: new OutputFormat(),
-                target: new MB.BufferTarget(),
+            videoExport = await createCanvasVideoExport(renderer.domElement, {
+                width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+                renderContext: renderer.getContext?.(),
+                signal, onStatus, onColourMetadata,
             });
-
-            const videoSource = new MB.CanvasSource(exportCanvas, {
-                codec,
-                bitrate,
-            });
-            output.addVideoTrack(videoSource);
-            await output.start();
 
             onStatus?.(`Encoding ${totalFrames} overview frames…`);
 
             for (let frame = 0; frame < totalFrames; frame += 1) {
                 if (signal?.aborted) {
-                    await output.finalize();
                     return null;
                 }
 
@@ -1222,24 +1179,19 @@
                 syncCellMaterials();
                 renderCurrentScene();
 
-                if (exportCanvasContext) {
-                    exportCanvasContext.clearRect(0, 0, width, height);
-                    exportCanvasContext.drawImage(renderer.domElement, 0, 0, width, height);
-                    if (exportLogoAsset) {
-                        drawExportLogoOverlay(exportCanvasContext, exportLogoAsset.image, width, height, exportLogoAsset.aspectRatio, logoOverlayCorner);
-                    }
-                }
-
-                await videoSource.add(time, deltaSec);
-                onProgress?.((frame + 1) / totalFrames);
+                await videoExport.add(time, deltaSec);
+                onProgress?.(0.95 * (frame + 1) / totalFrames);
             }
 
             onStatus?.('Finalizing…');
-            await output.finalize();
-
-            const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
-            return new Blob([output.target.buffer], { type: mimeType });
+            const blob = await videoExport.finalize();
+            onProgress?.(1);
+            return blob;
+        } catch (error) {
+            if (signal?.aborted) return null;
+            throw error;
         } finally {
+            await videoExport?.dispose();
             if (renderer && tileManager) {
                 tileManager.resetAnimationState?.();
                 rebuildLayout();

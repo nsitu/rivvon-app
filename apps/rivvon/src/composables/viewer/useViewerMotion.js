@@ -196,6 +196,22 @@ export function useViewerMotion(ctx) {
   );
 
   return {
+    captureSnapshot() {
+      if (!baseline || motionStartTime == null) return null;
+      return { elapsed: Math.max(0, performance.now() - motionStartTime) / 1000,
+        position: baseline.position.toArray(), quaternion: baseline.quaternion.toArray(),
+        pivot: baseline.pivot.toArray(), baseRight: baseline.baseRight.toArray(), baseUp: baseline.baseUp.toArray() };
+    },
+    restoreSnapshot(snapshot) {
+      deactivate();
+      if (!snapshot || !activate(getRequestedMode(), performance.now() - snapshot.elapsed * 1000)) return;
+      baseline.position.fromArray(snapshot.position);
+      baseline.quaternion.fromArray(snapshot.quaternion);
+      baseline.pivot.fromArray(snapshot.pivot);
+      baseline.baseRight.fromArray(snapshot.baseRight);
+      baseline.baseUp.fromArray(snapshot.baseUp);
+      tick(performance.now());
+    },
     tick,
     deactivate,
   };

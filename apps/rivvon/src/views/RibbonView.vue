@@ -12,6 +12,7 @@
     import ViewerAudioControls from '../components/viewer/ViewerAudioControls.vue';
     import { createDefaultDrawingName, createDrawingDocument, createDrawingPayload, getKindLabel, inflateDrawingPaths, normalizeDrawingKind, serializeDrawingPaths } from '../modules/shared/drawingLibrary.js';
     import { createRenderSnapshot } from '../modules/shared/renderSnapshot.js';
+    import { fetchPreset, preparePresetTextures, presetAssetUrl, presetShareUrl, savePreset } from '../services/presetService.js';
     import { createLazyLoader } from '../modules/shared/lazyLoader.js';
     import { resolveOrderedContext } from '../modules/viewer/viewerHeaderContext.js';
     import { isViewerPanelVisible, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
@@ -46,6 +47,8 @@
     const MobiusPanel = defineAsyncComponent(() => import('../components/viewer/MobiusPanel.vue'));
     const ClockPanel = defineAsyncComponent(() => import('../components/viewer/ClockPanel.vue'));
     const DrawingBrowser = defineAsyncComponent(() => import('../components/viewer/DrawingBrowser.vue'));
+    const PresetBrowser = defineAsyncComponent(() => import('../components/viewer/PresetBrowser.vue'));
+    const PresetSaveDialog = defineAsyncComponent(() => import('../components/viewer/PresetSaveDialog.vue'));
     const TextureBrowser = defineAsyncComponent(() => import('../components/viewer/TextureBrowser.vue'));
     const TextureOverviewPanel = defineAsyncComponent(() => import('../components/viewer/TextureOverviewPanel.vue'));
     const TextureCreator = defineAsyncComponent(() => import('../components/viewer/TextureCreator.vue'));
@@ -94,7 +97,7 @@
     const isAudioLibraryRoute = computed(() => route.name === 'audio-library');
     const isAudioPlayerRoute = computed(() => route.name === 'audio-player');
     const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
-    const { getDrawing } = useRivvonAPI();
+    const { getDrawing, uploadTextureSet, uploadTextureSetToR2 } = useRivvonAPI();
     const {
         ensureRivvonFolder,
         createAssetFolder: createDriveAssetFolder,
@@ -130,6 +133,7 @@
     const mobiusPanelVisible = createViewerPanelVisibility('mobius');
     const clockPanelVisible = createViewerPanelVisibility('clock');
     const drawingBrowserVisible = createViewerPanelVisibility('drawings');
+    const presetBrowserVisible = createViewerPanelVisibility('presets');
     const textureBrowserVisible = createViewerPanelVisibility('textureBrowser');
     const texturePreviewVisible = createViewerPanelVisibility('texturePreview');
     const textureCreatorVisible = createViewerPanelVisibility('textureCreator');
@@ -545,6 +549,22 @@ const activeToolbarOverlayTitle = computed(() => {
     const currentDrawingKind = ref(null);
     const currentDrawingTitle = ref(null);
     const currentDrawingSource = ref(null);
+    const currentPresetId = ref(null);
+    const presetCapture = shallowRef(null);
+    const presetSaveVisible = ref(false);
+    const presetBusy = ref(false);
+    const presetProgress = ref('');
+    const presetError = ref('');
+    const presetLink = ref('');
+    const presetInitialVisibility = ref('private');
+    const presetLibraryRevision = ref(0);
+    watch(presetSaveVisible, (visible) => {
+        if (!visible && !presetBusy.value) {
+            if (presetCapture.value?.previewUrl) URL.revokeObjectURL(presetCapture.value.previewUrl);
+            presetCapture.value = null;
+        }
+    });
+    onUnmounted(() => { if (presetCapture.value?.previewUrl) URL.revokeObjectURL(presetCapture.value.previewUrl); });
 
     // Live clock time shown in header when clock mode is active
     const clockHeaderTime = ref('');
@@ -676,56 +696,7 @@ const activeToolbarOverlayTitle = computed(() => {
         };
     });
     const viewerHeaderTitle = computed(() => viewerHeaderTitleModel.value?.text || '');
-    const currentViewShareUrl = computed(() => {
-        const shareState = currentViewShareState.value;
-        if (!shareState || shareState.kind === 'unshareable' || app.multiTextureActive) {
-            return null;
-        }
-
-        const query = {};
-
-        if (shareState.kind === 'emoji') {
-            if (!shareState.hexcode) {
-                return null;
-            }
-
-            query.emoji = shareState.hexcode;
-        } else if (shareState.kind === 'text') {
-            if (typeof shareState.text !== 'string' || !shareState.text.trim()) {
-                return null;
-            }
-
-            query.text = shareState.text;
-        }
-
-        const selectedTexture = currentTextureSelection.value;
-        if (selectedTexture) {
-            if (selectedTexture.source !== 'cloud') {
-                return null;
-            }
-
-            const textureId = typeof selectedTexture.texture?.id === 'string'
-                ? selectedTexture.texture.id.trim()
-                : '';
-            if (!textureId) {
-                return null;
-            }
-
-            query.texture = textureId;
-        }
-
-        const resolvedLocation = router.resolve({
-            path: '/',
-            query,
-        });
-
-        if (typeof window === 'undefined') {
-            return resolvedLocation.href || null;
-        }
-
-        return new URL(resolvedLocation.href, window.location.origin).toString();
-    });
-    const canShareCurrentViewUrl = computed(() => Boolean(currentViewShareUrl.value));
+    const canShareCurrentViewUrl = computed(() => isReady.value && !presetBusy.value && !isLoadingTexture.value);
 
     function normalizeDrawingTitleValue(value, { collapseWhitespace = true, stripSvgExtension = false } = {}) {
         if (typeof value !== 'string') {
@@ -1347,6 +1318,15 @@ const activeToolbarOverlayTitle = computed(() => {
         console.log('[RibbonView] tileManager:', context.tileManager);
         console.log('[RibbonView] scene:', context.scene);
 
+        const presetId = getQueryStringValue(route.query.preset).trim();
+        if (presetId) {
+            await initializeDefaultRibbon();
+            isReady.value = true;
+            await loadScenePreset(presetId);
+            finishTextureLoading();
+            return;
+        }
+
         await withTextureLoading('Loading...', async () => {
             // Initialize default ribbon
             const initializedFromQueryEmoji = await initializeEmojiRibbonFromQuery();
@@ -1369,6 +1349,11 @@ const activeToolbarOverlayTitle = computed(() => {
             isReady.value = true;
         });
     }
+
+    watch(() => route.query.preset, (value) => {
+        const id = getQueryStringValue(value).trim();
+        if (isReady.value && id && id !== currentPresetId.value) void loadScenePreset(id);
+    });
 
     // Initialize ribbon with default SVG
     async function initializeDefaultRibbon() {
@@ -2293,6 +2278,7 @@ const activeToolbarOverlayTitle = computed(() => {
             settings: null,
             sourceDrawingPayload: null,
             renderSnapshot: null,
+            colourReport: null,
         };
         videoExportStatus.value = '';
         resetVideoPublishState();
@@ -2608,58 +2594,130 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     async function handleShareCurrentViewUrl() {
-        const shareUrl = currentViewShareUrl.value;
-        if (!shareUrl) {
-            toast.add({
-                severity: 'warn',
-                summary: 'URL Not Available',
-                detail: 'This view cannot be shared as a URL yet. Try a default, text, emoji, or cloud-texture view.',
-                life: 3600,
-            });
+        await openPresetSave('unlisted');
+    }
+
+    async function openPresetSave(visibility = 'private') {
+        if (presetBusy.value || !isReady.value) return;
+        if (!isAuthenticated.value) {
+            app.showPresetBrowser();
+            toast.add({ severity: 'info', summary: 'Sign in to save presets', detail: 'Your ribbon is ready. Sign in from the preset library to save or share it.', life: 4000 });
             return;
         }
-
-        const shareTitle = viewerHeaderTitle.value || app.currentTextureName || 'Rivvon view';
-
-        if (typeof navigator !== 'undefined' && typeof navigator.share === 'function' && isMobileDevice.value) {
-            try {
-                await navigator.share({
-                    title: shareTitle,
-                    url: shareUrl,
-                });
-                toast.add({
-                    severity: 'success',
-                    summary: 'Shared',
-                    detail: 'View URL shared successfully.',
-                    life: 2400,
-                });
-                return;
-            } catch (error) {
-                if (error?.name === 'AbortError') {
-                    return;
-                }
-
-                console.warn('[RibbonView] Native URL share failed, falling back to clipboard copy:', error);
-            }
-        }
-
+        const canvas = threeCanvasRef.value;
+        presetBusy.value = true;
+        presetError.value = '';
+        presetLink.value = '';
+        presetInitialVisibility.value = visibility;
+        canvas.pauseRenderLoop();
+        const controls = canvas.controls;
+        const damping = controls?.enableDamping;
         try {
-            await copyTextToClipboard(shareUrl);
-            toast.add({
-                severity: 'success',
-                summary: 'Link Copied',
-                detail: 'A shareable URL for the current view has been copied to your clipboard.',
-                life: 3200,
+            if (controls) { controls.enableDamping = false; controls.update(); }
+            const state = viewerAudio.state;
+            const capture = canvas.captureScene({
+                kind: currentDrawingKind.value, title: currentDrawingTitle.value || viewerHeaderTitle.value,
+                source: currentDrawingSource.value,
+                textureAssignments: await Promise.all(getTextureAssignmentSnapshot().map(async assignment => {
+                    if (assignment.source === 'local') {
+                        const local = await getLocalTextureSet(assignment.id);
+                        if (local?.cached_from) return { ...assignment, id: local.cached_from, source: 'cloud' };
+                    }
+                    return assignment;
+                })),
+                audio: state.track || state.reactiveEnabled ? {
+                    assetId: state.track?.id || '',
+                    sourcePresetId: state.track?.sourcePresetId || '', loop: state.loop,
+                    reactiveEnabled: state.reactiveEnabled, sensitivity: state.sensitivity, amount: state.amount,
+                } : null,
             });
+            const renderCanvas = canvas.renderer.domElement;
+            const width = 640;
+            const height = Math.max(1, Math.round(width * renderCanvas.height / renderCanvas.width));
+            const image = await canvas.captureImageBlobWithSettings({ width, height: Math.min(960, height), format: 'webp', quality: 0.74, logoOverlayEnabled: false, audioReactive: false });
+            if (!image?.blob) throw new Error('Could not capture the preset thumbnail.');
+            if (presetCapture.value?.previewUrl) URL.revokeObjectURL(presetCapture.value.previewUrl);
+            presetCapture.value = { ...capture, thumbnail: image.blob, previewUrl: URL.createObjectURL(image.blob), microphoneExcluded: state.microphoneActive || state.microphonePending };
+            presetSaveVisible.value = true;
         } catch (error) {
-            console.error('[RibbonView] Failed to copy current view URL:', error);
-            toast.add({
-                severity: 'error',
-                summary: 'Copy Failed',
-                detail: 'Could not copy the current view URL to your clipboard.',
-                life: 3600,
-            });
+            toast.add({ severity: 'error', summary: 'Could not capture preset', detail: error.message, life: 5000 });
+        } finally {
+            if (controls) controls.enableDamping = damping;
+            canvas.resumeRenderLoop();
+            presetBusy.value = false;
         }
+    }
+
+    async function handleSavePreset({ name, visibility }) {
+        if (presetBusy.value || !presetCapture.value) return;
+        presetBusy.value = true;
+        presetError.value = '';
+        try {
+            const saved = await savePreset({ ...presetCapture.value, name, visibility,
+                uploadTexture: isAdmin.value ? uploadTextureSetToR2 : uploadTextureSet,
+                parentPresetId: currentPresetId.value, onProgress: value => { presetProgress.value = value; } });
+            currentPresetId.value = saved.id;
+            activeTextureAssignments.value = presetCapture.value.scene.textures.map((texture, assignmentIndex) => ({ id: texture.id, source: 'cloud', name: texture.name, assignmentIndex }));
+            presetLibraryRevision.value++;
+            if (visibility === 'private') {
+                presetSaveVisible.value = false;
+                URL.revokeObjectURL(presetCapture.value.previewUrl);
+                presetCapture.value = null;
+                toast.add({ severity: 'success', summary: 'Preset saved', detail: name, life: 3000 });
+            } else presetLink.value = presetShareUrl(saved.id);
+        } catch (error) { presetError.value = error.message; }
+        finally { presetBusy.value = false; presetProgress.value = ''; }
+    }
+
+    async function copyPresetLink(link = presetLink.value) {
+        try {
+            await copyTextToClipboard(link);
+            toast.add({ severity: 'success', summary: 'Link copied', life: 2400 });
+        } catch {
+            toast.add({ severity: 'warn', summary: 'Select and copy the link', detail: 'The browser could not access the clipboard. The link is shown in the dialog.', life: 4000 });
+        }
+    }
+
+    async function nativeSharePreset() {
+        try { await navigator.share({ title: 'Rivvon preset', url: presetLink.value }); }
+        catch (error) { if (error.name !== 'AbortError') await copyPresetLink(); }
+    }
+
+    async function loadScenePreset(id) {
+        if (presetBusy.value) return false;
+        presetBusy.value = true;
+        presetProgress.value = 'Loading preset…';
+        try {
+            const saved = await fetchPreset(id);
+            const entries = await preparePresetTextures(id, saved.scene, value => { presetProgress.value = value; });
+            const scene = await threeCanvasRef.value.restoreScene(saved.scene, entries);
+            setCurrentDrawingHeader({ kind: scene.geometry.kind, title: scene.geometry.title, source: scene.geometry.source });
+            setCurrentViewShareState({ kind: 'unshareable' });
+            currentPresetId.value = id;
+            app.setActiveTextures(entries.map(entry => entry.textureSet.id));
+            setCurrentTextureSelection(null);
+            activeTextureAssignments.value = entries.map((entry, assignmentIndex) => ({ id: entry.textureSet.id, source: 'cloud', name: entry.textureSet.name, assignmentIndex }));
+            app.setCurrentTextureMetadata({ id: entries[0].textureSet.id, name: scene.textures[0].name });
+            app.setActiveTextureCrossSectionType(new Set(scene.textures.map(texture => texture.variant)).size === 1 ? scene.textures[0].variant : null);
+            viewerAudio.remove();
+            if (saved.audio) viewerAudio.activate({ ...saved.audio, sourcePresetId: id, playback_url: presetAssetUrl(id, 'audio') }, { autoplay: false });
+            if (scene.audio) {
+                viewerAudio.setLoop(scene.audio.loop);
+                viewerAudio.state.reactiveEnabled = scene.audio.reactiveEnabled;
+                viewerAudio.state.sensitivity = scene.audio.sensitivity;
+                viewerAudio.state.amount = scene.audio.amount;
+            } else viewerAudio.state.reactiveEnabled = false;
+            app.hidePresetBrowser();
+            return true;
+        } catch (error) {
+            toast.add({ severity: 'error', summary: 'Could not open preset', detail: error.message, life: 6000 });
+            return false;
+        } finally { presetBusy.value = false; presetProgress.value = ''; }
+    }
+
+    async function handlePresetOpen(preset) {
+        const opened = await loadScenePreset(preset.id);
+        if (opened) await router.replace({ path: '/', query: { preset: preset.id } });
     }
 
     function handleCancelVideoExport() {
@@ -2733,6 +2791,7 @@ const activeToolbarOverlayTitle = computed(() => {
         settings: null,
         sourceDrawingPayload: null,
         renderSnapshot: null,
+        colourReport: null,
     });
     const videoExportStatus = ref('');
     const videoPublishAbortController = ref(null);
@@ -3053,6 +3112,12 @@ const activeToolbarOverlayTitle = computed(() => {
             };
         }
 
+        if (presetBrowserVisible.value) {
+            return { id: 'presets', group: 'presets', breadcrumbs: ['Presets'], statusLabel: null,
+                canGoBack: false, back: () => false, canExit: true,
+                exit: () => { if (!presetBusy.value) app.hidePresetBrowser(); return true; } };
+        }
+
         if (drawingBrowserVisible.value) {
             return {
                 id: 'drawings',
@@ -3337,10 +3402,14 @@ const activeToolbarOverlayTitle = computed(() => {
 
         exportAbortController.value = new AbortController();
         viewerAudio.setBlocked('encoding', true);
+        let colourReport = null;
 
         try {
             const progressHandlers = {
+                encodingMethod: settings.encodingMethod,
+                hardwareAcceleration: settings.hardwareAcceleration,
                 signal: exportAbortController.value.signal,
+                onColourMetadata: (report) => { colourReport = report; },
                 onProgress: (progress) => {
                     videoExportStatus.value = `Encoding… ${Math.round(progress * 100)}%`;
                 },
@@ -3432,7 +3501,10 @@ const activeToolbarOverlayTitle = computed(() => {
                 settings,
                 sourceDrawingPayload,
                 renderSnapshot,
+                colourReport,
             };
+            // Published videos retain diagnostics with the existing export snapshot.
+            if (renderSnapshot?.export) renderSnapshot.export.colourReport = colourReport;
             videoExportStatus.value = '';
             toast.add({
                 severity: 'success',
@@ -4027,6 +4099,13 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-turn-off-camera="handleTurnOffCamera"
         />
 
+        <PresetBrowser v-if="presetBrowserVisible" :busy="presetBusy" :revision="presetLibraryRevision"
+            @request-close="app.hidePresetBrowser" @request-open="handlePresetOpen" @request-save="openPresetSave()" @request-copy="copyPresetLink" />
+        <PresetSaveDialog v-if="presetSaveVisible" v-model:visible="presetSaveVisible" :capture="presetCapture"
+            :busy="presetBusy" :progress="presetProgress" :error="presetError" :link="presetLink" :initial-visibility="presetInitialVisibility"
+            @save="handleSavePreset" @copy="copyPresetLink()" @share="nativeSharePreset" />
+        <div v-if="presetBusy && !presetSaveVisible" class="loading-overlay" role="status" aria-live="polite"><LoadingIndicator :message="presetProgress || 'Preparing preset…'" /></div>
+
         <!-- Three.js canvas -->
         <ThreeCanvas
             ref="threeCanvasRef"
@@ -4081,6 +4160,8 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-enter-walk-mode="enterWalkMode"
             @request-enter-contour-mode="enterContourMode"
             @request-open-drawing-browser="openDrawingBrowser"
+            @request-open-preset-browser="app.showPresetBrowser"
+            @request-save-preset="openPresetSave()"
             @request-open-audio-creator="openAudioCreator"
             @request-open-audio-recorder="() => openAudioCreator('record')"
             @request-open-texture-file="openCreateTextureFileMode"
@@ -4288,6 +4369,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :export-status="videoExportStatus"
             :encoded-filename="encodedVideoExport.filename"
             :encoded-size="encodedVideoExport.size"
+            :colour-report="encodedVideoExport.colourReport"
             :can-share="canImageShare"
             :can-publish="isAuthenticated && isAdmin"
             :is-authenticated="isAuthenticated"
@@ -4389,6 +4471,7 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.video-player-panel),
     .ribbon-view :deep(.audio-creator-panel),
     .ribbon-view :deep(.audio-library-panel),
+    .ribbon-view :deep(.preset-browser),
     .ribbon-view :deep(.audio-player-panel),
     .ribbon-view :deep(.texture-creator-panel.active),
     .ribbon-view :deep(.realtime-panel.active),

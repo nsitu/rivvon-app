@@ -24,7 +24,7 @@ describe('video export with viewer audio', () => {
     it('releases its audio blocker when video encoding fails before rendering', async () => {
         vi.stubGlobal('VideoEncoder', undefined);
         const ctx = context();
-        await expect(useSceneExport(ctx).exportVideo()).rejects.toThrow('WebCodecs API is not available');
+        await expect(useSceneExport(ctx).exportVideo({ format: 'webm' })).rejects.toThrow('WebCodecs API is not available');
         expect(ctx.audio.setBlocked.mock.calls).toEqual([['scene-export', true], ['scene-export', false]]);
     });
 });

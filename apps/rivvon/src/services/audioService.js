@@ -90,10 +90,16 @@ export async function updateAudioPublication(audioId, updates) {
     return parseResponse(response, 'Failed to update audio');
 }
 
-export async function deleteAudioPublication(audioId) {
+export async function fetchAudioPresetDependencies(audioId) {
+    return parseResponse(await fetch(`${API_BASE_URL}/audio/${encodeURIComponent(audioId)}/preset-dependencies`, { credentials: 'include' }), 'Could not check linked presets');
+}
+
+export async function deleteAudioPublication(audioId, acceptedPresetIds = []) {
     const response = await fetch(`${API_BASE_URL}/audio/${encodeURIComponent(audioId)}`, {
         method: 'DELETE',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acceptedPresetIds }),
     });
     return parseResponse(response, 'Failed to delete audio');
 }

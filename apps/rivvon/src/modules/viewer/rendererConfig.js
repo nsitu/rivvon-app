@@ -9,6 +9,10 @@ export function getDefaultRendererDisplayConfig(rendererType = 'webgl') {
     if (rendererType === 'webgl') {
         return {
             ...BASE_RENDERER_DISPLAY_CONFIG,
+            // Legacy WebGL ribbon/filter shaders sample encoded RGB numerically and
+            // write it directly, without colorspace_fragment. Keep this contract:
+            // changing it globally would also alter built-in materials/backgrounds.
+            // Video export treats the displayed canvas as sRGB, then converts to 709.
             outputColorSpace: THREE.LinearSRGBColorSpace,
             toneMapping: THREE.NoToneMapping,
             toneMappingExposure: 1,

@@ -44,7 +44,7 @@
     const selectedFamilyVariantIds = ref(new Map()); // cardId -> selected variant id
 
     const app = useViewerStore();
-    const { deleteTextureSet, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
+    const { deleteTextureSet, getTexturePresetDependencies, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
     const { getAllTextureSets: getLocalTextures, getTextureSet: getLocalTextureSet, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, promoteTextureSetToCachedCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
@@ -63,6 +63,9 @@
     const deleteVariantCount = ref(1);
     const deletingId = ref(null);
     const isLocalDelete = ref(false);
+    const linkedPresetsToDelete = ref([]);
+    const checkingPresetDependencies = ref(false);
+    const deleteDependencyError = ref('');
 
     // Copy state
     const textureToCopy = ref(null);
@@ -1027,11 +1030,15 @@
         app.hideTextureBrowser();
     }
 
-    function cancelDelete() {
+    function cancelDelete(force = false) {
+        if (deletingId.value && force !== true) return;
         textureToDelete.value = null;
         deleteTextureIds.value = [];
         deleteVariantCount.value = 1;
         isLocalDelete.value = false;
+        linkedPresetsToDelete.value = [];
+        deleteDependencyError.value = '';
+        checkingPresetDependencies.value = false;
     }
 
     function handleKeydown(event) {
@@ -1075,7 +1082,7 @@
     });
 
     // Delete functionality
-    function confirmDelete(texture, event) {
+    async function confirmDelete(texture, event) {
         event.stopPropagation(); // Prevent card click
         textureToDelete.value = getFamilyActionTexture(texture);
         deleteTextureIds.value = getFamilyMemberIds(texture);
@@ -1083,6 +1090,17 @@
             ? texture.availableResolutions.length
             : deleteTextureIds.value.length;
         isLocalDelete.value = isLocalTexture(texture);
+        linkedPresetsToDelete.value = [];
+        deleteDependencyError.value = '';
+        if (isLocalDelete.value) return;
+        const id = textureToDelete.value.id;
+        checkingPresetDependencies.value = true;
+        try {
+            const data = await getTexturePresetDependencies(id);
+            if (textureToDelete.value?.id === id) linkedPresetsToDelete.value = data.linkedPresets;
+        } catch (failure) {
+            if (textureToDelete.value?.id === id) deleteDependencyError.value = failure.message;
+        } finally { if (textureToDelete.value?.id === id) checkingPresetDependencies.value = false; }
     }
 
     async function performDelete() {
@@ -1098,13 +1116,19 @@
                 localTextures.value = localTextures.value.filter((texture) => !deleteTextureIds.value.includes(texture.id));
             } else {
                 // Delete from cloud
-                await deleteTextureSet(textureToDelete.value.id);
+                await deleteTextureSet(textureToDelete.value.id, linkedPresetsToDelete.value.map(preset => preset.id));
                 textures.value = textures.value.filter((texture) => texture.id !== textureToDelete.value.id);
             }
-            cancelDelete();
+            cancelDelete(true);
         } catch (err) {
+            if (err.payload?.code === 'PRESET_DEPENDENCIES') {
+                linkedPresetsToDelete.value = err.payload.linkedPresets;
+                deleteDependencyError.value = '';
+                return;
+            }
             console.error('[TextureBrowser] Failed to delete texture:', err);
             error.value = 'Failed to delete: ' + err.message;
+            deleteDependencyError.value = err.message;
         } finally {
             deletingId.value = null;
         }
@@ -2560,6 +2584,14 @@
                                 : 'This action cannot be undone.')
                         }}
                     </p>
+                        <p v-if="checkingPresetDependencies" role="status">Checking linked presets…</p>
+                        <div v-if="linkedPresetsToDelete.length" role="alert">
+                            <p>This also deletes {{ linkedPresetsToDelete.length }} linked preset(s) and disables their shared links:</p>
+                            <ul><li v-for="preset in linkedPresetsToDelete.slice(0, 6)" :key="preset.id">{{ preset.name }}</li></ul>
+                            <p v-if="linkedPresetsToDelete.length > 6">And {{ linkedPresetsToDelete.length - 6 }} more.</p>
+                            <p>Cancel to keep the texture and presets.</p>
+                        </div>
+                        <p v-if="deleteDependencyError" role="alert">{{ deleteDependencyError }}</p>
                     <div class="delete-modal-actions rivvon-modal-actions">
                         <Button
                             type="button"
@@ -2574,9 +2606,9 @@
                             type="button"
                             severity="danger"
                             @click="performDelete"
-                            :disabled="deletingId"
+                            :disabled="Boolean(deletingId) || checkingPresetDependencies || Boolean(deleteDependencyError)"
                         >
-                            {{ deletingId ? 'Deleting...' : 'Delete' }}
+                            {{ deletingId ? 'Deleting...' : linkedPresetsToDelete.length ? 'Delete Texture and Presets' : 'Delete' }}
                         </Button>
                     </div>
                 </div>

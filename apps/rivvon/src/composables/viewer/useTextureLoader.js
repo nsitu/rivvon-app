@@ -287,6 +287,31 @@ export function useTextureLoader(ctx, deps = {}) {
     }
 
     return {
+        async stagePresetTextures(entries, artwork) {
+            const prepared = [];
+            try {
+                for (const entry of entries) {
+                    const tm = createTileManager({
+                        repeatMode: artwork.textureRepeatMode, flipVertical: artwork.textureFlipVertical,
+                        flowAlignmentEnabled: artwork.flowCycleAlignmentEnabled, layerAnimationEnabled: artwork.textureAnimationEnabled,
+                        layerAnimationReversed: artwork.textureAnimationReversed, edgeDriftEnabled: artwork.edgeDriftEnabled,
+                        edgeNoiseTransparencyMax: artwork.edgeNoiseTransparencyMax, edgeNoisePatternLength: artwork.edgeNoisePatternLength,
+                        edgeNoiseMirrored: artwork.edgeNoiseMirrored, filmstripStyleEnabled: artwork.filmstripStyleEnabled,
+                        filmstripMotionEnabled: artwork.filmstripMotionEnabled, filmstripMotionSpeed: artwork.filmstripMotionSpeed,
+                        filmstripGapLength: artwork.filmstripGapLength, filmstripHoleLength: artwork.filmstripHoleLength,
+                        filmstripAperture: artwork.filmstripAperture, filmstripHoleRoundedness: artwork.filmstripHoleRoundedness,
+                        contrast: artwork.renderFilterMode === 'gradientMap' ? 1 : artwork.contrast,
+                        saturation: artwork.renderFilterMode === 'gradientMap' ? 1 : artwork.saturation,
+                        sceneLightingEnabled: artwork.sceneLightingEnabled, sceneLightingIntensity: artwork.sceneLightingIntensity,
+                    });
+                    prepared.push(tm);
+                    if (!await tm.loadFromSession(entry.textureSet, entry.tileEntry)) throw new Error('A preset texture could not be decoded.');
+                    tm.setFlowSpeed(artwork.flowState === 'backward' ? -artwork.flowSpeed : artwork.flowSpeed);
+                    tm.setFlowEnabled(artwork.flowState !== 'off');
+                }
+                return prepared;
+            } catch (error) { prepared.forEach(tm => tm.dispose()); throw error; }
+        },
         clearMultiTextureState,
         loadTextures,
         loadTexturesFromRemote,

@@ -6,6 +6,7 @@ const DEFAULT_VIEWER_CONTEXT_ORDER = [
     'walk',
     'draw',
     'drawings',
+    'presets',
     'realtimeSampler',
     'textureCreator',
     'audioCreator',
@@ -30,6 +31,11 @@ function confirmSlyceExit(message) {
 }
 
 const VIEWER_CONTEXT_DEFINITIONS = {
+    presets: {
+        title: 'Presets',
+        isActive: (app) => isViewerPanelVisible(app, 'presets'),
+        close: (app) => { app.hidePresetBrowser(); return true; },
+    },
     walk: {
         title: 'Walk',
         isActive: (app) => app.isWalkMode,

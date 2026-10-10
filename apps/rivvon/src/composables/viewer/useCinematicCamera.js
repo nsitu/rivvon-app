@@ -4,6 +4,7 @@
 // non-reactive module and Vue's reactivity system.
 
 import { ref, shallowRef, computed } from 'vue';
+import { Vector3 } from 'three';
 import { CinematicCamera } from '../../modules/viewer/cinematicCamera';
 
 /**
@@ -134,6 +135,19 @@ export function useCinematicCamera() {
         return instance.value;
     }
 
+    function restoreSnapshot(snapshot) {
+        clearROIs();
+        if (!instance.value || !snapshot) return;
+        const target = instance.value.getROIs();
+        for (const roi of snapshot.rois || []) target.push({
+            position: new Vector3().fromArray(roi.position), target: new Vector3().fromArray(roi.target), fov: roi.fov,
+        });
+        instance.value.minSpeedRatio = snapshot.minSpeedRatio;
+        instance.value.dwellRadiusFraction = snapshot.dwellRadiusFraction;
+        instance.value.microMotionEnabled = snapshot.microMotionEnabled;
+        roiCount.value = target.length;
+    }
+
     /**
      * Get telemetry snapshot from the CinematicCamera instance.
      * @returns {Object|null}
@@ -191,6 +205,7 @@ export function useCinematicCamera() {
         getTelemetryAtU,
         getTrackGeometry,
         getInstance,
+        restoreSnapshot,
         dispose
     };
 }

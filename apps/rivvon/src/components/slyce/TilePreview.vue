@@ -200,10 +200,10 @@
 </template>
 
 <script setup>
-    import { computed, watch, onBeforeUnmount } from 'vue';
+    import { computed, watch, onBeforeUnmount, toRaw } from 'vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import { TileSnapshotPreview, clearCanvasRegistry } from '../../modules/slyce/tileSnapshotPreview.js';
+    import { TileSnapshotPreview } from '../../modules/slyce/tileSnapshotPreview.js';
     import Tile from './Tile.vue';
 
     const app = useSlyceStore();
@@ -382,12 +382,12 @@
      * Initialize the headless snapshot preview module.
      * Called when processing starts (tilePlan appears in store and mode is static).
      */
-    function initSnapshot() {
+    function initSnapshot(tilePlan) {
         disposeSnapshot();
 
-        if (!props.tilePlan?.tiles?.length) return;
+        if (!tilePlan?.tiles?.length) return;
 
-        snapshotPreview = new TileSnapshotPreview({ tilePlan: props.tilePlan });
+        snapshotPreview = new TileSnapshotPreview({ tilePlan });
 
         // When a tile is baked to a blob URL, push it to the store
         snapshotPreview.onBaked = (tileIndex, blobUrl) => {
@@ -401,21 +401,23 @@
     }
 
     function disposeSnapshot() {
+        if (toRaw(app.tileSnapshotPreview) === snapshotPreview) {
+            app.set('tileSnapshotPreview', null);
+        }
         if (snapshotPreview) {
             snapshotPreview.dispose();
             snapshotPreview = null;
         }
-        if (app.tileSnapshotPreview) {
-            app.set('tileSnapshotPreview', null);
-        }
     }
 
     // Watch for processing start: store tilePlan gets populated
-    watch(() => app.tilePlan?.tiles?.length, (len) => {
-        if (len > 0) {
-            initSnapshot();
+    watch(() => app.tilePlan, (plan) => {
+        if (plan?.tiles?.length > 0) {
+            initSnapshot(plan);
+        } else {
+            disposeSnapshot();
         }
-    });
+    }, { immediate: true, flush: 'sync' });
 
     onBeforeUnmount(() => {
         disposeSnapshot();

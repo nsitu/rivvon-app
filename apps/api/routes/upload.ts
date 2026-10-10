@@ -1,5 +1,6 @@
 // src/routes/upload.ts
 import { Hono } from 'hono';
+import { getLinkedPresets, parseAcceptedPresetIds, prepareMediaDeletion } from '../utils/presetDependencies';
 import { verifySession } from '../middleware/session';
 import type { AppEnv } from '../types/hono';
 import { isAdminUser, syncUserIfProvided } from '../utils/user';
@@ -524,6 +525,14 @@ uploadRoutes.patch('/:setId/thumbnail-url', async (c) => {
 });
 
 // Delete a texture set (owner or admin)
+uploadRoutes.get('/:id/preset-dependencies', async (c) => {
+  const auth = c.get('auth'), id = c.req.param('id');
+  const texture = await getAccessibleResourceById<any>(c.env.DB, 'texture_sets', id, auth, c.env.ADMIN_USERS);
+  if (!texture) return notFoundResponse('Texture set not found or not authorized');
+  const ids = texture.parent_texture_set_id ? [id] : (await c.env.DB.prepare('SELECT id FROM texture_sets WHERE id = ? OR parent_texture_set_id = ?').bind(id, id).all<any>()).results.map(row => row.id);
+  return jsonResponse({ linkedPresets: await getLinkedPresets(c.env.DB, 'texture', ids, auth.userId) });
+});
+
 uploadRoutes.delete('/:id', async (c) => {
   const auth = c.get('auth');
   const textureSetId = c.req.param('id');
@@ -548,6 +557,11 @@ uploadRoutes.delete('/:id', async (c) => {
     `).bind(textureSetId, textureSetId).all()).results as any[]);
 
   const familyTextureSetIds = familyTextureSets.map((record) => record.id as string);
+  const consent = await c.req.json().catch(() => ({}));
+  const deletion = await prepareMediaDeletion(c.env, 'texture', familyTextureSetIds.length ? familyTextureSetIds : [textureSetId], auth.userId,
+    parseAcceptedPresetIds(consent.acceptedPresetIds ? JSON.stringify(consent.acceptedPresetIds) : c.req.query('acceptedPresetIds')));
+  if (deletion.conflict) return c.json({ error: 'Deleting this texture also deletes linked presets. Review and confirm the cascade.',
+    code: 'PRESET_DEPENDENCIES', linkedPresets: deletion.conflict }, 409);
   const placeholders = familyTextureSetIds.map(() => '?').join(', ');
   const tiles = familyTextureSetIds.length === 0
     ? { results: [] as any[] }
@@ -586,6 +600,7 @@ uploadRoutes.delete('/:id', async (c) => {
 
   return successResponse({
     deletedFiles: r2KeysToDelete.size,
+    deletedPresets: deletion.deletedPresets,
     deletedTextureSets: familyTextureSetIds.length
   }, 'Texture set deleted');
 });
