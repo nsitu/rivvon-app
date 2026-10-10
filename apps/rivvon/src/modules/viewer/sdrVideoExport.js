@@ -2,11 +2,12 @@ import { getSdrEncodeArgs, getSdrMuxArgs, rgbaToBt709I420, validateSdrDimensions
 import { assertSdrMp4, assertSdrSps, inspectAnnexBSps, restoreCfrMp4Timing } from './videoColourMetadata.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
+import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
 
 const RAW_BATCH_BYTES = 32 * 1024 * 1024;
 const abortError = () => new DOMException('Video export cancelled', 'AbortError');
 
-// Local, pinned, single-threaded x264. No native RGB->YUV conversion or encoder
+// Pinned, single-threaded x264. No native RGB->YUV conversion or encoder
 // selection. Raw memory is bounded; compressed output remains in memory as before.
 export async function createSdrVideoExport(canvas, options = {}) {
     const { width = canvas.width, height = canvas.height, fps = 30, quality = 'very-high', signal,
@@ -38,7 +39,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
         check();
         onStatus?.('Loading SDR video encoder…');
         const base = `${import.meta.env.BASE_URL}vendor/ffmpeg/0.12.10/`;
-        await ffmpeg.load({ coreURL: `${base}ffmpeg-core.js`, wasmURL: `${base}ffmpeg-core.wasm` });
+        await ffmpeg.load({ coreURL: `${base}ffmpeg-core.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
         check();
         const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
         check();

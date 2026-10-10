@@ -5,14 +5,13 @@ import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 import tailwindcss from '@tailwindcss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import { resolve } from 'path';
+import { resolve, posix } from 'path';
 import { getRuntimeAssetEntries } from './config/runtimeAssets.mjs';
 
 const TASKS_VISION_VERSION = '0.10.34';
 const TASKS_VISION_WASM_SOURCE = normalizePath(resolve(__dirname, 'node_modules/@mediapipe/tasks-vision/wasm/*'));
 const TASKS_VISION_WASM_DEST = `vendor/mediapipe/tasks-vision/${TASKS_VISION_VERSION}/wasm`;
 const BUILD_TIMESTAMP = new Date().toISOString();
-const RUNTIME_ASSET_COPY_DEST = '.';
 
 function resolveManualChunk(id) {
     const normalizedId = id.split('\\').join('/');
@@ -50,7 +49,8 @@ export default defineConfig(({ mode }) => {
     const staticCopyTargets = [
         {
             // Pinned single-threaded core: works without SharedArrayBuffer/COEP.
-            src: normalizePath(resolve(__dirname, 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.{js,wasm}')),
+            // Keep the matching JS loader on Pages; the large WASM is manifest-managed.
+            src: normalizePath(resolve(__dirname, 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js')),
             dest: 'vendor/ffmpeg/0.12.10',
         },
         {
@@ -68,7 +68,7 @@ export default defineConfig(({ mode }) => {
         staticCopyTargets.push(
             ...getRuntimeAssetEntries().map((entry) => ({
                 src: normalizePath(resolve(__dirname, entry.localSourcePath || entry.sourcePath)),
-                dest: RUNTIME_ASSET_COPY_DEST,
+                dest: posix.dirname(entry.localPath.replace(/^\//, '')),
             }))
         );
     }

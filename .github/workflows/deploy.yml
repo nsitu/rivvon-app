@@ -38,6 +38,8 @@ jobs:
               - 'apps/rivvon/config/runtimeAssets.mjs'
               - 'apps/rivvon/runtime-assets/**'
               - 'apps/rivvon/scripts/publish-runtime-assets.mjs'
+              - 'apps/rivvon/package.json'
+              - 'pnpm-lock.yaml'
 
   publish-runtime-assets:
     needs: detect-changes
@@ -104,6 +106,9 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_ASSET_BASE_URL: https://cdn.rivvon.ca/
+
+      - name: Check Pages asset sizes
+        run: pnpm --filter rivvon check:pages-assets
 
       - name: Deploy to Cloudflare Pages
         run: pnpm dlx wrangler@4.86.0 pages deploy dist --project-name=rivvon --branch=main --commit-dirty=true
@@ -182,6 +187,9 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_API_URL: ${{ secrets.VITE_API_URL_PREVIEW }}
           VITE_ASSET_BASE_URL: https://cdn.rivvon.ca/
+
+      - name: Check Pages asset sizes
+        run: pnpm --filter rivvon check:pages-assets
 
       - name: Deploy Rivvon Preview
         run: pnpm dlx wrangler@4.86.0 pages deploy dist --project-name=rivvon --branch=${{ github.head_ref }} --commit-dirty=true

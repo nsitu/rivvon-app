@@ -1,4 +1,11 @@
 export const runtimeAssetManifest = Object.freeze({
+    ffmpegCoreWasm: Object.freeze({
+        sourcePath: 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm',
+        objectKey: 'runtime-assets/ffmpeg/0.12.10/ffmpeg-core.wasm',
+        localPath: '/vendor/ffmpeg/0.12.10/ffmpeg-core.wasm',
+        contentType: 'application/wasm',
+        cacheControl: 'public, max-age=31536000, immutable',
+    }),
     rife422Model: Object.freeze({
         sourcePath: 'runtime-assets/source/models/rife422_v2_ensembleFalse_op20_clamp.onnx',
         objectKey: 'runtime-assets/models/rife422_v2_ensembleFalse_op20_clamp/rife422_v2_ensembleFalse_op20_clamp.onnx',

@@ -1,4 +1,5 @@
 import { inspectMp4Colour } from './videoColourMetadata.js';
+import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
 
 const keys = ['primaries', 'transfer', 'matrix', 'fullRange'];
 const enums = {
@@ -94,7 +95,7 @@ export async function repairMissingSpsColour(data, { decoderColourSpaces, signal
         check(); onStatus?.('Loading SPS colour repair tool…');
         check();
         const base = `${import.meta.env.BASE_URL}vendor/ffmpeg/0.12.10/`;
-        await ffmpeg.load({ coreURL: `${base}ffmpeg-core.js`, wasmURL: `${base}ffmpeg-core.wasm` });
+        await ffmpeg.load({ coreURL: `${base}ffmpeg-core.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
         check(); onStatus?.('Adding missing H.264 colour declarations…');
         check();
         // writeFile transfers its buffer; retain the original for validation/test copies.

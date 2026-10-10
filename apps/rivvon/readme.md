@@ -12,13 +12,19 @@ Large runtime binaries can be hosted outside the Pages deploy by setting `VITE_A
 
 The source of truth for large runtime binaries lives in `config/runtimeAssets.mjs`. The shared resolver in `src/modules/shared/runtimeAssets.js` maps logical asset ids to versioned object keys under that base and falls back to local copied assets when `VITE_ASSET_BASE_URL` is unset.
 
-Large source binaries should live under `runtime-assets/source/`, not `public/`. Vite copies them into the local build only when `VITE_ASSET_BASE_URL` is unset or `VITE_ASSET_MODE=local` is set.
+Application-owned source binaries should live under `runtime-assets/source/`, not `public/`. Package-owned binaries can use a pinned dependency under `node_modules/` as their manifest source. Vite copies runtime binaries into the local build only when `VITE_ASSET_BASE_URL` is unset or `VITE_ASSET_MODE=local` is set, preserving the directory in each asset's `localPath`.
+
+FFmpeg uses the pinned `@ffmpeg/core@0.12.10` dependency as the source for `ffmpegCoreWasm`. Production loads it from `runtime-assets/ffmpeg/0.12.10/ffmpeg-core.wasm` on the asset CDN. The matching small JS loader stays on Pages at `vendor/ffmpeg/0.12.10/ffmpeg-core.js`. Both SDR export and WebCodecs SPS colour repair use this arrangement. The CDN must allow cross-origin GET requests and serve the WASM as `application/wasm`; the existing R2 CORS configuration permits public GET/HEAD requests.
 
 U2Net now uses a raw local `u2net.quant.onnx` fallback and a Brotli-compressed upload source (`u2net.quant.onnx.br`) with `Content-Encoding: br` so production fetches get native browser decompression without the previous JSZip extraction step.
 
 Set `VITE_ASSET_MODE=local` to force local copied assets even when `VITE_ASSET_BASE_URL` is configured. This is intended for local iteration before a new model or other large binary is published.
 
 Use `pnpm --filter rivvon publish:runtime-assets` to upload manifest-managed runtime assets to the configured R2 bucket. Add `-- --dry-run` to inspect which assets would be published.
+
+On pushes to `main`, CI publishes runtime assets before deploying Pages when the manifest, asset sources, publisher, dependency manifest, or lockfile changes. PR previews use already-published CDN assets; publish any new versioned binary before testing its preview. Use `pnpm --filter rivvon publish:runtime-assets --asset ffmpegCoreWasm` to upload only FFmpeg with configured Cloudflare credentials.
+
+Run `pnpm --filter rivvon check:pages-assets` after a production build to reject files larger than Pages' 25 MiB limit. CI runs this check before both production and preview deployments. Local builds intentionally include large binaries and are not expected to pass the Pages check.
 
 ## Realtime Sampling
 
