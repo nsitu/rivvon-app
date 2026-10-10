@@ -93,7 +93,10 @@
         camera: cameraRef,
         tileManager: tileManagerRef,
         backgroundTexture: backgroundTextureRef,
+        getBackgroundTime: () => overviewTimeSeconds,
+        getBackgroundLoopDuration: () => getSeamlessLoopDuration(tileManager, false, 1),
     });
+    let overviewTimeSeconds = 0;
     let animationFrameId = 0;
     let cellGeometry = null;
     let cellEntries = [];
@@ -842,12 +845,12 @@
         }
     }
 
-    function renderCurrentScene() {
+    function renderCurrentScene(renderOptions = {}) {
         if (!renderer || !scene || !camera) {
             return;
         }
 
-        sceneBackground.updateBackground();
+        sceneBackground.updateBackground({ timeSeconds: overviewTimeSeconds, ...renderOptions });
         renderFilter.renderScene();
     }
 
@@ -941,6 +944,7 @@
             cancelAnimationFrame(animationFrameId);
         }
 
+        let previousTime = null;
         const tick = (now) => {
             animationFrameId = requestAnimationFrame(tick);
 
@@ -949,6 +953,8 @@
             }
 
             tileManager.tick(now);
+            overviewTimeSeconds += previousTime === null ? 0 : Math.min((now - previousTime) / 1000, 0.1);
+            previousTime = now;
             syncCellMaterials();
             renderCurrentScene();
         };
@@ -1025,6 +1031,7 @@
             }
 
             tileManager = nextTileManager;
+            overviewTimeSeconds = 0;
             tileManagerRef.value = nextTileManager;
             tileCount.value = tileManager.getTileCount?.() || props.texture.tile_count || 0;
             loadingMessage.value = 'Building...';
@@ -1149,8 +1156,6 @@
             updateViewport(width, height, 1);
             tileManager.resetAnimationState?.();
             syncCellMaterials(true);
-            renderCurrentScene();
-
             const seamlessLoopDuration = getSeamlessLoopDuration(tileManager, false, 1);
             const normalizedLoopCount = normalizeSeamlessLoopCount(loopCount);
             const exportDuration = duration != null
@@ -1177,7 +1182,9 @@
 
                 tileManager.tickDeterministic?.(animationDelta);
                 syncCellMaterials();
-                renderCurrentScene();
+                renderCurrentScene({ timeSeconds: time, deterministicBackground: true,
+                    backgroundLoopDuration: duration != null ? duration : seamlessLoopDuration,
+                    blurMode: 'export', width, height });
 
                 await videoExport.add(time, deltaSec);
                 onProgress?.(0.95 * (frame + 1) / totalFrames);

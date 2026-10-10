@@ -3,7 +3,7 @@ import { normalizeScenePreset } from '../../../../../packages/shared-types/src/s
 import { serializeDrawingPaths, inflateDrawingPaths } from '../../modules/shared/drawingLibrary.js';
 
 /** Owns the capture/restore boundary, including transactional GPU texture loading. */
-export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackground }) {
+export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackground, background }) {
     const managers = () => ctx.tileManagers.value.length ? ctx.tileManagers.value : [ctx.tileManager.value];
     function captureScene({ kind = 'gesture', title = '', source = null, audio = null, textureAssignments = [], includeAssets = true } = {}) {
         const series = ctx.ribbonSeries.value;
@@ -44,7 +44,8 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
                 cinematic: { rois: (cinematic?.getROIs() || []).map(roi => ({ position: roi.position.toArray(), target: roi.target.toArray(), fov: roi.fov })),
                     minSpeedRatio: cinematic?.minSpeedRatio, dwellRadiusFraction: cinematic?.dwellRadiusFraction, microMotionEnabled: cinematic?.microMotionEnabled },
                 motion: ctx.cameraMotion.getTrack()?.toJSON() || null },
-            animation: { time: renderLoop.getArtworkTime(), textures: active.map(manager => ({
+            animation: { time: renderLoop.getArtworkTime(), backgroundLayerProgress: background?.getLayerProgress?.() ?? null,
+                textures: active.map(manager => ({
                 layerProgress: manager.getLayerCycleProgress(), flowOffset: manager.flowOffset, tileFlowOffset: manager.tileFlowOffset,
                 filmstripOffset: manager.sharedFilmstripOffsetUniform.value,
             })), motion: ctx.viewerMotion?.captureSnapshot?.() || null }, audio,
@@ -110,6 +111,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
             await updateBackground();
             restoreCamera(scene.camera);
             ctx.viewerMotion?.restoreSnapshot?.(scene.animation.motion);
+            background?.restoreLayerProgress?.(scene.animation.backgroundLayerProgress, scene.animation.time);
             committed = true;
             old.series?.dispose();
             old.ribbon?.dispose();
@@ -132,6 +134,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
             await updateBackground();
             restoreCamera(old.snapshot.camera);
             ctx.viewerMotion?.restoreSnapshot?.(old.snapshot.animation.motion);
+            background?.restoreLayerProgress?.(old.snapshot.animation.backgroundLayerProgress, old.snapshot.animation.time);
             throw error;
         } finally {
             if (!committed) prepared.forEach(manager => manager.dispose());

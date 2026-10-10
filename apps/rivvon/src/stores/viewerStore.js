@@ -48,6 +48,10 @@ import {
 } from "../modules/viewer/sphericalProjection.js";
 import { normalizeArtworkMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
+  DEFAULT_BACKGROUND_CYCLE_DURATION,
+  normalizeBackgroundCycleDuration,
+} from "../modules/viewer/backgroundAnimation.js";
+import {
   DEFAULT_BACKGROUND_TEXTURE,
   normalizeBackgroundTexture,
 } from "../modules/viewer/backgroundTextures.js";
@@ -830,7 +834,15 @@ export const useViewerStore = defineStore("viewer", {
       backgroundLayerIndex: normalizeBackgroundLayerIndex(
         readViewerPreferences().backgroundLayerIndex,
       ),
-      // Runtime metadata for the currently loaded KTX2 texture set.
+      backgroundAnimationSyncEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundAnimationSyncEnabled,
+        true,
+      ),
+      backgroundCycleDuration: normalizeBackgroundCycleDuration(
+        readViewerPreferences().backgroundCycleDuration ?? DEFAULT_BACKGROUND_CYCLE_DURATION,
+      ),
+      // Runtime metadata for the currently loaded background and scene.
+      backgroundSceneLoopDuration: 3,
       backgroundLayerCount: 1,
       backgroundFlipVertical: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundFlipVertical,
@@ -1196,6 +1208,8 @@ export const useViewerStore = defineStore("viewer", {
       this.flowCycleAlignmentEnabled = true;
       this.textureAnimationEnabled = true;
       this.animatedBackgroundEnabled = false;
+      this.backgroundAnimationSyncEnabled = true;
+      this.backgroundCycleDuration = DEFAULT_BACKGROUND_CYCLE_DURATION;
       this.backgroundLayerIndex = DEFAULT_BACKGROUND_LAYER_INDEX;
       this.backgroundFlipVertical = false;
       this.backgroundFlowEnabled = false;
@@ -1305,6 +1319,8 @@ export const useViewerStore = defineStore("viewer", {
         flowCycleAlignmentEnabled: true,
         textureAnimationEnabled: true,
         animatedBackgroundEnabled: false,
+        backgroundAnimationSyncEnabled: true,
+        backgroundCycleDuration: DEFAULT_BACKGROUND_CYCLE_DURATION,
         backgroundLayerIndex: DEFAULT_BACKGROUND_LAYER_INDEX,
         backgroundFlipVertical: false,
         backgroundFlowEnabled: false,
@@ -1524,6 +1540,17 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = normalizeBackgroundLayerIndex(index);
       this.backgroundLayerIndex = nextValue;
       writeViewerPreferences({ backgroundLayerIndex: nextValue });
+    },
+
+    setBackgroundAnimationSyncEnabled(enabled) {
+      this.backgroundAnimationSyncEnabled = !!enabled;
+      writeViewerPreferences({ backgroundAnimationSyncEnabled: this.backgroundAnimationSyncEnabled });
+    },
+
+    setBackgroundCycleDuration(duration) {
+      this.backgroundCycleDuration = normalizeBackgroundCycleDuration(duration);
+      writeViewerPreferences({ backgroundCycleDuration: this.backgroundCycleDuration });
+      return this.backgroundCycleDuration;
     },
 
     setBackgroundLayerCount(count) {
@@ -1825,6 +1852,8 @@ export const useViewerStore = defineStore("viewer", {
         flowCycleAlignmentEnabled: this.flowCycleAlignmentEnabled,
         textureAnimationEnabled: this.textureAnimationEnabled,
         animatedBackgroundEnabled: this.animatedBackgroundEnabled,
+        backgroundAnimationSyncEnabled: this.backgroundAnimationSyncEnabled,
+        backgroundCycleDuration: this.backgroundCycleDuration,
         backgroundLayerIndex: this.backgroundLayerIndex,
         backgroundFlipVertical: this.backgroundFlipVertical,
         backgroundFlowEnabled: this.backgroundFlowEnabled,
@@ -1964,6 +1993,8 @@ sphericalProjectionVerticalWrapAuto:
         this.flowCycleAlignmentEnabled !== original.flowCycleAlignmentEnabled ||
         this.textureAnimationEnabled !== original.textureAnimationEnabled ||
         this.animatedBackgroundEnabled !== original.animatedBackgroundEnabled ||
+        this.backgroundAnimationSyncEnabled !== original.backgroundAnimationSyncEnabled ||
+        this.backgroundCycleDuration !== original.backgroundCycleDuration ||
         this.backgroundLayerIndex !== original.backgroundLayerIndex ||
         this.backgroundFlipVertical !== original.backgroundFlipVertical ||
         this.backgroundFlowEnabled !== original.backgroundFlowEnabled ||

@@ -108,6 +108,7 @@ export function useThreeSetup() {
 
   const renderLoopDeps = {};
   const renderLoop = useRenderLoop(ctx, renderLoopDeps);
+  ctx.getBackgroundTime = renderLoop.getArtworkTime;
 
   const background = useSceneBackground(ctx);
   const lighting = useSceneLighting(ctx);
@@ -145,7 +146,7 @@ export function useThreeSetup() {
     renderScene: renderSceneWithBackground,
   });
 
-  const presets = useScenePreset(ctx, { textures, ribbons, renderLoop,
+  const presets = useScenePreset(ctx, { textures, ribbons, renderLoop, background,
     updateBackground: () => background.setBackgroundFromTileManager(),
   });
 

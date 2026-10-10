@@ -8,6 +8,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     textureAnimationReversed: false, textureRepeatMode: 'mirrorTile',
     normalizeTextureOrientation: true, textureFlipVertical: false,
     animatedBackgroundEnabled: false, backgroundLayerIndex: 0,
+    backgroundAnimationSyncEnabled: true, backgroundCycleDuration: 12,
     backgroundFlipVertical: false, backgroundFlowEnabled: false, backgroundFlowSpeed: 0.25,
     backgroundBlurEnabled: true, backgroundBlurAmount: 150,
     backgroundOverlayEnabled: false, backgroundOverlayColor: '#ffffff', backgroundOverlayOpacity: 0.35,
@@ -47,6 +48,7 @@ const ENUMS = {
 const COLOR = /^#[\da-f]{6}([\da-f]{2})?$/i;
 const RANGES = {
     viewerMotionLoopCount: [0.125, 8], flowSpeed: [0, 10], backgroundLayerIndex: [0, 4095],
+    backgroundCycleDuration: [0.25, 120],
     backgroundFlowSpeed: [0, 10], backgroundBlurAmount: [0, 200], backgroundOverlayOpacity: [0, 1],
     backgroundCurvature: [0, 1], backgroundWaterFlow: [0, 360], backgroundWaterScale: [0.01, 100],
     backgroundWaterSpeed: [0, 10], backgroundWaterStrength: [0, 1], peakTroughBlurAmount: [0, 32],
@@ -190,6 +192,8 @@ export function normalizeScenePreset(input) {
             } : null,
         },
         animation: { time: finite(input.animation?.time ?? 0, 'animation time', 0, 1e9),
+            backgroundLayerProgress: input.animation?.backgroundLayerProgress == null ? null
+                : finite(input.animation.backgroundLayerProgress, 'background layer progress', 0, 1),
             motion: input.animation?.motion ? {
                 elapsed: finite(input.animation.motion.elapsed, 'motion elapsed', 0, 1e9),
                 position: vector(input.animation.motion.position, 3, 'motion position'),

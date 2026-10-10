@@ -29,6 +29,7 @@
     import {
         DEFAULT_SEAMLESS_LOOP_COUNT,
         SEAMLESS_LOOP_COUNT_OPTIONS,
+        normalizeMotionLoopDurationMultiplier,
     } from '../../modules/viewer/seamlessLoop.js';
 
     const app = useViewerStore();
@@ -277,7 +278,11 @@
             if (!textureOnlyMode.value && artworkMotionMode.value === 'recordedOrbit') {
                 return recordedCameraDuration.value * cycleCount.value;
             }
-            return seamlessLoopDuration.value * cycleCount.value;
+            const cyclicArtworkMotion = !textureOnlyMode.value
+                && ['circularTilt', 'circularOrbit', 'circularOrbitReverse', 'tumbleOrbit'].includes(artworkMotionMode.value);
+            const motionMultiplier = cyclicArtworkMotion
+                ? Math.max(1, normalizeMotionLoopDurationMultiplier(app.viewerMotionLoopCount)) : 1;
+            return seamlessLoopDuration.value * motionMultiplier * cycleCount.value;
         }
         return customDuration.value;
     });
@@ -301,10 +306,10 @@
             return `Captured camera movement returns to its starting view after ${formatDuration(recordedCameraDuration.value)}.`;
         }
         if (artworkMotionMode.value === 'circularTilt') {
-            return `One full 360° artwork tilt rotation over ${formatDuration(resolvedDuration.value)}.`;
+            return `Artwork tilt follows the selected motion rate over ${formatDuration(resolvedDuration.value)}.`;
         }
         if (isCircularOrbitMovement(artworkMotionMode.value)) {
-            return `One full 360° ${getCircularOrbitDirectionLabel(artworkMotionMode.value)} orbit around the artwork center over ${formatDuration(resolvedDuration.value)}.`;
+            return `A ${getCircularOrbitDirectionLabel(artworkMotionMode.value)} orbit follows the selected motion rate over ${formatDuration(resolvedDuration.value)}.`;
         }
         if (artworkMotionMode.value === 'tumbleOrbit') {
             return `A seamless three-axis artwork tumble over ${formatDuration(resolvedDuration.value)}.`;
@@ -335,15 +340,15 @@
         }
 
         if (artworkMotionMode.value === 'circularTilt') {
-            return `Circular Tilt completes one full 360° rotation over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+            return `Circular Tilt retains the viewer's motion rate. Auto mode spans ${formatDuration(resolvedDuration.value)} so artwork and material cycles return together.`;
         }
 
         if (isCircularOrbitMovement(artworkMotionMode.value)) {
-            return `Circular Orbit (${getCircularOrbitDirectionLabel(artworkMotionMode.value)}) completes one full 360° turntable-style orbit over the export duration. In auto mode that is ${formatDuration(resolvedDuration.value)}.`;
+            return `Circular Orbit (${getCircularOrbitDirectionLabel(artworkMotionMode.value)}) retains the viewer's motion rate. Auto mode spans ${formatDuration(resolvedDuration.value)} so artwork and material cycles return together.`;
         }
 
         if (artworkMotionMode.value === 'tumbleOrbit') {
-            return `Tumble Orbit follows a deterministic three-axis path and returns exactly to its starting orientation. In auto mode the path spans ${formatDuration(resolvedDuration.value)}.`;
+            return `Tumble Orbit retains the viewer's motion rate. Auto mode spans ${formatDuration(resolvedDuration.value)} so artwork and material cycles return together.`;
         }
 
         return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;

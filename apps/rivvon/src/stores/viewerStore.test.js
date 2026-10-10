@@ -18,6 +18,31 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it('persists background timing, tracks changes, and resets to synchronized playback', () => {
+        const store = useViewerStore();
+        expect(store.backgroundAnimationSyncEnabled).toBe(true);
+        store.captureToolsPanelOriginalState();
+        store.setBackgroundAnimationSyncEnabled(false);
+        store.setBackgroundCycleDuration(36);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        expect(store.getArtworkSettingsSnapshot()).toMatchObject({
+            backgroundAnimationSyncEnabled: false, backgroundCycleDuration: 36,
+        });
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored.getViewerSettingsSnapshot()).toMatchObject({
+            backgroundAnimationSyncEnabled: false, backgroundCycleDuration: 36,
+        });
+        expect(restored.setBackgroundCycleDuration(Infinity)).toBe(12);
+        expect(restored.setBackgroundCycleDuration(500)).toBe(120);
+        expect(restored.setBackgroundCycleDuration(0)).toBe(0.25);
+        restored.applyArtworkSettingsSnapshot({ backgroundAnimationSyncEnabled: false, backgroundCycleDuration: 24 });
+        expect(restored.backgroundCycleDuration).toBe(24);
+        restored.applyArtworkSettingsSnapshot({});
+        expect(restored.backgroundAnimationSyncEnabled).toBe(true);
+        expect(restored.backgroundCycleDuration).toBe(12);
+    });
+
     it('restores saturation transparency, range, and reverse after reload', () => {
         const store = useViewerStore();
         store.setTransparencyMethod('saturation');

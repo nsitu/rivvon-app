@@ -19,6 +19,26 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it('passes one background period per loop to synthetic frames, independent of the export loop count', async () => {
+        const { ctx, deps, exporter } = fixture();
+        ctx.tileManager.value.getSeamlessLoopDuration = () => 0.2;
+        await exporter.exportVideo({ fps: 30, loopCount: 2 });
+        expect(deps.renderScene.mock.calls).toHaveLength(12);
+        expect(deps.renderScene.mock.calls[0][0]).toMatchObject({
+            timeSeconds: 0, deterministicBackground: true, backgroundLoopDuration: 0.2,
+        });
+        expect(deps.renderScene.mock.calls.at(-1)[0].timeSeconds).toBeCloseTo(11 / 30);
+    });
+
+    it('includes slower artwork motion in the synchronized export period', async () => {
+        const { ctx, deps, exporter } = fixture();
+        ctx.tileManager.value.getSeamlessLoopDuration = () => 0.2;
+        ctx.app.artworkMotionMode = 'circularOrbit';
+        ctx.app.viewerMotionLoopCount = 2;
+        await exporter.exportVideo({ fps: 30, artworkMotionMode: 'circularOrbit' });
+        expect(deps.renderScene.mock.calls).toHaveLength(12);
+        expect(deps.renderScene.mock.calls[0][0].backgroundLoopDuration).toBe(0.4);
+    });
     it('forwards the native encoder choice and final report callback', async () => {
         vi.stubGlobal('VideoEncoder', class {});
         const { exporter } = fixture(), report = vi.fn();

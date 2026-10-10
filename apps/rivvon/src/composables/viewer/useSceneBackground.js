@@ -4,6 +4,12 @@
 import * as THREE from "three";
 import { getBackgroundTextureOption } from "../../modules/viewer/backgroundTextures.js";
 import {
+  createBackgroundLayerTimeline,
+  getBackgroundLayerFrame,
+  getBackgroundSceneLoopDuration,
+  normalizeBackgroundCycleDuration,
+} from "../../modules/viewer/backgroundAnimation.js";
+import {
   createBackgroundSurfaceGeometry,
   deformBackgroundSurface,
 } from "../../modules/viewer/backgroundCurvature.js";
@@ -459,6 +465,8 @@ function getBackgroundFlowPosition(ctx, tileManager, timeSeconds = null) {
  * @param {Object} ctx - Shared context refs from useThreeSetup
  */
 export function useSceneBackground(ctx) {
+  ctx = { ...ctx, backgroundLayerTimeline: createBackgroundLayerTimeline() };
+  let timelineTileManager = null;
   let activeRuntime = null;
   let backgroundGenerationToken = 0;
 
@@ -475,6 +483,10 @@ export function useSceneBackground(ctx) {
   }
 
   async function setBackgroundFromTileManager(options = {}) {
+    if (timelineTileManager !== ctx.tileManager.value) {
+      ctx.backgroundLayerTimeline.reset();
+      timelineTileManager = ctx.tileManager.value;
+    }
     const requestToken = ++backgroundGenerationToken;
     activeRuntime?.dispose?.();
     activeRuntime = null;
@@ -585,11 +597,22 @@ export function useSceneBackground(ctx) {
     activeRuntime?.update?.(renderOptions);
   }
 
+  function restoreLayerProgress(progress, timeSeconds) {
+    const duration = ctx.app.backgroundAnimationSyncEnabled !== false
+      ? getBackgroundSceneLoopDuration(ctx)
+      : normalizeBackgroundCycleDuration(ctx.app.backgroundCycleDuration);
+    ctx.backgroundLayerTimeline.restore(progress, timeSeconds, duration,
+      !!ctx.app.animatedBackgroundEnabled && ctx.app.textureAnimationEnabled !== false);
+    updateBackground({ timeSeconds });
+  }
+
   return {
     disposeBackground,
     setBackgroundFromTileManager,
     setBackgroundFromUrl,
     updateBackground,
+    getLayerProgress: () => ctx.backgroundLayerTimeline.snapshot(),
+    restoreLayerProgress,
   };
 }
 
@@ -674,13 +697,30 @@ function attachCameraBackgroundPlane(ctx, material) {
 function resolveBackgroundFrame(ctx, renderOptions = {}) {
   const tileManager = ctx.tileManager.value;
   const backgroundTexture = getTextureAt(tileManager, 0);
-  const currentLayer = ctx.app.animatedBackgroundEnabled
-    ? clampLayer(tileManager?.currentLayer, backgroundTexture)
-    : clampLayer(ctx.app.backgroundLayerIndex, backgroundTexture);
+  const timeSeconds = getBackgroundTimeSeconds({
+    timeSeconds: ctx.getBackgroundTime?.(),
+    ...renderOptions,
+  });
+  const sceneLoopDuration = Math.max(0.1, Number(renderOptions.backgroundLoopDuration)
+    || getBackgroundSceneLoopDuration(ctx));
+  ctx.app.backgroundSceneLoopDuration = sceneLoopDuration;
+  const duration = ctx.app.backgroundAnimationSyncEnabled !== false
+    ? sceneLoopDuration
+    : normalizeBackgroundCycleDuration(ctx.app.backgroundCycleDuration);
+  const animationEnabled = !!ctx.app.animatedBackgroundEnabled && ctx.app.textureAnimationEnabled !== false;
+  const progress = ctx.backgroundLayerTimeline.getProgress(timeSeconds, duration, {
+    deterministic: renderOptions.deterministicBackground === true,
+    enabled: animationEnabled,
+  });
+  const fixedLayer = clampLayer(ctx.app.backgroundLayerIndex, backgroundTexture);
+  const layerFrame = animationEnabled
+    ? getBackgroundLayerFrame({ layerCount: backgroundTexture?.image?.depth,
+        variant: tileManager?.variant, reversed: !!ctx.app.textureAnimationReversed, progress })
+    : { currentLayer: fixedLayer, nextLayer: fixedLayer, layerBlend: 0 };
   const backgroundFlow = getBackgroundFlowPosition(
     ctx,
     tileManager,
-    renderOptions.timeSeconds,
+    timeSeconds,
   );
   const baseIndex = backgroundFlow.baseIndex;
   const flowActive = backgroundFlow.active;
@@ -692,7 +732,7 @@ function resolveBackgroundFrame(ctx, renderOptions = {}) {
     getTextureAt(tileManager, nextSample.tileIndex) || currentTexture;
 
   return {
-    currentLayer,
+    ...layerFrame,
     flowActive,
     flowOffset: flowActive ? backgroundFlow.offset : 0,
     reverseFlow: flowStep < 0,
@@ -718,6 +758,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       uTexArrayCurrent: { value: initialFrame.currentTexture },
       uTexArrayNext: { value: initialFrame.nextTexture },
       uLayer: { value: initialFrame.currentLayer },
+      uNextLayer: { value: initialFrame.nextLayer },
+      uLayerBlend: { value: initialFrame.layerBlend },
       uFlowOffset: { value: initialFrame.flowOffset },
       uFlowActive: { value: initialFrame.flowActive ? 1 : 0 },
       uReverseFlow: { value: initialFrame.reverseFlow ? 1 : 0 },
@@ -756,6 +798,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             uniform sampler2DArray uTexArrayCurrent;
             uniform sampler2DArray uTexArrayNext;
             uniform int uLayer;
+            uniform int uNextLayer;
+            uniform float uLayerBlend;
             uniform float uFlowOffset;
             uniform int uFlowActive;
             uniform int uReverseFlow;
@@ -837,9 +881,14 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                 return vec2(sampleUv.x, 1.0 - sampleUv.y);
             }
 
+            vec4 sampleLayers(sampler2DArray texArray, vec2 uv) {
+                return mix(texture(texArray, vec3(uv, float(uLayer))),
+                    texture(texArray, vec3(uv, float(uNextLayer))), uLayerBlend);
+            }
+
             vec4 sampleTile(sampler2DArray texArray, vec2 sourceUv, int mirrorX) {
                 vec2 uv = orientUv(sourceUv, mirrorX);
-                vec4 center = texture(texArray, vec3(uv, float(uLayer)));
+                vec4 center = sampleLayers(texArray, uv);
 
                 if (uBlurRadius <= 0.0001) {
                     return center;
@@ -850,24 +899,24 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                 vec2 w = b * 1.45;
                 vec4 color = center * 0.08;
 
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2(-h.x,  0.0), mirrorX), float(uLayer))) * 0.05;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( h.x,  0.0), mirrorX), float(uLayer))) * 0.05;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( 0.0, -h.y), mirrorX), float(uLayer))) * 0.05;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( 0.0,  h.y), mirrorX), float(uLayer))) * 0.05;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2(-h.x,  0.0), mirrorX)) * 0.05;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( h.x,  0.0), mirrorX)) * 0.05;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( 0.0, -h.y), mirrorX)) * 0.05;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( 0.0,  h.y), mirrorX)) * 0.05;
 
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2(-b.x, -b.y), mirrorX), float(uLayer))) * 0.06;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( b.x, -b.y), mirrorX), float(uLayer))) * 0.06;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2(-b.x,  b.y), mirrorX), float(uLayer))) * 0.06;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( b.x,  b.y), mirrorX), float(uLayer))) * 0.06;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2(-b.x, -b.y), mirrorX)) * 0.06;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( b.x, -b.y), mirrorX)) * 0.06;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2(-b.x,  b.y), mirrorX)) * 0.06;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( b.x,  b.y), mirrorX)) * 0.06;
 
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2(-w.x,  0.0), mirrorX), float(uLayer))) * 0.08;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( w.x,  0.0), mirrorX), float(uLayer))) * 0.08;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( 0.0, -w.y), mirrorX), float(uLayer))) * 0.08;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( 0.0,  w.y), mirrorX), float(uLayer))) * 0.08;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2(-w.x, -w.y), mirrorX), float(uLayer))) * 0.04;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( w.x, -w.y), mirrorX), float(uLayer))) * 0.04;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2(-w.x,  w.y), mirrorX), float(uLayer))) * 0.04;
-                color += texture(texArray, vec3(orientUv(sourceUv + vec2( w.x,  w.y), mirrorX), float(uLayer))) * 0.04;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2(-w.x,  0.0), mirrorX)) * 0.08;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( w.x,  0.0), mirrorX)) * 0.08;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( 0.0, -w.y), mirrorX)) * 0.08;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( 0.0,  w.y), mirrorX)) * 0.08;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2(-w.x, -w.y), mirrorX)) * 0.04;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( w.x, -w.y), mirrorX)) * 0.04;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2(-w.x,  w.y), mirrorX)) * 0.04;
+                color += sampleLayers(texArray, orientUv(sourceUv + vec2( w.x,  w.y), mirrorX)) * 0.04;
 
                 return color;
             }
@@ -926,6 +975,8 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     material.uniforms.uTexArrayNext.value =
       frame.nextTexture || frame.currentTexture;
     material.uniforms.uLayer.value = frame.currentLayer;
+    material.uniforms.uNextLayer.value = frame.nextLayer;
+    material.uniforms.uLayerBlend.value = frame.layerBlend;
     material.uniforms.uFlowOffset.value = frame.flowOffset;
     material.uniforms.uFlowActive.value = frame.flowActive ? 1 : 0;
     material.uniforms.uReverseFlow.value = frame.reverseFlow ? 1 : 0;
@@ -964,6 +1015,8 @@ function updateWebGLTileBackgroundMaterial(
   material.uniforms.uTexArrayNext.value =
     frame.nextTexture || frame.currentTexture;
   material.uniforms.uLayer.value = frame.currentLayer;
+  material.uniforms.uNextLayer.value = frame.nextLayer;
+  material.uniforms.uLayerBlend.value = frame.layerBlend;
   material.uniforms.uFlowOffset.value = frame.flowOffset;
   material.uniforms.uFlowActive.value = frame.flowActive ? 1 : 0;
   material.uniforms.uReverseFlow.value = frame.reverseFlow ? 1 : 0;
@@ -1223,6 +1276,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     const material = new MeshBasicNodeMaterial();
     const baseUv = uv();
     const layerUniform = uniform(nextFrame.currentLayer);
+    const nextLayerUniform = uniform(nextFrame.nextLayer);
+    const layerBlendUniform = uniform(float(nextFrame.layerBlend));
     const flowOffsetUniform = uniform(float(nextFrame.flowOffset));
     const flowActiveUniform = uniform(nextFrame.flowActive ? 1 : 0);
     const rotateUniform = uniform(nextFrame.rotate90);
@@ -1375,10 +1430,14 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       return vec2(flipped.x, float(1).sub(flipped.y));
     }
 
+    function sampleLayers(textureValue, sourceUv) {
+      const sampleUv = orient(sourceUv);
+      return mix(textureNode(textureValue, sampleUv).depth(layerUniform),
+        textureNode(textureValue, sampleUv).depth(nextLayerUniform), layerBlendUniform);
+    }
+
     function sample(textureValue, sourceUv) {
-      const center = textureNode(textureValue, orient(sourceUv)).depth(
-        layerUniform,
-      );
+      const center = sampleLayers(textureValue, sourceUv);
       const offset = blurUniform;
       const negativeOffset = float(0).sub(offset);
       const halfOffset = offset.mul(0.5);
@@ -1387,10 +1446,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       const negativeWideOffset = float(0).sub(wideOffset);
 
       function sampleAt(xOffset, yOffset) {
-        return textureNode(
-          textureValue,
-          orient(sourceUv.add(vec2(xOffset, yOffset))),
-        ).depth(layerUniform);
+        return sampleLayers(textureValue, sourceUv.add(vec2(xOffset, yOffset)));
       }
 
       const blurred = center
@@ -1466,6 +1522,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material.depthWrite = false;
     material.side = THREE.DoubleSide;
     material._layerUniform = layerUniform;
+    material._nextLayerUniform = nextLayerUniform;
+    material._layerBlendUniform = layerBlendUniform;
     material._flowOffsetUniform = flowOffsetUniform;
     material._flowActiveUniform = flowActiveUniform;
     material._rotateUniform = rotateUniform;
@@ -1584,6 +1642,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
 
     const material = plane.mesh.material;
     material._layerUniform.value = frame.currentLayer;
+    material._nextLayerUniform.value = frame.nextLayer;
+    material._layerBlendUniform.value = frame.layerBlend;
     material._flowOffsetUniform.value = frame.flowOffset;
     material._flowActiveUniform.value = frame.flowActive ? 1 : 0;
     material._rotateUniform.value = frame.rotate90;
@@ -1610,6 +1670,8 @@ function syncWebGPUTileBackgroundMaterial(
   renderOptions = {},
 ) {
   material._layerUniform.value = frame.currentLayer;
+  material._nextLayerUniform.value = frame.nextLayer;
+  material._layerBlendUniform.value = frame.layerBlend;
   material._flowOffsetUniform.value = frame.flowOffset;
   material._flowActiveUniform.value = frame.flowActive ? 1 : 0;
   material._rotateUniform.value = frame.rotate90;

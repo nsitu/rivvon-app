@@ -6,41 +6,16 @@ import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
+import { alignSceneLoopDuration as alignDurations } from '../../modules/viewer/backgroundAnimation.js';
 import {
     DEFAULT_SEAMLESS_LOOP_COUNT,
     getSeamlessLoopDuration as getSharedSeamlessLoopDuration,
+    normalizeMotionLoopDurationMultiplier,
     normalizeSeamlessLoopCount,
 } from '../../modules/viewer/seamlessLoop.js';
 
 const EXPORT_CIRCULAR_TURN_RADIANS = Math.PI * 2;
 const EXPORT_WORLD_UP = new Vector3(0, 1, 0);
-
-/**
- * Align cinematic camera duration with texture loop duration.
- * Returns a duration >= cinematicDuration that is a near-integer multiple
- * of textureDuration (snapped to frame boundaries). Caps at 2× cinematic duration.
- * @param {number} cinematicDuration - Camera loop duration in seconds
- * @param {number} textureDuration  - Texture seamless loop duration in seconds
- * @param {number} fps              - Export frame rate
- * @returns {number}
- */
-function alignDurations(cinematicDuration, textureDuration, fps) {
-    if (textureDuration <= 0 || cinematicDuration <= 0) return cinematicDuration;
-
-    const frameDuration = 1 / fps;
-    const maxDuration = cinematicDuration * 2;
-
-    // Find the smallest multiple of textureDuration that is >= cinematicDuration
-    const minMultiple = Math.ceil(cinematicDuration / textureDuration);
-    const candidate = minMultiple * textureDuration;
-
-    // Snap to frame boundary
-    const aligned = Math.round(candidate / frameDuration) * frameDuration;
-
-    // Cap at 2× cinematic duration
-    if (aligned > maxDuration) return cinematicDuration;
-    return aligned;
-}
 
 /**
  * Provides image and video export capabilities for the Three.js scene.
@@ -650,6 +625,7 @@ export function useSceneExport(ctx, deps = {}) {
             audioReactive: false,
             blurMode: 'export',
             timeSeconds: waveTime,
+            deterministicBackground: true,
             width: ctx.renderer.value.domElement.width,
             height: ctx.renderer.value.domElement.height,
         });
@@ -713,6 +689,9 @@ export function useSceneExport(ctx, deps = {}) {
 
         // --- Calculate duration ---
         const loopDuration = getSeamlessLoopDuration();
+        const cyclicArtworkMotion = ['circularTilt', 'circularOrbit', 'circularOrbitReverse', 'tumbleOrbit'].includes(artworkMotionMode);
+        const motionDurationMultiplier = normalizeMotionLoopDurationMultiplier(ctx.app.viewerMotionLoopCount);
+        const artworkMotionDuration = loopDuration * motionDurationMultiplier;
         // When cinematic is active and no explicit duration, use the cinematic timeline duration.
         // Note: exportDuration may be updated later by prepareForExport if auto-ROIs are generated.
         let exportDuration;
@@ -727,7 +706,7 @@ export function useSceneExport(ctx, deps = {}) {
         } else if (artworkMotionMode === 'recordedOrbit' && ctx.cameraMotion?.hasRecording?.value) {
             exportDuration = alignDurations(ctx.cameraMotion.getLoopDuration(), loopDuration, fps);
         } else {
-            exportDuration = loopDuration;
+            exportDuration = loopDuration * (cyclicArtworkMotion ? Math.max(1, motionDurationMultiplier) : 1);
         }
         const normalizedLoopCount = normalizeSeamlessLoopCount(loopCount);
         const deltaSec = 1 / fps;
@@ -770,6 +749,7 @@ export function useSceneExport(ctx, deps = {}) {
             }
         }
 
+        const backgroundLoopDuration = exportDuration;
         if (duration == null && normalizedLoopCount > 1) {
             exportDuration *= normalizedLoopCount;
         }
@@ -888,12 +868,12 @@ export function useSceneExport(ctx, deps = {}) {
                 }
 
                 if (circularTiltReady) {
-                    const motionProgress = totalFrames <= 1 ? 0 : frame / (totalFrames - 1);
+                    const motionProgress = t / artworkMotionDuration;
                     circularTiltController.apply(getCircularTiltAnglesAtProgress(motionProgress));
                 }
 
                 if (circularOrbitReady) {
-                    const motionProgress = totalFrames <= 1 ? 0 : frame / (totalFrames - 1);
+                    const motionProgress = t / artworkMotionDuration;
                     const orbitAngle = motionProgress * EXPORT_CIRCULAR_TURN_RADIANS * circularOrbitDirection;
 
                     circularOrbitRotation.setFromAxisAngle(EXPORT_WORLD_UP, orbitAngle);
@@ -907,7 +887,7 @@ export function useSceneExport(ctx, deps = {}) {
                 }
 
                 if (tumbleOrbitRoot && tumbleOrbitBasePosition && tumbleOrbitBaseQuaternion) {
-                    const motionProgress = totalFrames <= 1 ? 0 : frame / (totalFrames - 1);
+                    const motionProgress = t / artworkMotionDuration;
                     getTumbleOrbitQuaternionAtProgress(
                         motionProgress,
                         tumbleOrbitRotation,
@@ -922,6 +902,7 @@ export function useSceneExport(ctx, deps = {}) {
 
                 // Render this frame at the exact synthetic time
                 renderFrameAtTime(t, animationDelta, {
+                    backgroundLoopDuration,
                     blurMode: 'export',
                     width,
                     height,

@@ -6,6 +6,7 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
     import { BACKGROUND_TEXTURE_OPTIONS } from '../../modules/viewer/backgroundTextures.js';
+    import { MIN_BACKGROUND_CYCLE_DURATION, MAX_BACKGROUND_CYCLE_DURATION } from '../../modules/viewer/backgroundAnimation.js';
 
     defineProps({
         showUndulation: { type: Boolean, default: true },
@@ -72,6 +73,23 @@
             app.setAnimatedBackgroundEnabled(!!value);
         },
     });
+
+    const backgroundSyncModel = computed({
+        get: () => app.backgroundAnimationSyncEnabled,
+        set: (value) => app.setBackgroundAnimationSyncEnabled(value),
+    });
+    // Equal slider travel changes duration by an equal ratio, making both short
+    // and slow cycles practical to adjust with the same control.
+    const backgroundDurationSlider = computed({
+        get: () => Math.log(app.backgroundCycleDuration / MIN_BACKGROUND_CYCLE_DURATION)
+            / Math.log(MAX_BACKGROUND_CYCLE_DURATION / MIN_BACKGROUND_CYCLE_DURATION) * 100,
+        set: (value) => app.setBackgroundCycleDuration(Math.round(
+            MIN_BACKGROUND_CYCLE_DURATION * (MAX_BACKGROUND_CYCLE_DURATION / MIN_BACKGROUND_CYCLE_DURATION) ** (value / 100) * 100,
+        ) / 100),
+    });
+    const backgroundDurationDisplay = computed(() => `${(
+        backgroundSyncModel.value ? app.backgroundSceneLoopDuration : app.backgroundCycleDuration
+    ).toFixed(2)} s per cycle`);
 
     const backgroundLayerCount = computed(() => Math.max(
         1,
@@ -647,7 +665,7 @@
                         class="tools-background-base-subitems"
                     >
                         <div
-                            v-if="textureAnimationModel"
+                            v-if="textureAnimationModel && backgroundLayerCount > 1"
                             class="tools-toggle-row"
                         >
                             <label
@@ -666,8 +684,43 @@
                             </div>
                         </div>
 
+                        <template v-if="animatedBackgroundModel && textureAnimationModel && backgroundLayerCount > 1">
+                            <div class="tools-toggle-row">
+                                <label class="tools-toggle-main" :for="getInputId('background-sync')">
+                                    <span class="material-symbols-outlined" aria-hidden="true">sync</span>
+                                    <span>Sync to Scene Loop</span>
+                                </label>
+                                <div class="tools-toggle-control">
+                                    <span class="tools-hint tools-toggle-hint">{{ backgroundSyncModel ? 'On' : 'Off' }}</span>
+                                    <ToggleSwitch :inputId="getInputId('background-sync')" v-model="backgroundSyncModel" />
+                                </div>
+                            </div>
+                            <div class="tools-slider-block">
+                                <div class="tools-slider-head">
+                                    <label class="tools-slider-label" :for="backgroundSyncModel ? undefined : getInputId('background-duration')">
+                                        <span class="material-symbols-outlined" aria-hidden="true">wallpaper</span>
+                                        <span>Background Cycle Duration</span>
+                                    </label>
+                                    <span class="tools-hint tools-slider-hint">{{ backgroundDurationDisplay }}</span>
+                                </div>
+                                <Slider v-if="!backgroundSyncModel" v-model="backgroundDurationSlider"
+                                    :input-id="getInputId('background-duration')" :min="0" :max="100" :step="0.1"
+                                    aria-label="Background cycle duration"
+                                    :pt="{ handle: { 'aria-valuetext': backgroundDurationDisplay } }" />
+                                <div class="tools-slider-caption">
+                                    <template v-if="backgroundSyncModel">
+                                        <span>One background cycle per scene loop.</span>
+                                    </template>
+                                    <template v-else>
+                                        <span>Faster · 0.25 s</span>
+                                        <span>Slower · 120 s</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
                         <div
-                            v-if="!animatedBackgroundModel && backgroundLayerCount > 1"
+                            v-if="(!animatedBackgroundModel || !textureAnimationModel) && backgroundLayerCount > 1"
                             class="tools-slider-block"
                         >
                             <div class="tools-slider-head">
