@@ -5877,5 +5877,1322 @@
       "originalPreferencesRestored": true,
       "temporaryDeviceFilesRemoved": true
     }
+  },
+  "explicitYuvInput": {
+    "date": "2026-10-10",
+    "productionPipelineChanged": false,
+    "environment": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "outputColorSpace": "srgb-linear",
+      "chartMaxError": 0,
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90
+    },
+    "width": 960,
+    "height": 540,
+    "frames": 90,
+    "fps": 30,
+    "results": [
+      {
+        "input": "canvas",
+        "hardwareAcceleration": "no-preference",
+        "firstInput": {
+          "format": "RGBX",
+          "colorSpace": {
+            "fullRange": true,
+            "matrix": "rgb",
+            "primaries": "bt709",
+            "transfer": "iec61966-2-1"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": true,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "iec61966-2-1"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrateMode": "quantizer",
+          "alpha": "discard",
+          "hardwareAcceleration": "no-preference",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": true,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 13,
+        "traceHeaders": [
+          "[trace_headers @ 000001bcfebd6200] 94          video_full_range_flag                                       1 = 1\r",
+          "[trace_headers @ 000001bcfebd6200] 96          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 000001bcfebd6200] 104         transfer_characteristics                             00001101 = 13\r",
+          "[trace_headers @ 000001bcfebd6200] 112         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "canvas",
+        "hardwareAcceleration": "prefer-hardware",
+        "firstInput": {
+          "format": "RGBX",
+          "colorSpace": {
+            "fullRange": true,
+            "matrix": "rgb",
+            "primaries": "bt709",
+            "transfer": "iec61966-2-1"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": true,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "iec61966-2-1"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrateMode": "quantizer",
+          "alpha": "discard",
+          "hardwareAcceleration": "prefer-hardware",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": true
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": true,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 13,
+            "matrix": 1,
+            "fullRange": true
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=13:matrix_coefficients=1:video_full_range_flag=1",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuvj420p",
+          "color_range": "pc",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 13,
+        "traceHeaders": [
+          "[trace_headers @ 0000027df17c6c80] 94          video_full_range_flag                                       1 = 1\r",
+          "[trace_headers @ 0000027df17c6c80] 96          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 0000027df17c6c80] 104         transfer_characteristics                             00001101 = 13\r",
+          "[trace_headers @ 0000027df17c6c80] 112         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "canvas",
+        "hardwareAcceleration": "prefer-software",
+        "firstInput": {
+          "format": "RGBX",
+          "colorSpace": {
+            "fullRange": true,
+            "matrix": "rgb",
+            "primaries": "bt709",
+            "transfer": "iec61966-2-1"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "iec61966-2-1"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrate": 3101000,
+          "bitrateMode": "variable",
+          "alpha": "discard",
+          "hardwareAcceleration": "prefer-software",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 13,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "not-needed"
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "iec61966-2-1",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 13,
+        "traceHeaders": [
+          "[trace_headers @ 0000017465865600] 92          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 0000017465865600] 94          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 0000017465865600] 102         transfer_characteristics                             00001101 = 13\r",
+          "[trace_headers @ 0000017465865600] 110         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "I420",
+        "hardwareAcceleration": "no-preference",
+        "firstInput": {
+          "format": "I420",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrateMode": "quantizer",
+          "alpha": "discard",
+          "hardwareAcceleration": "no-preference",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 0,
+        "traceHeaders": [
+          "[trace_headers @ 00000216cded5d00] 94          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 00000216cded5d00] 96          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 00000216cded5d00] 104         transfer_characteristics                             00000001 = 1\r",
+          "[trace_headers @ 00000216cded5d00] 112         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "I420",
+        "hardwareAcceleration": "prefer-hardware",
+        "firstInput": {
+          "format": "I420",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrateMode": "quantizer",
+          "alpha": "discard",
+          "hardwareAcceleration": "prefer-hardware",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 0,
+        "traceHeaders": [
+          "[trace_headers @ 00000204a2785e40] 94          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 00000204a2785e40] 96          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 00000204a2785e40] 104         transfer_characteristics                             00000001 = 1\r",
+          "[trace_headers @ 00000204a2785e40] 112         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "I420",
+        "hardwareAcceleration": "prefer-software",
+        "firstInput": {
+          "format": "I420",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrate": 3101000,
+          "bitrateMode": "variable",
+          "alpha": "discard",
+          "hardwareAcceleration": "prefer-software",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "not-needed"
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 0,
+        "traceHeaders": [
+          "[trace_headers @ 000001da49294f40] 92          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 000001da49294f40] 94          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 000001da49294f40] 102         transfer_characteristics                             00000001 = 1\r",
+          "[trace_headers @ 000001da49294f40] 110         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "NV12",
+        "hardwareAcceleration": "no-preference",
+        "firstInput": {
+          "format": "NV12",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrateMode": "quantizer",
+          "alpha": "discard",
+          "hardwareAcceleration": "no-preference",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 0,
+        "traceHeaders": [
+          "[trace_headers @ 000001bf38aa5c40] 94          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 000001bf38aa5c40] 96          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 000001bf38aa5c40] 104         transfer_characteristics                             00000001 = 1\r",
+          "[trace_headers @ 000001bf38aa5c40] 112         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "NV12",
+        "hardwareAcceleration": "prefer-hardware",
+        "firstInput": {
+          "format": "NV12",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrateMode": "quantizer",
+          "alpha": "discard",
+          "hardwareAcceleration": "prefer-hardware",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "added",
+          "colour": {
+            "primaries": 1,
+            "transfer": 1,
+            "matrix": 1,
+            "fullRange": false
+          },
+          "tool": "FFmpeg h264_metadata",
+          "bitstreamFilter": "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0",
+          "originalSps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": null,
+              "primaries": null,
+              "transfer": null,
+              "matrix": null
+            }
+          ],
+          "sampleConversion": false,
+          "timingPreserved": true
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 0,
+        "traceHeaders": [
+          "[trace_headers @ 000002175e2f6b40] 94          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 000002175e2f6b40] 96          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 000002175e2f6b40] 104         transfer_characteristics                             00000001 = 1\r",
+          "[trace_headers @ 000002175e2f6b40] 112         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      },
+      {
+        "input": "NV12",
+        "hardwareAcceleration": "prefer-software",
+        "firstInput": {
+          "format": "NV12",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "decoderConfig": {
+          "codec": "avc1.64001f",
+          "colorSpace": {
+            "fullRange": false,
+            "matrix": "bt709",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          }
+        },
+        "encoderConfig": {
+          "codec": "avc1.64001f",
+          "width": 960,
+          "height": 540,
+          "displayWidth": 960,
+          "displayHeight": 540,
+          "bitrate": 3101000,
+          "bitrateMode": "variable",
+          "alpha": "discard",
+          "hardwareAcceleration": "prefer-software",
+          "avc": {
+            "format": "avc"
+          }
+        },
+        "before": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "after": {
+          "container": [
+            {
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1,
+              "fullRange": false
+            }
+          ],
+          "sps": [
+            {
+              "profile": 100,
+              "level": 31,
+              "chromaFormat": 1,
+              "bitDepthLuma": 8,
+              "bitDepthChroma": 8,
+              "width": 960,
+              "height": 540,
+              "fullRange": false,
+              "primaries": 1,
+              "transfer": 1,
+              "matrix": 1
+            }
+          ],
+          "sampleEntries": [
+            "avc1"
+          ],
+          "frameCount": 90,
+          "durationTicks": 172800,
+          "timescale": 57600,
+          "mediaDurationTicks": 172800,
+          "movieTimescale": 57600,
+          "movieDurationTicks": 172800
+        },
+        "repair": {
+          "status": "not-needed"
+        },
+        "ffprobe": {
+          "codec_name": "h264",
+          "pix_fmt": "yuv420p",
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "width": 960,
+          "height": 540,
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "duration": "3.000000",
+          "nb_read_frames": "90"
+        },
+        "patchMaxError": 0,
+        "traceHeaders": [
+          "[trace_headers @ 000002b2af2e4f40] 92          video_full_range_flag                                       0 = 0\r",
+          "[trace_headers @ 000002b2af2e4f40] 94          colour_primaries                                     00000001 = 1\r",
+          "[trace_headers @ 000002b2af2e4f40] 102         transfer_characteristics                             00000001 = 1\r",
+          "[trace_headers @ 000002b2af2e4f40] 110         matrix_coefficients                                  00000001 = 1\r"
+        ]
+      }
+    ],
+    "scope": "Static production-rendered chart with logo disabled, Chrome 155 on Windows Intel ANGLE. Converted-input Android and broader scene/environment validation remain outstanding."
   }
 }

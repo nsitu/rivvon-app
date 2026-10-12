@@ -9,6 +9,35 @@ No Loop source changes or player colour compensation are involved. The export
 dialog also offers the original WebCodecs/CanvasSource AVC path as an explicit
 choice, with a final colour report instead of a claim of deterministic conversion.
 
+## Architecture diagram
+
+[Open the editable SVG architecture diagram](video-colour-architecture.svg).
+It follows rendered canvas frames through the two current MP4 export methods,
+an experimental explicit-YUV WebCodecs path, file transport, Loop, Media3,
+MediaCodec and the Android display stack. Green boxes describe pixel handling;
+blue boxes describe declarations. The dashed path is a lab prototype, not an
+available production export option. The diagram records the checked code and
+measurements as of 10 October 2026.
+
+The diagram separates these assumptions:
+
+- Rivvon interprets the legacy renderer's displayed canvas bytes as sRGB. Its
+  JavaScript conversion decodes sRGB, applies the BT.709 opto-electronic transfer
+  function (OETF), and produces limited-range Y′CbCr samples before compression.
+- Loop's checked Media3 1.10.1 [MP4 extractor](https://github.com/androidx/media/blob/1.10.1/libraries/extractor/src/main/java/androidx/media3/extractor/mp4/BoxParser.java)
+  prefers bitstream colour declarations. It uses `nclx` when both colour space
+  and transfer remain absent, skips the `nclx` matrix field and derives the
+  Android colour standard from primaries. Other player versions may differ.
+- The codec and graphics stack interpret those declarations. The precise
+  conversion stage depends on the driver and surface path; the panel's physical
+  electro-optical transfer function (EOTF) and calibration were not measured.
+  Android colour enums and H.273/CICP identifiers are different numbering systems.
+
+The SVG contains clickable primary references for standards and APIs. Its
+comparison notes refer to the digital frame captures in
+[the validation record](video-colour-validation.json), not calibrated panel
+measurements. No Android Loop source is changed by this documentation.
+
 ## Encoder choice and final reports
 
 For MP4, choose **FFmpeg WASM** (the default) or **WebCodecs**. FFmpeg performs
@@ -109,9 +138,57 @@ ourselves, construct a raw I420 VideoFrame with accurate colour metadata, and
 encode via Mediabunny's VideoSampleSource. This eliminates implicit RGB-to-YUV
 input conversion, but still needs real decoded chart-value checks, SPS/container
 verification and fallback on each supported browser/backend. It has not been
-validated as a production alternative here. Browser/backend fixes and additional
+validated as a production alternative here. The 2026-10-10 experiment below
+does validate converted chart inputs on the primary Chrome/Windows environment.
+Browser/backend fixes and additional
 standardized controls could improve portability; there is no promised support
 date. The final reports and repeatable chart make improvements measurable.
+
+### Explicit YUV input experiment (2026-10-10)
+
+The original canvas is full-range sRGB/RGB input. Chromium's Windows
+[`GetEncoderOutputColorSpaceFromInputColorSpace`](https://github.com/chromium/chromium/blob/main/media/gpu/windows/format_utils.cc)
+helper selects a YUV matrix from RGB primaries while retaining input range and
+transfer. Other paths, such as GPU readback, can select limited range. This
+explains how input description and the backend conversion path influence output;
+it is not a content-based test of whether the artwork contains black or white.
+
+The controlled chart was converted with the existing `rgbaToBt709I420` function,
+then supplied as real I420 or NV12 `VideoFrame` buffers with BT.709 colour and
+`fullRange: false`, through Mediabunny's `VideoSampleSource`. Compression still
+used WebCodecs. This bypassed implicit canvas RGB-to-YUV conversion. Both input
+formats were tested with browser-decides, prefer-hardware and prefer-software
+on Chrome 155 / Windows / Intel ANGLE:
+
+| Input | Browser decides / prefer hardware | Prefer software |
+| --- | --- | --- |
+| Canvas RGB | 709/sRGB/709/full | 709/sRGB/709/limited |
+| Converted I420 | 709/709/709/limited | 709/709/709/limited |
+| Converted NV12 | 709/709/709/limited | 709/709/709/limited |
+
+All six converted-input cases decoded as `yuv420p`, with exact expected interior
+chart patch values (maximum YUV error 0), 90 frames, 30 fps and 3 seconds.
+Browser-decides/hardware preference still omitted SPS colour before the existing
+metadata repair; software preference included it. After repair, independent
+FFmpeg `trace_headers` verified SPS `1/1/1/limited`, agreeing with `nclx`.
+
+Repeat with the browser and native-tool variables described above:
+
+```sh
+node apps/rivvon/scripts/test-webcodecs-input-colour.mjs
+```
+
+Artifacts default to `colour-test-output/explicit-yuv/`. The experiment saves
+original/repaired MP4s, native header traces and its report. It does not change
+the production WebCodecs option, which currently retains CanvasSource for the
+original-path comparison. This new evidence supports a native encoding path
+with explicit pixel conversion, rather than requiring software compression on
+this tested environment. Other browsers/backends, logos, animated scenes and
+Android playback of these converted-native files still need validation before
+changing the production pipeline. WebCodecs has no universal output-range
+control: an exporter should verify and reject/fall back for non-conforming
+output. Merely labelling canvas pixels or compressing RGB values into 16–235
+does not perform the required transfer/matrix/range conversion.
 
 ## Why the renderer stays as it is
 

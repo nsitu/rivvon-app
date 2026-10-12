@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="3440" viewBox="0 0 1920 3440" role="img" aria-labelledby="diagram-title diagram-desc">
+<title id="diagram-title">Rivvon to Android photo frame: the colour and video pipeline</title>
+<desc id="diagram-desc">Architecture as of 10 October 2026. Three.js canvas frames branch into the current default FFmpeg WASM export, current optional WebCodecs export, and experimental explicit-YUV WebCodecs path. The diagram separates real sRGB-to-BT.709 limited YCbCr sample conversion from SPS/VUI and MP4 nclx metadata, then follows the unchanged MP4 through Loop, Media3 ExoPlayer, MediaCodec, SurfaceView or TextureView, Android composition and the display panel. It includes measured results, required metadata agreement, environment diagnostics and platform assumptions.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#60768a"/></marker>
+  <style>
+    text { font-family: 'Segoe UI', Arial, sans-serif; fill: #203448; }
+    .title { font-size: 46px; font-weight: 700; fill: #ffffff; letter-spacing: -.6px; }
+    .subtitle { font-size: 23px; fill: #d7e3ee; }
+    .legend { font-size: 19px; fill: #edf2f7; }
+    .sectionNumber { font-size: 31px; font-weight: 700; fill: #7996aa; }
+    .sectionTitle { font-size: 30px; font-weight: 700; }
+    .sectionSubtitle { font-size: 21px; fill: #556c7f; }
+    .domainLabel { font-size: 16px; font-weight: 700; fill: #758995; letter-spacing: 1.5px; }
+    .cardTitle { font-size: 24px; font-weight: 650; }
+    .body { font-size: 20.5px; }
+    .laneTitle { font-size: 25px; font-weight: 700; }
+    .laneSub { font-size: 18px; fill: #5c7284; }
+    .note { font-size: 18px; fill: #5c7284; }
+    .reference { font-size: 19px; fill: #31658d; text-decoration: underline; }
+    .micro { font-size: 17px; fill: #5c7284; }
+  </style>
+</defs>
+<rect width="1920" height="3440" fill="#fbfcfd"/>
+<rect width="1920" height="176" fill="#172d41"/>
+<text x="50" y="63" class="title" >Rivvon → Android photo frame</text>
+<text x="50" y="104" class="subtitle" >Colour conversion, compression, declarations and presentation — architecture as of 10 October 2026</text>
+<rect x="50" y="137" width="17" height="17" rx="4" fill="#eaf6ef" stroke="#74ad91"/>
+<text x="77" y="152" class="legend" >Pixel conversion</text>
+<rect x="300" y="137" width="17" height="17" rx="4" fill="#f0edfa" stroke="#a69acb"/>
+<text x="327" y="152" class="legend" >Compression / API</text>
+<rect x="600" y="137" width="17" height="17" rx="4" fill="#edf4fc" stroke="#8eafcf"/>
+<text x="627" y="152" class="legend" >Colour declarations</text>
+<rect x="915" y="137" width="17" height="17" rx="4" fill="#fff5df" stroke="#d2ad5d"/>
+<text x="942" y="152" class="legend" >Assumption / limitation</text>
+<path d="M 1285 146 H 1335" stroke="#d6e2ed" stroke-width="3" stroke-dasharray="8 5"/>
+<text x="1348" y="152" class="legend" >Dashed = experimental path</text>
+<text x="1868" y="152" class="legend" text-anchor="end">MP4 / AVC scope</text>
+<rect x="30" y="200" width="1860" height="1180" rx="22" fill="#f2f5f7" stroke="#d7e0e6" stroke-width="2"/>
+<text x="1860" y="230" class="domainLabel" text-anchor="end">RIVVON • BROWSER</text>
+<text x="50" y="247" class="sectionNumber" >01</text>
+<text x="105" y="247" class="sectionTitle" >Render and encode</text>
+<text x="50" y="279" class="sectionSubtitle" >The selected export method determines who converts RGB pixels into video samples.</text>
+<g data-node="1" aria-label="Three.js scene → rendered WebGL canvas"><rect data-bound="true" x="50" y="310" width="1820" height="135" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2" /><rect x="51" y="327" width="5" height="101" rx="2" fill="#20734b"/>
+<text x="73" y="346" class="cardTitle" >Three.js scene → rendered WebGL canvas</text>
+<text x="73" y="374" class="body" >Textures + materials + custom ShaderMaterial → LinearSRGBColorSpace / NoToneMapping → legacy numeric-RGB output.</text>
+<text x="73" y="399" class="body" >Custom shaders have no explicit final sRGB conversion. Keep this render contract; export interprets displayed canvas bytes as sRGB.</text>
+<text x="73" y="424" class="body" >Synthetic frame clock: exact dimensions and frame rate; N = ceil(duration × fps), no duplicate endpoint. Same frames feed the colour chart preview.</text>
+</g>
+<rect x="50" y="480" width="580" height="710" rx="17" fill="#ffffff" stroke="#d7e0e6" />
+<rect x="670" y="480" width="580" height="710" rx="17" fill="#ffffff" stroke="#d7e0e6" />
+<rect x="1290" y="480" width="580" height="710" rx="17" fill="#ffffff" stroke="#d2ad5d" stroke-dasharray="9 6"/>
+<text x="73" y="518" class="laneTitle" >A  FFmpeg WASM</text>
+<text x="73" y="546" class="laneSub" >CURRENT DEFAULT • EXPLICIT CONVERSION</text>
+<text x="693" y="518" class="laneTitle" >B  WebCodecs / canvas</text>
+<text x="693" y="546" class="laneSub" >CURRENT USER OPTION • NATIVE ENCODER</text>
+<text x="1313" y="518" class="laneTitle" >C  WebCodecs / raw YUV</text>
+<text x="1313" y="546" class="laneSub" >EXPERIMENTAL • NOT A PRODUCTION OPTION</text>
+<path d="M 960 445 V 463 H 340 V 480" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 960 463 V 480" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 960 463 H 1580 V 480" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 6" marker-end="url(#arrow)"/>
+<g data-node="2" aria-label="sRGB Canvas2D → opaque RGBA8"><rect data-bound="true" x="66" y="565" width="548" height="130" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2" /><rect x="67" y="582" width="5" height="96" rx="2" fill="#20734b"/>
+<text x="89" y="601" class="cardTitle" >sRGB Canvas2D → opaque RGBA8</text>
+<text x="89" y="629" class="body" >drawImage onto black matte; optional logo + shadow.</text>
+<text x="89" y="654" class="body" >Same compositor with logo enabled or disabled.</text>
+<text x="89" y="679" class="body" >getImageData: unpremultiplied sRGB bytes.</text>
+</g>
+<path d="M 340 695 V 725" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="3" aria-label="Rivvon: RGB → Y′CbCr conversion"><rect data-bound="true" x="66" y="725" width="548" height="155" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2" /><rect x="67" y="742" width="5" height="121" rx="2" fill="#20734b"/>
+<text x="89" y="761" class="cardTitle" >Rivvon: RGB → Y′CbCr conversion</text>
+<text x="89" y="789" class="body" >Inverse sRGB transfer → linear light → BT.709 OETF.</text>
+<text x="89" y="814" class="body" >BT.709 matrix → limited 8-bit I420, Y/Cb/Cr planes.</text>
+<text x="89" y="839" class="body" >Y: 16–235; Cb/Cr: 16–240; centred 2×2 chroma.</text>
+<text x="89" y="864" class="body" >4:2:0 sampling; sRGB and BT.709 share primaries.</text>
+</g>
+<path d="M 340 880 V 910" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="4" aria-label="FFmpeg WASM → libx264"><rect data-bound="true" x="66" y="910" width="548" height="130" rx="14" fill="#f0edfa" stroke="#a69acb" stroke-width="2" /><rect x="67" y="927" width="5" height="96" rx="2" fill="#66519a"/>
+<text x="89" y="946" class="cardTitle" >FFmpeg WASM → libx264</text>
+<text x="89" y="974" class="body" >Pinned core 0.12.10; software H.264 / AVC.</text>
+<text x="89" y="999" class="body" >Encode already-converted yuv420p samples.</text>
+<text x="89" y="1024" class="body" >Quality presets; bounded batches; no B frames.</text>
+</g>
+<path d="M 340 1040 V 1060" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="5" aria-label="AVC → FFmpeg MP4 muxer"><rect data-bound="true" x="66" y="1060" width="548" height="115" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="67" y="1077" width="5" height="81" rx="2" fill="#31658d"/>
+<text x="89" y="1096" class="cardTitle" >AVC → FFmpeg MP4 muxer</text>
+<text x="89" y="1124" class="body" >SPS/VUI + nclx explicitly 709 / 709 / 709 / limited.</text>
+<text x="89" y="1149" class="body" >Stream-copy mux; restore exact CFR track clocks.</text>
+</g>
+<g data-node="6" aria-label="Mediabunny CanvasSource → VideoFrame"><rect data-bound="true" x="686" y="565" width="548" height="130" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2" /><rect x="687" y="582" width="5" height="96" rx="2" fill="#20734b"/>
+<text x="709" y="601" class="cardTitle" >Mediabunny CanvasSource → VideoFrame</text>
+<text x="709" y="629" class="body" >Logo off: WebGL canvas; on: sRGB 2D drawImage.</text>
+<text x="709" y="654" class="body" >CanvasSource sets no colour-space override.</text>
+<text x="709" y="679" class="body" >Measured canvas input: full-range RGB / sRGB.</text>
+</g>
+<path d="M 960 695 V 725" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="7" aria-label="WebCodecs VideoEncoder"><rect data-bound="true" x="686" y="725" width="548" height="155" rx="14" fill="#f0edfa" stroke="#a69acb" stroke-width="2" /><rect x="687" y="742" width="5" height="121" rx="2" fill="#66519a"/>
+<text x="709" y="761" class="cardTitle" >WebCodecs VideoEncoder</text>
+<text x="709" y="789" class="body" >Browser / OS / GPU / encoder backend converts RGB.</text>
+<text x="709" y="814" class="body" >No portable output range / matrix / transfer /</text>
+<text x="709" y="839" class="body" >chroma controls. Acceleration preference is a hint.</text>
+<text x="709" y="864" class="body" >Canvas output varied: full vs limited, sRGB transfer.</text>
+</g>
+<path d="M 960 880 V 910" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="8" aria-label="Mediabunny 1.60 MP4 muxer"><rect data-bound="true" x="686" y="910" width="548" height="130" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="687" y="927" width="5" height="96" rx="2" fill="#31658d"/>
+<text x="709" y="946" class="cardTitle" >Mediabunny 1.60 MP4 muxer</text>
+<text x="709" y="974" class="body" >EncodedVideoChunkMetadata.decoderConfig</text>
+<text x="709" y="999" class="body" >.colorSpace → MP4 colr/nclx declarations.</text>
+<text x="709" y="1024" class="body" >SPS comes from encoder; may omit colour fields.</text>
+</g>
+<path d="M 960 1040 V 1060" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="9" aria-label="Conditional missing-SPS repair"><rect data-bound="true" x="686" y="1060" width="548" height="115" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="687" y="1077" width="5" height="81" rx="2" fill="#31658d"/>
+<text x="709" y="1096" class="cardTitle" >Conditional missing-SPS repair</text>
+<text x="709" y="1124" class="body" >FFmpeg h264_metadata + stream copy: fill observed</text>
+<text x="709" y="1149" class="body" >values only when evidence agrees. Pixels unchanged.</text>
+</g>
+<g data-node="10" aria-label="Same explicit conversion as path A"><rect data-bound="true" x="1306" y="565" width="548" height="130" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2" stroke-dasharray="9 6"/><rect x="1307" y="582" width="5" height="96" rx="2" fill="#20734b"/>
+<text x="1329" y="601" class="cardTitle" >Same explicit conversion as path A</text>
+<text x="1329" y="629" class="body" >sRGB RGBA8 → BT.709 limited 8-bit I420 or NV12.</text>
+<text x="1329" y="654" class="body" >I420: planar Cb/Cr; NV12: interleaved CbCr.</text>
+<text x="1329" y="679" class="body" >These are sample layouts, not colour declarations.</text>
+</g>
+<path d="M 1580 695 V 725" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 6" marker-end="url(#arrow)"/>
+<g data-node="11" aria-label="Raw VideoFrame → VideoSampleSource"><rect data-bound="true" x="1306" y="725" width="548" height="155" rx="14" fill="#f0edfa" stroke="#a69acb" stroke-width="2" stroke-dasharray="9 6"/><rect x="1307" y="742" width="5" height="121" rx="2" fill="#66519a"/>
+<text x="1329" y="761" class="cardTitle" >Raw VideoFrame → VideoSampleSource</text>
+<text x="1329" y="789" class="body" >format: I420 / NV12; colorSpace: BT.709,</text>
+<text x="1329" y="814" class="body" >BT.709 transfer + matrix, fullRange: false.</text>
+<text x="1329" y="839" class="body" >Mediabunny → WebCodecs native compression.</text>
+<text x="1329" y="864" class="body" >Avoids canvas RGB conversion; still verify output.</text>
+</g>
+<path d="M 1580 880 V 910" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 6" marker-end="url(#arrow)"/>
+<g data-node="12" aria-label="Native AVC → Mediabunny MP4"><rect data-bound="true" x="1306" y="910" width="548" height="130" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" stroke-dasharray="9 6"/><rect x="1307" y="927" width="5" height="96" rx="2" fill="#31658d"/>
+<text x="1329" y="946" class="cardTitle" >Native AVC → Mediabunny MP4</text>
+<text x="1329" y="974" class="body" >Inspect actual SPS and nclx; same repair rules.</text>
+<text x="1329" y="999" class="body" >An input label alone cannot guarantee output.</text>
+<text x="1329" y="1024" class="body" >Reject or convert if samples/declarations differ.</text>
+</g>
+<path d="M 1580 1040 V 1060" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 6" marker-end="url(#arrow)"/>
+<g data-node="13" aria-label="Promising lab result; limited scope"><rect data-bound="true" x="1306" y="1060" width="548" height="115" rx="14" fill="#fff5df" stroke="#d2ad5d" stroke-width="2" stroke-dasharray="9 6"/><rect x="1307" y="1077" width="5" height="81" rx="2" fill="#84611e"/>
+<text x="1329" y="1096" class="cardTitle" >Promising lab result; limited scope</text>
+<text x="1329" y="1124" class="body" >Chrome 155 / Windows / Intel ANGLE: 6 raw-YUV</text>
+<text x="1329" y="1149" class="body" >cases matched target. Android playback pending.</text>
+</g>
+<path d="M 340 1175 V 1210 H 960 V 1240" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 960 1175 V 1240" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 1580 1175 V 1210 H 960" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 6" />
+<g data-node="14" aria-label="Final inspection + downloadable export report"><rect data-bound="true" x="50" y="1240" width="1820" height="130" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="51" y="1257" width="5" height="96" rx="2" fill="#31658d"/>
+<text x="73" y="1276" class="cardTitle" >Final inspection + downloadable export report</text>
+<text x="73" y="1304" class="body" >Check every avcC SPS + MP4 nclx; report range, transfer, matrix, primaries, bit depth and chroma. Path A must match the SDR target.</text>
+<text x="73" y="1329" class="body" >Capture VideoFrame + encoder colour metadata, browser/OS hints and GL vendor/renderer. Native encoder identity is not exposed.</text>
+<text x="73" y="1354" class="body" >Preserve dimensions, frame count, clocks and seamless timing; support progress + cancellation. Independent lab checks: ffprobe + trace_headers + decoded chart.</text>
+</g>
+<text x="50" y="1440" class="sectionNumber" >02</text>
+<text x="105" y="1440" class="sectionTitle" >The file contract</text>
+<text x="50" y="1472" class="sectionSubtitle" >Compressed samples and two colour declarations must agree. Declarations do not perform a colour conversion.</text>
+<rect x="50" y="1500" width="1820" height="270" rx="18" fill="#f2f5f7" stroke="#bac5cf" stroke-width="2"/>
+<text x="76" y="1540" class="cardTitle" >MP4 / ISO Base Media File Format — ISO/IEC 14496-12 + AVC carriage ISO/IEC 14496-15</text>
+<g data-node="15" aria-label="mdat: compressed AVC video samples"><rect data-bound="true" x="76" y="1570" width="554" height="155" rx="14" fill="#f0edfa" stroke="#a69acb" stroke-width="2" /><rect x="77" y="1587" width="5" height="121" rx="2" fill="#66519a"/>
+<text x="99" y="1606" class="cardTitle" >mdat: compressed AVC video samples</text>
+<text x="99" y="1634" class="body" >H.264 / AVC — ITU-T H.264 / ISO 14496-10.</text>
+<text x="99" y="1659" class="body" >Target: 8-bit Y′CbCr 4:2:0, limited range.</text>
+<text x="99" y="1684" class="body" >Often called “YUV”; no RGB pixels in the AVC stream.</text>
+</g>
+<g data-node="16" aria-label="avcC: SPS/PPS → SPS VUI"><rect data-bound="true" x="683" y="1570" width="554" height="155" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="684" y="1587" width="5" height="121" rx="2" fill="#31658d"/>
+<text x="706" y="1606" class="cardTitle" >avcC: SPS/PPS → SPS VUI</text>
+<text x="706" y="1634" class="body" >SPS: Sequence Parameter Set; optional VUI:</text>
+<text x="706" y="1659" class="body" >Video Usability Information. H.273/CICP target:</text>
+<text x="706" y="1684" class="body" >primaries 1 / transfer 1 / matrix 1;</text>
+<text x="706" y="1709" class="body" >video_full_range_flag = 0.</text>
+</g>
+<g data-node="17" aria-label="colr/nclx: MP4 colour declaration"><rect data-bound="true" x="1290" y="1570" width="554" height="155" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="1291" y="1587" width="5" height="121" rx="2" fill="#31658d"/>
+<text x="1313" y="1606" class="cardTitle" >colr/nclx: MP4 colour declaration</text>
+<text x="1313" y="1634" class="body" >Primaries / transfer / matrix + full-range flag.</text>
+<text x="1313" y="1659" class="body" >Target: 1 / 1 / 1; full_range_flag = 0.</text>
+<text x="1313" y="1684" class="body" >Must agree with SPS and the encoded samples.</text>
+</g>
+<text x="76" y="1750" class="note" >stts / ctts / edit lists / track timescales preserve presentation timing. WebCodecs exports may declare other values; inspect the actual file.</text>
+<path d="M 1870 1305 H 1880 V 1490 H 960 V 1500" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 960 1770 V 1805" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="18" aria-label="Publish / download → Loop local MP4"><rect data-bound="true" x="440" y="1805" width="1040" height="95" rx="14" fill="#ffffff" stroke="#bac5cf" stroke-width="2" /><rect x="441" y="1822" width="5" height="61" rx="2" fill="#486178"/>
+<text x="463" y="1841" class="cardTitle" >Publish / download → Loop local MP4</text>
+<text x="463" y="1869" class="body" >Gallery transport and local storage carry unchanged bytes; no colour conversion.</text>
+</g>
+<rect x="30" y="1980" width="1860" height="1000" rx="22" fill="#f2f5f7" stroke="#d7e0e6" stroke-width="2"/>
+<text x="1860" y="2010" class="domainLabel" text-anchor="end">ANDROID 13 • AMLOGIC / MALI PHOTO FRAME</text>
+<text x="50" y="1960" class="sectionNumber" >03</text>
+<text x="105" y="1960" class="sectionTitle" >Android playback and display</text>
+<text x="50" y="1992" class="sectionSubtitle" >Loop reports colour metadata; the codec and graphics stack interpret it.</text>
+<g data-node="19" aria-label="Loop — Kotlin / Jetpack Compose → Media3 ExoPlayer 1.10.1"><rect data-bound="true" x="50" y="2020" width="1820" height="120" rx="14" fill="#ffffff" stroke="#bac5cf" stroke-width="2" /><rect x="51" y="2037" width="5" height="86" rx="2" fill="#486178"/>
+<text x="73" y="2056" class="cardTitle" >Loop — Kotlin / Jetpack Compose → Media3 ExoPlayer 1.10.1</text>
+<text x="73" y="2084" class="body" >MediaItem URI → prepare/play; REPEAT_MODE_ONE for looping. The app does no colour correction and passes the MP4 unchanged.</text>
+<text x="73" y="2109" class="body" >Diagnostics: Format.colorInfo, codec MediaFormat colour keys, decoder name, selected surface, dropped frames and loop timing.</text>
+</g>
+<path d="M 960 1900 V 2020" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 495 2140 V 2180" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="20" aria-label="ExoPlayer: MP4 extractor → Format.ColorInfo"><rect data-bound="true" x="50" y="2180" width="890" height="165" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="51" y="2197" width="5" height="131" rx="2" fill="#31658d"/>
+<text x="73" y="2216" class="cardTitle" >ExoPlayer: MP4 extractor → Format.ColorInfo</text>
+<text x="73" y="2244" class="body" >Parse avcC/SPS and colr/nclx; construct the input Format.</text>
+<text x="73" y="2269" class="body" >Media3 1.10.1 prefers bitstream colour over nclx.</text>
+<text x="73" y="2294" class="body" >nclx fallback when colour space + transfer are absent.</text>
+<text x="73" y="2319" class="body" >nclx matrix is skipped; colour standard derives from primaries.</text>
+</g>
+<path d="M 940 2262 H 980" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="21" aria-label="MediaCodec → native AVC decoder"><rect data-bound="true" x="980" y="2180" width="890" height="165" rx="14" fill="#f0edfa" stroke="#a69acb" stroke-width="2" /><rect x="981" y="2197" width="5" height="131" rx="2" fill="#66519a"/>
+<text x="1003" y="2216" class="cardTitle" >MediaCodec → native AVC decoder</text>
+<text x="1003" y="2244" class="body" >Media3 maps Format to MediaFormat; also supplies AVC configuration.</text>
+<text x="1003" y="2269" class="body" >Measured decoder: c2.amlogic.avc.decoder (Amlogic T982).</text>
+<text x="1003" y="2294" class="body" >Decode H.264 into codec output buffers / the selected Surface.</text>
+<text x="1003" y="2319" class="body" >Hardware and driver interpret bitstream + configured colour values.</text>
+</g>
+<g data-node="22" aria-label="What the player assumes"><rect data-bound="true" x="50" y="2380" width="890" height="140" rx="14" fill="#fff5df" stroke="#d2ad5d" stroke-width="2" /><rect x="51" y="2397" width="5" height="106" rx="2" fill="#84611e"/>
+<text x="73" y="2416" class="cardTitle" >What the player assumes</text>
+<text x="73" y="2444" class="body" >Metadata describes the samples correctly; it cannot infer artwork intent.</text>
+<text x="73" y="2469" class="body" >Missing/conflicting tags can trigger parser or codec defaults.</text>
+<text x="73" y="2494" class="body" >No universal 601/709 or full/limited fallback across devices.</text>
+</g>
+<g data-node="23" aria-label="Expected Loop diagnostics for the SDR target"><rect data-bound="true" x="980" y="2380" width="890" height="140" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="981" y="2397" width="5" height="106" rx="2" fill="#31658d"/>
+<text x="1003" y="2416" class="cardTitle" >Expected Loop diagnostics for the SDR target</text>
+<text x="1003" y="2444" class="body" >Input: BT709 / Limited / SDR.</text>
+<text x="1003" y="2469" class="body" >Codec: COLOR_STANDARD_BT709 = 1; COLOR_RANGE_LIMITED = 2;</text>
+<text x="1003" y="2494" class="body" >COLOR_TRANSFER_SDR_VIDEO = 3. Android enums differ from CICP codes.</text>
+</g>
+<path d="M 1425 2345 V 2362 H 960 V 2550 H 495 V 2580" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 960 2550 H 1425 V 2580" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="24" aria-label="SurfaceView path"><rect data-bound="true" x="50" y="2580" width="890" height="130" rx="14" fill="#ffffff" stroke="#bac5cf" stroke-width="2" /><rect x="51" y="2597" width="5" height="96" rx="2" fill="#486178"/>
+<text x="73" y="2616" class="cardTitle" >SurfaceView path</text>
+<text x="73" y="2644" class="body" >Separate Surface / BufferQueue → compositor.</text>
+<text x="73" y="2669" class="body" >Eligible for a hardware-composer overlay; device-dependent.</text>
+<text x="73" y="2694" class="body" >MediaCodec renders to the Surface owned by the view.</text>
+</g>
+<g data-node="25" aria-label="TextureView path"><rect data-bound="true" x="980" y="2580" width="890" height="130" rx="14" fill="#ffffff" stroke="#bac5cf" stroke-width="2" /><rect x="981" y="2597" width="5" height="96" rx="2" fill="#486178"/>
+<text x="1003" y="2616" class="cardTitle" >TextureView path</text>
+<text x="1003" y="2644" class="body" >SurfaceTexture → texture sampled into the app’s GPU composition.</text>
+<text x="1003" y="2669" class="body" >The app’s composed layer then reaches the system compositor.</text>
+<text x="1003" y="2694" class="body" >Additional graphics processing can change presentation.</text>
+</g>
+<path d="M 495 2710 V 2750 H 730 V 2790" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<path d="M 1425 2710 V 2750 H 730" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  />
+<g data-node="26" aria-label="Android graphics: SurfaceFlinger → hardware composer / GPU → display engine"><rect data-bound="true" x="50" y="2790" width="1360" height="150" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2" /><rect x="51" y="2807" width="5" height="116" rx="2" fill="#20734b"/>
+<text x="73" y="2826" class="cardTitle" >Android graphics: SurfaceFlinger → hardware composer / GPU → display engine</text>
+<text x="73" y="2854" class="body" >Range expansion, Y′CbCr matrix interpretation and transfer handling occur in the platform presentation path.</text>
+<text x="73" y="2879" class="body" >Exact conversion stage and metadata priority depend on codec, driver and chosen surface; no single universal RGB boundary.</text>
+<text x="73" y="2904" class="body" >Output then reaches the panel’s physical transfer response, gamut and calibration. Loop applies no compensating shader.</text>
+</g>
+<path d="M 1410 2865 H 1460" fill="none" stroke="#60768a" stroke-width="3" stroke-linejoin="round"  marker-end="url(#arrow)"/>
+<g data-node="27" aria-label="Photo-frame panel"><rect data-bound="true" x="1460" y="2790" width="410" height="150" rx="14" fill="#fff5df" stroke="#d2ad5d" stroke-width="2" /><rect x="1461" y="2807" width="5" height="116" rx="2" fill="#84611e"/>
+<text x="1483" y="2826" class="cardTitle" >Photo-frame panel</text>
+<text x="1483" y="2854" class="body" >Visible light → viewer.</text>
+<text x="1483" y="2879" class="body" >Panel calibration / EOTF</text>
+<text x="1483" y="2904" class="body" >has not been measured.</text>
+</g>
+<text x="50" y="3040" class="sectionNumber" >04</text>
+<text x="105" y="3040" class="sectionTitle" >Read the colour contract correctly</text>
+<text x="50" y="3072" class="sectionSubtitle" >Four independent colour properties plus sample layout — and what the comparison has actually established.</text>
+<g data-node="28" aria-label="Colour terms / required target"><rect data-bound="true" x="50" y="3100" width="890" height="205" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2" /><rect x="51" y="3117" width="5" height="171" rx="2" fill="#31658d"/>
+<text x="73" y="3136" class="cardTitle" >Colour terms / required target</text>
+<text x="73" y="3164" class="body" >Primaries: RGB chromaticities / white point → BT.709.</text>
+<text x="73" y="3189" class="body" >Transfer: linear-light ↔ signal curve → BT.709 SDR (not sRGB code 13).</text>
+<text x="73" y="3214" class="body" >Matrix: R′G′B′ ↔ Y′CbCr coefficients → BT.709 (not 601 / code 6).</text>
+<text x="73" y="3239" class="body" >Range: numeric scaling → limited / video, rather than full.</text>
+<text x="73" y="3264" class="body" >Layout: 8-bit 4:2:0; I420 / yuv420p or NV12 are buffer formats.</text>
+</g>
+<g data-node="29" aria-label="Measured results / remaining scope"><rect data-bound="true" x="980" y="3100" width="890" height="205" rx="14" fill="#fff5df" stroke="#d2ad5d" stroke-width="2" /><rect x="981" y="3117" width="5" height="171" rx="2" fill="#84611e"/>
+<text x="1003" y="3136" class="cardTitle" >Measured results / remaining scope</text>
+<text x="1003" y="3164" class="body" >Android: adding SPS alone did not fix the full-range/sRGB colour fault.</text>
+<text x="1003" y="3189" class="body" >FFmpeg conversion restored neutral greys and hues on both surfaces.</text>
+<text x="1003" y="3214" class="body" >Grey 128 displayed as 128 via SurfaceView; 115 via TextureView.</text>
+<text x="1003" y="3239" class="body" >Raw-YUV WebCodecs lab: zero interior chart error, 90 frames / 3 s.</text>
+<text x="1003" y="3264" class="body" >Other native environments + raw-YUV Android tests remain unverified.</text>
+</g>
+<text x="50" y="3336" class="micro" >Primary references (clickable) • source code and test details: docs/video-colour.md + docs/video-colour-validation.json</text>
+<a href="https://www.itu.int/rec/R-REC-BT.709" target="_blank" rel="noopener"><text x="50" y="3370" class="reference">BT.709 ↗</text></a>
+<a href="https://www.itu.int/rec/T-REC-H.264" target="_blank" rel="noopener"><text x="185" y="3370" class="reference">H.264 / SPS / VUI ↗</text></a>
+<a href="https://www.itu.int/rec/T-REC-H.273" target="_blank" rel="noopener"><text x="395" y="3370" class="reference">H.273 / CICP ↗</text></a>
+<a href="https://www.w3.org/TR/webcodecs/#videoencoderconfig" target="_blank" rel="noopener"><text x="580" y="3370" class="reference">WebCodecs ↗</text></a>
+<a href="https://mediabunny.dev/guide/media-sources" target="_blank" rel="noopener"><text x="755" y="3370" class="reference">Mediabunny ↗</text></a>
+<a href="https://ffmpeg.org/ffmpeg-bitstream-filters.html#h264_005fmetadata" target="_blank" rel="noopener"><text x="940" y="3370" class="reference">FFmpeg h264_metadata ↗</text></a>
+<a href="https://github.com/androidx/media/blob/1.10.1/libraries/extractor/src/main/java/androidx/media3/extractor/mp4/BoxParser.java" target="_blank" rel="noopener"><text x="1235" y="3370" class="reference">Media3 1.10.1 extractor ↗</text></a>
+<a href="https://developer.android.com/reference/android/media/MediaCodec" target="_blank" rel="noopener"><text x="50" y="3405" class="reference">MediaCodec ↗</text></a>
+<a href="https://developer.android.com/reference/android/media/MediaFormat#KEY_COLOR_STANDARD" target="_blank" rel="noopener"><text x="235" y="3405" class="reference">MediaFormat colour keys ↗</text></a>
+<a href="https://developer.android.com/media/media3/ui/surface" target="_blank" rel="noopener"><text x="560" y="3405" class="reference">Media3 surfaces ↗</text></a>
+<a href="https://source.android.com/docs/core/graphics/surfaceflinger-windowmanager" target="_blank" rel="noopener"><text x="795" y="3405" class="reference">SurfaceFlinger / HWC ↗</text></a>
+<text x="1868" y="3405" class="micro" text-anchor="end">Measured device results ≠ calibrated physical-panel measurements</text>
+</svg>

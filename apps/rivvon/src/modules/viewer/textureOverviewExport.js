@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createCanvasVideoExport } from './canvasVideoExport.js';
+import { createVideoExportProgress } from './videoExportProgress.js';
 import { applyRendererDisplayConfig } from './rendererConfig.js';
 import { TileManager } from './tileManager';
 import { calculateTextureOverviewLayout } from './textureOverviewLayout';
@@ -385,14 +386,15 @@ export async function exportTextureOverviewVideo(options = {}) {
             : seamlessLoopDuration * normalizedLoopCount;
         const totalFrames = Math.ceil(exportDuration * fps);
         const deltaSec = 1 / fps;
+        const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
         videoExport = await createCanvasVideoExport(renderer.domElement, {
             width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
             renderContext: renderer.getContext?.(),
-            signal, onStatus, onColourMetadata,
+            signal, onStatus: progress.status, onColourMetadata,
         });
 
-        onStatus?.(`Encoding ${totalFrames} overview frames…`);
+        progress.start();
 
         for (let frame = 0; frame < totalFrames; frame += 1) {
             if (signal?.aborted) {
@@ -407,12 +409,12 @@ export async function exportTextureOverviewVideo(options = {}) {
             renderer.render(overviewScene.scene, overviewScene.camera);
 
             await videoExport.add(time, deltaSec);
-            onProgress?.(0.95 * (frame + 1) / totalFrames);
+            progress.frameComplete(frame + 1);
         }
 
-        onStatus?.('Finalizing…');
+        progress.status('Finalizing…');
         const blob = await videoExport.finalize();
-        onProgress?.(1);
+        progress.complete();
         return blob;
     } catch (error) {
         if (signal?.aborted) return null;

@@ -3,6 +3,7 @@
 
 import { Quaternion, Vector3 } from 'three';
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
+import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
 import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
@@ -772,9 +773,10 @@ export function useSceneExport(ctx, deps = {}) {
 
         // Compute total frames (after cinematic setup which may have updated exportDuration)
         const totalFrames = Math.ceil(exportDuration * fps);
+        const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
         console.log(`[ThreeSetup] Frame-accurate export: ${totalFrames} frames, ${exportDuration.toFixed(2)}s @ ${fps}fps, ${format}/${codec}, ${width}×${height}`);
-        if (onStatus) onStatus(`Preparing ${format.toUpperCase()} export…`);
+        progress.status(`Preparing ${format.toUpperCase()} export…`);
 
         // --- Pause live render loop ---
         deps.pauseRenderLoop?.();
@@ -844,10 +846,10 @@ export function useSceneExport(ctx, deps = {}) {
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
                 width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
-                signal, onStatus, onColourMetadata,
+                signal, onStatus: progress.status, onColourMetadata,
             });
 
-            if (onStatus) onStatus(`Encoding ${totalFrames} frames…`);
+            progress.start();
 
             // --- Frame loop ---
             for (let frame = 0; frame < totalFrames; frame++) {
@@ -911,13 +913,13 @@ export function useSceneExport(ctx, deps = {}) {
                 await videoExport.add(t, deltaSec);
 
                 // Report progress
-                if (onProgress) onProgress(0.95 * (frame + 1) / totalFrames);
+                progress.frameComplete(frame + 1);
             }
 
             // --- Finalize ---
-            if (onStatus) onStatus('Finalizing…');
+            progress.status('Finalizing…');
             const blob = await videoExport.finalize();
-            onProgress?.(1);
+            progress.complete();
 
             console.log(`[ThreeSetup] Export complete: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
 

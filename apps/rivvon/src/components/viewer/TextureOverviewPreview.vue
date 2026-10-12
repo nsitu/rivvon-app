@@ -7,6 +7,7 @@
     import { applyRendererDisplayConfig, readRendererDisplayConfig } from '../../modules/viewer/rendererConfig.js';
     import { useLocalStorage } from '../../services/localStorage.js';
     import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
+    import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
     import {
@@ -1163,14 +1164,15 @@
                 : seamlessLoopDuration * normalizedLoopCount;
             const totalFrames = Math.ceil(exportDuration * fps);
             const deltaSec = 1 / fps;
+            const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
             videoExport = await createCanvasVideoExport(renderer.domElement, {
                 width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: renderer.getContext?.(),
-                signal, onStatus, onColourMetadata,
+                signal, onStatus: progress.status, onColourMetadata,
             });
 
-            onStatus?.(`Encoding ${totalFrames} overview frames…`);
+            progress.start();
 
             for (let frame = 0; frame < totalFrames; frame += 1) {
                 if (signal?.aborted) {
@@ -1187,12 +1189,12 @@
                     blurMode: 'export', width, height });
 
                 await videoExport.add(time, deltaSec);
-                onProgress?.(0.95 * (frame + 1) / totalFrames);
+                progress.frameComplete(frame + 1);
             }
 
-            onStatus?.('Finalizing…');
+            progress.status('Finalizing…');
             const blob = await videoExport.finalize();
-            onProgress?.(1);
+            progress.complete();
             return blob;
         } catch (error) {
             if (signal?.aborted) return null;

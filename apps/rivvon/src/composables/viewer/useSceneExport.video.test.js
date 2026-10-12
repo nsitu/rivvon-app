@@ -45,6 +45,25 @@ describe('scene video export timing and restoration', () => {
         await exporter.exportVideo({ width:320,height:240,fps:30,duration:0.1,encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',onColourMetadata:report });
         expect(createCanvasVideoExport).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({ encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',onColourMetadata:report }));
     });
+    it.each(['ffmpeg', 'webcodecs'])('retains frame metrics in %s encoder statuses', async (encodingMethod) => {
+        vi.stubGlobal('VideoEncoder', class {});
+        const { writer, exporter } = fixture(), onStatus = vi.fn();
+        createCanvasVideoExport.mockImplementationOnce(async (_canvas, options) => {
+            options.onStatus('Loading encoder…');
+            writer.add.mockImplementationOnce(() => options.onStatus('Encoding SDR frames 1–1…'));
+            writer.finalize.mockImplementationOnce(async () => {
+                options.onStatus('Verifying video…');
+                return new Blob(['video']);
+            });
+            return writer;
+        });
+        await exporter.exportVideo({ duration: 1 / 30, encodingMethod, onStatus });
+        const statuses = onStatus.mock.calls.map(([value]) => value);
+        expect(statuses.every(value => / · \d+% · Frames \d\/1 · \d+\.\d fps$/.test(value))).toBe(true);
+        expect(statuses.some(value => value.startsWith('Encoding SDR frames 1–1… · 0% · Frames 0/1'))).toBe(true);
+        expect(statuses.some(value => value.startsWith('Verifying video… · 95% · Frames 1/1'))).toBe(true);
+        expect(statuses.at(-1)).toMatch(/^Export complete\. · 100% · Frames 1\/1/);
+    });
     it('renders a fractional duration with the existing ceil frame count, with no duplicate endpoint', async () => {
         vi.stubGlobal('VideoEncoder',undefined); // MP4 no longer relies on WebCodecs.
         const { ctx,deps,writer,exporter } = fixture(), progress = vi.fn();

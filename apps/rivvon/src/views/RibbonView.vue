@@ -3410,9 +3410,6 @@ const activeToolbarOverlayTitle = computed(() => {
                 hardwareAcceleration: settings.hardwareAcceleration,
                 signal: exportAbortController.value.signal,
                 onColourMetadata: (report) => { colourReport = report; },
-                onProgress: (progress) => {
-                    videoExportStatus.value = `Encoding… ${Math.round(progress * 100)}%`;
-                },
                 onStatus: (status) => {
                     videoExportStatus.value = status;
                 },
