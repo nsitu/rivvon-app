@@ -118,6 +118,11 @@
         set: (value) => app.setBackgroundFlipVertical(!!value),
     });
 
+    const backgroundFlipHorizontalModel = computed({
+        get: () => app.backgroundFlipHorizontal,
+        set: (value) => app.setBackgroundFlipHorizontal(!!value),
+    });
+
     const backgroundFlowModel = computed({
         get: () => app.backgroundFlowEnabled,
         set: (value) => {
@@ -752,7 +757,7 @@
                                 class="tools-toggle-main"
                                 :for="getInputId('background-flip-vertical')"
                             >
-                                <span class="material-symbols-outlined">swap_vert</span>
+                                <span class="material-symbols-outlined" aria-hidden="true">swap_vert</span>
                                 <span>Flip Background Vertically</span>
                             </label>
                             <div class="tools-toggle-control">
@@ -761,6 +766,23 @@
                                 <ToggleSwitch
                                     :inputId="getInputId('background-flip-vertical')"
                                     v-model="backgroundFlipVerticalModel"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="tools-toggle-row">
+                            <label
+                                class="tools-toggle-main"
+                                :for="getInputId('background-flip-horizontal')"
+                            >
+                                <span class="material-symbols-outlined" aria-hidden="true">swap_horiz</span>
+                                <span>Flip Background Horizontally</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ backgroundFlipHorizontalModel ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('background-flip-horizontal')"
+                                    v-model="backgroundFlipHorizontalModel"
                                 />
                             </div>
                         </div>

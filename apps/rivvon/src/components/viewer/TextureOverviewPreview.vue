@@ -1167,7 +1167,7 @@
             const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
             videoExport = await createCanvasVideoExport(renderer.domElement, {
-                width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: renderer.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,
             });
@@ -1273,7 +1273,7 @@
     );
 
     watch(
-        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundBlurEnabled, app.backgroundBlurAmount, app.backgroundTextureEnabled, app.backgroundTexture, app.backgroundBaseEnabled, app.backgroundWaterEnabled, app.backgroundWaterColor, app.backgroundWaterFlow, app.backgroundWaterScale, app.backgroundWaterSpeed, app.backgroundWaterStrength],
+        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundFlipHorizontal, app.backgroundBlurEnabled, app.backgroundBlurAmount, app.backgroundTextureEnabled, app.backgroundTexture, app.backgroundBaseEnabled, app.backgroundWaterEnabled, app.backgroundWaterColor, app.backgroundWaterFlow, app.backgroundWaterScale, app.backgroundWaterSpeed, app.backgroundWaterStrength],
         async ([enabled]) => {
             if (!tileManager || !renderer) return;
             if (enabled) await sceneBackground.setBackgroundFromTileManager({ opacity: 1 });

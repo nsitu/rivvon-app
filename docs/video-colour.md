@@ -229,7 +229,7 @@ textures/materials → Three.js render/postprocess → WebGL or WebGPU canvas
  → getImageData() in sRGB, unpremultiplied RGBA
  → inverse sRGB transfer → BT.709 OETF
  → BT.709 Y′CbCr matrix → limited I420 (8-bit, centred 2×2 box chroma)
- → @ffmpeg/core 0.12.10 / libx264, single thread, no B frames
+ → @ffmpeg/core 0.12.10 / libx264, up to four single-threaded workers, no B frames
  → lossless AVC remux → restore exact CFR MP4 timing fields
  → validate SPS/VUI, nclx, dimensions, frame count and duration → Blob
 ```
@@ -257,6 +257,19 @@ those actual samples. The tags are not applied to unconverted RGB or old files.
 
 Raw batches are bounded to 32 MiB (at least one frame), then encoded as Annex B
 AVC. Every batch begins with an IDR, has no B frames, and has its SPS inspected.
+An adaptive pool reuses idle workers and loads additional independent FFmpeg
+instances only when all current workers are busy, up to four workers. The limit
+also respects the reported CPU count (leaving one CPU available when possible)
+and the export's batch count. If an additional worker cannot load, the pool
+continues with its existing workers. Each instance retains `-threads 1`, so no
+SharedArrayBuffer or cross-origin isolation is required.
+
+Frame production waits for a free slot before copying the next batch. At most
+one 32 MiB raw input per worker plus the reusable producer buffer is retained
+(up to 160 MiB of raw input at four workers, excluding WASM heaps and readback;
+a single frame larger than 32 MiB is still allowed). Completed batches are kept
+in submission order, even when workers finish out of order. Extra workers are
+terminated before joining the stream to release their WASM heaps.
 The batches concatenate into one elementary stream and remux without re-encoding.
 The final movie, media, sample and edit-list duration fields are set from the
 original CFR clock. This avoids FFmpeg raw-AVC timestamp and final-duration
@@ -266,8 +279,10 @@ The existing synthetic render clock, `ceil(duration * fps)` frame count, texture
 ticks and camera animation remain intact. No endpoint frame is added. Original
 renderer dimensions, pixel ratio, camera and controls state are restored on
 success, cancellation or error. Progress reserves its final 5% for muxing and
-verification. Cancellation terminates the WASM worker rather than finishing and
-returning an incomplete loop.
+verification. Progress percentage, frame counts and average export fps track
+completed encoding batches rather than queued frames. Active frame ranges stay
+visible alongside those metrics. Cancellation terminates every WASM worker
+rather than finishing and returning an incomplete loop.
 
 All five presets retain Mediabunny's AVC target bitrate formula: 3 Mbps at 1080p,
 scaled by pixel count to the power 0.95, with multipliers 0.3/0.6/1/2/4. Actual
@@ -276,6 +291,13 @@ each batch starts a new GOP. The existing white logo, shadow, size and corner
 layout are reused before colour conversion.
 
 ## Repeatable comparison workflow
+
+`pnpm --filter rivvon test:video-pool` runs a real headless Chromium worker-pool
+regression with cross-origin isolation disabled. It encodes eight bounded raw
+batches, verifies SDR declarations, and decodes every frame's binary marker and
+CFR timestamp to check ordering. On a machine with enough CPU cores, set
+`POOL_MIN_WORKERS=4` to require four simultaneous encoding workers. The JSON
+result is written to `apps/rivvon/colour-test-output/worker-pool/four-worker-report.json`.
 
 Run `pnpm --filter rivvon dev` and open `/colour-test.html`. The development-only
 page is not a production build entry. Its console API is:

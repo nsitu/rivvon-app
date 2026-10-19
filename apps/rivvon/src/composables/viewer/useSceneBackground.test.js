@@ -15,6 +15,25 @@ function fixture(rendererType) {
 }
 
 describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendererType) => {
+    it('updates both flip axes independently without rebuilding the material', async () => {
+        const { runtime, camera, app } = fixture(rendererType);
+        app.backgroundFlipHorizontal = true;
+        await runtime.setBackgroundFromTileManager();
+        const material = camera.children[0].material;
+        const read = () => rendererType === 'webgl'
+            ? [material.uniforms.uFlipHorizontal.value, material.uniforms.uFlipVertical.value]
+            : [material._flipHorizontalUniform.value, material._flipVerticalUniform.value];
+        expect(read()).toEqual([1, 0]);
+        for (const [horizontal, vertical] of [[false, true], [true, true], [false, false]]) {
+            app.backgroundFlipHorizontal = horizontal;
+            app.backgroundFlipVertical = vertical;
+            runtime.updateBackground();
+            expect(read()).toEqual([Number(horizontal), Number(vertical)]);
+            expect(camera.children[0].material).toBe(material);
+        }
+        runtime.disposeBackground();
+    });
+
     it('blends independently of the ribbon layer, updates speed without rebuilding, and retains a fixed layer when disabled', async () => {
         const { runtime, camera, app } = fixture(rendererType);
         await runtime.setBackgroundFromTileManager();

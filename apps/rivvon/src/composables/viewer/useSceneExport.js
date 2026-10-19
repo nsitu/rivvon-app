@@ -844,7 +844,7 @@ export function useSceneExport(ctx, deps = {}) {
             ctx.ribbonSeries.value?.initFlowMaterials?.();
 
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
-                width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,
             });

@@ -848,6 +848,10 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().backgroundFlipVertical,
         false,
       ),
+      backgroundFlipHorizontal: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundFlipHorizontal,
+        false,
+      ),
       backgroundFlowEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundFlowEnabled,
         false,
@@ -1212,6 +1216,7 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundCycleDuration = DEFAULT_BACKGROUND_CYCLE_DURATION;
       this.backgroundLayerIndex = DEFAULT_BACKGROUND_LAYER_INDEX;
       this.backgroundFlipVertical = false;
+      this.backgroundFlipHorizontal = false;
       this.backgroundFlowEnabled = false;
       this.backgroundFlowSpeed = DEFAULT_BACKGROUND_FLOW_SPEED;
       this.backgroundBlurEnabled = true;
@@ -1323,6 +1328,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundCycleDuration: DEFAULT_BACKGROUND_CYCLE_DURATION,
         backgroundLayerIndex: DEFAULT_BACKGROUND_LAYER_INDEX,
         backgroundFlipVertical: false,
+        backgroundFlipHorizontal: false,
         backgroundFlowEnabled: false,
         backgroundFlowSpeed: DEFAULT_BACKGROUND_FLOW_SPEED,
         backgroundBlurEnabled: true,
@@ -1564,6 +1570,12 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = !!enabled;
       this.backgroundFlipVertical = nextValue;
       writeViewerPreferences({ backgroundFlipVertical: nextValue });
+    },
+
+    setBackgroundFlipHorizontal(enabled) {
+      const nextValue = !!enabled;
+      this.backgroundFlipHorizontal = nextValue;
+      writeViewerPreferences({ backgroundFlipHorizontal: nextValue });
     },
 
     setBackgroundFlowEnabled(enabled) {
@@ -1856,6 +1868,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundCycleDuration: this.backgroundCycleDuration,
         backgroundLayerIndex: this.backgroundLayerIndex,
         backgroundFlipVertical: this.backgroundFlipVertical,
+        backgroundFlipHorizontal: this.backgroundFlipHorizontal,
         backgroundFlowEnabled: this.backgroundFlowEnabled,
         backgroundFlowSpeed: this.backgroundFlowSpeed,
         backgroundBlurEnabled: this.backgroundBlurEnabled,
@@ -1997,6 +2010,7 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundCycleDuration !== original.backgroundCycleDuration ||
         this.backgroundLayerIndex !== original.backgroundLayerIndex ||
         this.backgroundFlipVertical !== original.backgroundFlipVertical ||
+        this.backgroundFlipHorizontal !== original.backgroundFlipHorizontal ||
         this.backgroundFlowEnabled !== original.backgroundFlowEnabled ||
         this.backgroundFlowSpeed !== original.backgroundFlowSpeed ||
         this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||

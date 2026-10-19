@@ -389,7 +389,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
         videoExport = await createCanvasVideoExport(renderer.domElement, {
-            width, height, fps, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+            width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
             renderContext: renderer.getContext?.(),
             signal, onStatus: progress.status, onColourMetadata,
         });

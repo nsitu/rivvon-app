@@ -18,6 +18,31 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it.each(['Horizontal', 'Vertical'])('persists and resets the independent %s background flip', (axis) => {
+        const key = `backgroundFlip${axis}`;
+        const otherKey = `backgroundFlip${axis === 'Horizontal' ? 'Vertical' : 'Horizontal'}`;
+        const store = useViewerStore();
+        expect(store[key]).toBe(false);
+        store.captureToolsPanelOriginalState();
+        store[`setBackgroundFlip${axis}`](true);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        expect(store[otherKey]).toBe(false);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(saved[key]).toBe(true);
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored.getViewerSettingsSnapshot()[key]).toBe(true);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored[key]).toBe(false);
+        setActivePinia(createPinia());
+        expect(useViewerStore()[key]).toBe(false);
+        restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored[key]).toBe(true);
+        expect(restored[otherKey]).toBe(false);
+        restored.applyArtworkSettingsSnapshot({});
+        expect(restored[key]).toBe(false);
+    });
+
     it('persists background timing, tracks changes, and resets to synchronized playback', () => {
         const store = useViewerStore();
         expect(store.backgroundAnimationSyncEnabled).toBe(true);

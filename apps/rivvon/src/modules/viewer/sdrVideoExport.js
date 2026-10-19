@@ -1,45 +1,37 @@
-import { getSdrEncodeArgs, getSdrMuxArgs, rgbaToBt709I420, validateSdrDimensions } from './exportColour.js';
-import { assertSdrMp4, assertSdrSps, inspectAnnexBSps, restoreCfrMp4Timing } from './videoColourMetadata.js';
+import { rgbaToBt709I420, validateSdrDimensions } from './exportColour.js';
+import { assertSdrMp4, restoreCfrMp4Timing } from './videoColourMetadata.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
-import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
+import { createSdrEncoderPool } from './sdrEncoderPool.js';
 
 const RAW_BATCH_BYTES = 32 * 1024 * 1024;
 const abortError = () => new DOMException('Video export cancelled', 'AbortError');
 
-// Pinned, single-threaded x264. No native RGB->YUV conversion or encoder
-// selection. Raw memory is bounded; compressed output remains in memory as before.
+// Pinned, single-threaded x264 per worker, with up to four independent workers.
+// Raw memory is bounded; compressed output remains in memory as before.
 export async function createSdrVideoExport(canvas, options = {}) {
     const { width = canvas.width, height = canvas.height, fps = 30, quality = 'very-high', signal,
         onStatus, onColourMetadata, logoOverlayEnabled = true, logoOverlayCorner = 'bottomLeft' } = options;
     validateSdrDimensions(width, height, fps);
     if (signal?.aborted) throw abortError();
-    const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-    const ffmpeg = new FFmpeg();
+    let pool = null;
     let terminated = false, count = 0, pending = 0, raw = null;
-    const chunks = [];
-    const logs = [];
     const frameBytes = width * height * 3 / 2;
-    const batchFrames = Math.max(1, Math.floor(RAW_BATCH_BYTES / frameBytes));
+    const batchFrames = Math.max(1, Math.min(Math.floor(RAW_BATCH_BYTES / frameBytes),
+        options.totalFrames > 0 ? Math.ceil(options.totalFrames) : Infinity));
     const dispose = () => {
         signal?.removeEventListener('abort', abort);
-        if (!terminated) { terminated = true; ffmpeg.terminate(); }
-        raw = null; chunks.length = 0;
+        if (!terminated) { terminated = true; pool?.dispose(); }
+        raw = null;
     };
     const abort = () => dispose();
     signal?.addEventListener('abort', abort, { once: true });
-    const check = () => { if (signal?.aborted || terminated) throw abortError(); };
-    ffmpeg.on('log', ({ message }) => { logs.push(message); if (logs.length > 30) logs.shift(); });
-    async function exec(args) {
-        check();
-        if (await ffmpeg.exec(args) !== 0) throw new Error(`SDR video encoder failed: ${logs.slice(-8).join('\n')}`);
-        check();
-    }
+    const check = () => { if (signal?.aborted || terminated) throw abortError(); pool?.check(); };
     try {
         check();
-        onStatus?.('Loading SDR video encoder…');
-        const base = `${import.meta.env.BASE_URL}vendor/ffmpeg/0.12.10/`;
-        await ffmpeg.load({ coreURL: `${base}ffmpeg-core.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
+        const batches = options.totalFrames > 0 ? Math.ceil(options.totalFrames / batchFrames) : 4;
+        pool = await createSdrEncoderPool({ width, height, fps, quality, signal, onStatus,
+            workerLimit: Math.min(options.wasmWorkerCount ?? 4, batches) });
         check();
         const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
         check();
@@ -51,20 +43,15 @@ export async function createSdrVideoExport(canvas, options = {}) {
         const report = { schemaVersion: 1, phase: 'encoding', encodingMethod: 'ffmpeg', format: 'mp4',
             pipeline: 'sRGB → BT.709 transfer → limited I420 → x264', encoder: '@ffmpeg/core 0.12.10 / libx264',
             width, height, fps, quality, logo: Boolean(logo),
+            workerLimit: pool.workerLimit, workerCount: pool.workerCount,
             environment: await collectExportEnvironment(options.renderContext) };
         check();
         onColourMetadata?.(report);
         if (import.meta.env.DEV) console.info('[Rivvon export colour]', report);
         async function flush() {
             if (!pending) return;
-            onStatus?.(`Encoding SDR frames ${count - pending + 1}–${count}…`);
-            // writeFile transfers its buffer. Slice to preserve the reusable batch.
-            await ffmpeg.writeFile('frames.yuv', raw.slice(0, pending * frameBytes));
-            await exec(getSdrEncodeArgs({ width, height, fps, frames: pending, quality }));
-            const chunk = await ffmpeg.readFile('chunk.h264');
-            assertSdrSps(inspectAnnexBSps(chunk), { width, height });
-            chunks.push(chunk);
-            await ffmpeg.deleteFile('frames.yuv'); await ffmpeg.deleteFile('chunk.h264');
+            // Copy only once a slot is free; writeFile transfers this copy.
+            await pool.submit(() => raw.slice(0, pending * frameBytes), pending);
             pending = 0;
         }
         return {
@@ -86,17 +73,11 @@ export async function createSdrVideoExport(canvas, options = {}) {
                     check();
                     if (!count) throw new Error('Cannot export an empty video.');
                     await flush(); raw = null;
-                    onStatus?.('Muxing and verifying SDR video…');
-                    const joined = new Uint8Array(chunks.reduce((n, chunk) => n + chunk.length, 0));
-                    let offset = 0;
-                    for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.length; }
-                    chunks.length = 0;
-                    await ffmpeg.writeFile('video.h264', joined);
-                    await exec(getSdrMuxArgs(fps));
-                    const data = await ffmpeg.readFile('video.mp4');
+                    const data = await pool.mux();
                     restoreCfrMp4Timing(data, { fps, frames: count });
                     const metadata = assertSdrMp4(data, { width, height, fps, frames: count });
-                    onColourMetadata?.(completeExportColourReport(report, metadata));
+                    onColourMetadata?.(completeExportColourReport({ ...report,
+                        workerLimit: pool.workerLimit, workerCount: pool.workerCount }, metadata));
                     if (import.meta.env.DEV) console.info('[Rivvon export colour verified]', metadata);
                     return new Blob([data], { type: 'video/mp4' });
                 } finally { dispose(); }

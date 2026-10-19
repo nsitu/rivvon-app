@@ -738,6 +738,7 @@ function resolveBackgroundFrame(ctx, renderOptions = {}) {
     reverseFlow: flowStep < 0,
     rotate90: tileManager?.rotate90 ? 1 : 0,
     flipVertical: ctx.app.backgroundFlipVertical ? 1 : 0,
+    flipHorizontal: ctx.app.backgroundFlipHorizontal ? 1 : 0,
     blurRadius: getBackgroundBlurRadius(ctx),
     currentSample,
     nextSample,
@@ -767,6 +768,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       uMirrorNext: { value: initialFrame.nextSample.mirrorX ? 1 : 0 },
       uRotate90: { value: initialFrame.rotate90 },
       uFlipVertical: { value: initialFrame.flipVertical },
+      uFlipHorizontal: { value: initialFrame.flipHorizontal },
       uBlurRadius: { value: initialFrame.blurRadius },
       uBaseEnabled: { value: initialLayerState.baseEnabled ? 1 : 0 },
       uTexture: { value: options.textureOverlay || null },
@@ -807,6 +809,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             uniform int uMirrorNext;
             uniform int uRotate90;
             uniform int uFlipVertical;
+            uniform int uFlipHorizontal;
             uniform float uBlurRadius;
             uniform int uBaseEnabled;
             uniform sampler2D uTexture;
@@ -875,9 +878,6 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                 if (uRotate90 == 1) {
                     sampleUv = vec2(sampleUv.y, 1.0 - sampleUv.x);
                 }
-                if (uFlipVertical == 1) {
-                    sampleUv.y = 1.0 - sampleUv.y;
-                }
                 return vec2(sampleUv.x, 1.0 - sampleUv.y);
             }
 
@@ -922,11 +922,17 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             }
 
             void main() {
-                float shiftedU = vUv.x + (uFlowActive == 1 ? uFlowOffset : 0.0);
+                // Flip in display space before flow, tile mirroring, and orientation.
+                // Flipping after uRotate90 swaps the visible horizontal/vertical axes.
+                vec2 backgroundUv = vec2(
+                    uFlipHorizontal == 1 ? 1.0 - vUv.x : vUv.x,
+                    uFlipVertical == 1 ? 1.0 - vUv.y : vUv.y
+                );
+                float shiftedU = backgroundUv.x + (uFlowActive == 1 ? uFlowOffset : 0.0);
                 float nextShiftedU = uReverseFlow == 1 ? shiftedU + 1.0 : shiftedU - 1.0;
 
-                vec4 currentColor = sampleTile(uTexArrayCurrent, vec2(shiftedU, vUv.y), uMirrorCurrent);
-                vec4 nextColor = sampleTile(uTexArrayNext, vec2(nextShiftedU, vUv.y), uMirrorNext);
+                vec4 currentColor = sampleTile(uTexArrayCurrent, vec2(shiftedU, backgroundUv.y), uMirrorCurrent);
+                vec4 nextColor = sampleTile(uTexArrayNext, vec2(nextShiftedU, backgroundUv.y), uMirrorNext);
                 vec4 seamSafeColor = mix(currentColor, nextColor, 0.5);
                 vec4 color = (uFlowActive == 1 && uSeamSafeBlend == 1)
                     ? seamSafeColor
@@ -986,6 +992,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     material.uniforms.uMirrorNext.value = frame.nextSample.mirrorX ? 1 : 0;
     material.uniforms.uRotate90.value = frame.rotate90;
     material.uniforms.uFlipVertical.value = frame.flipVertical;
+    material.uniforms.uFlipHorizontal.value = frame.flipHorizontal;
     material.uniforms.uBlurRadius.value = frame.blurRadius;
     updateWebGLTileBackgroundMaterial(
       material,
@@ -1024,6 +1031,7 @@ function updateWebGLTileBackgroundMaterial(
   material.uniforms.uMirrorNext.value = frame.nextSample.mirrorX ? 1 : 0;
   material.uniforms.uRotate90.value = frame.rotate90;
   material.uniforms.uFlipVertical.value = frame.flipVertical;
+  material.uniforms.uFlipHorizontal.value = frame.flipHorizontal;
   material.uniforms.uBlurRadius.value = frame.blurRadius;
   const layerState = getBackgroundLayerState(ctx);
   material.uniforms.uBaseEnabled.value = layerState.baseEnabled ? 1 : 0;
@@ -1281,7 +1289,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     const flowOffsetUniform = uniform(float(nextFrame.flowOffset));
     const flowActiveUniform = uniform(nextFrame.flowActive ? 1 : 0);
     const rotateUniform = uniform(nextFrame.rotate90);
-    const flipUniform = uniform(nextFrame.flipVertical);
+    const flipVerticalUniform = uniform(nextFrame.flipVertical);
+    const flipHorizontalUniform = uniform(nextFrame.flipHorizontal);
     const blurUniform = uniform(float(nextFrame.blurRadius));
     const waterTimeUniform = uniform(float(getBackgroundTimeSeconds()));
     const baseEnabledUniform = uniform(
@@ -1403,7 +1412,12 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       return blend.lessThan(float(0.5)).select(low, high);
     }
 
-    const currentShiftedU = baseUv.x.add(
+    // Match WebGL: these axes belong to the displayed background, before rotation.
+    const backgroundUv = vec2(
+      flipHorizontalUniform.equal(1).select(float(1).sub(baseUv.x), baseUv.x),
+      flipVerticalUniform.equal(1).select(float(1).sub(baseUv.y), baseUv.y),
+    );
+    const currentShiftedU = backgroundUv.x.add(
       flowActiveUniform.equal(1).select(flowOffsetUniform, float(0)),
     );
     const nextShiftedU = nextFrame.reverseFlow
@@ -1413,21 +1427,18 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       nextFrame.currentSample.mirrorX
         ? float(1).sub(currentShiftedU)
         : currentShiftedU,
-      baseUv.y,
+      backgroundUv.y,
     );
     const nextSourceUv = vec2(
       nextFrame.nextSample.mirrorX ? float(1).sub(nextShiftedU) : nextShiftedU,
-      baseUv.y,
+      backgroundUv.y,
     );
 
     function orient(sourceUv) {
       const rotated = rotateUniform
         .equal(1)
         .select(vec2(sourceUv.y, float(1).sub(sourceUv.x)), sourceUv);
-      const flipped = flipUniform
-        .equal(1)
-        .select(vec2(rotated.x, float(1).sub(rotated.y)), rotated);
-      return vec2(flipped.x, float(1).sub(flipped.y));
+      return vec2(rotated.x, float(1).sub(rotated.y));
     }
 
     function sampleLayers(textureValue, sourceUv) {
@@ -1527,7 +1538,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._flowOffsetUniform = flowOffsetUniform;
     material._flowActiveUniform = flowActiveUniform;
     material._rotateUniform = rotateUniform;
-    material._flipUniform = flipUniform;
+    material._flipVerticalUniform = flipVerticalUniform;
+    material._flipHorizontalUniform = flipHorizontalUniform;
     material._blurUniform = blurUniform;
     material._waterTimeUniform = waterTimeUniform;
     material._baseEnabledUniform = baseEnabledUniform;
@@ -1647,7 +1659,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     material._flowOffsetUniform.value = frame.flowOffset;
     material._flowActiveUniform.value = frame.flowActive ? 1 : 0;
     material._rotateUniform.value = frame.rotate90;
-    material._flipUniform.value = frame.flipVertical;
+    material._flipVerticalUniform.value = frame.flipVertical;
+    material._flipHorizontalUniform.value = frame.flipHorizontal;
     material._blurUniform.value = frame.blurRadius;
     material._waterTimeUniform.value = getBackgroundTimeSeconds(renderOptions);
     syncOverlayMaterial(material, true, renderOptions);
@@ -1675,7 +1688,8 @@ function syncWebGPUTileBackgroundMaterial(
   material._flowOffsetUniform.value = frame.flowOffset;
   material._flowActiveUniform.value = frame.flowActive ? 1 : 0;
   material._rotateUniform.value = frame.rotate90;
-  material._flipUniform.value = frame.flipVertical;
+  material._flipVerticalUniform.value = frame.flipVertical;
+  material._flipHorizontalUniform.value = frame.flipHorizontal;
   material._blurUniform.value = frame.blurRadius;
   const layerState = getBackgroundLayerState(ctx);
   material._baseEnabledUniform.value = layerState.baseEnabled ? 1 : 0;

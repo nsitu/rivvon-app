@@ -4,6 +4,22 @@ import { createVideoExportProgress } from './videoExportProgress.js';
 afterEach(() => vi.restoreAllMocks());
 
 describe('video export progress', () => {
+    it('counts encoded pool completions instead of queued frames and retains active ranges', () => {
+        let now = 0;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const onStatus = vi.fn();
+        const progress = createVideoExportProgress({ totalFrames: 100, onStatus });
+        progress.status('Loading SDR video encoder…', { encodedFrames: 0 });
+        progress.start();
+        now = 1000;
+        progress.status('Encoding SDR frames 1–10, 11–20 (2 workers)…', { encodedFrames: 0 });
+        progress.frameComplete(20);
+        expect(onStatus).toHaveBeenLastCalledWith('Encoding SDR frames 1–10, 11–20 (2 workers)… · 0% · Frames 0/100 · 0.0 fps');
+        now = 2000;
+        progress.status('Encoding SDR frames 1–10 (1 worker)…', { encodedFrames: 10 });
+        progress.frameComplete(30);
+        expect(onStatus).toHaveBeenLastCalledWith('Encoding SDR frames 1–10 (1 worker)… · 10% · Frames 10/100 · 5.0 fps');
+    });
     it('keeps all metrics visible during loading, batch encoding, and finalization', () => {
         let now = 1000;
         vi.spyOn(performance, 'now').mockImplementation(() => now);
