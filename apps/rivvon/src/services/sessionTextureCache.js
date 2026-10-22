@@ -1,40 +1,11 @@
 import { fetchDriveFile } from '../modules/viewer/auth.js';
-import { isLikelyIOSOrSafari } from '../modules/slyce/encodingPolicy.js';
+import { getMaxConcurrentTextureDownloads, mapWithConcurrency } from './textureDownloadConcurrency.js';
 
 const MAX_SESSION_TEXTURE_CACHE_ENTRIES = 4;
 const MAX_SESSION_TEXTURE_CACHE_BYTES = 256 * 1024 * 1024;
 
 const sessionTextureTileCache = new Map();
 const sessionTextureTileInflight = new Map();
-
-function getMaxConcurrentTextureDownloads() {
-    if (isLikelyIOSOrSafari()) {
-        return 2;
-    }
-
-    const memory = Number(typeof navigator !== 'undefined' ? navigator.deviceMemory : null);
-    if (Number.isFinite(memory) && memory > 0 && memory <= 4) {
-        return 3;
-    }
-
-    return 6;
-}
-
-async function mapWithConcurrency(items, concurrency, mapper) {
-    const results = new Array(items.length);
-    let nextIndex = 0;
-    const workerCount = Math.max(1, Math.min(concurrency, items.length));
-
-    await Promise.all(Array.from({ length: workerCount }, async () => {
-        while (nextIndex < items.length) {
-            const currentIndex = nextIndex;
-            nextIndex += 1;
-            results[currentIndex] = await mapper(items[currentIndex], currentIndex);
-        }
-    }));
-
-    return results;
-}
 
 function getTextureTileCacheKey(textureSet) {
     const directId = textureSet?.id || textureSet?.textureSetId;

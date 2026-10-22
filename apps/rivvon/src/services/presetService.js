@@ -1,6 +1,8 @@
 import { normalizeScenePreset } from '../../../../packages/shared-types/src/scenePreset.js';
 import { promoteTextureSetToCachedCloudTexture } from './localStorage.js';
 import { createTextureThumbnail } from '../modules/shared/textureThumbnail.js';
+import { cacheTextureTiles, getCachedTextureTiles } from './sessionTextureCache.js';
+import { getMaxConcurrentTextureDownloads, mapWithConcurrency } from './textureDownloadConcurrency.js';
 
 const API = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 export const presetAssetUrl = (id, asset) => `${API}/presets/${encodeURIComponent(id)}/assets/${encodeURIComponent(asset)}`;
@@ -52,39 +54,84 @@ export async function savePreset({ scene, uploads = [], uploadTexture, thumbnail
 
 export async function preparePresetTextures(id, input, onProgress) {
     const scene = normalizeScenePreset(input);
-    const entries = [];
+    // A texture may be assigned to several strands. Download its bytes only once.
+    const groups = new Map();
+    const assignments = scene.textures.map((texture, index) => {
+        const key = JSON.stringify([texture.id, texture.tileCount, texture.tileResolution, texture.layerCount, texture.variant]);
+        if (!groups.has(key)) groups.set(key, { texture, index });
+        return { texture, group: groups.get(key) };
+    });
     let completed = 0;
-    const total = scene.textures.reduce((sum, texture) => sum + texture.tileCount, 0);
-    const reportDownload = (fraction = 0, detail = '') => onProgress?.(
-        `Downloading preset textures… ${completed}/${total}${detail}`,
-        { stage: 'downloading', current: completed + fraction, total },
-    );
+    let downloadedBytes = 0;
+    const total = [...groups.values()].reduce((sum, { texture }) => sum + texture.tileCount, 0);
+    const fractions = new Map();
+    const controller = new AbortController();
+    const reportDownload = () => {
+        if (controller.signal.aborted) return;
+        const detail = downloadedBytes > 0 ? ` · ${(downloadedBytes / (1024 * 1024)).toFixed(1)} MB` : '';
+        onProgress?.(`Downloading preset textures… ${completed}/${total}${detail}`,
+            { stage: 'downloading', current: completed + [...fractions.values()].reduce((sum, value) => sum + value, 0), total });
+    };
     reportDownload();
-    for (const [index, texture] of scene.textures.entries()) {
-        const zipFiles = {};
+    const jobs = [];
+    for (const group of groups.values()) {
+        const { texture } = group;
+        const cached = getCachedTextureTiles(texture.id);
+        if (cached?.isComplete && cached.tileCount === texture.tileCount && cached.layerCount === texture.layerCount
+            && cached.variant === texture.variant
+            && Array.from({ length: texture.tileCount }, (_, tile) => cached.zipFiles[`${tile}.ktx2`]?.byteLength > 0).every(Boolean)) {
+            group.tileEntry = cached;
+            completed += texture.tileCount;
+            continue;
+        }
+        group.tileEntry = { zipFiles: {}, tileCount: texture.tileCount, layerCount: texture.layerCount,
+            variant: texture.variant, isComplete: true, source: 'preset' };
+        group.cacheAfterDownload = true;
         for (let tile = 0; tile < texture.tileCount; tile++) {
-            const response = await fetch(presetAssetUrl(id, `texture-${index}-${tile}.ktx2`), { credentials: 'include' });
+            jobs.push({ group, tile });
+        }
+    }
+    if (completed) reportDownload();
+    try {
+        await mapWithConcurrency(jobs, getMaxConcurrentTextureDownloads(), async (job) => {
+            const { group, tile } = job;
+            const response = await fetch(presetAssetUrl(id, `texture-${group.index}-${tile}.ktx2`), {
+                credentials: 'include', signal: controller.signal,
+            });
             if (!response.ok) {
                 const detail = await response.json().catch(() => ({}));
                 throw new Error(detail.error || 'A preset texture is unavailable. Your current ribbon has been preserved.');
             }
-            zipFiles[`${tile}.ktx2`] = await readPresetTile(response, (received, length) => {
-                reportDownload(length > 0 ? Math.min(0.99, received / length) : 0,
-                    ` · ${(received / (1024 * 1024)).toFixed(1)} MB`);
+            let previousBytes = 0;
+            group.tileEntry.zipFiles[`${tile}.ktx2`] = await readPresetTile(response, (received, length) => {
+                downloadedBytes += received - previousBytes;
+                previousBytes = received;
+                fractions.set(job, length > 0 ? Math.min(0.99, received / length) : 0);
+                reportDownload();
             });
+            fractions.delete(job);
             completed++;
             reportDownload();
-        }
-        entries.push({ textureSet: { id: texture.id, name: texture.name,
+        });
+    } catch (error) {
+        controller.abort();
+        throw error;
+    }
+    for (const group of groups.values()) {
+        if (group.cacheAfterDownload) group.tileEntry = cacheTextureTiles(group.texture.id, group.tileEntry);
+    }
+    return assignments.map(({ texture, group }) => ({ textureSet: { id: texture.id, name: texture.name,
             tile_count: texture.tileCount, tile_resolution: texture.tileResolution,
             layer_count: texture.layerCount, cross_section_type: texture.variant },
-            tileEntry: { zipFiles, tileCount: texture.tileCount, layerCount: texture.layerCount, variant: texture.variant, isComplete: true } });
-    }
-    return entries;
+        tileEntry: group.tileEntry }));
 }
 
 async function readPresetTile(response, onBytesReceived) {
-    if (!response.body?.getReader) return new Uint8Array(await response.arrayBuffer());
+    if (!response.body?.getReader) {
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        onBytesReceived(bytes.byteLength, bytes.byteLength);
+        return bytes;
+    }
     const reader = response.body.getReader();
     const length = Number(response.headers.get('Content-Length')) || 0;
     const chunks = [];
