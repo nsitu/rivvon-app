@@ -98,7 +98,7 @@ textureRoutes.get('/:id', async (c) => {
             url = tile.public_url || buildGoogleDriveDownloadUrl(tile.drive_file_id);
         } else if (tile.r2_key) {
             // R2 storage - use CDN URL (no auth needed)
-            url = buildCdnUrl(tile.r2_key);
+            url = tile.public_url || buildCdnUrl(tile.r2_key);
         } else {
             // Fallback to stored public_url
             url = tile.public_url || '';

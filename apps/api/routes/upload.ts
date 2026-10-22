@@ -23,6 +23,7 @@ import {
 } from '../utils/response';
 import { nanoid } from 'nanoid';
 import { normalizeSourceProvenance, readSourceProvenance } from '../utils/sourceProvenance';
+import { isValidKtx2Tile } from '../utils/ktx2';
 
 export const uploadRoutes = new Hono<AppEnv>();
 
@@ -274,11 +275,16 @@ uploadRoutes.post('/:id/complete', async (c) => {
 
   // Validate based on storage provider
   if (storageProvider === 'r2') {
+    const expectedTileCount = Number(textureSet.tile_count);
+    const indices = new Set((tiles.results as any[]).map(tile => tile.tile_index));
+    if (indices.size !== expectedTileCount || Array.from({ length: expectedTileCount }, (_, index) => index).some(index => !indices.has(index))) {
+      return badRequestResponse('Texture upload is incomplete. Upload all expected tiles before completing.');
+    }
     // Verify all tiles exist in R2
     for (const tile of tiles.results as any[]) {
       const object = await c.env.BUCKET.head(tile.r2_key);
-      if (!object) {
-        return badRequestResponse(`Tile ${tile.tile_index} not uploaded`, {
+      if (!object || object.size < 104) {
+        return badRequestResponse(`Tile ${tile.tile_index} is missing or empty. Upload valid KTX2 data before completing.`, {
           missingTile: tile.tile_index
         });
       }
@@ -424,18 +430,38 @@ uploadRoutes.put('/:setId/tile/:index', async (c) => {
     return notFoundResponse('Tile not found');
   }
 
+  const repairEmptyOnly = c.req.query('repairEmptyOnly') === 'true';
+  if (repairEmptyOnly) {
+    const existing = await c.env.BUCKET.head(tile.r2_key);
+    if (existing && existing.size > 0) {
+      return jsonResponse({ error: 'This tile contains data and cannot be replaced by empty-tile recovery.' }, 409);
+    }
+  }
+
   // Upload to R2
   const body = await c.req.arrayBuffer();
+  if (!isValidKtx2Tile(body)) {
+    return badRequestResponse('Tile data is empty or invalid KTX2. Reload the original texture and retry.');
+  }
+  if (repairEmptyOnly) {
+    const header = new DataView(body);
+    if (header.getUint32(20, true) !== Number(textureSet.tile_resolution)
+      || header.getUint32(24, true) !== Number(textureSet.tile_resolution)
+      || (header.getUint32(32, true) || 1) !== Number(textureSet.layer_count)) {
+      return badRequestResponse('Recovery tiles must match the existing texture resolution and layer count.');
+    }
+  }
   await c.env.BUCKET.put(tile.r2_key, body, {
     httpMetadata: { contentType: 'image/ktx2' }
   });
 
-  // Update tile record with size
+  // A fresh URL also bypasses previously cached empty objects after recovery.
+  const url = `${buildCdnUrl(tile.r2_key)}?v=${nanoid()}`;
   await c.env.DB.prepare(`
-    UPDATE texture_tiles SET file_size = ? WHERE id = ?
-  `).bind(body.byteLength, tile.id).run();
+    UPDATE texture_tiles SET file_size = ?, public_url = ? WHERE id = ?
+  `).bind(body.byteLength, url, tile.id).run();
 
-  return successResponse({ tileIndex, size: body.byteLength });
+  return successResponse({ tileIndex, size: body.byteLength, url });
 });
 
 // Upload thumbnail for a texture set
@@ -443,7 +469,7 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
   const auth = c.get('auth');
   const setId = c.req.param('setId');
 
-  const textureSet = await getOwnedResourceById(c.env.DB, 'texture_sets', setId, auth.userId);
+  const textureSet = await getAccessibleResourceById(c.env.DB, 'texture_sets', setId, auth, c.env.ADMIN_USERS);
 
   if (!textureSet) {
     return notFoundResponse('Texture set not found');
@@ -468,7 +494,7 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
 
   // R2 key for thumbnail
   const r2Key = buildTextureThumbnailR2Key(setId, ext);
-  const thumbnailUrl = buildCdnUrl(r2Key);
+  const thumbnailUrl = `${buildCdnUrl(r2Key)}?v=${nanoid()}`;
 
   // Upload to R2
   const body = await c.req.arrayBuffer();
@@ -476,12 +502,12 @@ uploadRoutes.put('/:setId/thumbnail', async (c) => {
     httpMetadata: { contentType }
   });
 
-  // Update texture set with thumbnail URL
+  // Root thumbnails are shared by linked variants, including existing cached URLs.
   await c.env.DB.prepare(`
     UPDATE texture_sets 
     SET thumbnail_url = ?, updated_at = unixepoch()
-    WHERE id = ?
-  `).bind(thumbnailUrl, setId).run();
+    WHERE id = ? OR parent_texture_set_id = ?
+  `).bind(thumbnailUrl, setId, setId).run();
 
   return successResponse({
     thumbnailUrl,
@@ -584,7 +610,7 @@ uploadRoutes.delete('/:id', async (c) => {
     }
 
     const thumbnailUrl = familyTextureSet.thumbnail_url as string;
-    const thumbnailKey = extractCdnPath(thumbnailUrl);
+    const thumbnailKey = extractCdnPath(thumbnailUrl.split('?')[0]);
     r2KeysToDelete.add(thumbnailKey);
   }
 

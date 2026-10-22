@@ -1,5 +1,6 @@
 import { normalizeScenePreset } from '../../../../packages/shared-types/src/scenePreset.js';
 import { promoteTextureSetToCachedCloudTexture } from './localStorage.js';
+import { createTextureThumbnail } from '../modules/shared/textureThumbnail.js';
 
 const API = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 export const presetAssetUrl = (id, asset) => `${API}/presets/${encodeURIComponent(id)}/assets/${encodeURIComponent(asset)}`;
@@ -24,9 +25,10 @@ export async function savePreset({ scene, uploads = [], uploadTexture, thumbnail
         const texture = scene.textures[upload.assignment];
         if (upload.localId && publishedLocals.has(upload.localId)) { texture.id = publishedLocals.get(upload.localId); continue; }
         onProgress?.(`Uploading ${texture.name} to your texture library…`);
+        const thumbnailBlob = upload.thumbnailBlob || await createTextureThumbnail(upload.tiles);
         const publication = await uploadTexture({ name: texture.name, description: 'Uploaded for a saved Rivvon preset',
             tileResolution: texture.tileResolution, layerCount: texture.layerCount, crossSectionType: texture.variant,
-            tiles: upload.tiles, isPublic: false,
+            tiles: upload.tiles, thumbnailBlob, isPublic: false,
             onProgress: (_, detail) => onProgress?.(detail) });
         // Retain the new library ID on a retry; it is the same media asset, not a preset copy.
         texture.id = publication.textureSetId;
@@ -53,6 +55,11 @@ export async function preparePresetTextures(id, input, onProgress) {
     const entries = [];
     let completed = 0;
     const total = scene.textures.reduce((sum, texture) => sum + texture.tileCount, 0);
+    const reportDownload = (fraction = 0, detail = '') => onProgress?.(
+        `Downloading preset textures… ${completed}/${total}${detail}`,
+        { stage: 'downloading', current: completed + fraction, total },
+    );
+    reportDownload();
     for (const [index, texture] of scene.textures.entries()) {
         const zipFiles = {};
         for (let tile = 0; tile < texture.tileCount; tile++) {
@@ -61,8 +68,12 @@ export async function preparePresetTextures(id, input, onProgress) {
                 const detail = await response.json().catch(() => ({}));
                 throw new Error(detail.error || 'A preset texture is unavailable. Your current ribbon has been preserved.');
             }
-            zipFiles[`${tile}.ktx2`] = new Uint8Array(await response.arrayBuffer());
-            onProgress?.(`Loading preset… ${++completed}/${total}`);
+            zipFiles[`${tile}.ktx2`] = await readPresetTile(response, (received, length) => {
+                reportDownload(length > 0 ? Math.min(0.99, received / length) : 0,
+                    ` · ${(received / (1024 * 1024)).toFixed(1)} MB`);
+            });
+            completed++;
+            reportDownload();
         }
         entries.push({ textureSet: { id: texture.id, name: texture.name,
             tile_count: texture.tileCount, tile_resolution: texture.tileResolution,
@@ -70,4 +81,27 @@ export async function preparePresetTextures(id, input, onProgress) {
             tileEntry: { zipFiles, tileCount: texture.tileCount, layerCount: texture.layerCount, variant: texture.variant, isComplete: true } });
     }
     return entries;
+}
+
+async function readPresetTile(response, onBytesReceived) {
+    if (!response.body?.getReader) return new Uint8Array(await response.arrayBuffer());
+    const reader = response.body.getReader();
+    const length = Number(response.headers.get('Content-Length')) || 0;
+    const chunks = [];
+    let received = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.byteLength;
+            onBytesReceived(received, length);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+    const bytes = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return bytes;
 }

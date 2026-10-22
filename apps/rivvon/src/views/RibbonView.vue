@@ -2688,9 +2688,13 @@ const activeToolbarOverlayTitle = computed(() => {
         presetBusy.value = true;
         presetProgress.value = 'Loading preset…';
         try {
+            await startTextureLoading('Loading preset…');
             const saved = await fetchPreset(id);
-            const entries = await preparePresetTextures(id, saved.scene, value => { presetProgress.value = value; });
-            const scene = await threeCanvasRef.value.restoreScene(saved.scene, entries);
+            const entries = await preparePresetTextures(id, saved.scene, (value, progress) => {
+                presetProgress.value = value;
+                setTextureLoadingDisplay(value, formatTextureLoadPercent(progress.stage, progress.current, progress.total));
+            });
+            const scene = await threeCanvasRef.value.restoreScene(saved.scene, entries, handleTextureLoadProgress);
             setCurrentDrawingHeader({ kind: scene.geometry.kind, title: scene.geometry.title, source: scene.geometry.source });
             setCurrentViewShareState({ kind: 'unshareable' });
             currentPresetId.value = id;
@@ -2712,7 +2716,11 @@ const activeToolbarOverlayTitle = computed(() => {
         } catch (error) {
             toast.add({ severity: 'error', summary: 'Could not open preset', detail: error.message, life: 6000 });
             return false;
-        } finally { presetBusy.value = false; presetProgress.value = ''; }
+        } finally {
+            finishTextureLoading();
+            presetBusy.value = false;
+            presetProgress.value = '';
+        }
     }
 
     async function handlePresetOpen(preset) {
@@ -4101,7 +4109,6 @@ const activeToolbarOverlayTitle = computed(() => {
         <PresetSaveDialog v-if="presetSaveVisible" v-model:visible="presetSaveVisible" :capture="presetCapture"
             :busy="presetBusy" :progress="presetProgress" :error="presetError" :link="presetLink" :initial-visibility="presetInitialVisibility"
             @save="handleSavePreset" @copy="copyPresetLink()" @share="nativeSharePreset" />
-        <div v-if="presetBusy && !presetSaveVisible" class="loading-overlay" role="status" aria-live="polite"><LoadingIndicator :message="presetProgress || 'Preparing preset…'" /></div>
 
         <!-- Three.js canvas -->
         <ThreeCanvas
@@ -4416,13 +4423,14 @@ const activeToolbarOverlayTitle = computed(() => {
         <!-- Loading overlay for texture loading or viewer reinitialization -->
         <Transition name="fade">
             <div
-                v-if="isLoadingTexture || app.isReinitializing"
+                v-if="isLoadingTexture || app.isReinitializing || (presetBusy && !presetSaveVisible)"
                 class="loading-overlay"
+                :class="{ 'loading-overlay--preset': presetBusy && !presetSaveVisible }"
             >
                 <LoadingIndicator
                     class="loading-content"
-                    :message="loadingMessage || 'Loading...'"
-                    :status-text="loadingStatusText"
+                    :message="isLoadingTexture || app.isReinitializing ? (loadingMessage || 'Loading...') : (presetProgress || 'Preparing preset…')"
+                    :status-text="isLoadingTexture ? loadingStatusText : ''"
                 />
             </div>
         </Transition>
@@ -4593,6 +4601,11 @@ const activeToolbarOverlayTitle = computed(() => {
     .loading-overlay--flow {
         background: #080808;
         backdrop-filter: none;
+    }
+
+    /* Preset loading must cover its library (z-index 8) and viewer chrome (10). */
+    .loading-overlay--preset {
+        z-index: 11;
     }
 
     /* Fade transition */

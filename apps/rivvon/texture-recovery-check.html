@@ -1,0 +1,63 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Recover PXL texture</title><style>body{background:#151515;color:#eee;font:16px system-ui;margin:3rem auto;max-width:45rem;padding:1rem}button,input{font:inherit;padding:.8rem;margin:1rem 0}button{cursor:pointer}img{max-width:200px}pre{white-space:pre-wrap}</style></head><body>
+<h1>Recover PXL_20261019_192801611</h1>
+<p>Restore the existing Rivvon cloud texture from its exported original. The texture ID and linked presets stay the same.</p>
+<section aria-label="Rivvon sign-in">
+<p id="auth-status" role="status">Checking sign-in in this browser...</p>
+<p>Chrome and the Codex in-app browser have separate sign-in sessions. Use this page in your signed-in Chrome browser, or sign in here.</p>
+<a id="sign-in" target="_blank" rel="noopener">Sign in to Rivvon</a>
+<button id="check-sign-in" type="button">Check sign-in</button>
+</section>
+<label>Original texture ZIP <input id="source" type="file" accept=".zip"></label>
+<pre id="status" role="status">Choose the backup ZIP to validate its tiles.</pre>
+<img id="preview" alt="Recovered texture thumbnail" hidden>
+<button id="restore" disabled>Restore empty cloud tiles and thumbnail</button>
+<script type="module">
+import JSZip from 'jszip';
+import { createTextureThumbnail } from '/src/modules/shared/textureThumbnail.js';
+import { restoreEmptyTextureTiles, getTextureRecoverySession } from '/src/services/textureRecovery.js';
+import { fetchTextureWithTiles } from '/src/services/textureService.js';
+const api=import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
+const id='9wWRheEgW-CktyGLgUDg1';
+const status=document.querySelector('#status'), source=document.querySelector('#source'), restore=document.querySelector('#restore');
+let tiles, localTexture, texture, authenticated = false, prepared = false, working = false;
+function syncControls() { restore.disabled = !authenticated || !prepared || working; }
+const authStatus = document.querySelector('#auth-status');
+document.querySelector('#sign-in').href = `${api}/api/auth/login?redirect_to=${encodeURIComponent(location.origin)}`;
+async function checkSignIn() {
+ try {
+  const session = await getTextureRecoverySession();
+  authenticated = true;
+  authStatus.textContent = `Signed in as ${session.user.name || session.user.email || 'texture owner'}.`;
+ } catch (error) {
+  authenticated = false;
+  authStatus.textContent = error.message;
+ }
+ syncControls();
+ return authenticated;
+}
+document.querySelector('#check-sign-in').onclick = checkSignIn;
+window.addEventListener('focus', checkSignIn);
+async function request(path, options={}) { const response=await fetch(`${api}/texture-set/${id}${path}`,{credentials:'include',...options});const result=await response.json();if(!response.ok)throw new Error(result.error || `Request failed: ${response.status}`);return result; }
+source.onchange=async()=>{try{
+ working=true;prepared=false;syncControls();status.textContent='Validating backup…';
+ const file=source.files[0]; let zip=await JSZip.loadAsync(file);
+ const metadata=JSON.parse(await zip.file('metadata.json').async('string'));
+ texture=await fetchTextureWithTiles(id);
+ localTexture={name:file.name.replace(/\.zip$/i,''),tile_count:metadata.output.tileCount,tile_resolution:metadata.settings.potResolution,layer_count:metadata.settings.crossSectionCount,cross_section_type:metadata.settings.crossSectionType};
+ tiles=[];for(let index=0;index<localTexture.tile_count;index++){const entry=zip.file(`${index}.ktx2`);if(!entry)throw new Error(`Missing tile ${index}`);tiles.push({index,blob:await entry.async('blob')});status.textContent=`Validated ZIP tile ${index+1}/${localTexture.tile_count}`;}zip=null;
+ const thumbnail=await createTextureThumbnail(tiles);const preview=document.querySelector('#preview');preview.src=URL.createObjectURL(thumbnail);preview.hidden=false;
+ status.textContent=`Backup ready: ${tiles.length} tiles, ${localTexture.tile_resolution}px, ${localTexture.layer_count} layers.\n${tiles.reduce((sum,tile)=>sum+tile.blob.size,0)} original bytes.\nCloud ID: ${id}`;prepared=true;
+}catch(error){status.textContent='Validation failed: '+error.message;}finally{working=false;syncControls();}};
+restore.onclick=async()=>{if(!await checkSignIn() || !prepared || working)return;working=true;syncControls();source.disabled=true;try{
+ const result=await restoreEmptyTextureTiles({texture,localTexture,tiles,fetchTextureWithTiles,
+ uploadTile:(_,index,blob)=>request(`/tile/${index}?repairEmptyOnly=true`,{method:'PUT',headers:{'Content-Type':'image/ktx2'},body:blob}),
+ completeTextureSet:()=>request('/complete',{method:'POST'}),
+ uploadThumbnail:(_,blob)=>request('/thumbnail',{method:'PUT',headers:{'Content-Type':blob.type},body:blob}),
+ onProgress:message=>{status.textContent=message;}});
+ const verified=await fetchTextureWithTiles(id);
+ if(verified.tiles.some(tile=>!tile.fileSize))throw new Error('Cloud verification still reports empty tiles');
+ status.textContent=`Recovered ${result.restoredCount} cloud tiles and thumbnail. Verified ${verified.tiles.reduce((sum,tile)=>sum+tile.fileSize,0)} cloud bytes. Existing texture ID preserved.`;
+ document.querySelector('#preview').src=result.thumbnailUrl;prepared=false;
+}catch(error){status.textContent='Recovery interrupted: '+error.message;}finally{working=false;source.disabled=false;syncControls();}};
+void checkSignIn();
+</script></body></html>

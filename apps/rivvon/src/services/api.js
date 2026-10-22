@@ -4,6 +4,12 @@ import { createDrawingPayload } from '../modules/shared/drawingLibrary.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 
+function assertTextureTilesPresent(tiles) {
+    if (!Array.isArray(tiles) || tiles.length === 0 || tiles.some(tile => !tile?.blob?.size)) {
+        throw new Error('This texture has missing or empty KTX2 tiles. Reload the original texture before uploading.')
+    }
+}
+
 /**
  * Rivvon API client with Google Auth (cookie-based session)
  * Must be used within Vue component context (setup or lifecycle hooks)
@@ -69,9 +75,9 @@ export function useRivvonAPI() {
      * Upload a single tile to the texture set
      * PUT /texture-set/:setId/tile/:index
      */
-    async function uploadTile(textureSetId, tileIndex, fileData) {
+    async function uploadTile(textureSetId, tileIndex, fileData, { repairEmptyOnly = false } = {}) {
         const response = await authFetch(
-            `${API_BASE_URL}/texture-set/${textureSetId}/tile/${tileIndex}`,
+            `${API_BASE_URL}/texture-set/${textureSetId}/tile/${tileIndex}${repairEmptyOnly ? '?repairEmptyOnly=true' : ''}`,
             {
                 method: 'PUT',
                 headers: {
@@ -401,6 +407,7 @@ export function useRivvonAPI() {
      * @param {string} [options.progressLabelPrefix] - Optional label prefix for progress details
      */
     async function uploadTextureSet(options) {
+        assertTextureTilesPresent(options.tiles)
         const {
             name,
             description,
@@ -547,6 +554,7 @@ export function useRivvonAPI() {
      * @param {Object} options - Upload options (same as uploadTextureSet)
      */
     async function uploadTextureSetToR2(options) {
+        assertTextureTilesPresent(options.tiles)
         const {
             name,
             description,

@@ -29,6 +29,37 @@ function harness() {
     return { ctx, deps, staged, oldManager, oldSeries, engine: useScenePreset(ctx, deps) };
 }
 describe('scene restoration boundary', () => {
+    it('forwards texture decoding progress and reports scene setup only after decoding finishes', async () => {
+        const h = harness(); const snapshot = h.engine.captureScene({ includeAssets: false }).scene;
+        const progress = vi.fn();
+        h.deps.textures.stagePresetTextures.mockImplementation(async (entries, artwork, report) => {
+            expect(progress).not.toHaveBeenCalled();
+            report('building', 1, 2); report('building', 2, 2);
+            return h.staged;
+        });
+        await h.engine.restoreScene(snapshot, [], progress);
+        expect(progress.mock.calls).toEqual([
+            ['building', 1, 2], ['building', 2, 2], ['applying', 0, 3],
+            ['applying', 1, 3], ['applying', 2, 3], ['applying', 3, 3],
+        ]);
+    });
+    it('captures reusable nonempty local tile bytes for preset publication', async () => {
+        const h = harness();
+        h.oldManager.zipFiles = { '0.ktx2': new Uint8Array([1, 2, 3]) };
+        const capture = h.engine.captureScene({ textureAssignments: [{ id: 'local', source: 'local' }] });
+        expect(capture.uploads[0]).toMatchObject({ assignment: 0, localId: 'local' });
+        expect(new Uint8Array(await capture.uploads[0].tiles[0].blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+        expect(h.oldManager.zipFiles['0.ktx2'].byteLength).toBe(3);
+    });
+    it('rejects source buffers emptied by worker transfer instead of publishing zero-byte tiles', () => {
+        const h = harness();
+        const bytes = new Uint8Array([1, 2, 3]);
+        h.oldManager.zipFiles = { '0.ktx2': bytes };
+        structuredClone(bytes.buffer, { transfer: [bytes.buffer] });
+        expect(bytes.byteLength).toBe(0);
+        expect(() => h.engine.captureScene({ textureAssignments: [{ id: 'local', source: 'local' }] }))
+            .toThrow('missing or empty KTX2 tiles');
+    });
     it('recreates the same artwork motion pose when opening it at a later wall-clock time', async () => {
         const h = harness(); let now = 1000;
         vi.spyOn(performance, 'now').mockImplementation(() => now);

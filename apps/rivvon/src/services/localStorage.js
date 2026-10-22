@@ -964,10 +964,11 @@ async function getCachedCloudIds() {
         const transaction = db.transaction([STORE_TEXTURE_SETS], 'readonly');
         const store = transaction.objectStore(STORE_TEXTURE_SETS);
         const index = store.index('cached_from');
-        const request = index.getAllKeys();
+        // Index.getAllKeys() returns local primary keys, not cached_from values.
+        const request = index.getAll();
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
-            resolve(new Set((request.result || []).filter(Boolean)));
+            resolve(new Set((request.result || []).map(record => record.cached_from).filter(Boolean)));
         };
     });
 }

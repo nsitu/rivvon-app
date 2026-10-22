@@ -287,8 +287,11 @@ export function useTextureLoader(ctx, deps = {}) {
     }
 
     return {
-        async stagePresetTextures(entries, artwork) {
+        async stagePresetTextures(entries, artwork, onProgress = null) {
             const prepared = [];
+            const totalTiles = entries.reduce((sum, entry) => sum + Number(entry.textureSet.tile_count), 0);
+            let completedTiles = 0;
+            onProgress?.('building', 0, totalTiles);
             try {
                 for (const entry of entries) {
                     const tm = createTileManager({
@@ -305,7 +308,13 @@ export function useTextureLoader(ctx, deps = {}) {
                         sceneLightingEnabled: artwork.sceneLightingEnabled, sceneLightingIntensity: artwork.sceneLightingIntensity,
                     });
                     prepared.push(tm);
-                    if (!await tm.loadFromSession(entry.textureSet, entry.tileEntry)) throw new Error('A preset texture could not be decoded.');
+                    const tileCount = Number(entry.textureSet.tile_count);
+                    if (!await tm.loadFromSession(entry.textureSet, entry.tileEntry, (stage, current) => {
+                        // Downloads are already complete; aggregate decoding across all textures.
+                        if (stage === 'building') onProgress?.('building', completedTiles + Math.min(tileCount, current), totalTiles);
+                    })) throw new Error('A preset texture could not be decoded.');
+                    completedTiles += tileCount;
+                    onProgress?.('building', completedTiles, totalTiles);
                     tm.setFlowSpeed(artwork.flowState === 'backward' ? -artwork.flowSpeed : artwork.flowSpeed);
                     tm.setFlowEnabled(artwork.flowState !== 'off');
                 }

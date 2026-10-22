@@ -22,9 +22,9 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
                 const tiles = [];
                 for (let tile = 0; tile < count; tile++) {
                     const bytes = manager.zipFiles?.[`${tile}.ktx2`];
-                    if (bytes) tiles.push({ index: tile, blob: new Blob([bytes], { type: 'image/ktx2' }) });
+                    if (bytes?.byteLength) tiles.push({ index: tile, blob: new Blob([bytes], { type: 'image/ktx2' }) });
                 }
-                if (tiles.length !== count) throw new Error('Finish capturing the texture before saving a preset. This texture has no reusable KTX2 tiles.');
+                if (tiles.length !== count) throw new Error('This texture has missing or empty KTX2 tiles. Reload the original texture before saving a preset.');
                 uploads.push({ assignment, tiles, localId: selection?.id || null });
             }
             return { id, name: manager.currentTextureSet?.name || selection?.name || ctx.app.currentTextureName || 'Texture',
@@ -71,11 +71,12 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
         camera.updateMatrixWorld(true);
     }
 
-    async function restoreScene(input, textureEntries) {
+    async function restoreScene(input, textureEntries, onProgress = null) {
         const scene = normalizeScenePreset(input);
         const previous = captureScene({ includeAssets: false }).scene;
         // Decode every tile in separate managers before touching the working scene.
-        const prepared = await textures.stagePresetTextures(textureEntries, scene.artwork);
+        const prepared = await textures.stagePresetTextures(textureEntries, scene.artwork, onProgress);
+        onProgress?.('applying', 0, 3);
         const old = { managers: ctx.tileManagers.value, manager: ctx.tileManager.value,
             series: ctx.ribbonSeries.value, ribbon: ctx.ribbon.value,
             snapshot: previous, proceduralPathMode: ctx.app.proceduralPathMode,
@@ -103,15 +104,18 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
                 await ribbons.createRibbonSeries(inflateDrawingPaths(scene.geometry.paths), { width: scene.geometry.width });
             }
             if (!ctx.ribbonSeries.value) throw new Error('Could not rebuild the preset geometry.');
+            onProgress?.('applying', 1, 3);
             for (const [index, manager] of prepared.entries()) manager.restorePresetAnimation(scene.animation.textures[index]);
             ctx.ribbonSeries.value.initFlowMaterials?.();
             renderLoop.setArtworkTime(scene.animation.time);
             ctx.ribbonSeries.value.updateProcedural?.(scene.animation.time);
             ctx.ribbonSeries.value.update(scene.animation.time);
             await updateBackground();
+            onProgress?.('applying', 2, 3);
             restoreCamera(scene.camera);
             ctx.viewerMotion?.restoreSnapshot?.(scene.animation.motion);
             background?.restoreLayerProgress?.(scene.animation.backgroundLayerProgress, scene.animation.time);
+            onProgress?.('applying', 3, 3);
             committed = true;
             old.series?.dispose();
             old.ribbon?.dispose();

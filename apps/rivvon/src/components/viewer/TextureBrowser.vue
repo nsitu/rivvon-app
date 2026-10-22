@@ -11,6 +11,11 @@
     import { getTextureVariantTargetResolutionOptions } from '../../modules/slyce/textureFamilyPlanning.js';
     import { createLazyLoader } from '../../modules/shared/lazyLoader.js';
     import Button from 'primevue/button';
+    import Dialog from 'primevue/dialog';
+    import InputText from 'primevue/inputtext';
+    import Textarea from 'primevue/textarea';
+    import Select from 'primevue/select';
+    import { matchesRecoverySource, restoreEmptyTextureTiles } from '../../services/textureRecovery.js';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import ChromeButton from '../shared/ChromeButton.vue';
@@ -44,9 +49,9 @@
     const selectedFamilyVariantIds = ref(new Map()); // cardId -> selected variant id
 
     const app = useViewerStore();
-    const { deleteTextureSet, getTexturePresetDependencies, uploadTextureSet, uploadTextureSetToR2, updateTextureSet } = useRivvonAPI();
+    const { deleteTextureSet, getTexturePresetDependencies, uploadTextureSet, uploadTextureSetToR2, updateTextureSet, uploadThumbnail, uploadTile, completeTextureSet } = useRivvonAPI();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
-    const { getAllTextureSets: getLocalTextures, getTextureSet: getLocalTextureSet, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, promoteTextureSetToCachedCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
+    const { getAllTextureSets: getLocalTextures, getTextureSet: getLocalTextureSet, deleteTextureSet: deleteLocalTextureSet, getTiles: getLocalTiles, getTile: getLocalTile, updateTextureSet: updateLocalTextureSet, cacheCloudTexture, promoteTextureSetToCachedCloudTexture, getCachedCloudIds, getCachedLocalId, evictCachedTexture } = useLocalStorage();
 
     // State
     const textures = ref([]);
@@ -98,6 +103,15 @@
     const editError = ref(null);
     const editTextureIds = ref([]);
     const editVariantCount = ref(1);
+    const isUpdatingTextureMedia = ref(false);
+    const isRepairingTexture = ref(false);
+    const recoveryLocalId = ref(null);
+    const recoverySources = computed(() => localTextures.value
+        .filter(local => matchesRecoverySource(textureToEdit.value, local) && Number(local.total_size_bytes || local.total_size) > 0)
+        .map(local => ({ ...local, label: `${local.name} (${local.tile_resolution}px)` })));
+    const thumbnailStatus = ref('');
+    const thumbnailError = ref('');
+    const editThumbnailUrl = ref(null);
 
     function buildResolvedTextureRecord(rootTexture, resolvedSummary, fallbackRecord = null) {
         const baseTexture = fallbackRecord || rootTexture || null;
@@ -1722,9 +1736,107 @@
         editError.value = null;
         editTextureIds.value = getFamilyMemberIds(texture);
         editVariantCount.value = getFamilyVariantCount(texture);
+        thumbnailStatus.value = '';
+        thumbnailError.value = '';
+        editThumbnailUrl.value = texture.thumbnail_url || texture.thumbnail_data_url || null;
+        recoveryLocalId.value = recoverySources.value.find(local => local.cached_from === actionTexture.id)?.id
+            || recoverySources.value[0]?.id || null;
+    }
+
+    async function regenerateThumbnail() {
+        if (!textureToEdit.value || isUpdatingTextureMedia.value || isEditing.value) return;
+        const texture = textureToEdit.value;
+        isUpdatingTextureMedia.value = true;
+        thumbnailStatus.value = 'Generating thumbnail…';
+        thumbnailError.value = '';
+        try {
+            // A thumbnail needs only tile zero, even when the texture has many tiles.
+            let tile = null;
+            if (isLocalTexture(texture)) {
+                tile = await getLocalTile(texture.id, 0);
+            } else {
+                // Cache access is optional; fall back to the remote source if it fails.
+                const localId = await getCachedLocalId(texture.id).catch(() => null);
+                if (localId) tile = await getLocalTile(localId, 0).catch(() => null);
+            }
+            if (!tile?.blob?.size && !isLocalTexture(texture)) {
+                const { fetchTextureWithTiles } = await loadTextureService();
+                const source = await fetchTextureWithTiles(texture.id);
+                const remoteTile = source.tiles?.find(tile => getTileIndex(tile) === 0);
+                if (remoteTile) tile = { index: 0, blob: await downloadCloudTileBlob(remoteTile) };
+            }
+            const { createTextureThumbnail } = await import('../../modules/shared/textureThumbnail.js');
+            const blob = await createTextureThumbnail(tile ? [tile] : []);
+            const dataUrl = await blobToDataUrl(blob);
+            let thumbnailUrl = dataUrl;
+            if (!isLocalTexture(texture)) {
+                thumbnailStatus.value = 'Uploading thumbnail…';
+                ({ thumbnailUrl } = await uploadThumbnail(texture.id, blob));
+            }
+
+            editThumbnailUrl.value = thumbnailUrl;
+            const targetIds = new Set(editTextureIds.value.length ? editTextureIds.value : [texture.id]);
+            textures.value = textures.value.map(record => targetIds.has(record.id) ? { ...record, thumbnail_url: thumbnailUrl } : record);
+            if (targetIds.has(app.currentTextureId)) app.setThumbnailUrl(thumbnailUrl);
+
+            const localIds = isLocalTexture(texture)
+                ? [...targetIds]
+                : (await Promise.all([...targetIds].map(id => getCachedLocalId(id).catch(() => null)))).filter(Boolean);
+            const results = await Promise.allSettled(localIds.map(id => updateLocalTextureSet(id, { thumbnail_data_url: dataUrl })));
+            const updatedLocalIds = new Set(localIds.filter((id, index) => results[index].status === 'fulfilled'));
+            localTextures.value = localTextures.value.map(record => updatedLocalIds.has(record.id) ? { ...record, thumbnail_data_url: dataUrl } : record);
+            if (results.some(result => result.status === 'rejected')) {
+                if (isLocalTexture(texture)) throw new Error('Unable to save the thumbnail to local storage. Please retry.');
+                thumbnailStatus.value = 'Thumbnail regenerated. Some local cached copies could not be updated.';
+            } else {
+                thumbnailStatus.value = 'Thumbnail regenerated and saved.';
+            }
+        } catch (error) {
+            thumbnailStatus.value = '';
+            thumbnailError.value = error.message || 'Unable to regenerate the thumbnail.';
+        } finally {
+            isUpdatingTextureMedia.value = false;
+        }
+    }
+
+    async function restoreCloudTexture() {
+        if (isUpdatingTextureMedia.value || isEditing.value || !textureToEdit.value) return;
+        const texture = textureToEdit.value;
+        const localTexture = recoverySources.value.find(local => local.id === recoveryLocalId.value);
+        if (!localTexture) return;
+        isUpdatingTextureMedia.value = true;
+        isRepairingTexture.value = true;
+        thumbnailError.value = '';
+        thumbnailStatus.value = 'Checking local recovery copy…';
+        try {
+            const { fetchTextureWithTiles } = await loadTextureService();
+            const result = await restoreEmptyTextureTiles({
+                texture, localTexture, tiles: await getLocalTiles(localTexture.id),
+                fetchTextureWithTiles, uploadTile, completeTextureSet, uploadThumbnail,
+                onProgress: message => { thumbnailStatus.value = message; },
+            });
+            editThumbnailUrl.value = result.thumbnailUrl;
+            const { invalidateTextureTiles } = await import('../../services/sessionTextureCache.js');
+            const { evictDecodedTextureSet } = await import('../../modules/shared/decodedTextureCache.js');
+            invalidateTextureTiles(texture.id);
+            evictDecodedTextureSet(texture.id);
+            // Keep the recovery source; discard a separate, damaged downloaded cache only.
+            const cachedLocalId = await getCachedLocalId(texture.id);
+            if (cachedLocalId && cachedLocalId !== localTexture.id) await evictCachedTexture(texture.id);
+            await updateLocalTextureSet(localTexture.id, { thumbnail_data_url: await blobToDataUrl(result.thumbnail) });
+            await loadTextures();
+            thumbnailStatus.value = `Restored ${result.restoredCount} empty cloud tile${result.restoredCount === 1 ? '' : 's'} and saved the thumbnail. Apply the texture to reload it.`;
+        } catch (error) {
+            thumbnailStatus.value = '';
+            thumbnailError.value = error.message || 'Unable to restore the cloud texture. You can retry with the same local copy.';
+        } finally {
+            isUpdatingTextureMedia.value = false;
+            isRepairingTexture.value = false;
+        }
     }
 
     async function performEdit() {
+        if (isEditing.value || isUpdatingTextureMedia.value) return;
         if (!textureToEdit.value || !editName.value.trim()) {
             editError.value = 'Name cannot be empty';
             return;
@@ -1783,7 +1895,7 @@
             }
 
             await loadTextures();
-            cancelEdit();
+            cancelEdit(true);
         } catch (err) {
             console.error('[TextureBrowser] Edit failed:', err);
             editError.value = err.message || 'Failed to update';
@@ -1792,13 +1904,18 @@
         }
     }
 
-    function cancelEdit() {
+    function cancelEdit(force = false) {
+        if ((isEditing.value || isUpdatingTextureMedia.value) && force !== true) return;
         textureToEdit.value = null;
         editName.value = '';
         editDescription.value = '';
         editError.value = null;
         editTextureIds.value = [];
         editVariantCount.value = 1;
+        editThumbnailUrl.value = null;
+        recoveryLocalId.value = null;
+        thumbnailStatus.value = '';
+        thumbnailError.value = '';
     }
 
     function formatSize(bytes) {
@@ -2868,77 +2985,108 @@
             </div>
         </Teleport>
 
-        <!-- Edit metadata modal -->
-        <Teleport to="body">
-            <div
-                v-if="textureToEdit"
-                class="delete-modal-overlay edit-modal-overlay"
-                @click.self="cancelEdit"
-            >
-                <div class="delete-modal edit-modal">
-                    <h3>{{ editModalTitle }}</h3>
-                    <p v-if="isEditingFamilyName">
-                        This updates the title and caption for the root and every linked variant in the family.
-                    </p>
-                    <div class="edit-input-container">
-                        <label
-                            class="edit-field-label"
-                            for="editTextureName"
-                        >Title</label>
-                        <input
-                            v-model="editName"
-                            id="editTextureName"
-                            type="text"
-                            class="edit-name-input"
-                            placeholder="Texture title"
-                            @keydown.enter="performEdit"
-                            @keydown.escape="cancelEdit"
-                            autofocus
-                        />
+        <!-- PrimeVue Dialog supplies focus trapping, accessible naming, and Escape handling. -->
+        <Dialog
+            :visible="Boolean(textureToEdit)"
+            :header="editModalTitle"
+            modal
+            :closable="!isEditing && !isUpdatingTextureMedia"
+            :close-on-escape="!isEditing && !isUpdatingTextureMedia"
+            :style="{ width: '30rem', maxWidth: 'calc(100vw - 2rem)', maxHeight: 'calc(100dvh - 2rem)' }"
+            :pt="{ content: { style: { overflow: 'hidden' } } }"
+            @update:visible="visible => { if (!visible) cancelEdit(); }"
+        >
+            <div class="edit-metadata-content">
+                <ScrollPanel class="rivvon-scroll-panel">
+                    <div class="edit-metadata-fields">
+                        <p v-if="isEditingFamilyName">
+                            This updates the title, caption, and thumbnail for the root and every linked variant in the family.
+                        </p>
+                        <div class="edit-input-container">
+                            <label class="edit-field-label" for="editTextureName">Title</label>
+                            <InputText
+                                v-model="editName"
+                                id="editTextureName"
+                                placeholder="Texture title"
+                                :disabled="isEditing"
+                                @keydown.enter="performEdit"
+                                autofocus
+                            />
+                        </div>
+                        <div class="edit-input-container">
+                            <label class="edit-field-label" for="editTextureDescription">Description / caption</label>
+                            <Textarea
+                                v-model="editDescription"
+                                id="editTextureDescription"
+                                rows="4"
+                                placeholder="Optional caption shown when the viewer overlay is enabled"
+                                :disabled="isEditing"
+                            />
+                            <p class="edit-field-hint">Optional. This text can be surfaced as a viewer overlay.</p>
+                        </div>
+                        <div class="edit-input-container" :aria-busy="isUpdatingTextureMedia">
+                            <span class="edit-field-label">Thumbnail</span>
+                            <img v-if="editThumbnailUrl" :src="editThumbnailUrl" class="edit-thumbnail" alt="Texture thumbnail" />
+                            <p v-else class="edit-field-hint">No thumbnail available.</p>
+                            <Button
+                                label="Regenerate Thumbnail"
+                                severity="secondary"
+                                variant="outlined"
+                                :loading="isUpdatingTextureMedia && !isRepairingTexture"
+                                :disabled="isEditing || isUpdatingTextureMedia"
+                                @click="regenerateThumbnail"
+                            />
+                            <p class="edit-field-hint">Uses the first frame of the texture. The thumbnail is saved immediately.</p>
+                        </div>
+                        <div v-if="textureToEdit && !isLocalTexture(textureToEdit) && textureToEdit.storage_provider === 'r2'" class="edit-input-container">
+                            <label class="edit-field-label" for="textureRecoverySource">Restore empty cloud files</label>
+                            <p class="edit-field-hint">Restore damaged uploads from a matching local copy. Existing files and preset links are preserved.</p>
+                            <Select
+                                v-if="recoverySources.length"
+                                v-model="recoveryLocalId"
+                                input-id="textureRecoverySource"
+                                :options="recoverySources"
+                                option-label="label"
+                                option-value="id"
+                                :disabled="isEditing || isUpdatingTextureMedia"
+                            />
+                            <p v-else class="edit-field-hint">No matching local copy found in this browser. Open the library in the browser and site address where the original is saved.</p>
+                            <Button
+                                label="Restore Empty Cloud Tiles"
+                                severity="secondary"
+                                variant="outlined"
+                                :loading="isRepairingTexture"
+                                :disabled="!recoveryLocalId || isEditing || isUpdatingTextureMedia"
+                                @click="restoreCloudTexture"
+                            />
+                        </div>
+                        <p v-if="editError" class="edit-error" role="alert">{{ editError }}</p>
                     </div>
-                    <div class="edit-input-container">
-                        <label
-                            class="edit-field-label"
-                            for="editTextureDescription"
-                        >Description / caption</label>
-                        <textarea
-                            v-model="editDescription"
-                            id="editTextureDescription"
-                            rows="4"
-                            class="edit-description-input"
-                            placeholder="Optional caption shown when the viewer overlay is enabled"
-                            @keydown.escape="cancelEdit"
-                        ></textarea>
-                        <p class="edit-field-hint">Optional. This text can be surfaced as a viewer overlay.</p>
-                    </div>
-                    <p
-                        v-if="editError"
-                        class="edit-error"
-                    >
-                        {{ editError }}
-                    </p>
-                    <div class="delete-modal-actions rivvon-modal-actions">
+                </ScrollPanel>
+            </div>
+            <template #footer>
+                <div class="edit-metadata-footer">
+                    <p v-if="thumbnailStatus" class="edit-field-hint" role="status">{{ thumbnailStatus }}</p>
+                    <p v-if="thumbnailError" class="edit-error" role="alert">{{ thumbnailError }}</p>
+                    <div class="rivvon-modal-actions">
                         <Button
-                            type="button"
+                            label="Cancel"
                             severity="secondary"
                             variant="outlined"
+                            :disabled="isEditing || isUpdatingTextureMedia"
                             @click="cancelEdit"
-                            :disabled="isEditing"
-                        >
-                            Cancel
-                        </Button>
+                        />
                         <Button
-                            type="button"
+                            label="Save"
                             severity="success"
+                            :loading="isEditing"
+                            :disabled="isEditing || isUpdatingTextureMedia || !editName.trim()"
                             @click="performEdit"
-                            :disabled="isEditing || !editName.trim()"
-                        >
-                            {{ isEditing ? 'Saving...' : 'Save' }}
-                        </Button>
+                        />
                     </div>
                 </div>
-            </div>
-        </Teleport>
+            </template>
+        </Dialog>
 
         <!-- Animated preview panel is now inline above (not a Teleport) -->
     </div>
@@ -3609,15 +3757,25 @@
         min-width: 120px;
     }
 
+    /* Keep header/footer reachable while the form scrolls on short or narrow screens. */
+    .edit-metadata-content {
+        display: flex;
+        height: min(34rem, calc(100dvh - 16rem));
+        min-height: 0;
+    }
+
+    .edit-metadata-footer {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .edit-metadata-fields {
+        padding: 0.25rem 0.75rem 0.75rem 0.25rem;
+    }
+
     /* Edit modal styles */
-    .edit-modal-overlay {
-        background: rgba(0, 0, 0, 0.7);
-    }
-
-    .edit-modal {
-        max-width: 480px;
-    }
-
     .edit-input-container {
         display: flex;
         flex-direction: column;
@@ -3630,47 +3788,26 @@
         font-weight: 700;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #cbd5e1;
+        color: var(--p-text-color);
     }
 
-    .edit-name-input,
-    .edit-description-input {
-        width: 100%;
-        padding: 10px 12px;
-        background: #333;
-        border: 1px solid #555;
-        border-radius: 6px;
-        color: #fff;
-        font-size: 14px;
-        outline: none;
-        transition: border-color 0.2s ease;
-    }
-
-    .edit-description-input {
-        min-height: 96px;
-        resize: vertical;
-        line-height: 1.5;
-    }
-
-    .edit-name-input:focus,
-    .edit-description-input:focus {
-        border-color: #22c55e;
-    }
-
-    .edit-name-input::placeholder,
-    .edit-description-input::placeholder {
-        color: #888;
+    .edit-thumbnail {
+        width: 8rem;
+        max-width: 100%;
+        aspect-ratio: 1;
+        object-fit: contain;
+        align-self: center;
     }
 
     .edit-field-hint {
         margin: 0;
-        color: #94a3b8;
+        color: var(--p-text-muted-color);
         font-size: 12px;
         line-height: 1.45;
     }
 
     .edit-error {
-        color: #f87171;
+        color: var(--p-red-400);
         font-size: 13px;
         margin: 8px 0;
     }

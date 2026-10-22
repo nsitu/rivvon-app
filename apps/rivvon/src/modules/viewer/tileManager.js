@@ -2959,7 +2959,9 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
                 // Parse the KTX2 file from the Uint8Array buffer
                 this._ktx2Loader.parse(
-                    fileData.buffer,
+                    // KTX2Loader transfers this buffer to its worker. Keep zipFiles reusable
+                    // for preset publication, export, and subsequent texture loads.
+                    fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
                     (arrayTexture) => {
                         const material = this.#registerDecodedArrayTexture(arrayTexture, index);
                         rememberDecodedTexture(this.#getDecodedTextureCacheKey(), this.rendererType, index, arrayTexture);
@@ -4428,8 +4430,8 @@ ${CAMERA_KEY_LIGHTING_GLSL}
 
         return new Promise((resolve, reject) => {
             const buffer = ktx2Buffer instanceof Uint8Array
-                ? ktx2Buffer.buffer
-                : ktx2Buffer;
+                ? ktx2Buffer.buffer.slice(ktx2Buffer.byteOffset, ktx2Buffer.byteOffset + ktx2Buffer.byteLength)
+                : ktx2Buffer.slice(0);
 
             this._ktx2Loader.parse(
                 buffer,

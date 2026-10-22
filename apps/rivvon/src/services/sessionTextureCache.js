@@ -170,6 +170,10 @@ export function getCachedTextureTiles(textureSetOrId) {
     return touchTextureEntry(cacheKey);
 }
 
+export function invalidateTextureTiles(textureSetId) {
+    sessionTextureTileCache.delete(String(textureSetId));
+}
+
 export function cacheTextureTiles(textureSetOrId, tileEntry, { logPrefix = '[SessionTextureCache]' } = {}) {
     const cacheKey = typeof textureSetOrId === 'string'
         ? textureSetOrId
