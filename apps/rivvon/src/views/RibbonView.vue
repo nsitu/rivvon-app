@@ -2687,6 +2687,7 @@ const activeToolbarOverlayTitle = computed(() => {
         if (presetBusy.value) return false;
         presetBusy.value = true;
         presetProgress.value = 'Loading preset…';
+        app.hidePresetBrowser();
         try {
             await startTextureLoading('Loading preset…');
             const saved = await fetchPreset(id);
@@ -2711,7 +2712,6 @@ const activeToolbarOverlayTitle = computed(() => {
                 viewerAudio.state.sensitivity = scene.audio.sensitivity;
                 viewerAudio.state.amount = scene.audio.amount;
             } else viewerAudio.state.reactiveEnabled = false;
-            app.hidePresetBrowser();
             return true;
         } catch (error) {
             toast.add({ severity: 'error', summary: 'Could not open preset', detail: error.message, life: 6000 });

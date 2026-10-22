@@ -71,6 +71,8 @@ For a new panel, decide explicitly whether it is a self-contained context (heade
 
 ## Controls and interaction
 
+Applying a texture or opening a preset closes its browser immediately. Show loading progress in the shared overlay over the scene while the selection loads, and report failures with the existing error toast.
+
 ### Button purpose and styling
 
 Choose a button's purpose before choosing its visual treatment. Purpose determines the shared surface; PrimeVue `severity` expresses emphasis or danger, and `variant` expresses filled, outlined, text, or link treatment. A component's location or use of a native `<button>` must not implicitly decide these.
