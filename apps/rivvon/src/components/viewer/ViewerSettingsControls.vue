@@ -1,7 +1,8 @@
 <script setup>
-    import { computed, nextTick, ref } from 'vue';
+    import { computed, nextTick, ref, useId } from 'vue';
     import Button from 'primevue/button';
     import Select from 'primevue/select';
+    import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -130,23 +131,29 @@
         return option?.description ?? artworkMotionOptions[0].description;
     });
 
-    const viewerMotionLoopCountOptions = ARTWORK_MOTION_LOOP_COUNT_OPTIONS;
+    // The stored value is a duration multiplier, so descending values run slow to fast.
+    const viewerMotionLoopCountOptions = [...ARTWORK_MOTION_LOOP_COUNT_OPTIONS].sort((a, b) => b.value - a.value);
+    const motionRateId = `motion-rate-${useId()}`;
 
-    const selectedViewerMotionLoopCountOption = computed({
-        get: () => viewerMotionLoopCountOptions.find(
-            (option) => option.value === app.viewerMotionLoopCount,
-        ) ?? viewerMotionLoopCountOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setViewerMotionLoopCount(option.value);
+    const viewerMotionRateIndex = computed({
+        get: () => {
+            const index = viewerMotionLoopCountOptions.findIndex(option => option.value === app.viewerMotionLoopCount);
+            return index >= 0 ? index : viewerMotionLoopCountOptions.findIndex(option => option.value === 1);
+        },
+        set: (index) => {
+            const option = viewerMotionLoopCountOptions[index];
+            if (option) app.setViewerMotionLoopCount(option.value);
         }
+    });
+    const selectedViewerMotionLoopCountOption = computed(() => viewerMotionLoopCountOptions[viewerMotionRateIndex.value]);
+    const viewerMotionRateRatio = computed(() => {
+        const option = selectedViewerMotionLoopCountOption.value;
+        return `${option.pathCount}:${option.materialLoopCount}`;
     });
 
     const viewerMotionLoopDescription = computed(() => {
         const motionLabel = app.artworkMotionMode === 'tumbleOrbit' ? 'tumble path' : 'artwork turn';
-        const option = viewerMotionLoopCountOptions.find(
-            (entry) => entry.value === app.viewerMotionLoopCount,
-        ) ?? viewerMotionLoopCountOptions[0];
+        const option = selectedViewerMotionLoopCountOption.value;
         const materialLoopLabel = option.materialLoopCount === 1 ? 'loop' : 'loops';
 
         if (option.pathCount === 1) {
@@ -330,17 +337,30 @@
                     v-if="app.artworkMotionMode !== 'none'"
                     class="tools-motion-details"
                 >
-                    <div class="tools-select-block">
-                        <label class="tools-select-label">Motion Rate</label>
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedViewerMotionLoopCountOption"
-                                :options="viewerMotionLoopCountOptions"
-                                option-label="label"
-                                class="tools-select"
+                    <div class="tools-slider">
+                        <label :id="motionRateId">
+                            Motion Rate
+                            <span class="tools-slider-value" aria-hidden="true">{{ viewerMotionRateRatio }}</span>
+                        </label>
+                        <div class="motion-rate-track">
+                            <Slider
+                                v-model="viewerMotionRateIndex"
+                                :min="0"
+                                :max="viewerMotionLoopCountOptions.length - 1"
+                                :step="1"
+                                :aria-labelledby="motionRateId"
+                                :pt="{ handle: { 'aria-valuetext': selectedViewerMotionLoopCountOption.label, 'aria-describedby': `${motionRateId}-description` } }"
                             />
+                            <div class="motion-rate-ticks" aria-hidden="true">
+                                <span v-for="option in viewerMotionLoopCountOptions" :key="option.value"></span>
+                            </div>
+                            <div class="motion-rate-scale" aria-hidden="true">
+                                <span>1:8</span>
+                                <span>1:1</span>
+                                <span>8:1</span>
+                            </div>
                         </div>
-                        <div class="tools-setting-description">{{ viewerMotionLoopDescription }}</div>
+                        <div :id="`${motionRateId}-description`" class="tools-setting-description">{{ viewerMotionLoopDescription }}</div>
                     </div>
                 </div>
 
@@ -633,6 +653,30 @@
         flex-direction: column;
         border-left: 2px solid rgba(16, 185, 129, 0.3);
         margin: 0 0.75rem 0.75rem 1.25rem;
+    }
+
+    .motion-rate-track {
+        margin: 0.5rem 0.5rem 0;
+    }
+
+    .motion-rate-ticks {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.6rem;
+    }
+
+    .motion-rate-ticks span {
+        width: 1px;
+        height: 4px;
+        background: var(--p-content-border-color);
+    }
+
+    .motion-rate-scale {
+        display: flex;
+        justify-content: space-between;
+        margin: 0.25rem -0.5rem 0;
+        font-size: 0.72rem;
+        color: var(--p-text-muted-color);
     }
 
     .tools-status-card {
