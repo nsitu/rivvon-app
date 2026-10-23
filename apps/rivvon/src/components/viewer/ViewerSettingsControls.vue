@@ -335,33 +335,31 @@
 
                 <div
                     v-if="app.artworkMotionMode !== 'none'"
-                    class="tools-motion-details"
+                    class="tools-slider"
                 >
-                    <div class="tools-slider">
-                        <label :id="motionRateId">
-                            Motion Rate
-                            <span class="tools-slider-value" aria-hidden="true">{{ viewerMotionRateRatio }}</span>
-                        </label>
-                        <div class="motion-rate-track">
-                            <Slider
-                                v-model="viewerMotionRateIndex"
-                                :min="0"
-                                :max="viewerMotionLoopCountOptions.length - 1"
-                                :step="1"
-                                :aria-labelledby="motionRateId"
-                                :pt="{ handle: { 'aria-valuetext': selectedViewerMotionLoopCountOption.label, 'aria-describedby': `${motionRateId}-description` } }"
-                            />
-                            <div class="motion-rate-ticks" aria-hidden="true">
-                                <span v-for="option in viewerMotionLoopCountOptions" :key="option.value"></span>
-                            </div>
-                            <div class="motion-rate-scale" aria-hidden="true">
-                                <span>1:8</span>
-                                <span>1:1</span>
-                                <span>8:1</span>
-                            </div>
+                    <label :id="motionRateId">
+                        Motion Rate
+                        <span class="tools-slider-value" aria-hidden="true">{{ viewerMotionRateRatio }}</span>
+                    </label>
+                    <div class="motion-rate-track">
+                        <Slider
+                            v-model="viewerMotionRateIndex"
+                            :min="0"
+                            :max="viewerMotionLoopCountOptions.length - 1"
+                            :step="1"
+                            :aria-labelledby="motionRateId"
+                            :pt="{ handle: { 'aria-valuetext': selectedViewerMotionLoopCountOption.label, 'aria-describedby': `${motionRateId}-description` } }"
+                        />
+                        <div class="motion-rate-ticks" aria-hidden="true">
+                            <span v-for="option in viewerMotionLoopCountOptions" :key="option.value"></span>
                         </div>
-                        <div :id="`${motionRateId}-description`" class="tools-setting-description">{{ viewerMotionLoopDescription }}</div>
+                        <div class="motion-rate-scale" aria-hidden="true">
+                            <span>1:8</span>
+                            <span>1:1</span>
+                            <span>8:1</span>
+                        </div>
                     </div>
+                    <div :id="`${motionRateId}-description`" class="tools-setting-description">{{ viewerMotionLoopDescription }}</div>
                 </div>
 
                 <div class="tools-select-block">
@@ -646,13 +644,6 @@
         font-size: 0.78rem;
         line-height: 1.35;
         color: rgba(255, 255, 255, 0.55);
-    }
-
-    .tools-motion-details {
-        display: flex;
-        flex-direction: column;
-        border-left: 2px solid rgba(16, 185, 129, 0.3);
-        margin: 0 0.75rem 0.75rem 1.25rem;
     }
 
     .motion-rate-track {

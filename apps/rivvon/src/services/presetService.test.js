@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { savePreset, preparePresetTextures } from './presetService.js';
 import { createTextureThumbnail } from '../modules/shared/textureThumbnail.js';
+import { getTextureSet } from './localStorage.js';
 import { cacheTextureTiles, getCachedTextureTiles, getOrFetchTextureTiles, invalidateTextureTiles } from './sessionTextureCache.js';
-vi.mock('./localStorage.js', () => ({ promoteTextureSetToCachedCloudTexture: vi.fn(async () => {}) }));
+vi.mock('./localStorage.js', () => ({
+    getTextureSet: vi.fn(async () => null),
+    promoteTextureSetToCachedCloudTexture: vi.fn(async () => {}),
+}));
 vi.mock('../modules/shared/textureThumbnail.js', () => ({ createTextureThumbnail: vi.fn(async () => new Blob(['texture preview'], { type: 'image/jpeg' })) }));
 const scene = () => ({ schemaVersion: 1,
     geometry: { paths: [[{ x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 0 }]], width: 1.2 },
@@ -14,6 +18,14 @@ afterEach(() => {
     vi.unstubAllGlobals(); vi.clearAllMocks();
 });
 describe('preset publication', () => {
+    it('requires an upload destination before publishing a local texture or creating its preset', async () => {
+        const input = scene(); input.textures[0].id = '';
+        const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+        await expect(savePreset({ scene: input, uploads: [{ assignment: 0, tiles: [] }],
+            thumbnail: new Blob(['preview']), name: 'Ribbon' })).rejects.toThrow('Choose an upload destination');
+        expect(createTextureThumbnail).not.toHaveBeenCalled();
+        expect(fetch).not.toHaveBeenCalled();
+    });
     it('never republishes existing media, uploads only the thumbnail and passes references to the API', async () => {
         const fetch = vi.fn(async () => Response.json({ preset: { id: 'saved' } }));
         vi.stubGlobal('fetch', fetch);
@@ -70,6 +82,21 @@ describe('preset publication', () => {
         expect(createTextureThumbnail).toHaveBeenCalledTimes(1);
         expect(uploadTexture).toHaveBeenCalledTimes(1);
         expect(input.textures.map(texture => texture.id)).toEqual(['published', 'published']);
+    });
+    it('reuses a texture published after capture without creating a thumbnail or uploading tiles again', async () => {
+        const input = scene(); input.textures[0].id = '';
+        input.textures.push({ ...input.textures[0] });
+        vi.mocked(getTextureSet).mockResolvedValueOnce({ id: 'local', cached_from: 'already-published' });
+        const fetch = vi.fn(async () => Response.json({ preset: { id: 'saved' } }));
+        vi.stubGlobal('fetch', fetch);
+        const uploadTexture = vi.fn();
+        await savePreset({ scene: input, uploads: [0, 1].map(assignment => ({ assignment, localId: 'local', tiles: [] })),
+            uploadTexture, thumbnail: new Blob(['preset preview']), name: 'Ribbon' });
+        expect(uploadTexture).not.toHaveBeenCalled();
+        expect(createTextureThumbnail).not.toHaveBeenCalled();
+        expect(getTextureSet).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(fetch.mock.calls[0][1].body).scene.textures.map(texture => texture.id))
+            .toEqual(['already-published', 'already-published']);
     });
 });
 

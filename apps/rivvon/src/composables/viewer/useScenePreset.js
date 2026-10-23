@@ -17,7 +17,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
             const isCloud = !selection || selection.source !== 'local';
             // Freeze the actually loaded variant, even if selection names its family root.
             const loaded = manager.currentTextureSet;
-            const id = isCloud ? loaded?.cached_from || (manager.textureSourceLabel === 'local' ? selection?.id : loaded?.id) || selection?.id || '' : '';
+            const id = loaded?.cached_from || (isCloud ? (manager.textureSourceLabel === 'local' ? selection?.id : loaded?.id) || selection?.id || '' : '');
             if (includeAssets && !id) {
                 const tiles = [];
                 for (let tile = 0; tile < count; tile++) {

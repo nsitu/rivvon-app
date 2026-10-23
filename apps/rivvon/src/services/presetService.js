@@ -1,8 +1,9 @@
 import { normalizeScenePreset } from '../../../../packages/shared-types/src/scenePreset.js';
-import { promoteTextureSetToCachedCloudTexture } from './localStorage.js';
+import { getTextureSet, promoteTextureSetToCachedCloudTexture } from './localStorage.js';
 import { createTextureThumbnail } from '../modules/shared/textureThumbnail.js';
 import { cacheTextureTiles, getCachedTextureTiles } from './sessionTextureCache.js';
 import { getMaxConcurrentTextureDownloads, mapWithConcurrency } from './textureDownloadConcurrency.js';
+import { getTextureStorageLabel } from './textureStorage.js';
 
 const API = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 export const presetAssetUrl = (id, asset) => `${API}/presets/${encodeURIComponent(id)}/assets/${encodeURIComponent(asset)}`;
@@ -19,17 +20,27 @@ export const fetchPreset = (id) => request(`/${encodeURIComponent(id)}`);
 export const deletePreset = (id) => request(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
 export const updatePreset = (id, updates) => request(`/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
 
-export async function savePreset({ scene, uploads = [], uploadTexture, thumbnail, name, visibility = 'private', parentPresetId = null, onProgress }) {
+export async function savePreset({ scene, uploads = [], uploadTexture, storageProvider, thumbnail, name, visibility = 'private', parentPresetId = null, onProgress }) {
     const publishedLocals = new Map(uploads.filter(upload => upload.localId && scene.textures[upload.assignment].id)
         .map(upload => [upload.localId, scene.textures[upload.assignment].id]));
     for (const upload of uploads) {
         if (scene.textures[upload.assignment].id) continue;
         const texture = scene.textures[upload.assignment];
-        if (upload.localId && publishedLocals.has(upload.localId)) { texture.id = publishedLocals.get(upload.localId); continue; }
-        onProgress?.(`Uploading ${texture.name} to your texture library…`);
+        if (upload.localId) {
+            // The draft may have been published since this scene was captured.
+            const existingId = publishedLocals.get(upload.localId) || (await getTextureSet(upload.localId))?.cached_from;
+            if (existingId) {
+                texture.id = existingId;
+                publishedLocals.set(upload.localId, existingId);
+                continue;
+            }
+        }
+        if (typeof uploadTexture !== 'function') throw new Error('Choose an upload destination for the local textures before saving this preset.');
+        onProgress?.(`Uploading ${texture.name} to ${getTextureStorageLabel(storageProvider)}…`);
         const thumbnailBlob = upload.thumbnailBlob || await createTextureThumbnail(upload.tiles);
         const publication = await uploadTexture({ name: texture.name, description: 'Uploaded for a saved Rivvon preset',
             tileResolution: texture.tileResolution, layerCount: texture.layerCount, crossSectionType: texture.variant,
+            progressLabelPrefix: texture.name,
             tiles: upload.tiles, thumbnailBlob, isPublic: false,
             onProgress: (_, detail) => onProgress?.(detail) });
         // Retain the new library ID on a retry; it is the same media asset, not a preset copy.
@@ -62,14 +73,12 @@ export async function preparePresetTextures(id, input, onProgress) {
         return { texture, group: groups.get(key) };
     });
     let completed = 0;
-    let downloadedBytes = 0;
     const total = [...groups.values()].reduce((sum, { texture }) => sum + texture.tileCount, 0);
     const fractions = new Map();
     const controller = new AbortController();
     const reportDownload = () => {
         if (controller.signal.aborted) return;
-        const detail = downloadedBytes > 0 ? ` · ${(downloadedBytes / (1024 * 1024)).toFixed(1)} MB` : '';
-        onProgress?.(`Downloading preset textures… ${completed}/${total}${detail}`,
+        onProgress?.('Downloading...',
             { stage: 'downloading', current: completed + [...fractions.values()].reduce((sum, value) => sum + value, 0), total });
     };
     reportDownload();
@@ -102,10 +111,7 @@ export async function preparePresetTextures(id, input, onProgress) {
                 const detail = await response.json().catch(() => ({}));
                 throw new Error(detail.error || 'A preset texture is unavailable. Your current ribbon has been preserved.');
             }
-            let previousBytes = 0;
             group.tileEntry.zipFiles[`${tile}.ktx2`] = await readPresetTile(response, (received, length) => {
-                downloadedBytes += received - previousBytes;
-                previousBytes = received;
                 fractions.set(job, length > 0 ? Math.min(0.99, received / length) : 0);
                 reportDownload();
             });

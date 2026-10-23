@@ -21,6 +21,8 @@
     import ChromeButton from '../shared/ChromeButton.vue';
     import MultiSelect from 'primevue/multiselect';
     import ScrollPanel from 'primevue/scrollpanel';
+    import TextureUploadFields from './TextureUploadFields.vue';
+    import { getTextureStorageDestinations, getTextureStorageLabel } from '../../services/textureStorage.js';
     const TileLinearViewer = defineAsyncComponent(() => import('../slyce/TileLinearViewer.vue'));
 
     const props = defineProps({
@@ -80,9 +82,6 @@
     const copyError = ref(null);
     const copyRetryTargetRootId = ref(null);
     const copyPendingVariantIds = ref([]);
-    const showCopyMenu = ref(null); // texture id to show copy menu for
-    const copyMenuPosition = ref({ top: 0, left: 0 }); // position for teleported menu
-    const copyMenuTexture = ref(null); // texture object for menu
 
     // Derived variant state
     const textureToDerive = ref(null);
@@ -564,7 +563,7 @@
     }
 
     function getCopyDestinationLabel(destination) {
-        return destination === 'google-drive' ? 'Google Drive' : 'Cloudflare R2';
+        return getTextureStorageLabel(destination);
     }
 
     async function resolveTextureThumbnailBlob(texture, thumbnailDataUrl = null) {
@@ -1067,33 +1066,11 @@
                 cancelCopy();
             } else if (textureToDelete.value) {
                 cancelDelete();
-            } else if (showCopyMenu.value) {
-                showCopyMenu.value = null;
             } else {
                 close();
             }
         }
     }
-
-    // Close copy menu when clicking outside
-    function handleGlobalClick(event) {
-        if (showCopyMenu.value &&
-            !event.target.closest('.action-button.copy-button') &&
-            !event.target.closest('.copy-menu-teleport')) {
-            showCopyMenu.value = null;
-            copyMenuTexture.value = null;
-        }
-    }
-
-    // Set up global click listener
-    watch(() => props.visible, (isVisible) => {
-        if (isVisible) {
-            document.addEventListener('click', handleGlobalClick);
-        } else {
-            document.removeEventListener('click', handleGlobalClick);
-            showCopyMenu.value = null;
-        }
-    });
 
     // Delete functionality
     async function confirmDelete(texture, event) {
@@ -1166,93 +1143,27 @@
     }
 
     // Copy functionality
-    function toggleCopyMenu(texture, event) {
-        event.stopPropagation();
-        const actionTexture = getFamilyActionTexture(texture);
-        if (!actionTexture?.id) {
-            return;
-        }
-
-        if (showCopyMenu.value === actionTexture.id) {
-            showCopyMenu.value = null;
-            copyMenuTexture.value = null;
-        } else {
-            // Calculate position from button
-            const button = event.currentTarget;
-            const rect = button.getBoundingClientRect();
-            copyMenuPosition.value = {
-                top: rect.bottom + 4,
-                left: rect.left // align left edge with button
-            };
-            showCopyMenu.value = actionTexture.id;
-            copyMenuTexture.value = texture;
-        }
-    }
-
-    function closeCopyMenu() {
-        showCopyMenu.value = null;
-        copyMenuTexture.value = null;
-    }
-
     function canCopyTexture(texture) {
         return getCopyDestinations(texture).length > 0;
     }
 
-    /**
-     * Get available copy destinations for a texture
-     * Rules:
-     * - Local textures: can copy to Google Drive (if authenticated) or R2 (if admin)
-     * - Google Drive textures: can copy to R2 (if admin)
-     * - R2 textures: no copy needed (already on CDN)
-     */
     function getCopyDestinations(texture) {
-        const destinations = [];
-        const isLocal = isLocalTexture(texture);
-        const provider = texture.storage_provider || 'r2';
-
-        if (isLocal) {
-            // Local textures can be copied to cloud
-            if (isAuthenticated.value) {
-                destinations.push({
-                    value: 'google-drive',
-                    label: 'Google Drive',
-                    icon: '/google-drive.svg'
-                });
-            }
-            if (isAdmin.value) {
-                destinations.push({
-                    value: 'r2',
-                    label: 'Cloudflare R2',
-                    icon: '/cloudflare.svg'
-                });
-            }
-        } else if (provider === 'google-drive') {
-            // Google Drive textures can be copied to R2 (admin only)
-            if (isAdmin.value) {
-                destinations.push({
-                    value: 'r2',
-                    label: 'Cloudflare R2',
-                    icon: '/cloudflare.svg'
-                });
-            }
-        }
-        // R2 textures have no copy destinations (already on CDN)
-
-        return destinations;
+        return getTextureStorageDestinations({ isLocal: isLocalTexture(texture), storageProvider: texture.storage_provider || 'r2',
+            isAuthenticated: isAuthenticated.value, isAdmin: isAdmin.value });
     }
 
-    async function startCopy(texture, destination, event) {
+    function startCopy(texture, event) {
         event.stopPropagation();
-        closeCopyMenu();
         textureToCopy.value = texture;
-        copyDestination.value = destination;
+        const destinations = getCopyDestinations(texture);
+        copyDestination.value = destinations.length === 1 ? destinations[0].value : null;
         copyProgress.value = '';
         copyError.value = null;
         resetCopyRetryState();
     }
 
     async function performCopy() {
-        if (!textureToCopy.value || !copyDestination.value) return;
+        if (isCopying.value || !textureToCopy.value || !getCopyDestinations(textureToCopy.value).some(option => option.value === copyDestination.value)) return;
 
         isCopying.value = true;
         copyProgress.value = 'Preparing...';
@@ -1497,7 +1408,7 @@
                 return;
             }
 
-            cancelCopy();
+            cancelCopy(true);
 
         } catch (err) {
             console.error('[TextureBrowser] Copy failed:', err);
@@ -1507,7 +1418,8 @@
         }
     }
 
-    function cancelCopy() {
+    function cancelCopy(force = false) {
+        if (isCopying.value && force !== true) return;
         textureToCopy.value = null;
         copyDestination.value = null;
         copyProgress.value = '';
@@ -2018,6 +1930,7 @@
             : copyTotalVariantCount.value;
     });
     const isCopyingFamily = computed(() => copyTotalVariantCount.value > 1);
+    const copyDestinations = computed(() => textureToCopy.value ? getCopyDestinations(textureToCopy.value) : []);
     const copyDestinationLabel = computed(() => getCopyDestinationLabel(copyDestination.value));
     const copyTextureDisplayName = computed(() => {
         return textureToCopy.value ? getTextureFamilyDisplayName(textureToCopy.value) : 'Texture';
@@ -2026,9 +1939,10 @@
         return isCopyingFamily.value ? 'Copy Texture Family' : 'Copy Texture';
     });
     const copyModalMessage = computed(() => {
-        if (!textureToCopy.value || !copyDestination.value) {
+        if (!textureToCopy.value) {
             return '';
         }
+        if (!copyDestination.value) return `Choose where to copy "${copyTextureDisplayName.value}"${isCopyingFamily.value ? ` and its ${copyTotalVariantCount.value} resolutions` : ''}.`;
 
         if (isCopyRetryPending.value) {
             const pendingCount = copyAttemptVariantCount.value;
@@ -2047,7 +1961,7 @@
         }
 
         if (isCopyingFamily.value) {
-            return 'The canonical source root uploads first, then the remaining variants follow in descending resolution order.';
+            return 'All available resolutions will be copied as one texture family.';
         }
 
         return null;
@@ -2544,7 +2458,7 @@
                                     class="action-button rivvon-icon-action copy-button"
                                     title="Copy to another storage"
                                     aria-label="Copy to another storage"
-                                    @click="toggleCopyMenu(texture, $event)"
+                                    @click="startCopy(texture, $event)"
                                 >
                                     <span class="material-symbols-outlined">content_copy</span>
                                 </Button>
@@ -2732,15 +2646,16 @@
             </div>
         </Teleport>
 
-        <!-- Copy confirmation modal -->
-        <Teleport to="body">
-            <div
-                v-if="textureToCopy"
-                class="delete-modal-overlay copy-modal-overlay"
-                @click.self="cancelCopy"
-            >
-                <div class="delete-modal copy-modal">
-                    <h3>{{ copyModalTitle }}</h3>
+        <Dialog
+            :visible="Boolean(textureToCopy)" :header="copyModalTitle" modal
+            :closable="!isCopying" :close-on-escape="!isCopying"
+            :style="{ width: '34rem', maxWidth: 'calc(100vw - 2rem)', maxHeight: 'calc(100dvh - 2rem)' }"
+            :pt="{ content: { style: { overflow: 'hidden' } } }"
+            @update:visible="visible => { if (!visible) cancelCopy(); }"
+        >
+            <div class="copy-dialog-content">
+                <ScrollPanel class="rivvon-scroll-panel">
+                  <div class="copy-dialog-fields">
                     <p>{{ copyModalMessage }}</p>
                     <p
                         v-if="copyModalHelper"
@@ -2748,19 +2663,11 @@
                     >
                         {{ copyModalHelper }}
                     </p>
-                    <p
-                        v-if="copyProgress"
-                        class="copy-progress"
-                    >
-                        {{ copyProgress }}
-                    </p>
-                    <p
-                        v-if="copyError"
-                        class="copy-error"
-                    >
-                        Error: {{ copyError }}
-                    </p>
-                    <div class="delete-modal-actions rivvon-modal-actions">
+                    <TextureUploadFields v-model="copyDestination" :destinations="copyDestinations"
+                        :busy="isCopying" :locked="isCopyRetryPending" :progress="copyProgress" :error="copyError" />
+                  </div>
+                </ScrollPanel>
+                    <PanelActionBar>
                         <Button
                             type="button"
                             severity="secondary"
@@ -2774,14 +2681,14 @@
                             type="button"
                             severity="info"
                             @click="performCopy"
-                            :disabled="isCopying"
+                            :disabled="isCopying || !copyDestination"
+                            :loading="isCopying"
                         >
                             {{ copyPrimaryActionLabel }}
                         </Button>
-                    </div>
-                </div>
+                    </PanelActionBar>
             </div>
-        </Teleport>
+        </Dialog>
 
         <!-- Publish variant modal -->
         <Teleport to="body">
@@ -2955,33 +2862,6 @@
                         </Button>
                     </div>
                 </div>
-            </div>
-        </Teleport>
-
-        <!-- Copy destination dropdown menu (teleported to body to avoid overflow issues) -->
-        <Teleport to="body">
-            <div
-                v-if="showCopyMenu && copyMenuTexture"
-                class="copy-menu-teleport"
-                :style="{ top: copyMenuPosition.top + 'px', left: copyMenuPosition.left + 'px' }"
-                @click.stop
-            >
-                <div class="copy-menu-header">Copy to:</div>
-                <Button
-                    v-for="dest in getCopyDestinations(copyMenuTexture)"
-                    :key="dest.value"
-                    type="button"
-                    variant="text"
-                    class="copy-menu-item"
-                    @click="startCopy(copyMenuTexture, dest.value, $event)"
-                >
-                    <img
-                        :src="dest.icon"
-                        :alt="dest.label"
-                        class="copy-menu-icon"
-                    />
-                    {{ dest.label }}
-                </Button>
             </div>
         </Teleport>
 
@@ -3545,67 +3425,9 @@
         }
     }
 
-    /* Teleported copy menu */
-    .copy-menu-teleport {
-        position: fixed;
-        background: #2a2a2a;
-        border: 1px solid #444;
-        border-radius: 8px;
-        padding: 6px 0;
-        min-width: 140px;
-        z-index: 9999;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    }
-
-    .copy-menu-header {
-        padding: 4px 10px;
-        font-size: 10px;
-        color: #888;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .copy-menu-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: 100%;
-        padding: 8px 10px;
-        min-height: var(--rivvon-button-height-compact);
-        padding: 0.5rem 0.625rem;
-        background: transparent !important;
-        border: none !important;
-        border-radius: var(--rivvon-button-radius);
-        color: var(--rivvon-button-text-color) !important;
-        font-size: 12px;
-        cursor: pointer;
-        text-align: left;
-        transition: var(--rivvon-button-transition);
-    }
-
-    .copy-menu-item:focus-visible {
-        outline: none;
-        box-shadow: var(--rivvon-button-focus-ring);
-    }
-
-    .copy-menu-item:hover {
-        background: rgba(59, 130, 246, 0.2);
-    }
-
-    .copy-menu-icon {
-        width: 14px;
-        height: 14px;
-        object-fit: contain;
-    }
-
-    /* Copy modal styles */
-    .copy-modal-overlay {
-        background: rgba(0, 0, 0, 0.7);
-    }
-
-    .copy-modal {
-        max-width: 400px;
-    }
+    .copy-dialog-content { display: flex; flex-direction: column; height: min(24rem, calc(100dvh - 10rem)); min-height: 0; }
+    .copy-dialog-fields { display: flex; flex-direction: column; gap: 0.75rem; padding: 0 0.25rem 0.5rem; }
+    .copy-dialog-fields p { margin: 0; }
 
     .copy-progress {
         color: #60a5fa;

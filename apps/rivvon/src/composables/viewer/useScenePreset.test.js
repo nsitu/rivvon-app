@@ -51,6 +51,21 @@ describe('scene restoration boundary', () => {
         expect(new Uint8Array(await capture.uploads[0].tiles[0].blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
         expect(h.oldManager.zipFiles['0.ktx2'].byteLength).toBe(3);
     });
+    it('references a cached cloud texture even when its selection is labelled local', () => {
+        const h = harness();
+        h.oldManager.currentTextureSet = { id: 'local-cache', cached_from: 'published-variant', name: 'Cached texture', tile_resolution: 256 };
+        h.oldManager.textureSourceLabel = 'local';
+        const capture = h.engine.captureScene({ textureAssignments: [{ id: 'local-cache', source: 'local' }] });
+        expect(capture.scene.textures[0]).toMatchObject({ id: 'published-variant', tileResolution: 256 });
+        expect(capture.uploads).toEqual([]);
+    });
+    it('references the loaded cloud variant instead of uploading it or using its family root', () => {
+        const h = harness();
+        h.oldManager.currentTextureSet = { id: 'published-variant', name: 'Variant', tile_resolution: 256 };
+        const capture = h.engine.captureScene({ textureAssignments: [{ id: 'family-root', source: 'cloud' }] });
+        expect(capture.scene.textures[0].id).toBe('published-variant');
+        expect(capture.uploads).toEqual([]);
+    });
     it('rejects source buffers emptied by worker transfer instead of publishing zero-byte tiles', () => {
         const h = harness();
         const bytes = new Uint8Array([1, 2, 3]);

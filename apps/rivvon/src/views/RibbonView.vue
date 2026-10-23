@@ -13,6 +13,7 @@
     import { createDefaultDrawingName, createDrawingDocument, createDrawingPayload, getKindLabel, inflateDrawingPaths, normalizeDrawingKind, serializeDrawingPaths } from '../modules/shared/drawingLibrary.js';
     import { createRenderSnapshot } from '../modules/shared/renderSnapshot.js';
     import { fetchPreset, preparePresetTextures, presetAssetUrl, presetShareUrl, savePreset } from '../services/presetService.js';
+    import { resolveTextureUploader } from '../services/textureStorage.js';
     import { createLazyLoader } from '../modules/shared/lazyLoader.js';
     import { resolveOrderedContext } from '../modules/viewer/viewerHeaderContext.js';
     import { isViewerPanelVisible, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
@@ -2648,13 +2649,16 @@ const activeToolbarOverlayTitle = computed(() => {
         }
     }
 
-    async function handleSavePreset({ name, visibility }) {
+    async function handleSavePreset({ name, visibility, storageProvider }) {
         if (presetBusy.value || !presetCapture.value) return;
         presetBusy.value = true;
         presetError.value = '';
         try {
+            const needsUpload = presetCapture.value.uploads.some(upload => !presetCapture.value.scene.textures[upload.assignment].id);
+            const uploadTexture = needsUpload ? resolveTextureUploader(storageProvider, { uploadTextureSet, uploadTextureSetToR2 },
+                { isAuthenticated: isAuthenticated.value, isAdmin: isAdmin.value }) : null;
             const saved = await savePreset({ ...presetCapture.value, name, visibility,
-                uploadTexture: isAdmin.value ? uploadTextureSetToR2 : uploadTextureSet,
+                uploadTexture, storageProvider,
                 parentPresetId: currentPresetId.value, onProgress: value => { presetProgress.value = value; } });
             currentPresetId.value = saved.id;
             activeTextureAssignments.value = presetCapture.value.scene.textures.map((texture, assignmentIndex) => ({ id: texture.id, source: 'cloud', name: texture.name, assignmentIndex }));
@@ -2693,7 +2697,7 @@ const activeToolbarOverlayTitle = computed(() => {
             const saved = await fetchPreset(id);
             const entries = await preparePresetTextures(id, saved.scene, (value, progress) => {
                 presetProgress.value = value;
-                setTextureLoadingDisplay(value, formatTextureLoadPercent(progress.stage, progress.current, progress.total));
+                handleTextureLoadProgress(progress.stage, progress.current, progress.total);
             });
             const scene = await threeCanvasRef.value.restoreScene(saved.scene, entries, handleTextureLoadProgress);
             setCurrentDrawingHeader({ kind: scene.geometry.kind, title: scene.geometry.title, source: scene.geometry.source });
