@@ -1,53 +1,69 @@
 # Scene background blur
 
 The scene background is rendered as a camera-locked textured plane by
-`src/composables/viewer/useSceneBackground.js`. When background blur is
-enabled, the background is processed through an offscreen GPU pipeline before
-it is displayed.
+`src/composables/viewer/useSceneBackground.js`. Background blur processes the
+tiled artwork through offscreen GPU render targets. The color overlay, static
+paper texture, and procedural water are composited afterward and remain crisp.
+Both WebGL and WebGPU implement the following profiles.
 
-## How it works
+## Realtime preview
 
-1. The tiled background is rendered into a low-resolution render target. The
-   longest side is capped at 384 pixels to keep the blur inexpensive.
-2. The result is blurred through repeated full-screen passes. Two render
-   targets are reused in a ping-pong pattern, so each pass reads the previous
-   result and writes to the other target.
-3. Each pass averages four diagonal neighboring texels using an increasing
-   sampling offset. This is a Kawase-style blur: several inexpensive passes
-   approximate a wider soft blur without requiring a large convolution kernel.
-4. The final render-target texture is assigned to the background plane and
-   composited with the optional background color overlay.
+The background source is rendered into a target whose longest side is capped
+at 384 pixels. Repeated horizontal and vertical 17-tap Gaussian-style passes
+approximate the desired softness. The blur amount selects between one and six
+pass pairs and changes their sampling offsets. Intermediate targets use
+eight-bit RGBA storage. This profile favors interactive performance; widely
+spaced samples can leave uneven softness at strong blur settings.
 
-The blur amount controls the number of passes and their sampling offsets. It
-does not represent a CSS pixel radius or a single Gaussian-kernel radius. The
-current pass-count mapping is approximately `2 + amount * 0.6`, clamped to a
-maximum of 32 passes.
+The slider is not a CSS pixel radius. Its existing amount-to-radius mapping
+is preserved, including its discrete radius steps. The separate in-material
+neighborhood blur is disabled; the offscreen passes perform the actual blur.
 
-The same overall pipeline is implemented for WebGL and WebGPU. The tiled
-background shader also contains a small multi-sample path, but the effective
-scene-background blur is performed by the separate low-resolution,
-multi-pass pipeline when the blur setting is enabled.
+## Export quality
 
-## Performance and quality
+Frame-accurate video and still-image capture pass `blurMode: 'export'`, plus
+the output width and height, to the shared background runtime. Texture-overview
+video export uses the same path. Legacy realtime MediaRecorder recording
+continues to capture the preview.
 
-This approach is well suited to the background because it is tolerant of
-approximation and is rendered at reduced resolution. Its main cost is one
-background render plus several full-screen blur passes per update. Compared
-with a large single-pass Gaussian kernel, the fixed four-sample passes are
-usually cheaper and easier to scale, though the result can be less uniform at
-very high blur amounts.
+Export renders the background at the exact output dimensions and filters it
+with one dense horizontal Gaussian convolution followed by one dense vertical
+convolution. `src/modules/viewer/backgroundExportBlur.js` generates normalized
+weights with support extending to four standard deviations. Each pair of
+adjacent texels is combined into one bilinear lookup with a weighted offset.
+This covers every texel in the support, rather than stretching a fixed number
+of samples across a wider radius.
 
-## Video export
+The Gaussian standard deviation is calibrated to the variance of the preview's
+17-tap kernel and scales with the output's longest side relative to 384 pixels.
+This preserves the approximate apparent blur width across resolutions. Exact
+appearance may differ because the preview is an approximation and export
+filters in linear light.
 
-Frame-accurate video export uses a separate quality profile. The composed
-background target matches the requested export dimensions, and the blur offsets
-are scaled with the target so the apparent blur radius remains consistent at
-the higher resolution.
+All three background render targets use linear-sRGB RGBA16F storage during
+export. WebGL's legacy shaders treat source RGB as display-referred sRGB, so
+the source shader explicitly decodes it before convolution. The display shader
+encodes the filtered background again before applying the existing crisp
+overlays. WebGPU's node materials use Three.js's linear working-space handling
+and output conversion. The global renderer and video color conversion contracts
+are unchanged.
 
-Export frames use a two-pass separable Gaussian blur (horizontal then vertical)
-instead of the realtime Kawase approximation. This produces a more uniform
-blur with fewer directional artifacts while keeping the export work on the GPU.
-Export resource usage therefore scales with the requested video resolution.
+Targets, kernel textures, and materials are reused between export frames and
+recreated when dimensions, quality profile, or export blur amount change. The
+next preview update releases export resources and restores the realtime profile,
+even if its dimensions match the export dimensions. Blur passes restore the
+caller's render target on success or failure.
 
-Background flow also receives the export frame's synthetic timestamp, so a slow
-export does not turn realtime wall-clock time into uneven motion between frames.
+Frame-accurate video retains synthetic timestamps for background animation, so
+render time does not affect motion. Kernel size and work increase with blur
+width and output resolution. The three RGBA16F background targets alone require
+about 190 MiB at 3840 x 2160, excluding the scene and encoder resources.
+
+## Validation
+
+`backgroundExportBlur.test.js` compares the paired kernel with an independent
+dense Gaussian reference, including image edges and fine patterns, and checks
+normalization and radius scaling. `useSceneBackground.test.js` covers profile
+switching, precision, reuse, disposal, exact dimensions, and render-target
+restoration for both backends. `useSceneExport.video.test.js` checks still-image
+quality selection and deterministic video timing.

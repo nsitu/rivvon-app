@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { DataArrayTexture, PerspectiveCamera, Scene } from 'three';
+import { describe, expect, it, vi } from 'vitest';
+import { DataArrayTexture, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, Scene, UnsignedByteType } from 'three';
 import { useSceneBackground } from './useSceneBackground.js';
 
 function fixture(rendererType) {
@@ -11,10 +11,77 @@ function fixture(rendererType) {
         backgroundTexture: { value: null }, getBackgroundTime: () => 0,
         tileManager: { value: { arrayTextures: [texture], variant: 'waves', currentLayer: 2,
             getLayerCount: () => 4, getSeamlessLoopDuration: () => 12 } } };
-    return { app, camera, runtime: useSceneBackground(ctx) };
+    return { app, camera, ctx, runtime: useSceneBackground(ctx) };
 }
 
 describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendererType) => {
+    function blurredFixture() {
+        const result = fixture(rendererType);
+        result.app.backgroundBlurEnabled = true;
+        result.app.backgroundBlurAmount = 100;
+        let target = { name: 'caller render target' };
+        const renders = [];
+        result.ctx.renderer.value = {
+            domElement: { width: 800, height: 400 },
+            getRenderTarget: () => target,
+            setRenderTarget: value => { target = value; },
+            render: vi.fn(scene => renders.push({ target, material: scene.children[0].material })),
+        };
+        return { ...result, renders, renderer: result.ctx.renderer.value };
+    }
+
+    it('uses full-size half-float export targets, restores preview even at identical dimensions, and disposes resources', async () => {
+        const { runtime, ctx, camera, renders, renderer, app } = blurredFixture();
+        const callerTarget = renderer.getRenderTarget();
+        await runtime.setBackgroundFromTileManager();
+        expect(ctx.backgroundTexture.value.type).toBe(UnsignedByteType);
+        renders.length = 0;
+        runtime.updateBackground({ blurMode: 'export', width: 384, height: 192, timeSeconds: 2 });
+        expect(renders).toHaveLength(3); // source + dense horizontal + dense vertical
+        const exportTarget = renders[0].target;
+        expect(exportTarget.texture.type).toBe(HalfFloatType);
+        expect(exportTarget.texture.colorSpace).toBe(LinearSRGBColorSpace);
+        const disposed = vi.fn();
+        exportTarget.addEventListener('dispose', disposed);
+        const originalExportTexture = ctx.backgroundTexture.value;
+        if (rendererType === 'webgl') {
+            expect(renders[0].material.uniforms.uExportLinear.value).toBe(true);
+            expect(camera.children[0].material.uniforms.uLinearBlur.value).toBe(true);
+        }
+        // The export shader and kernel are reused for consecutive frames.
+        runtime.updateBackground({ blurMode: 'export', width: 384, height: 192, timeSeconds: 3 });
+        expect(ctx.backgroundTexture.value).toBe(originalExportTexture);
+        expect(disposed).not.toHaveBeenCalled();
+        app.backgroundBlurAmount = 50;
+        runtime.updateBackground({ blurMode: 'export', width: 384, height: 192 });
+        expect(disposed).toHaveBeenCalledOnce();
+        expect(ctx.backgroundTexture.value).not.toBe(originalExportTexture);
+        runtime.updateBackground();
+        expect(ctx.backgroundTexture.value.type).toBe(UnsignedByteType);
+        expect(renderer.getRenderTarget()).toBe(callerTarget);
+        if (rendererType === 'webgl') {
+            expect(camera.children[0].material.uniforms.uLinearBlur.value).toBe(false);
+        }
+        runtime.updateBackground({ blurMode: 'export', width: 1920, height: 32 });
+        expect(ctx.backgroundTexture.value.image).toMatchObject({ width: 1920, height: 32 });
+        const finalTarget = renders.at(-1).target;
+        const finalDisposed = vi.fn();
+        finalTarget.addEventListener('dispose', finalDisposed);
+        runtime.disposeBackground();
+        expect(finalDisposed).toHaveBeenCalledOnce();
+        expect(camera.children).toHaveLength(0);
+    });
+
+    it('restores the caller target if a blur pass fails', async () => {
+        const { runtime, renderer } = blurredFixture();
+        await runtime.setBackgroundFromTileManager();
+        const callerTarget = renderer.getRenderTarget();
+        renderer.render.mockImplementationOnce(() => { throw new Error('GPU render failed'); });
+        expect(() => runtime.updateBackground({ blurMode: 'export', width: 800, height: 400 })).toThrow('GPU render failed');
+        expect(renderer.getRenderTarget()).toBe(callerTarget);
+        runtime.disposeBackground();
+    });
+
     it('updates both flip axes independently without rebuilding the material', async () => {
         const { runtime, camera, app } = fixture(rendererType);
         app.backgroundFlipHorizontal = true;

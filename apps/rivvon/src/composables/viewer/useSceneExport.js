@@ -85,7 +85,7 @@ export function useSceneExport(ctx, deps = {}) {
                 ctx.controls.value.update();
             }
 
-            renderScene({ audioReactive: options.audioReactive });
+            renderScene({ audioReactive: options.audioReactive, blurMode: 'export', width, height });
 
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = width;
