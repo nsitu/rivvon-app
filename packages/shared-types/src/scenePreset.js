@@ -1,3 +1,5 @@
+import { normalizeSvgNodes } from './svgNodes.js';
+
 // This allowlist is the persisted artwork contract. Never add renderer quality,
 // input devices, wake lock, panel visibility, or other personal preferences here.
 export const SCENE_PRESET_VERSION = 1;
@@ -30,7 +32,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     contrast: 1, saturation: 1, ribbonWidthScale: 1, ribbonPathAlignmentMode: 'center',
     surfaceMode: 'ribbon', tubeRadiusScale: 0.5, tubeRadialSegments: 8, tubeTextureJoinOffsetDegrees: 0,
     helixMode: false, helixRadius: 0.2, helixPitch: 9, helixStrandWidth: 0.5,
-    capStyle: 'rounded', cornerNarrowingEnabled: false,
+    capStyle: 'rounded', cornerNarrowingEnabled: false, svgSmoothNodesEnabled: false,
     sphericalProjectionEnabled: false, sphericalProjectionWrapDegrees: 100,
     sphericalProjectionLowerLatitudeDegrees: -50, sphericalProjectionUpperLatitudeDegrees: 50,
     sphericalProjectionVerticalWrapAuto: true, sphericalProjectionArtworkAspectRatio: 1,
@@ -115,13 +117,15 @@ const SOURCE_KEYS = new Set(['text', 'font', 'fontFamily', 'fontId', 'fontWeight
     'hexcode', 'label', 'fileName', 'type', 'settings', 'radius', 'width', 'handedness', 'twistPhase',
     'amplitudeMin', 'amplitudeMax', 'frequencyMin', 'frequencyMax', 'domainWidth', 'phaseSpeed',
     'amplitudeCycleSpeed', 'frequencyCycleSpeed', 'frequencyCyclePhase', 'verticalOffset', 'sampleCount',
-    'hourHandLength', 'minuteHandLength', 'secondHandLength', 'millisecondHandLength']);
+    'hourHandLength', 'minuteHandLength', 'secondHandLength', 'millisecondHandLength', 'svgNodes', 'svgSmoothNodesEnabled']);
 function authoringMetadata(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
     const output = {};
     for (const [key, value] of Object.entries(input)) {
         if (!SOURCE_KEYS.has(key)) continue;
-        if (key === 'settings') output[key] = authoringMetadata(value);
+        if (key === 'svgNodes') output[key] = normalizeSvgNodes(value);
+        else if (key === 'svgSmoothNodesEnabled') output[key] = value === true;
+        else if (key === 'settings') output[key] = authoringMetadata(value);
         else if (typeof value === 'number') output[key] = finite(value, key);
         else if (typeof value === 'string') output[key] = text(value, key === 'text' ? 10000 : 500);
     }

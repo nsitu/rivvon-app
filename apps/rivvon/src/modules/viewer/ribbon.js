@@ -94,6 +94,8 @@ export class Ribbon {
     this.layoutMetadata = null;
     this.textureOrientationMirrorY = false;
     this.pathGeometry = null;
+    this.closedSpline = false;
+    this.splineNodes = null;
 
     this.waveAmplitude = 0.075;
     this.waveFrequency = 0.25;
@@ -241,6 +243,7 @@ export class Ribbon {
   }
 
   _getCapStyleCode() {
+    if (this.closedSpline) return 0;
     if (this.capStyle === CAP_STYLE_ROUNDED) return 1;
     if (this.capStyle === CAP_STYLE_POINTED) return 2;
     if (this.capStyle === CAP_STYLE_SWALLOWTAIL) return 3;
@@ -298,6 +301,7 @@ export class Ribbon {
   }
 
   _getCapWorldLength(pathLength, width) {
+    if (this.closedSpline) return 0;
     const visualCapLength = Math.max(0, width);
 
     if (!Number.isFinite(pathLength) || pathLength <= 0) {
@@ -626,8 +630,8 @@ export class Ribbon {
     target = new THREE.Vector3(),
   ) {
     const sampleDelta = 1 / Math.max(256, frameSampleCount * 8);
-    const prevT = Math.max(0, globalT - sampleDelta);
-    const nextT = Math.min(1, globalT + sampleDelta);
+    const prevT = this.closedSpline ? (globalT - sampleDelta + 1) % 1 : Math.max(0, globalT - sampleDelta);
+    const nextT = this.closedSpline ? (globalT + sampleDelta) % 1 : Math.min(1, globalT + sampleDelta);
     const prevPoint = this._projectCurvePointOntoSphere(
       curve.getPoint(prevT),
       new THREE.Vector3(),
@@ -996,6 +1000,7 @@ export class Ribbon {
    * so tangent jumps produced visible "steps" in the helix orbit plane.
    */
   createCurveFromPoints(points) {
+    points = this.splineNodes || points;
     if (this.pathGeometry?.type === "circle") {
       const radius = this.pathGeometry.radius;
       const curve = new THREE.Curve();
@@ -1025,7 +1030,9 @@ export class Ribbon {
     // Build a smooth spline through all points.
     // "centripetal" parameterization prevents cusps and self-intersections
     // that can occur with uniform param on unevenly-spaced control points.
-    const spline = new CatmullRomCurve3(points, false, "centripetal");
+    const splinePoints = this.closedSpline && points[0].distanceToSquared(points.at(-1)) < 1e-12
+      ? points.slice(0, -1) : points;
+    const spline = new CatmullRomCurve3(splinePoints, !!this.closedSpline, "centripetal");
 
     // Increase arc-length resolution for complex paths so that
     // getPointAt / getTangentAt produce accurate arc-length mapping.
@@ -1041,6 +1048,11 @@ export class Ribbon {
     };
 
     curve.getTangent = (t) => {
+      if (this.closedSpline) {
+        const u = Math.max(0, Math.min(1, t));
+        return spline.getPointAt((u + 0.0001) % 1)
+          .sub(spline.getPointAt((u - 0.0001 + 1) % 1)).normalize();
+      }
       return spline.getTangentAt(Math.max(0, Math.min(1, t)));
     };
 
@@ -1218,6 +1230,14 @@ export class Ribbon {
       prevTangent = tangent.clone();
     }
 
+    if (this.closedSpline) {
+      const frames = curve.computeFrenetFrames(sampleCount - 1, true);
+      frameSamples.forEach((frame, index) => {
+        frame.normal.copy(frames.normals[index]);
+        frame.binormal.copy(frames.binormals[index]);
+        frame.widthDirection.copy(frames.normals[index]);
+      });
+    }
     return frameSamples;
   }
 
@@ -1336,6 +1356,17 @@ export class Ribbon {
     return acrossValue;
   }
 
+  _getWaveFrequency() {
+    // Whole cycles keep a closed path's animated seam continuous.
+    return this.closedSpline && this.pathLength > 0
+      ? Math.max(1, Math.round(this.pathLength * this.waveFrequency)) / this.pathLength
+      : this.waveFrequency;
+  }
+
+  _getHelixPitch() {
+    return this.closedSpline ? Math.max(1, Math.round(this.helixPitch)) : this.helixPitch;
+  }
+
   _setAnimatedVertexPosition(
     target,
     frame,
@@ -1349,14 +1380,14 @@ export class Ribbon {
     const scaledAcross = this._getAlignedAcrossValue(acrossValue) * widthScale;
     const wavePhase = this.undulationEnabled
       ? Math.sin(
-          frame.arcLength * this.waveFrequency * Math.PI * 2 +
+          frame.arcLength * this._getWaveFrequency() * Math.PI * 2 +
             time * this.waveSpeed,
         ) * this.waveAmplitude
       : 0;
 
     if (this.helixMode) {
       const helixAngle =
-        frame.globalT * this.helixPitch * Math.PI * 2 + strandOffset;
+        frame.globalT * this._getHelixPitch() * Math.PI * 2 + strandOffset;
       const animatedAngle = helixAngle + wavePhase;
       const cosA = Math.cos(animatedAngle);
       const sinA = Math.sin(animatedAngle);
@@ -1399,14 +1430,14 @@ export class Ribbon {
   ) {
     const wavePhase = this.undulationEnabled
       ? Math.sin(
-          frame.arcLength * this.waveFrequency * Math.PI * 2 +
+          frame.arcLength * this._getWaveFrequency() * Math.PI * 2 +
             time * this.waveSpeed,
         ) * this.waveAmplitude
       : 0;
 
     if (this.helixMode) {
       const helixAngle =
-        frame.globalT * this.helixPitch * Math.PI * 2 + strandOffset;
+        frame.globalT * this._getHelixPitch() * Math.PI * 2 + strandOffset;
       const animatedAngle = helixAngle + wavePhase;
       const cosA = Math.cos(animatedAngle);
       const sinA = Math.sin(animatedAngle);

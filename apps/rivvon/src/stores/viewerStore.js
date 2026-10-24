@@ -953,6 +953,8 @@ export const useViewerStore = defineStore("viewer", {
       ),
 
       // Geometry options
+      svgSmoothNodesEnabled: false,
+      svgNodesAvailable: false,
       capStyle: CAP_STYLE_ROUNDED,
       roundedCaps: true, // Legacy alias for capStyle === 'rounded'
       cornerNarrowingEnabled: false,
@@ -1296,6 +1298,7 @@ export const useViewerStore = defineStore("viewer", {
       this.capStyle = CAP_STYLE_ROUNDED;
       this.roundedCaps = true;
       this.cornerNarrowingEnabled = false;
+      this.svgSmoothNodesEnabled = false;
       this.sphericalProjectionEnabled = false;
       this.sphericalProjectionWrapDegrees = DEFAULT_SPHERICAL_WRAP_DEGREES;
       this.sphericalProjectionLowerLatitudeDegrees =
@@ -1939,6 +1942,7 @@ export const useViewerStore = defineStore("viewer", {
         helixStrandWidth: this.helixStrandWidth,
         capStyle: this.capStyle,
         cornerNarrowingEnabled: this.cornerNarrowingEnabled,
+        svgSmoothNodesEnabled: this.svgSmoothNodesEnabled,
         sphericalProjectionEnabled: this.sphericalProjectionEnabled,
         sphericalProjectionWrapDegrees: this.sphericalProjectionWrapDegrees,
         sphericalProjectionLowerLatitudeDegrees:
@@ -2091,6 +2095,7 @@ sphericalProjectionVerticalWrapAuto:
         this.helixStrandWidth !== original.helixStrandWidth ||
         this.capStyle !== original.capStyle ||
         this.cornerNarrowingEnabled !== original.cornerNarrowingEnabled ||
+        this.svgSmoothNodesEnabled !== original.svgSmoothNodesEnabled ||
         this.sphericalProjectionEnabled !==
           original.sphericalProjectionEnabled ||
         this.sphericalProjectionWrapDegrees !==
@@ -2794,6 +2799,7 @@ this.sphericalProjectionVerticalWrapAuto !==
         normalizeCapStyle(state.capStyle, state.roundedCaps) ===
         CAP_STYLE_ROUNDED,
       cornerNarrowingEnabled: state.cornerNarrowingEnabled,
+      svgSmoothNodesEnabled: state.svgSmoothNodesEnabled,
       sphericalProjectionEnabled: state.sphericalProjectionEnabled,
       sphericalProjectionWrapDegrees:
         state.sphericalProjectionWrapDegrees || DEFAULT_SPHERICAL_WRAP_DEGREES,

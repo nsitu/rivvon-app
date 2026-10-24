@@ -6,6 +6,7 @@ import { Box3, Group, Vector3 } from "three";
 import { Ribbon } from "./ribbon.js";
 import { DEFAULT_CAP_STYLE } from "./capStyle.js";
 import { projectPathsToSphere } from "./sphericalProjection.js";
+import { sampleSvgNodes } from "./svgNodes.js";
 import {
   calculatePolylineLength,
   getProceduralSourceFrame,
@@ -39,6 +40,7 @@ export class RibbonSeries {
     this.tubeTextureJoinOffsetDegrees = 0;
     this.totalSegmentCount = 0; // For tracking total segments across all ribbons
     this.sourcePathsPoints = []; // Preserve original source paths for geometry mode rebuilds
+    this.svgNodes = null;
     this.lastPathsPoints = []; // Store for animation updates
     this.lastWidth = 1;
     this._flowMaterials = []; // Track materials for flow updates
@@ -218,16 +220,22 @@ export class RibbonSeries {
 
   _resolveGeometryPaths(pathsPoints) {
     const sourcePaths = this._clonePaths(pathsPoints);
+    const smoothPaths = this._helixOptions.svgSmoothNodesEnabled && this.svgNodes?.length
+      ? sampleSvgNodes(this.svgNodes) : [];
+    const buildPaths = smoothPaths.length ? smoothPaths.map(path => path.points) : sourcePaths;
+    const closedPaths = smoothPaths.map(path => path.closed);
 
     if (!this._helixOptions.sphericalProjectionEnabled) {
       return {
         sourcePaths,
-        resolvedPaths: this._clonePaths(sourcePaths),
+        resolvedPaths: this._clonePaths(buildPaths),
+        closedPaths,
+        splineNodes: smoothPaths.map(path => path.nodes),
         sphericalProjectionRadius: null,
       };
     }
 
-    const { radius, paths } = projectPathsToSphere(sourcePaths, {
+    const { radius, paths } = projectPathsToSphere(buildPaths, {
       radius: this._helixOptions.sphericalProjectionRadius,
       wrapDegrees: this._helixOptions.sphericalProjectionWrapDegrees,
       lowerLatitudeDegrees:
@@ -239,6 +247,7 @@ export class RibbonSeries {
     return {
       sourcePaths,
       resolvedPaths: paths,
+      closedPaths,
       sphericalProjectionRadius: radius,
     };
   }
@@ -280,7 +289,7 @@ export class RibbonSeries {
 
     // console.log('[RibbonSeries] Building from', pathsPoints.length, 'paths');
 
-    const { sourcePaths, resolvedPaths, sphericalProjectionRadius } =
+    const { sourcePaths, resolvedPaths, sphericalProjectionRadius, closedPaths, splineNodes } =
       this._resolveGeometryPaths(pathsPoints);
 
     // Clean up existing ribbons first
@@ -315,6 +324,9 @@ export class RibbonSeries {
       }
 
       const ribbon = new Ribbon(this._contentGroup);
+      ribbon.closedSpline = closedPaths[i] === true;
+      // Use the authored spline directly unless projection required dense input.
+      ribbon.splineNodes = splineNodes?.[i] ?? null;
 
       // Assign TileManager for strand A via round-robin
       const tmA =

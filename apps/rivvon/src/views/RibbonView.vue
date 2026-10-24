@@ -17,7 +17,7 @@
     import { createLazyLoader } from '../modules/shared/lazyLoader.js';
     import { resolveOrderedContext } from '../modules/viewer/viewerHeaderContext.js';
     import { isViewerPanelVisible, VIEWER_PANEL_KEYS } from '../modules/viewer/viewerPanels.js';
-    import { parseSvgContentDynamicResolution, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
+    import { parseSvgContentDynamicResolution, parseSvgNodes, normalizePointsMultiPath } from '../modules/viewer/svgPathToPoints';
     import { splitAllPathsAtCusps3D } from '../modules/viewer/cuspSplitter.js';
     import { buildTextureOverviewExportInfo, exportTextureOverviewVideo } from '../modules/viewer/textureOverviewExport.js';
     import { useRivvonAPI } from '../services/api.js';
@@ -97,7 +97,7 @@
     const videoPlayerTitle = ref('');
     const isAudioLibraryRoute = computed(() => route.name === 'audio-library');
     const isAudioPlayerRoute = computed(() => route.name === 'audio-player');
-    const { saveDrawing: saveLocalDrawing } = useDrawingStorage();
+    const { saveDrawing: saveLocalDrawing, updateDrawing: updateLocalDrawing } = useDrawingStorage();
     const { getDrawing, uploadTextureSet, uploadTextureSetToR2 } = useRivvonAPI();
     const {
         ensureRivvonFolder,
@@ -550,6 +550,24 @@ const activeToolbarOverlayTitle = computed(() => {
     const currentDrawingKind = ref(null);
     const currentDrawingTitle = ref(null);
     const currentDrawingSource = ref(null);
+    const currentSvgDrawingId = ref(null);
+    let drawingHeaderRevision = 0;
+    let svgModeSaveQueue = Promise.resolve();
+    watch(() => app.svgSmoothNodesEnabled, (enabled) => {
+        if (app.svgNodesAvailable && currentDrawingKind.value === 'svg' && currentDrawingSource.value?.svgNodes?.length) {
+            currentDrawingSource.value = { ...currentDrawingSource.value, svgSmoothNodesEnabled: enabled };
+            // Geometry interpretation belongs to the local drawing. Serialize
+            // writes so rapid toggles cannot save an older mode over a newer one.
+            const id = currentSvgDrawingId.value;
+            const source = currentDrawingSource.value;
+            if (id && !app.isRestoringPreset) {
+                svgModeSaveQueue = svgModeSaveQueue.then(() => updateLocalDrawing(id, { source })).catch(error => {
+                    console.error('[RibbonView] Could not save SVG interpretation:', error);
+                    toast.add({ severity: 'error', summary: 'Could not save SVG mode', detail: error.message, life: 4000 });
+                });
+            }
+        }
+    });
     const currentPresetId = ref(null);
     const presetCapture = shallowRef(null);
     const presetSaveVisible = ref(false);
@@ -829,6 +847,8 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     function setCurrentDrawingHeader({ kind = null, title = null, source = null } = {}) {
+        drawingHeaderRevision += 1;
+        currentSvgDrawingId.value = null;
         if (typeof kind !== 'string') {
             currentDrawingKind.value = null;
             currentDrawingTitle.value = null;
@@ -1388,6 +1408,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
                 await applyDrawingPathsToViewer(normalizedPaths, {
                     kind: 'svg',
+                    source: { fileName: 'spiral.svg', svgNodes: parseSvgNodes(svgContent, paths), svgSmoothNodesEnabled: false },
                     title: getDrawingHeaderTitle({
                         kind: 'svg',
                         source: {
@@ -1657,15 +1678,16 @@ const activeToolbarOverlayTitle = computed(() => {
         if (!threeCanvasRef.value || !Array.isArray(paths) || paths.length === 0) {
             return false;
         }
+        currentSvgDrawingId.value = null;
 
         if (paths.length === 1) {
-            await threeCanvasRef.value.createRibbon(paths[0]);
+            await threeCanvasRef.value.createRibbon(paths[0], { source });
             setCurrentDrawingHeader({ kind, title, source });
             setCurrentViewShareState(shareState);
             return true;
         }
 
-        await threeCanvasRef.value.createRibbonSeries(paths);
+        await threeCanvasRef.value.createRibbonSeries(paths, { source });
         setCurrentDrawingHeader({ kind, title, source });
         setCurrentViewShareState(shareState);
         return true;
@@ -1688,11 +1710,15 @@ const activeToolbarOverlayTitle = computed(() => {
         }
 
         try {
+            const revision = drawingHeaderRevision;
             const savedDrawing = await saveLocalDrawing({
                 ...drawingDraft,
                 storageProvider: 'local',
                 cachedFrom,
             });
+            if (revision === drawingHeaderRevision && savedDrawing.kind === 'svg' && savedDrawing.source?.svgNodes?.length) {
+                currentSvgDrawingId.value = savedDrawing.id;
+            }
 
             console.log('[RibbonView] Saved drawing locally:', savedDrawing.id, savedDrawing.name);
             return savedDrawing;
@@ -2016,6 +2042,8 @@ const activeToolbarOverlayTitle = computed(() => {
                         paths: normalizedPaths,
                         source: {
                             fileName: file.name,
+                            svgNodes: parseSvgNodes(svgContent, paths),
+                            svgSmoothNodesEnabled: false,
                         },
                     });
                 }
@@ -3609,6 +3637,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         try {
             const cloudDrawing = await getDrawing(cloudDrawingId);
+            if (cloudDrawing?.payload?.source) drawing.source = cloudDrawing.payload.source;
             return inflateDrawingPaths(cloudDrawing?.payload?.paths);
         } catch (error) {
             console.error('[RibbonView] Failed to fetch drawing payload from cloud:', error);
@@ -3655,6 +3684,9 @@ const activeToolbarOverlayTitle = computed(() => {
                 source: drawing?.source,
             }),
         });
+        if (drawing?.kind === 'svg' && drawing?.source?.svgNodes?.length) {
+            currentSvgDrawingId.value = drawing.local_id || (!drawing.is_cloud ? drawing.id : null);
+        }
     }
 
     // Track the initial tab for the texture browser

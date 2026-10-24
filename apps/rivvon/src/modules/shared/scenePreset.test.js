@@ -10,6 +10,22 @@ export function sampleScene() {
 }
 
 describe('scene preset contract', () => {
+    it('retains SVG anchors, closure and interpretation while validating portable node data', () => {
+        const scene = sampleScene();
+        scene.geometry.kind = 'svg';
+        scene.geometry.source = { fileName: 'triangle.svg', svgSmoothNodesEnabled: true,
+            svgNodes: [{ closed: true, points: [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }] }] };
+        scene.artwork.svgSmoothNodesEnabled = true;
+        const saved = normalizeScenePreset(scene);
+        expect(saved.geometry.source.svgNodes[0].closed).toBe(true);
+        expect(saved.geometry.source.svgNodes[0].points[0]).toEqual({ x: 0, y: 0, z: 0 });
+        expect(saved.artwork.svgSmoothNodesEnabled).toBe(true);
+        expect(saved.geometry.source.svgSmoothNodesEnabled).toBe(true);
+        expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+        scene.geometry.source.svgNodes[0].points[0].x = Infinity;
+        expect(() => normalizeScenePreset(scene)).toThrow('Invalid SVG node coordinate');
+        expect(normalizeScenePreset(sampleScene()).artwork.svgSmoothNodesEnabled).toBe(false);
+    });
     let preferences;
     beforeEach(() => {
         preferences = new Map();

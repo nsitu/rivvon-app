@@ -109,6 +109,24 @@
         <div v-else class="tools-section">
             <div class="tools-section-label">Geometry</div>
             <div class="tools-section-items">
+                <div class="tools-geometry-group">
+                    <div class="tools-toggle-row">
+                        <label class="tools-toggle-main" :for="getInputId('smooth-svg-nodes')">
+                            <span>Smooth through nodes</span>
+                        </label>
+                        <ToggleSwitch
+                            :inputId="getInputId('smooth-svg-nodes')"
+                            v-model="app.svgSmoothNodesEnabled"
+                            :disabled="!app.svgNodesAvailable"
+                            :aria-describedby="getInputId('smooth-svg-nodes-hint')"
+                        />
+                    </div>
+                    <div class="tools-hint" :id="getInputId('smooth-svg-nodes-hint')">
+                        {{ app.svgNodesAvailable
+                            ? 'Connect SVG nodes with a smooth curve, replacing sharp corners.'
+                            : 'Import an SVG to enable. Older saved SVGs need to be reimported.' }}
+                    </div>
+                </div>
                 <div class="tools-select-block">
                     <label class="tools-select-label">Surface</label>
                     <div class="tools-select-wrap">

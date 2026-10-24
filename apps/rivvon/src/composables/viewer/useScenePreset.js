@@ -34,7 +34,10 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
         const cinematic = ctx.cinematicCamera.getInstance();
         const scene = normalizeScenePreset({
             schemaVersion: 1,
-            geometry: { paths: serializeDrawingPaths(series.sourcePathsPoints), kind, title, source,
+            geometry: { paths: serializeDrawingPaths(series.sourcePathsPoints), kind, title,
+                source: series.svgNodes?.length
+                    ? { ...source, svgNodes: series.svgNodes, svgSmoothNodesEnabled: ctx.app.svgSmoothNodesEnabled }
+                    : source,
                 width: series.lastWidth || 1.2,
                 procedural: series.proceduralSource ? { type: series.proceduralSource.type, settings: series.proceduralSource.settings,
                     baseTimeMs: series.proceduralSource.runtimeState?.baseTimeMs } : null },
@@ -101,7 +104,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
                     ctx.ribbonSeries.value.proceduralSource.runtimeState.baseTimeMs = scene.geometry.procedural.baseTimeMs;
                 }
             } else {
-                await ribbons.createRibbonSeries(inflateDrawingPaths(scene.geometry.paths), { width: scene.geometry.width });
+                await ribbons.createRibbonSeries(inflateDrawingPaths(scene.geometry.paths), { width: scene.geometry.width, source: scene.geometry.source });
             }
             if (!ctx.ribbonSeries.value) throw new Error('Could not rebuild the preset geometry.');
             onProgress?.('applying', 1, 3);
@@ -126,6 +129,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
             ctx.tileManagers.value = old.managers;
             ctx.tileManager.value = old.manager;
             ctx.ribbonSeries.value = old.series;
+            ctx.app.svgNodesAvailable = !!old.series?.svgNodes?.length;
             ctx.ribbon.value = old.ribbon;
             ctx.app.applyArtworkSettingsSnapshot(old.snapshot.artwork);
             ctx.app.proceduralPathMode = old.proceduralPathMode;

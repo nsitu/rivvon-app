@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Ribbon } from '../../modules/viewer/ribbon';
 import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
 import { getSphericalProjectionArtworkAspectRatio } from '../../modules/viewer/sphericalProjection';
+import { normalizeSvgNodes } from '../../../../../packages/shared-types/src/svgNodes.js';
 import {
     DEFAULT_CLOCK_SETTINGS,
     DEFAULT_MOBIUS_SETTINGS,
@@ -20,6 +21,14 @@ import {
  * @param {Object} ctx - Shared context refs from useThreeSetup
  */
 export function useRibbonBuilder(ctx) {
+
+    function configureSvgNodes(series, source = null) {
+        series.svgNodes = normalizeSvgNodes(source?.svgNodes);
+        ctx.app.svgNodesAvailable = !!series.svgNodes?.length;
+        if (!ctx.app.isRestoringPreset) {
+            ctx.app.svgSmoothNodesEnabled = ctx.app.svgNodesAvailable && source?.svgSmoothNodesEnabled === true;
+        }
+    }
 
     function resetSphericalVerticalWrapForArtwork(pathsPoints) {
         if (ctx.app.isRestoringPreset) return;
@@ -111,6 +120,7 @@ export function useRibbonBuilder(ctx) {
         // (wave undulation and texture flow work the same way)
         resetSphericalVerticalWrapForArtwork([points]);
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
+        configureSvgNodes(ctx.ribbonSeries.value, options.source);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
         ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
@@ -153,6 +163,7 @@ export function useRibbonBuilder(ctx) {
         // Create new ribbon series - constructor only takes scene
         resetSphericalVerticalWrapForArtwork(pointsArray);
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
+        configureSvgNodes(ctx.ribbonSeries.value, options.source);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
         ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
@@ -212,6 +223,7 @@ export function useRibbonBuilder(ctx) {
         // Use RibbonSeries for consistent animation behavior
         resetSphericalVerticalWrapForArtwork([smoothedPoints]);
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
+        configureSvgNodes(ctx.ribbonSeries.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
         ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
@@ -250,6 +262,7 @@ export function useRibbonBuilder(ctx) {
         const settings = getMergedProceduralSettings(type, sourceConfig.settings || {});
 
         ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
+        configureSvgNodes(ctx.ribbonSeries.value);
         applyTileManagersToSeries(ctx.ribbonSeries.value);
         ctx.ribbonSeries.value.setHelixOptions(ctx.app.isRestoringPreset ? ctx.app.helixOptions : {
             ...ctx.app.helixOptions,
@@ -718,7 +731,9 @@ export function useRibbonBuilder(ctx) {
             return;
         }
 
+        const changedSvgMode = ctx.ribbonSeries.value._helixOptions.svgSmoothNodesEnabled !== options.svgSmoothNodesEnabled;
         ctx.ribbonSeries.value.setHelixOptions(options);
+        if (changedSvgMode && ctx.ribbonSeries.value.svgNodes?.length) ctx.cinematicCamera.clearROIs();
 
         // Rebuild geometry with new helix params
         if (ctx.ribbonSeries.value.lastPathsPoints && ctx.ribbonSeries.value.lastPathsPoints.length > 0) {

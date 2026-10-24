@@ -29,6 +29,19 @@ function harness() {
     return { ctx, deps, staged, oldManager, oldSeries, engine: useScenePreset(ctx, deps) };
 }
 describe('scene restoration boundary', () => {
+    it('captures the canonical SVG paths and passes nodes through restoration for reversible switching', async () => {
+        const h = harness();
+        h.ctx.app.svgSmoothNodesEnabled = true;
+        h.oldSeries.svgNodes = [{ closed: true, points: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 1, y: 1, z: 0 }] }];
+        const saved = h.engine.captureScene({ kind: 'svg', source: { fileName: 'triangle.svg' }, includeAssets: false }).scene;
+        expect(saved.geometry.paths).toEqual(h.oldSeries.sourcePathsPoints.map(path => path.map(({ x, y, z }) => ({ x, y, z }))));
+        expect(saved.geometry.source.svgNodes).toEqual(h.oldSeries.svgNodes);
+        expect(saved.artwork.svgSmoothNodesEnabled).toBe(true);
+        await h.engine.restoreScene(saved, []);
+        expect(h.deps.ribbons.createRibbonSeries).toHaveBeenCalledWith(expect.any(Array), {
+            width: 1.2, source: saved.geometry.source,
+        });
+    });
     it('forwards texture decoding progress and reports scene setup only after decoding finishes', async () => {
         const h = harness(); const snapshot = h.engine.captureScene({ includeAssets: false }).scene;
         const progress = vi.fn();

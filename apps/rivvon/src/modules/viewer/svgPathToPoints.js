@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import SvgPath from 'svgpath';
+import { svgPathDataToNodes } from './svgNodes.js';
 
 // Dynamic resolution configuration (exported for use in other modules)
 export const POINTS_PER_UNIT = 1.5;      // Points per unit of path length (after normalization)
@@ -196,6 +197,30 @@ export function extractSupportedSvgPathData(svgDoc) {
     return normalizedPathData;
 }
 
+/** Retain authored anchors in the exact coordinate system of the normal import. */
+export function parseSvgNodes(svgContent, referencePaths, scale = 5, targetSize = 8) {
+    const svgDoc = new DOMParser().parseFromString(svgContent, 'image/svg+xml');
+    if (svgDoc.querySelector('parsererror') || !referencePaths?.flat().length) return null;
+    const viewBox = svgDoc.querySelector('svg')?.getAttribute('viewBox');
+    let adjustedScale = scale;
+    if (viewBox) {
+        const [, , width, height] = viewBox.trim().split(/[\s,]+/).map(Number);
+        if (Math.max(width, height) > 0) adjustedScale /= Math.max(width, height);
+    }
+    const box = new THREE.Box3().setFromPoints(referencePaths.flat());
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const factor = Math.max(size.x, size.y) > 0 ? targetSize / Math.max(size.x, size.y) : 1;
+    return extractSupportedSvgPathData(svgDoc).flatMap(svgPathDataToNodes).map(path => ({
+        closed: path.closed,
+        points: path.points.map(point => ({
+            x: (point.x * adjustedScale - center.x) * factor,
+            y: (-point.y * adjustedScale - center.y) * factor,
+            z: 0,
+        })),
+    }));
+}
+
 /**
  * Calculate the length of an SVG path element
  * @param {string} pathData - The SVG path data string
@@ -232,7 +257,7 @@ export function calculateSvgPathLengths(svgContent) {
         const svgElement = svgDoc.querySelector("svg");
         const viewBox = svgElement?.getAttribute("viewBox");
         if (viewBox) {
-            const [, , width, height] = viewBox.split(" ").map(Number);
+            const [, , width, height] = viewBox.trim().split(/[\s,]+/).map(Number);
             const maxDimension = Math.max(width, height);
             if (maxDimension > 0) {
                 result.scale = 1 / maxDimension;
@@ -440,7 +465,7 @@ export function parseSvgContent(svgContent, numPoints = 100, scale = 1, z = 0) {
         const viewBox = svgElement?.getAttribute("viewBox");
 
         if (viewBox) {
-            const [, , width, height] = viewBox.split(" ").map(Number);
+            const [, , width, height] = viewBox.trim().split(/[\s,]+/).map(Number);
             // Use the largest dimension to normalize
             const maxDimension = Math.max(width, height);
             if (maxDimension > 0) {
@@ -489,7 +514,7 @@ export function parseSvgContentMultiPath(svgContent, numPoints = 100, scale = 1,
         const viewBox = svgElement?.getAttribute("viewBox");
 
         if (viewBox) {
-            const [, , width, height] = viewBox.split(" ").map(Number);
+            const [, , width, height] = viewBox.trim().split(/[\s,]+/).map(Number);
             // Use the largest dimension to normalize
             const maxDimension = Math.max(width, height);
             if (maxDimension > 0) {
@@ -563,7 +588,7 @@ export function parseSvgContentDynamicResolution(svgContent, options = {}, scale
         const viewBox = svgElement?.getAttribute("viewBox");
         
         if (viewBox) {
-            const [, , width, height] = viewBox.split(" ").map(Number);
+            const [, , width, height] = viewBox.trim().split(/[\s,]+/).map(Number);
             const maxDimension = Math.max(width, height);
             if (maxDimension > 0) {
                 adjustedScale = scale / maxDimension;
