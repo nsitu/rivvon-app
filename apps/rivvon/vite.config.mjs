@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { resolve, posix } from 'path';
 import { getRuntimeAssetEntries } from './config/runtimeAssets.mjs';
+import { patchFfmpegCore } from './config/patchFfmpegCore.mjs';
 
 const TASKS_VISION_VERSION = '0.10.34';
 const TASKS_VISION_WASM_SOURCE = normalizePath(resolve(__dirname, 'node_modules/@mediapipe/tasks-vision/wasm/*'));
@@ -52,6 +53,8 @@ export default defineConfig(({ mode }) => {
             // Keep the matching JS loader on Pages; the large WASM is manifest-managed.
             src: normalizePath(resolve(__dirname, 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js')),
             dest: 'vendor/ffmpeg/0.12.10',
+            rename: 'ffmpeg-core-stackfix.js',
+            transform: patchFfmpegCore,
         },
         {
             // Ship the adapted shader source and its LGPL attribution/license.

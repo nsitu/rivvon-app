@@ -10,6 +10,31 @@ export function sampleScene() {
 }
 
 describe('scene preset contract', () => {
+    it('round trips the grid recipe without expanding saved source paths and defaults older presets off', () => {
+        const input = sampleScene();
+        input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true };
+        const saved = normalizeScenePreset(input);
+        expect(saved.geometry.paths).toHaveLength(1);
+        expect(saved.artwork).toMatchObject(input.artwork);
+        expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+        const legacy = sampleScene();
+        legacy.artwork = {};
+        expect(normalizeScenePreset(legacy).artwork).toMatchObject({ gridRepeatEnabled: false, gridRepeatRows: 3, gridRepeatColumns: 3, gridRepeatCheckerboard: false });
+    });
+
+    it.each([0, 13, 2.5, NaN, Infinity, '3'])('rejects invalid persisted grid counts: %s', value => {
+        for (const key of ['gridRepeatRows', 'gridRepeatColumns']) {
+            const input = sampleScene();
+            input.artwork[key] = value;
+            expect(() => normalizeScenePreset(input)).toThrow(`Invalid ${key}`);
+        }
+    });
+
+    it('persists zero-height artwork aspect ratios', () => {
+        const input = sampleScene();
+        input.artwork.sphericalProjectionArtworkAspectRatio = 0;
+        expect(normalizeScenePreset(input).artwork.sphericalProjectionArtworkAspectRatio).toBe(0);
+    });
     it('retains SVG anchors, closure and interpretation while validating portable node data', () => {
         const scene = sampleScene();
         scene.geometry.kind = 'svg';
@@ -33,6 +58,28 @@ describe('scene preset contract', () => {
         setActivePinia(createPinia());
     });
     afterEach(() => vi.unstubAllGlobals());
+
+    it('tracks grid settings in Tools changes, snapshots, default reset, and artwork restoration', () => {
+        const store = useViewerStore();
+        store.captureToolsPanelOriginalState();
+        store.setGridRepeatEnabled(true);
+        store.setGridRepeatCount('gridRepeatRows', 2);
+        store.setGridRepeatCount('gridRepeatColumns', 4);
+        store.setGridRepeatCheckerboard(true);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(store.getViewerSettingsSnapshot()).toMatchObject({ gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 4, gridRepeatCheckerboard: true });
+        const before = [...preferences];
+        store.resetToolbarSettingsToDefaults();
+        expect(store.gridRepeatEnabled).toBe(false);
+        expect(store.gridRepeatRows).toBe(3);
+        const resetPreferences = [...preferences];
+        store.applyArtworkSettingsSnapshot(saved);
+        expect(store.gridRepeatRows).toBe(2);
+        expect(store.gridRepeatCheckerboard).toBe(true);
+        expect([...preferences]).toEqual(resetPreferences);
+        expect(before).toEqual([]);
+    });
 
     it('round trips artwork without capturing or changing device preferences or localStorage', () => {
         const store = useViewerStore();

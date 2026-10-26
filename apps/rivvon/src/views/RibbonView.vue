@@ -3,6 +3,7 @@
     import { useRoute, useRouter } from 'vue-router';
     import { useSlyceStore } from '../stores/slyceStore';
     import { useViewerStore } from '../stores/viewerStore';
+    import { useVideoDraftStore } from '../stores/videoDraftStore.js';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
     import { useEmojiPicker } from '../composables/viewer/useEmojiPicker';
     import { useScreenWakeLock } from '../composables/viewer/useScreenWakeLock';
@@ -24,9 +25,6 @@
     import { useDrawingStorage } from '../services/drawingStorage.js';
     import { useLocalStorage } from '../services/localStorage.js';
     import { useGoogleDrive } from '../services/googleDrive.js';
-    import {
-        publishVideoBlob,
-    } from '../services/videoService.js';
     import { createVideoThumbnail } from '../modules/viewer/videoThumbnail.js';
     import { isVideoFile, VIDEO_FILE_ACCEPT } from '../modules/slyce/videoFile.js';
     import Toast from 'primevue/toast';
@@ -71,6 +69,7 @@
     const RealtimeSampler = defineAsyncComponent(() => import('../components/slyce/RealtimeSampler.vue'));
 
     const app = useViewerStore();
+    const videoDrafts = useVideoDraftStore();
     const slyce = useSlyceStore();
     const toast = useToast();
     const { isAuthenticated, isAdmin, user } = useGoogleAuth();
@@ -2449,34 +2448,21 @@ const activeToolbarOverlayTitle = computed(() => {
             return;
         }
 
-        const settings = exportRecord.settings || {};
         const controller = new AbortController();
         videoPublishAbortController.value = controller;
         resetVideoPublishState();
         videoPublishState.value.isPublishing = true;
         videoPublishState.value.status = 'Preparing gallery publication…';
         try {
-            const publication = await publishVideoBlob({
-                metadata: {
-                    name: name?.trim() || exportRecord.filename.replace(/\.[^.]+$/, ''),
-                    description,
-                    isPublic,
-                    mimeType: exportRecord.mimeType,
-                    width: settings.width,
-                    height: settings.height,
-                    duration: settings.resolvedDuration || settings.duration,
-                    fps: settings.fps,
-                    exportSettings: settings,
-                    sourceDrawingPayload: exportRecord.sourceDrawingPayload,
-                    renderSnapshot: exportRecord.renderSnapshot,
-                    userProfile: user.value ? {
-                        name: user.value.name,
-                        email: user.value.email,
-                        picture: user.value.picture,
-                    } : null,
-                },
-                blob: exportRecord.blob,
-                thumbnailBlob: exportRecord.thumbnailBlob,
+            const publication = await videoDrafts.publishDraft(exportRecord.id, {
+                name: name?.trim() || exportRecord.filename.replace(/\.[^.]+$/, ''),
+                description,
+                isPublic,
+                userProfile: user.value ? {
+                    name: user.value.name,
+                    email: user.value.email,
+                    picture: user.value.picture,
+                } : null,
                 signal: controller.signal,
                 onProgress: (progress) => {
                     videoPublishState.value.progress = progress;
@@ -3424,6 +3410,11 @@ const activeToolbarOverlayTitle = computed(() => {
         }
     }
 
+    function openVideoDrafts() {
+        handleExportVideoDialogVisibleChange(false);
+        router.push({ name: 'video-gallery', query: { tab: 'drafts' } });
+    }
+
     // Called when user confirms export settings in the dialog
     async function handleExportConfirm(settings) {
         ensureOrbitControlsForInteraction(
@@ -3520,33 +3511,29 @@ const activeToolbarOverlayTitle = computed(() => {
                 return;
             }
 
-            let thumbnailBlob = null;
+            // Retain completed bytes before thumbnail work or any workflow reset.
+            if (renderSnapshot?.export) renderSnapshot.export.colourReport = colourReport;
+            const draft = videoDrafts.addDraft({
+                blob, filename, format: settings.format,
+                mimeType: blob.type || getVideoMimeType(settings.format),
+                settings, sourceDrawingPayload, renderSnapshot, colourReport,
+                thumbnailBlob: null,
+            });
+            encodedVideoExport.value = draft;
             try {
                 videoExportStatus.value = 'Preparing thumbnail…';
-                thumbnailBlob = await createVideoThumbnail(blob);
+                const thumbnailBlob = await createVideoThumbnail(blob);
+                const updated = videoDrafts.setThumbnail(draft.id, thumbnailBlob);
+                if (updated && encodedVideoExport.value.id === draft.id) encodedVideoExport.value = updated;
             } catch (thumbnailError) {
                 console.warn('Video thumbnail generation failed:', thumbnailError);
             }
 
-            encodedVideoExport.value = {
-                blob,
-                thumbnailBlob,
-                filename,
-                format: settings.format,
-                mimeType: blob.type || getVideoMimeType(settings.format),
-                size: blob.size,
-                settings,
-                sourceDrawingPayload,
-                renderSnapshot,
-                colourReport,
-            };
-            // Published videos retain diagnostics with the existing export snapshot.
-            if (renderSnapshot?.export) renderSnapshot.export.colourReport = colourReport;
             videoExportStatus.value = '';
             toast.add({
                 severity: 'success',
                 summary: 'Encoding complete',
-                detail: `${filename} · ${(blob.size / 1024 / 1024).toFixed(1)} MB`,
+                detail: `${filename} · ${(blob.size / 1024 / 1024).toFixed(1)} MB · Available in Video Gallery → Drafts`,
                 life: 5000,
             });
         } catch (error) {
@@ -4426,6 +4413,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-save-to-drive="handleSaveEncodedVideoToDrive"
             @request-cancel-drive="handleCancelVideoDriveSave"
             @request-open-drive="handleOpenDriveVideo"
+            @request-open-drafts="openVideoDrafts"
             @request-cancel="handleCancelVideoExport"
             @settings-change="handleVideoExportSettingsChange"
         />
@@ -4473,12 +4461,12 @@ const activeToolbarOverlayTitle = computed(() => {
 
         <Transition name="fade">
             <div
-                v-if="app.isFlowTransitioning"
+                v-if="app.isFlowTransitioning || app.isGeometryRebuilding"
                 class="loading-overlay loading-overlay--flow"
             >
                 <LoadingIndicator
                     class="loading-content"
-                    message="Preparing conveyor flow…"
+                    :message="app.isGeometryRebuilding ? 'Building grid pattern…' : 'Preparing conveyor flow…'"
                 />
             </div>
         </Transition>

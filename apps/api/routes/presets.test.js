@@ -71,6 +71,24 @@ describe('stored scene presets and referenced media', () => {
         return id;
     }
 
+    it('preserves the grid recipe with original source paths and rejects malformed counts', async () => {
+        const input = scene();
+        input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true };
+        const id = await save('private', input);
+        const response = await presetRoutes.request(`/${id}`, { headers }, env);
+        expect(response.status).toBe(200);
+        const saved = (await response.json()).scene;
+        expect(saved.artwork).toMatchObject(input.artwork);
+        expect(saved.geometry.paths).toEqual(input.geometry.paths);
+        for (const value of [0, 13, 2.5, '3']) {
+            const invalid = scene();
+            invalid.artwork = { gridRepeatRows: value };
+            const result = await presetRoutes.request('/', json({ name: 'Invalid grid', scene: invalid }), env);
+            expect(result.status).toBe(400);
+            expect((await result.json()).error).toContain('gridRepeatRows');
+        }
+    });
+
     it('stores only the scene and thumbnail, serves original media, and keeps snapshots immutable', async () => {
         const id = await save('unlisted');
         expect([...env.PRESETS_BUCKET.objects.keys()].sort()).toEqual([`presets/${id}/scene.json`, `presets/${id}/thumbnail`]);

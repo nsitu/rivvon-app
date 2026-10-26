@@ -5,7 +5,12 @@
 import { Box3, Group, Vector3 } from "three";
 import { Ribbon } from "./ribbon.js";
 import { DEFAULT_CAP_STYLE } from "./capStyle.js";
-import { projectPathsToSphere } from "./sphericalProjection.js";
+import {
+  projectPathsToSphere, samplePathsForSphericalProjection,
+  getSphericalProjectionArtworkAspectRatio, deriveSphericalProjectionLatitudeBounds,
+} from "./sphericalProjection.js";
+import { repeatPathGrid, assertGridRepeatGeometryBudget } from "./gridRepeat.js";
+import { GRID_REPEAT_DEFAULTS } from '../../../../../packages/shared-types/src/gridRepeat.js';
 import { sampleSvgNodes } from "./svgNodes.js";
 import {
   calculatePolylineLength,
@@ -49,6 +54,7 @@ export class RibbonSeries {
     this._flowWasActive = null; // Track last flow state (null = not yet initialized)
     this._lastFlowWrapStats = null;
     this._resolvedSphericalProjectionRadius = null;
+    this.projectionArtworkAspectRatio = 1;
     this.proceduralSource = null;
     this._proceduralDebug = null;
     this._layoutDebug = null;
@@ -81,6 +87,7 @@ export class RibbonSeries {
       undulationEnabled: true,
       capStyle: DEFAULT_CAP_STYLE,
       cornerNarrowingEnabled: false,
+      ...GRID_REPEAT_DEFAULTS,
       sphericalProjectionEnabled: false,
       sphericalProjectionRadius: null,
       sphericalProjectionWrapDegrees: null,
@@ -218,37 +225,52 @@ export class RibbonSeries {
     }
   }
 
-  _resolveGeometryPaths(pathsPoints) {
+  _resolveGeometryPaths(pathsPoints, width = this.lastWidth, options = this._helixOptions) {
     const sourcePaths = this._clonePaths(pathsPoints);
-    const smoothPaths = this._helixOptions.svgSmoothNodesEnabled && this.svgNodes?.length
+    const smoothPaths = options.svgSmoothNodesEnabled && this.svgNodes?.length
       ? sampleSvgNodes(this.svgNodes) : [];
-    const buildPaths = smoothPaths.length ? smoothPaths.map(path => path.points) : sourcePaths;
-    const closedPaths = smoothPaths.map(path => path.closed);
+    let descriptors = repeatPathGrid(smoothPaths.length
+      ? smoothPaths.map(path => ({ points: path.points, splineNodes: path.nodes, closed: path.closed }))
+      : sourcePaths.map(points => ({ points, closed: false })), options, width);
+    let buildPaths = descriptors.map(path => path.points);
+    const artworkAspectRatio = getSphericalProjectionArtworkAspectRatio(buildPaths);
+    const latitudeBounds = options.sphericalProjectionVerticalWrapAuto === true
+      ? deriveSphericalProjectionLatitudeBounds(options.sphericalProjectionWrapDegrees, artworkAspectRatio)
+      : { lower: options.sphericalProjectionLowerLatitudeDegrees, upper: options.sphericalProjectionUpperLatitudeDegrees };
+    const projectionOptions = {
+      radius: options.sphericalProjectionRadius,
+      wrapDegrees: options.sphericalProjectionWrapDegrees,
+      lowerLatitudeDegrees: latitudeBounds.lower,
+      upperLatitudeDegrees: latitudeBounds.upper,
+    };
 
-    if (!this._helixOptions.sphericalProjectionEnabled) {
+    if (options.gridRepeatEnabled && options.sphericalProjectionEnabled) {
+      descriptors = samplePathsForSphericalProjection(descriptors, projectionOptions);
+      buildPaths = descriptors.map(path => path.points);
+    }
+    const closedPaths = descriptors.map(path => path.closed);
+    const effectiveWidth = options.surfaceMode === 'tube' ? width : width * (options.ribbonWidthScale ?? 1);
+    if (!options.sphericalProjectionEnabled) {
+      assertGridRepeatGeometryBudget(buildPaths, effectiveWidth, options);
       return {
         sourcePaths,
-        resolvedPaths: this._clonePaths(buildPaths),
+        resolvedPaths: buildPaths,
         closedPaths,
-        splineNodes: smoothPaths.map(path => path.nodes),
+        splineNodes: descriptors.map(path => path.splineNodes),
         sphericalProjectionRadius: null,
+        artworkAspectRatio,
       };
     }
 
-    const { radius, paths } = projectPathsToSphere(buildPaths, {
-      radius: this._helixOptions.sphericalProjectionRadius,
-      wrapDegrees: this._helixOptions.sphericalProjectionWrapDegrees,
-      lowerLatitudeDegrees:
-        this._helixOptions.sphericalProjectionLowerLatitudeDegrees,
-      upperLatitudeDegrees:
-        this._helixOptions.sphericalProjectionUpperLatitudeDegrees,
-    });
+    const { radius, paths } = projectPathsToSphere(buildPaths, projectionOptions);
+    assertGridRepeatGeometryBudget(paths, effectiveWidth, options);
 
     return {
       sourcePaths,
       resolvedPaths: paths,
       closedPaths,
       sphericalProjectionRadius: radius,
+      artworkAspectRatio,
     };
   }
 
@@ -281,7 +303,7 @@ export class RibbonSeries {
    * @param {number} time - Animation time
    * @returns {Array<Ribbon>} The created ribbons
    */
-  buildFromMultiplePaths(pathsPoints, width = 1, time = 0) {
+  buildFromMultiplePaths(pathsPoints, width = 1, time = 0, preparedGeometry = null) {
     if (!pathsPoints || pathsPoints.length === 0) {
       console.warn("[RibbonSeries] No paths provided");
       return [];
@@ -289,8 +311,8 @@ export class RibbonSeries {
 
     // console.log('[RibbonSeries] Building from', pathsPoints.length, 'paths');
 
-    const { sourcePaths, resolvedPaths, sphericalProjectionRadius, closedPaths, splineNodes } =
-      this._resolveGeometryPaths(pathsPoints);
+    const { sourcePaths, resolvedPaths, sphericalProjectionRadius, closedPaths, splineNodes, artworkAspectRatio } =
+      preparedGeometry || this._resolveGeometryPaths(pathsPoints, width);
 
     // Clean up existing ribbons first
     this.cleanup();
@@ -302,6 +324,7 @@ export class RibbonSeries {
     this.lastPathsPoints = this._clonePaths(resolvedPaths);
     this.lastWidth = width;
     this._resolvedSphericalProjectionRadius = sphericalProjectionRadius;
+    this.projectionArtworkAspectRatio = artworkAspectRatio;
     this._updateTransformRoot(this.lastPathsPoints);
 
     const effectiveWidth = this._getEffectiveSurfaceWidth(width);
@@ -948,7 +971,7 @@ export class RibbonSeries {
    * Use this when ribbon paths change, not for regular animation
    * @param {number} time - Animation time
    */
-  rebuildUpdate(time) {
+  rebuildUpdate(time, preparedGeometry = null) {
     if (this.proceduralSource) {
       const source = this.proceduralSource;
       return this.buildFromProceduralSource(source, source.width, time);
@@ -957,7 +980,7 @@ export class RibbonSeries {
       // Preserve flow state before rebuild
       const wasActive = this._flowWasActive;
 
-      this.buildFromMultiplePaths(this.sourcePathsPoints, this.lastWidth, time);
+      this.buildFromMultiplePaths(this.sourcePathsPoints, this.lastWidth, time, preparedGeometry);
 
       // Restore flow state
       this._flowWasActive = wasActive;

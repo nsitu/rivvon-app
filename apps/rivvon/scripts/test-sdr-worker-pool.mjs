@@ -96,7 +96,23 @@ try {
                 }finally{input.dispose();}
                 if(decoded!==frames)throw new Error('Wrong decoded frame count');
                 if(peakActive<${minimumWorkers}||peakActive>4)throw new Error('Unexpected active worker count: '+peakActive);
-                return {frames,decoded,peakActive,workers:pool.workerCount,crossOriginIsolated,elapsed};
+                // Reusing a core for hundreds of exec() calls used to exhaust
+                // its WASM stack even with tiny frames and bounded raw memory.
+                const repeatedBatches=256,repeatedBatchFrames=4;
+                const repeated=await createSdrEncoderPool({width:2,height:2,fps,quality:'very-high',workerLimit:1});
+                let repeatedFrames;
+                try {
+                    for(let batch=0;batch<repeatedBatches;batch++) {
+                        await repeated.submit(()=>new Uint8Array(6*repeatedBatchFrames).fill(128),repeatedBatchFrames);
+                    }
+                    const video=await repeated.mux();
+                    repeatedFrames=repeatedBatches*repeatedBatchFrames;
+                    restoreCfrMp4Timing(video,{fps,frames:repeatedFrames});
+                    assertSdrMp4(video,{width:2,height:2,fps,frames:repeatedFrames});
+                    if(repeated.workerCount!==1)throw new Error('Repeated encode must reuse one worker');
+                }finally{repeated.dispose();}
+                return {frames,decoded,peakActive,workers:pool.workerCount,crossOriginIsolated,elapsed,
+                    repeatedBatches,repeatedFrames};
             }finally{pool.dispose();}
         })()
     ` }), new Promise((_, reject) => setTimeout(() => reject(new Error('Worker pool regression timed out after 2 minutes')), 120000).unref())]);

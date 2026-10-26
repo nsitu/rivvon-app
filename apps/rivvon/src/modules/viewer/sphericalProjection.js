@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { assertGridRepeatPointBudget } from './gridRepeat.js';
 
 export const DEFAULT_SPHERICAL_WRAP_DEGREES = 100;
 export const MIN_SPHERICAL_WRAP_DEGREES = 15;
@@ -242,4 +243,43 @@ export function projectPathsToSphere(pathsPoints, options = {}) {
             points.map((point) => projectPlanarPointToSphere(point, radius, new THREE.Vector3(), resolution))
         )),
     };
+}
+
+// Projecting only sparse vertices can collapse a full-turn path onto itself.
+// Sample its existing source curve before the nonlinear mapping, never the
+// straight chord between projected endpoints. Used by the grid path stage.
+export function samplePathsForSphericalProjection(descriptors, options = {}) {
+    const mapping = resolveSphericalProjectionRadius(
+        descriptors.map(path => path.points), options.wrapDegrees,
+        options.lowerLatitudeDegrees, options.upperLatitudeDegrees,
+    );
+    const maxStepDegrees = 5;
+    let pointCount = 0;
+    return descriptors.map(path => {
+        const points = path.points;
+        let travel = 0;
+        let largestStep = 0;
+        for (let i = 1; i < points.length; i++) {
+            const step = Math.abs(points[i].x - points[i - 1].x) / Math.max(mapping.width, 1e-6) * mapping.horizontalWrapDegrees
+                + Math.abs(points[i].y - points[i - 1].y) / Math.max(mapping.height, 1e-6)
+                    * (mapping.upperLatitudeDegrees - mapping.lowerLatitudeDegrees);
+            travel += step;
+            largestStep = Math.max(largestStep, step);
+        }
+        if (points.length < 2 || largestStep <= maxStepDegrees) {
+            pointCount += points.length;
+            assertGridRepeatPointBudget(pointCount);
+            return path;
+        }
+        const divisions = Math.max(points.length - 1, Math.ceil(travel / maxStepDegrees));
+        pointCount += divisions + 1;
+        assertGridRepeatPointBudget(pointCount);
+        let nodes = path.splineNodes || points;
+        if (path.closed && nodes[0].distanceToSquared(nodes.at(-1)) < 1e-12) nodes = nodes.slice(0, -1);
+        const curve = nodes.length < 3
+            ? new THREE.LineCurve3(nodes[0], nodes.at(-1))
+            : new THREE.CatmullRomCurve3(nodes, !!path.closed, 'centripetal');
+        curve.arcLengthDivisions = Math.max(200, nodes.length * 2, divisions * 2);
+        return { ...path, points: curve.getSpacedPoints(divisions) };
+    });
 }

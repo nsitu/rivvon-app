@@ -1,6 +1,7 @@
 <script setup>
     import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
     import { useViewerStore } from '../../stores/viewerStore';
+    import { useToast } from 'primevue/usetoast';
     import { useThreeSetup } from '../../composables/viewer/useThreeSetup';
     import {
         registerRendererAdjustments,
@@ -17,6 +18,7 @@
     const emit = defineEmits(['initialized', 'render']);
 
     const app = useViewerStore();
+    const toast = useToast();
     const containerRef = ref(null);
 
     const {
@@ -355,10 +357,32 @@
         setFilmstripHoleRoundedness(value);
     });
 
-    // Watch for helix mode/option changes and rebuild ribbons
-    watch(() => app.helixOptions, (options) => {
+    // Yield before grid builds so the existing scene loading overlay can paint.
+    // Cleanup cancels stale requests when a new recipe/source arrives meanwhile.
+    watch(() => app.helixOptions, async (options, previous, onCleanup) => {
         if (app.isRestoringPreset) return;
-        setHelixMode(options);
+        let cancelled = false;
+        onCleanup(() => { cancelled = true; app.isGeometryRebuilding = false; });
+        const series = ribbonSeries.value;
+        const gridChange = options.gridRepeatEnabled || previous?.gridRepeatEnabled;
+        if (gridChange && series && !series.proceduralSource) {
+            app.isGeometryRebuilding = true;
+            await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+            if (cancelled || series !== ribbonSeries.value || app.isRestoringPreset) {
+                if (!cancelled) app.isGeometryRebuilding = false;
+                return;
+            }
+        }
+        try {
+            if (setHelixMode(options) === false) {
+                toast.add({ severity: 'error', summary: 'Grid repeat', detail: app.gridRepeatError, life: 6000 });
+            }
+        } catch (error) {
+            console.error('[ThreeCanvas] Geometry rebuild failed:', error);
+            toast.add({ severity: 'error', summary: 'Could not rebuild geometry', detail: error.message, life: 6000 });
+        } finally {
+            if (!cancelled) app.isGeometryRebuilding = false;
+        }
     }, { deep: true });
 
     // Expose methods for parent component

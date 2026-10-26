@@ -1,7 +1,8 @@
 <script setup>
-    import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-    import { RouterLink } from 'vue-router';
+    import { computed, onBeforeUnmount, ref, watch } from 'vue';
+    import { RouterLink, useRoute, useRouter } from 'vue-router';
     import Button from 'primevue/button';
+    import Dialog from 'primevue/dialog';
     import ScrollPanel from 'primevue/scrollpanel';
     import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import ChromeButton from '../components/shared/ChromeButton.vue';
@@ -10,9 +11,29 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
     import { deleteVideoPublication, fetchMyVideos, fetchVideos, publishVideoBlob } from '../services/videoService.js';
+    import { useVideoDraftStore } from '../stores/videoDraftStore.js';
 
     const { isAuthenticated, isAdmin, login, user } = useGoogleAuth();
-    const activeTab = ref('public');
+    const route = useRoute();
+    const router = useRouter();
+    const videoDrafts = useVideoDraftStore();
+    const activeTab = computed({
+        get: () => ['mine', 'drafts'].includes(route.query.tab) ? route.query.tab : 'public',
+        set: tab => router.replace({ query: { ...route.query, tab: tab === 'public' ? undefined : tab } }),
+    });
+    const isDrafts = computed(() => activeTab.value === 'drafts');
+    const previewDraftId = ref('');
+    const previewDraft = computed(() => videoDrafts.getDraft(previewDraftId.value));
+    const draftPreviewVisible = computed({
+        get: () => !!previewDraft.value,
+        set: visible => { if (!visible) previewDraftId.value = ''; },
+    });
+    const discardDraftId = ref('');
+    const discardDraft = computed(() => videoDrafts.getDraft(discardDraftId.value));
+    const discardDialogVisible = computed({
+        get: () => !!discardDraft.value,
+        set: visible => { if (!visible) discardDraftId.value = ''; },
+    });
     const videos = ref([]);
     const isLoading = ref(false);
     const error = ref('');
@@ -22,6 +43,7 @@
     const uploadDialogVisible = ref(false);
     const uploadFileInput = ref(null);
     const uploadFile = ref(null);
+    const uploadDraftId = ref('');
     const uploadMetadata = ref(null);
     const uploadThumbnail = ref(null);
     const uploadName = ref('');
@@ -36,6 +58,9 @@
     const canUpload = computed(() => isAuthenticated.value && isAdmin.value);
 
     const isMyVideos = computed(() => activeTab.value === 'mine');
+    const publishDisabledReason = computed(() => !isAuthenticated.value
+        ? 'Sign in as an administrator to publish videos.' : 'Gallery publishing is currently limited to administrators.');
+    let loadRequestId = 0;
 
     function formatDuration(seconds) {
         const total = Math.max(0, Math.round(Number(seconds) || 0));
@@ -57,8 +82,11 @@
     }
 
     async function loadVideos() {
-        if (isMyVideos.value && !isAuthenticated.value) {
+        const requestId = ++loadRequestId;
+        error.value = '';
+        if (isDrafts.value || (isMyVideos.value && !isAuthenticated.value)) {
             videos.value = [];
+            isLoading.value = false;
             return;
         }
 
@@ -66,16 +94,16 @@
         error.value = '';
         try {
             const response = isMyVideos.value ? await fetchMyVideos() : await fetchVideos();
-            videos.value = response.videos || [];
+            if (requestId === loadRequestId) videos.value = response.videos || [];
         } catch (loadError) {
-            error.value = loadError?.message || 'Unable to load the video gallery.';
+            if (requestId === loadRequestId) error.value = loadError?.message || 'Unable to load the video gallery.';
         } finally {
-            isLoading.value = false;
+            if (requestId === loadRequestId) isLoading.value = false;
         }
     }
 
     function getFilenameTitle(file) {
-        return file.name.replace(/\.[^.]+$/, '').trim().slice(0, 120);
+        return (videoDrafts.getDraft(uploadDraftId.value)?.filename || file.name || 'rivvon-video').replace(/\.[^.]+$/, '').trim().slice(0, 120);
     }
 
     function createCanvasThumbnail(video) {
@@ -139,6 +167,7 @@
     }
 
     function resetUploadForm() {
+        uploadDraftId.value = '';
         uploadFile.value = null;
         uploadMetadata.value = null;
         uploadThumbnail.value = null;
@@ -155,6 +184,38 @@
         if (!canUpload.value) return;
         resetUploadForm();
         uploadDialogVisible.value = true;
+    }
+
+    function openDraftPublication(draft) {
+        if (!canUpload.value || draft.publication.isPublishing || draft.publication.videoId) return;
+        resetUploadForm();
+        previewDraftId.value = '';
+        uploadDraftId.value = draft.id;
+        uploadFile.value = draft.blob;
+        uploadMetadata.value = {
+            width: draft.settings.width, height: draft.settings.height,
+            duration: draft.settings.resolvedDuration || draft.settings.duration,
+        };
+        uploadThumbnail.value = draft.thumbnailBlob;
+        uploadName.value = draft.name.slice(0, 120);
+        uploadStatus.value = 'Ready to publish this draft.';
+        uploadDialogVisible.value = true;
+    }
+
+    function downloadDraft(draft) {
+        // The session store owns this URL; downloading must not revoke it.
+        const link = document.createElement('a');
+        link.href = draft.playbackUrl;
+        link.download = draft.filename;
+        link.click();
+    }
+
+    function confirmDiscardDraft() {
+        const draft = discardDraft.value;
+        if (!draft || draft.publication.isPublishing) return;
+        if (previewDraftId.value === draft.id) previewDraftId.value = '';
+        videoDrafts.discardDraft(draft.id);
+        discardDraftId.value = '';
     }
 
     function closeUploadDialog() {
@@ -215,7 +276,7 @@
         uploadAbortController = new AbortController();
 
         try {
-            await publishVideoBlob({
+            const publicationOptions = {
                 metadata: {
                     name: uploadName.value.trim() || getFilenameTitle(uploadFile.value),
                     description: uploadDescription.value,
@@ -240,7 +301,18 @@
                 onStatus: (status) => {
                     uploadStatus.value = status;
                 },
-            });
+            };
+            if (uploadDraftId.value) {
+                const { name, description, isPublic, userProfile } = publicationOptions.metadata;
+                await videoDrafts.publishDraft(uploadDraftId.value, {
+                    name, description, isPublic, userProfile,
+                    signal: publicationOptions.signal,
+                    onProgress: publicationOptions.onProgress,
+                    onStatus: publicationOptions.onStatus,
+                });
+            } else {
+                await publishVideoBlob(publicationOptions);
+            }
 
             uploadStatus.value = 'Published to the video gallery.';
             await loadVideos();
@@ -279,9 +351,8 @@
         }
     }
 
-    watch([activeTab, isAuthenticated], loadVideos);
-    onMounted(loadVideos);
-    onBeforeUnmount(() => uploadAbortController?.abort());
+    watch([activeTab, isAuthenticated], loadVideos, { immediate: true });
+    onBeforeUnmount(() => { loadRequestId++; uploadAbortController?.abort(); });
 </script>
 
 <template>
@@ -304,10 +375,15 @@
                     @click="activeTab = 'mine'"
                 >My Videos</ChromeButton>
                 <ChromeButton
+                    :active="isDrafts"
+                    :aria-pressed="isDrafts"
+                    @click="activeTab = 'drafts'"
+                >Drafts ({{ videoDrafts.drafts.length }})</ChromeButton>
+                <ChromeButton
                     v-if="canUpload || !isAuthenticated"
                     :disabled="!canUpload"
                     :title="!canUpload ? 'Login required to upload videos' : undefined"
-                    :aria-describedby="!canUpload ? 'gallery-upload-login-notice' : undefined"
+                    :aria-describedby="!canUpload ? (isDrafts ? 'draft-publish-notice' : 'gallery-upload-login-notice') : undefined"
                     @click="openUploadDialog"
                 >
                     <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
@@ -315,7 +391,7 @@
                 </ChromeButton>
             </PanelActionBar>
             <p
-                v-if="!isAuthenticated"
+                v-if="!isAuthenticated && !isDrafts"
                 id="gallery-upload-login-notice"
                 class="gallery-upload-login-notice"
                 role="status"
@@ -323,7 +399,65 @@
 
             <ScrollPanel class="rivvon-scroll-panel video-gallery-scroll">
 
-                <section v-if="isMyVideos && !isAuthenticated" class="gallery-empty">
+                <template v-if="isDrafts">
+                    <p class="draft-session-notice" role="status">
+                        Completed encodings stay in this browser tab until you reload or close it.
+                        Download or publish videos you want to keep.
+                        <span v-if="videoDrafts.drafts.length">{{ formatFileSize(videoDrafts.totalBytes) }} held in memory.</span>
+                    </p>
+                    <section v-if="!videoDrafts.drafts.length" class="gallery-empty">
+                        <span class="material-symbols-outlined" aria-hidden="true">movie</span>
+                        <h2>No draft encodings yet</h2>
+                        <p>Encode a video from the viewer. It will appear here even after you close the export workflow.</p>
+                        <RouterLink to="/" class="gallery-primary-link">Open the viewer</RouterLink>
+                    </section>
+                    <section v-else class="video-card-grid" aria-label="Draft encodings">
+                        <article v-for="draft in videoDrafts.drafts" :key="draft.id" class="video-card">
+                            <Button type="button" variant="text" class="video-card-poster draft-video-poster"
+                                :aria-label="`Review ${draft.name}`" @click="previewDraftId = draft.id">
+                                <img v-if="draft.thumbnailUrl" :src="draft.thumbnailUrl" :alt="`Poster for ${draft.name}`">
+                                <span v-else class="video-card-placeholder material-symbols-outlined" aria-hidden="true">movie</span>
+                                <span class="video-card-play material-symbols-outlined" aria-hidden="true">play_circle</span>
+                                <span class="video-card-duration">{{ formatDuration(draft.settings.resolvedDuration || draft.settings.duration) }}</span>
+                            </Button>
+                            <div class="video-card-content">
+                                <div class="video-card-title-row">
+                                    <h2>{{ draft.name }}</h2>
+                                    <span v-if="draft.publication.videoId" class="private-badge">Published</span>
+                                </div>
+                                <div class="video-card-meta">
+                                    <span>{{ draft.settings.width }}×{{ draft.settings.height }}</span>
+                                    <span>{{ draft.format.toUpperCase() }}</span>
+                                    <span>{{ formatFileSize(draft.size) }}</span>
+                                </div>
+                                <p v-if="draft.publication.isPublishing" role="status">{{ draft.publication.status }}</p>
+                                <p v-else-if="draft.publication.error" role="alert">{{ draft.publication.error }}</p>
+                                <div class="draft-card-actions">
+                                    <Button type="button" severity="secondary" variant="outlined" @click="downloadDraft(draft)">Download</Button>
+                                    <Button v-if="draft.publication.videoId" type="button"
+                                        @click="router.push({ name: 'video-player', params: { videoId: draft.publication.videoId } })">Open published</Button>
+                                    <Button v-else type="button" :disabled="!canUpload || draft.publication.isPublishing"
+                                        :title="!canUpload ? publishDisabledReason : undefined" @click="openDraftPublication(draft)">
+                                        {{ draft.publication.isPublishing ? 'Uploading…' : 'Publish' }}
+                                    </Button>
+                                </div>
+                                <div class="video-card-footer">
+                                    <span>{{ formatDate(draft.createdAt / 1000) }}</span>
+                                    <Button type="button" severity="secondary" variant="text" class="rivvon-icon-action"
+                                        :aria-label="`Discard draft ${draft.name}`" :disabled="draft.publication.isPublishing"
+                                        @click="discardDraftId = draft.id">
+                                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                                    </Button>
+                                </div>
+                            </div>
+                        </article>
+                    </section>
+                    <p v-if="!canUpload" id="draft-publish-notice" class="draft-session-notice">
+                        {{ publishDisabledReason }} Playback and downloads are available without signing in.
+                        <Button v-if="!isAuthenticated" type="button" variant="link" @click="login">Sign in</Button>
+                    </p>
+                </template>
+                <section v-else-if="isMyVideos && !isAuthenticated" class="gallery-empty">
                     <span class="material-symbols-outlined">login</span>
                     <h2>Sign in to see your videos</h2>
                     <p>Private and public videos you publish will appear here.</p>
@@ -387,6 +521,30 @@
             </ScrollPanel>
         </div>
 
+        <Dialog v-model:visible="draftPreviewVisible" modal maximizable :header="previewDraft?.name || 'Draft encoding'"
+            class="draft-preview-dialog" :style="{ width: 'min(64rem, calc(100vw - 2rem))' }">
+            <!-- Native video controls supply playback, seeking, volume, and fullscreen. -->
+            <video v-if="draftPreviewVisible && previewDraft" class="draft-preview-video"
+                :src="previewDraft.playbackUrl" :poster="previewDraft.thumbnailUrl || undefined"
+                :aria-label="`Playback of ${previewDraft.name}`" controls playsinline preload="metadata" />
+            <template #footer>
+                <Button type="button" severity="secondary" variant="outlined" @click="draftPreviewVisible = false">Close</Button>
+                <Button v-if="previewDraft" type="button" severity="secondary" variant="outlined" @click="downloadDraft(previewDraft)">Download</Button>
+                <Button v-if="previewDraft && !previewDraft.publication.videoId" type="button"
+                    :disabled="!canUpload || previewDraft.publication.isPublishing"
+                    :title="!canUpload ? publishDisabledReason : undefined" @click="openDraftPublication(previewDraft)">Publish</Button>
+            </template>
+        </Dialog>
+
+        <Dialog v-model:visible="discardDialogVisible" modal header="Discard draft?"
+            :style="{ width: 'min(30rem, calc(100vw - 2rem))' }">
+            <p>This removes “{{ discardDraft?.name }}” from this browser tab and frees its memory. Download or publish it first if you want to keep it.</p>
+            <template #footer>
+                <Button type="button" severity="secondary" variant="outlined" @click="discardDialogVisible = false">Cancel</Button>
+                <Button type="button" severity="danger" :disabled="discardDraft?.publication.isPublishing" @click="confirmDiscardDraft">Discard draft</Button>
+            </template>
+        </Dialog>
+
         <Teleport to="body">
             <div
                 v-if="uploadDialogVisible"
@@ -403,8 +561,8 @@
                     <div class="gallery-upload-dialog-content">
                     <div class="gallery-upload-dialog-header">
                         <div>
-                            <h2 id="gallery-upload-title">Upload video</h2>
-                            <p>Add a rendered loop directly to the video gallery.</p>
+                            <h2 id="gallery-upload-title">{{ uploadDraftId ? 'Publish draft' : 'Upload video' }}</h2>
+                            <p>{{ uploadDraftId ? 'Upload this completed encoding and its thumbnail to the video gallery.' : 'Add a rendered loop directly to the video gallery.' }}</p>
                         </div>
                         <Button
                             type="button"
@@ -420,7 +578,7 @@
                     </div>
 
                     <form class="gallery-upload-form" @submit.prevent="handleUpload">
-                        <label class="gallery-file-picker">
+                        <label v-if="!uploadDraftId" class="gallery-file-picker">
                             <span class="gallery-file-picker-label">Video file</span>
                             <input
                                 ref="uploadFileInput"
@@ -434,7 +592,7 @@
 
                         <div v-if="uploadFile" class="gallery-selected-file">
                             <span class="material-symbols-outlined">movie</span>
-                            <span>{{ uploadFile.name }}</span>
+                            <span>{{ videoDrafts.getDraft(uploadDraftId)?.filename || uploadFile.name }}</span>
                             <span v-if="uploadMetadata" class="gallery-selected-file-meta">
                                 {{ uploadMetadata.width }}×{{ uploadMetadata.height }} · {{ formatDuration(uploadMetadata.duration) }}
                             </span>
@@ -547,6 +705,11 @@
     .video-card-content { display: flex; flex-direction: column; gap: .8rem; padding: .95rem; }
     .video-card-title-row { display: flex; justify-content: space-between; gap: .8rem; }
     .video-card h2 { margin: 0; color: #f2f2f2; font-size: .98rem; }
+    .draft-session-notice { margin: 0 0 1rem; color: var(--p-text-muted-color); line-height: 1.5; }
+    .draft-video-poster { width: 100%; padding: 0; border-radius: 0; }
+    .draft-card-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+    .video-card-title-row h2 { overflow-wrap: anywhere; min-width: 0; }
+    .draft-preview-video { display: block; width: 100%; max-height: 60dvh; background: #080910; }
     .video-card p { display: -webkit-box; overflow: hidden; margin: .35rem 0 0; color: #969696; font-size: .8rem; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .private-badge { height: fit-content; padding: .2rem .45rem; border: 1px solid #5b4c2d; border-radius: .2rem; color: #e0b96b; background: #342b1b; font-size: .7rem; }
     .video-card-meta, .video-card-footer { display: flex; align-items: center; gap: .7rem; color: #929292; font-size: .72rem; }

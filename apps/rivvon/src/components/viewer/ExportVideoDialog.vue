@@ -56,7 +56,7 @@
         'update:visible', 'request-export', 'request-download', 'request-share',
         'request-publish', 'request-cancel-publish', 'request-open-published',
         'request-save-to-drive', 'request-cancel-drive', 'request-open-drive',
-        'request-cancel', 'settings-change',
+        'request-cancel', 'settings-change', 'request-open-drafts',
     ]);
 
     // --- Form state ---
@@ -868,6 +868,9 @@
                     </div>
                     <ExportColourReport v-if="hasEncodedVideo && colourReport?.phase === 'complete'"
                         :report="colourReport" :filename="encodedFilename" />
+                    <p v-if="hasEncodedVideo" class="export-draft-notice">
+                        This encoding is available in Video Gallery → Drafts until you reload or close this browser tab.
+                    </p>
                     </div>
                 </ScrollPanel>
 
@@ -1000,6 +1003,10 @@
                         >
                             <span class="material-symbols-outlined">close</span>
                             Close
+                        </Button>
+                        <Button type="button" severity="secondary" variant="outlined" @click="emit('request-open-drafts')">
+                            <span class="material-symbols-outlined" aria-hidden="true">video_library</span>
+                            Drafts
                         </Button>
                         <Button
                             v-if="canShare"

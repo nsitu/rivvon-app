@@ -29,6 +29,20 @@ function harness() {
     return { ctx, deps, staged, oldManager, oldSeries, engine: useScenePreset(ctx, deps) };
 }
 describe('scene restoration boundary', () => {
+    it('captures grid settings beside source geometry and restores or rolls them back with the scene', async () => {
+        const h = harness();
+        Object.assign(h.ctx.app, { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true });
+        const saved = h.engine.captureScene({ includeAssets: false }).scene;
+        expect(saved.geometry.paths).toHaveLength(1);
+        expect(saved.artwork).toMatchObject({ gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true });
+        saved.artwork.gridRepeatRows = 4;
+        h.deps.ribbons.createRibbonSeries.mockRejectedValueOnce(new Error('Grid failed'));
+        await expect(h.engine.restoreScene(saved, [])).rejects.toThrow('Grid failed');
+        expect(h.ctx.app.gridRepeatRows).toBe(2);
+        await h.engine.restoreScene(saved, []);
+        expect(h.ctx.app.gridRepeatRows).toBe(4);
+        expect(h.ctx.app.gridRepeatCheckerboard).toBe(true);
+    });
     it('captures the canonical SVG paths and passes nodes through restoration for reversible switching', async () => {
         const h = harness();
         h.ctx.app.svgSmoothNodesEnabled = true;

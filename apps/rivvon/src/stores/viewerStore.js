@@ -3,6 +3,7 @@
 
 import { defineStore } from "pinia";
 import { normalizeArtworkSettings } from '../../../../packages/shared-types/src/scenePreset.js';
+import { GRID_REPEAT_DEFAULTS, normalizeGridRepeatCount, normalizeGridRepeatSettings } from '../../../../packages/shared-types/src/gridRepeat.js';
 import {
   DEFAULT_FILMSTRIP_STYLE_ENABLED,
   DEFAULT_FILMSTRIP_MOTION_ENABLED,
@@ -953,6 +954,9 @@ export const useViewerStore = defineStore("viewer", {
       ),
 
       // Geometry options
+      ...GRID_REPEAT_DEFAULTS,
+      gridRepeatError: '',
+      isGeometryRebuilding: false,
       svgSmoothNodesEnabled: false,
       svgNodesAvailable: false,
       capStyle: CAP_STYLE_ROUNDED,
@@ -1299,6 +1303,8 @@ export const useViewerStore = defineStore("viewer", {
       this.roundedCaps = true;
       this.cornerNarrowingEnabled = false;
       this.svgSmoothNodesEnabled = false;
+      Object.assign(this, GRID_REPEAT_DEFAULTS);
+      this.gridRepeatError = '';
       this.sphericalProjectionEnabled = false;
       this.sphericalProjectionWrapDegrees = DEFAULT_SPHERICAL_WRAP_DEGREES;
       this.sphericalProjectionLowerLatitudeDegrees =
@@ -1943,6 +1949,7 @@ export const useViewerStore = defineStore("viewer", {
         capStyle: this.capStyle,
         cornerNarrowingEnabled: this.cornerNarrowingEnabled,
         svgSmoothNodesEnabled: this.svgSmoothNodesEnabled,
+        ...normalizeGridRepeatSettings(this),
         sphericalProjectionEnabled: this.sphericalProjectionEnabled,
         sphericalProjectionWrapDegrees: this.sphericalProjectionWrapDegrees,
         sphericalProjectionLowerLatitudeDegrees:
@@ -2096,6 +2103,10 @@ sphericalProjectionVerticalWrapAuto:
         this.capStyle !== original.capStyle ||
         this.cornerNarrowingEnabled !== original.cornerNarrowingEnabled ||
         this.svgSmoothNodesEnabled !== original.svgSmoothNodesEnabled ||
+        this.gridRepeatEnabled !== original.gridRepeatEnabled ||
+        this.gridRepeatColumns !== original.gridRepeatColumns ||
+        this.gridRepeatRows !== original.gridRepeatRows ||
+        this.gridRepeatCheckerboard !== original.gridRepeatCheckerboard ||
         this.sphericalProjectionEnabled !==
           original.sphericalProjectionEnabled ||
         this.sphericalProjectionWrapDegrees !==
@@ -2718,6 +2729,32 @@ this.sphericalProjectionVerticalWrapAuto !==
       this.cornerNarrowingEnabled = !!enabled;
     },
 
+    setGridRepeatEnabled(enabled) {
+      this.gridRepeatEnabled = !!enabled;
+      this.gridRepeatError = '';
+    },
+
+    setGridRepeatCount(axis, value) {
+      if (!['gridRepeatRows', 'gridRepeatColumns'].includes(axis)) return;
+      this[axis] = normalizeGridRepeatCount(value);
+      this.gridRepeatError = '';
+    },
+
+    setGridRepeatCheckerboard(enabled) {
+      this.gridRepeatCheckerboard = !!enabled;
+      this.gridRepeatError = '';
+    },
+
+    updateSphericalProjectionArtworkAspectRatio(aspectRatio) {
+      const parsed = Number(aspectRatio);
+      this.sphericalProjectionArtworkAspectRatio = Number.isFinite(parsed) && parsed >= 0 ? Math.min(1000, parsed) : 1;
+      if (this.sphericalProjectionVerticalWrapAuto) {
+        const bounds = deriveSphericalProjectionLatitudeBounds(this.sphericalProjectionWrapDegrees, this.sphericalProjectionArtworkAspectRatio);
+        this.sphericalProjectionLowerLatitudeDegrees = bounds.lower;
+        this.sphericalProjectionUpperLatitudeDegrees = bounds.upper;
+      }
+    },
+
     setSphericalProjectionEnabled(enabled) {
       const nextValue = !!enabled;
       this.sphericalProjectionEnabled = nextValue;
@@ -2800,13 +2837,18 @@ this.sphericalProjectionVerticalWrapAuto !==
         CAP_STYLE_ROUNDED,
       cornerNarrowingEnabled: state.cornerNarrowingEnabled,
       svgSmoothNodesEnabled: state.svgSmoothNodesEnabled,
+      // Dormant settings do not trigger geometry changes, and procedural
+      // sources use their own build path. Preserve the stored recipe for later.
+      ...(!state.proceduralPathMode && state.gridRepeatEnabled
+        ? normalizeGridRepeatSettings(state) : GRID_REPEAT_DEFAULTS),
       sphericalProjectionEnabled: state.sphericalProjectionEnabled,
       sphericalProjectionWrapDegrees:
         state.sphericalProjectionWrapDegrees || DEFAULT_SPHERICAL_WRAP_DEGREES,
       sphericalProjectionLowerLatitudeDegrees:
-        state.sphericalProjectionLowerLatitudeDegrees,
+        state.sphericalProjectionVerticalWrapAuto ? null : state.sphericalProjectionLowerLatitudeDegrees,
       sphericalProjectionUpperLatitudeDegrees:
-        state.sphericalProjectionUpperLatitudeDegrees,
+        state.sphericalProjectionVerticalWrapAuto ? null : state.sphericalProjectionUpperLatitudeDegrees,
+      sphericalProjectionVerticalWrapAuto: state.sphericalProjectionVerticalWrapAuto,
     }),
     toolsPanelHasChanges: (state) => state.hasToolsPanelChanges(),
   },

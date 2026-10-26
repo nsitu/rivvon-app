@@ -54,7 +54,7 @@ export async function createSdrEncoderPool({ width, height, fps, quality, signal
         });
         try {
             const base = `${import.meta.env.BASE_URL}vendor/ffmpeg/0.12.10/`;
-            await slot.ffmpeg.load({ coreURL: `${base}ffmpeg-core.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
+            await slot.ffmpeg.load({ coreURL: `${base}ffmpeg-core-stackfix.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
             check();
             peakWorkers = Math.max(peakWorkers, slots.length);
             return slot;

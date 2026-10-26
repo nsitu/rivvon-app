@@ -1,4 +1,5 @@
 import { normalizeSvgNodes } from './svgNodes.js';
+import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT } from './gridRepeat.js';
 
 // This allowlist is the persisted artwork contract. Never add renderer quality,
 // input devices, wake lock, panel visibility, or other personal preferences here.
@@ -33,6 +34,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     surfaceMode: 'ribbon', tubeRadiusScale: 0.5, tubeRadialSegments: 8, tubeTextureJoinOffsetDegrees: 0,
     helixMode: false, helixRadius: 0.2, helixPitch: 9, helixStrandWidth: 0.5,
     capStyle: 'rounded', cornerNarrowingEnabled: false, svgSmoothNodesEnabled: false,
+    ...GRID_REPEAT_DEFAULTS,
     sphericalProjectionEnabled: false, sphericalProjectionWrapDegrees: 100,
     sphericalProjectionLowerLatitudeDegrees: -50, sphericalProjectionUpperLatitudeDegrees: 50,
     sphericalProjectionVerticalWrapAuto: true, sphericalProjectionArtworkAspectRatio: 1,
@@ -61,8 +63,9 @@ const RANGES = {
     filmstripAperture: [0, 1], filmstripHoleRoundedness: [0, 1], contrast: [0, 2], saturation: [0, 2],
     ribbonWidthScale: [0.1, 2.5], tubeRadiusScale: [0.01, 10], tubeRadialSegments: [3, 64],
     tubeTextureJoinOffsetDegrees: [-360, 360], helixRadius: [0, 10], helixPitch: [0.01, 100], helixStrandWidth: [0.01, 10],
+    gridRepeatColumns: [MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT], gridRepeatRows: [MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT],
     sphericalProjectionWrapDegrees: [1, 360], sphericalProjectionLowerLatitudeDegrees: [-90, 90],
-    sphericalProjectionUpperLatitudeDegrees: [-90, 90], sphericalProjectionArtworkAspectRatio: [0.001, 1000],
+    sphericalProjectionUpperLatitudeDegrees: [-90, 90], sphericalProjectionArtworkAspectRatio: [0, 1000],
     sceneLightingIntensity: [0, 10], sceneLightDistance: [0.01, 100], sceneShadowPlaneDistance: [0.01, 200], sceneShadowOpacity: [0, 1],
 };
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -93,7 +96,7 @@ export function normalizeArtworkSettings(input = {}) {
             result[key] = value;
         } else if (typeof fallback === 'number') {
             result[key] = finite(value, key, ...(RANGES[key] || [0, 1000]));
-            if (['tubeRadialSegments', 'backgroundLayerIndex'].includes(key) && !Number.isInteger(value)) throw new Error(`Invalid ${key}`);
+            if (['tubeRadialSegments', 'backgroundLayerIndex', 'gridRepeatColumns', 'gridRepeatRows'].includes(key) && !Number.isInteger(value)) throw new Error(`Invalid ${key}`);
         } else if (typeof fallback === 'boolean') {
             if (typeof value !== 'boolean') throw new Error(`Invalid ${key}`);
             result[key] = value;

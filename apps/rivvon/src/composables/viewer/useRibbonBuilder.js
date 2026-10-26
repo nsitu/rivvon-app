@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { Ribbon } from '../../modules/viewer/ribbon';
 import { RibbonSeries } from '../../modules/viewer/ribbonSeries';
-import { getSphericalProjectionArtworkAspectRatio } from '../../modules/viewer/sphericalProjection';
+import { GridRepeatLimitError } from '../../modules/viewer/gridRepeat.js';
+import { GRID_REPEAT_DEFAULTS, normalizeGridRepeatSettings } from '../../../../../packages/shared-types/src/gridRepeat.js';
 import { normalizeSvgNodes } from '../../../../../packages/shared-types/src/svgNodes.js';
 import {
     DEFAULT_CLOCK_SETTINGS,
@@ -30,10 +31,8 @@ export function useRibbonBuilder(ctx) {
         }
     }
 
-    function resetSphericalVerticalWrapForArtwork(pathsPoints) {
-        if (ctx.app.isRestoringPreset) return;
-        const aspectRatio = getSphericalProjectionArtworkAspectRatio(pathsPoints);
-        ctx.app.resetSphericalProjectionVerticalWrapForArtwork?.(aspectRatio);
+    function syncProjectionAspect(series) {
+        ctx.app.updateSphericalProjectionArtworkAspectRatio?.(series.projectionArtworkAspectRatio);
     }
 
     function getDefaultProceduralSettings(type) {
@@ -94,152 +93,65 @@ export function useRibbonBuilder(ctx) {
         }
     }
 
-    /**
-     * Create a ribbon from points
-     * Note: Uses RibbonSeries internally for consistent animation behavior
-     */
+    // Stage the new series before releasing the current scene. In particular,
+    // repeat preflight failures must not destroy the last working artwork.
+    function buildStaticSeries(paths, options = {}) {
+        if (!ctx.scene.value || !ctx.tileManager.value || !paths?.length) return null;
+        const svgNodes = normalizeSvgNodes(options.source?.svgNodes);
+        const candidate = new RibbonSeries(ctx.scene.value);
+        candidate.svgNodes = svgNodes;
+        const smooth = ctx.app.isRestoringPreset
+            ? ctx.app.svgSmoothNodesEnabled : !!svgNodes?.length && options.source?.svgSmoothNodesEnabled === true;
+        const geometryOptions = {
+            ...ctx.app.helixOptions,
+            ...(ctx.app.gridRepeatEnabled ? normalizeGridRepeatSettings(ctx.app) : GRID_REPEAT_DEFAULTS),
+            svgSmoothNodesEnabled: smooth,
+            ...(ctx.app.isRestoringPreset ? {} : { sphericalProjectionVerticalWrapAuto: true }),
+        };
+        try {
+            candidate.setHelixOptions(geometryOptions);
+            candidate.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
+            const width = options.width || 1.2;
+            const prepared = candidate._resolveGeometryPaths(paths, width);
+            // TileManagers own shared material caches. Release the old series
+            // after preflight but before populating the new material cache.
+            ctx.ribbon.value?.dispose();
+            ctx.ribbonSeries.value?.dispose();
+            applyTileManagersToSeries(candidate);
+            candidate.buildFromMultiplePaths(paths, width, 0, prepared);
+            candidate.initFlowMaterials();
+        } catch (error) {
+            candidate.dispose();
+            throw error;
+        }
+        ctx.ribbon.value = null;
+        ctx.ribbonSeries.value = candidate;
+        ctx.app.svgNodesAvailable = !!svgNodes?.length;
+        ctx.app.svgSmoothNodesEnabled = smooth;
+        ctx.app.gridRepeatError = '';
+        if (!ctx.app.isRestoringPreset) ctx.app.sphericalProjectionVerticalWrapAuto = true;
+        syncProjectionAspect(candidate);
+        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
+        else ctx.app.setProceduralPathMode?.(null);
+        ctx.cinematicCamera.clearROIs();
+        return candidate;
+    }
+
     async function createRibbon(points, options = {}) {
-        if (!ctx.scene.value || !ctx.tileManager.value) {
-            console.error('[ThreeSetup] Cannot create ribbon - not initialized');
-            return null;
-        }
-
-        // Remove existing ribbon if any
-        if (ctx.ribbon.value) {
-            ctx.ribbon.value.dispose();
-            ctx.ribbon.value = null;
-        }
-        
-        // Remove existing series if any
-        if (ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.dispose();
-            ctx.ribbonSeries.value = null;
-        }
-
-        // Use RibbonSeries even for single path to ensure consistent animation
-        // (wave undulation and texture flow work the same way)
-        resetSphericalVerticalWrapForArtwork([points]);
-        ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
-        configureSvgNodes(ctx.ribbonSeries.value, options.source);
-        applyTileManagersToSeries(ctx.ribbonSeries.value);
-        ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
-        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
-        
-        // Build from single path (wrapped in array)
-        ctx.ribbonSeries.value.buildFromMultiplePaths([points], options.width || 1.2);
-        ctx.ribbonSeries.value.initFlowMaterials();
-        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
-        else ctx.app.setProceduralPathMode?.(null);
-
-        // New geometry invalidates all previous ROIs
-        ctx.cinematicCamera.clearROIs();
-
-        console.log('[ThreeSetup] Created ribbon (via series) with 1 path');
-
-        return ctx.ribbonSeries.value;
+        return buildStaticSeries([points], options);
     }
 
-    /**
-     * Create ribbon series from multiple paths
-     */
     async function createRibbonSeries(pointsArray, options = {}) {
-        if (!ctx.scene.value || !ctx.tileManager.value) {
-            console.error('[ThreeSetup] Cannot create ribbon series - not initialized');
-            return null;
-        }
-
-        // Remove existing ribbon if any
-        if (ctx.ribbon.value) {
-            ctx.ribbon.value.dispose();
-            ctx.ribbon.value = null;
-        }
-        
-        // Remove existing series if any
-        if (ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.dispose();
-            ctx.ribbonSeries.value = null;
-        }
-
-        // Create new ribbon series - constructor only takes scene
-        resetSphericalVerticalWrapForArtwork(pointsArray);
-        ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
-        configureSvgNodes(ctx.ribbonSeries.value, options.source);
-        applyTileManagersToSeries(ctx.ribbonSeries.value);
-        ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
-        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
-        
-        // Build from multiple paths
-        ctx.ribbonSeries.value.buildFromMultiplePaths(pointsArray, options.width || 1.2);
-        ctx.ribbonSeries.value.initFlowMaterials();
-        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
-        else ctx.app.setProceduralPathMode?.(null);
-
-        // New geometry invalidates all previous ROIs
-        ctx.cinematicCamera.clearROIs();
-
-        console.log('[ThreeSetup] Created ribbon series with', pointsArray.length, 'paths');
-
-        return ctx.ribbonSeries.value;
+        return buildStaticSeries(pointsArray, options);
     }
 
-    /**
-     * Create ribbon from raw drawing points (2D screen coordinates)
-     * This handles the conversion from {x,y} to THREE.Vector3 internally
-     * Note: Uses RibbonSeries internally for consistent animation behavior
-     */
     async function createRibbonFromDrawing(drawPoints, options = {}) {
-        if (!ctx.scene.value || !ctx.tileManager.value) {
-            console.error('[ThreeSetup] Cannot create ribbon - not initialized');
-            return null;
-        }
-
-        if (!drawPoints || drawPoints.length < 2) {
-            console.warn('[ThreeSetup] Not enough points for ribbon');
-            return null;
-        }
-
-        // Remove existing ribbon if any
-        if (ctx.ribbon.value) {
-            ctx.ribbon.value.dispose();
-            ctx.ribbon.value = null;
-        }
-        
-        // Remove existing series if any
-        if (ctx.ribbonSeries.value) {
-            ctx.ribbonSeries.value.dispose();
-            ctx.ribbonSeries.value = null;
-        }
-
-        // Create a temporary Ribbon to process the drawing points
-        // (normalization, smoothing, etc.)
-        const tempRibbon = new Ribbon(ctx.scene.value);
-        
-        // Get the processed points without actually building the ribbon
-        const normalizedPoints = tempRibbon.normalizeDrawingPoints(drawPoints);
-        const points3D = normalizedPoints.map(p => new THREE.Vector3(p.x, p.y, 0));
-        const sanitizedPoints = tempRibbon.sanitizePoints(points3D);
-        const smoothedPoints = tempRibbon.smoothPoints(sanitizedPoints, 150);
-
-        // Use RibbonSeries for consistent animation behavior
-        resetSphericalVerticalWrapForArtwork([smoothedPoints]);
-        ctx.ribbonSeries.value = new RibbonSeries(ctx.scene.value);
-        configureSvgNodes(ctx.ribbonSeries.value);
-        applyTileManagersToSeries(ctx.ribbonSeries.value);
-        ctx.ribbonSeries.value.setHelixOptions(ctx.app.helixOptions);
-        ctx.ribbonSeries.value.setNormalizeTextureOrientation(ctx.app.normalizeTextureOrientation);
-        
-        // Build from processed points
-        ctx.ribbonSeries.value.buildFromMultiplePaths([smoothedPoints], options.width || 1.2);
-        ctx.ribbonSeries.value.initFlowMaterials();
-        if (ctx.app.isRestoringPreset) ctx.app.proceduralPathMode = null;
-        else ctx.app.setProceduralPathMode?.(null);
-
-        // New geometry invalidates all previous ROIs
-        ctx.cinematicCamera.clearROIs();
-
-        console.log('[ThreeSetup] Created ribbon from drawing (via series) with', drawPoints.length, 'input points');
-
-        return ctx.ribbonSeries.value;
+        if (!drawPoints || drawPoints.length < 2 || !ctx.scene.value || !ctx.tileManager.value) return null;
+        const processor = new Ribbon(ctx.scene.value);
+        const normalized = processor.normalizeDrawingPoints(drawPoints);
+        const points = processor.sanitizePoints(normalized.map(p => new THREE.Vector3(p.x, p.y, 0)));
+        const smoothed = processor.smoothPoints(points, 150);
+        return buildStaticSeries([smoothed], options);
     }
 
     async function createProceduralRibbon(sourceConfig = {}) {
@@ -362,6 +274,7 @@ export function useRibbonBuilder(ctx) {
                     sourcePaths,
                     ctx.ribbonSeries.value.lastWidth || 1.2
                 );
+                syncProjectionAspect(ctx.ribbonSeries.value);
                 ctx.ribbonSeries.value.initFlowMaterials();
                 console.log(`[ThreeSetup] Rebuilt ribbon series: ${ctx.ribbonSeries.value.getTotalSegmentCount()} segments`);
             }
@@ -720,27 +633,40 @@ export function useRibbonBuilder(ctx) {
      * @param {object} options - { helixMode, helixRadius, helixPitch, helixStrandWidth }
      */
     function setHelixMode(options) {
-        if (!ctx.ribbonSeries.value) return;
-
-        if (ctx.ribbonSeries.value.proceduralSource) {
-            ctx.ribbonSeries.value.setHelixOptions({
-                ...options,
-                helixMode: false,
-                sphericalProjectionEnabled: false,
-            });
-            return;
+        const series = ctx.ribbonSeries.value;
+        if (!series) return true;
+        if (series.proceduralSource) {
+            series.setHelixOptions({ ...options, gridRepeatEnabled: false, helixMode: false, sphericalProjectionEnabled: false });
+            return true;
         }
-
-        const changedSvgMode = ctx.ribbonSeries.value._helixOptions.svgSmoothNodesEnabled !== options.svgSmoothNodesEnabled;
-        ctx.ribbonSeries.value.setHelixOptions(options);
-        if (changedSvgMode && ctx.ribbonSeries.value.svgNodes?.length) ctx.cinematicCamera.clearROIs();
-
-        // Rebuild geometry with new helix params
-        if (ctx.ribbonSeries.value.lastPathsPoints && ctx.ribbonSeries.value.lastPathsPoints.length > 0) {
-            ctx.ribbonSeries.value.rebuildUpdate(performance.now() / 1000);
-            ctx.ribbonSeries.value.initFlowMaterials();
-            console.log(`[ThreeSetup] Rebuilt ribbons with helix mode: ${options.helixMode}`);
+        if (Object.entries(options).every(([key, value]) => series._helixOptions[key] === value)) return true;
+        const previous = { ...series._helixOptions };
+        const next = { ...previous, ...options };
+        let prepared;
+        try {
+            prepared = series._resolveGeometryPaths(series.sourcePathsPoints, series.lastWidth, next);
+        } catch (error) {
+            if (!(error instanceof GridRepeatLimitError)) throw error;
+            // Restore the recipe too, so a later export/preset cannot save
+            // rejected settings while showing the previous geometry.
+            const rollback = Object.fromEntries(Object.entries(previous)
+                .filter(([key, value]) => key in ctx.app && value != null));
+            if (ctx.app.$patch) ctx.app.$patch(rollback);
+            else Object.assign(ctx.app, rollback);
+            syncProjectionAspect(series);
+            ctx.app.gridRepeatError = error.message;
+            return false;
         }
+        const changedSvgMode = previous.svgSmoothNodesEnabled !== next.svgSmoothNodesEnabled;
+        const changedGrid = ['gridRepeatEnabled', 'gridRepeatRows', 'gridRepeatColumns', 'gridRepeatCheckerboard']
+            .some(key => previous[key] !== next[key]);
+        series.setHelixOptions(next);
+        series.rebuildUpdate(performance.now() / 1000, prepared);
+        syncProjectionAspect(series);
+        ctx.app.gridRepeatError = '';
+        if (changedSvgMode && series.svgNodes?.length) ctx.cinematicCamera.clearROIs();
+        else if (changedGrid) ctx.cinematicCamera.invalidateAutoROIs?.();
+        return true;
     }
 
     return {

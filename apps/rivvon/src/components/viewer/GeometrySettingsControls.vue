@@ -1,13 +1,32 @@
 <script setup>
-    import { computed, getCurrentInstance } from 'vue';
+    import { computed, getCurrentInstance, ref, watch } from 'vue';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
+    import { MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT } from '../../../../../packages/shared-types/src/gridRepeat.js';
 
     const app = useViewerStore();
     const instanceUid = getCurrentInstance()?.uid ?? Math.round(Math.random() * 1e9);
     const inputIdPrefix = `geometry-settings-${instanceUid}`;
+    const gridRepeatAvailable = computed(() => !app.proceduralPathMode);
+    const gridColumns = ref(app.gridRepeatColumns);
+    const gridRows = ref(app.gridRepeatRows);
+    watch(() => app.gridRepeatColumns, value => { gridColumns.value = value; });
+    watch(() => app.gridRepeatRows, value => { gridRows.value = value; });
+    const gridRepeatModel = computed({
+        get: () => app.gridRepeatEnabled,
+        set: value => app.setGridRepeatEnabled(value),
+    });
+    const checkerboardModel = computed({
+        get: () => app.gridRepeatCheckerboard,
+        set: value => app.setGridRepeatCheckerboard(value),
+    });
+    // PrimeVue's change event fires while dragging. Keep a local draft and
+    // commit on release, bar click, or keyboard completion instead.
+    function commitGridCount(axis) {
+        app.setGridRepeatCount(axis, axis === 'gridRepeatColumns' ? gridColumns.value : gridRows.value);
+    }
 
     const capOptions = [
         { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
@@ -103,7 +122,7 @@
             <div class="tools-section-label">Möbius Geometry</div>
             <div class="tools-hint tools-surface-hint">
                 Use the Möbius panel to change radius, width, handedness, and twist phase.
-                Caps, tube, helix, projection, and undulation are disabled to keep the band closed.
+                Caps, tube, helix, grid repeat, projection, and undulation are disabled to keep the band closed.
             </div>
         </div>
         <div v-else class="tools-section">
@@ -126,6 +145,62 @@
                             ? 'Connect SVG nodes with a smooth curve, replacing sharp corners.'
                             : 'Import an SVG to enable. Older saved SVGs need to be reimported.' }}
                     </div>
+                </div>
+                <div class="tools-geometry-group">
+                    <div class="tools-toggle-row">
+                        <label class="tools-toggle-main" :for="getInputId('grid-repeat')">Grid Repeat</label>
+                        <ToggleSwitch
+                            :inputId="getInputId('grid-repeat')"
+                            v-model="gridRepeatModel"
+                            :disabled="!gridRepeatAvailable"
+                            :aria-describedby="getInputId('grid-repeat-hint')"
+                        />
+                    </div>
+                    <div class="tools-hint tools-surface-hint" :id="getInputId('grid-repeat-hint')">
+                        {{ gridRepeatAvailable
+                            ? 'Repeat the artwork before projection. The grid grows around its centre.'
+                            : 'Grid repeat is available for vector artwork and drawn paths.' }}
+                    </div>
+                    <div v-if="app.gridRepeatEnabled && gridRepeatAvailable" class="tools-geometry-details">
+                        <div class="tools-latitude-range">
+                            <div class="tools-latitude-range-head">
+                                <label :id="getInputId('grid-columns-label')">Columns</label>
+                                <span class="tools-slider-value">{{ gridColumns }}</span>
+                            </div>
+                            <Slider
+                                v-model="gridColumns"
+                                :min="MIN_GRID_REPEAT_COUNT" :max="MAX_GRID_REPEAT_COUNT" :step="1"
+                                :aria-labelledby="getInputId('grid-columns-label')"
+                                class="tools-range-slider"
+                                @slideend="commitGridCount('gridRepeatColumns')"
+                                @click="commitGridCount('gridRepeatColumns')"
+                                @keyup="commitGridCount('gridRepeatColumns')"
+                                @focusout="commitGridCount('gridRepeatColumns')"
+                            />
+                        </div>
+                        <div class="tools-latitude-range">
+                            <div class="tools-latitude-range-head">
+                                <label :id="getInputId('grid-rows-label')">Rows</label>
+                                <span class="tools-slider-value">{{ gridRows }}</span>
+                            </div>
+                            <Slider
+                                v-model="gridRows"
+                                :min="MIN_GRID_REPEAT_COUNT" :max="MAX_GRID_REPEAT_COUNT" :step="1"
+                                :aria-labelledby="getInputId('grid-rows-label')"
+                                class="tools-range-slider"
+                                @slideend="commitGridCount('gridRepeatRows')"
+                                @click="commitGridCount('gridRepeatRows')"
+                                @keyup="commitGridCount('gridRepeatRows')"
+                                @focusout="commitGridCount('gridRepeatRows')"
+                            />
+                        </div>
+                        <div class="tools-toggle-row">
+                            <label class="tools-toggle-main" :for="getInputId('grid-checkerboard')">Checkerboard</label>
+                            <ToggleSwitch :inputId="getInputId('grid-checkerboard')" v-model="checkerboardModel" />
+                        </div>
+                        <div class="tools-hint tools-surface-hint">Flip alternating cells horizontally in both rows and columns.</div>
+                    </div>
+                    <div v-if="app.gridRepeatError" role="alert" class="tools-hint tools-surface-hint">{{ app.gridRepeatError }}</div>
                 </div>
                 <div class="tools-select-block">
                     <label class="tools-select-label">Surface</label>
