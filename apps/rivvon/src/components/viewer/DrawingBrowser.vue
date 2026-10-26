@@ -34,6 +34,9 @@
     const actionDrawingId = ref(null);
     const isLoading = ref(false);
     const error = ref('');
+    // Browser geometry is replaced when records reload. Key by paths so tab changes
+    // and ScrollPanel slot updates reuse generated SVGs without retaining deleted records.
+    const generatedThumbnailUrls = new WeakMap();
 
     const drawings = computed(() => mergeDrawings(localDrawings.value, cloudDrawings.value));
     const displayDrawings = computed(() => {
@@ -444,11 +447,21 @@
     }
 
     function getDrawingThumbnailUrl(drawing) {
-        const regeneratedThumbnail = createDrawingThumbnailDataUrl(drawing?.paths, {
-            size: 256,
-        });
+        const savedThumbnail = drawing?.thumbnail_data_url || drawing?.thumbnail_url;
+        if (savedThumbnail) {
+            return savedThumbnail;
+        }
 
-        return regeneratedThumbnail || drawing?.thumbnail_data_url || drawing?.thumbnail_url || null;
+        const paths = drawing?.paths;
+        if (!Array.isArray(paths)) {
+            return null;
+        }
+
+        if (!generatedThumbnailUrls.has(paths)) {
+            generatedThumbnailUrls.set(paths, createDrawingThumbnailDataUrl(paths, { size: 256 }));
+        }
+
+        return generatedThumbnailUrls.get(paths);
     }
 
     async function loadDrawings() {
