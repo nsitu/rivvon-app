@@ -12,14 +12,15 @@ export function sampleScene() {
 describe('scene preset contract', () => {
     it('round trips the grid recipe without expanding saved source paths and defaults older presets off', () => {
         const input = sampleScene();
-        input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true };
+        input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true, gridRepeatColumnSpacing: -5, gridRepeatRowSpacing: -2.35 };
         const saved = normalizeScenePreset(input);
         expect(saved.geometry.paths).toHaveLength(1);
         expect(saved.artwork).toMatchObject(input.artwork);
         expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
         const legacy = sampleScene();
         legacy.artwork = {};
-        expect(normalizeScenePreset(legacy).artwork).toMatchObject({ gridRepeatEnabled: false, gridRepeatRows: 3, gridRepeatColumns: 3, gridRepeatCheckerboard: false });
+        expect(normalizeScenePreset(legacy).artwork).toMatchObject({ gridRepeatEnabled: false, gridRepeatRows: 3, gridRepeatColumns: 3, gridRepeatCheckerboard: false, gridRepeatColumnSpacing: 1, gridRepeatRowSpacing: 1 });
+        expect(normalizeScenePreset({ ...input, artwork: { gridRepeatEnabled: true } }).artwork).toMatchObject({ gridRepeatColumnSpacing: 1, gridRepeatRowSpacing: 1 });
     });
 
     it.each([0, 13, 2.5, NaN, Infinity, '3'])('rejects invalid persisted grid counts: %s', value => {
@@ -28,6 +29,27 @@ describe('scene preset contract', () => {
             input.artwork[key] = value;
             expect(() => normalizeScenePreset(input)).toThrow(`Invalid ${key}`);
         }
+    });
+
+    it.each([-5.05, 5.05, NaN, Infinity, '1'])('rejects invalid persisted grid spacing: %s', value => {
+        for (const key of ['gridRepeatRowSpacing', 'gridRepeatColumnSpacing']) {
+            const input = sampleScene();
+            input.artwork[key] = value;
+            expect(() => normalizeScenePreset(input)).toThrow(`Invalid ${key}`);
+        }
+    });
+
+    it.each(['gridRepeatRowSpacing', 'gridRepeatColumnSpacing'])('tracks %s changes independently and restores the setting', key => {
+        const store = useViewerStore();
+        store.captureToolsPanelOriginalState();
+        store.setGridRepeatSpacing(key, 2.35);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(store.getViewerSettingsSnapshot()[key]).toBe(2.35);
+        store.resetToolbarSettingsToDefaults();
+        expect(store[key]).toBe(1);
+        store.applyArtworkSettingsSnapshot(saved);
+        expect(store[key]).toBe(2.35);
     });
 
     it('persists zero-height artwork aspect ratios', () => {

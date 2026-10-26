@@ -29,12 +29,15 @@ describe('grid path transformation', () => {
         expect(normalizeGridRepeatSettings()).toEqual(GRID_REPEAT_DEFAULTS);
         expect(normalizeGridRepeatSettings({ gridRepeatRows: Infinity, gridRepeatColumns: 50 })).toMatchObject({ gridRepeatRows: 3, gridRepeatColumns: 12 });
         expect(normalizeGridRepeatSettings({ gridRepeatRows: 0, gridRepeatColumns: 3.7 })).toMatchObject({ gridRepeatRows: 1, gridRepeatColumns: 4 });
+        expect(normalizeGridRepeatSettings({ gridRepeatRowSpacing: -10, gridRepeatColumnSpacing: 10 })).toMatchObject({ gridRepeatRowSpacing: -5, gridRepeatColumnSpacing: 5 });
+        expect(normalizeGridRepeatSettings({ gridRepeatRowSpacing: -2.35 })).toMatchObject({ gridRepeatRowSpacing: -2.35 });
+        expect(normalizeGridRepeatSettings({ gridRepeatRowSpacing: Infinity, gridRepeatColumnSpacing: 0.35 })).toMatchObject({ gridRepeatRowSpacing: 1, gridRepeatColumnSpacing: 0.35 });
     });
 
     it('keeps disabled and 1x1 geometry exactly unchanged without aliasing input', () => {
         const points = [point(1e6, 2, 3), point(1e-15, 4, 5)];
         for (const settings of [{ ...grid(12, 12, true), gridRepeatEnabled: false }, grid(1, 1, true)]) {
-            const result = repeatPathGrid([{ points }], settings);
+            const result = repeatPathGrid([{ points }], { ...settings, gridRepeatColumnSpacing: 5, gridRepeatRowSpacing: 0 });
             expect(result).toHaveLength(1);
             expect(result[0].points).toEqual(points);
             expect(result[0].points[0]).not.toBe(points[0]);
@@ -76,6 +79,30 @@ describe('grid path transformation', () => {
             expect(result[0].points[0].distanceTo(result[2].points[0])).toBeGreaterThanOrEqual(0.5);
         }
         expect(repeatPathGrid([], grid(2, 2))).toEqual([]);
+    });
+
+    it.each([false, true])('spaces columns and rows independently while preserving motif size and centre (checkerboard: %s)', checkerboard => {
+        const points = [point(-2, -1, 3), point(2, 1, 3)];
+        const source = [{ points, splineNodes: points, closed: true }];
+        const result = repeatPathGrid(source, { ...grid(2, 3, checkerboard), gridRepeatColumnSpacing: 2.5, gridRepeatRowSpacing: 0 }, 0.4);
+        const cells = result.map(path => new Box3().setFromPoints(path.points));
+        expect(cells[1].min.x - cells[0].max.x).toBeCloseTo(1);
+        expect(cells[0].min.y - cells[3].max.y).toBeCloseTo(0);
+        expect(cells[0].getSize(new Vector3())).toEqual(point(4, 2));
+        expect(new Box3().setFromPoints(result.flatMap(path => path.points)).getCenter(new Vector3())).toEqual(point(0, 0, 3));
+        expect(result.every(path => path.closed && path.splineNodes.every((p, i) => p.equals(path.points[i])))).toBe(true);
+        expect(points).toEqual([point(-2, -1, 3), point(2, 1, 3)]);
+    });
+
+    it.each([false, true])('overlaps rows and columns with negative gaps without resizing the motif (checkerboard: %s)', checkerboard => {
+        const points = [point(-2, -1), point(2, 1)];
+        const result = repeatPathGrid([{ points }], { ...grid(2, 3, checkerboard), gridRepeatColumnSpacing: -2, gridRepeatRowSpacing: -3 }, 0.4);
+        const cells = result.map(path => new Box3().setFromPoints(path.points));
+        expect(cells[1].min.x - cells[0].max.x).toBeCloseTo(-0.8);
+        expect(cells[0].min.y - cells[3].max.y).toBeCloseTo(-1.2);
+        expect(cells[0].getSize(new Vector3())).toEqual(point(4, 2));
+        expect(new Box3().setFromPoints(result.flatMap(path => path.points)).getCenter(new Vector3())).toEqual(point(0, 0));
+        expect(points).toEqual([point(-2, -1), point(2, 1)]);
     });
 
     it('rejects derived path and point counts before allocating copies', () => {

@@ -4,7 +4,7 @@
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT } from '../../../../../packages/shared-types/src/gridRepeat.js';
+    import { MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT, MIN_GRID_REPEAT_SPACING, MAX_GRID_REPEAT_SPACING } from '../../../../../packages/shared-types/src/gridRepeat.js';
 
     const app = useViewerStore();
     const instanceUid = getCurrentInstance()?.uid ?? Math.round(Math.random() * 1e9);
@@ -12,8 +12,12 @@
     const gridRepeatAvailable = computed(() => !app.proceduralPathMode);
     const gridColumns = ref(app.gridRepeatColumns);
     const gridRows = ref(app.gridRepeatRows);
+    const gridColumnSpacing = ref(app.gridRepeatColumnSpacing);
+    const gridRowSpacing = ref(app.gridRepeatRowSpacing);
     watch(() => app.gridRepeatColumns, value => { gridColumns.value = value; });
     watch(() => app.gridRepeatRows, value => { gridRows.value = value; });
+    watch(() => app.gridRepeatColumnSpacing, value => { gridColumnSpacing.value = value; });
+    watch(() => app.gridRepeatRowSpacing, value => { gridRowSpacing.value = value; });
     const gridRepeatModel = computed({
         get: () => app.gridRepeatEnabled,
         set: value => app.setGridRepeatEnabled(value),
@@ -26,6 +30,10 @@
     // commit on release, bar click, or keyboard completion instead.
     function commitGridCount(axis) {
         app.setGridRepeatCount(axis, axis === 'gridRepeatColumns' ? gridColumns.value : gridRows.value);
+    }
+
+    function commitGridSpacing(axis) {
+        app.setGridRepeatSpacing(axis, axis === 'gridRepeatColumnSpacing' ? gridColumnSpacing.value : gridRowSpacing.value);
     }
 
     const capOptions = [
@@ -193,6 +201,43 @@
                                 @keyup="commitGridCount('gridRepeatRows')"
                                 @focusout="commitGridCount('gridRepeatRows')"
                             />
+                        </div>
+                        <div class="tools-latitude-range">
+                            <div class="tools-latitude-range-head">
+                                <label :id="getInputId('grid-column-spacing-label')">Column spacing</label>
+                                <span class="tools-slider-value">{{ gridColumnSpacing.toFixed(2) }}×</span>
+                            </div>
+                            <Slider
+                                v-model="gridColumnSpacing"
+                                :min="MIN_GRID_REPEAT_SPACING" :max="MAX_GRID_REPEAT_SPACING" :step="0.05"
+                                :aria-labelledby="getInputId('grid-column-spacing-label')"
+                                :aria-describedby="getInputId('grid-spacing-hint')"
+                                class="tools-range-slider"
+                                @slideend="commitGridSpacing('gridRepeatColumnSpacing')"
+                                @click="commitGridSpacing('gridRepeatColumnSpacing')"
+                                @keyup="commitGridSpacing('gridRepeatColumnSpacing')"
+                                @focusout="commitGridSpacing('gridRepeatColumnSpacing')"
+                            />
+                        </div>
+                        <div class="tools-latitude-range">
+                            <div class="tools-latitude-range-head">
+                                <label :id="getInputId('grid-row-spacing-label')">Row spacing</label>
+                                <span class="tools-slider-value">{{ gridRowSpacing.toFixed(2) }}×</span>
+                            </div>
+                            <Slider
+                                v-model="gridRowSpacing"
+                                :min="MIN_GRID_REPEAT_SPACING" :max="MAX_GRID_REPEAT_SPACING" :step="0.05"
+                                :aria-labelledby="getInputId('grid-row-spacing-label')"
+                                :aria-describedby="getInputId('grid-spacing-hint')"
+                                class="tools-range-slider"
+                                @slideend="commitGridSpacing('gridRepeatRowSpacing')"
+                                @click="commitGridSpacing('gridRepeatRowSpacing')"
+                                @keyup="commitGridSpacing('gridRepeatRowSpacing')"
+                                @focusout="commitGridSpacing('gridRepeatRowSpacing')"
+                            />
+                        </div>
+                        <div class="tools-hint tools-surface-hint" :id="getInputId('grid-spacing-hint')">
+                            Gap between artwork bounds, in base ribbon widths. Negative values overlap copies; zero removes the extra gap.
                         </div>
                         <div class="tools-toggle-row">
                             <label class="tools-toggle-main" :for="getInputId('grid-checkerboard')">Checkerboard</label>

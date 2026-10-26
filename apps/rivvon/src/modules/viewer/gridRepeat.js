@@ -36,8 +36,8 @@ export function repeatPathGrid(descriptors, settings = {}, baseWidth = 1) {
     for (let row = 0; row < rows; row++) {
         for (let column = 0; column < columns; column++) {
             const sign = options.gridRepeatEnabled && options.gridRepeatCheckerboard && (row + column) % 2 ? -1 : 1;
-            const dx = (column - (columns - 1) / 2) * (size.x + gutter);
-            const dy = ((rows - 1) / 2 - row) * (size.y + gutter);
+            const dx = (column - (columns - 1) / 2) * (size.x + gutter * options.gridRepeatColumnSpacing);
+            const dy = ((rows - 1) / 2 - row) * (size.y + gutter * options.gridRepeatRowSpacing);
             const transform = point => new Vector3(
                 // Keep 1x1 and disabled paths bit-for-bit identical, including
                 // coordinates whose precision would be lost by recentering.

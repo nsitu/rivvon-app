@@ -51,6 +51,22 @@ describe('grid repeat source lifecycle', () => {
         expect(ctx.app.sphericalProjectionUpperLatitudeDegrees).toBe(40);
     });
 
+    it('rebuilds spacing from the original motif and refreshes projection bounds and camera regions', async () => {
+        const builder = useRibbonBuilder(ctx);
+        ctx.app.$patch({ gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, sphericalProjectionEnabled: true });
+        const series = await builder.createRibbonSeries(paths(), { width: 0.3 });
+        ctx.app.setGridRepeatSpacing('gridRepeatColumnSpacing', 0);
+        ctx.app.setGridRepeatSpacing('gridRepeatRowSpacing', 5);
+        expect(builder.setHelixMode(ctx.app.helixOptions)).toBe(true);
+        expect(series.ribbons).toHaveLength(6);
+        expect(series.sourcePathsPoints).toEqual(paths());
+        expect(ctx.app.sphericalProjectionArtworkAspectRatio).toBeCloseTo(5.5 / 12);
+        expect(ctx.cinematicCamera.invalidateAutoROIs).toHaveBeenCalledOnce();
+        const geometry = series.lastPathsPoints;
+        builder.rebuildRibbonsWithNewTextures();
+        expect(series.lastPathsPoints).toEqual(geometry);
+    });
+
     it('keeps stored dormant settings without rebuilding and restores the source when disabled', async () => {
         const builder = useRibbonBuilder(ctx);
         const series = await builder.createRibbonSeries(paths(), { width: 0.3 });
@@ -59,6 +75,8 @@ describe('grid repeat source lifecycle', () => {
         const rebuild = vi.spyOn(series, 'rebuildUpdate');
         ctx.app.setGridRepeatCount('gridRepeatRows', 2);
         ctx.app.setGridRepeatCount('gridRepeatColumns', 2);
+        ctx.app.setGridRepeatSpacing('gridRepeatColumnSpacing', 0);
+        ctx.app.setGridRepeatSpacing('gridRepeatRowSpacing', 2.5);
         builder.setHelixMode(ctx.app.helixOptions);
         expect(rebuild).not.toHaveBeenCalled();
         ctx.app.setGridRepeatEnabled(true);
@@ -69,6 +87,8 @@ describe('grid repeat source lifecycle', () => {
         expect(series.lastPathsPoints).toEqual(paths());
         expect(ctx.app.gridRepeatRows).toBe(2);
         expect(ctx.app.gridRepeatColumns).toBe(2);
+        expect(ctx.app.gridRepeatColumnSpacing).toBe(0);
+        expect(ctx.app.gridRepeatRowSpacing).toBe(2.5);
     });
 
     it('rolls back rejected geometry settings while retaining meshes and shared materials', async () => {

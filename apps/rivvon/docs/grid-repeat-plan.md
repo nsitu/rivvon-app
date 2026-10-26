@@ -5,6 +5,7 @@ Status: implemented on 2026-10-26. The sections below retain the design rational
 Implementation notes:
 
 - Geometry now includes Grid Repeat, integer Rows/Columns sliders (1–12, initially 3), and Checkerboard. Slider changes build on release, bar click, or keyboard completion.
+- Independent Row spacing and Column spacing sliders set the gap between motif bounds in base ribbon widths (−5× to 5×, step 0.05×, default 1×). Negative values overlap copies. Presets retain both values; older presets keep the original 1× gap.
 - Repeat runs before projection and preserves original source paths, SVG nodes, closure, and manual latitude choices. Presets store the recipe with the source artwork.
 - Expanded geometry is limited to 2,048 paths, 250,000 sampled points, 2,048 estimated meshes, and 300,000 estimated vertices. Tube/helix complexity counts against the same budget. These are conservative work limits, not a frame-rate guarantee.
 - Static paths are supported; live procedural geometry bypasses repeat. Grid growth preserves motif size and the current camera position; zoom out to frame larger grids. The existing Reset View returns the camera to its initial position.

@@ -1,5 +1,5 @@
 import { normalizeSvgNodes } from './svgNodes.js';
-import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT } from './gridRepeat.js';
+import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT, MIN_GRID_REPEAT_SPACING, MAX_GRID_REPEAT_SPACING } from './gridRepeat.js';
 
 // This allowlist is the persisted artwork contract. Never add renderer quality,
 // input devices, wake lock, panel visibility, or other personal preferences here.
@@ -64,6 +64,7 @@ const RANGES = {
     ribbonWidthScale: [0.1, 2.5], tubeRadiusScale: [0.01, 10], tubeRadialSegments: [3, 64],
     tubeTextureJoinOffsetDegrees: [-360, 360], helixRadius: [0, 10], helixPitch: [0.01, 100], helixStrandWidth: [0.01, 10],
     gridRepeatColumns: [MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT], gridRepeatRows: [MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT],
+    gridRepeatColumnSpacing: [MIN_GRID_REPEAT_SPACING, MAX_GRID_REPEAT_SPACING], gridRepeatRowSpacing: [MIN_GRID_REPEAT_SPACING, MAX_GRID_REPEAT_SPACING],
     sphericalProjectionWrapDegrees: [1, 360], sphericalProjectionLowerLatitudeDegrees: [-90, 90],
     sphericalProjectionUpperLatitudeDegrees: [-90, 90], sphericalProjectionArtworkAspectRatio: [0, 1000],
     sceneLightingIntensity: [0, 10], sceneLightDistance: [0.01, 100], sceneShadowPlaneDistance: [0.01, 200], sceneShadowOpacity: [0, 1],

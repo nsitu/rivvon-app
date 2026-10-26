@@ -658,7 +658,7 @@ export function useRibbonBuilder(ctx) {
             return false;
         }
         const changedSvgMode = previous.svgSmoothNodesEnabled !== next.svgSmoothNodesEnabled;
-        const changedGrid = ['gridRepeatEnabled', 'gridRepeatRows', 'gridRepeatColumns', 'gridRepeatCheckerboard']
+        const changedGrid = Object.keys(GRID_REPEAT_DEFAULTS)
             .some(key => previous[key] !== next[key]);
         series.setHelixOptions(next);
         series.rebuildUpdate(performance.now() / 1000, prepared);

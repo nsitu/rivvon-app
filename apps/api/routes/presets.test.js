@@ -73,7 +73,7 @@ describe('stored scene presets and referenced media', () => {
 
     it('preserves the grid recipe with original source paths and rejects malformed counts', async () => {
         const input = scene();
-        input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true };
+        input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true, gridRepeatColumnSpacing: -5, gridRepeatRowSpacing: -2.35 };
         const id = await save('private', input);
         const response = await presetRoutes.request(`/${id}`, { headers }, env);
         expect(response.status).toBe(200);
@@ -86,6 +86,15 @@ describe('stored scene presets and referenced media', () => {
             const result = await presetRoutes.request('/', json({ name: 'Invalid grid', scene: invalid }), env);
             expect(result.status).toBe(400);
             expect((await result.json()).error).toContain('gridRepeatRows');
+        }
+        for (const key of ['gridRepeatColumnSpacing', 'gridRepeatRowSpacing']) {
+            for (const value of [-5.05, 5.05, '1']) {
+                const invalid = scene();
+                invalid.artwork = { [key]: value };
+                const result = await presetRoutes.request('/', json({ name: 'Invalid spacing', scene: invalid }), env);
+                expect(result.status).toBe(400);
+                expect((await result.json()).error).toContain(key);
+            }
         }
     });
 

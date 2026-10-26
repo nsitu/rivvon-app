@@ -3,7 +3,7 @@
 
 import { defineStore } from "pinia";
 import { normalizeArtworkSettings } from '../../../../packages/shared-types/src/scenePreset.js';
-import { GRID_REPEAT_DEFAULTS, normalizeGridRepeatCount, normalizeGridRepeatSettings } from '../../../../packages/shared-types/src/gridRepeat.js';
+import { GRID_REPEAT_DEFAULTS, normalizeGridRepeatCount, normalizeGridRepeatSpacing, normalizeGridRepeatSettings } from '../../../../packages/shared-types/src/gridRepeat.js';
 import {
   DEFAULT_FILMSTRIP_STYLE_ENABLED,
   DEFAULT_FILMSTRIP_MOTION_ENABLED,
@@ -2106,6 +2106,8 @@ sphericalProjectionVerticalWrapAuto:
         this.gridRepeatEnabled !== original.gridRepeatEnabled ||
         this.gridRepeatColumns !== original.gridRepeatColumns ||
         this.gridRepeatRows !== original.gridRepeatRows ||
+        this.gridRepeatColumnSpacing !== original.gridRepeatColumnSpacing ||
+        this.gridRepeatRowSpacing !== original.gridRepeatRowSpacing ||
         this.gridRepeatCheckerboard !== original.gridRepeatCheckerboard ||
         this.sphericalProjectionEnabled !==
           original.sphericalProjectionEnabled ||
@@ -2742,6 +2744,12 @@ this.sphericalProjectionVerticalWrapAuto !==
 
     setGridRepeatCheckerboard(enabled) {
       this.gridRepeatCheckerboard = !!enabled;
+      this.gridRepeatError = '';
+    },
+
+    setGridRepeatSpacing(axis, value) {
+      if (!['gridRepeatRowSpacing', 'gridRepeatColumnSpacing'].includes(axis)) return;
+      this[axis] = normalizeGridRepeatSpacing(value);
       this.gridRepeatError = '';
     },
 
