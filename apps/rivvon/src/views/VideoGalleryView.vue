@@ -1,5 +1,5 @@
 <script setup>
-    import { computed, onBeforeUnmount, ref, watch } from 'vue';
+    import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
     import { RouterLink, useRoute, useRouter } from 'vue-router';
     import Button from 'primevue/button';
     import Dialog from 'primevue/dialog';
@@ -13,10 +13,16 @@
     import { deleteVideoPublication, fetchMyVideos, fetchVideos, publishVideoBlob } from '../services/videoService.js';
     import { useVideoDraftStore } from '../stores/videoDraftStore.js';
 
-    const { isAuthenticated, isAdmin, login, user } = useGoogleAuth();
+    const { isAuthenticated, isAdmin, login, user, isSigningIn } = useGoogleAuth();
     const route = useRoute();
     const router = useRouter();
     const videoDrafts = useVideoDraftStore();
+    const draftActionError = ref('');
+    const loadingDraftId = ref('');
+    const storageProtection = ref('');
+    const requestingProtection = ref(false);
+    const storageEstimate = ref(null);
+    let mounted = true;
     const activeTab = computed({
         get: () => ['mine', 'drafts'].includes(route.query.tab) ? route.query.tab : 'public',
         set: tab => router.replace({ query: { ...route.query, tab: tab === 'public' ? undefined : tab } }),
@@ -70,6 +76,7 @@
 
     function formatFileSize(bytes) {
         const value = Number(bytes) || 0;
+        if (!value) return '0 B';
         if (value >= 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
         if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
         return `${Math.max(1, Math.round(value / 1024))} KB`;
@@ -186,8 +193,23 @@
         uploadDialogVisible.value = true;
     }
 
-    function openDraftPublication(draft) {
+    async function loadDraftForAction(id) {
+        draftActionError.value = '';
+        loadingDraftId.value = id;
+        try { return await videoDrafts.prepareDraft(id); }
+        catch (failure) { draftActionError.value = failure.message || 'Could not open this video draft.'; return null; }
+        finally { loadingDraftId.value = ''; }
+    }
+
+    async function previewVideoDraft(draft) {
+        const ready = await loadDraftForAction(draft.id);
+        if (ready && mounted) previewDraftId.value = ready.id;
+    }
+
+    async function openDraftPublication(draft) {
         if (!canUpload.value || draft.publication.isPublishing || draft.publication.videoId) return;
+        draft = await loadDraftForAction(draft.id);
+        if (!draft || !mounted || draft.publication.videoId) return;
         resetUploadForm();
         previewDraftId.value = '';
         uploadDraftId.value = draft.id;
@@ -202,21 +224,41 @@
         uploadDialogVisible.value = true;
     }
 
-    function downloadDraft(draft) {
-        // The session store owns this URL; downloading must not revoke it.
+    async function downloadDraft(draft) {
+        draft = await loadDraftForAction(draft.id);
+        if (!draft || !mounted) return;
+        // The draft store owns this URL; downloading must not revoke it.
         const link = document.createElement('a');
         link.href = draft.playbackUrl;
         link.download = draft.filename;
         link.click();
     }
 
-    function confirmDiscardDraft() {
+    async function confirmDiscardDraft() {
         const draft = discardDraft.value;
         if (!draft || draft.publication.isPublishing) return;
         if (previewDraftId.value === draft.id) previewDraftId.value = '';
-        videoDrafts.discardDraft(draft.id);
-        discardDraftId.value = '';
+        if (await videoDrafts.discardDraft(draft.id)) discardDraftId.value = '';
     }
+
+    async function protectDrafts() {
+        requestingProtection.value = true;
+        try {
+            const granted = await navigator.storage.persist();
+            storageProtection.value = granted
+                ? 'Storage protection enabled. Clearing site data will still remove saved drafts.'
+                : 'Storage protection was not granted. Drafts remain saved, but the browser may clear them when space is needed.';
+        } catch {
+            storageProtection.value = 'Storage protection is unavailable. Download a copy for long-term storage.';
+        } finally { requestingProtection.value = false; }
+    }
+
+    const canProtectDrafts = typeof navigator !== 'undefined' && !!navigator.storage?.persist;
+    onMounted(async () => {
+        void videoDrafts.hydrate();
+        try { storageEstimate.value = await navigator.storage?.estimate?.() || null; }
+        catch { /* Storage estimates are advisory; actual writes handle quota failures. */ }
+    });
 
     function closeUploadDialog() {
         if (isUploading.value) return;
@@ -352,7 +394,12 @@
     }
 
     watch([activeTab, isAuthenticated], loadVideos, { immediate: true });
-    onBeforeUnmount(() => { loadRequestId++; uploadAbortController?.abort(); });
+    onBeforeUnmount(() => {
+        mounted = false;
+        loadRequestId++;
+        uploadAbortController?.abort();
+        videoDrafts.releaseRestoredAssets();
+    });
 </script>
 
 <template>
@@ -401,20 +448,31 @@
 
                 <template v-if="isDrafts">
                     <p class="draft-session-notice" role="status">
-                        Completed encodings stay in this browser tab until you reload or close it.
-                        Download or publish videos you want to keep.
-                        <span v-if="videoDrafts.drafts.length">{{ formatFileSize(videoDrafts.totalBytes) }} held in memory.</span>
+                        Saved drafts are available after signing in or reopening Rivvon in this browser.
+                        They are shared by accounts using this browser profile. Download a copy for long-term storage.
+                        <span v-if="videoDrafts.drafts.length">{{ formatFileSize(videoDrafts.savedBytes) }} saved · {{ formatFileSize(videoDrafts.totalBytes) }} in drafts.</span>
                     </p>
-                    <section v-if="!videoDrafts.drafts.length" class="gallery-empty">
+                    <p v-if="canProtectDrafts" class="draft-session-notice">
+                        <Button type="button" variant="link" :loading="requestingProtection" @click="protectDrafts">Protect saved drafts</Button>
+                        <span v-if="storageEstimate?.quota">{{ formatFileSize(storageEstimate.usage) }} of {{ formatFileSize(storageEstimate.quota) }} browser storage used by Rivvon.</span>
+                    </p>
+                    <p v-if="storageProtection" class="draft-session-notice" role="status">{{ storageProtection }}</p>
+                    <p v-if="draftActionError" role="alert">{{ draftActionError }}</p>
+                    <p v-if="videoDrafts.hydrationError" role="alert">
+                        {{ videoDrafts.hydrationError }}
+                        <Button type="button" variant="link" :loading="videoDrafts.isHydrating" @click="videoDrafts.hydrate({ refresh: true })">Retry loading drafts</Button>
+                    </p>
+                    <p v-if="!videoDrafts.hasHydrated && !videoDrafts.hydrationError" role="status">Loading saved drafts…</p>
+                    <section v-if="videoDrafts.hasHydrated && !videoDrafts.hydrationError && !videoDrafts.drafts.length" class="gallery-empty">
                         <span class="material-symbols-outlined" aria-hidden="true">movie</span>
                         <h2>No draft encodings yet</h2>
                         <p>Encode a video from the viewer. It will appear here even after you close the export workflow.</p>
                         <RouterLink to="/" class="gallery-primary-link">Open the viewer</RouterLink>
                     </section>
-                    <section v-else class="video-card-grid" aria-label="Draft encodings">
+                    <section v-if="videoDrafts.drafts.length" class="video-card-grid" aria-label="Draft encodings">
                         <article v-for="draft in videoDrafts.drafts" :key="draft.id" class="video-card">
                             <Button type="button" variant="text" class="video-card-poster draft-video-poster"
-                                :aria-label="`Review ${draft.name}`" @click="previewDraftId = draft.id">
+                                :aria-label="`Review ${draft.name}`" :loading="loadingDraftId === draft.id" :disabled="draft.storage.isDeleting" @click="previewVideoDraft(draft)">
                                 <img v-if="draft.thumbnailUrl" :src="draft.thumbnailUrl" :alt="`Poster for ${draft.name}`">
                                 <span v-else class="video-card-placeholder material-symbols-outlined" aria-hidden="true">movie</span>
                                 <span class="video-card-play material-symbols-outlined" aria-hidden="true">play_circle</span>
@@ -432,11 +490,18 @@
                                 </div>
                                 <p v-if="draft.publication.isPublishing" role="status">{{ draft.publication.status }}</p>
                                 <p v-else-if="draft.publication.error" role="alert">{{ draft.publication.error }}</p>
+                                <p v-if="draft.storage.state === 'saving'" role="status">Saving in this browser…</p>
+                                <p v-else-if="draft.storage.state === 'saved'" role="status">Saved in this browser</p>
+                                <p v-else role="alert">{{ draft.storage.error }} This draft is available in this tab until you leave.</p>
+                                <p v-if="draft.storage.thumbnailError || draft.storage.publicationError" role="alert">{{ draft.storage.thumbnailError || draft.storage.publicationError }}</p>
+                                <p v-if="draft.storage.actionError" role="alert">{{ draft.storage.actionError }}</p>
                                 <div class="draft-card-actions">
-                                    <Button type="button" severity="secondary" variant="outlined" @click="downloadDraft(draft)">Download</Button>
+                                    <Button type="button" severity="secondary" variant="outlined" :disabled="draft.storage.isDeleting" @click="downloadDraft(draft)">Download</Button>
+                                    <Button v-if="draft.storage.state === 'memory-only' || draft.storage.thumbnailError || draft.storage.publicationError"
+                                        type="button" severity="secondary" variant="outlined" :disabled="draft.storage.isDeleting" @click="videoDrafts.saveDraft(draft.id)">Retry saving</Button>
                                     <Button v-if="draft.publication.videoId" type="button"
                                         @click="router.push({ name: 'video-player', params: { videoId: draft.publication.videoId } })">Open published</Button>
-                                    <Button v-else type="button" :disabled="!canUpload || draft.publication.isPublishing"
+                                    <Button v-else type="button" :disabled="!canUpload || draft.publication.isPublishing || draft.storage.isDeleting"
                                         :title="!canUpload ? publishDisabledReason : undefined" @click="openDraftPublication(draft)">
                                         {{ draft.publication.isPublishing ? 'Uploading…' : 'Publish' }}
                                     </Button>
@@ -444,7 +509,7 @@
                                 <div class="video-card-footer">
                                     <span>{{ formatDate(draft.createdAt / 1000) }}</span>
                                     <Button type="button" severity="secondary" variant="text" class="rivvon-icon-action"
-                                        :aria-label="`Discard draft ${draft.name}`" :disabled="draft.publication.isPublishing"
+                                        :aria-label="`Discard draft ${draft.name}`" :disabled="draft.publication.isPublishing || draft.storage.isDeleting"
                                         @click="discardDraftId = draft.id">
                                         <span class="material-symbols-outlined" aria-hidden="true">delete</span>
                                     </Button>
@@ -454,7 +519,7 @@
                     </section>
                     <p v-if="!canUpload" id="draft-publish-notice" class="draft-session-notice">
                         {{ publishDisabledReason }} Playback and downloads are available without signing in.
-                        <Button v-if="!isAuthenticated" type="button" variant="link" @click="login">Sign in</Button>
+                        <Button v-if="!isAuthenticated" type="button" variant="link" :loading="isSigningIn" @click="login">Sign in</Button>
                     </p>
                 </template>
                 <section v-else-if="isMyVideos && !isAuthenticated" class="gallery-empty">
@@ -538,10 +603,11 @@
 
         <Dialog v-model:visible="discardDialogVisible" modal header="Discard draft?"
             :style="{ width: 'min(30rem, calc(100vw - 2rem))' }">
-            <p>This removes “{{ discardDraft?.name }}” from this browser tab and frees its memory. Download or publish it first if you want to keep it.</p>
+            <p>This removes “{{ discardDraft?.name }}” from this browser, including other Rivvon tabs. Download or publish it first if you want to keep it.</p>
+            <p v-if="discardDraft?.storage.actionError" role="alert">{{ discardDraft.storage.actionError }}</p>
             <template #footer>
                 <Button type="button" severity="secondary" variant="outlined" @click="discardDialogVisible = false">Cancel</Button>
-                <Button type="button" severity="danger" :disabled="discardDraft?.publication.isPublishing" @click="confirmDiscardDraft">Discard draft</Button>
+                <Button type="button" severity="danger" :loading="discardDraft?.storage.isDeleting" :disabled="discardDraft?.publication.isPublishing || discardDraft?.storage.isDeleting" @click="confirmDiscardDraft">Discard draft</Button>
             </template>
         </Dialog>
 

@@ -52,6 +52,8 @@ import { chooseRenderer } from './utils/renderer-utils';
 import { useViewerStore } from './stores/viewerStore';
 import { useSlyceStore } from './stores/slyceStore';
 import { useGoogleAuth } from './composables/shared/useGoogleAuth';
+import { useVideoDraftStore } from './stores/videoDraftStore.js';
+import { consumeAuthRedirect } from './services/authRedirect.js';
 import { initAuth } from './modules/viewer/auth';
 
 const RivvonPreset = definePreset(Aura, {
@@ -88,6 +90,8 @@ Sentry.init({
 // Pinia store
 const pinia = createPinia();
 app.use(pinia);
+// Restore local drafts independently of authentication and gallery API access.
+void useVideoDraftStore(pinia).hydrate();
 
 // Vue Router
 app.use(router);
@@ -141,8 +145,13 @@ async function loadCreatorRuntime() {
         }
 
         // Check for existing Google Auth session
-        const { checkSession } = useGoogleAuth();
+        const { checkSession, isAuthenticated } = useGoogleAuth();
         await checkSession();
+        await router.isReady();
+        if (isAuthenticated.value && !['/login', '/callback'].includes(router.currentRoute.value.path)) {
+            const destination = consumeAuthRedirect();
+            if (destination) await router.replace(destination);
+        }
         console.log('[Main] Auth session checked');
         
         // Also initialize vanilla auth module (used by TileManager for Drive API)

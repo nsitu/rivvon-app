@@ -2,6 +2,7 @@
 // Vue Router configuration for rivvon (unified app)
 
 import { createRouter, createWebHistory } from 'vue-router';
+import { authErrorRedirect } from '../services/authRedirect.js';
 
 const routes = [
     // ============ VIEWER ROUTES ============
@@ -88,17 +89,7 @@ const routes = [
         // Login route - redirects to appropriate page, handles error display
         path: '/login',
         name: 'login',
-        redirect: (to) => {
-            // Check where the user came from
-            const redirect = sessionStorage.getItem('auth_redirect') || '/';
-            sessionStorage.removeItem('auth_redirect');
-            
-            // If there's an error, pass it to the redirect page
-            if (to.query.error) {
-                return { path: redirect, query: { auth_error: to.query.error } }
-            }
-            return redirect;
-        }
+        redirect: to => authErrorRedirect(to.query.error),
     }
 ];
 

@@ -3,6 +3,8 @@
 
 import { ref, computed } from 'vue'
 import { useAuthStore } from '../../stores/authStore'
+import { useVideoDraftStore } from '../../stores/videoDraftStore.js'
+import { saveAuthRedirect } from '../../services/authRedirect.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca'
 
@@ -11,6 +13,7 @@ const user = ref(null)
 const isAdmin = ref(false)
 const isLoading = ref(false)
 const error = ref(null)
+const isSigningIn = ref(false)
 
 // In-memory token cache (never localStorage!)
 let accessToken = null
@@ -24,11 +27,23 @@ export function useGoogleAuth() {
      * Initiate login - redirect through backend
      * Backend handles CSRF state generation and stores it in HTTP-only cookie
      */
-    function login() {
-        // Save current route to redirect back after login
-        sessionStorage.setItem('auth_redirect', window.location.pathname)
-        const redirectTo = encodeURIComponent(window.location.origin)
-        window.location.href = `${API_URL}/api/auth/login?redirect_to=${redirectTo}`
+    async function login() {
+        if (isSigningIn.value) return false
+        isSigningIn.value = true
+        authStore.setError(null)
+        try {
+            await useVideoDraftStore().flushPendingSaves()
+            saveAuthRedirect()
+            const redirectTo = encodeURIComponent(window.location.origin)
+            window.location.href = `${API_URL}/api/auth/login?redirect_to=${redirectTo}`
+            return true
+        } catch (failure) {
+            error.value = failure.message || 'Could not start sign-in. Please try again.'
+            authStore.setError(error.value)
+            return false
+        } finally {
+            isSigningIn.value = false
+        }
     }
 
     /**
@@ -173,6 +188,7 @@ export function useGoogleAuth() {
         isAdmin,
         isAuthenticated,
         isLoading,
+        isSigningIn,
         error,
 
         // Actions

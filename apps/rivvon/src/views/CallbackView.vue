@@ -3,6 +3,7 @@
     import { useRouter, useRoute } from 'vue-router';
     import LoadingIndicator from '../components/shared/LoadingIndicator.vue';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth';
+    import { consumeAuthRedirect } from '../services/authRedirect.js';
 
     const router = useRouter();
     const route = useRoute();
@@ -24,14 +25,7 @@
         }
 
         // Redirect to home (or to saved redirect path)
-        const savedRedirect = sessionStorage.getItem('auth_redirect');
-        sessionStorage.removeItem('auth_redirect');
-
-        if (savedRedirect && savedRedirect !== '/callback') {
-            router.replace(savedRedirect);
-        } else {
-            router.replace('/');
-        }
+        router.replace(consumeAuthRedirect() || '/');
     });
 </script>
 

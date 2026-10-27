@@ -2819,6 +2819,7 @@ const activeToolbarOverlayTitle = computed(() => {
         renderSnapshot: null,
         colourReport: null,
     });
+    const encodedVideoDraft = computed(() => videoDrafts.getDraft(encodedVideoExport.value.id));
     const videoExportStatus = ref('');
     const videoPublishAbortController = ref(null);
     const videoPublishState = ref({
@@ -4398,6 +4399,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :export-status="videoExportStatus"
             :encoded-filename="encodedVideoExport.filename"
             :encoded-size="encodedVideoExport.size"
+            :draft-storage="encodedVideoDraft?.storage"
             :colour-report="encodedVideoExport.colourReport"
             :can-share="canImageShare"
             :can-publish="isAuthenticated && isAdmin"
@@ -4416,6 +4418,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-cancel-drive="handleCancelVideoDriveSave"
             @request-open-drive="handleOpenDriveVideo"
             @request-open-drafts="openVideoDrafts"
+            @request-retry-save="videoDrafts.saveDraft(encodedVideoExport.id)"
             @request-cancel="handleCancelVideoExport"
             @settings-change="handleVideoExportSettingsChange"
         />

@@ -7,6 +7,8 @@ import PrimeVue from 'primevue/config';
 import VideoGalleryView from './VideoGalleryView.vue';
 import { useVideoDraftStore } from '../stores/videoDraftStore.js';
 import { fetchMyVideos, fetchVideos } from '../services/videoService.js';
+import { IDBFactory } from 'fake-indexeddb';
+import { closeVideoDraftDatabase } from '../services/videoDraftStorage.js';
 
 vi.mock('../composables/shared/useGoogleAuth.js', () => ({
     useGoogleAuth: () => ({ isAuthenticated: ref(false), isAdmin: ref(false), user: ref(null), login: vi.fn() }),
@@ -15,16 +17,28 @@ vi.mock('../services/videoService.js', () => ({
     fetchVideos: vi.fn(), fetchMyVideos: vi.fn(), deleteVideoPublication: vi.fn(), publishVideoBlob: vi.fn(),
 }));
 let pinia;
-beforeEach(() => {
+beforeEach(async () => {
+    await closeVideoDraftDatabase();
+    vi.stubGlobal('indexedDB', new IDBFactory());
     pinia = createPinia();
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:retained-video');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     fetchVideos.mockReset().mockResolvedValue({ videos: [] });
     fetchMyVideos.mockReset().mockResolvedValue({ videos: [] });
 });
-afterEach(() => { disposePinia(pinia); vi.restoreAllMocks(); });
+afterEach(async () => {
+    await useVideoDraftStore(pinia).flushPendingSaves().catch(() => {});
+    disposePinia(pinia);
+    await closeVideoDraftDatabase();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+});
 
-async function renderGallery(location) {
+async function renderGallery(location, { restore = true } = {}) {
+    if (restore) {
+        await useVideoDraftStore(pinia).flushPendingSaves();
+        await useVideoDraftStore(pinia).hydrate();
+    }
     const router = createRouter({ history: createMemoryHistory(), routes: [
         { path: '/', component: { render: () => null } },
         { path: '/videos', name: 'video-gallery', component: VideoGalleryView },
@@ -42,7 +56,7 @@ describe('video gallery draft collection', () => {
         const html = await renderGallery('/videos?tab=drafts');
         expect(html).toContain('Drafts (0)');
         expect(html).toContain('No draft encodings yet');
-        expect(html).toContain('until you reload or close it');
+        expect(html).toContain('after signing in or reopening Rivvon');
         expect(html).not.toContain('Sign in to see your videos');
         expect(fetchVideos).not.toHaveBeenCalled();
         expect(fetchMyVideos).not.toHaveBeenCalled();
@@ -76,5 +90,30 @@ describe('video gallery draft collection', () => {
         expect(html).toContain('Sign in to see your videos');
         expect(html).not.toContain('No draft encodings yet');
         expect(fetchMyVideos).not.toHaveBeenCalled();
+    });
+
+    it('shows restoration progress instead of a misleading empty gallery', async () => {
+        const html = await renderGallery('/videos?tab=drafts', { restore: false });
+        expect(html).toContain('Loading saved drafts');
+        expect(html).not.toContain('No draft encodings yet');
+    });
+
+    it('shows a retryable storage read error instead of an empty gallery', async () => {
+        useVideoDraftStore(pinia).hydrationError = 'Could not read saved video drafts.';
+        const html = await renderGallery('/videos?tab=drafts', { restore: false });
+        expect(html).toContain('Retry loading drafts');
+        expect(html).not.toContain('No draft encodings yet');
+    });
+
+    it('shows unsaved video recovery actions without claiming it was saved', async () => {
+        const drafts = useVideoDraftStore(pinia);
+        const draft = drafts.addDraft({ blob: new Blob(['video']), settings: {} });
+        await drafts.flushPendingSaves();
+        drafts.drafts = [{ ...draft, storage: { ...draft.storage, state: 'memory-only', error: 'Browser storage is full.' } }];
+        const html = await renderGallery('/videos?tab=drafts', { restore: false });
+        expect(html).toContain('Browser storage is full.');
+        expect(html).toContain('Retry saving');
+        expect(html).toContain('Download');
+        expect(html).not.toContain('Saved in this browser</p>');
     });
 });

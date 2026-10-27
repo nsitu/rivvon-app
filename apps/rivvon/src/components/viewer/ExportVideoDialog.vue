@@ -43,6 +43,7 @@
         exportStatus: { type: String, default: '' },
         encodedFilename: { type: String, default: '' },
         encodedSize: { type: Number, default: 0 },
+        draftStorage: { type: Object, default: () => ({}) },
         colourReport: { type: Object, default: null },
         canShare: { type: Boolean, default: false },
         canPublish: { type: Boolean, default: false },
@@ -56,7 +57,7 @@
         'update:visible', 'request-export', 'request-download', 'request-share',
         'request-publish', 'request-cancel-publish', 'request-open-published',
         'request-save-to-drive', 'request-cancel-drive', 'request-open-drive',
-        'request-cancel', 'settings-change', 'request-open-drafts',
+        'request-cancel', 'settings-change', 'request-open-drafts', 'request-retry-save',
     ]);
 
     // --- Form state ---
@@ -912,9 +913,15 @@
                     </div>
                     <ExportColourReport v-if="hasEncodedVideo && colourReport?.phase === 'complete'"
                         :report="colourReport" :filename="encodedFilename" />
-                    <p v-if="hasEncodedVideo" class="export-draft-notice">
-                        This encoding is available in Video Gallery → Drafts until you reload or close this browser tab.
-                    </p>
+                    <div v-if="hasEncodedVideo" class="export-draft-notice" role="status">
+                        <p v-if="draftStorage.state === 'saved'">Saved in this browser. Find this encoding in Video Gallery → Drafts after signing in or reopening Rivvon.</p>
+                        <p v-else-if="draftStorage.state === 'saving'">Saving this encoding in your browser… Keep this tab open until saving finishes.</p>
+                        <template v-else>
+                            <p>{{ draftStorage.error || 'This encoding is available in this tab.' }} Download it before leaving, or retry saving.</p>
+                            <Button type="button" severity="secondary" variant="outlined" @click="emit('request-retry-save')">Retry saving</Button>
+                        </template>
+                        <p v-if="draftStorage.thumbnailError || draftStorage.publicationError">{{ draftStorage.thumbnailError || draftStorage.publicationError }}</p>
+                    </div>
                     </div>
                 </ScrollPanel>
 
