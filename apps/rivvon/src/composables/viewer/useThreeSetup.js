@@ -144,6 +144,8 @@ export function useThreeSetup() {
     pauseRenderLoop: renderLoop.pauseRenderLoop,
     resumeRenderLoop: renderLoop.resumeRenderLoop,
     renderScene: renderSceneWithBackground,
+    createBackgroundExportInterpolation: background.createExportInterpolation,
+    restoreBackgroundPreview: background.updateBackground,
   });
 
   const presets = useScenePreset(ctx, { textures, ribbons, renderLoop, background,

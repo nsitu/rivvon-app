@@ -90,6 +90,11 @@
         },
     });
     const quality = ref('very-high');
+    const backgroundInterpolation = ref('crossfade');
+    const backgroundInterpolationOptions = [
+        { label: 'Crossfade', value: 'crossfade' },
+        { label: 'Motion interpolation (RIFE)', value: 'rife' },
+    ];
     const publishName = ref('');
     const publishDescription = ref('');
     const publishPublic = ref(true);
@@ -469,6 +474,7 @@
         fps,
         artworkMotionMode,
         quality,
+        backgroundInterpolation,
         exportLogoOverlayEnabled,
         exportLogoOverlayCorner,
         () => app.flowState,
@@ -538,6 +544,7 @@
                 : DEFAULT_SEAMLESS_LOOP_COUNT,
             artworkMotionMode: textureOnlyMode.value ? 'none' : artworkMotionMode.value,
             quality: quality.value,
+            backgroundInterpolation: textureOnlyMode.value ? 'crossfade' : backgroundInterpolation.value,
             logoOverlayEnabled: exportLogoOverlayEnabled.value,
             logoOverlayCorner: exportLogoOverlayCorner.value,
         });
@@ -793,6 +800,19 @@
                                 class="field-description"
                             >
                                 {{ artworkMotionDescription }}
+                            </div>
+                        </div>
+
+                        <div v-if="!textureOnlyMode && app.animatedBackgroundEnabled && app.textureAnimationEnabled !== false && app.backgroundBaseEnabled !== false"
+                            class="form-field">
+                            <label for="export-background-interpolation">Background interpolation</label>
+                            <Select v-model="backgroundInterpolation" input-id="export-background-interpolation"
+                                :options="backgroundInterpolationOptions" option-label="label" option-value="value"
+                                :disabled="isEncoding" aria-describedby="export-background-interpolation-help" class="w-full" />
+                            <div id="export-background-interpolation-help" class="field-description">
+                                {{ backgroundInterpolation === 'rife'
+                                    ? 'Generates intermediate background frames during export. Can reduce ghosting and takes substantially longer. Processing is limited to 1280 pixels before resizing to the texture size.'
+                                    : 'Blends neighboring background layers, matching the scene preview.' }}
                             </div>
                         </div>
 

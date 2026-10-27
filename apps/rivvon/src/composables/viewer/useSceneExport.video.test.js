@@ -19,6 +19,61 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it('awaits generated background pixels at each synthetic timestamp, then restores preview and disposes on success', async () => {
+        const { deps, writer, exporter } = fixture();
+        const events = [];
+        const interpolation = {
+            prepareFrame: vi.fn(async options => {
+                events.push(`prepare:${options.timeSeconds}`);
+                await Promise.resolve();
+                return { generatedAt: options.timeSeconds };
+            }),
+            dispose: vi.fn(),
+        };
+        deps.createBackgroundExportInterpolation = vi.fn(async () => interpolation);
+        deps.restoreBackgroundPreview = vi.fn();
+        deps.renderScene.mockImplementation(options => {
+            expect(options.backgroundFrame.generatedAt).toBe(options.timeSeconds);
+            events.push(`render:${options.timeSeconds}`);
+        });
+        writer.add.mockImplementation(time => events.push(`encode:${time}`));
+        await exporter.exportVideo({ fps: 30, duration: 2 / 30, backgroundInterpolation: 'rife' });
+        expect(events).toEqual(['prepare:0', 'render:0', 'encode:0', `prepare:${1 / 30}`, `render:${1 / 30}`, `encode:${1 / 30}`]);
+        expect(interpolation.prepareFrame.mock.calls[0][0]).toMatchObject({
+            timeSeconds: 0, deterministicBackground: true, backgroundLoopDuration: 2 / 30,
+        });
+        expect(interpolation.dispose).toHaveBeenCalledOnce();
+        expect(deps.restoreBackgroundPreview).toHaveBeenCalledOnce();
+        expect(deps.restoreBackgroundPreview.mock.invocationCallOrder[0]).toBeLessThan(deps.resumeRenderLoop.mock.invocationCallOrder[0]);
+    });
+
+    it.each(['cancel', 'failure'])('restores preview if interpolation ends with %s before a frame is encoded', async mode => {
+        const { deps, writer, exporter } = fixture(), controller = new AbortController();
+        const interpolation = { prepareFrame: vi.fn(async () => {
+            if (mode === 'cancel') controller.abort();
+            else throw new Error('RIFE inference failed');
+        }), dispose: vi.fn().mockRejectedValue(new Error('Cleanup failed')) };
+        deps.createBackgroundExportInterpolation = vi.fn(async () => interpolation);
+        deps.restoreBackgroundPreview = vi.fn();
+        const result = exporter.exportVideo({ duration: 1, backgroundInterpolation: 'rife', signal: controller.signal });
+        if (mode === 'cancel') expect(await result).toBeNull();
+        else await expect(result).rejects.toThrow('RIFE inference failed');
+        expect(deps.renderScene).not.toHaveBeenCalled();
+        expect(writer.add).not.toHaveBeenCalled();
+        expect(writer.finalize).not.toHaveBeenCalled();
+        expect(writer.dispose).toHaveBeenCalledOnce();
+        expect(interpolation.dispose).toHaveBeenCalledOnce();
+        expect(deps.restoreBackgroundPreview).toHaveBeenCalledOnce();
+        expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
+    });
+
+    it('does not create a model or decoder for crossfade exports', async () => {
+        const { deps, exporter } = fixture();
+        deps.createBackgroundExportInterpolation = vi.fn();
+        await exporter.exportVideo({ duration: 1 / 30 });
+        expect(deps.createBackgroundExportInterpolation).not.toHaveBeenCalled();
+    });
+
     it('uses export-quality backgrounds for still images and restores the viewport', async () => {
         const { ctx, deps, exporter } = fixture();
         const canvas = { getContext: () => ({ drawImage: vi.fn() }), toBlob: callback => callback(new Blob(['png'])) };

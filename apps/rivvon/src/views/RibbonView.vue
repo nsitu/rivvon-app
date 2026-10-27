@@ -3502,6 +3502,7 @@ const activeToolbarOverlayTitle = computed(() => {
                     duration: settings.duration,
                     loopCount: settings.loopCount,
                     artworkMotionMode: settings.artworkMotionMode,
+                    backgroundInterpolation: settings.backgroundInterpolation,
                     quality: settings.quality,
                     logoOverlayEnabled: settings.logoOverlayEnabled,
                     logoOverlayCorner: settings.logoOverlayCorner,

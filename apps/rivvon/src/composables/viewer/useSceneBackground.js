@@ -488,9 +488,11 @@ export function useSceneBackground(ctx) {
   ctx = { ...ctx, backgroundLayerTimeline: createBackgroundLayerTimeline() };
   let timelineTileManager = null;
   let activeRuntime = null;
+  let tileBackgroundActive = false;
   let backgroundGenerationToken = 0;
 
   function disposeBackground() {
+    tileBackgroundActive = false;
     backgroundGenerationToken += 1;
     activeRuntime?.dispose?.();
     activeRuntime = null;
@@ -503,6 +505,7 @@ export function useSceneBackground(ctx) {
   }
 
   async function setBackgroundFromTileManager(options = {}) {
+    tileBackgroundActive = false;
     if (timelineTileManager !== ctx.tileManager.value) {
       ctx.backgroundLayerTimeline.reset();
       timelineTileManager = ctx.tileManager.value;
@@ -569,6 +572,7 @@ export function useSceneBackground(ctx) {
 
       activeRuntime = runtime;
       activeRuntime.update();
+      tileBackgroundActive = true;
     } catch (error) {
       runtime?.dispose?.();
       if (requestToken !== backgroundGenerationToken) {
@@ -579,6 +583,7 @@ export function useSceneBackground(ctx) {
   }
 
   async function setBackgroundFromUrl(imageUrl, options = {}) {
+    tileBackgroundActive = false;
     const requestToken = ++backgroundGenerationToken;
     activeRuntime?.dispose?.();
     activeRuntime = null;
@@ -617,6 +622,19 @@ export function useSceneBackground(ctx) {
     activeRuntime?.update?.(renderOptions);
   }
 
+  async function createExportInterpolation(options = {}) {
+    const { createBackgroundExportInterpolation } = await import('../../modules/viewer/backgroundExportInterpolation.js');
+    const interpolation = createBackgroundExportInterpolation({ ...options, tileManager: ctx.tileManager.value });
+    return {
+      async prepareFrame(renderOptions) {
+        if (!tileBackgroundActive || ctx.app.backgroundBaseEnabled === false
+          || !ctx.app.animatedBackgroundEnabled || ctx.app.textureAnimationEnabled === false) return null;
+        return interpolation.prepareFrame(resolveBackgroundFrame(ctx, renderOptions));
+      },
+      dispose: () => interpolation.dispose(),
+    };
+  }
+
   function restoreLayerProgress(progress, timeSeconds) {
     const duration = ctx.app.backgroundAnimationSyncEnabled !== false
       ? getBackgroundSceneLoopDuration(ctx)
@@ -631,6 +649,7 @@ export function useSceneBackground(ctx) {
     setBackgroundFromTileManager,
     setBackgroundFromUrl,
     updateBackground,
+    createExportInterpolation,
     getLayerProgress: () => ctx.backgroundLayerTimeline.snapshot(),
     restoreLayerProgress,
   };
@@ -715,6 +734,7 @@ function attachCameraBackgroundPlane(ctx, material) {
 }
 
 function resolveBackgroundFrame(ctx, renderOptions = {}) {
+  if (renderOptions.backgroundFrame) return renderOptions.backgroundFrame;
   const tileManager = ctx.tileManager.value;
   const backgroundTexture = getTextureAt(tileManager, 0);
   const timeSeconds = getBackgroundTimeSeconds({
@@ -1339,6 +1359,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
 
   function makeSignature(nextFrame) {
     return [
+      nextFrame.currentTexture?.uuid,
+      nextFrame.nextTexture?.uuid,
       nextFrame.currentSample.tileIndex,
       nextFrame.nextSample.tileIndex,
       nextFrame.currentSample.mirrorX ? 1 : 0,

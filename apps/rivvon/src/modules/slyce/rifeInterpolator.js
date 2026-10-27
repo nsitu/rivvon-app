@@ -152,9 +152,10 @@ export class RIFEInterpolator {
     }
 
     reset() {
-        this.session?.release?.();
+        const session = this.session;
         this.session = null;
         this.activeExecutionProvider = null;
+        return session?.release?.();
     }
 
     async videoFrameToImageData(videoFrame) {
@@ -318,20 +319,27 @@ export class RIFEInterpolator {
 
         const paddedFrame0 = createPaddedCanvas(processedFrame0, sizeInfo.paddedWidth, sizeInfo.paddedHeight);
         const paddedFrame1 = createPaddedCanvas(processedFrame1, sizeInfo.paddedWidth, sizeInfo.paddedHeight);
-        const tensor0 = this.imageDataToTensor(paddedFrame0);
-        const tensor1 = this.imageDataToTensor(paddedFrame1);
-        const feeds = this.buildFeeds(tensor0, tensor1, timestep);
-        const outputName = this.outputNames[0];
-        const results = await this.session.run(feeds);
+        let tensor0, tensor1, feeds, results;
+        try {
+            tensor0 = this.imageDataToTensor(paddedFrame0);
+            tensor1 = this.imageDataToTensor(paddedFrame1);
+            feeds = this.buildFeeds(tensor0, tensor1, timestep);
+            const outputName = this.outputNames[0];
+            results = await this.session.run(feeds);
 
-        let imageData = await this.tensorToImageData(results[outputName], sizeInfo.paddedWidth, sizeInfo.paddedHeight);
-        imageData = cropToOriginal(imageData, sizeInfo.scaledWidth, sizeInfo.scaledHeight);
+            let imageData = await this.tensorToImageData(results[outputName], sizeInfo.paddedWidth, sizeInfo.paddedHeight);
+            imageData = cropToOriginal(imageData, sizeInfo.scaledWidth, sizeInfo.scaledHeight);
 
-        if (sizeInfo.isDownscaled) {
-            imageData = resizeImageData(imageData, sizeInfo.originalWidth, sizeInfo.originalHeight);
+            if (sizeInfo.isDownscaled) {
+                imageData = resizeImageData(imageData, sizeInfo.originalWidth, sizeInfo.originalHeight);
+            }
+            return imageData;
+        } finally {
+            // WebGPU outputs retain device buffers until explicitly disposed.
+            // Feeds can alias the original tensors; release each object once.
+            const tensors = new Set([tensor0, tensor1, ...Object.values(feeds || {}), ...Object.values(results || {})]);
+            for (const tensor of tensors) tensor?.dispose?.();
         }
-
-        return imageData;
     }
 
     async interpolateVideoFrames(frame0, frame1, timestep = 0.5, outputTimestamp = 0) {

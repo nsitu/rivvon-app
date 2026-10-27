@@ -652,6 +652,7 @@ export function useSceneExport(ctx, deps = {}) {
     * @param {string} options.artworkMotionMode - 'none' | 'recordedOrbit' | 'cinematic' | 'circularTilt' | 'circularOrbit' | 'circularOrbitReverse' | 'tumbleOrbit'
      * @param {string} options.logoOverlayCorner - Export logo corner for video overlays
      * @param {string} options.quality - 'very-low' | 'low' | 'medium' | 'high' | 'very-high' (default: 'very-high')
+     * @param {'crossfade'|'rife'} options.backgroundInterpolation - Export-only temporal interpolation (default: 'crossfade')
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
     async function exportVideo(options = {}) {
@@ -672,6 +673,7 @@ export function useSceneExport(ctx, deps = {}) {
             signal = null,
             artworkMotionMode = 'none',
             quality = 'very-high',
+            backgroundInterpolation = 'crossfade',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
             onColourMetadata = null,
@@ -680,6 +682,9 @@ export function useSceneExport(ctx, deps = {}) {
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value || !ctx.tileManager.value) {
             console.error('[ThreeSetup] Cannot export video — not initialized');
             return null;
+        }
+        if (!['crossfade', 'rife'].includes(backgroundInterpolation)) {
+            throw new Error('Unknown background interpolation method.');
         }
 
         // MP4 uses pinned software x264; WebM still requires WebCodecs.
@@ -784,6 +789,7 @@ export function useSceneExport(ctx, deps = {}) {
         deps.pauseRenderLoop?.();
 
         let videoExport = null;
+        let backgroundInterpolator = null;
         try {
             // --- Resize renderer for export ---
             ctx.renderer.value.setPixelRatio(1); // Exact pixel output
@@ -845,6 +851,11 @@ export function useSceneExport(ctx, deps = {}) {
             // them to match the reset state before rendering frame 0.
             ctx.ribbonSeries.value?.initFlowMaterials?.();
 
+            if (backgroundInterpolation === 'rife') {
+                if (!deps.createBackgroundExportInterpolation) throw new Error('Background motion interpolation is unavailable in this viewer.');
+                backgroundInterpolator = await deps.createBackgroundExportInterpolation({ signal, onStatus: progress.status });
+            }
+
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
                 width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion, quality, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
@@ -904,13 +915,18 @@ export function useSceneExport(ctx, deps = {}) {
                     tumbleOrbitRoot.updateMatrixWorld(true);
                 }
 
-                // Render this frame at the exact synthetic time
-                renderFrameAtTime(t, animationDelta, {
+                const frameOptions = {
                     backgroundLoopDuration,
                     blurMode: 'export',
                     width,
                     height,
-                });
+                    timeSeconds: t,
+                    deterministicBackground: true,
+                };
+                const backgroundFrame = await backgroundInterpolator?.prepareFrame(frameOptions);
+                if (signal?.aborted) return null;
+                // Render only after the generated pixels match this synthetic timestamp.
+                renderFrameAtTime(t, animationDelta, { ...frameOptions, backgroundFrame });
 
                 await videoExport.add(t, deltaSec);
 
@@ -930,7 +946,11 @@ export function useSceneExport(ctx, deps = {}) {
             if (signal?.aborted) return null;
             throw error;
         } finally {
-            await videoExport?.dispose();
+            // Cleanup failures must not prevent restoring the scene and live loop.
+            await Promise.allSettled([
+                Promise.resolve().then(() => videoExport?.dispose()),
+                Promise.resolve().then(() => backgroundInterpolator?.dispose()),
+            ]);
             circularTiltController?.deactivate({ restoreBaseline: true });
 
             if (circularOrbitRoot && circularOrbitBasePosition && circularOrbitBaseQuaternion) {
@@ -974,7 +994,11 @@ export function useSceneExport(ctx, deps = {}) {
             }
 
             // Resume live render loop
-            deps.resumeRenderLoop?.();
+            try {
+                deps.restoreBackgroundPreview?.();
+            } finally {
+                deps.resumeRenderLoop?.();
+            }
         }
     }
 

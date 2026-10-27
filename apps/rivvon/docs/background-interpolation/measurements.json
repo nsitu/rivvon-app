@@ -1,0 +1,169 @@
+{
+  "date": "2026-10-27",
+  "browser": "Microsoft Edge 156.0.4314.42 headless",
+  "model": "rife422_v2_ensembleFalse_op20_clamp.onnx",
+  "modelBytes": 37370919,
+  "initializationMs": {
+    "wasm": 1653.8,
+    "webgpu": 1665.9
+  },
+  "scope": "Short 256x256 feasibility probe; no sustained or end-to-end export benchmark",
+  "webgpu": {
+    "provider": "webgpu",
+    "explicitTimestep": true,
+    "maxDimension": 1280,
+    "results": [
+      {
+        "variant": "waves",
+        "meta": {
+          "jobId": "waves",
+          "width": 256,
+          "height": 256,
+          "layerCount": 30,
+          "levelCount": 9,
+          "faceCount": 1,
+          "hasAlpha": false,
+          "basisFormat": "uastc",
+          "sourceByteLength": 2622624
+        },
+        "decodeMs": 5,
+        "measurements": [
+          {
+            "t": 0.25,
+            "ms": 1549.3999998569489,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.5,
+            "ms": 188.60000014305115,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.75,
+            "ms": 174.19999980926514,
+            "width": 256,
+            "height": 256
+          }
+        ],
+        "meanAbsoluteDifferenceFromBlend": 26.396626790364582
+      },
+      {
+        "variant": "planes",
+        "meta": {
+          "jobId": "planes",
+          "width": 256,
+          "height": 256,
+          "layerCount": 30,
+          "levelCount": 9,
+          "faceCount": 1,
+          "hasAlpha": false,
+          "basisFormat": "uastc",
+          "sourceByteLength": 2622624
+        },
+        "decodeMs": 1.7999999523162842,
+        "measurements": [
+          {
+            "t": 0.25,
+            "ms": 177.40000009536743,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.5,
+            "ms": 170.70000004768372,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.75,
+            "ms": 175.39999985694885,
+            "width": 256,
+            "height": 256
+          }
+        ],
+        "meanAbsoluteDifferenceFromBlend": 4.14727783203125
+      }
+    ]
+  },
+  "wasm": {
+    "provider": "wasm",
+    "explicitTimestep": true,
+    "maxDimension": 1280,
+    "results": [
+      {
+        "variant": "waves",
+        "meta": {
+          "jobId": "waves",
+          "width": 256,
+          "height": 256,
+          "layerCount": 30,
+          "levelCount": 9,
+          "faceCount": 1,
+          "hasAlpha": false,
+          "basisFormat": "uastc",
+          "sourceByteLength": 2622624
+        },
+        "decodeMs": 4.6000001430511475,
+        "measurements": [
+          {
+            "t": 0.25,
+            "ms": 316.10000014305115,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.5,
+            "ms": 249,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.75,
+            "ms": 257.7999999523163,
+            "width": 256,
+            "height": 256
+          }
+        ],
+        "meanAbsoluteDifferenceFromBlend": 26.39661153157552
+      },
+      {
+        "variant": "planes",
+        "meta": {
+          "jobId": "planes",
+          "width": 256,
+          "height": 256,
+          "layerCount": 30,
+          "levelCount": 9,
+          "faceCount": 1,
+          "hasAlpha": false,
+          "basisFormat": "uastc",
+          "sourceByteLength": 2622624
+        },
+        "decodeMs": 1.7000000476837158,
+        "measurements": [
+          {
+            "t": 0.25,
+            "ms": 251.09999990463257,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.5,
+            "ms": 248.79999995231628,
+            "width": 256,
+            "height": 256
+          },
+          {
+            "t": 0.75,
+            "ms": 260.5,
+            "width": 256,
+            "height": 256
+          }
+        ],
+        "meanAbsoluteDifferenceFromBlend": 4.1473439534505205
+      }
+    ]
+  }
+}
