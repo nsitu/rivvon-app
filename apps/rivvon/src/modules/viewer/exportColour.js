@@ -20,10 +20,13 @@ const byte = (value, min, max) => Math.max(min, Math.min(max, Math.round(value))
 
 // Input must be opaque, unpremultiplied sRGB RGBA. Chroma is a 2x2 box average,
 // centred (chroma_sample_loc_type=1), with only one final quantization per sample.
-export function rgbaToBt709I420(rgba, width, height, target = new Uint8Array(width * height * 3 / 2)) {
+// Full range changes the actual YUV quantization as well as its frame metadata.
+export function rgbaToBt709I420(rgba, width, height, target = new Uint8Array(width * height * 3 / 2), { fullRange = false } = {}) {
     validateSdrDimensions(width, height, 30);
     if (rgba.length !== width * height * 4 || target.length !== width * height * 3 / 2) throw new Error('Invalid frame buffer size.');
     const pixels = width * height;
+    const yOffset = fullRange ? 0 : 16, yScale = fullRange ? 255 : 219;
+    const chromaScale = (fullRange ? 255 : 224) / 4;
     let chroma = 0;
     for (let y = 0; y < height; y += 2) {
         for (let x = 0; x < width; x += 2) {
@@ -35,13 +38,13 @@ export function rgbaToBt709I420(rgba, width, height, target = new Uint8Array(wid
                     const g = transferLut[rgba[pixel * 4 + 1]];
                     const b = transferLut[rgba[pixel * 4 + 2]];
                     const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                    target[pixel] = byte(16 + 219 * luma, 16, 235);
+                    target[pixel] = byte(yOffset + yScale * luma, yOffset, yOffset + yScale);
                     cb += (b - luma) / 1.8556;
                     cr += (r - luma) / 1.5748;
                 }
             }
-            target[pixels + chroma] = byte(128 + 56 * cb, 16, 240);
-            target[pixels * 5 / 4 + chroma++] = byte(128 + 56 * cr, 16, 240);
+            target[pixels + chroma] = byte(128 + chromaScale * cb, fullRange ? 0 : 16, fullRange ? 255 : 240);
+            target[pixels * 5 / 4 + chroma++] = byte(128 + chromaScale * cr, fullRange ? 0 : 16, fullRange ? 255 : 240);
         }
     }
     return target;

@@ -6,23 +6,28 @@ Every encoded batch's SPS and the final MP4 nclx/SPS are checked before returnin
 the file. This applies to scene exports, live texture overview exports, and the
 standalone texture overview exporter. WebM remains the existing WebCodecs path.
 No Loop source changes or player colour compensation are involved. The export
-dialog also offers the original WebCodecs/CanvasSource AVC path as an explicit
-choice, with a final colour report instead of a claim of deterministic conversion.
+dialog also offers WebCodecs AVC with a colour-range selector. Limited (the UI
+default) and Full explicitly convert to BT.709 I420 before native compression;
+Browser default retains the original CanvasSource path for comparison.
 
 ## Architecture diagram
 
+[GPU-assisted YUV export](proposed-gpu-yuv-export.svg) shows the export-only
+shader conversion and required CPU-visible YUV readback implemented on
+27 October 2026. CPU conversion remains available as a comparison and fallback.
+
 [Open the editable SVG architecture diagram](video-colour-architecture.svg).
 It follows rendered canvas frames through the two current MP4 export methods,
-an experimental explicit-YUV WebCodecs path, file transport, Loop, Media3,
+the then-experimental explicit-YUV WebCodecs path, file transport, Loop, Media3,
 MediaCodec and the Android display stack. Green boxes describe pixel handling;
-blue boxes describe declarations. The dashed path is a lab prototype, not an
-available production export option. The diagram records the checked code and
-measurements as of 10 October 2026.
+blue boxes describe declarations. The diagram records the checked code and
+measurements as of 10 October 2026, before explicit YUV became an available
+WebCodecs export option on 26 October.
 
 The diagram separates these assumptions:
 
 - Rivvon interprets the legacy renderer's displayed canvas bytes as sRGB. Its
-  JavaScript conversion decodes sRGB, applies the BT.709 opto-electronic transfer
+  explicit conversion decodes sRGB, applies the BT.709 opto-electronic transfer
   function (OETF), and produces limited-range Y′CbCr samples before compression.
 - Loop's checked Media3 1.10.1 [MP4 extractor](https://github.com/androidx/media/blob/1.10.1/libraries/extractor/src/main/java/androidx/media3/extractor/mp4/BoxParser.java)
   prefers bitstream colour declarations. It uses `nclx` when both colour space
@@ -41,9 +46,15 @@ measurements. No Android Loop source is changed by this documentation.
 ## Encoder choice and final reports
 
 For MP4, choose **FFmpeg WASM** (the default) or **WebCodecs**. FFmpeg performs
-the explicit conversion described below. WebCodecs retains the original canvas
-capture and optional transparent 2D logo compositor, native AVC encoding and
-Mediabunny muxing. A completed WebCodecs MP4 is inspected and, when eligible,
+the explicit conversion described below. WebCodecs offers **Limited**, **Full**
+and **Browser default** colour range. Explicit ranges composite the scene/logo
+onto opaque sRGB, convert its transfer, matrix and range into real I420 pixels,
+and supply raw `VideoFrame`s through Mediabunny's `VideoSampleSource`. Compression
+still uses the browser encoder. Explicit YUV conversion offers GPU and CPU
+methods, independently of encoder preference. Browser
+default retains canvas capture and the optional transparent logo compositor.
+All three paths use native AVC encoding and Mediabunny muxing. A completed
+WebCodecs MP4 is inspected and, when eligible,
 missing SPS declarations are added with FFmpeg's `h264_metadata` stream-copy
 filter. This is metadata repair, not colour conversion. WebM uses
 WebCodecs/VP9. The optional WebCodecs preference is browser decides, prefer
@@ -54,12 +65,69 @@ switch to another method.
 Every completed export shows a colour report in the dialog, with a downloadable
 JSON file. MP4 reports inspect the final MP4 `nclx` and every SPS in `avcC`,
 including range, primaries, transfer, matrix, chroma format and bit depth. Missing
-fields remain **not declared**; conflicting fields are reported. Native files
-remain downloadable even when the declarations differ from the SDR target. A
-native file with matching declarations is still labelled as having unverified
-browser-managed pixel conversion. WebM reports encoder output colour metadata;
+fields remain **not declared**; conflicting fields are reported. Explicit-range
+exports fail if final container/SPS do not establish the selected BT.709 range,
+8-bit 4:2:0 output. Browser-default files remain downloadable when declarations
+differ from the SDR target. Reports distinguish explicit input conversion from
+browser-managed conversion; neither matching tags nor explicit input alone
+prove that every backend preserves pixel values. WebM reports encoder metadata;
 its container and VP9 bitstream are explicitly marked as not independently
 inspected.
+
+### GPU shader or CPU colour conversion
+
+For FFmpeg MP4 and explicit-range WebCodecs MP4, **Colour conversion** selects
+**GPU shader** (the default) or **CPU**. Both implement the same sRGB-to-BT.709
+transfer, matrix, range quantization and centred 2×2 chroma average. FFmpeg
+always uses limited range; WebCodecs also offers full range. The choice controls
+pixel conversion, independently of whether compression runs on CPU or hardware.
+WebM and Browser default bypass this explicit conversion stage.
+
+The GPU method uses an export-owned WebGL2 context. After scene/logo composition
+onto opaque sRGB, it uploads the compositor, samples the same transfer lookup
+table as the CPU reference, and packs four consecutive I420 bytes into each
+RGBA8 framebuffer texel. `readPixels` reads those packed bytes into a reusable
+CPU-visible buffer. Those bytes feed the raw I420 `VideoFrame` constructor or
+the existing FFmpeg worker batches; the packed canvas is never encoded as RGB.
+For ordinary frame sizes this reads 1.5 bytes per source pixel instead of the
+CPU path's 4-byte RGBA readback (62.5% less data). Small/non-aligned sizes can
+require padding in the internal readback surface; output I420 remains tightly
+packed at the exact requested dimensions.
+
+GPU conversion still incurs canvas upload, readback, synchronization and native
+frame construction costs; it is not a zero-copy pipeline or a promise of faster
+export on every device. Export runs offline and has no realtime frame deadline.
+Shader compilation can add startup cost. CPU conversion remains useful for
+comparison or compatibility. GPU initialization failure, texture-size limits or
+context loss trigger CPU conversion for the remaining frames. Reports record
+the requested and actual method, fallback reason and readback bytes per frame.
+Both methods are instantiated only inside export writers; viewer navigation
+does not allocate or invoke this converter.
+
+`pnpm --filter rivvon test:gpu-yuv` checks real WebGL2 output against CPU output,
+including random RGB, black/white endpoints, top/bottom orientation, subsequent
+frame updates, non-aligned packing and context-loss fallback. Chrome and Edge
+156 on Windows/Intel D3D11 passed six sizes from 2×2 to 3840×2160, both ranges.
+Differences were at most one code value due to floating-point rounding. This
+does not establish identical results on other GPUs or browsers; keep decoded
+pixel and metadata validation when testing another platform.
+
+[Validation results](gpu-yuv-validation.json) also record 24 production
+WebCodecs exports (540p/30 in Edge and 1080p/29.97 in Chrome), both ranges,
+all encoder preferences and logo settings. Their colour declarations, timing,
+temporal markers and decoded chart patches passed; native hardware encoding
+was observed in traces. Shader-fed FFmpeg exports also passed for chart/ribbon
+and logo on/off. Diagnostic shader timings include upload/readback, while the
+recorded CPU timings measure arithmetic only; they are not an end-to-end
+throughput comparison.
+
+[CPU versus GPU benchmark](yuv-conversion-benchmark.md) records a subsequent
+comparison with identical timing boundaries, including GPU rendering, composition,
+readback/conversion and `VideoFrame` construction, plus complete WebCodecs exports.
+On the tested Windows/Intel device, the shader path improved representative
+frame preparation by 2.8–4.6× and complete hardware AVC exports by 1.5–2.3×.
+The benchmark includes Chrome/Edge 156, 540p through 4K and both representative
+ribbon and random-RGB stress content; these gains are not a cross-device promise.
 
 ### Missing SPS declarations on WebCodecs exports
 
@@ -67,12 +135,13 @@ The repair runs only when MP4 `nclx` and all observed encoder output colour
 configurations provide complete, consistent declarations. Any already-declared
 SPS fields must agree. Missing/unspecified SPS fields are filled with those
 **observed output values**, not the desired BT.709 limited target. Existing
-conflicts or insufficient evidence leave the original file available with an
-explanation in the final report. Already-complete SPS declarations need no
+conflicts or insufficient evidence leave Browser default files available with an
+explanation in the final report; explicit ranges fail final target validation.
+Already-complete SPS declarations need no
 repair tool. A tool failure or changed frame timing fails the export rather than
 returning an incorrectly repaired file.
 
-For the measured Chrome native output this means `1/13/1/full` (709 primaries,
+For the original Chrome 155 canvas output this meant `1/13/1/full` (709 primaries,
 sRGB transfer, 709 matrix, full range), not `1/1/1/limited`. The pinned local
 FFmpeg WASM core applies [`h264_metadata`](https://ffmpeg.org/ffmpeg-bitstream-filters.html#h264_005fmetadata)
 with `-c:v copy` and writes agreeing container fields. There is no re-encode or
@@ -87,8 +156,8 @@ establish that the browser's RGB-to-YUV conversion was correct or normalize
 full-range/sRGB/601 samples. FFmpeg WASM encoding remains the default for the
 conventional BT.709 limited contract.
 
-Reports capture the input `VideoFrame.colorSpace` (using the same canvas
-constructor as CanvasSource), the first useful encoder output decoder config,
+Reports capture the input `VideoFrame.colorSpace` (raw I420 for explicit range,
+or the same canvas constructor as CanvasSource), the first useful encoder output decoder config,
 the last encoder configuration candidate considered by Mediabunny, the requested
 acceleration preference and the observed final MP4 declarations. They also
 capture browser-reported UA/platform, full browser versions and OS version/client
@@ -128,21 +197,16 @@ appear merely by writing `nclx`.
 
 The observed differences are in the combination of browser, OS media backend,
 GPU/driver and encoder selection. They are not proof that every WebCodecs
-implementation produces bad video. Even on the same PC, the measured Chrome
+implementation produces bad video. Even on the same PC, the original Chrome 155
 hardware/no-preference output is full-range sRGB-transfer with missing SPS
 colour, while software preference and Edge produce limited-range sRGB-transfer
 with explicit SPS colour. Neither is the requested all-BT.709 contract.
 
-There is a credible future native path: convert to real BT.709 limited I420
-ourselves, construct a raw I420 VideoFrame with accurate colour metadata, and
-encode via Mediabunny's VideoSampleSource. This eliminates implicit RGB-to-YUV
-input conversion, but still needs real decoded chart-value checks, SPS/container
-verification and fallback on each supported browser/backend. It has not been
-validated as a production alternative here. The 2026-10-10 experiment below
-does validate converted chart inputs on the primary Chrome/Windows environment.
-Browser/backend fixes and additional
-standardized controls could improve portability; there is no promised support
-date. The final reports and repeatable chart make improvements measurable.
+The explicit I420 path now implements the native alternative tested below.
+It removes implicit RGB-to-YUV input conversion, but each supported backend
+still needs decoded chart checks. Runtime verification checks declarations;
+it does not decode and compare every export. Unsupported/mismatching output
+fails without silently changing the requested range or compression method.
 
 ### Explicit YUV input experiment (2026-10-10)
 
@@ -178,17 +242,58 @@ Repeat with the browser and native-tool variables described above:
 node apps/rivvon/scripts/test-webcodecs-input-colour.mjs
 ```
 
-Artifacts default to `colour-test-output/explicit-yuv/`. The experiment saves
-original/repaired MP4s, native header traces and its report. It does not change
-the production WebCodecs option, which currently retains CanvasSource for the
-original-path comparison. This new evidence supports a native encoding path
-with explicit pixel conversion, rather than requiring software compression on
-this tested environment. Other browsers/backends, logos, animated scenes and
-Android playback of these converted-native files still need validation before
-changing the production pipeline. WebCodecs has no universal output-range
-control: an exporter should verify and reject/fall back for non-conforming
-output. Merely labelling canvas pixels or compressing RGB values into 16–235
-does not perform the required transfer/matrix/range conversion.
+Artifacts default to `colour-test-output/explicit-yuv/`. The expanded experiment
+saves original/repaired MP4s, native header/encoder traces and its report.
+Merely labelling canvas pixels or compressing RGB values into 16–235 does not
+perform the required transfer/matrix/range conversion.
+
+### Repeated YUV range validation and production control (2026-10-26)
+
+The checked result summary is [webcodecs-yuv-validation.json](webcodecs-yuv-validation.json).
+Chrome 156.0.8078.47 and Edge 156.0.4314.42 were tested headlessly on the same
+Windows/Intel Graphics D3D11 machine. This is evidence for that environment,
+not a guarantee for other GPUs, operating systems, codecs or future versions.
+
+- 72 raw-YUV exports cover I420/NV12, limited/full, all three preferences and
+  two repeats at Chrome 960×540/30 fps and 1920×1080/29.97 fps, plus Edge
+  960×540/30 fps. Nine canvas exports provide browser-default comparisons.
+- 60 production-writer exports cover limited/full and all three preferences,
+  logo off/on, three repeats in Chrome at 1080p and two in Edge at 540p.
+- All 66 limited-range YUV exports have zero maximum interior chart YUV error
+  across the first/middle/last frames. Hardware/full cases also have zero error;
+  software/full cases differ by at most one code value. Lossy compression means
+  this exactness is specific to the tested chart patches and quality setting.
+- Chromium media tracing associates each case with native encoding activity.
+  Hardware preference and browser-decides cases enter
+  `MediaFoundationVideoEncodeAccelerator::ProcessInput` after initialization
+  with `required_encoder_type: hardware`. Software-preferred cases do not.
+  These diagnostics are lab-only; the browser API still cannot identify the
+  implementation in the product's colour report.
+- Independent FFmpeg/ffprobe verifies SPS `1/1/1`, the requested range, 8-bit
+  4:2:0, frame counts and duration. MP4 inspection agrees. All production
+  frame markers decode in order without dropped/duplicated frames. Decoded
+  first/middle/last frames match before/after metadata repair.
+
+The UI defaults to Limited when selecting WebCodecs MP4. Direct API callers
+omitting `videoRange` retain `auto` for compatibility. `videoRange: 'limited'`
+or `'full'` uses explicit I420 and requires matching final colour declarations.
+Full range is a separate target; it does not pass the conventional limited SDR
+contract and is displayed as a successful full-range declaration check instead.
+Odd dimensions are rejected for explicit 4:2:0. WebM and the FFmpeg default
+retain their existing behavior. Hardware output still needed SPS repair on this
+machine; that stream copy adds declarations and does not convert samples.
+Chrome 156 canvas output now declares limited sRGB, unlike the earlier Chrome
+155 full-range result, further demonstrating that implicit conversion can change.
+Android playback of these new native files and other hardware remain untested.
+
+Set `BROWSER_BINARY`, `FFMPEG_BINARY` and `FFPROBE_BINARY` as above, then run
+`node apps/rivvon/scripts/test-webcodecs-input-colour.mjs`. Optional environment
+settings are `COLOUR_REPEATS` (default 3), `COLOUR_WIDTH`, `COLOUR_HEIGHT`,
+`COLOUR_FPS`, `COLOUR_FRAMES` and `COLOUR_OUTPUT_DIR`. Set `COLOUR_PRODUCTION=1`
+to test the real writer with logo off/on and changing frame markers. On Windows,
+`COLOUR_REQUIRE_HARDWARE=1` additionally requires the Media Foundation hardware
+trace for each hardware-preferred case. Reports and videos from this run are in
+the ignored `apps/rivvon/colour-test-output/yuv-range-2026-10-26/` directory.
 
 ## Why the renderer stays as it is
 

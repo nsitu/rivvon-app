@@ -63,6 +63,8 @@
     const format = ref('mp4');
     const encodingMethod = ref('ffmpeg');
     const hardwareAcceleration = ref('no-preference');
+    const videoRange = ref('limited');
+    const yuvConversion = ref('gpu');
     const exportMode = ref('ribbons');
     const durationMode = ref('loop');
     const customDuration = ref(5);
@@ -214,6 +216,16 @@
         { label: 'Prefer software', value: 'prefer-software' },
     ];
     const usesWebCodecs = computed(() => format.value === 'webm' || encodingMethod.value === 'webcodecs');
+    const videoRangeOptions = [
+        { label: 'Limited (recommended)', value: 'limited' },
+        { label: 'Full', value: 'full' },
+        { label: 'Browser default', value: 'auto' },
+    ];
+    const usesExplicitYuv = computed(() => format.value === 'mp4' && (!usesWebCodecs.value || videoRange.value !== 'auto'));
+    const yuvConversionOptions = [
+        { label: 'GPU shader', value: 'gpu' },
+        { label: 'CPU', value: 'cpu' },
+    ];
 
     const durationOptions = [
         { label: 'Looping Cycle', value: 'loop', icon: 'all_inclusive' },
@@ -447,6 +459,8 @@
         format,
         encodingMethod,
         hardwareAcceleration,
+        videoRange,
+        yuvConversion,
         exportMode,
         durationMode,
         customDuration,
@@ -514,6 +528,8 @@
             format: format.value,
             encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg',
             hardwareAcceleration: usesWebCodecs.value ? hardwareAcceleration.value : null,
+            videoRange: format.value === 'mp4' && usesWebCodecs.value ? videoRange.value : null,
+            yuvConversion: usesExplicitYuv.value ? yuvConversion.value : null,
             duration: durationMode.value === 'custom' ? resolvedDuration.value : null,
             resolvedDuration: resolvedDuration.value,
             loopCount: durationMode.value === 'loop'
@@ -610,7 +626,7 @@
                                 option-value="value" input-id="videoEncodingMethod" :disabled="isEncoding" class="w-full" />
                             <div class="field-description">
                                 {{ encodingMethod === 'ffmpeg'
-                                    ? 'Consistent BT.709 limited colour. Uses CPU encoding and loads a 32 MB encoder.'
+                                    ? 'Consistent BT.709 limited colour. Encoding runs on the CPU and loads a 32 MB encoder; pixel conversion is selected below.'
                                     : 'Uses the browser encoder. Colour can vary by browser and device. Missing H.264 declarations may load a 32 MB repair tool; inspect the final report.' }}
                             </div>
                         </div>
@@ -619,7 +635,35 @@
                             <label for="videoHardwarePreference">Encoder preference</label>
                             <Select v-model="hardwareAcceleration" :options="hardwareAccelerationOptions" option-label="label"
                                 option-value="value" input-id="videoHardwarePreference" :disabled="isEncoding" class="w-full" />
-                            <div class="field-description">A preference; the browser may choose another encoder.</div>
+                            <div class="field-description">Controls compression, independently of colour conversion. The browser may choose another encoder.</div>
+                        </div>
+
+                        <div v-if="format === 'mp4' && usesWebCodecs" class="form-field">
+                            <label id="videoColourRangeLabel" for="videoColourRange">Colour range</label>
+                            <Select v-model="videoRange" :options="videoRangeOptions" option-label="label"
+                                option-value="value" input-id="videoColourRange" :disabled="isEncoding" class="w-full"
+                                aria-labelledby="videoColourRangeLabel"
+                                :pt="{ label: { 'aria-describedby': 'videoColourRangeHelp' } }" />
+                            <div id="videoColourRangeHelp" class="field-description">
+                                {{ videoRange === 'auto'
+                                    ? 'The browser chooses RGB-to-YUV conversion and range, which can differ between hardware and software encoders. Skips explicit YUV conversion and its readback step.'
+                                    : videoRange === 'full'
+                                        ? 'Converts actual pixels to BT.709 full range (0–255). Some players handle full range poorly. Export stops if its colour declarations do not match.'
+                                        : 'Converts actual pixels to BT.709 limited range (luma 16–235, chroma 16–240), suitable for most players. Export stops if its colour declarations do not match.' }}
+                            </div>
+                        </div>
+
+                        <div v-if="usesExplicitYuv" class="form-field">
+                            <label for="videoYuvConversion">Colour conversion</label>
+                            <Select v-model="yuvConversion" :options="yuvConversionOptions" option-label="label"
+                                option-value="value" input-id="videoYuvConversion" :disabled="isEncoding" class="w-full"
+                                :pt="{ label: { 'aria-describedby': 'videoYuvConversionHelp' } }" />
+                            <div id="videoYuvConversionHelp" class="field-description">
+                                {{ yuvConversion === 'gpu'
+                                    ? 'Converts pixels on the GPU, then reads YUV bytes back for encoding. This reads less data than the CPU method, but speed depends on your device. Falls back to CPU if needed; see the colour report.'
+                                    : 'Reads RGBA pixels back, then converts them on the CPU. Useful for compatibility or comparison.' }}
+                                Both use BT.709 and the selected range, only during export. Viewer navigation is unaffected.
+                            </div>
                         </div>
 
                         <div class="form-field">

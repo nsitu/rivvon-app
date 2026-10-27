@@ -8,6 +8,13 @@ describe('real sRGB → BT.709 limited conversion', () => {
         expect([...patch([0,0,0])]).toEqual([16,16,16,16,128,128]);
         expect([...patch([255,255,255])]).toEqual([235,235,235,235,128,128]);
     });
+    it('converts full-range pixel values instead of changing the range label', () => {
+        const fullPatch = rgb => rgbaToBt709I420(Uint8Array.from(Array(4).fill([...rgb,255]).flat()), 2, 2, undefined, { fullRange: true });
+        expect([...fullPatch([0,0,0])]).toEqual([0,0,0,0,128,128]);
+        expect([...fullPatch([255,255,255])]).toEqual([255,255,255,255,128,128]);
+        expect([...fullPatch([255,0,0])]).toEqual([54,54,54,54,99,255]);
+        expect(fullPatch([128,128,128])[0]).toBe(115);
+    });
     it('uses 709 rather than 601 luma coefficients for saturated primaries', () => {
         expect([...patch([255,0,0])]).toEqual([63,63,63,63,102,240]);
         expect([...patch([0,255,0])]).toEqual([173,173,173,173,42,26]);

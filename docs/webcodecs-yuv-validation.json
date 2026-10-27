@@ -1,0 +1,816 @@
+{
+  "date": "2026-10-26",
+  "scope": "Headless Chrome/Edge on one Windows Intel Graphics D3D11 machine; other platforms and Android playback not tested.",
+  "checks": [
+    "Independent FFmpeg/ffprobe SPS, pixel format, range, frame count and duration",
+    "All final nclx/SPS declarations agree with requested BT.709 range",
+    "32 chart-patch Y/U/V values at first/middle/last decoded frames",
+    "First/middle/last decoded frames unchanged by metadata repair",
+    "Every production frame has a decoded binary temporal marker"
+  ],
+  "runs": [
+    {
+      "name": "chrome-540",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "156.0.8078.47"
+        },
+        {
+          "brand": "Google Chrome",
+          "version": "156.0.8078.47"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "explicitYuvExports": 24,
+      "canvasComparisons": 3,
+      "logoSettings": [
+        false
+      ],
+      "repeats": 2,
+      "allPassed": true,
+      "cases": [
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        }
+      ],
+      "localArtifacts": "chrome-540/report.json"
+    },
+    {
+      "name": "chrome-1080",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "156.0.8078.47"
+        },
+        {
+          "brand": "Google Chrome",
+          "version": "156.0.8078.47"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 1920,
+      "height": 1080,
+      "fps": 29.97,
+      "frames": 25,
+      "explicitYuvExports": 24,
+      "canvasComparisons": 3,
+      "logoSettings": [
+        false
+      ],
+      "repeats": 2,
+      "allPassed": true,
+      "cases": [
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        }
+      ],
+      "localArtifacts": "chrome-1080/report.json"
+    },
+    {
+      "name": "edge-540",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "156.0.8078.48"
+        },
+        {
+          "brand": "Microsoft Edge",
+          "version": "156.0.4314.42"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "explicitYuvExports": 24,
+      "canvasComparisons": 3,
+      "logoSettings": [
+        false
+      ],
+      "repeats": 2,
+      "allPassed": true,
+      "cases": [
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "I420",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 2,
+          "observedHardwareExports": 2,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": null
+        },
+        {
+          "input": "NV12",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 2,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": null
+        }
+      ],
+      "localArtifacts": "edge-540/report.json"
+    },
+    {
+      "name": "production-chrome-1080",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "156.0.8078.47"
+        },
+        {
+          "brand": "Google Chrome",
+          "version": "156.0.8078.47"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 1920,
+      "height": 1080,
+      "fps": 29.97,
+      "frames": 25,
+      "explicitYuvExports": 36,
+      "canvasComparisons": 0,
+      "logoSettings": [
+        false,
+        true
+      ],
+      "repeats": 3,
+      "allPassed": true,
+      "cases": [
+        {
+          "input": "production",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 6,
+          "observedHardwareExports": 6,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 6,
+          "observedHardwareExports": 6,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 6,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 6,
+          "observedHardwareExports": 6,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 6,
+          "observedHardwareExports": 6,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 6,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": true
+        }
+      ],
+      "localArtifacts": "production-chrome-1080/report.json"
+    },
+    {
+      "name": "production-edge-540",
+      "browser": [
+        {
+          "brand": "Chromium",
+          "version": "156.0.8078.48"
+        },
+        {
+          "brand": "Microsoft Edge",
+          "version": "156.0.4314.42"
+        }
+      ],
+      "os": {
+        "platform": "Windows",
+        "mobile": false,
+        "platformVersion": "19.0.0",
+        "architecture": "x86",
+        "bitness": "64"
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 90,
+      "explicitYuvExports": 24,
+      "canvasComparisons": 0,
+      "logoSettings": [
+        false,
+        true
+      ],
+      "repeats": 2,
+      "allPassed": true,
+      "cases": [
+        {
+          "input": "production",
+          "range": "limited",
+          "preference": "no-preference",
+          "exports": 4,
+          "observedHardwareExports": 4,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "exports": 4,
+          "observedHardwareExports": 4,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "limited",
+          "preference": "prefer-software",
+          "exports": 4,
+          "observedHardwareExports": 0,
+          "maxPatchError": 0,
+          "rangeDeclaration": "tv",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "full",
+          "preference": "no-preference",
+          "exports": 4,
+          "observedHardwareExports": 4,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "full",
+          "preference": "prefer-hardware",
+          "exports": 4,
+          "observedHardwareExports": 4,
+          "maxPatchError": 0,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "added"
+          ],
+          "temporalMarkersVerified": true
+        },
+        {
+          "input": "production",
+          "range": "full",
+          "preference": "prefer-software",
+          "exports": 4,
+          "observedHardwareExports": 0,
+          "maxPatchError": 1,
+          "rangeDeclaration": "pc",
+          "spsRepair": [
+            "not-needed"
+          ],
+          "temporalMarkersVerified": true
+        }
+      ],
+      "localArtifacts": "production-edge-540/report.json"
+    }
+  ],
+  "totalExplicitYuvExports": 132,
+  "totalObservedHardwareExports": 88
+}

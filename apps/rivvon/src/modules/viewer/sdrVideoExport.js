@@ -1,4 +1,5 @@
-import { rgbaToBt709I420, validateSdrDimensions } from './exportColour.js';
+import { validateSdrDimensions } from './exportColour.js';
+import { createExportYuvConversion } from './exportYuvConversion.js';
 import { assertSdrMp4, restoreCfrMp4Timing } from './videoColourMetadata.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
@@ -14,7 +15,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
         onStatus, onColourMetadata, logoOverlayEnabled = true, logoOverlayCorner = 'bottomLeft' } = options;
     validateSdrDimensions(width, height, fps);
     if (signal?.aborted) throw abortError();
-    let pool = null;
+    let pool = null, converter = null;
     let terminated = false, count = 0, pending = 0, raw = null;
     const frameBytes = width * height * 3 / 2;
     const batchFrames = Math.max(1, Math.min(Math.floor(RAW_BATCH_BYTES / frameBytes),
@@ -22,6 +23,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
     const dispose = () => {
         signal?.removeEventListener('abort', abort);
         if (!terminated) { terminated = true; pool?.dispose(); }
+        converter?.dispose();
         raw = null;
     };
     const abort = () => dispose();
@@ -37,13 +39,15 @@ export async function createSdrVideoExport(canvas, options = {}) {
         check();
         const compositor = document.createElement('canvas');
         compositor.width = width; compositor.height = height;
-        const context = compositor.getContext('2d', { alpha: false, colorSpace: 'srgb', willReadFrequently: true });
+        const context = compositor.getContext('2d', { alpha: false, colorSpace: 'srgb', willReadFrequently: options.yuvConversion === 'cpu' });
         if (!context || context.getContextAttributes?.().colorSpace !== 'srgb') throw new Error('An sRGB export canvas is required.');
+        converter = createExportYuvConversion(width, height, { method: options.yuvConversion ?? 'gpu' });
         raw = new Uint8Array(batchFrames * frameBytes);
         const report = { schemaVersion: 1, phase: 'encoding', encodingMethod: 'ffmpeg', format: 'mp4',
             pipeline: 'sRGB → BT.709 transfer → limited I420 → x264', encoder: '@ffmpeg/core 0.12.10 / libx264',
             width, height, fps, quality, logo: Boolean(logo),
             workerLimit: pool.workerLimit, workerCount: pool.workerCount,
+            yuvConversion: converter.info,
             environment: await collectExportEnvironment(options.renderContext) };
         check();
         onColourMetadata?.(report);
@@ -60,8 +64,10 @@ export async function createSdrVideoExport(canvas, options = {}) {
                 context.fillStyle = '#000'; context.fillRect(0, 0, width, height);
                 context.drawImage(canvas, 0, 0, width, height);
                 if (logo) drawExportLogoOverlay(context, logo.image, width, height, logo.aspectRatio, logoOverlayCorner);
-                rgbaToBt709I420(context.getImageData(0, 0, width, height).data, width, height,
-                    raw.subarray(pending * frameBytes, (pending + 1) * frameBytes));
+                converter.convert(compositor, raw.subarray(pending * frameBytes, (pending + 1) * frameBytes));
+                const previousMethod = report.yuvConversion.method;
+                report.yuvConversion = converter.info;
+                if (previousMethod !== report.yuvConversion.method) onColourMetadata?.({ ...report });
                 count++; pending++;
                 if (pending === batchFrames) await flush();
                 // Allow rendering progress and AbortController events between batches.

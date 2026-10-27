@@ -54,8 +54,8 @@ describe('scene video export timing and restoration', () => {
     it('forwards the native encoder choice and final report callback', async () => {
         vi.stubGlobal('VideoEncoder', class {});
         const { exporter } = fixture(), report = vi.fn();
-        await exporter.exportVideo({ width:320,height:240,fps:30,duration:0.1,encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',onColourMetadata:report });
-        expect(createCanvasVideoExport).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({ encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',onColourMetadata:report }));
+        await exporter.exportVideo({ width:320,height:240,fps:30,duration:0.1,encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',videoRange:'limited',yuvConversion:'cpu',onColourMetadata:report });
+        expect(createCanvasVideoExport).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({ encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',videoRange:'limited',yuvConversion:'cpu',onColourMetadata:report }));
     });
     it.each(['ffmpeg', 'webcodecs'])('retains frame metrics in %s encoder statuses', async (encodingMethod) => {
         vi.stubGlobal('VideoEncoder', class {});

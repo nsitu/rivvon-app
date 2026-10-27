@@ -5,6 +5,14 @@ const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange: false };
 const sps = { ...colour, chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 };
 const base = { format: 'mp4', encodingMethod: 'webcodecs' };
 describe('export colour reports', () => {
+    it.each(['limited', 'full'])('verifies explicit %s output against the selected target', videoRange => {
+        const declared = { ...sps, fullRange: videoRange === 'full' };
+        const report = completeExportColourReport({ ...base, videoRange, explicitYuv: true }, { container: [declared], sps: [declared] });
+        expect(report.verification).toMatchObject({ matchesRequestedColour: true, matchesSdrTarget: videoRange === 'limited', pixelConversion: `explicit-sRGB-to-BT.709-${videoRange}-I420` });
+        expect(report.verification.warnings.join()).not.toContain('does not establish');
+        const mismatch = completeExportColourReport({ ...base, videoRange, explicitYuv: true }, { container: [declared], sps: [{ ...declared, fullRange: !declared.fullRange }] });
+        expect(mismatch.verification.matchesRequestedColour).toBe(false);
+    });
     it('does not mistake matching declarations for verified pixel conversion', () => {
         const report = completeExportColourReport(base, { container: [colour], sps: [sps] });
         expect(report.phase).toBe('complete');

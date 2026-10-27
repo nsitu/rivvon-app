@@ -5,9 +5,20 @@ import Message from 'primevue/message';
 import { describeColour, describeColourEntries, exportEnvironmentLabel } from '../../modules/viewer/exportColourReport.js';
 
 const props = defineProps({ report: { type: Object, required: true }, filename: { type: String, default: 'rivvon-export.mp4' } });
-const matching = computed(() => props.report.verification?.matchesSdrTarget);
+const matching = computed(() => props.report.verification?.matchesRequestedColour ?? props.report.verification?.matchesSdrTarget);
+const rangeLabel = computed(() => props.report.videoRange === 'full' ? 'full' : 'limited');
+const conversion = computed(() => props.report.yuvConversion);
 const rows = computed(() => [
     ['Encoding method', props.report.encodingMethod === 'ffmpeg' ? 'FFmpeg WASM / x264' : 'WebCodecs / browser encoder'],
+    ...(conversion.value ? [
+        ['Colour conversion', conversion.value.method === 'gpu' ? 'GPU shader → I420 readback' : 'RGBA readback → CPU conversion'],
+        ['Readback per frame', `${(conversion.value.readbackBytesPerFrame / 1024 / 1024).toFixed(2)} MiB`],
+        ...(conversion.value.fallbackReason ? [['CPU fallback', conversion.value.fallbackReason]] : []),
+    ] : []),
+    ...(props.report.encodingMethod === 'webcodecs' ? [
+        ['Requested range', props.report.videoRange === 'limited' ? 'Limited' : props.report.videoRange === 'full' ? 'Full' : 'Browser default'],
+        ['Encoder preference', props.report.hardwareAcceleration ?? 'no-preference'],
+    ] : []),
     ...(props.report.format === 'mp4' ? [
         ['MP4 container', describeColourEntries(props.report.container)],
         ['H.264 bitstream', describeColourEntries(props.report.sps)],
@@ -31,7 +42,7 @@ function downloadReport() {
     <section class="colour-report" aria-label="Export colour report">
         <h3>Colour report</h3>
         <Message :severity="matching ? 'success' : 'warn'" :closable="false">
-            {{ matching ? 'BT.709 limited-range colour declarations verified.' : 'Colour declarations differ from the SDR target or are incomplete.' }}
+            {{ matching ? `BT.709 ${rangeLabel}-range colour declarations verified.` : 'Colour declarations differ from the requested target or are incomplete.' }}
         </Message>
         <dl>
             <template v-for="[label, value] in rows" :key="label">
@@ -39,8 +50,8 @@ function downloadReport() {
             </template>
         </dl>
         <p class="field-description">
-            {{ report.encodingMethod === 'ffmpeg'
-                ? 'Pixels were explicitly converted to BT.709 limited-range 8-bit 4:2:0 before encoding.'
+            {{ report.encodingMethod === 'ffmpeg' || report.explicitYuv
+                ? `Pixels were explicitly converted to BT.709 ${rangeLabel}-range 8-bit 4:2:0 before encoding.`
                 : 'Pixel conversion is managed by the browser. Matching colour tags alone cannot verify the conversion.' }}
         </p>
         <ul v-if="report.verification?.warnings?.length" class="field-description">

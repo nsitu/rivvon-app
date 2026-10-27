@@ -3,11 +3,13 @@ import { createCanvasVideoExport } from './canvasVideoExport.js';
 import { createSdrVideoExport } from './sdrVideoExport.js';
 import { inspectMp4Colour } from './videoColourMetadata.js';
 import { repairMissingSpsColour } from './repairWebCodecsColour.js';
+import { createGpuYuvConversion } from './gpuYuvConversion.js';
 
-const mocks = vi.hoisted(() => ({ outputs: [], sources: [], overlay: vi.fn() }));
+const mocks = vi.hoisted(() => ({ outputs: [], sources: [], samples: [], overlay: vi.fn() }));
 vi.mock('./sdrVideoExport.js', () => ({ createSdrVideoExport: vi.fn().mockResolvedValue({ software: true }) }));
 vi.mock('./videoColourMetadata.js', () => ({ inspectMp4Colour: vi.fn() }));
 vi.mock('./repairWebCodecsColour.js', () => ({ repairMissingSpsColour: vi.fn() }));
+vi.mock('./gpuYuvConversion.js', () => ({ createGpuYuvConversion: vi.fn() }));
 vi.mock('./exportLogoOverlay.js', () => ({ drawExportLogoOverlay: mocks.overlay, loadExportLogoAsset: async () => ({ image: {}, aspectRatio: 1 }) }));
 vi.mock('mediabunny', () => ({
     Output: class {
@@ -18,16 +20,30 @@ vi.mock('mediabunny', () => ({
         constructor(canvas, config) { this.canvas = canvas; this.config = config; mocks.sources.push(this); }
         add = vi.fn();
     },
+    VideoSampleSource: class {
+        constructor(config) { this.config = config; mocks.sources.push(this); }
+        add = vi.fn();
+    },
+    VideoSample: class {
+        constructor(frame) { this.frame = frame; mocks.samples.push(this); }
+        close = vi.fn();
+    },
     Mp4OutputFormat: class {}, WebMOutputFormat: class {}, BufferTarget: class {},
     QUALITY_VERY_LOW: 'very-low', QUALITY_LOW: 'low', QUALITY_MEDIUM: 'medium', QUALITY_HIGH: 'high', QUALITY_VERY_HIGH: 'very-high',
 }));
 let frameClose;
 beforeEach(() => {
-    vi.clearAllMocks(); mocks.outputs.length = 0; mocks.sources.length = 0;
+    vi.clearAllMocks(); mocks.outputs.length = 0; mocks.sources.length = 0; mocks.samples.length = 0;
+    createGpuYuvConversion.mockImplementation(() => { throw new Error('WebGL2 unavailable'); });
     frameClose = vi.fn();
     vi.stubGlobal('VideoEncoder', class {});
     vi.stubGlobal('VideoFrame', class {
         format = 'RGBA'; colorSpace = { toJSON: () => ({ primaries: 'bt709', transfer: 'iec61966-2-1', matrix: 'rgb', fullRange: true }) };
+        constructor(data, config) {
+            this.data = data;
+            this.config = config;
+            if (config.format) { this.format = config.format; this.colorSpace = { toJSON: () => config.colorSpace }; }
+        }
         close = frameClose;
     });
     inspectMp4Colour.mockReturnValue({ container: [{ primaries: 1, transfer: 13, matrix: 1, fullRange: true }], sps: [] });
@@ -36,6 +52,69 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 const options = { width: 320, height: 240, fps: 30, format: 'mp4', encodingMethod: 'webcodecs' };
 describe('encoder selection and final reports', () => {
+    it('encodes shader-produced I420 and releases the GPU converter after finalization', async () => {
+        const context = yuvContext(), reports = vi.fn();
+        context.getImageData = vi.fn(() => { throw new Error('RGBA readback should not run'); });
+        const gpu = { readbackBytesPerFrame: 8, convert: vi.fn((_canvas, target) => target.set([235,235,16,16,128,128])), dispose: vi.fn() };
+        createGpuYuvConversion.mockReturnValue(gpu);
+        const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange: false };
+        inspectMp4Colour.mockReturnValue({ container: [colour], sps: [{ ...colour, chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 }] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited', onColourMetadata: reports });
+        await writer.add(0, 1 / 30); await writer.finalize(); await writer.dispose();
+        expect([...mocks.samples[0].frame.data]).toEqual([235,235,16,16,128,128]);
+        expect(context.getImageData).not.toHaveBeenCalled();
+        expect(gpu.dispose).toHaveBeenCalledOnce();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ yuvConversion: { requestedMethod: 'gpu', method: 'gpu' }, verification: { matchesRequestedColour: true } });
+    });
+    function yuvContext() {
+        const rgba = Uint8ClampedArray.from([255,255,255,255, 255,255,255,255, 0,0,0,255, 0,0,0,255]);
+        const context = { fillStyle: '', fillRect: vi.fn(), drawImage: vi.fn(),
+            getContextAttributes: () => ({ colorSpace: 'srgb' }), getImageData: () => ({ data: rgba }) };
+        vi.stubGlobal('document', { createElement: () => ({ getContext: () => context }) });
+        return context;
+    }
+    it.each(['limited', 'full'])('encodes real %s I420 pixels and keeps the hardware preference', async videoRange => {
+        const context = yuvContext(), reports = vi.fn(), fullRange = videoRange === 'full';
+        const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange };
+        inspectMp4Colour.mockReturnValue({ container: [colour], sps: [{ ...colour, chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 }] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange, hardwareAcceleration: 'prefer-hardware', onColourMetadata: reports });
+        await writer.add(0.5, 1 / 30); await writer.finalize();
+        const sample = mocks.samples[0];
+        expect([...sample.frame.data]).toEqual(fullRange ? [255,255,0,0,128,128] : [235,235,16,16,128,128]);
+        expect(sample.frame.config).toMatchObject({ format: 'I420', timestamp: 500000, duration: 33333, colorSpace: { fullRange, transfer: 'bt709' } });
+        expect(mocks.sources[0].config.hardwareAcceleration).toBe('prefer-hardware');
+        expect(context.fillRect).toHaveBeenCalledBefore(context.drawImage);
+        expect(sample.close).toHaveBeenCalledOnce(); expect(frameClose).toHaveBeenCalledOnce();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ videoRange, explicitYuv: true, verification: { matchesRequestedColour: true } });
+    });
+    it('rejects a backend that returns a different range without marking export complete', async () => {
+        yuvContext(); const reports = vi.fn();
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited', onColourMetadata: reports });
+        await writer.add(0, 1 / 30);
+        await expect(writer.finalize()).rejects.toThrow('requested BT.709 limited-range');
+        expect(reports.mock.calls.some(([report]) => report.phase === 'complete')).toBe(false);
+    });
+    it('closes raw frames and samples if the native encoder rejects them', async () => {
+        yuvContext();
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited' });
+        mocks.sources[0].add.mockRejectedValue(new Error('unsupported input'));
+        await expect(writer.add(0, 1 / 30)).rejects.toThrow('unsupported input');
+        expect(mocks.samples[0].close).toHaveBeenCalledOnce(); expect(frameClose).toHaveBeenCalledOnce();
+        await writer.dispose(); expect(mocks.outputs[0].cancel).toHaveBeenCalledOnce();
+    });
+    it('requires even dimensions for explicit YUV and rejects unknown ranges', async () => {
+        await expect(createCanvasVideoExport({}, { ...options, width: 321, videoRange: 'limited' })).rejects.toThrow('even');
+        await expect(createCanvasVideoExport({}, { ...options, videoRange: 'wrong' })).rejects.toThrow('Unknown video colour range');
+    });
+    it('composites the logo before reading and converting YUV pixels, and supports cancellation', async () => {
+        const context = yuvContext(), controller = new AbortController();
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited', logoOverlayEnabled: true, signal: controller.signal });
+        await writer.add(0, 1 / 30);
+        expect(context.drawImage).toHaveBeenCalledBefore(mocks.overlay);
+        controller.abort(); await writer.dispose();
+        await expect(writer.add(1 / 30, 1 / 30)).rejects.toMatchObject({ name: 'AbortError' });
+        expect(mocks.outputs[0].cancel).toHaveBeenCalledOnce();
+    });
     it('keeps deterministic software encoding as the MP4 default', async () => {
         const canvas = {};
         await createCanvasVideoExport(canvas, { format: 'mp4' });

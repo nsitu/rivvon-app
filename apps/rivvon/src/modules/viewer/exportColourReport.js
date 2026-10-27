@@ -56,18 +56,26 @@ export function completeExportColourReport(base, metadata = null, inspectionErro
         colourKeys.some(k => c[k] != null && other[k] != null && c[k] !== other[k])))) agreement = 'conflict';
     const matchesSdrTarget = !inspectionError && base.format === 'mp4' && container.length > 0 && sps.length > 0
         && declarations.every(target) && sps.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8);
+    const requestedColour = base.explicitYuv && ['limited', 'full'].includes(base.videoRange);
+    const matchesRequestedColour = requestedColour ? !inspectionError && base.format === 'mp4' && container.length > 0 && sps.length > 0
+        && declarations.every(c => c.primaries === 1 && c.transfer === 1 && c.matrix === 1 && c.fullRange === (base.videoRange === 'full'))
+        && sps.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8) : null;
     if (base.format === 'mp4') {
         if (!container.length) warnings.push('MP4 colour declaration is absent or could not be inspected.');
         if (!sps.length || sps.some(s => colourKeys.some(k => s[k] == null))) warnings.push('H.264 SPS colour declaration is absent or incomplete.');
         if (agreement === 'conflict') warnings.push('Container and/or bitstream colour declarations conflict.');
-        if (!matchesSdrTarget) warnings.push('This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.');
+        if (requestedColour && !matchesRequestedColour) warnings.push(`This file does not establish the requested BT.709 ${base.videoRange}, 8-bit 4:2:0 contract.`);
+        else if (!requestedColour && !matchesSdrTarget) warnings.push('This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.');
     } else warnings.push('WebM container and VP9 bitstream colour are not independently inspected; encoder metadata is reported.');
     if (inspectionError) warnings.push(`Colour inspection failed: ${inspectionError}`);
     if (base.spsRepair?.status === 'skipped') warnings.push(`Missing SPS colour was not added: ${base.spsRepair.reason}`);
-    if (base.encodingMethod === 'webcodecs') warnings.push('Colour tags describe the output; they do not prove correct browser-managed pixel conversion.');
+    if (base.encodingMethod === 'webcodecs') warnings.push(base.explicitYuv
+        ? 'BT.709 I420 pixels were explicitly supplied; colour tags alone do not verify that the encoder preserved their values.'
+        : 'Colour tags describe the output; they do not prove correct browser-managed pixel conversion.');
     return { ...base, ...(metadata ?? {}), phase: 'complete', completedAt: new Date().toISOString(),
-        verification: { matchesSdrTarget: Boolean(matchesSdrTarget), containerAndBitstream: agreement,
-            pixelConversion: base.encodingMethod === 'ffmpeg' ? 'explicit-sRGB-to-BT.709-limited-I420' : 'browser-managed-unverified', warnings } };
+        verification: { matchesSdrTarget: Boolean(matchesSdrTarget), matchesRequestedColour, containerAndBitstream: agreement,
+            pixelConversion: base.encodingMethod === 'ffmpeg' ? 'explicit-sRGB-to-BT.709-limited-I420'
+                : base.explicitYuv ? `explicit-sRGB-to-BT.709-${base.videoRange}-I420` : 'browser-managed-unverified', warnings } };
 }
 
 export function exportEnvironmentLabel(environment) {

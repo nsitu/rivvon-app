@@ -1,0 +1,2231 @@
+{
+  "date": "2026-10-27",
+  "reports": [
+    {
+      "browser": "chrome",
+      "date": "2026-10-27T18:09:03.353Z",
+      "host": {
+        "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+        "platform": "win32",
+        "release": "10.0.26300"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+        "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "hardwareConcurrency": 24,
+        "deviceMemoryGiB": 32,
+        "crossOriginIsolated": true,
+        "renderContext": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+      },
+      "methodology": {
+        "range": "BT.709 limited I420",
+        "conversion": "GPU canvas render + opaque sRGB composition + readback/conversion + raw VideoFrame construction and close",
+        "cpuCompositorWillReadFrequently": true,
+        "gpuCompositorWillReadFrequently": false,
+        "order": "CPU/GPU, GPU/CPU, CPU/GPU; per-block warm-up excluded",
+        "exports": "60-frame/30fps animated ribbon, production WebCodecs writer, prefer-hardware, very-high quality, no logo; includes finalization, metadata repair/verification",
+        "tracing": "Enabled only during warm-up exports, disabled during all timed samples",
+        "caveats": [
+          "One machine, headless Chromium; no claim for other GPUs/browsers.",
+          "GPU work can be charged to a later synchronous readback/composition stage; total time is the comparison metric.",
+          "Stage medians need not sum to total medians. Timed exports use already-fetched dependencies; first-use WASM download/compilation is recorded only in warmup.",
+          "Noise is a stress case; ribbon is representative production geometry/materials.",
+          "Offline throughput measurements, not a realtime playback deadline."
+        ]
+      },
+      "conversion": {
+        "rounds": 3,
+        "framesPerBlock": 24,
+        "warmupFramesPerBlock": 8,
+        "cases": [
+          {
+            "width": 960,
+            "height": 540,
+            "content": "ribbon",
+            "speedup": 2.7874396942068547,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 5.769999980926514,
+                  "p95Ms": 6.940000057220459,
+                  "minMs": 5.049999952316284,
+                  "maxMs": 9.839999914169312
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.1099998950958252,
+                    "p95Ms": 0.2999999523162842,
+                    "minMs": 0.05499982833862305,
+                    "maxMs": 0.6649999618530273
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.039999961853027344,
+                    "p95Ms": 0.059999942779541016,
+                    "minMs": 0.019999980926513672,
+                    "maxMs": 0.07999992370605469
+                  },
+                  "conversionMs": {
+                    "medianMs": 5.489999771118164,
+                    "p95Ms": 6.544999837875366,
+                    "minMs": 4.900000095367432,
+                    "maxMs": 8.774999856948853
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.09500002861022949,
+                    "p95Ms": 0.19000005722045898,
+                    "minMs": 0.04499983787536621,
+                    "maxMs": 1.6400001049041748
+                  },
+                  "totalMs": {
+                    "medianMs": 5.769999980926514,
+                    "p95Ms": 6.940000057220459,
+                    "minMs": 5.049999952316284,
+                    "maxMs": 9.839999914169312
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 2.069999933242798,
+                  "p95Ms": 2.7750000953674316,
+                  "minMs": 1.4800000190734863,
+                  "maxMs": 6.674999952316284
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.06999993324279785,
+                    "p95Ms": 0.1099998950958252,
+                    "minMs": 0.04500007629394531,
+                    "maxMs": 0.11999988555908203
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.02499985694885254,
+                    "p95Ms": 0.039999961853027344,
+                    "minMs": 0.014999866485595703,
+                    "maxMs": 0.04999995231628418
+                  },
+                  "conversionMs": {
+                    "medianMs": 1.940000057220459,
+                    "p95Ms": 2.5949997901916504,
+                    "minMs": 1.3650000095367432,
+                    "maxMs": 6.545000076293945
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.040000200271606445,
+                    "p95Ms": 0.16499996185302734,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.2199997901916504
+                  },
+                  "totalMs": {
+                    "medianMs": 2.069999933242798,
+                    "p95Ms": 2.7750000953674316,
+                    "minMs": 1.4800000190734863,
+                    "maxMs": 6.674999952316284
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 960,
+            "height": 540,
+            "content": "noise",
+            "speedup": 4.569937378040683,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 10.944999933242798,
+                  "p95Ms": 11.785000085830688,
+                  "minMs": 10.15499997138977,
+                  "maxMs": 12.424999952316284
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.07999992370605469,
+                    "p95Ms": 0.1100001335144043,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.12000012397766113
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.04999995231628418,
+                    "p95Ms": 0.059999942779541016,
+                    "minMs": 0.02500009536743164,
+                    "maxMs": 0.06500005722045898
+                  },
+                  "conversionMs": {
+                    "medianMs": 10.730000019073486,
+                    "p95Ms": 11.535000085830688,
+                    "minMs": 9.980000019073486,
+                    "maxMs": 12.200000047683716
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.09500002861022949,
+                    "p95Ms": 0.14999985694885254,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.2200000286102295
+                  },
+                  "totalMs": {
+                    "medianMs": 10.944999933242798,
+                    "p95Ms": 11.785000085830688,
+                    "minMs": 10.15499997138977,
+                    "maxMs": 12.424999952316284
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 2.3949999809265137,
+                  "p95Ms": 3.25,
+                  "minMs": 2,
+                  "maxMs": 4.0299999713897705
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.04499983787536621,
+                    "p95Ms": 0.08000016212463379,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.10000014305114746
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.02500009536743164,
+                    "p95Ms": 0.040000200271606445,
+                    "minMs": 0.019999980926513672,
+                    "maxMs": 0.05499982833862305
+                  },
+                  "conversionMs": {
+                    "medianMs": 2.2649998664855957,
+                    "p95Ms": 3.075000047683716,
+                    "minMs": 1.8949999809265137,
+                    "maxMs": 3.7699999809265137
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.04999995231628418,
+                    "p95Ms": 0.18000006675720215,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.22499990463256836
+                  },
+                  "totalMs": {
+                    "medianMs": 2.3949999809265137,
+                    "p95Ms": 3.25,
+                    "minMs": 2,
+                    "maxMs": 4.0299999713897705
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 1920,
+            "height": 1080,
+            "content": "ribbon",
+            "speedup": 3.1315345234722285,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 18.569999933242798,
+                  "p95Ms": 21.490000009536743,
+                  "minMs": 17.240000009536743,
+                  "maxMs": 28.914999961853027
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.13499999046325684,
+                    "p95Ms": 0.18000006675720215,
+                    "minMs": 0.10000014305114746,
+                    "maxMs": 0.2799999713897705
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.05499982833862305,
+                    "p95Ms": 0.07500004768371582,
+                    "minMs": 0.03500008583068848,
+                    "maxMs": 0.23000001907348633
+                  },
+                  "conversionMs": {
+                    "medianMs": 18.09000015258789,
+                    "p95Ms": 20.914999961853027,
+                    "minMs": 16.774999856948853,
+                    "maxMs": 28.43999981880188
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.2799999713897705,
+                    "p95Ms": 0.37999987602233887,
+                    "minMs": 0.18500018119812012,
+                    "maxMs": 0.5199999809265137
+                  },
+                  "totalMs": {
+                    "medianMs": 18.569999933242798,
+                    "p95Ms": 21.490000009536743,
+                    "minMs": 17.240000009536743,
+                    "maxMs": 28.914999961853027
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 5.930000066757202,
+                  "p95Ms": 8.204999923706055,
+                  "minMs": 4.309999942779541,
+                  "maxMs": 9.355000019073486
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.1400001049041748,
+                    "p95Ms": 0.19499993324279785,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.2799999713897705
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.05000019073486328,
+                    "p95Ms": 0.07500004768371582,
+                    "minMs": 0.015000104904174805,
+                    "maxMs": 0.08999991416931152
+                  },
+                  "conversionMs": {
+                    "medianMs": 5.3399999141693115,
+                    "p95Ms": 7.575000047683716,
+                    "minMs": 4.005000114440918,
+                    "maxMs": 8.75
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.38499999046325684,
+                    "p95Ms": 0.4500000476837158,
+                    "minMs": 0.19000005722045898,
+                    "maxMs": 0.49499988555908203
+                  },
+                  "totalMs": {
+                    "medianMs": 5.930000066757202,
+                    "p95Ms": 8.204999923706055,
+                    "minMs": 4.309999942779541,
+                    "maxMs": 9.355000019073486
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 1920,
+            "height": 1080,
+            "content": "noise",
+            "speedup": 5.461538498023655,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 41.1800000667572,
+                  "p95Ms": 43.91000008583069,
+                  "minMs": 38.264999866485596,
+                  "maxMs": 45.11999988555908
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.06999993324279785,
+                    "p95Ms": 0.09500002861022949,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.10000014305114746
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.059999942779541016,
+                    "p95Ms": 0.07000017166137695,
+                    "minMs": 0.04499983787536621,
+                    "maxMs": 0.09500002861022949
+                  },
+                  "conversionMs": {
+                    "medianMs": 40.764999866485596,
+                    "p95Ms": 43.49000000953674,
+                    "minMs": 37.924999952316284,
+                    "maxMs": 44.61500000953674
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.2999999523162842,
+                    "p95Ms": 0.39499998092651367,
+                    "minMs": 0.20000004768371582,
+                    "maxMs": 0.4650001525878906
+                  },
+                  "totalMs": {
+                    "medianMs": 41.1800000667572,
+                    "p95Ms": 43.91000008583069,
+                    "minMs": 38.264999866485596,
+                    "maxMs": 45.11999988555908
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 7.539999961853027,
+                  "p95Ms": 8.549999952316284,
+                  "minMs": 7.080000162124634,
+                  "maxMs": 9.474999904632568
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.04500007629394531,
+                    "p95Ms": 0.07000017166137695,
+                    "minMs": 0.019999980926513672,
+                    "maxMs": 0.09500002861022949
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.039999961853027344,
+                    "p95Ms": 0.05500006675720215,
+                    "minMs": 0.019999980926513672,
+                    "maxMs": 0.059999942779541016
+                  },
+                  "conversionMs": {
+                    "medianMs": 7.204999923706055,
+                    "p95Ms": 8.069999933242798,
+                    "minMs": 6.670000076293945,
+                    "maxMs": 9.014999866485596
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.2950000762939453,
+                    "p95Ms": 0.38499999046325684,
+                    "minMs": 0.1700000762939453,
+                    "maxMs": 0.4699997901916504
+                  },
+                  "totalMs": {
+                    "medianMs": 7.539999961853027,
+                    "p95Ms": 8.549999952316284,
+                    "minMs": 7.080000162124634,
+                    "maxMs": 9.474999904632568
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 3840,
+            "height": 2160,
+            "content": "ribbon",
+            "speedup": 4.590476187448653,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 72.29999995231628,
+                  "p95Ms": 78.11999988555908,
+                  "minMs": 65.80000019073486,
+                  "maxMs": 81.24000000953674
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.15000009536743164,
+                    "p95Ms": 0.18499994277954102,
+                    "minMs": 0.1100001335144043,
+                    "maxMs": 0.21000003814697266
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.05500006675720215,
+                    "p95Ms": 0.07000017166137695,
+                    "minMs": 0.039999961853027344,
+                    "maxMs": 0.08999991416931152
+                  },
+                  "conversionMs": {
+                    "medianMs": 70.82500004768372,
+                    "p95Ms": 77.02500009536743,
+                    "minMs": 64.22000002861023,
+                    "maxMs": 79.67499995231628
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.320000171661377,
+                    "p95Ms": 1.4549999237060547,
+                    "minMs": 0.8799998760223389,
+                    "maxMs": 1.505000114440918
+                  },
+                  "totalMs": {
+                    "medianMs": 72.29999995231628,
+                    "p95Ms": 78.11999988555908,
+                    "minMs": 65.80000019073486,
+                    "maxMs": 81.24000000953674
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 15.75,
+                  "p95Ms": 17.384999990463257,
+                  "minMs": 14.615000009536743,
+                  "maxMs": 19.605000019073486
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.125,
+                    "p95Ms": 0.16499996185302734,
+                    "minMs": 0.07999992370605469,
+                    "maxMs": 0.18999981880187988
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.04500007629394531,
+                    "p95Ms": 0.059999942779541016,
+                    "minMs": 0.02499985694885254,
+                    "maxMs": 0.11500000953674316
+                  },
+                  "conversionMs": {
+                    "medianMs": 14.315000057220459,
+                    "p95Ms": 15.889999866485596,
+                    "minMs": 13.514999866485596,
+                    "maxMs": 18.06499981880188
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.3350000381469727,
+                    "p95Ms": 1.5449998378753662,
+                    "minMs": 0.8849999904632568,
+                    "maxMs": 1.6500000953674316
+                  },
+                  "totalMs": {
+                    "medianMs": 15.75,
+                    "p95Ms": 17.384999990463257,
+                    "minMs": 14.615000009536743,
+                    "maxMs": 19.605000019073486
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 3840,
+            "height": 2160,
+            "content": "noise",
+            "speedup": 6.329196188579363,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 160.63499999046326,
+                  "p95Ms": 173.91499996185303,
+                  "minMs": 151.8899998664856,
+                  "maxMs": 174.59500002861023
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.07000017166137695,
+                    "p95Ms": 0.09500002861022949,
+                    "minMs": 0.06499981880187988,
+                    "maxMs": 0.11500000953674316
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.06500005722045898,
+                    "p95Ms": 0.08500003814697266,
+                    "minMs": 0.04500007629394531,
+                    "maxMs": 0.1400001049041748
+                  },
+                  "conversionMs": {
+                    "medianMs": 159.2149999141693,
+                    "p95Ms": 172.4100000858307,
+                    "minMs": 150.4300000667572,
+                    "maxMs": 173.1399998664856
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.315000057220459,
+                    "p95Ms": 1.559999942779541,
+                    "minMs": 0.9100000858306885,
+                    "maxMs": 1.7200000286102295
+                  },
+                  "totalMs": {
+                    "medianMs": 160.63499999046326,
+                    "p95Ms": 173.91499996185303,
+                    "minMs": 151.8899998664856,
+                    "maxMs": 174.59500002861023
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 25.380000114440918,
+                  "p95Ms": 27.324999809265137,
+                  "minMs": 24.144999980926514,
+                  "maxMs": 28.070000171661377
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.06500005722045898,
+                    "p95Ms": 0.08500003814697266,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.1399998664855957
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.04999995231628418,
+                    "p95Ms": 0.06000018119812012,
+                    "minMs": 0.03500008583068848,
+                    "maxMs": 0.06499981880187988
+                  },
+                  "conversionMs": {
+                    "medianMs": 23.97000002861023,
+                    "p95Ms": 25.865000009536743,
+                    "minMs": 22.924999952316284,
+                    "maxMs": 26.550000190734863
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.3199999332427979,
+                    "p95Ms": 1.440000057220459,
+                    "minMs": 0.8949999809265137,
+                    "maxMs": 1.5750000476837158
+                  },
+                  "totalMs": {
+                    "medianMs": 25.380000114440918,
+                    "p95Ms": 27.324999809265137,
+                    "minMs": 24.144999980926514,
+                    "maxMs": 28.070000171661377
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "exports": {
+        "rounds": 3,
+        "framesPerExport": 60,
+        "cases": [
+          {
+            "width": 960,
+            "height": 540,
+            "speedup": 1.5275667063089429,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 565.9100000858307,
+                  "p95Ms": 588.5250000953674,
+                  "minMs": 545.2750000953674,
+                  "maxMs": 588.5250000953674
+                },
+                "medianFramesPerSecond": 106.02392604990175,
+                "renderAndSubmit": {
+                  "medianMs": 441.664999961853,
+                  "p95Ms": 465.27500009536743,
+                  "minMs": 424.5199999809265,
+                  "maxMs": 465.27500009536743
+                },
+                "finalize": {
+                  "medianMs": 122.60999989509583,
+                  "p95Ms": 123.1800000667572,
+                  "minMs": 119.84500002861023,
+                  "maxMs": 123.1800000667572
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 370.4650001525879,
+                  "p95Ms": 372.3200001716614,
+                  "minMs": 369.7650001049042,
+                  "maxMs": 372.3200001716614
+                },
+                "medianFramesPerSecond": 161.95861950599132,
+                "renderAndSubmit": {
+                  "medianMs": 228.8399999141693,
+                  "p95Ms": 230.38000011444092,
+                  "minMs": 225.6800000667572,
+                  "maxMs": 230.38000011444092
+                },
+                "finalize": {
+                  "medianMs": 133.4850001335144,
+                  "p95Ms": 134.8050000667572,
+                  "minMs": 133.03999996185303,
+                  "maxMs": 134.8050000667572
+                }
+              }
+            },
+            "runs": [
+              {
+                "round": 0,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-960-cpu-0",
+                "setupMs": 0.6400001049041748,
+                "renderAndSubmitMs": 465.27500009536743,
+                "finalizeMs": 122.60999989509583,
+                "totalMs": 588.5250000953674,
+                "framesPerSecond": 101.94978971203825,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 2073600
+                }
+              },
+              {
+                "round": 0,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-960-gpu-0",
+                "setupMs": 7.440000057220459,
+                "renderAndSubmitMs": 228.8399999141693,
+                "finalizeMs": 133.4850001335144,
+                "totalMs": 369.7650001049042,
+                "framesPerSecond": 162.2652224601509,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 777600
+                }
+              },
+              {
+                "round": 1,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-960-gpu-1",
+                "setupMs": 11.835000038146973,
+                "renderAndSubmitMs": 225.6800000667572,
+                "finalizeMs": 134.8050000667572,
+                "totalMs": 372.3200001716614,
+                "framesPerSecond": 161.15169739024623,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 777600
+                }
+              },
+              {
+                "round": 1,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-960-cpu-1",
+                "setupMs": 0.9100000858306885,
+                "renderAndSubmitMs": 424.5199999809265,
+                "finalizeMs": 119.84500002861023,
+                "totalMs": 545.2750000953674,
+                "framesPerSecond": 110.03622023658912,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 2073600
+                }
+              },
+              {
+                "round": 2,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-960-cpu-2",
+                "setupMs": 1.065000057220459,
+                "renderAndSubmitMs": 441.664999961853,
+                "finalizeMs": 123.1800000667572,
+                "totalMs": 565.9100000858307,
+                "framesPerSecond": 106.02392604990175,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 2073600
+                }
+              },
+              {
+                "round": 2,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-960-gpu-2",
+                "setupMs": 7.045000076293945,
+                "renderAndSubmitMs": 230.38000011444092,
+                "finalizeMs": 133.03999996185303,
+                "totalMs": 370.4650001525879,
+                "framesPerSecond": 161.95861950599132,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 777600
+                }
+              }
+            ]
+          },
+          {
+            "width": 1920,
+            "height": 1080,
+            "speedup": 2.13710363967354,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 1418.3849999904633,
+                  "p95Ms": 1469.4500000476837,
+                  "minMs": 1390.7799999713898,
+                  "maxMs": 1469.4500000476837
+                },
+                "medianFramesPerSecond": 42.30163178573054,
+                "renderAndSubmit": {
+                  "medianMs": 1247.8450000286102,
+                  "p95Ms": 1297.0550000667572,
+                  "minMs": 1226.545000076294,
+                  "maxMs": 1297.0550000667572
+                },
+                "finalize": {
+                  "medianMs": 169.5699999332428,
+                  "p95Ms": 171.60999989509583,
+                  "minMs": 163.02999997138977,
+                  "maxMs": 171.60999989509583
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 663.6949999332428,
+                  "p95Ms": 667.3050000667572,
+                  "minMs": 661.4000000953674,
+                  "maxMs": 667.3050000667572
+                },
+                "medianFramesPerSecond": 90.40297125341468,
+                "renderAndSubmit": {
+                  "medianMs": 458.6100001335144,
+                  "p95Ms": 459.32999992370605,
+                  "minMs": 453.1599998474121,
+                  "maxMs": 459.32999992370605
+                },
+                "finalize": {
+                  "medianMs": 198.45500016212463,
+                  "p95Ms": 199.33500003814697,
+                  "minMs": 196.64999985694885,
+                  "maxMs": 199.33500003814697
+                }
+              }
+            },
+            "runs": [
+              {
+                "round": 0,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-1920-cpu-0",
+                "setupMs": 1.2049999237060547,
+                "renderAndSubmitMs": 1226.545000076294,
+                "finalizeMs": 163.02999997138977,
+                "totalMs": 1390.7799999713898,
+                "framesPerSecond": 43.14125886282107,
+                "bytes": 3649830,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 8294400
+                }
+              },
+              {
+                "round": 0,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-1920-gpu-0",
+                "setupMs": 8.434999942779541,
+                "renderAndSubmitMs": 458.6100001335144,
+                "finalizeMs": 196.64999985694885,
+                "totalMs": 663.6949999332428,
+                "framesPerSecond": 90.40297125341468,
+                "bytes": 3649841,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 3110400
+                }
+              },
+              {
+                "round": 1,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-1920-gpu-1",
+                "setupMs": 9.785000085830688,
+                "renderAndSubmitMs": 453.1599998474121,
+                "finalizeMs": 198.45500016212463,
+                "totalMs": 661.4000000953674,
+                "framesPerSecond": 90.71666161377168,
+                "bytes": 3649841,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 3110400
+                }
+              },
+              {
+                "round": 1,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-1920-cpu-1",
+                "setupMs": 0.9700000286102295,
+                "renderAndSubmitMs": 1247.8450000286102,
+                "finalizeMs": 169.5699999332428,
+                "totalMs": 1418.3849999904633,
+                "framesPerSecond": 42.30163178573054,
+                "bytes": 3649830,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 8294400
+                }
+              },
+              {
+                "round": 2,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-1920-cpu-2",
+                "setupMs": 0.7850000858306885,
+                "renderAndSubmitMs": 1297.0550000667572,
+                "finalizeMs": 171.60999989509583,
+                "totalMs": 1469.4500000476837,
+                "framesPerSecond": 40.83160365990881,
+                "bytes": 3649830,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 8294400
+                }
+              },
+              {
+                "round": 2,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-1920-gpu-2",
+                "setupMs": 8.640000104904175,
+                "renderAndSubmitMs": 459.32999992370605,
+                "finalizeMs": 199.33500003814697,
+                "totalMs": 667.3050000667572,
+                "framesPerSecond": 89.9139074246373,
+                "bytes": 3649841,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 3110400
+                }
+              }
+            ]
+          },
+          {
+            "width": 3840,
+            "height": 2160,
+            "speedup": 2.246297121541639,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 4587.680000066757,
+                  "p95Ms": 4609.365000009537,
+                  "minMs": 4541.400000095367,
+                  "maxMs": 4609.365000009537
+                },
+                "medianFramesPerSecond": 13.07850591129436,
+                "renderAndSubmit": {
+                  "medianMs": 4279.1849999427795,
+                  "p95Ms": 4331.340000152588,
+                  "minMs": 4278.140000104904,
+                  "maxMs": 4331.340000152588
+                },
+                "finalize": {
+                  "medianMs": 277.02999997138977,
+                  "p95Ms": 308.7000000476837,
+                  "minMs": 260.06500005722046,
+                  "maxMs": 308.7000000476837
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 2042.329999923706,
+                  "p95Ms": 2043.9100000858307,
+                  "minMs": 1966.460000038147,
+                  "maxMs": 2043.9100000858307
+                },
+                "medianFramesPerSecond": 29.378210182605837,
+                "renderAndSubmit": {
+                  "medianMs": 1656.7999999523163,
+                  "p95Ms": 1657.505000114441,
+                  "minMs": 1586.5249998569489,
+                  "maxMs": 1657.505000114441
+                },
+                "finalize": {
+                  "medianMs": 373.9949998855591,
+                  "p95Ms": 375.4100000858307,
+                  "minMs": 368.2900002002716,
+                  "maxMs": 375.4100000858307
+                }
+              }
+            },
+            "runs": [
+              {
+                "round": 0,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-3840-cpu-0",
+                "setupMs": 2.1500000953674316,
+                "renderAndSubmitMs": 4279.1849999427795,
+                "finalizeMs": 260.06500005722046,
+                "totalMs": 4541.400000095367,
+                "framesPerSecond": 13.21178491186419,
+                "bytes": 8291694,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 33177600
+                }
+              },
+              {
+                "round": 0,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-3840-gpu-0",
+                "setupMs": 11.700000047683716,
+                "renderAndSubmitMs": 1656.7999999523163,
+                "finalizeMs": 375.4100000858307,
+                "totalMs": 2043.9100000858307,
+                "framesPerSecond": 29.355499996320972,
+                "bytes": 8291695,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 12441600
+                }
+              },
+              {
+                "round": 1,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-3840-gpu-1",
+                "setupMs": 11.644999980926514,
+                "renderAndSubmitMs": 1586.5249998569489,
+                "finalizeMs": 368.2900002002716,
+                "totalMs": 1966.460000038147,
+                "framesPerSecond": 30.51168088790826,
+                "bytes": 8291695,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 12441600
+                }
+              },
+              {
+                "round": 1,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-3840-cpu-1",
+                "setupMs": 0.8399999141693115,
+                "renderAndSubmitMs": 4278.140000104904,
+                "finalizeMs": 308.7000000476837,
+                "totalMs": 4587.680000066757,
+                "framesPerSecond": 13.07850591129436,
+                "bytes": 8291694,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 33177600
+                }
+              },
+              {
+                "round": 2,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-3840-cpu-2",
+                "setupMs": 0.994999885559082,
+                "renderAndSubmitMs": 4331.340000152588,
+                "finalizeMs": 277.02999997138977,
+                "totalMs": 4609.365000009537,
+                "framesPerSecond": 13.016977392737582,
+                "bytes": 8291694,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 33177600
+                }
+              },
+              {
+                "round": 2,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-3840-gpu-2",
+                "setupMs": 10.829999923706055,
+                "renderAndSubmitMs": 1657.505000114441,
+                "finalizeMs": 373.9949998855591,
+                "totalMs": 2042.329999923706,
+                "framesPerSecond": 29.378210182605837,
+                "bytes": 8291695,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 12441600
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "warmup": [
+        {
+          "width": 960,
+          "height": 540,
+          "method": "gpu",
+          "frames": 4,
+          "tag": "warmup-960",
+          "setupMs": 88.39000010490417,
+          "renderAndSubmitMs": 845.8150000572205,
+          "finalizeMs": 215.00499987602234,
+          "totalMs": 1149.210000038147,
+          "framesPerSecond": 3.4806519259902227,
+          "bytes": 111551,
+          "hardwarePathObserved": true
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "method": "gpu",
+          "frames": 4,
+          "tag": "warmup-1920",
+          "setupMs": 6.2799999713897705,
+          "renderAndSubmitMs": 149.32500004768372,
+          "finalizeMs": 168.79999995231628,
+          "totalMs": 324.40499997138977,
+          "framesPerSecond": 12.330266180708595,
+          "bytes": 283532,
+          "hardwarePathObserved": true
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "method": "gpu",
+          "frames": 4,
+          "tag": "warmup-3840",
+          "setupMs": 11.619999885559082,
+          "renderAndSubmitMs": 225.08500003814697,
+          "finalizeMs": 287.2699999809265,
+          "totalMs": 523.9749999046326,
+          "framesPerSecond": 7.633952002916228,
+          "bytes": 642030,
+          "hardwarePathObserved": true
+        }
+      ]
+    },
+    {
+      "browser": "edge",
+      "date": "2026-10-27T18:11:00.356Z",
+      "host": {
+        "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+        "platform": "win32",
+        "release": "10.0.26300"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+        "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "hardwareConcurrency": 24,
+        "deviceMemoryGiB": 32,
+        "crossOriginIsolated": true,
+        "renderContext": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+      },
+      "methodology": {
+        "range": "BT.709 limited I420",
+        "conversion": "GPU canvas render + opaque sRGB composition + readback/conversion + raw VideoFrame construction and close",
+        "cpuCompositorWillReadFrequently": true,
+        "gpuCompositorWillReadFrequently": false,
+        "order": "CPU/GPU, GPU/CPU, CPU/GPU; per-block warm-up excluded",
+        "exports": "60-frame/30fps animated ribbon, production WebCodecs writer, prefer-hardware, very-high quality, no logo; includes finalization, metadata repair/verification",
+        "tracing": "Enabled only during warm-up exports, disabled during all timed samples",
+        "caveats": [
+          "One machine, headless Chromium; no claim for other GPUs/browsers.",
+          "GPU work can be charged to a later synchronous readback/composition stage; total time is the comparison metric.",
+          "Stage medians need not sum to total medians. Timed exports use already-fetched dependencies; first-use WASM download/compilation is recorded only in warmup.",
+          "Noise is a stress case; ribbon is representative production geometry/materials.",
+          "Offline throughput measurements, not a realtime playback deadline."
+        ]
+      },
+      "conversion": {
+        "rounds": 3,
+        "framesPerBlock": 24,
+        "warmupFramesPerBlock": 8,
+        "cases": [
+          {
+            "width": 960,
+            "height": 540,
+            "content": "ribbon",
+            "speedup": 3.06232316161701,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 5.4049999713897705,
+                  "p95Ms": 6.819999933242798,
+                  "minMs": 4.800000190734863,
+                  "maxMs": 7.865000009536743
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.10500001907348633,
+                    "p95Ms": 0.2049999237060547,
+                    "minMs": 0.059999942779541016,
+                    "maxMs": 0.6750001907348633
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.03500008583068848,
+                    "p95Ms": 0.04999995231628418,
+                    "minMs": 0.019999980926513672,
+                    "maxMs": 0.06000018119812012
+                  },
+                  "conversionMs": {
+                    "medianMs": 5.180000066757202,
+                    "p95Ms": 6.494999885559082,
+                    "minMs": 4.630000114440918,
+                    "maxMs": 7.5950000286102295
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.07999992370605469,
+                    "p95Ms": 0.17499995231628418,
+                    "minMs": 0.04500007629394531,
+                    "maxMs": 0.21499991416931152
+                  },
+                  "totalMs": {
+                    "medianMs": 5.4049999713897705,
+                    "p95Ms": 6.819999933242798,
+                    "minMs": 4.800000190734863,
+                    "maxMs": 7.865000009536743
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 1.7649998664855957,
+                  "p95Ms": 2.4049999713897705,
+                  "minMs": 1.25,
+                  "maxMs": 4.1549999713897705
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.07999992370605469,
+                    "p95Ms": 0.12999987602233887,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.16000008583068848
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.02499985694885254,
+                    "p95Ms": 0.039999961853027344,
+                    "minMs": 0.014999866485595703,
+                    "maxMs": 0.04999995231628418
+                  },
+                  "conversionMs": {
+                    "medianMs": 1.5849997997283936,
+                    "p95Ms": 2.1500000953674316,
+                    "minMs": 1.1099998950958252,
+                    "maxMs": 3.8400001525878906
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.04500007629394531,
+                    "p95Ms": 0.16500020027160645,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.22499990463256836
+                  },
+                  "totalMs": {
+                    "medianMs": 1.7649998664855957,
+                    "p95Ms": 2.4049999713897705,
+                    "minMs": 1.25,
+                    "maxMs": 4.1549999713897705
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 960,
+            "height": 540,
+            "content": "noise",
+            "speedup": 4.680434440079196,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 10.765000104904175,
+                  "p95Ms": 11.555000066757202,
+                  "minMs": 9.995000123977661,
+                  "maxMs": 12.164999961853027
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.07000017166137695,
+                    "p95Ms": 0.1099998950958252,
+                    "minMs": 0.039999961853027344,
+                    "maxMs": 0.125
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.040000200271606445,
+                    "p95Ms": 0.06000018119812012,
+                    "minMs": 0.020000219345092773,
+                    "maxMs": 0.07000017166137695
+                  },
+                  "conversionMs": {
+                    "medianMs": 10.539999961853027,
+                    "p95Ms": 11.299999952316284,
+                    "minMs": 9.815000057220459,
+                    "maxMs": 11.889999866485596
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.07500004768371582,
+                    "p95Ms": 0.15000009536743164,
+                    "minMs": 0.04500007629394531,
+                    "maxMs": 0.2050001621246338
+                  },
+                  "totalMs": {
+                    "medianMs": 10.765000104904175,
+                    "p95Ms": 11.555000066757202,
+                    "minMs": 9.995000123977661,
+                    "maxMs": 12.164999961853027
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 2.3000001907348633,
+                  "p95Ms": 2.875,
+                  "minMs": 1.7999999523162842,
+                  "maxMs": 3.2849998474121094
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.039999961853027344,
+                    "p95Ms": 0.06999993324279785,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.11500000953674316
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.02500009536743164,
+                    "p95Ms": 0.039999961853027344,
+                    "minMs": 0.014999866485595703,
+                    "maxMs": 0.12000012397766113
+                  },
+                  "conversionMs": {
+                    "medianMs": 2.1500000953674316,
+                    "p95Ms": 2.7850000858306885,
+                    "minMs": 1.7150001525878906,
+                    "maxMs": 3.119999885559082
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.04499983787536621,
+                    "p95Ms": 0.19000005722045898,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.24000000953674316
+                  },
+                  "totalMs": {
+                    "medianMs": 2.3000001907348633,
+                    "p95Ms": 2.875,
+                    "minMs": 1.7999999523162842,
+                    "maxMs": 3.2849998474121094
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 1920,
+            "height": 1080,
+            "content": "ribbon",
+            "speedup": 3.902901798900103,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 17.485000133514404,
+                  "p95Ms": 18.424999952316284,
+                  "minMs": 17,
+                  "maxMs": 19.265000104904175
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.12999987602233887,
+                    "p95Ms": 0.16000008583068848,
+                    "minMs": 0.08500003814697266,
+                    "maxMs": 0.23000001907348633
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.04999995231628418,
+                    "p95Ms": 0.06999993324279785,
+                    "minMs": 0.034999847412109375,
+                    "maxMs": 0.08500003814697266
+                  },
+                  "conversionMs": {
+                    "medianMs": 17.084999799728394,
+                    "p95Ms": 17.960000038146973,
+                    "minMs": 16.62000012397766,
+                    "maxMs": 18.78500008583069
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.23000001907348633,
+                    "p95Ms": 0.2950000762939453,
+                    "minMs": 0.17499995231628418,
+                    "maxMs": 0.4500000476837158
+                  },
+                  "totalMs": {
+                    "medianMs": 17.485000133514404,
+                    "p95Ms": 18.424999952316284,
+                    "minMs": 17,
+                    "maxMs": 19.265000104904175
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 4.480000019073486,
+                  "p95Ms": 4.950000047683716,
+                  "minMs": 4.009999990463257,
+                  "maxMs": 5.759999990463257
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.07999992370605469,
+                    "p95Ms": 0.125,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.15000009536743164
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.029999971389770508,
+                    "p95Ms": 0.040000200271606445,
+                    "minMs": 0.014999866485595703,
+                    "maxMs": 0.21500015258789062
+                  },
+                  "conversionMs": {
+                    "medianMs": 4.1000001430511475,
+                    "p95Ms": 4.539999961853027,
+                    "minMs": 3.619999885559082,
+                    "maxMs": 5.340000152587891
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.2350001335144043,
+                    "p95Ms": 0.315000057220459,
+                    "minMs": 0.17499995231628418,
+                    "maxMs": 0.3450000286102295
+                  },
+                  "totalMs": {
+                    "medianMs": 4.480000019073486,
+                    "p95Ms": 4.950000047683716,
+                    "minMs": 4.009999990463257,
+                    "maxMs": 5.759999990463257
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 1920,
+            "height": 1080,
+            "content": "noise",
+            "speedup": 5.777695734082355,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 39.11500000953674,
+                  "p95Ms": 42.514999866485596,
+                  "minMs": 37.59499979019165,
+                  "maxMs": 43.419999837875366
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.06999993324279785,
+                    "p95Ms": 0.1100001335144043,
+                    "minMs": 0.05499982833862305,
+                    "maxMs": 0.125
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.06500005722045898,
+                    "p95Ms": 0.08999991416931152,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.11500000953674316
+                  },
+                  "conversionMs": {
+                    "medianMs": 38.704999923706055,
+                    "p95Ms": 42.11500000953674,
+                    "minMs": 37.09999990463257,
+                    "maxMs": 42.96000003814697
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.30499982833862305,
+                    "p95Ms": 0.4700000286102295,
+                    "minMs": 0.19999980926513672,
+                    "maxMs": 0.565000057220459
+                  },
+                  "totalMs": {
+                    "medianMs": 39.11500000953674,
+                    "p95Ms": 42.514999866485596,
+                    "minMs": 37.59499979019165,
+                    "maxMs": 43.419999837875366
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 6.769999980926514,
+                  "p95Ms": 7.9100000858306885,
+                  "minMs": 6.255000114440918,
+                  "maxMs": 8.634999990463257
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.03500008583068848,
+                    "p95Ms": 0.06999993324279785,
+                    "minMs": 0.02499985694885254,
+                    "maxMs": 0.1100001335144043
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.029999971389770508,
+                    "p95Ms": 0.04999995231628418,
+                    "minMs": 0.019999980926513672,
+                    "maxMs": 0.06500005722045898
+                  },
+                  "conversionMs": {
+                    "medianMs": 6.454999923706055,
+                    "p95Ms": 7.569999933242798,
+                    "minMs": 5.9750001430511475,
+                    "maxMs": 8.275000095367432
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 0.24000000953674316,
+                    "p95Ms": 0.31999993324279785,
+                    "minMs": 0.1699998378753662,
+                    "maxMs": 0.3600001335144043
+                  },
+                  "totalMs": {
+                    "medianMs": 6.769999980926514,
+                    "p95Ms": 7.9100000858306885,
+                    "minMs": 6.255000114440918,
+                    "maxMs": 8.634999990463257
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 3840,
+            "height": 2160,
+            "content": "ribbon",
+            "speedup": 4.57566857397899,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 70.14499998092651,
+                  "p95Ms": 76.06000018119812,
+                  "minMs": 65.15000009536743,
+                  "maxMs": 79.52500009536743
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.15000009536743164,
+                    "p95Ms": 0.18499994277954102,
+                    "minMs": 0.11500000953674316,
+                    "maxMs": 0.2200000286102295
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.06000018119812012,
+                    "p95Ms": 0.08499979972839355,
+                    "minMs": 0.04499983787536621,
+                    "maxMs": 0.23000001907348633
+                  },
+                  "conversionMs": {
+                    "medianMs": 68.68999981880188,
+                    "p95Ms": 74.51500010490417,
+                    "minMs": 63.670000076293945,
+                    "maxMs": 77.87000012397766
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.320000171661377,
+                    "p95Ms": 1.5199999809265137,
+                    "minMs": 0.869999885559082,
+                    "maxMs": 1.6449999809265137
+                  },
+                  "totalMs": {
+                    "medianMs": 70.14499998092651,
+                    "p95Ms": 76.06000018119812,
+                    "minMs": 65.15000009536743,
+                    "maxMs": 79.52500009536743
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 15.330000162124634,
+                  "p95Ms": 16.09500002861023,
+                  "minMs": 14.445000171661377,
+                  "maxMs": 17.759999990463257
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.1099998950958252,
+                    "p95Ms": 0.14499998092651367,
+                    "minMs": 0.07500004768371582,
+                    "maxMs": 0.18000006675720215
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.040000200271606445,
+                    "p95Ms": 0.059999942779541016,
+                    "minMs": 0.029999971389770508,
+                    "maxMs": 0.06000018119812012
+                  },
+                  "conversionMs": {
+                    "medianMs": 13.954999923706055,
+                    "p95Ms": 14.704999923706055,
+                    "minMs": 13.350000143051147,
+                    "maxMs": 16.31499981880188
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.2850000858306885,
+                    "p95Ms": 1.3900001049041748,
+                    "minMs": 0.875,
+                    "maxMs": 1.6949999332427979
+                  },
+                  "totalMs": {
+                    "medianMs": 15.330000162124634,
+                    "p95Ms": 16.09500002861023,
+                    "minMs": 14.445000171661377,
+                    "maxMs": 17.759999990463257
+                  }
+                }
+              }
+            }
+          },
+          {
+            "width": 3840,
+            "height": 2160,
+            "content": "noise",
+            "speedup": 6.476606508689309,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 166.80499982833862,
+                  "p95Ms": 175.77499985694885,
+                  "minMs": 150.0550000667572,
+                  "maxMs": 182.2300000190735
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.07499980926513672,
+                    "p95Ms": 0.09500002861022949,
+                    "minMs": 0.06499981880187988,
+                    "maxMs": 0.1399998664855957
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.06999993324279785,
+                    "p95Ms": 0.08499979972839355,
+                    "minMs": 0.04999995231628418,
+                    "maxMs": 0.1400001049041748
+                  },
+                  "conversionMs": {
+                    "medianMs": 165.36500000953674,
+                    "p95Ms": 174.3550000190735,
+                    "minMs": 148.65500020980835,
+                    "maxMs": 180.7699999809265
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.3299999237060547,
+                    "p95Ms": 1.684999942779541,
+                    "minMs": 0.9049999713897705,
+                    "maxMs": 1.8250000476837158
+                  },
+                  "totalMs": {
+                    "medianMs": 166.80499982833862,
+                    "p95Ms": 175.77499985694885,
+                    "minMs": 150.0550000667572,
+                    "maxMs": 182.2300000190735
+                  }
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 25.75499987602234,
+                  "p95Ms": 28.859999895095825,
+                  "minMs": 23.575000047683716,
+                  "maxMs": 40.334999799728394
+                },
+                "stages": {
+                  "renderMs": {
+                    "medianMs": 0.06500005722045898,
+                    "p95Ms": 0.08000016212463379,
+                    "minMs": 0.05500006675720215,
+                    "maxMs": 0.15999984741210938
+                  },
+                  "compositeMs": {
+                    "medianMs": 0.05499982833862305,
+                    "p95Ms": 0.06499981880187988,
+                    "minMs": 0.039999961853027344,
+                    "maxMs": 0.06999993324279785
+                  },
+                  "conversionMs": {
+                    "medianMs": 24.399999856948853,
+                    "p95Ms": 27.369999885559082,
+                    "minMs": 22.519999980926514,
+                    "maxMs": 38.71499991416931
+                  },
+                  "frameConstructionMs": {
+                    "medianMs": 1.2899999618530273,
+                    "p95Ms": 1.440000057220459,
+                    "minMs": 0.8849999904632568,
+                    "maxMs": 1.5099999904632568
+                  },
+                  "totalMs": {
+                    "medianMs": 25.75499987602234,
+                    "p95Ms": 28.859999895095825,
+                    "minMs": 23.575000047683716,
+                    "maxMs": 40.334999799728394
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "exports": {
+        "rounds": 3,
+        "framesPerExport": 60,
+        "cases": [
+          {
+            "width": 960,
+            "height": 540,
+            "speedup": 1.5370227091989455,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 566.170000076294,
+                  "p95Ms": 581.7750000953674,
+                  "minMs": 537.9750001430511,
+                  "maxMs": 581.7750000953674
+                },
+                "medianFramesPerSecond": 105.97523710531242,
+                "renderAndSubmit": {
+                  "medianMs": 437.0899999141693,
+                  "p95Ms": 454.0550000667572,
+                  "minMs": 410.1300001144409,
+                  "maxMs": 454.0550000667572
+                },
+                "finalize": {
+                  "medianMs": 126.85500001907349,
+                  "p95Ms": 128.20000004768372,
+                  "minMs": 126.75999999046326,
+                  "maxMs": 128.20000004768372
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 368.3550000190735,
+                  "p95Ms": 371.085000038147,
+                  "minMs": 367.2000000476837,
+                  "maxMs": 371.085000038147
+                },
+                "medianFramesPerSecond": 162.88634604360792,
+                "renderAndSubmit": {
+                  "medianMs": 220.92499995231628,
+                  "p95Ms": 222.55499982833862,
+                  "minMs": 220.42000007629395,
+                  "maxMs": 222.55499982833862
+                },
+                "finalize": {
+                  "medianMs": 137.7300000190735,
+                  "p95Ms": 142.00999999046326,
+                  "minMs": 137.64000010490417,
+                  "maxMs": 142.00999999046326
+                }
+              }
+            },
+            "runs": [
+              {
+                "round": 0,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-960-cpu-0",
+                "setupMs": 0.8650000095367432,
+                "renderAndSubmitMs": 454.0550000667572,
+                "finalizeMs": 126.85500001907349,
+                "totalMs": 581.7750000953674,
+                "framesPerSecond": 103.132654359786,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 2073600
+                }
+              },
+              {
+                "round": 0,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-960-gpu-0",
+                "setupMs": 9.049999952316284,
+                "renderAndSubmitMs": 220.42000007629395,
+                "finalizeMs": 137.7300000190735,
+                "totalMs": 367.2000000476837,
+                "framesPerSecond": 163.39869278923896,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 777600
+                }
+              },
+              {
+                "round": 1,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-960-gpu-1",
+                "setupMs": 8.160000085830688,
+                "renderAndSubmitMs": 222.55499982833862,
+                "finalizeMs": 137.64000010490417,
+                "totalMs": 368.3550000190735,
+                "framesPerSecond": 162.88634604360792,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 777600
+                }
+              },
+              {
+                "round": 1,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-960-cpu-1",
+                "setupMs": 1.0850000381469727,
+                "renderAndSubmitMs": 410.1300001144409,
+                "finalizeMs": 126.75999999046326,
+                "totalMs": 537.9750001430511,
+                "framesPerSecond": 111.52934612955174,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 2073600
+                }
+              },
+              {
+                "round": 2,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-960-cpu-2",
+                "setupMs": 0.880000114440918,
+                "renderAndSubmitMs": 437.0899999141693,
+                "finalizeMs": 128.20000004768372,
+                "totalMs": 566.170000076294,
+                "framesPerSecond": 105.97523710531242,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 2073600
+                }
+              },
+              {
+                "round": 2,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-960-gpu-2",
+                "setupMs": 8.150000095367432,
+                "renderAndSubmitMs": 220.92499995231628,
+                "finalizeMs": 142.00999999046326,
+                "totalMs": 371.085000038147,
+                "framesPerSecond": 161.68802294307798,
+                "bytes": 1346886,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 777600
+                }
+              }
+            ]
+          },
+          {
+            "width": 1920,
+            "height": 1080,
+            "speedup": 2.116686310334436,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 1391.880000114441,
+                  "p95Ms": 1479.4100000858307,
+                  "minMs": 1376.6500000953674,
+                  "maxMs": 1479.4100000858307
+                },
+                "medianFramesPerSecond": 43.107164407180775,
+                "renderAndSubmit": {
+                  "medianMs": 1224.5150001049042,
+                  "p95Ms": 1322.3099999427795,
+                  "minMs": 1208.829999923706,
+                  "maxMs": 1322.3099999427795
+                },
+                "finalize": {
+                  "medianMs": 164.56500005722046,
+                  "p95Ms": 166.4300000667572,
+                  "minMs": 155.875,
+                  "maxMs": 166.4300000667572
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 657.5749998092651,
+                  "p95Ms": 675.7200000286102,
+                  "minMs": 647.2350001335144,
+                  "maxMs": 675.7200000286102
+                },
+                "medianFramesPerSecond": 91.2443447780154,
+                "renderAndSubmit": {
+                  "medianMs": 444.2850000858307,
+                  "p95Ms": 448.58000016212463,
+                  "minMs": 442.9800000190735,
+                  "maxMs": 448.58000016212463
+                },
+                "finalize": {
+                  "medianMs": 200.46999979019165,
+                  "p95Ms": 220.2350001335144,
+                  "minMs": 195.0350000858307,
+                  "maxMs": 220.2350001335144
+                }
+              }
+            },
+            "runs": [
+              {
+                "round": 0,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-1920-cpu-0",
+                "setupMs": 3.255000114440918,
+                "renderAndSubmitMs": 1208.829999923706,
+                "finalizeMs": 164.56500005722046,
+                "totalMs": 1376.6500000953674,
+                "framesPerSecond": 43.58406275803109,
+                "bytes": 3649830,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 8294400
+                }
+              },
+              {
+                "round": 0,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-1920-gpu-0",
+                "setupMs": 9.22000002861023,
+                "renderAndSubmitMs": 442.9800000190735,
+                "finalizeMs": 195.0350000858307,
+                "totalMs": 647.2350001335144,
+                "framesPerSecond": 92.70203247293942,
+                "bytes": 3649841,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 3110400
+                }
+              },
+              {
+                "round": 1,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-1920-gpu-1",
+                "setupMs": 11.199999809265137,
+                "renderAndSubmitMs": 444.2850000858307,
+                "finalizeMs": 220.2350001335144,
+                "totalMs": 675.7200000286102,
+                "framesPerSecond": 88.79417509835372,
+                "bytes": 3649841,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 3110400
+                }
+              },
+              {
+                "round": 1,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-1920-cpu-1",
+                "setupMs": 0.934999942779541,
+                "renderAndSubmitMs": 1224.5150001049042,
+                "finalizeMs": 166.4300000667572,
+                "totalMs": 1391.880000114441,
+                "framesPerSecond": 43.107164407180775,
+                "bytes": 3649830,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 8294400
+                }
+              },
+              {
+                "round": 2,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-1920-cpu-2",
+                "setupMs": 1.2250001430511475,
+                "renderAndSubmitMs": 1322.3099999427795,
+                "finalizeMs": 155.875,
+                "totalMs": 1479.4100000858307,
+                "framesPerSecond": 40.55670841519186,
+                "bytes": 3649830,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 8294400
+                }
+              },
+              {
+                "round": 2,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-1920-gpu-2",
+                "setupMs": 8.524999856948853,
+                "renderAndSubmitMs": 448.58000016212463,
+                "finalizeMs": 200.46999979019165,
+                "totalMs": 657.5749998092651,
+                "framesPerSecond": 91.2443447780154,
+                "bytes": 3649841,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 3110400
+                }
+              }
+            ]
+          },
+          {
+            "width": 3840,
+            "height": 2160,
+            "speedup": 2.2724885143159783,
+            "methods": {
+              "cpu": {
+                "total": {
+                  "medianMs": 4711.379999876022,
+                  "p95Ms": 4739,
+                  "minMs": 4649.115000009537,
+                  "maxMs": 4739
+                },
+                "medianFramesPerSecond": 12.735122193832565,
+                "renderAndSubmit": {
+                  "medianMs": 4402.745000123978,
+                  "p95Ms": 4455.359999895096,
+                  "minMs": 4338.094999790192,
+                  "maxMs": 4455.359999895096
+                },
+                "finalize": {
+                  "medianMs": 308.0899999141693,
+                  "p95Ms": 310.125,
+                  "minMs": 282.92000007629395,
+                  "maxMs": 310.125
+                }
+              },
+              "gpu": {
+                "total": {
+                  "medianMs": 2073.2249999046326,
+                  "p95Ms": 2090.0149998664856,
+                  "minMs": 1901.375,
+                  "maxMs": 2090.0149998664856
+                },
+                "medianFramesPerSecond": 28.940418913895005,
+                "renderAndSubmit": {
+                  "medianMs": 1681.0350000858307,
+                  "p95Ms": 1689.7249999046326,
+                  "minMs": 1514.994999885559,
+                  "maxMs": 1689.7249999046326
+                },
+                "finalize": {
+                  "medianMs": 381.14999985694885,
+                  "p95Ms": 388.2699999809265,
+                  "minMs": 366.84500002861023,
+                  "maxMs": 388.2699999809265
+                }
+              }
+            },
+            "runs": [
+              {
+                "round": 0,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-3840-cpu-0",
+                "setupMs": 0.5449998378753662,
+                "renderAndSubmitMs": 4402.745000123978,
+                "finalizeMs": 308.0899999141693,
+                "totalMs": 4711.379999876022,
+                "framesPerSecond": 12.735122193832565,
+                "bytes": 8291694,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 33177600
+                }
+              },
+              {
+                "round": 0,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-3840-gpu-0",
+                "setupMs": 11.039999961853027,
+                "renderAndSubmitMs": 1681.0350000858307,
+                "finalizeMs": 381.14999985694885,
+                "totalMs": 2073.2249999046326,
+                "framesPerSecond": 28.940418913895005,
+                "bytes": 8291695,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 12441600
+                }
+              },
+              {
+                "round": 1,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-3840-gpu-1",
+                "setupMs": 19.53500008583069,
+                "renderAndSubmitMs": 1514.994999885559,
+                "finalizeMs": 366.84500002861023,
+                "totalMs": 1901.375,
+                "framesPerSecond": 31.55611070935507,
+                "bytes": 8291695,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 12441600
+                }
+              },
+              {
+                "round": 1,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-3840-cpu-1",
+                "setupMs": 0.7200000286102295,
+                "renderAndSubmitMs": 4455.359999895096,
+                "finalizeMs": 282.92000007629395,
+                "totalMs": 4739,
+                "framesPerSecond": 12.660898923823591,
+                "bytes": 8291694,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 33177600
+                }
+              },
+              {
+                "round": 2,
+                "method": "cpu",
+                "frames": 60,
+                "tag": "export-3840-cpu-2",
+                "setupMs": 0.8950002193450928,
+                "renderAndSubmitMs": 4338.094999790192,
+                "finalizeMs": 310.125,
+                "totalMs": 4649.115000009537,
+                "framesPerSecond": 12.905682049137722,
+                "bytes": 8291694,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "cpu",
+                  "method": "cpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 33177600
+                }
+              },
+              {
+                "round": 2,
+                "method": "gpu",
+                "frames": 60,
+                "tag": "export-3840-gpu-2",
+                "setupMs": 12.019999980926514,
+                "renderAndSubmitMs": 1689.7249999046326,
+                "finalizeMs": 388.2699999809265,
+                "totalMs": 2090.0149998664856,
+                "framesPerSecond": 28.707927935365497,
+                "bytes": 8291695,
+                "verified": true,
+                "conversion": {
+                  "requestedMethod": "gpu",
+                  "method": "gpu",
+                  "fallbackReason": null,
+                  "readbackBytesPerFrame": 12441600
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "warmup": [
+        {
+          "width": 960,
+          "height": 540,
+          "method": "gpu",
+          "frames": 4,
+          "tag": "warmup-960",
+          "setupMs": 45.80999994277954,
+          "renderAndSubmitMs": 578.125,
+          "finalizeMs": 235,
+          "totalMs": 858.9349999427795,
+          "framesPerSecond": 4.656929802914623,
+          "bytes": 111551,
+          "hardwarePathObserved": true
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "method": "gpu",
+          "frames": 4,
+          "tag": "warmup-1920",
+          "setupMs": 6.575000047683716,
+          "renderAndSubmitMs": 149.41999983787537,
+          "finalizeMs": 169.63500022888184,
+          "totalMs": 325.6300001144409,
+          "framesPerSecond": 12.283880473525846,
+          "bytes": 283532,
+          "hardwarePathObserved": true
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "method": "gpu",
+          "frames": 4,
+          "tag": "warmup-3840",
+          "setupMs": 11.815000057220459,
+          "renderAndSubmitMs": 218.0199999809265,
+          "finalizeMs": 283.2650001049042,
+          "totalMs": 513.1000001430511,
+          "framesPerSecond": 7.795751313359596,
+          "bytes": 642030,
+          "hardwarePathObserved": true
+        }
+      ]
+    }
+  ]
+}

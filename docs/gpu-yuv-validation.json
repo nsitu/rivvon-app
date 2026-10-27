@@ -1,0 +1,1134 @@
+{
+  "date": "2026-10-27",
+  "raw": [
+    {
+      "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+      "cases": [
+        {
+          "width": 2,
+          "height": 2,
+          "fullRange": false,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 43.77999997138977,
+          "gpuIncludingReadbackMs": 0.7650001049041748,
+          "cpuArithmeticOnlyMs": 0.015000104904174805,
+          "readbackBytesPerFrame": 8
+        },
+        {
+          "width": 2,
+          "height": 2,
+          "fullRange": true,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 1.1800000667572021,
+          "gpuIncludingReadbackMs": 0.8250000476837158,
+          "cpuArithmeticOnlyMs": 0.005000114440917969,
+          "readbackBytesPerFrame": 8
+        },
+        {
+          "width": 6,
+          "height": 10,
+          "fullRange": false,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 1.8100001811981201,
+          "gpuIncludingReadbackMs": 0.75,
+          "cpuArithmeticOnlyMs": 0.009999990463256836,
+          "readbackBytesPerFrame": 96
+        },
+        {
+          "width": 6,
+          "height": 10,
+          "fullRange": true,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 1.4549999237060547,
+          "gpuIncludingReadbackMs": 0.75,
+          "cpuArithmeticOnlyMs": 0.009999990463256836,
+          "readbackBytesPerFrame": 96
+        },
+        {
+          "width": 258,
+          "height": 130,
+          "fullRange": false,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 1.6549999713897705,
+          "gpuIncludingReadbackMs": 0.7650001049041748,
+          "cpuArithmeticOnlyMs": 0.2200000286102295,
+          "readbackBytesPerFrame": 50440
+        },
+        {
+          "width": 258,
+          "height": 130,
+          "fullRange": true,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 1.809999942779541,
+          "gpuIncludingReadbackMs": 0.7999999523162842,
+          "cpuArithmeticOnlyMs": 0.5149998664855957,
+          "readbackBytesPerFrame": 50440
+        },
+        {
+          "width": 960,
+          "height": 540,
+          "fullRange": false,
+          "maxError": 1,
+          "differences": 1,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 7.555000066757202,
+          "gpuIncludingReadbackMs": 4.0299999713897705,
+          "cpuArithmeticOnlyMs": 8.115000009536743,
+          "readbackBytesPerFrame": 777600
+        },
+        {
+          "width": 960,
+          "height": 540,
+          "fullRange": true,
+          "maxError": 1,
+          "differences": 4,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 7.080000162124634,
+          "gpuIncludingReadbackMs": 3.890000104904175,
+          "cpuArithmeticOnlyMs": 7.555000066757202,
+          "readbackBytesPerFrame": 777600
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fullRange": false,
+          "maxError": 1,
+          "differences": 23,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 25.199999809265137,
+          "gpuIncludingReadbackMs": 13.27999997138977,
+          "cpuArithmeticOnlyMs": 31.134999990463257,
+          "readbackBytesPerFrame": 3110400
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fullRange": true,
+          "maxError": 1,
+          "differences": 18,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 22.569999933242798,
+          "gpuIncludingReadbackMs": 15.589999914169312,
+          "cpuArithmeticOnlyMs": 31.22000002861023,
+          "readbackBytesPerFrame": 3110400
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fullRange": false,
+          "maxError": 1,
+          "differences": 59,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 79.82500004768372,
+          "gpuIncludingReadbackMs": 46.74499988555908,
+          "cpuArithmeticOnlyMs": 126.40499997138977,
+          "readbackBytesPerFrame": 12441600
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fullRange": true,
+          "maxError": 1,
+          "differences": 81,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 69.4150002002716,
+          "gpuIncludingReadbackMs": 47.21000003814697,
+          "cpuArithmeticOnlyMs": 125.46499991416931,
+          "readbackBytesPerFrame": 12441600
+        }
+      ],
+      "fallback": {
+        "requestedMethod": "gpu",
+        "method": "cpu",
+        "fallbackReason": "GPU YUV conversion context was lost.",
+        "readbackBytesPerFrame": 16
+      }
+    },
+    {
+      "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "cases": [
+        {
+          "width": 2,
+          "height": 2,
+          "fullRange": false,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 36.075000047683716,
+          "gpuIncludingReadbackMs": 0.5899999141693115,
+          "cpuArithmeticOnlyMs": 0.009999990463256836,
+          "readbackBytesPerFrame": 8
+        },
+        {
+          "width": 2,
+          "height": 2,
+          "fullRange": true,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 1.4600000381469727,
+          "gpuIncludingReadbackMs": 0.4049999713897705,
+          "cpuArithmeticOnlyMs": 0.004999876022338867,
+          "readbackBytesPerFrame": 8
+        },
+        {
+          "width": 6,
+          "height": 10,
+          "fullRange": false,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 0.9900000095367432,
+          "gpuIncludingReadbackMs": 0.4100000858306885,
+          "cpuArithmeticOnlyMs": 0.009999990463256836,
+          "readbackBytesPerFrame": 96
+        },
+        {
+          "width": 6,
+          "height": 10,
+          "fullRange": true,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 1.4749999046325684,
+          "gpuIncludingReadbackMs": 0.34999990463256836,
+          "cpuArithmeticOnlyMs": 0.015000104904174805,
+          "readbackBytesPerFrame": 96
+        },
+        {
+          "width": 258,
+          "height": 130,
+          "fullRange": false,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 1.3950002193450928,
+          "gpuIncludingReadbackMs": 0.6100001335144043,
+          "cpuArithmeticOnlyMs": 0.17999982833862305,
+          "readbackBytesPerFrame": 50440
+        },
+        {
+          "width": 258,
+          "height": 130,
+          "fullRange": true,
+          "maxError": 0,
+          "differences": 0,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 1.8350000381469727,
+          "gpuIncludingReadbackMs": 0.7549998760223389,
+          "cpuArithmeticOnlyMs": 0.5550000667572021,
+          "readbackBytesPerFrame": 50440
+        },
+        {
+          "width": 960,
+          "height": 540,
+          "fullRange": false,
+          "maxError": 1,
+          "differences": 1,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 7.430000066757202,
+          "gpuIncludingReadbackMs": 3.450000047683716,
+          "cpuArithmeticOnlyMs": 7.440000057220459,
+          "readbackBytesPerFrame": 777600
+        },
+        {
+          "width": 960,
+          "height": 540,
+          "fullRange": true,
+          "maxError": 1,
+          "differences": 4,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 6.644999980926514,
+          "gpuIncludingReadbackMs": 3.434999942779541,
+          "cpuArithmeticOnlyMs": 7.445000171661377,
+          "readbackBytesPerFrame": 777600
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fullRange": false,
+          "maxError": 1,
+          "differences": 23,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 21.055000066757202,
+          "gpuIncludingReadbackMs": 10.195000171661377,
+          "cpuArithmeticOnlyMs": 29.700000047683716,
+          "readbackBytesPerFrame": 3110400
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fullRange": true,
+          "maxError": 1,
+          "differences": 18,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 19.77500009536743,
+          "gpuIncludingReadbackMs": 10.734999895095825,
+          "cpuArithmeticOnlyMs": 29.865000009536743,
+          "readbackBytesPerFrame": 3110400
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fullRange": false,
+          "maxError": 1,
+          "differences": 59,
+          "firstY": 235,
+          "lastY": 16,
+          "coldMs": 71.35999989509583,
+          "gpuIncludingReadbackMs": 48.8199999332428,
+          "cpuArithmeticOnlyMs": 124.85000014305115,
+          "readbackBytesPerFrame": 12441600
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fullRange": true,
+          "maxError": 1,
+          "differences": 81,
+          "firstY": 255,
+          "lastY": 0,
+          "coldMs": 76.14000010490417,
+          "gpuIncludingReadbackMs": 39.12999987602234,
+          "cpuArithmeticOnlyMs": 125.44999980926514,
+          "readbackBytesPerFrame": 12441600
+        }
+      ],
+      "fallback": {
+        "requestedMethod": "gpu",
+        "method": "cpu",
+        "fallbackReason": "GPU YUV conversion context was lost.",
+        "readbackBytesPerFrame": 16
+      }
+    }
+  ],
+  "encoded": [
+    {
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+        "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "outputColorSpace": "srgb-linear",
+        "chartMaxError": 0,
+        "width": 960,
+        "height": 540,
+        "fps": 30,
+        "frames": 12
+      },
+      "width": 960,
+      "height": 540,
+      "fps": 30,
+      "frames": 12,
+      "errors": [],
+      "cases": [
+        {
+          "range": "limited",
+          "preference": "no-preference",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "no-preference",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-software",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-software",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "no-preference",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "no-preference",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-hardware",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-hardware",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-software",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 1,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-software",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 777600
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 960,
+            "height": 540,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30/1",
+            "avg_frame_rate": "30/1",
+            "duration": "0.400000",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 1,
+          "temporalOrderCorrect": true
+        }
+      ]
+    },
+    {
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+        "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "outputColorSpace": "srgb-linear",
+        "chartMaxError": 0,
+        "width": 1920,
+        "height": 1080,
+        "fps": 29.97,
+        "frames": 12
+      },
+      "width": 1920,
+      "height": 1080,
+      "fps": 29.97,
+      "frames": 12,
+      "errors": [],
+      "cases": [
+        {
+          "range": "limited",
+          "preference": "no-preference",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "no-preference",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-hardware",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-software",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "limited",
+          "preference": "prefer-software",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "color_range": "tv",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "no-preference",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "no-preference",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-hardware",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-hardware",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": true,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 0,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-software",
+          "logo": false,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 1,
+          "temporalOrderCorrect": true
+        },
+        {
+          "range": "full",
+          "preference": "prefer-software",
+          "logo": true,
+          "conversion": {
+            "requestedMethod": "gpu",
+            "method": "gpu",
+            "fallbackReason": null,
+            "readbackBytesPerFrame": 3110400
+          },
+          "verified": true,
+          "hardwarePathObserved": false,
+          "output": {
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuvj420p",
+            "color_range": "pc",
+            "color_space": "bt709",
+            "color_transfer": "bt709",
+            "color_primaries": "bt709",
+            "r_frame_rate": "30000/1001",
+            "avg_frame_rate": "691200/23063",
+            "duration": "0.400399",
+            "nb_read_frames": "12"
+          },
+          "patchMaxError": 1,
+          "temporalOrderCorrect": true
+        }
+      ]
+    }
+  ],
+  "ffmpeg": {
+    "environment": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "gpu": "ANGLE (Intel, Intel(R) Graphics (0x00007D67) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    "cases": [
+      {
+        "name": "chart-logo-off-after.mp4",
+        "conversion": {
+          "requestedMethod": "gpu",
+          "method": "gpu",
+          "fallbackReason": null,
+          "readbackBytesPerFrame": 115200
+        },
+        "verification": {
+          "matchesSdrTarget": true,
+          "matchesRequestedColour": null,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        }
+      },
+      {
+        "name": "chart-logo-on-after.mp4",
+        "conversion": {
+          "requestedMethod": "gpu",
+          "method": "gpu",
+          "fallbackReason": null,
+          "readbackBytesPerFrame": 115200
+        },
+        "verification": {
+          "matchesSdrTarget": true,
+          "matchesRequestedColour": null,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        }
+      },
+      {
+        "name": "ribbon-logo-off-after.mp4",
+        "conversion": {
+          "requestedMethod": "gpu",
+          "method": "gpu",
+          "fallbackReason": null,
+          "readbackBytesPerFrame": 115200
+        },
+        "verification": {
+          "matchesSdrTarget": true,
+          "matchesRequestedColour": null,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        }
+      },
+      {
+        "name": "ribbon-logo-on-after.mp4",
+        "conversion": {
+          "requestedMethod": "gpu",
+          "method": "gpu",
+          "fallbackReason": null,
+          "readbackBytesPerFrame": 115200
+        },
+        "verification": {
+          "matchesSdrTarget": true,
+          "matchesRequestedColour": null,
+          "containerAndBitstream": "agree",
+          "pixelConversion": "explicit-sRGB-to-BT.709-limited-I420",
+          "warnings": []
+        }
+      }
+    ],
+    "cancellation": "passed"
+  },
+  "tests": {
+    "vitest": 88,
+    "build": "passed with existing eval and chunk-size warnings",
+    "ui": "Desktop 1100px and mobile 390px: conversion control hidden for Browser default and WebM; GPU and CPU notes present; no horizontal overflow"
+  },
+  "limitations": [
+    "One Windows Intel D3D11 device; Chrome and Edge 156. Other browsers/GPUs remain untested.",
+    "Raw comparisons allow one code value of floating-point rounding difference.",
+    "GPU timing includes texture upload and packed readback; CPU timing measures arithmetic only. These are diagnostic samples, not an end-to-end throughput comparison."
+  ]
+}

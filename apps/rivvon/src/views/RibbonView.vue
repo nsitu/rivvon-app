@@ -3439,6 +3439,8 @@ const activeToolbarOverlayTitle = computed(() => {
             const progressHandlers = {
                 encodingMethod: settings.encodingMethod,
                 hardwareAcceleration: settings.hardwareAcceleration,
+                videoRange: settings.videoRange,
+                yuvConversion: settings.yuvConversion,
                 signal: exportAbortController.value.signal,
                 onColourMetadata: (report) => { colourReport = report; },
                 onStatus: (status) => {

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1392" viewBox="0 0 1600 1392" role="img" aria-labelledby="title description">
+  <title id="title">GPU-assisted YUV video export</title>
+  <desc id="description">Implemented 27 October 2026. Normal viewing continues through the existing RGB renderer without YUV export conversion. During export only, an opaque sRGB compositor combines scene and logo, then a WebGL2 shader converts to BT.709 limited-range YCbCr, subsamples chroma and packs I420. Packed YUV is read back into CPU-accessible memory, then used to construct a raw VideoFrame with matching input metadata. WebCodecs requests hardware encoding; the native backend may copy or upload the bytes. Mediabunny muxes MP4, and output H.264 SPS and MP4 colour declarations are inspected, with eligible missing SPS fields repaired and mismatching output rejected. CPU conversion remains selectable and is used automatically if GPU conversion fails. This is not a fully GPU-resident pipeline. The same converter also supplies FFmpeg export batches.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#526b80"/></marker>
+    <marker id="readback-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#b47921"/></marker>
+    <style>
+      text { font-family: 'Segoe UI', Arial, sans-serif; fill: #203448; }
+      .title { font-size: 38px; font-weight: 700; fill: white; letter-spacing: -.6px; }
+      .subtitle { font-size: 22px; fill: #d7e3ee; }
+      .badge { font-size: 15px; font-weight: 700; fill: #e5edf5; letter-spacing: 1px; }
+      .section { font-size: 16px; font-weight: 700; letter-spacing: 1.5px; fill: #657c8d; }
+      .heading { font-size: 25px; font-weight: 700; }
+      .body { font-size: 20px; }
+      .small { font-size: 17px; fill: #526b80; }
+      .code { font-family: Consolas, 'Courier New', monospace; font-size: 17px; white-space: pre; }
+      .link { font-size: 16px; fill: #27678f; text-decoration: underline; }
+      .flow { fill: none; stroke: #526b80; stroke-width: 3; stroke-linejoin: round; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1392" fill="#fbfcfd"/>
+  <rect width="1600" height="154" fill="#172d41"/>
+  <text x="64" y="67" class="title">GPU-assisted YUV export</text>
+  <text x="64" y="112" class="subtitle">Move colour arithmetic to a shader; retain explicit YUV input and output checks.</text>
+  <rect x="1150" y="36" width="386" height="42" rx="21" fill="#2a455d"/>
+  <text x="1343" y="63" text-anchor="middle" class="badge">IMPLEMENTED · 27 OCT 2026</text>
+
+  <g aria-label="Existing RGB scene renderer">
+    <rect x="64" y="200" width="430" height="150" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2"/>
+    <text x="88" y="243" class="heading">Existing scene renderer</text>
+    <text x="88" y="281" class="body">WebGL / WebGPU RGB canvas</text>
+    <text x="88" y="315" class="small">Displayed canvas values interpreted as sRGB.</text>
+  </g>
+  <path d="M494 275H1104" class="flow"/>
+  <text x="799" y="257" text-anchor="middle" class="small">Normal viewing · existing RGB path</text>
+  <g aria-label="Realtime viewing requires no export conversion">
+    <rect x="1104" y="200" width="430" height="150" rx="14" fill="#f1f5f7" stroke="#a8bac5" stroke-width="2"/>
+    <text x="1128" y="243" class="heading">Live viewer stays unchanged</text>
+    <text x="1128" y="281" class="body">No RGB-to-I420 export conversion.</text>
+    <text x="1128" y="315" class="small">No export encoder needed for navigation.</text>
+  </g>
+
+  <rect x="40" y="392" width="1520" height="782" rx="20" fill="#f6f9fb" stroke="#b9c9d4" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="600" y="426" class="section">VIDEO EXPORT ONLY · GPU CONVERSION</text>
+  <path d="M279 350V506" class="flow"/>
+  <rect x="298" y="364" width="181" height="34" rx="17" fill="#fbfcfd"/>
+  <text x="312" y="387" class="small">Export requested</text>
+
+  <text x="64" y="475" class="section">GPU SHADER WORK</text>
+  <text x="584" y="475" class="section">CPU-ACCESSIBLE MEMORY</text>
+  <text x="1104" y="475" class="section">NATIVE ENCODER</text>
+
+  <g aria-label="GPU conversion and packing, limited-range example">
+    <rect x="64" y="506" width="430" height="300" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2"/>
+    <text x="88" y="548" class="heading">Export-only conversion pass</text>
+    <text x="88" y="589" class="body">Composite scene + logo in RGB.</text>
+    <text x="88" y="621" class="body">sRGB → BT.709 transfer.</text>
+    <text x="88" y="653" class="body">BT.709 RGB → Y′CbCr matrix.</text>
+    <text x="88" y="685" class="body">Quantize to limited range.</text>
+    <text x="88" y="717" class="body">Average chroma in 2 × 2 blocks.</text>
+    <text x="88" y="749" class="body">Pack I420 bytes into RGBA8.</text>
+    <text x="88" y="782" class="small">8-bit: Y 16–235 · Cb/Cr 16–240</text>
+  </g>
+
+  <path d="M494 650H584" fill="none" stroke="#b47921" stroke-width="4" marker-end="url(#readback-arrow)"/>
+  <text x="539" y="625" text-anchor="middle" font-size="16" fill="#946218">Readback</text>
+  <text x="539" y="682" text-anchor="middle" font-size="14" fill="#946218">YUV bytes</text>
+  <text x="539" y="703" text-anchor="middle" font-size="14" fill="#946218">CPU-visible</text>
+  <rect x="64" y="830" width="430" height="70" rx="10" fill="#fff5df" stroke="#d9b66f"/>
+  <text x="82" y="858" class="small">1.5 B/pixel YUV vs 4 B/pixel RGBA.</text>
+  <text x="82" y="884" class="small">62.5% less data; synchronization remains.</text>
+
+  <g aria-label="Raw VideoFrame construction with matching input metadata">
+    <rect x="584" y="506" width="430" height="300" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2"/>
+    <text x="608" y="548" class="heading">Construct raw VideoFrame</text>
+    <text x="608" y="582" class="code">new VideoFrame(yuvBytes, {</text>
+    <text x="608" y="602" class="code">  format: 'I420',</text>
+    <text x="608" y="622" class="code">  codedWidth, codedHeight,</text>
+    <text x="608" y="642" class="code">  timestamp, duration,</text>
+    <text x="608" y="662" class="code">  colorSpace: {</text>
+    <text x="608" y="682" class="code">    primaries: 'bt709',</text>
+    <text x="608" y="702" class="code">    transfer: 'bt709',</text>
+    <text x="608" y="722" class="code">    matrix: 'bt709',</text>
+    <text x="608" y="742" class="code">    fullRange: false</text>
+    <text x="608" y="762" class="code">  }</text>
+    <text x="608" y="782" class="code">})</text>
+  </g>
+  <text x="584" y="835" class="small">Colour metadata describes the supplied pixels.</text>
+  <path d="M1014 650H1104" class="flow"/>
+  <text x="1059" y="625" text-anchor="middle" font-size="14">Submit</text>
+  <text x="1059" y="682" text-anchor="middle" font-size="14">YUV frame</text>
+
+  <g aria-label="Hardware-preferred WebCodecs encoding">
+    <rect x="1104" y="506" width="430" height="300" rx="14" fill="#f0edfa" stroke="#a69acb" stroke-width="2"/>
+    <text x="1128" y="548" class="heading">WebCodecs VideoEncoder</text>
+    <text x="1128" y="589" class="code">hardwareAcceleration:</text>
+    <text x="1128" y="616" class="code">  'prefer-hardware'</text>
+    <text x="1128" y="664" class="body">Browser selects the native backend.</text>
+    <text x="1128" y="697" class="body">Driver may copy / upload the bytes.</text>
+    <text x="1128" y="730" class="body">Encode the supplied YUV frames.</text>
+    <text x="1128" y="780" class="small">Hardware preference is not a guarantee.</text>
+  </g>
+
+  <path d="M1319 806V865H799V936" class="flow"/>
+  <text x="1164" y="894" text-anchor="middle" class="small">Encoded chunks + colour metadata</text>
+
+  <g aria-label="CPU conversion remains available as a fallback and user choice">
+    <rect x="64" y="936" width="430" height="190" rx="14" fill="#ffffff" stroke="#b0c1cc" stroke-width="2"/>
+    <text x="88" y="978" class="heading">CPU conversion fallback</text>
+    <text x="88" y="1018" class="body">RGBA readback → CPU conversion</text>
+    <text x="88" y="1050" class="body">→ raw I420 → the same encoder.</text>
+    <text x="88" y="1094" class="small">Selectable; automatic if GPU conversion fails.</text>
+  </g>
+  <g aria-label="Mux and inspect output, repairing only eligible missing declarations">
+    <rect x="584" y="936" width="430" height="190" rx="14" fill="#edf4fc" stroke="#8eafcf" stroke-width="2"/>
+    <text x="608" y="978" class="heading">Mux + verify</text>
+    <text x="608" y="1011" class="body">Mediabunny muxes MP4 colour tags.</text>
+    <text x="608" y="1040" class="body">Inspect every SPS + MP4 nclx.</text>
+    <text x="608" y="1069" class="body">Repair eligible missing SPS fields.</text>
+    <text x="608" y="1098" class="body">Reject conflicting / wrong output.</text>
+  </g>
+  <path d="M1014 1031H1104" class="flow"/>
+  <g aria-label="Return the completed file after declaration checks">
+    <rect x="1104" y="936" width="430" height="190" rx="14" fill="#eaf6ef" stroke="#74ad91" stroke-width="2"/>
+    <text x="1128" y="978" class="heading">Completed MP4</text>
+    <text x="1128" y="1018" class="body">BT.709 · limited range · 8-bit 4:2:0</text>
+    <text x="1128" y="1050" class="body">Download / share the exported file.</text>
+    <text x="1128" y="1094" class="small">Return only after declaration checks pass.</text>
+  </g>
+
+  <rect x="64" y="1202" width="1472" height="118" rx="14" fill="#f0f4f7" stroke="#c7d4dd"/>
+  <text x="88" y="1240" class="heading">When validating another browser or GPU</text>
+  <text x="88" y="1273" class="body">Compare decoded chart values, check colour declarations and frame order, and benchmark export throughput.</text>
+  <text x="88" y="1301" class="small">Tags alone do not verify pixels. Limited-range example shown; full range needs matching quantization and metadata.</text>
+
+  <a href="https://w3c.github.io/webcodecs/#videoframe-interface"><text x="64" y="1357" class="link">WebCodecs VideoFrame API</text></a>
+  <a href="https://github.com/w3c/webcodecs/issues/83"><text x="350" y="1357" class="link">GPU / YUV interoperability limitation</text></a>
+  <text x="1536" y="1357" text-anchor="end" class="small">GPU arithmetic; CPU-visible YUV handoff; export only.</text>
+</svg>

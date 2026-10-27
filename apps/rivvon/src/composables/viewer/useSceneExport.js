@@ -662,6 +662,8 @@ export function useSceneExport(ctx, deps = {}) {
             format = 'mp4',
             encodingMethod = 'ffmpeg',
             hardwareAcceleration = 'no-preference',
+            videoRange = 'auto',
+            yuvConversion = 'gpu',
             duration = null,
             loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
             filename = null,
@@ -844,7 +846,7 @@ export function useSceneExport(ctx, deps = {}) {
             ctx.ribbonSeries.value?.initFlowMaterials?.();
 
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
-                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, quality, logoOverlayEnabled, logoOverlayCorner,
+                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion, quality, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,
             });
