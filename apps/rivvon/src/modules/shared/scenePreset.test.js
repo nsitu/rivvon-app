@@ -29,6 +29,7 @@ describe('scene preset contract', () => {
         input.artwork = {
             backgroundTexture: 'cenote', backgroundTextureEnabled: true,
             backgroundTextureContrast: 1.8, backgroundTextureSaturation: 0,
+            backgroundTextureVerticalAlignment: 0.2,
             backgroundTextureGradientMapEnabled: true,
             backgroundTextureGradientMapStops: [{ id: 'low', position: 0.1, color: '#123456' }, { id: 'high', position: 0.8, color: '#abcdef' }],
         };
@@ -38,12 +39,17 @@ describe('scene preset contract', () => {
         expect(saved.artwork.gradientMapStops).not.toEqual(saved.artwork.backgroundTextureGradientMapStops);
         expect(normalizeScenePreset({ ...input, artwork: {} }).artwork).toMatchObject({
             backgroundTextureContrast: 1, backgroundTextureSaturation: 1, backgroundTextureGradientMapEnabled: false,
+            backgroundTextureVerticalAlignment: 0.5,
         });
         input.artwork.backgroundTextureContrast = 3;
         expect(() => normalizeScenePreset(input)).toThrow('Invalid backgroundTextureContrast');
         input.artwork.backgroundTextureContrast = 1;
         input.artwork.backgroundTextureGradientMapStops[0].color = 'invalid';
         expect(() => normalizeScenePreset(input)).toThrow('Invalid gradient color');
+    });
+
+    it.each([-0.01, 1.01, NaN, '0.5'])('rejects invalid static texture vertical alignment %s', value => {
+        expect(() => normalizeScenePreset({ ...sampleScene(), artwork: { backgroundTextureVerticalAlignment: value } })).toThrow('Invalid backgroundTextureVerticalAlignment');
     });
     it('round trips the grid recipe without expanding saved source paths and defaults older presets off', () => {
         const input = sampleScene();

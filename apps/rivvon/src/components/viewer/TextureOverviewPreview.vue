@@ -1286,7 +1286,7 @@
 
     watch(
         () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity, app.backgroundGradientInfluence, app.backgroundGradientFalloff,
-            app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation],
+            app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation, app.backgroundTextureVerticalAlignment],
         () => {
             sceneBackground.updateBackground();
             renderCurrentScene();

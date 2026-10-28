@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DataArrayTexture, DataTexture, TextureLoader, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, Scene, UnsignedByteType } from 'three';
+import { DataArrayTexture, DataTexture, TextureLoader, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, OrthographicCamera, Scene, UnsignedByteType } from 'three';
 import { useSceneBackground } from './useSceneBackground.js';
 
 function fixture(rendererType) {
@@ -29,6 +29,67 @@ describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendere
         };
         return { ...result, renders, renderer: result.ctx.renderer.value };
     }
+
+    it.each(['sharp', 'blurred', 'gradient'].flatMap(mode => ['perspective', 'orthographic'].map(cameraType => [mode, cameraType])))('fits static images in %s backgrounds with a %s camera and restores preview after export', async (mode, cameraType) => {
+        const loader = vi.spyOn(TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+            const texture = new DataTexture(new Uint8Array(8), 2, 1);
+            onLoad(texture);
+            return texture;
+        });
+        const { runtime, ctx, app } = blurredFixture();
+        const camera = cameraType === 'orthographic' ? new OrthographicCamera(-2, 2, 1, -1, 0.1, 1000) : ctx.camera.value;
+        ctx.camera.value = camera;
+        const setAspect = aspect => {
+            if (camera.isOrthographicCamera) { camera.left = -aspect; camera.right = aspect; }
+            else camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+        };
+        setAspect(2);
+        app.backgroundTextureEnabled = true;
+        app.backgroundTexture = 'card';
+        app.backgroundMode = mode === 'gradient' ? 'gradient' : 'texture';
+        app.backgroundBlurEnabled = mode === 'blurred';
+        try {
+            await runtime.setBackgroundFromTileManager();
+            const material = camera.children[0].material;
+            const readScale = () => {
+                const active = camera.children[0].material;
+                return (rendererType === 'webgl' ? active.uniforms : active._staticTextureAdjustmentUniforms).uStaticTextureUvScale.value.toArray();
+            };
+            const readOffset = () => {
+                const active = camera.children[0].material;
+                return (rendererType === 'webgl' ? active.uniforms : active._staticTextureAdjustmentUniforms).uStaticTextureUvOffset.value.toArray();
+            };
+            expect(readScale()).toEqual([1, 1]);
+            expect(readOffset()).toEqual([0, 0]);
+            for (const [aspect, expected] of [[4, [1, 0.5]], [0.5, [0.25, 1]], [1, [0.5, 1]]]) {
+                setAspect(aspect);
+                runtime.updateBackground();
+                expect(readScale()).toEqual(expected);
+                expect(camera.children[0].material).toBe(material);
+                for (const alignment of [0, 0.5, 1]) {
+                    app.backgroundTextureVerticalAlignment = alignment;
+                    runtime.updateBackground();
+                    expect(readOffset()).toEqual([(1 - expected[0]) / 2, (1 - expected[1]) * (1 - alignment)]);
+                    expect(readScale()).toEqual(expected);
+                    expect(camera.children[0].material).toBe(material);
+                }
+            }
+            setAspect(4);
+            runtime.updateBackground({ blurMode: 'export', width: 1024, height: 256 });
+            expect(readScale()).toEqual([1, 0.5]);
+            expect(readOffset()).toEqual([0, 0]);
+            app.backgroundTextureVerticalAlignment = 0;
+            runtime.updateBackground({ blurMode: 'export', width: 1024, height: 256 });
+            expect(readOffset()).toEqual([0, 0.5]);
+            setAspect(1);
+            runtime.updateBackground();
+            expect(readScale()).toEqual([0.5, 1]);
+        } finally {
+            runtime.disposeBackground();
+            loader.mockRestore();
+        }
+    });
 
     it.each(['sharp', 'blurred', 'gradient'])('updates static texture treatment in %s preview and export without rebuilding', async mode => {
         const loader = vi.spyOn(TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {

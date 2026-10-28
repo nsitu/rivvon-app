@@ -953,6 +953,21 @@
                             </div>
                         </div>
 
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label" :for="getInputId('static-texture-vertical-alignment')">Vertical Alignment</label>
+                                <span class="tools-hint tools-slider-hint">{{ Math.round(app.backgroundTextureVerticalAlignment * 100) }}%</span>
+                            </div>
+                            <Slider
+                                :id="getInputId('static-texture-vertical-alignment')"
+                                :modelValue="app.backgroundTextureVerticalAlignment * 100"
+                                :min="0" :max="100" :step="1"
+                                aria-label="Static texture vertical alignment"
+                                @update:modelValue="app.setBackgroundTextureVerticalAlignment($event / 100)"
+                            />
+                            <div class="tools-slider-caption"><span>Top</span><span>Bottom</span></div>
+                        </div>
+
                         <div class="tools-toggle-row">
                             <label class="tools-toggle-main" :for="getInputId('static-texture-gradient-map')">
                                 <span class="material-symbols-outlined" aria-hidden="true">palette</span>

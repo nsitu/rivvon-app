@@ -12,6 +12,21 @@ const pixels = canvas => {
     return ctx.getImageData(0, 0, copy.width, copy.height).data;
 };
 const mae = (a, b) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / a.length;
+const circleBounds = (data, width, height) => {
+    let darkest = 255, lightest = 0;
+    for (let offset = 0; offset < data.length; offset += 4) {
+        darkest = Math.min(darkest, data[offset]); lightest = Math.max(lightest, data[offset]);
+    }
+    assert(lightest - darkest > 20, 'Aspect test image has no visible circle');
+    const threshold = (lightest + darkest) / 2;
+    let left = width, right = -1, top = height, bottom = -1;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        if (data[(y * width + x) * 4] >= threshold) continue;
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+    return { left, right, top, bottom, width: right - left + 1, height: bottom - top + 1 };
+};
 const errors = [];
 window.addEventListener('unhandledrejection', event => errors.push(String(event.reason)));
 
@@ -129,6 +144,75 @@ window.backgroundGradientTest = (async () => {
                 assert(previewExportMAE < 1, `${mode}: static treatment differs in export (${previewExportMAE})`);
                 staticTextureReports.push({ mode, grayscaleError, previewExportMAE });
             }
+            // A circular feature in a 2:1 image must remain round and centered,
+            // including when the view is resized after the texture was cached.
+            const image = document.createElement('canvas'); image.width = 256; image.height = 128;
+            const painter = image.getContext('2d');
+            painter.fillStyle = '#eeeeee'; painter.fillRect(0, 0, 256, 128);
+            painter.fillStyle = '#111111'; painter.beginPath(); painter.arc(128, 64, 20, 0, Math.PI * 2); painter.fill();
+            const verticalImage = document.createElement('canvas'); verticalImage.width = 128; verticalImage.height = 256;
+            const verticalPainter = verticalImage.getContext('2d');
+            for (const [color, top, height] of [['#ff0000', 0, 85], ['#00ff00', 85, 86], ['#0000ff', 171, 85]]) {
+                verticalPainter.fillStyle = color; verticalPainter.fillRect(0, top, 128, height);
+            }
+            const loadTexture = THREE.TextureLoader.prototype.load;
+            THREE.TextureLoader.prototype.load = function(url, onLoad, ...args) {
+                if (!['/background-textures/card.jpg', '/background-textures/textile.jpg'].includes(url)) return loadTexture.call(this, url, onLoad, ...args);
+                const texture = new THREE.CanvasTexture(url.endsWith('textile.jpg') ? verticalImage : image); onLoad(texture); return texture;
+            };
+            const aspectReports = [];
+            try {
+                app.backgroundTexture = 'card';
+                app.backgroundTextureGradientMapEnabled = false;
+                app.backgroundTextureContrast = 1; app.backgroundTextureSaturation = 1;
+                for (const mode of ['sharp', 'blurred', 'gradient']) {
+                    app.backgroundMode = mode === 'gradient' ? 'gradient' : 'texture';
+                    app.backgroundBlurEnabled = mode === 'blurred';
+                    await background.setBackgroundFromTileManager();
+                    for (const [width, height] of [[192, 64], [128, 128], [80, 160]]) {
+                        renderer.setSize(width, height);
+                        camera.aspect = width / height; camera.updateProjectionMatrix();
+                        const preview = draw();
+                        const bounds = circleBounds(preview, width, height);
+                        assert(Math.abs(bounds.width - bounds.height) <= 2, `${mode}: static image stretched at ${width}x${height} (${bounds.width}x${bounds.height})`);
+                        assert(Math.abs((bounds.left + bounds.right + 1) / 2 - width / 2) <= 1, `${mode}: horizontal cover crop is off-center`);
+                        assert(Math.abs((bounds.top + bounds.bottom + 1) / 2 - height / 2) <= 1, `${mode}: vertical cover crop is off-center`);
+                        const exported = draw(0, { blurMode: 'export', width: width * 2, height: height * 2 });
+                        const exportBounds = circleBounds(exported, width, height);
+                        assert(Math.abs(exportBounds.width - exportBounds.height) <= 2, `${mode}: export stretched the static image`);
+                        const restored = draw();
+                        assert(mae(preview, restored) < 0.1, `${mode}: export did not restore the preview crop`);
+                        aspectReports.push({ mode, width, height, circle: [bounds.width, bounds.height] });
+                    }
+                }
+                renderer.setSize(160, 80); camera.aspect = 2; camera.updateProjectionMatrix();
+                app.backgroundTexture = 'textile';
+                for (const mode of ['sharp', 'blurred', 'gradient']) {
+                    app.backgroundMode = mode === 'gradient' ? 'gradient' : 'texture';
+                    app.backgroundBlurEnabled = mode === 'blurred';
+                    await background.setBackgroundFromTileManager();
+                    for (const [alignment, channel] of [[0, 0], [0.5, 1], [1, 2]]) {
+                        draw();
+                        const material = camera.children[0].material;
+                        app.backgroundTextureVerticalAlignment = alignment;
+                        const preview = draw();
+                        const offset = (40 * 160 + 80) * 4;
+                        const assertBand = data => {
+                            const color = Array.from(data.slice(offset, offset + 3));
+                            assert(color[channel] > Math.max(...color.filter((_, index) => index !== channel)) + 20,
+                                `${mode}: ${alignment * 100}% vertical alignment selected the wrong image region (${color})`);
+                        };
+                        assertBand(preview);
+                        assert(camera.children[0].material === material, 'Vertical alignment rebuilt the preview material');
+                        assertBand(draw(0, { blurMode: 'export', width: 320, height: 160 }));
+                        assertBand(draw());
+                    }
+                }
+                app.backgroundTextureVerticalAlignment = 0.5;
+            } finally {
+                THREE.TextureLoader.prototype.load = loadTexture;
+                renderer.setSize(96, 64); camera.aspect = 1.5; camera.updateProjectionMatrix();
+            }
             const mixScene = new THREE.Scene();
             mixScene.background = new THREE.Color('#3b91c8');
             const mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
@@ -169,7 +253,7 @@ window.backgroundGradientTest = (async () => {
             } finally { filter.disposeRenderFilter(); }
             await new Promise(resolve => setTimeout(resolve, 100));
             assert(errors.length === 0, errors.join('\n'));
-            reports.push({ rendererType, layers: source.image.depth, flipError, animationMAE: mae(baseline, changed), previewExportMAE: mae(baseline, exportPixels), staticTextureReports, sceneMixError });
+            reports.push({ rendererType, layers: source.image.depth, flipError, animationMAE: mae(baseline, changed), previewExportMAE: mae(baseline, exportPixels), staticTextureReports, sceneMixError, aspectReports });
             console.log(`[Background gradient test] Passed ${rendererType}`);
         } finally {
             background?.disposeBackground(); source?.dispose(); loader.dispose(); renderer.dispose();
@@ -206,6 +290,18 @@ window.backgroundGradientTest = (async () => {
         store.setBackgroundTextureEnabled(true);
         store.setBackgroundTextureGradientMapEnabled(true);
         await nextTick();
+        const alignment = host.querySelector('[role="slider"][aria-label="Static texture vertical alignment"]');
+        assert(alignment && store.backgroundTextureVerticalAlignment === 0.5, 'Static vertical alignment did not default to center');
+        alignment.dispatchEvent(new KeyboardEvent('keydown', { code: 'Home', bubbles: true }));
+        await nextTick();
+        assert(store.backgroundTextureVerticalAlignment === 0, 'Vertical alignment keyboard Home did not select top');
+        alignment.dispatchEvent(new KeyboardEvent('keydown', { code: 'End', bubbles: true }));
+        await nextTick();
+        assert(store.backgroundTextureVerticalAlignment === 1, 'Vertical alignment keyboard End did not select bottom');
+        alignment.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft', bubbles: true }));
+        await nextTick();
+        assert(store.backgroundTextureVerticalAlignment === 0.99, 'Vertical alignment keyboard step failed');
+        assert(alignment.getBoundingClientRect().right <= host.getBoundingClientRect().right + 1, 'Vertical alignment slider overflows narrow panel');
         for (const [label, key] of [['Static texture contrast', 'backgroundTextureContrast'], ['Static texture saturation', 'backgroundTextureSaturation']]) {
             const slider = host.querySelector(`[role="slider"][aria-label="${label}"]`);
             assert(slider, `${label} is missing its accessible slider name`);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createGradientMapLut, serializeGradientMapStops, GRADIENT_MAP_LUT_SIZE, normalizeGradientMapMix } from './gradientMap.js';
+import { getBackgroundTextureCoverScale, normalizeBackgroundTextureVerticalAlignment } from './backgroundTextures.js';
 
 export const STATIC_TEXTURE_ADJUSTMENTS_GLSL = /* glsl */ `
     uniform float uStaticTextureContrast;
@@ -7,6 +8,12 @@ export const STATIC_TEXTURE_ADJUSTMENTS_GLSL = /* glsl */ `
     uniform bool uStaticTextureGradientMapEnabled;
     uniform float uStaticTextureGradientMapMix;
     uniform sampler2D uStaticTextureGradientMap;
+    uniform vec2 uStaticTextureUvScale;
+    uniform vec2 uStaticTextureUvOffset;
+
+    vec2 getStaticTextureUv(vec2 uv) {
+        return uv * uStaticTextureUvScale + uStaticTextureUvOffset;
+    }
 
     vec3 adjustStaticTexture(vec3 color) {
         vec3 weights = vec3(0.2126, 0.7152, 0.0722);
@@ -27,7 +34,7 @@ const normalizeAmount = value => Number.isFinite(Number(value))
 
 // One LUT per background runtime, shared by its source/display materials and
 // reused across preview and export. Adjust only the static sample before blend.
-export function createBackgroundTextureAdjustments(app) {
+export function createBackgroundTextureAdjustments(app, sourceTexture = null) {
     const gradientTexture = new THREE.DataTexture(new Uint8Array(GRADIENT_MAP_LUT_SIZE * 4), GRADIENT_MAP_LUT_SIZE, 1);
     gradientTexture.name = 'RivvonBackgroundTextureGradientMapLUT';
     gradientTexture.colorSpace = THREE.SRGBColorSpace;
@@ -40,11 +47,21 @@ export function createBackgroundTextureAdjustments(app) {
         uStaticTextureGradientMapEnabled: { value: false },
         uStaticTextureGradientMapMix: { value: 1 },
         uStaticTextureGradientMap: { value: gradientTexture },
+        uStaticTextureUvScale: { value: new THREE.Vector2(1, 1) },
+        uStaticTextureUvOffset: { value: new THREE.Vector2(0, 0) },
     };
     const nodeUniformSets = new Set();
     let gradientSignature = null;
 
-    function update() {
+    function update(surfaceAspect = 1) {
+        const image = sourceTexture?.image;
+        uniforms.uStaticTextureUvScale.value.set(...getBackgroundTextureCoverScale(
+            image?.naturalWidth || image?.width, image?.naturalHeight || image?.height, surfaceAspect,
+        ));
+        const scale = uniforms.uStaticTextureUvScale.value;
+        const alignment = normalizeBackgroundTextureVerticalAlignment(app.backgroundTextureVerticalAlignment);
+        // Image UVs run from bottom to top. 0% selects the top crop, 100% the bottom.
+        uniforms.uStaticTextureUvOffset.value.set((1 - scale.x) * 0.5, (1 - scale.y) * (1 - alignment));
         uniforms.uStaticTextureContrast.value = normalizeAmount(app.backgroundTextureContrast);
         uniforms.uStaticTextureSaturation.value = normalizeAmount(app.backgroundTextureSaturation);
         uniforms.uStaticTextureGradientMapEnabled.value = !!app.backgroundTextureGradientMapEnabled;
@@ -60,7 +77,7 @@ export function createBackgroundTextureAdjustments(app) {
         }
     }
 
-    function createNode(tsl, color, material) {
+    function createNode(tsl, sourceUv, material) {
         const { uniform, dot, vec2, vec3, mix, texture } = tsl;
         const nodes = Object.fromEntries(Object.entries(uniforms)
             .filter(([key]) => key !== 'uStaticTextureGradientMap')
@@ -68,6 +85,8 @@ export function createBackgroundTextureAdjustments(app) {
         nodeUniformSets.add(nodes);
         material._staticTextureAdjustmentUniforms = nodes;
         material.addEventListener('dispose', () => nodeUniformSets.delete(nodes));
+        const sampleUv = sourceUv.mul(nodes.uStaticTextureUvScale).add(nodes.uStaticTextureUvOffset);
+        const color = texture(sourceTexture, sampleUv).rgb;
         const weights = vec3(0.2126, 0.7152, 0.0722);
         const luminance = dot(color, weights);
         const saturated = mix(vec3(luminance), color, nodes.uStaticTextureSaturation);

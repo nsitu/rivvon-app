@@ -63,6 +63,8 @@ import {
 import {
   DEFAULT_BACKGROUND_TEXTURE,
   normalizeBackgroundTexture,
+  DEFAULT_BACKGROUND_TEXTURE_VERTICAL_ALIGNMENT,
+  normalizeBackgroundTextureVerticalAlignment,
 } from "../modules/viewer/backgroundTextures.js";
 import {
   DEFAULT_BACKGROUND_CURVATURE,
@@ -910,6 +912,7 @@ export const useViewerStore = defineStore("viewer", {
       backgroundTextureGradientMapMix: normalizeGradientMapMix(readViewerPreferences().backgroundTextureGradientMapMix),
       backgroundTextureContrast: normalizeContrast(readViewerPreferences().backgroundTextureContrast),
       backgroundTextureSaturation: normalizeSaturation(readViewerPreferences().backgroundTextureSaturation),
+      backgroundTextureVerticalAlignment: normalizeBackgroundTextureVerticalAlignment(readViewerPreferences().backgroundTextureVerticalAlignment),
       backgroundBaseEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundBaseEnabled,
         DEFAULT_BACKGROUND_BASE_ENABLED,
@@ -1268,6 +1271,7 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundTextureGradientMapMix = DEFAULT_GRADIENT_MAP_MIX;
       this.backgroundTextureContrast = DEFAULT_CONTRAST;
       this.backgroundTextureSaturation = DEFAULT_SATURATION;
+      this.backgroundTextureVerticalAlignment = DEFAULT_BACKGROUND_TEXTURE_VERTICAL_ALIGNMENT;
       this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
       this.backgroundSphericalLayersEnabled =
         DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED;
@@ -1393,6 +1397,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTextureGradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
         backgroundTextureContrast: DEFAULT_CONTRAST,
         backgroundTextureSaturation: DEFAULT_SATURATION,
+        backgroundTextureVerticalAlignment: DEFAULT_BACKGROUND_TEXTURE_VERTICAL_ALIGNMENT,
         backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
         backgroundSphericalLayersEnabled:
           DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED,
@@ -1728,6 +1733,11 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundTextureSaturation: this.backgroundTextureSaturation });
     },
 
+    setBackgroundTextureVerticalAlignment(value) {
+      this.backgroundTextureVerticalAlignment = normalizeBackgroundTextureVerticalAlignment(value);
+      writeViewerPreferences({ backgroundTextureVerticalAlignment: this.backgroundTextureVerticalAlignment });
+    },
+
     setBackgroundBaseEnabled(enabled) {
       const nextValue = !!enabled;
       this.backgroundBaseEnabled = nextValue;
@@ -1982,6 +1992,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTextureGradientMapMix: this.backgroundTextureGradientMapMix,
         backgroundTextureContrast: this.backgroundTextureContrast,
         backgroundTextureSaturation: this.backgroundTextureSaturation,
+        backgroundTextureVerticalAlignment: this.backgroundTextureVerticalAlignment,
         backgroundBaseEnabled: this.backgroundBaseEnabled,
         backgroundSphericalLayersEnabled:
           this.backgroundSphericalLayersEnabled,
@@ -2136,6 +2147,7 @@ sphericalProjectionVerticalWrapAuto:
         serializeGradientMapStops(this.backgroundTextureGradientMapStops) !== serializeGradientMapStops(original.backgroundTextureGradientMapStops) ||
         this.backgroundTextureContrast !== original.backgroundTextureContrast ||
         this.backgroundTextureSaturation !== original.backgroundTextureSaturation ||
+        this.backgroundTextureVerticalAlignment !== original.backgroundTextureVerticalAlignment ||
         this.backgroundBaseEnabled !== original.backgroundBaseEnabled ||
         this.backgroundSphericalLayersEnabled !==
           original.backgroundSphericalLayersEnabled ||

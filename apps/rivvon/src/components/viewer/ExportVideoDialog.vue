@@ -505,6 +505,7 @@
         () => app.gradientMapStops,
         () => app.gradientMapMix,
         () => app.backgroundTextureGradientMapMix,
+        () => app.backgroundTextureVerticalAlignment,
         () => app.contrast,
         () => app.saturation,
         () => app.textureRepeatMode,

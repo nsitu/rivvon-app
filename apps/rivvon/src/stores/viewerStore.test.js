@@ -55,6 +55,7 @@ describe('viewer preferences', () => {
         ['backgroundTextureGradientMapStops', [{ id: 'dark', position: 0, color: '#123456' }, { id: 'light', position: 1, color: '#abcdef' }]],
         ['backgroundTextureContrast', 1.7],
         ['backgroundTextureSaturation', 0.3],
+        ['backgroundTextureVerticalAlignment', 0.2],
     ])('persists, tracks, and restores independent static texture setting %s', (key, value) => {
         const store = useViewerStore();
         const original = store.getArtworkSettingsSnapshot();
@@ -98,6 +99,12 @@ describe('viewer preferences', () => {
         store.setBackgroundTextureSaturation(Infinity);
         expect(store.backgroundTextureContrast).toBe(1);
         expect(store.backgroundTextureSaturation).toBe(1);
+        store.setBackgroundTextureVerticalAlignment(99);
+        expect(store.backgroundTextureVerticalAlignment).toBe(1);
+        store.setBackgroundTextureVerticalAlignment(-1);
+        expect(store.backgroundTextureVerticalAlignment).toBe(0);
+        store.setBackgroundTextureVerticalAlignment(NaN);
+        expect(store.backgroundTextureVerticalAlignment).toBe(0.5);
     });
 
     it.each([256, 512, 'full'])('persists the %s projection preview choice as a device preference', resolution => {

@@ -399,7 +399,7 @@ function createWebGLBackgroundDisplayMaterial(
                 if (uLinearBlur) background = sRGBTransferOETF(background);
                 vec3 color = mix(background.rgb, uOverlayColor, uOverlayOpacity);
                 if (uStaticTextureEnabled == 1) {
-                    color = softLightBlend(color, adjustStaticTexture(texture2D(uTexture, vUv).rgb));
+                    color = softLightBlend(color, adjustStaticTexture(texture2D(uTexture, getStaticTextureUv(vUv)).rgb));
                 }
                 if (uWaterEnabled == 1) {
                     color = softLightBlend(color, proceduralWater(vUv, uTime));
@@ -570,7 +570,7 @@ export function useSceneBackground(ctx) {
     const isWebGPU = ctx.app.rendererType === "webgpu";
     let runtime = null;
     let gradientCache = null;
-    const textureAdjustments = createBackgroundTextureAdjustments(ctx.app);
+    const textureAdjustments = createBackgroundTextureAdjustments(ctx.app, textureOverlay);
 
     try {
       if (ctx.app.backgroundMode === 'gradient') {
@@ -583,7 +583,15 @@ export function useSceneBackground(ctx) {
 
       const disposeRuntime = runtime.dispose;
       const updateRuntime = runtime.update;
-      runtime.update = (renderOptions) => { textureAdjustments.update(); updateRuntime(renderOptions); };
+      runtime.update = (renderOptions) => {
+        // Match the surface's projection, including temporary export cameras.
+        const camera = ctx.camera.value;
+        const aspect = camera.isOrthographicCamera
+          ? (camera.right - camera.left) / (camera.top - camera.bottom)
+          : camera.aspect;
+        textureAdjustments.update(aspect);
+        updateRuntime(renderOptions);
+      };
       runtime.dispose = () => { disposeRuntime(); gradientCache?.dispose(); textureAdjustments.dispose(); };
 
       if (requestToken !== backgroundGenerationToken) {
@@ -1027,7 +1035,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
 
                 vec3 compositedColor = mix(color.rgb, uOverlayColor, uOverlayOpacity);
                 if (uStaticTextureEnabled == 1) {
-                    compositedColor = softLightBlend(compositedColor, adjustStaticTexture(texture(uTexture, vUv).rgb));
+                    compositedColor = softLightBlend(compositedColor, adjustStaticTexture(texture(uTexture, getStaticTextureUv(vUv)).rgb));
                 }
                 if (uWaterEnabled == 1) {
                     compositedColor = softLightBlend(compositedColor, proceduralWater(vUv, uTime));
@@ -1661,7 +1669,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       ? mix(outputColor.rgb, overlayColor, overlayOpacityUniform)
       : outputColor.rgb;
     const staticTextureColor = options.textureOverlay
-      ? options.textureAdjustments.createNode(tsl, textureNode(options.textureOverlay, baseUv).rgb, material)
+      ? options.textureAdjustments.createNode(tsl, baseUv, material)
       : null;
     const withStaticTexture =
       includeOverlay && staticTextureColor
@@ -2040,7 +2048,7 @@ async function createProcessedTileBackgroundRuntimeWebGPU(
     }
 
     const staticTextureColor = options.textureOverlay
-      ? options.textureAdjustments.createNode(tsl, textureNode(options.textureOverlay, uv()).rgb, material)
+      ? options.textureAdjustments.createNode(tsl, uv(), material)
       : null;
     const withStaticTexture = staticTextureColor
       ? staticTextureEnabledUniform

@@ -253,6 +253,7 @@
         app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
         app.backgroundTextureGradientMapMix,
         app.backgroundTextureContrast, app.backgroundTextureSaturation,
+        app.backgroundTextureVerticalAlignment,
     ], () => {
         if (app.isRestoringPreset) return;
         updateBackground();
