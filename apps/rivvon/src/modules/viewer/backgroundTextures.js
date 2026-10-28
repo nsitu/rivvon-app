@@ -9,6 +9,11 @@ export const BACKGROUND_TEXTURE_OPTIONS = [
     value: "textile",
     url: "/background-textures/textile.jpg",
   },
+  {
+    label: "Cenote",
+    value: "cenote",
+    url: "/background-textures/cenote.jpg",
+  },
 ];
 
 export const DEFAULT_BACKGROUND_TEXTURE = "card";
