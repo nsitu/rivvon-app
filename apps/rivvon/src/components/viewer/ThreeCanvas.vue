@@ -251,6 +251,7 @@
 
     watch(() => [
         app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
+        app.backgroundTextureGradientMapMix,
         app.backgroundTextureContrast, app.backgroundTextureSaturation,
     ], () => {
         if (app.isRestoringPreset) return;

@@ -971,6 +971,8 @@
                         <GradientMapEditor
                             v-if="backgroundTextureGradientMapModel"
                             :modelValue="app.backgroundTextureGradientMapStops"
+                            :mix="app.backgroundTextureGradientMapMix"
+                            @update:mix="app.setBackgroundTextureGradientMapMix"
                             subject="static texture"
                             @update:modelValue="app.setBackgroundTextureGradientMapStops"
                         />

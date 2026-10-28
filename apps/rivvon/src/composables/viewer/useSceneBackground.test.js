@@ -56,6 +56,14 @@ describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendere
             expect(uniforms.uStaticTextureContrast.value).toBe(1.6);
             expect(uniforms.uStaticTextureSaturation.value).toBe(0.2);
             expect(uniforms.uStaticTextureGradientMapEnabled.value).toBe(true);
+            expect(uniforms.uStaticTextureGradientMapMix.value).toBe(1);
+            for (const mix of [0, 0.5, 1]) {
+                app.backgroundTextureGradientMapMix = mix;
+                runtime.updateBackground();
+                expect(uniforms.uStaticTextureGradientMapMix.value).toBe(mix);
+                expect(camera.children[0].material).toBe(material);
+            }
+            app.backgroundTextureGradientMapMix = 0.25;
             app.backgroundTextureContrast = 0.5;
             app.backgroundTextureSaturation = 0;
             app.backgroundTextureGradientMapEnabled = false;
@@ -70,6 +78,7 @@ describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendere
             expect(exportUniforms.uStaticTextureContrast.value).toBe(0.5);
             expect(exportUniforms.uStaticTextureSaturation.value).toBe(0);
             expect(exportUniforms.uStaticTextureGradientMapEnabled.value).toBe(false);
+            expect(exportUniforms.uStaticTextureGradientMapMix.value).toBe(0.25);
             expect(app.contrast).toBe(0.7);
             expect(app.saturation).toBe(1.8);
         } finally {

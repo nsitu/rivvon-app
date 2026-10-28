@@ -503,6 +503,8 @@
         () => app.peakTroughGradientStart,
         () => app.peakTroughGradientEnd,
         () => app.gradientMapStops,
+        () => app.gradientMapMix,
+        () => app.backgroundTextureGradientMapMix,
         () => app.contrast,
         () => app.saturation,
         () => app.textureRepeatMode,

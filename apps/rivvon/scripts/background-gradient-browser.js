@@ -3,6 +3,7 @@ import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { normalizeWebGPUArrayTexture } from '../src/modules/shared/webgpuTextureCompatibility.js';
 import { applyRendererDisplayConfig } from '../src/modules/viewer/rendererConfig.js';
 import { useSceneBackground } from '../src/composables/viewer/useSceneBackground.js';
+import { useRenderFilter } from '../src/composables/viewer/useRenderFilter.js';
 
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const pixels = canvas => {
@@ -92,6 +93,7 @@ window.backgroundGradientTest = (async () => {
                 app.backgroundTextureContrast = 1;
                 app.backgroundTextureSaturation = 1;
                 app.backgroundTextureGradientMapEnabled = false;
+                app.backgroundTextureGradientMapMix = 1;
                 await background.setBackgroundFromTileManager();
                 const original = draw();
                 app.backgroundTextureSaturation = 0;
@@ -112,14 +114,62 @@ window.backgroundGradientTest = (async () => {
                 app.backgroundTextureGradientMapStops = [{ position: 0, color: '#0000ff' }, { position: 1, color: '#0000ff' }];
                 const blue = draw();
                 assert(red[0] > red[2] + 20 && blue[2] > blue[0] + 20, `${mode}: static gradient edits did not recolor texture`);
+                app.backgroundTextureSaturation = 1;
+                app.backgroundTextureGradientMapMix = 0;
+                const unmapped = draw();
+                assert(mae(original, unmapped) < 0.1, `${mode}: 0% static gradient mix changed original`);
+                app.backgroundTextureGradientMapMix = 0.5;
+                const half = draw();
+                assert(mae(half, original) > 0.1 && mae(half, blue) > 0.1, `${mode}: 50% static mix did not blend both images`);
+                const halfExported = draw(0, { blurMode: 'export', width: 192, height: 128 });
+                assert(mae(half, halfExported) < 1, `${mode}: 50% static mix differs in export`);
+                app.backgroundTextureGradientMapMix = 1;
                 const exported = draw(0, { blurMode: 'export', width: 192, height: 128 });
                 const previewExportMAE = mae(blue, exported);
                 assert(previewExportMAE < 1, `${mode}: static treatment differs in export (${previewExportMAE})`);
                 staticTextureReports.push({ mode, grayscaleError, previewExportMAE });
             }
+            const mixScene = new THREE.Scene();
+            mixScene.background = new THREE.Color('#3b91c8');
+            const mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+            const mixApp = { renderFilterMode: 'gradientMap', contrast: 1, saturation: 1,
+                gradientMapStops: [{ position: 0, color: '#ef630d' }, { position: 1, color: '#ef630d' }] };
+            const filter = useRenderFilter({ app: mixApp, renderer: { value: renderer }, scene: { value: mixScene }, camera: { value: mixCamera } });
+            let sceneMixError;
+            await filter.initRenderFilter(rendererType);
+            try {
+                const drawMix = value => { mixApp.gradientMapMix = value; filter.renderScene(); return pixels(renderer.domElement); };
+                const full = drawMix(undefined);
+                assert(mae(full, drawMix(1)) < 0.1, 'Default scene mix no longer matches 100%');
+                const unmapped = drawMix(0);
+                mixApp.renderFilterMode = 'none';
+                filter.renderScene();
+                assert(mae(unmapped, pixels(renderer.domElement)) < 1, '0% scene mix changed original');
+                mixApp.renderFilterMode = 'gradientMap';
+                const half = drawMix(0.5);
+                // WebGPU writes linear-light blends through the sRGB output transform.
+                const decode = value => rendererType === 'webgpu' ? THREE.ColorManagement.getTransfer(renderer.outputColorSpace) === THREE.SRGBTransfer
+                    ? (value / 255 <= 0.04045 ? value / 255 / 12.92 : ((value / 255 + 0.055) / 1.055) ** 2.4) : value / 255 : value / 255;
+                sceneMixError = Math.max(...[0, 1, 2].map(channel => Math.abs(decode(half[channel]) - (decode(unmapped[channel]) + decode(full[channel])) / 2)));
+                assert(sceneMixError < 0.01, `50% scene mix is not a balanced blend (${sceneMixError})`);
+                assert(mae(half, unmapped) > 1 && mae(half, full) > 1, 'Scene half mix did not retain both colors');
+                const exportTarget = rendererType === 'webgpu' ? new THREE.RenderTarget(96, 64, { colorSpace: renderer.outputColorSpace }) : new THREE.WebGLRenderTarget(96, 64, { colorSpace: renderer.outputColorSpace });
+                try {
+                    filter.renderScene(exportTarget);
+                    const material = rendererType === 'webgpu' ? new (await import('three/webgpu')).MeshBasicNodeMaterial() : new THREE.MeshBasicMaterial();
+                    if (rendererType === 'webgpu') material.colorNode = (await import('three/tsl')).texture(exportTarget.texture);
+                    else material.map = exportTarget.texture;
+                    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+                    const outputScene = new THREE.Scene(); outputScene.add(quad);
+                    const outputCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+                    renderer.setRenderTarget(null); renderer.render(outputScene, outputCamera);
+                    assert(mae(half, pixels(renderer.domElement)) < 1, '50% scene mix differs in export target');
+                    material.dispose(); quad.geometry.dispose();
+                } finally { exportTarget.dispose(); }
+            } finally { filter.disposeRenderFilter(); }
             await new Promise(resolve => setTimeout(resolve, 100));
             assert(errors.length === 0, errors.join('\n'));
-            reports.push({ rendererType, layers: source.image.depth, flipError, animationMAE: mae(baseline, changed), previewExportMAE: mae(baseline, exportPixels), staticTextureReports });
+            reports.push({ rendererType, layers: source.image.depth, flipError, animationMAE: mae(baseline, changed), previewExportMAE: mae(baseline, exportPixels), staticTextureReports, sceneMixError });
             console.log(`[Background gradient test] Passed ${rendererType}`);
         } finally {
             background?.disposeBackground(); source?.dispose(); loader.dispose(); renderer.dispose();
@@ -165,6 +215,14 @@ window.backgroundGradientTest = (async () => {
         }
         const sceneStops = JSON.stringify(store.gradientMapStops);
         const editor = host.querySelector('.gradient-map-editor');
+        const backgroundMix = editor.querySelector('[role="slider"][aria-label="static texture gradient map mix"]');
+        assert(backgroundMix, 'Static gradient mix slider is missing');
+        backgroundMix.dispatchEvent(new KeyboardEvent('keydown', { code: 'Home', bubbles: true }));
+        await nextTick();
+        assert(store.backgroundTextureGradientMapMix === 0 && store.gradientMapMix === 1, 'Background mix did not update independently');
+        backgroundMix.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true }));
+        await nextTick();
+        assert(store.backgroundTextureGradientMapMix === 0.01, 'Background mix keyboard step failed');
         const handle = editor.querySelector('.gradient-map-handle');
         handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
         await nextTick();
@@ -192,6 +250,14 @@ window.backgroundGradientTest = (async () => {
         const backgroundStops = JSON.stringify(store.backgroundTextureGradientMapStops);
         const editor = sceneHost.querySelector('.gradient-map-editor');
         assert(editor, 'Shared scene gradient editor is missing');
+        const sceneMix = editor.querySelector('[role="slider"][aria-label="scene gradient map mix"]');
+        assert(sceneMix, 'Scene gradient mix slider is missing');
+        sceneMix.dispatchEvent(new KeyboardEvent('keydown', { code: 'Home', bubbles: true }));
+        await nextTick();
+        assert(store.gradientMapMix === 0 && store.backgroundTextureGradientMapMix === 0.01, 'Scene mix did not update independently');
+        sceneMix.dispatchEvent(new KeyboardEvent('keydown', { code: 'End', bubbles: true }));
+        await nextTick();
+        assert(store.gradientMapMix === 1, 'Scene mix cannot reach 100% with keyboard');
         const hex = editor.querySelector('input[aria-label="Stop color"]');
         hex.value = '#fedcba';
         hex.dispatchEvent(new Event('change', { bubbles: true }));

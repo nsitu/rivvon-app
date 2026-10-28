@@ -1286,7 +1286,7 @@
 
     watch(
         () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity, app.backgroundGradientInfluence, app.backgroundGradientFalloff,
-            app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureContrast, app.backgroundTextureSaturation],
+            app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation],
         () => {
             sceneBackground.updateBackground();
             renderCurrentScene();
@@ -1304,6 +1304,7 @@
             app.transparentShadowsThresholdMax,
             app.renderFilterMode,
             app.gradientMapStops,
+            app.gradientMapMix,
             app.contrast,
             app.saturation,
         ],

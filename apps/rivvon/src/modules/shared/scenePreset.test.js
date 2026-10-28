@@ -10,6 +10,20 @@ export function sampleScene() {
 }
 
 describe('scene preset contract', () => {
+    it('preserves independent gradient map mixes, defaults older presets to full strength, and rejects invalid mixes', () => {
+        const input = sampleScene();
+        input.artwork.gradientMapMix = 0;
+        input.artwork.backgroundTextureGradientMapMix = 0.5;
+        const saved = normalizeScenePreset(input);
+        expect(saved.artwork).toMatchObject({ gradientMapMix: 0, backgroundTextureGradientMapMix: 0.5 });
+        expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+        expect(normalizeScenePreset({ ...input, artwork: {} }).artwork).toMatchObject({ gradientMapMix: 1, backgroundTextureGradientMapMix: 1 });
+        for (const key of ['gradientMapMix', 'backgroundTextureGradientMapMix']) {
+            for (const value of [-0.01, 1.01, NaN, '0.5']) {
+                expect(() => normalizeScenePreset({ ...input, artwork: { [key]: value } })).toThrow(`Invalid ${key}`);
+            }
+        }
+    });
     it('round trips an independent static texture treatment and defaults older artwork to neutral', () => {
         const input = sampleScene();
         input.artwork = {

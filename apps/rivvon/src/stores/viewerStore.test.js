@@ -18,6 +18,38 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it.each(['gradientMapMix', 'backgroundTextureGradientMapMix'])('persists and restores independent %s including zero and legacy defaults', key => {
+        const store = useViewerStore();
+        const setter = `set${key[0].toUpperCase()}${key.slice(1)}`;
+        const otherKey = key === 'gradientMapMix' ? 'backgroundTextureGradientMapMix' : 'gradientMapMix';
+        expect(store[key]).toBe(1);
+        store.captureToolsPanelOriginalState();
+        store[setter](0);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        expect(store.toolsPanelOriginalState[key]).toBe(1);
+        expect(store.getViewerSettingsSnapshot()[key]).toBe(0);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(saved[key]).toBe(0);
+        expect(store[otherKey]).toBe(1);
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored[key]).toBe(0);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored[key]).toBe(1);
+        setActivePinia(createPinia());
+        expect(useViewerStore()[key]).toBe(1);
+        const before = [...preferences];
+        restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored[key]).toBe(0);
+        expect([...preferences]).toEqual(before);
+        restored.applyArtworkSettingsSnapshot({});
+        expect(restored[key]).toBe(1);
+        for (const [value, expected] of [[0.5, 0.5], [-1, 0], [2, 1], [NaN, 1], [undefined, 1]]) {
+            restored[setter](value);
+            expect(restored[key]).toBe(expected);
+        }
+    });
+
     it.each([
         ['backgroundTextureGradientMapEnabled', true],
         ['backgroundTextureGradientMapStops', [{ id: 'dark', position: 0, color: '#123456' }, { id: 'light', position: 1, color: '#abcdef' }]],

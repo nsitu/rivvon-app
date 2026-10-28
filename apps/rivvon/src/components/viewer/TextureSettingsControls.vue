@@ -895,6 +895,8 @@
                 <GradientMapEditor
                     v-if="showDuotoneFilter && gradientMapFilterModel"
                     :modelValue="app.gradientMapStops"
+                    :mix="app.gradientMapMix"
+                    @update:mix="app.setGradientMapMix"
                     @update:modelValue="app.setGradientMapStops"
                 />
 

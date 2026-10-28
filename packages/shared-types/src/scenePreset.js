@@ -22,6 +22,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     backgroundOverlayEnabled: false, backgroundOverlayColor: '#ffffff', backgroundOverlayOpacity: 0.35,
     backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundBaseEnabled: true,
     backgroundTextureGradientMapEnabled: false,
+    backgroundTextureGradientMapMix: 1,
     backgroundTextureGradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
     backgroundTextureContrast: 1, backgroundTextureSaturation: 1,
     backgroundSphericalLayersEnabled: false, backgroundCurvature: 0.6,
@@ -37,6 +38,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     filmstripStyleEnabled: false, filmstripMotionEnabled: false, filmstripMotionSpeed: 1,
     filmstripGapLength: 0.15, filmstripHoleLength: 0.1, filmstripAperture: 0.23, filmstripHoleRoundedness: 0.33,
     gradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
+    gradientMapMix: 1,
     contrast: 1, saturation: 1, ribbonWidthScale: 1, ribbonPathAlignmentMode: 'center',
     surfaceMode: 'ribbon', tubeRadiusScale: 0.5, tubeRadialSegments: 8, tubeTextureJoinOffsetDegrees: 0,
     helixMode: false, helixRadius: 0.2, helixPitch: 9, helixStrandWidth: 0.5,
@@ -60,6 +62,7 @@ const ENUMS = {
 };
 const COLOR = /^#[\da-f]{6}([\da-f]{2})?$/i;
 const RANGES = {
+    gradientMapMix: [0, 1], backgroundTextureGradientMapMix: [0, 1],
     backgroundGradientInfluence: [0.15, 1.5], backgroundGradientFalloff: [0.5, 6],
     backgroundTextureContrast: [0, 2], backgroundTextureSaturation: [0, 2],
     viewerMotionLoopCount: [0.125, 8], flowSpeed: [0, 10], backgroundLayerIndex: [0, 4095],

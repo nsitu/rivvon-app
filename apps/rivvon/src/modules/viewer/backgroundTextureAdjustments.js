@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { createGradientMapLut, serializeGradientMapStops, GRADIENT_MAP_LUT_SIZE } from './gradientMap.js';
+import { createGradientMapLut, serializeGradientMapStops, GRADIENT_MAP_LUT_SIZE, normalizeGradientMapMix } from './gradientMap.js';
 
 export const STATIC_TEXTURE_ADJUSTMENTS_GLSL = /* glsl */ `
     uniform float uStaticTextureContrast;
     uniform float uStaticTextureSaturation;
     uniform bool uStaticTextureGradientMapEnabled;
+    uniform float uStaticTextureGradientMapMix;
     uniform sampler2D uStaticTextureGradientMap;
 
     vec3 adjustStaticTexture(vec3 color) {
@@ -14,7 +15,8 @@ export const STATIC_TEXTURE_ADJUSTMENTS_GLSL = /* glsl */ `
         vec3 contrasted = clamp((saturated - 0.5) * uStaticTextureContrast + 0.5, 0.0, 1.0);
         if (uStaticTextureGradientMapEnabled) {
             float position = clamp(dot(contrasted, weights), 0.0, 1.0);
-            return texture2D(uStaticTextureGradientMap, vec2(position, 0.5)).rgb;
+            vec3 mapped = texture2D(uStaticTextureGradientMap, vec2(position, 0.5)).rgb;
+            return mix(contrasted, mapped, uStaticTextureGradientMapMix);
         }
         return contrasted;
     }
@@ -36,6 +38,7 @@ export function createBackgroundTextureAdjustments(app) {
         uStaticTextureContrast: { value: 1 },
         uStaticTextureSaturation: { value: 1 },
         uStaticTextureGradientMapEnabled: { value: false },
+        uStaticTextureGradientMapMix: { value: 1 },
         uStaticTextureGradientMap: { value: gradientTexture },
     };
     const nodeUniformSets = new Set();
@@ -45,6 +48,7 @@ export function createBackgroundTextureAdjustments(app) {
         uniforms.uStaticTextureContrast.value = normalizeAmount(app.backgroundTextureContrast);
         uniforms.uStaticTextureSaturation.value = normalizeAmount(app.backgroundTextureSaturation);
         uniforms.uStaticTextureGradientMapEnabled.value = !!app.backgroundTextureGradientMapEnabled;
+        uniforms.uStaticTextureGradientMapMix.value = normalizeGradientMapMix(app.backgroundTextureGradientMapMix);
         const signature = serializeGradientMapStops(app.backgroundTextureGradientMapStops);
         if (signature !== gradientSignature) {
             gradientTexture.image.data = createGradientMapLut(app.backgroundTextureGradientMapStops);
@@ -70,7 +74,8 @@ export function createBackgroundTextureAdjustments(app) {
         const contrasted = saturated.sub(0.5).mul(nodes.uStaticTextureContrast).add(0.5).clamp(0, 1);
         const position = dot(contrasted, weights).clamp(0, 1);
         const mapped = texture(gradientTexture, vec2(position, 0.5)).rgb;
-        return nodes.uStaticTextureGradientMapEnabled.select(mapped, contrasted);
+        const mixed = mix(contrasted, mapped, nodes.uStaticTextureGradientMapMix);
+        return nodes.uStaticTextureGradientMapEnabled.select(mixed, contrasted);
     }
 
     update();

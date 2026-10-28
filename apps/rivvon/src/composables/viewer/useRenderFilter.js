@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
     createGradientMapLut,
     serializeGradientMapStops,
+    normalizeGradientMapMix,
 } from '../../modules/viewer/gradientMap.js';
 
 export function useRenderFilter(ctx) {
@@ -17,6 +18,7 @@ export function useRenderFilter(ctx) {
     let filterMaterialTexture = null;
     let filterContrastUniform = null;
     let filterSaturationUniform = null;
+    let filterGradientMapMixUniform = null;
     let filterGradientTexture = null;
     let filterGradientSignature = null;
     let overlapRenderTarget = null;
@@ -485,13 +487,14 @@ export function useRenderFilter(ctx) {
     function createWebGLFilterMaterial(texture) {
         const filterMode = getPostProcessFilterMode();
         const filteredColorExpression = filterMode === 'gradientMap'
-            ? 'texture2D(uGradientMap, vec2(clamp(filteredLuminance, 0.0, 1.0), 0.5)).rgb'
+            ? 'mix(contrasted, texture2D(uGradientMap, vec2(clamp(filteredLuminance, 0.0, 1.0), 0.5)).rgb, uGradientMapMix)'
             : 'contrasted';
 
         return new THREE.ShaderMaterial({
             uniforms: {
                 tDiffuse: { value: texture },
                 uGradientMap: { value: syncGradientMapTexture() },
+                uGradientMapMix: { value: normalizeGradientMapMix(ctx.app.gradientMapMix) },
                 uContrast: { value: getContrastValue() },
                 uSaturation: { value: getSaturationValue() },
             },
@@ -506,6 +509,7 @@ export function useRenderFilter(ctx) {
                 precision highp float;
                 uniform sampler2D tDiffuse;
                 uniform sampler2D uGradientMap;
+                uniform float uGradientMapMix;
                 uniform float uContrast;
                 uniform float uSaturation;
                 varying vec2 vUv;
@@ -546,6 +550,7 @@ export function useRenderFilter(ctx) {
         const sampledColor = textureNode(texture, sampleUv);
         const contrastUniform = uniform(float(contrastValue));
         const saturationUniform = uniform(float(saturationValue));
+        const gradientMapMixUniform = uniform(normalizeGradientMapMix(ctx.app.gradientMapMix));
         const alpha = sampledColor.a;
         const safeAlpha = max(alpha, float(0.00001));
         const unpremultiplied = sampledColor.rgb.div(safeAlpha);
@@ -558,10 +563,11 @@ export function useRenderFilter(ctx) {
             const gradientPosition = filteredLuminance
                 .max(float(0))
                 .min(float(1));
-            filteredBase = textureNode(
+            const mapped = textureNode(
                 syncGradientMapTexture(),
                 vec2(gradientPosition, float(0.5)),
             ).rgb;
+            filteredBase = mix(contrasted, mapped, gradientMapMixUniform);
         } else {
             filteredBase = contrasted;
         }
@@ -570,6 +576,7 @@ export function useRenderFilter(ctx) {
 
         filterContrastUniform = contrastUniform;
         filterSaturationUniform = saturationUniform;
+        filterGradientMapMixUniform = gradientMapMixUniform;
         material.colorNode = vec4(premultipliedFiltered, alpha);
         material.transparent = true;
         material.depthWrite = false;
@@ -828,6 +835,12 @@ export function useRenderFilter(ctx) {
         if (filterSaturationUniform) {
             filterSaturationUniform.value = getSaturationValue();
         }
+        if (filterMaterial?.uniforms?.uGradientMapMix) {
+            filterMaterial.uniforms.uGradientMapMix.value = normalizeGradientMapMix(ctx.app.gradientMapMix);
+        }
+        if (filterGradientMapMixUniform) {
+            filterGradientMapMixUniform.value = normalizeGradientMapMix(ctx.app.gradientMapMix);
+        }
 
         // Save current clear color and alpha
         const savedClearColor = renderer.getClearColor(new THREE.Color());
@@ -860,6 +873,7 @@ export function useRenderFilter(ctx) {
         filterMaterialTexture = null;
         filterContrastUniform = null;
         filterSaturationUniform = null;
+        filterGradientMapMixUniform = null;
 
         filterGradientTexture?.dispose?.();
         filterGradientTexture = null;

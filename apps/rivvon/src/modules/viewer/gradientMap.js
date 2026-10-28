@@ -1,5 +1,13 @@
 export const MAX_GRADIENT_MAP_STOPS = 8;
 export const GRADIENT_MAP_LUT_SIZE = 256;
+export const DEFAULT_GRADIENT_MAP_MIX = 1;
+
+export function normalizeGradientMapMix(value) {
+    const amount = Number(value);
+    return value == null || !Number.isFinite(amount)
+        ? DEFAULT_GRADIENT_MAP_MIX : Math.min(1, Math.max(0, amount));
+}
+
 export const DEFAULT_GRADIENT_MAP_STOPS = Object.freeze([
     Object.freeze({ id: 'shadow', position: 0, color: '#000000' }),
     Object.freeze({ id: 'midtone', position: 0.5, color: '#ff7a00' }),

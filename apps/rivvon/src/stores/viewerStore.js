@@ -79,6 +79,8 @@ import {
 import {
   createLegacyDuotoneStops,
   DEFAULT_GRADIENT_MAP_STOPS,
+  DEFAULT_GRADIENT_MAP_MIX,
+  normalizeGradientMapMix,
   normalizeGradientMapColor,
   normalizeGradientMapStops,
   serializeGradientMapStops,
@@ -702,6 +704,7 @@ function getStoredFilterSettings() {
     transparentShadowsThresholdMin: transparentShadowsThresholds.min,
     transparentShadowsThresholdMax: transparentShadowsThresholds.max,
     gradientMapStops,
+    gradientMapMix: normalizeGradientMapMix(preferences.gradientMapMix),
     contrast: normalizeContrast(preferences.contrast),
     saturation: normalizeSaturation(preferences.saturation),
   };
@@ -904,6 +907,7 @@ export const useViewerStore = defineStore("viewer", {
       backgroundTextureGradientMapStops: normalizeGradientMapStops(
         readViewerPreferences().backgroundTextureGradientMapStops,
       ),
+      backgroundTextureGradientMapMix: normalizeGradientMapMix(readViewerPreferences().backgroundTextureGradientMapMix),
       backgroundTextureContrast: normalizeContrast(readViewerPreferences().backgroundTextureContrast),
       backgroundTextureSaturation: normalizeSaturation(readViewerPreferences().backgroundTextureSaturation),
       backgroundBaseEnabled: normalizeViewerBooleanPreference(
@@ -1078,6 +1082,7 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().filmstripHoleRoundedness,
       ),
       gradientMapStops: storedFilterSettings.gradientMapStops,
+      gradientMapMix: storedFilterSettings.gradientMapMix,
       contrast: storedFilterSettings.contrast,
       saturation: storedFilterSettings.saturation,
       currentTextureId: null,
@@ -1260,6 +1265,7 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
       this.backgroundTextureGradientMapEnabled = false;
       this.backgroundTextureGradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
+      this.backgroundTextureGradientMapMix = DEFAULT_GRADIENT_MAP_MIX;
       this.backgroundTextureContrast = DEFAULT_CONTRAST;
       this.backgroundTextureSaturation = DEFAULT_SATURATION;
       this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
@@ -1316,6 +1322,7 @@ export const useViewerStore = defineStore("viewer", {
       this.filmstripAperture = DEFAULT_FILMSTRIP_APERTURE;
       this.filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
       this.gradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
+      this.gradientMapMix = DEFAULT_GRADIENT_MAP_MIX;
       this.contrast = DEFAULT_CONTRAST;
       this.saturation = DEFAULT_SATURATION;
       this.ribbonWidthScale = 1;
@@ -1383,6 +1390,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
         backgroundTextureGradientMapEnabled: false,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops,
+        backgroundTextureGradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
         backgroundTextureContrast: DEFAULT_CONTRAST,
         backgroundTextureSaturation: DEFAULT_SATURATION,
         backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
@@ -1438,6 +1446,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripHoleSpacing: DEFAULT_FILMSTRIP_GAP_LENGTH,
         filmstripHoleSize: DEFAULT_FILMSTRIP_APERTURE,
         gradientMapStops: this.gradientMapStops,
+        gradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
         contrast: DEFAULT_CONTRAST,
         saturation: DEFAULT_SATURATION,
         undulationEnabled: true,
@@ -1704,6 +1713,11 @@ export const useViewerStore = defineStore("viewer", {
       if (persist) writeViewerPreferences({ backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops });
     },
 
+    setBackgroundTextureGradientMapMix(value) {
+      this.backgroundTextureGradientMapMix = normalizeGradientMapMix(value);
+      writeViewerPreferences({ backgroundTextureGradientMapMix: this.backgroundTextureGradientMapMix });
+    },
+
     setBackgroundTextureContrast(value) {
       this.backgroundTextureContrast = normalizeContrast(value);
       writeViewerPreferences({ backgroundTextureContrast: this.backgroundTextureContrast });
@@ -1965,6 +1979,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTexture: this.backgroundTexture,
         backgroundTextureGradientMapEnabled: this.backgroundTextureGradientMapEnabled,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops.map(stop => ({ ...stop })),
+        backgroundTextureGradientMapMix: this.backgroundTextureGradientMapMix,
         backgroundTextureContrast: this.backgroundTextureContrast,
         backgroundTextureSaturation: this.backgroundTextureSaturation,
         backgroundBaseEnabled: this.backgroundBaseEnabled,
@@ -2015,6 +2030,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripAperture: this.filmstripAperture,
         filmstripHoleRoundedness: this.filmstripHoleRoundedness,
         gradientMapStops: this.gradientMapStops,
+        gradientMapMix: this.gradientMapMix,
         contrast: this.contrast,
         saturation: this.saturation,
         ribbonWidthScale: this.ribbonWidthScale,
@@ -2116,6 +2132,7 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundTextureEnabled !== original.backgroundTextureEnabled ||
         this.backgroundTexture !== original.backgroundTexture ||
         this.backgroundTextureGradientMapEnabled !== original.backgroundTextureGradientMapEnabled ||
+        this.backgroundTextureGradientMapMix !== original.backgroundTextureGradientMapMix ||
         serializeGradientMapStops(this.backgroundTextureGradientMapStops) !== serializeGradientMapStops(original.backgroundTextureGradientMapStops) ||
         this.backgroundTextureContrast !== original.backgroundTextureContrast ||
         this.backgroundTextureSaturation !== original.backgroundTextureSaturation ||
@@ -2175,6 +2192,7 @@ sphericalProjectionVerticalWrapAuto:
         this.filmstripHoleRoundedness !== original.filmstripHoleRoundedness ||
         serializeGradientMapStops(this.gradientMapStops) !==
           serializeGradientMapStops(original.gradientMapStops) ||
+        this.gradientMapMix !== original.gradientMapMix ||
         this.contrast !== original.contrast ||
         this.saturation !== original.saturation ||
         this.ribbonWidthScale !== original.ribbonWidthScale ||
@@ -2570,6 +2588,11 @@ this.sphericalProjectionVerticalWrapAuto !==
         duotoneColor: nextColor,
         gradientMapStops: this.gradientMapStops,
       });
+    },
+
+    setGradientMapMix(value) {
+      this.gradientMapMix = normalizeGradientMapMix(value);
+      writeViewerPreferences({ gradientMapMix: this.gradientMapMix });
     },
 
     setGradientMapStops(stops, { persist = true } = {}) {

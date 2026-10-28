@@ -3,14 +3,16 @@
     import Button from 'primevue/button';
     import InputText from 'primevue/inputtext';
     import InputNumber from 'primevue/inputnumber';
+    import Slider from 'primevue/slider';
     import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import { createGradientMapLut, MAX_GRADIENT_MAP_STOPS } from '../../modules/viewer/gradientMap.js';
 
     const props = defineProps({
         modelValue: { type: Array, required: true },
         subject: { type: String, default: 'scene' },
+        mix: { type: Number, default: 1 },
     });
-    const emit = defineEmits(['update:modelValue']);
+    const emit = defineEmits(['update:modelValue', 'update:mix']);
     const emitStops = (stops, options = {}) => emit('update:modelValue', stops, options);
     const inputIdPrefix = 'gradient-map-' + getCurrentInstance().uid;
     const getInputId = name => inputIdPrefix + '-' + name;
@@ -145,6 +147,22 @@
 
 <template>
     <div class="gradient-map-editor">
+        <div class="gradient-map-mix">
+            <div class="gradient-map-header">
+                <label :for="getInputId('mix')">Mix</label>
+                <output :for="getInputId('mix')">{{ Math.round(mix * 100) }}%</output>
+            </div>
+            <Slider
+                :id="getInputId('mix')"
+                :modelValue="Math.round(mix * 100)"
+                :min="0" :max="100" :step="1"
+                :aria-label="`${subject} gradient map mix`"
+                @update:modelValue="emit('update:mix', $event / 100)"
+            />
+            <div class="gradient-map-caption gradient-map-mix-caption">
+                <span>Original</span><span>Gradient Map</span>
+            </div>
+        </div>
         <div class="gradient-map-header">
             <span>Color Stops</span>
             <Button
@@ -245,6 +263,17 @@
         flex-direction: column;
         gap: 0.75rem;
         padding: 0 0.75rem 1rem;
+    }
+
+    .gradient-map-mix {
+        display: grid;
+        gap: 0.75rem;
+        padding-block: 0.5rem;
+    }
+
+    .gradient-map-mix-caption {
+        display: flex;
+        justify-content: space-between;
     }
 
     .gradient-map-header {
