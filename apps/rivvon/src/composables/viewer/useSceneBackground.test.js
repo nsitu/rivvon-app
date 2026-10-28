@@ -30,6 +30,60 @@ describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendere
         return { ...result, renders, renderer: result.ctx.renderer.value };
     }
 
+    it('caches source palettes and updates only nine colors without blur targets in preview or export', async () => {
+        const { runtime, ctx, camera, app, renderer, renders } = blurredFixture();
+        app.backgroundMode = 'gradient';
+        const callerTarget = renderer.getRenderTarget();
+        await runtime.setBackgroundFromTileManager();
+        expect(camera.children).toHaveLength(1);
+        expect(ctx.backgroundTexture.value.image).toMatchObject({ width: 3, height: 3 });
+        // One atlas extraction (four 3x3 layers), then nine interpolated colors.
+        expect(renders).toHaveLength(2);
+        expect(renders[0].target.texture.image).toMatchObject({ width: 6, height: 6 });
+        const atlas = renders[0].target;
+        const atlasDisposed = vi.fn();
+        atlas.addEventListener('dispose', atlasDisposed);
+        const output = ctx.backgroundTexture.value;
+        const outputDisposed = vi.fn();
+        renders[1].target.addEventListener('dispose', outputDisposed);
+        renders.length = 0;
+        runtime.updateBackground({ timeSeconds: 0, blurMode: 'export', width: 3840, height: 2160 });
+        expect(renders).toHaveLength(0);
+        expect(ctx.backgroundTexture.value).toBe(output);
+        runtime.updateBackground({ timeSeconds: 10.5, deterministicBackground: true });
+        expect(renders).toHaveLength(1);
+        expect(renders[0].target.texture.image).toMatchObject({ width: 3, height: 3 });
+        app.backgroundGradientInfluence = 1.2;
+        app.backgroundGradientFalloff = 4;
+        runtime.updateBackground({ timeSeconds: 10.5, deterministicBackground: true });
+        expect(renders).toHaveLength(1); // Influence/falloff do not resample the source.
+        const display = camera.children[0].material;
+        expect(rendererType === 'webgl' ? display.uniforms.uGradientInfluence.value : display._gradientInfluenceUniform.value).toBe(1.2);
+        ctx.tileManager.value.arrayTextures[0].needsUpdate = true;
+        runtime.updateBackground({ timeSeconds: 10.5, deterministicBackground: true });
+        expect(renders).toHaveLength(3); // Changed source version: replace atlas, then update nine colors.
+        expect(atlasDisposed).toHaveBeenCalledOnce();
+        const interpolation = await runtime.createExportInterpolation();
+        expect(await interpolation.prepareFrame({ timeSeconds: 1 })).toBeNull();
+        await interpolation.dispose();
+        expect(renderer.getRenderTarget()).toBe(callerTarget);
+        runtime.disposeBackground();
+        expect(atlasDisposed).toHaveBeenCalledOnce();
+        expect(outputDisposed).toHaveBeenCalledOnce();
+        expect(camera.children).toHaveLength(0);
+    });
+
+    it('restores the caller target after a gradient palette render fails', async () => {
+        const { runtime, app, renderer } = blurredFixture();
+        app.backgroundMode = 'gradient';
+        await runtime.setBackgroundFromTileManager();
+        const callerTarget = renderer.getRenderTarget();
+        renderer.render.mockImplementationOnce(() => { throw new Error('GPU render failed'); });
+        expect(() => runtime.updateBackground({ timeSeconds: 10.5, deterministicBackground: true })).toThrow('GPU render failed');
+        expect(renderer.getRenderTarget()).toBe(callerTarget);
+        runtime.disposeBackground();
+    });
+
     it('uses full-size half-float export targets, restores preview even at identical dimensions, and disposes resources', async () => {
         const { runtime, ctx, camera, renders, renderer, app } = blurredFixture();
         const callerTarget = renderer.getRenderTarget();

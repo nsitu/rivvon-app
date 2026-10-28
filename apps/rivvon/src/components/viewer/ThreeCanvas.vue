@@ -236,12 +236,17 @@
         updateBackground();
     });
 
-    watch(() => app.backgroundBlurEnabled, () => {
+    watch(() => [app.backgroundMode, app.backgroundBlurEnabled], () => {
         if (app.isRestoringPreset) return;
         setBackgroundFromTileManager().catch((error) => {
         if (app.isRestoringPreset) return;
             console.error('[ThreeCanvas] Failed to update scene background blur:', error);
         });
+    });
+
+    watch(() => [app.backgroundGradientInfluence, app.backgroundGradientFalloff], () => {
+        if (app.isRestoringPreset) return;
+        updateBackground();
     });
 
     watch(() => [app.backgroundTextureEnabled, app.backgroundTexture], () => {

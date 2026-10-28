@@ -1,4 +1,5 @@
 import { normalizeSvgNodes } from './svgNodes.js';
+import { DEFAULT_BACKGROUND_MODE, DEFAULT_BACKGROUND_GRADIENT_INFLUENCE, DEFAULT_BACKGROUND_GRADIENT_FALLOFF } from './backgroundGradient.js';
 import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT, MIN_GRID_REPEAT_SPACING, MAX_GRID_REPEAT_SPACING } from './gridRepeat.js';
 
 // This allowlist is the persisted artwork contract. Never add renderer quality,
@@ -15,6 +16,9 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     backgroundFlipVertical: false, backgroundFlipHorizontal: false,
     backgroundFlowEnabled: false, backgroundFlowSpeed: 0.25,
     backgroundBlurEnabled: true, backgroundBlurAmount: 150,
+    backgroundMode: DEFAULT_BACKGROUND_MODE,
+    backgroundGradientInfluence: DEFAULT_BACKGROUND_GRADIENT_INFLUENCE,
+    backgroundGradientFalloff: DEFAULT_BACKGROUND_GRADIENT_FALLOFF,
     backgroundOverlayEnabled: false, backgroundOverlayColor: '#ffffff', backgroundOverlayOpacity: 0.35,
     backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundBaseEnabled: true,
     backgroundSphericalLayersEnabled: false, backgroundCurvature: 0.6,
@@ -43,6 +47,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
 });
 
 const ENUMS = {
+    backgroundMode: ['texture', 'gradient'],
     artworkMotionMode: ['none', 'circularTilt', 'circularOrbit', 'circularOrbitReverse', 'tumbleOrbit'],
     flowState: ['off', 'forward', 'backward'], textureRepeatMode: ['wrap', 'mirrorTile', 'bounce'],
     peakTroughEffectType: ['transparency', 'blur'], renderFilterMode: ['none', 'gradientMap'],
@@ -52,6 +57,7 @@ const ENUMS = {
 };
 const COLOR = /^#[\da-f]{6}([\da-f]{2})?$/i;
 const RANGES = {
+    backgroundGradientInfluence: [0.15, 1.5], backgroundGradientFalloff: [0.5, 6],
     viewerMotionLoopCount: [0.125, 8], flowSpeed: [0, 10], backgroundLayerIndex: [0, 4095],
     backgroundCycleDuration: [0.25, 120],
     backgroundFlowSpeed: [0, 10], backgroundBlurAmount: [0, 200], backgroundOverlayOpacity: [0, 1],

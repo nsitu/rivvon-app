@@ -2,6 +2,10 @@
 // Pinia store for rivvon viewer state
 
 import { defineStore } from "pinia";
+import {
+  DEFAULT_BACKGROUND_MODE, DEFAULT_BACKGROUND_GRADIENT_INFLUENCE, DEFAULT_BACKGROUND_GRADIENT_FALLOFF,
+  normalizeBackgroundMode, normalizeBackgroundGradientInfluence, normalizeBackgroundGradientFalloff,
+} from '../../../../packages/shared-types/src/backgroundGradient.js';
 import { normalizeArtworkSettings } from '../../../../packages/shared-types/src/scenePreset.js';
 import { GRID_REPEAT_DEFAULTS, normalizeGridRepeatCount, normalizeGridRepeatSpacing, normalizeGridRepeatSettings } from '../../../../packages/shared-types/src/gridRepeat.js';
 import {
@@ -864,6 +868,9 @@ export const useViewerStore = defineStore("viewer", {
         readViewerPreferences().backgroundBlurEnabled,
         true,
       ),
+      backgroundMode: normalizeBackgroundMode(readViewerPreferences().backgroundMode),
+      backgroundGradientInfluence: normalizeBackgroundGradientInfluence(readViewerPreferences().backgroundGradientInfluence),
+      backgroundGradientFalloff: normalizeBackgroundGradientFalloff(readViewerPreferences().backgroundGradientFalloff),
       backgroundBlurAmount: normalizeBackgroundBlurAmount(
         readViewerPreferences().backgroundBlurAmount,
       ),
@@ -1226,6 +1233,9 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundFlowEnabled = false;
       this.backgroundFlowSpeed = DEFAULT_BACKGROUND_FLOW_SPEED;
       this.backgroundBlurEnabled = true;
+      this.backgroundMode = DEFAULT_BACKGROUND_MODE;
+      this.backgroundGradientInfluence = DEFAULT_BACKGROUND_GRADIENT_INFLUENCE;
+      this.backgroundGradientFalloff = DEFAULT_BACKGROUND_GRADIENT_FALLOFF;
       this.backgroundBlurAmount = DEFAULT_BACKGROUND_BLUR_AMOUNT;
       this.backgroundOverlayEnabled = false;
       this.backgroundOverlayColor = DEFAULT_BACKGROUND_OVERLAY_COLOR;
@@ -1341,6 +1351,9 @@ export const useViewerStore = defineStore("viewer", {
         backgroundFlowEnabled: false,
         backgroundFlowSpeed: DEFAULT_BACKGROUND_FLOW_SPEED,
         backgroundBlurEnabled: true,
+        backgroundMode: DEFAULT_BACKGROUND_MODE,
+        backgroundGradientInfluence: DEFAULT_BACKGROUND_GRADIENT_INFLUENCE,
+        backgroundGradientFalloff: DEFAULT_BACKGROUND_GRADIENT_FALLOFF,
         backgroundBlurAmount: DEFAULT_BACKGROUND_BLUR_AMOUNT,
         backgroundOverlayEnabled: false,
         backgroundOverlayColor: DEFAULT_BACKGROUND_OVERLAY_COLOR,
@@ -1597,6 +1610,21 @@ export const useViewerStore = defineStore("viewer", {
       const nextValue = normalizeBackgroundFlowSpeed(speed);
       this.backgroundFlowSpeed = nextValue;
       writeViewerPreferences({ backgroundFlowSpeed: nextValue });
+    },
+
+    setBackgroundMode(mode) {
+      this.backgroundMode = normalizeBackgroundMode(mode);
+      writeViewerPreferences({ backgroundMode: this.backgroundMode });
+    },
+
+    setBackgroundGradientInfluence(value) {
+      this.backgroundGradientInfluence = normalizeBackgroundGradientInfluence(value);
+      writeViewerPreferences({ backgroundGradientInfluence: this.backgroundGradientInfluence });
+    },
+
+    setBackgroundGradientFalloff(value) {
+      this.backgroundGradientFalloff = normalizeBackgroundGradientFalloff(value);
+      writeViewerPreferences({ backgroundGradientFalloff: this.backgroundGradientFalloff });
     },
 
     setBackgroundBlurEnabled(enabled) {
@@ -1881,6 +1909,9 @@ export const useViewerStore = defineStore("viewer", {
         backgroundFlowEnabled: this.backgroundFlowEnabled,
         backgroundFlowSpeed: this.backgroundFlowSpeed,
         backgroundBlurEnabled: this.backgroundBlurEnabled,
+        backgroundMode: this.backgroundMode,
+        backgroundGradientInfluence: this.backgroundGradientInfluence,
+        backgroundGradientFalloff: this.backgroundGradientFalloff,
         backgroundBlurAmount: this.backgroundBlurAmount,
         backgroundOverlayEnabled: this.backgroundOverlayEnabled,
         backgroundOverlayColor: this.backgroundOverlayColor,
@@ -2025,6 +2056,9 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundFlowEnabled !== original.backgroundFlowEnabled ||
         this.backgroundFlowSpeed !== original.backgroundFlowSpeed ||
         this.backgroundBlurEnabled !== original.backgroundBlurEnabled ||
+        this.backgroundMode !== original.backgroundMode ||
+        this.backgroundGradientInfluence !== original.backgroundGradientInfluence ||
+        this.backgroundGradientFalloff !== original.backgroundGradientFalloff ||
         this.backgroundBlurAmount !== original.backgroundBlurAmount ||
         this.backgroundOverlayEnabled !== original.backgroundOverlayEnabled ||
         this.backgroundOverlayColor !== original.backgroundOverlayColor ||

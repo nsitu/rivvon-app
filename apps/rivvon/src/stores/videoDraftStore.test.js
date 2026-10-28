@@ -135,9 +135,8 @@ describe('draft publication', () => {
                 exportSettings: draft.settings, sourceDrawingPayload: draft.sourceDrawingPayload, renderSnapshot: draft.renderSnapshot,
             },
         }));
-        expect(store.getDraft(draft.id).publication).toMatchObject({ isPublishing: false, videoId: 'published', progress: 1 });
-        expect(store.getDraft(draft.id).blob).toBe(draft.blob);
-        expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+        expect(store.getDraft(draft.id)).toBeUndefined();
+        expect(URL.revokeObjectURL.mock.calls).toEqual([[draft.playbackUrl], [draft.thumbnailUrl]]);
         expect(videoDraftPublicationMetadata(draft).name).toBe('first');
     });
 
@@ -151,9 +150,11 @@ describe('draft publication', () => {
         expect(await store.discardDraft(draft.id)).toBe(false);
         await vi.waitFor(() => expect(publishVideoBlob).toHaveBeenCalledOnce());
         expect(publishVideoBlob).toHaveBeenCalledOnce();
+        expect(await storage.getVideoDraftBlob(draft.id)).toBeInstanceOf(Blob);
+        expect(URL.revokeObjectURL).not.toHaveBeenCalled();
         complete({ videoId: 'published' });
         expect(await first).toEqual(await second);
-        expect(await store.publishDraft(draft.id)).toEqual({ videoId: 'published' });
+        await expect(store.publishDraft(draft.id)).rejects.toThrow('no longer available');
         expect(publishVideoBlob).toHaveBeenCalledOnce();
     });
 
@@ -164,8 +165,10 @@ describe('draft publication', () => {
         await expect(store.publishDraft(draft.id)).rejects.toThrow('Network failed');
         expect(store.getDraft(draft.id).publication).toMatchObject({ isPublishing: false, error: 'Network failed', videoId: '' });
         expect(store.getDraft(draft.id).blob).toBe(draft.blob);
+        expect(await storage.getVideoDraftBlob(draft.id)).toBeInstanceOf(Blob);
+        expect(URL.revokeObjectURL).not.toHaveBeenCalled();
         await store.publishDraft(draft.id);
-        expect(store.getDraft(draft.id).publication).toMatchObject({ isPublishing: false, error: '', videoId: 'retry' });
+        expect(store.getDraft(draft.id)).toBeUndefined();
     });
 
     it('forwards cancellation without deleting the draft and rejects a pre-aborted upload locally', async () => {
@@ -337,26 +340,63 @@ describe('persistent drafts', () => {
         expect(store.getDraft(draft.id)).toBeDefined();
     });
 
-    it('persists publication status and skips another upload after reopening', async () => {
+    it('deletes only the published draft and its saved bytes, including after reopening', async () => {
         const store = useVideoDraftStore();
         const draft = store.addDraft(recording());
+        const other = store.addDraft(recording('other.mp4'));
         publishVideoBlob.mockResolvedValue({ videoId: 'published' });
         await store.publishDraft(draft.id);
+        expect(store.drafts.map(entry => entry.id)).toEqual([other.id]);
+        expect(store.totalBytes).toBe(other.size);
+        expect(store.savedBytes).toBe(other.size);
+        expect(await storage.getVideoDraft(draft.id)).toBeNull();
+        expect(await storage.getVideoDraftBlob(draft.id)).toBeNull();
+        // A late poster or stale save must not recreate the published draft.
+        expect(store.setThumbnail(draft.id, new Blob(['late poster']))).toBeUndefined();
+        expect(await storage.saveVideoDraft(draft)).toBe(false);
         disposePinia(pinia);
         pinia = createPinia();
         setActivePinia(pinia);
         const reopened = useVideoDraftStore();
         await reopened.hydrate();
-        expect(reopened.getDraft(draft.id).publication.isPublishing).toBe(false);
-        expect(await reopened.publishDraft(draft.id)).toEqual({ videoId: 'published' });
+        expect(reopened.drafts.map(entry => entry.id)).toEqual([other.id]);
         expect(publishVideoBlob).toHaveBeenCalledOnce();
     });
 
-    it('preserves a confirmed publication through metadata save failure and refresh until retry succeeds', async () => {
+    it('deletes a published draft even if saving its publication status fails', async () => {
         const store = useVideoDraftStore();
         const draft = store.addDraft(recording());
         await store.flushPendingSaves();
         vi.spyOn(storage, 'updateVideoDraft').mockRejectedValueOnce(new Error('Disk error'));
+        publishVideoBlob.mockResolvedValue({ videoId: 'published' });
+        await expect(store.publishDraft(draft.id)).resolves.toEqual({ videoId: 'published' });
+        expect(store.getDraft(draft.id)).toBeUndefined();
+        expect(await storage.getVideoDraftBlob(draft.id)).toBeNull();
+        await expect(store.flushPendingSaves()).resolves.toBeUndefined();
+    });
+
+    it('retains a confirmed publication when cleanup fails and retries cleanup without uploading again', async () => {
+        const store = useVideoDraftStore();
+        const draft = store.addDraft(recording());
+        await store.flushPendingSaves();
+        vi.spyOn(storage, 'deleteVideoDraft').mockRejectedValueOnce(new Error('Disk error'));
+        publishVideoBlob.mockResolvedValue({ videoId: 'published' });
+        await expect(store.publishDraft(draft.id)).resolves.toEqual({ videoId: 'published' });
+        expect(store.getDraft(draft.id).storage.actionError).toContain('Could not discard');
+        expect((await storage.getVideoDraft(draft.id)).videoId).toBe('published');
+        expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+        await store.publishDraft(draft.id);
+        expect(store.getDraft(draft.id)).toBeUndefined();
+        expect(await storage.getVideoDraftBlob(draft.id)).toBeNull();
+        expect(publishVideoBlob).toHaveBeenCalledOnce();
+    });
+
+    it('preserves a confirmed publication through metadata and cleanup failure until retry succeeds', async () => {
+        const store = useVideoDraftStore();
+        const draft = store.addDraft(recording());
+        await store.flushPendingSaves();
+        vi.spyOn(storage, 'updateVideoDraft').mockRejectedValueOnce(new Error('Disk error'));
+        vi.spyOn(storage, 'deleteVideoDraft').mockRejectedValueOnce(new Error('Disk error'));
         publishVideoBlob.mockResolvedValue({ videoId: 'already-published' });
         await store.publishDraft(draft.id);
         expect(store.getDraft(draft.id).storage.publicationError).not.toBe('');
@@ -396,8 +436,7 @@ describe('persistent drafts', () => {
         await storage.updateVideoDraft(draft.id, { videoId: 'another-tab' });
         expect(await store.publishDraft(draft.id)).toEqual({ videoId: 'another-tab' });
         expect(publishVideoBlob).not.toHaveBeenCalled();
-        await storage.deleteVideoDraft(draft.id);
-        await expect(store.prepareDraft(draft.id)).rejects.toThrow('another tab');
+        expect(await storage.getVideoDraftBlob(draft.id)).toBeNull();
         expect(store.drafts).toEqual([]);
     });
 
@@ -420,8 +459,12 @@ describe('persistent drafts', () => {
             const firstUpload = first.publishDraft(draft.id);
             await vi.waitFor(() => expect(publishVideoBlob).toHaveBeenCalledOnce());
             const secondUpload = second.publishDraft(draft.id);
+            const secondResult = expect(secondUpload).rejects.toThrow('another tab');
             finish({ videoId: 'shared-publication' });
-            expect(await firstUpload).toEqual(await secondUpload);
+            expect(await firstUpload).toEqual({ videoId: 'shared-publication' });
+            await secondResult;
+            expect(first.drafts).toEqual([]);
+            expect(second.drafts).toEqual([]);
             expect(publishVideoBlob).toHaveBeenCalledOnce();
         } finally { disposePinia(secondPinia); }
     });

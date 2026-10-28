@@ -9,6 +9,11 @@ import {
 } from "../../modules/viewer/backgroundExportBlur.js";
 import { getBackgroundTextureOption } from "../../modules/viewer/backgroundTextures.js";
 import {
+  createGradientPaletteCache, createGradientNode, samplePaletteNode,
+  PALETTE_SAMPLE_GLSL, GRADIENT_GLSL, GRADIENT_GRID_SIZE,
+  normalizeBackgroundGradientInfluence, normalizeBackgroundGradientFalloff,
+} from "../../modules/viewer/backgroundGradient.js";
+import {
   createBackgroundLayerTimeline,
   getBackgroundLayerFrame,
   getBackgroundSceneLoopDuration,
@@ -293,11 +298,14 @@ function getBackgroundLayerState(ctx) {
 
 function createWebGLBackgroundDisplayMaterial(
   textureOverlay = null,
+  gradient = false,
 ) {
   return new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
       uLinearBlur: { value: false },
+      uGradientInfluence: { value: 0.5 },
+      uGradientFalloff: { value: 2 },
       uTexture: { value: textureOverlay },
       uStaticTextureEnabled: { value: textureOverlay ? 1 : 0 },
       uWaterEnabled: { value: 0 },
@@ -333,6 +341,8 @@ function createWebGLBackgroundDisplayMaterial(
             uniform vec3 uOverlayColor;
             uniform float uOverlayOpacity;
             varying vec2 vUv;
+
+            ${gradient ? GRADIENT_GLSL : ''}
 
             vec3 softLightBlend(vec3 base, vec3 blend) {
                 vec3 low = base - (1.0 - 2.0 * blend) * base * (1.0 - base);
@@ -379,7 +389,7 @@ function createWebGLBackgroundDisplayMaterial(
             }
 
             void main() {
-                vec4 background = texture2D(tDiffuse, vUv);
+                vec4 background = ${gradient ? 'sampleGradient(tDiffuse, vUv)' : 'texture2D(tDiffuse, vUv)'};
                 // Return to the legacy display-referred RGB contract before
                 // applying the crisp overlay layers.
                 if (uLinearBlur) background = sRGBTransferOETF(background);
@@ -413,6 +423,8 @@ function updateWebGLBackgroundDisplayMaterial(
 
   const overlayState = getBackgroundOverlayState(ctx);
   const layerState = getBackgroundLayerState(ctx);
+  material.uniforms.uGradientInfluence.value = normalizeBackgroundGradientInfluence(ctx.app.backgroundGradientInfluence);
+  material.uniforms.uGradientFalloff.value = normalizeBackgroundGradientFalloff(ctx.app.backgroundGradientFalloff);
   material.uniforms.tDiffuse.value = texture;
   material.uniforms.uTexture.value = textureOverlay;
   material.uniforms.uStaticTextureEnabled.value =
@@ -553,17 +565,19 @@ export function useSceneBackground(ctx) {
 
     const isWebGPU = ctx.app.rendererType === "webgpu";
     let runtime = null;
+    let gradientCache = null;
 
     try {
+      if (ctx.app.backgroundMode === 'gradient') {
+        gradientCache = await createGradientPaletteCache(ctx.renderer.value, isWebGPU);
+      }
+      const runtimeOptions = { ...options, textureOverlay, gradientCache };
       runtime = isWebGPU
-        ? await createTileBackgroundRuntimeWebGPU(ctx, {
-            ...options,
-            textureOverlay,
-          })
-        : createTileBackgroundRuntimeWebGL(ctx, {
-            ...options,
-            textureOverlay,
-          });
+        ? await createTileBackgroundRuntimeWebGPU(ctx, runtimeOptions)
+        : createTileBackgroundRuntimeWebGL(ctx, runtimeOptions);
+
+      const disposeRuntime = runtime.dispose;
+      runtime.dispose = () => { disposeRuntime(); gradientCache?.dispose(); };
 
       if (requestToken !== backgroundGenerationToken) {
         runtime.dispose();
@@ -575,6 +589,7 @@ export function useSceneBackground(ctx) {
       tileBackgroundActive = true;
     } catch (error) {
       runtime?.dispose?.();
+      gradientCache?.dispose();
       if (requestToken !== backgroundGenerationToken) {
         return;
       }
@@ -628,6 +643,7 @@ export function useSceneBackground(ctx) {
     return {
       async prepareFrame(renderOptions) {
         if (!tileBackgroundActive || ctx.app.backgroundBaseEnabled === false
+          || ctx.app.backgroundMode === 'gradient'
           || !ctx.app.animatedBackgroundEnabled || ctx.app.textureAnimationEnabled === false) return null;
         return interpolation.prepareFrame(resolveBackgroundFrame(ctx, renderOptions));
       },
@@ -787,12 +803,21 @@ function resolveBackgroundFrame(ctx, renderOptions = {}) {
   };
 }
 
+function gradientFrameKey(frame, ctx) {
+  return [frame.currentTexture?.uuid, frame.currentTexture?.version,
+    frame.nextTexture?.uuid, frame.nextTexture?.version, frame.currentLayer,
+    frame.nextLayer, frame.layerBlend, frame.flowActive, frame.flowOffset,
+    frame.reverseFlow, frame.currentSample.mirrorX, frame.nextSample.mirrorX,
+    frame.rotate90, frame.flipHorizontal, frame.flipVertical,
+    ctx.app.backgroundBaseEnabled].join(':');
+}
+
 function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
   const initialFrame = resolveBackgroundFrame(ctx);
   const initialLayerState = getBackgroundLayerState(ctx);
-  // When blur is enabled, this material is the KTX2-only source for the
-  // Gaussian pass. The texture layer is applied by the final display material
-  // after that pass so it remains crisp.
+  const sourceSampler = options.gradientCache ? 'sampler2D' : 'sampler2DArray';
+  // Process only the KTX2 base. Paper, water, and tint remain crisp in the
+  // final display material for both blur and gradient backgrounds.
   const material = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
     uniforms: {
@@ -836,10 +861,10 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
         `,
     fragmentShader: /* glsl */ `
             precision highp float;
-            precision highp sampler2DArray;
+            precision highp ${sourceSampler};
 
-            uniform sampler2DArray uTexArrayCurrent;
-            uniform sampler2DArray uTexArrayNext;
+            uniform ${sourceSampler} uTexArrayCurrent;
+            uniform ${sourceSampler} uTexArrayNext;
             uniform int uLayer;
             uniform int uNextLayer;
             uniform float uLayerBlend;
@@ -923,12 +948,14 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                 return vec2(sampleUv.x, 1.0 - sampleUv.y);
             }
 
-            vec4 sampleLayers(sampler2DArray texArray, vec2 uv) {
-                return mix(texture(texArray, vec3(uv, float(uLayer))),
-                    texture(texArray, vec3(uv, float(uNextLayer))), uLayerBlend);
+            ${options.gradientCache ? PALETTE_SAMPLE_GLSL : ''}
+            vec4 sampleLayers(${sourceSampler} texArray, vec2 uv) {
+                return ${options.gradientCache
+                  ? 'mix(samplePalette(texArray, uv, float(uLayer)), samplePalette(texArray, uv, float(uNextLayer)), uLayerBlend)'
+                  : 'mix(texture(texArray, vec3(uv, float(uLayer))), texture(texArray, vec3(uv, float(uNextLayer))), uLayerBlend)'};
             }
 
-            vec4 sampleTile(sampler2DArray texArray, vec2 sourceUv, int mirrorX) {
+            vec4 sampleTile(${sourceSampler} texArray, vec2 sourceUv, int mirrorX) {
                 vec2 uv = orientUv(sourceUv, mirrorX);
                 vec4 center = sampleLayers(texArray, uv);
 
@@ -1005,10 +1032,10 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
     side: THREE.DoubleSide,
   });
 
-  if (ctx.app.backgroundBlurEnabled) {
+  if (ctx.app.backgroundBlurEnabled || options.gradientCache) {
     // The display material owns the water/paper layer and is attached after
     // the blurred render target, keeping that layer unaffected by blur.
-    return createBlurredTileBackgroundRuntimeWebGL(ctx, material, options);
+    return createProcessedTileBackgroundRuntimeWebGL(ctx, material, options);
   }
 
   const plane = attachCameraBackgroundPlane(ctx, material);
@@ -1171,7 +1198,7 @@ function createWebGLExportGaussianBlurMaterial(width, height, direction, kernelT
   return material;
 }
 
-function createBlurredTileBackgroundRuntimeWebGL(
+function createProcessedTileBackgroundRuntimeWebGL(
   ctx,
   sourceMaterial,
   options = {},
@@ -1200,13 +1227,23 @@ function createBlurredTileBackgroundRuntimeWebGL(
   let gaussianVerticalMaterial = null;
   let exportKernelTexture = null;
   let targetProfile = "";
+  let paletteFrameKey = null;
 
   const displayMaterial = createWebGLBackgroundDisplayMaterial(
     options.textureOverlay,
+    !!options.gradientCache,
   );
   const plane = attachCameraBackgroundPlane(ctx, displayMaterial);
 
   function ensureRenderTargets(renderOptions = {}) {
+    if (options.gradientCache) {
+      sampleTarget ??= new THREE.RenderTarget(GRADIENT_GRID_SIZE, GRADIENT_GRID_SIZE, {
+        type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false,
+        minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+        generateMipmaps: false,
+      });
+      return;
+    }
     const { width, height } = getBlurTargetSize(ctx, renderOptions);
     const exportMode = renderOptions.blurMode === "export";
     const profile = exportMode ? `export:${getBackgroundBlurAmount(ctx)}` : "preview";
@@ -1243,35 +1280,42 @@ function createBlurredTileBackgroundRuntimeWebGL(
 
     plane.syncSize();
     updateWebGLTileBackgroundMaterial(sourceMaterial, frame, ctx, false);
+    if (options.gradientCache) {
+      sourceMaterial.uniforms.uTexArrayCurrent.value = options.gradientCache.get(frame.currentTexture);
+      sourceMaterial.uniforms.uTexArrayNext.value = options.gradientCache.get(frame.nextTexture || frame.currentTexture);
+      sourceMaterial.uniforms.uBlurRadius.value = 0;
+      sourceMaterial.uniforms.uSeamSafeBlend.value = 0;
+    }
     ensureRenderTargets(renderOptions);
 
     const renderer = ctx.renderer.value;
     if (
       !renderer ||
       !sampleTarget ||
-      !rtA ||
-      !rtB ||
-      !gaussianHorizontalMaterial ||
-      !gaussianVerticalMaterial
+      (!options.gradientCache && (!rtA || !rtB || !gaussianHorizontalMaterial || !gaussianVerticalMaterial))
     ) {
       return;
     }
 
-    const exportMode = renderOptions.blurMode === "export";
+    const exportMode = !options.gradientCache && renderOptions.blurMode === "export";
     sourceMaterial.uniforms.uExportLinear.value = exportMode;
     displayMaterial.uniforms.uLinearBlur.value = exportMode;
     const previousTarget = renderer.getRenderTarget();
-    let outputTarget = rtB;
+    let outputTarget = options.gradientCache ? sampleTarget : rtB;
     try {
-      renderer.setRenderTarget(sampleTarget);
-      renderer.render(sampleScene, sampleCamera);
+      const key = options.gradientCache ? gradientFrameKey(frame, ctx) : null;
+      if (!options.gradientCache || key !== paletteFrameKey) {
+        renderer.setRenderTarget(sampleTarget);
+        renderer.render(sampleScene, sampleCamera);
+        paletteFrameKey = key;
+      }
 
       const radiusPassCount = getBlurPassCount(ctx);
-      const gaussianPassCount = exportMode ? 1 : getGaussianPassCount(ctx);
+      const gaussianPassCount = options.gradientCache ? 0 : exportMode ? 1 : getGaussianPassCount(ctx);
       const radius =
         (getBlurPassOffset(radiusPassCount - 1, radiusPassCount) *
           getBlurPassScale(targetWidth, targetHeight, renderOptions)) /
-        Math.sqrt(gaussianPassCount);
+        Math.sqrt(Math.max(1, gaussianPassCount));
       let inputTexture = sampleTarget.texture;
 
       for (let i = 0; i < gaussianPassCount; i++) {
@@ -1338,6 +1382,7 @@ function createBlurredTileBackgroundRuntimeWebGL(
 
 async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
   const { MeshBasicNodeMaterial } = await import("three/webgpu");
+  const tsl = await import("three/tsl");
   const {
     texture: textureNode,
     uniform,
@@ -1351,7 +1396,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     vec2,
     vec3,
     vec4,
-  } = await import("three/tsl");
+  } = tsl;
 
   let frame = resolveBackgroundFrame(ctx);
   let signature = "";
@@ -1360,7 +1405,9 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
   function makeSignature(nextFrame) {
     return [
       nextFrame.currentTexture?.uuid,
+      nextFrame.currentTexture?.version,
       nextFrame.nextTexture?.uuid,
+      nextFrame.nextTexture?.version,
       nextFrame.currentSample.tileIndex,
       nextFrame.nextSample.tileIndex,
       nextFrame.currentSample.mirrorX ? 1 : 0,
@@ -1532,12 +1579,18 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
 
     function sampleLayers(textureValue, sourceUv) {
       const sampleUv = orient(sourceUv);
+      if (options.gradientCache) {
+        const palette = options.gradientCache.get(textureValue);
+        return mix(samplePaletteNode(tsl, palette, sampleUv, layerUniform),
+          samplePaletteNode(tsl, palette, sampleUv, nextLayerUniform), layerBlendUniform);
+      }
       return mix(textureNode(textureValue, sampleUv).depth(layerUniform),
         textureNode(textureValue, sampleUv).depth(nextLayerUniform), layerBlendUniform);
     }
 
     function sample(textureValue, sourceUv) {
       const center = sampleLayers(textureValue, sourceUv);
+      if (options.gradientCache) return center;
       const offset = blurUniform;
       const negativeOffset = float(0).sub(offset);
       const halfOffset = offset.mul(0.5);
@@ -1582,7 +1635,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
           .greaterThanEqual(float(1))
           .select(nextColor, currentColor);
     const seamSafeFlowColor = currentColor.add(nextColor).mul(0.5);
-    const activeFlowColor = ctx.app.backgroundBlurEnabled
+    const activeFlowColor = ctx.app.backgroundBlurEnabled && !options.gradientCache
       ? seamSafeFlowColor
       : flowColor;
     const color = flowActiveUniform
@@ -1703,8 +1756,8 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
     }
   }
 
-  if (ctx.app.backgroundBlurEnabled) {
-    return await createBlurredTileBackgroundRuntimeWebGPU(
+  if (ctx.app.backgroundBlurEnabled || options.gradientCache) {
+    return await createProcessedTileBackgroundRuntimeWebGPU(
       ctx,
       frame,
       createMaterial,
@@ -1808,7 +1861,7 @@ function syncWebGPUTileBackgroundMaterial(
   }
 }
 
-async function createBlurredTileBackgroundRuntimeWebGPU(
+async function createProcessedTileBackgroundRuntimeWebGPU(
   ctx,
   initialFrame,
   createMaterial,
@@ -1816,6 +1869,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   options = {},
 ) {
   const { MeshBasicNodeMaterial } = await import("three/webgpu");
+  const tsl = await import("three/tsl");
   const {
     texture: textureNode,
     uniform,
@@ -1835,7 +1889,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     Fn,
     Loop,
     int,
-  } = await import("three/tsl");
+  } = tsl;
 
   const sampleScene = new THREE.Scene();
   const sampleCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -1868,6 +1922,7 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   let plane = null;
   let exportKernelTexture = null;
   let targetProfile = "";
+  let paletteFrameKey = null;
 
   function createDisplayMaterial(inputTexture) {
     const overlayState = getBackgroundOverlayState(ctx);
@@ -1887,7 +1942,11 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     const waterScaleUniform = uniform(float(layerState.waterScale));
     const waterSpeedUniform = uniform(float(layerState.waterSpeed));
     const waterStrengthUniform = uniform(float(layerState.waterStrength));
-    const sampledColor = textureNode(inputTexture, uv());
+    const gradientInfluence = uniform(normalizeBackgroundGradientInfluence(ctx.app.backgroundGradientInfluence));
+    const gradientFalloff = uniform(normalizeBackgroundGradientFalloff(ctx.app.backgroundGradientFalloff));
+    const sampledColor = options.gradientCache
+      ? createGradientNode(tsl, inputTexture, gradientInfluence, gradientFalloff)
+      : textureNode(inputTexture, uv());
     const colorWithOverlay = mix(
       sampledColor.rgb,
       vec3(overlayRedUniform, overlayGreenUniform, overlayBlueUniform),
@@ -2005,6 +2064,8 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     material._waterSpeedUniform = waterSpeedUniform;
     material._waterStrengthUniform = waterStrengthUniform;
     material._hasStaticTexture = !!options.textureOverlay;
+    material._gradientInfluenceUniform = gradientInfluence;
+    material._gradientFalloffUniform = gradientFalloff;
     return material;
   }
 
@@ -2026,6 +2087,8 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
 
     const overlayState = getBackgroundOverlayState(ctx);
     displayMaterial._overlayRedUniform.value = overlayState.color.r;
+    displayMaterial._gradientInfluenceUniform.value = normalizeBackgroundGradientInfluence(ctx.app.backgroundGradientInfluence);
+    displayMaterial._gradientFalloffUniform.value = normalizeBackgroundGradientFalloff(ctx.app.backgroundGradientFalloff);
     displayMaterial._overlayGreenUniform.value = overlayState.color.g;
     displayMaterial._overlayBlueUniform.value = overlayState.color.b;
     displayMaterial._overlayOpacityUniform.value = overlayState.enabled
@@ -2108,6 +2171,14 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
   }
 
   function ensureRenderTargets(renderOptions = {}) {
+    if (options.gradientCache) {
+      sampleTarget ??= new THREE.RenderTarget(GRADIENT_GRID_SIZE, GRADIENT_GRID_SIZE, {
+        type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false,
+        minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+        generateMipmaps: false,
+      });
+      return;
+    }
     const { width, height } = getBlurTargetSize(ctx, renderOptions);
     const exportMode = renderOptions.blurMode === "export";
     const profile = exportMode ? `export:${getBackgroundBlurAmount(ctx)}` : "preview";
@@ -2164,25 +2235,27 @@ async function createBlurredTileBackgroundRuntimeWebGPU(
     if (
       !renderer ||
       !sampleTarget ||
-      !rtA ||
-      !rtB ||
-      !gaussianMaterials
+      (!options.gradientCache && (!rtA || !rtB || !gaussianMaterials))
     ) {
       return;
     }
 
     const previousTarget = renderer.getRenderTarget();
-    let outputTarget = rtB;
+    let outputTarget = options.gradientCache ? sampleTarget : rtB;
     try {
-      renderer.setRenderTarget(sampleTarget);
-      renderer.render(sampleScene, sampleCamera);
+      const key = options.gradientCache ? gradientFrameKey(frame, ctx) : null;
+      if (!options.gradientCache || key !== paletteFrameKey) {
+        renderer.setRenderTarget(sampleTarget);
+        renderer.render(sampleScene, sampleCamera);
+        paletteFrameKey = key;
+      }
 
       const radiusPassCount = getBlurPassCount(ctx);
-      const gaussianPassCount = exportKernelTexture ? 1 : getGaussianPassCount(ctx);
+      const gaussianPassCount = options.gradientCache ? 0 : exportKernelTexture ? 1 : getGaussianPassCount(ctx);
       const radius =
         (getBlurPassOffset(radiusPassCount - 1, radiusPassCount) *
           getBlurPassScale(targetWidth, targetHeight, renderOptions)) /
-        Math.sqrt(gaussianPassCount);
+        Math.sqrt(Math.max(1, gaussianPassCount));
 
       for (let i = 0; i < gaussianPassCount; i++) {
         const horizontalMaterial = gaussianMaterials[i === 0 ? 0 : 2];

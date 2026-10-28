@@ -137,6 +137,23 @@
         },
     });
 
+    const backgroundModeOptions = [
+        { label: 'Texture', value: 'texture' },
+        { label: 'Gradient', value: 'gradient' },
+    ];
+    const backgroundModeModel = computed({
+        get: () => app.backgroundMode,
+        set: value => app.setBackgroundMode(value),
+    });
+    const backgroundGradientInfluenceModel = computed({
+        get: () => app.backgroundGradientInfluence,
+        set: value => app.setBackgroundGradientInfluence(value),
+    });
+    const backgroundGradientFalloffModel = computed({
+        get: () => app.backgroundGradientFalloff,
+        set: value => app.setBackgroundGradientFalloff(value),
+    });
+
     const backgroundBlurDisplay = computed(() => `${app.backgroundBlurAmount.toFixed(1)}x`);
 
     const backgroundTextureModel = computed({
@@ -305,10 +322,6 @@
 
     function handleFlowSpeedInput(event) {
         app.setFlowSpeed(parseFloat(event.target.value));
-    }
-
-    function handleBackgroundBlurInput(event) {
-        app.setBackgroundBlurAmount(parseFloat(event.target.value));
     }
 
     function handleBackgroundFlowSpeedInput(event) {
@@ -824,7 +837,42 @@
                             />
                         </div>
 
-                        <div class="tools-toggle-row">
+                        <div class="tools-select-block">
+                            <label class="tools-select-label" :for="getInputId('background-mode')">
+                                Background Style
+                            </label>
+                            <Select
+                                :inputId="getInputId('background-mode')"
+                                v-model="backgroundModeModel"
+                                :options="backgroundModeOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                class="tools-select"
+                            />
+                        </div>
+
+                        <template v-if="backgroundModeModel === 'gradient'">
+                            <div class="tools-slider-block">
+                                <div class="tools-slider-head">
+                                    <label class="tools-slider-label" :for="getInputId('gradient-influence')">Color Influence</label>
+                                    <span class="tools-hint tools-slider-hint">{{ backgroundGradientInfluenceModel.toFixed(2) }}</span>
+                                </div>
+                                <Slider :id="getInputId('gradient-influence')" v-model="backgroundGradientInfluenceModel"
+                                    :min="0.15" :max="1.5" :step="0.05" aria-label="Gradient color influence" />
+                                <div class="tools-slider-caption"><span>Local</span><span>Broad</span></div>
+                            </div>
+                            <div class="tools-slider-block">
+                                <div class="tools-slider-head">
+                                    <label class="tools-slider-label" :for="getInputId('gradient-falloff')">Color Falloff</label>
+                                    <span class="tools-hint tools-slider-hint">{{ backgroundGradientFalloffModel.toFixed(1) }}</span>
+                                </div>
+                                <Slider :id="getInputId('gradient-falloff')" v-model="backgroundGradientFalloffModel"
+                                    :min="0.5" :max="6" :step="0.1" aria-label="Gradient color falloff" />
+                                <div class="tools-slider-caption"><span>Gentle</span><span>Steep</span></div>
+                            </div>
+                        </template>
+
+                        <div v-if="backgroundModeModel === 'texture'" class="tools-toggle-row">
                             <label
                                 class="tools-toggle-main"
                                 :for="getInputId('background-blur')"
@@ -842,25 +890,22 @@
                         </div>
 
                         <div
-                            v-if="backgroundBlurModel"
+                            v-if="backgroundModeModel === 'texture' && backgroundBlurModel"
                             class="tools-slider-block"
                         >
                             <div class="tools-slider-head">
-                                <label class="tools-slider-label">
+                                <label class="tools-slider-label" :for="getInputId('background-blur-amount')">
                                     <span class="material-symbols-outlined">blur_linear</span>
                                     <span>Blur Amount</span>
                                 </label>
                                 <span class="tools-hint tools-slider-hint">{{ backgroundBlurDisplay }}</span>
                             </div>
-                            <input
+                            <Slider
                                 :id="getInputId('background-blur-amount')"
-                                type="range"
-                                min="1"
-                                max="200"
-                                step="0.5"
-                                :value="app.backgroundBlurAmount"
-                                @input="handleBackgroundBlurInput"
-                                class="tools-native-range"
+                                :min="1" :max="200" :step="0.5"
+                                :modelValue="app.backgroundBlurAmount"
+                                @update:modelValue="app.setBackgroundBlurAmount($event)"
+                                aria-label="Background blur amount"
                             />
                             <div class="tools-slider-caption">
                                 <span>Soft</span>

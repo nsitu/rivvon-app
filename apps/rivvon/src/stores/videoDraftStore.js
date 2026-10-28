@@ -287,11 +287,10 @@ export const useVideoDraftStore = defineStore('videoDrafts', () => {
         return updated;
     }
 
-    async function discardDraft(id) {
-        const draft = getDraft(id);
-        if (!draft || draft.publication.isPublishing || draft.storage.isDeleting) return false;
+    // Callers hold the draft lock so publication cleanup never reacquires it.
+    function deleteDraft(id) {
         patchStorage(id, { isDeleting: true, actionError: '' });
-        const task = withVideoDraftLock(id, () => enqueue(id, async () => {
+        return enqueue(id, async () => {
             try { await deleteVideoDraft(id); }
             catch {
                 // Never-saved bytes can still be discarded when storage is disabled.
@@ -303,17 +302,23 @@ export const useVideoDraftStore = defineStore('videoDrafts', () => {
             removeDraft(id);
             notifyChange();
             return true;
-        }));
+        });
+    }
+
+    async function discardDraft(id) {
+        const draft = getDraft(id);
+        if (!draft || draft.publication.isPublishing || draft.storage.isDeleting) return false;
+        patchStorage(id, { isDeleting: true, actionError: '' });
+        const task = withVideoDraftLock(id, () => deleteDraft(id));
         deletions.set(id, task);
         try { return await task; }
         finally { deletions.delete(id); }
     }
 
     async function publishDraft(id, { signal, onProgress, onStatus, ...details } = {}) {
+        if (publications.has(id)) return publications.get(id).promise;
         const draft = getDraft(id);
         if (!draft || draft.storage.isDeleting) throw new Error('This draft is no longer available.');
-        if (draft.publication.videoId) return { videoId: draft.publication.videoId };
-        if (publications.has(id)) return publications.get(id).promise;
         if (signal?.aborted) throw new DOMException('Video upload cancelled', 'AbortError');
         const controller = new AbortController();
         const abort = () => controller.abort();
@@ -328,7 +333,10 @@ export const useVideoDraftStore = defineStore('videoDrafts', () => {
                 if (controller.signal.aborted) throw new DOMException('Video upload cancelled', 'AbortError');
                 if (requiredSaves.has(id)) await requiredSaves.get(id);
                 const ready = await prepareDraft(id);
-                if (ready.publication.videoId) return { videoId: ready.publication.videoId };
+                if (ready.publication.videoId) {
+                    await deleteDraft(id);
+                    return { videoId: ready.publication.videoId };
+                }
                 if (controller.signal.aborted) throw new DOMException('Video upload cancelled', 'AbortError');
                 const publication = await publishVideoBlob({
                     metadata: videoDraftPublicationMetadata(ready, details),
@@ -342,6 +350,7 @@ export const useVideoDraftStore = defineStore('videoDrafts', () => {
                 });
                 setPublication({ videoId: publication.videoId, progress: 1, status: 'Published to the video gallery.' });
                 await persistMetadata(id, { videoId: publication.videoId }, 'publicationError');
+                await deleteDraft(id);
                 return publication;
             } catch (error) {
                 const cancelled = error?.name === 'AbortError';

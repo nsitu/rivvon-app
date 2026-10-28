@@ -14,6 +14,7 @@
     "test:run": "vitest run",
     "test:deinterlace": "node scripts/test-deinterlace.mjs",
     "test:background-interpolation": "node scripts/test-background-interpolation.mjs",
+    "test:background-gradient": "node scripts/test-background-gradient.mjs",
     "test:video-colour": "node scripts/test-video-colour.mjs",
     "test:gpu-yuv": "node scripts/test-gpu-yuv.mjs",
     "benchmark:yuv": "node scripts/benchmark-yuv.mjs",

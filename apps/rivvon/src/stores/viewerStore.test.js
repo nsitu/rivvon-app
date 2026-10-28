@@ -18,6 +18,30 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it('persists gradient controls, round-trips artwork, and restores texture mode for older presets', () => {
+        const store = useViewerStore();
+        store.captureToolsPanelOriginalState();
+        store.setBackgroundMode('gradient');
+        store.setBackgroundGradientInfluence(0.75);
+        store.setBackgroundGradientFalloff(3);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(saved).toMatchObject({ backgroundMode: 'gradient', backgroundGradientInfluence: 0.75, backgroundGradientFalloff: 3 });
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored.getArtworkSettingsSnapshot()).toMatchObject(saved);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored.backgroundMode).toBe('texture');
+        restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored.backgroundMode).toBe('gradient');
+        restored.applyArtworkSettingsSnapshot({});
+        expect(restored.backgroundMode).toBe('texture');
+        restored.setBackgroundGradientInfluence(0);
+        restored.setBackgroundGradientFalloff(100);
+        expect(restored.backgroundGradientInfluence).toBe(0.15);
+        expect(restored.backgroundGradientFalloff).toBe(6);
+    });
+
     it.each(['Horizontal', 'Vertical'])('persists and resets the independent %s background flip', (axis) => {
         const key = `backgroundFlip${axis}`;
         const otherKey = `backgroundFlip${axis === 'Horizontal' ? 'Vertical' : 'Horizontal'}`;

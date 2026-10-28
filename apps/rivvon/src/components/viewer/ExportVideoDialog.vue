@@ -934,7 +934,8 @@
                     <ExportColourReport v-if="hasEncodedVideo && colourReport?.phase === 'complete'"
                         :report="colourReport" :filename="encodedFilename" />
                     <div v-if="hasEncodedVideo" class="export-draft-notice" role="status">
-                        <p v-if="draftStorage.state === 'saved'">Saved in this browser. Find this encoding in Video Gallery → Drafts after signing in or reopening Rivvon.</p>
+                        <p v-if="isPublished && !draftStorage.state">Published to the video gallery. The browser draft has been deleted to free up space.</p>
+                        <p v-else-if="draftStorage.state === 'saved'">Saved in this browser. Find this encoding in Video Gallery → Drafts after signing in or reopening Rivvon.</p>
                         <p v-else-if="draftStorage.state === 'saving'">Saving this encoding in your browser… Keep this tab open until saving finishes.</p>
                         <template v-else>
                             <p>{{ draftStorage.error || 'This encoding is available in this tab.' }} Download it before leaving, or retry saving.</p>
