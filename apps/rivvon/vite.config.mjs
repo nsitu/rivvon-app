@@ -1,6 +1,6 @@
 // vite.config.mjs
 // Unified Vue 3 Rivvon app.
-import { defineConfig, loadEnv, normalizePath } from 'vite';
+import { defaultClientConditions, defineConfig, loadEnv, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueDevTools from 'vite-plugin-vue-devtools';
 import tailwindcss from '@tailwindcss/vite';
@@ -108,6 +108,10 @@ export default defineConfig(({ mode }) => {
             vueDevTools(),
         ],
         resolve: {
+            // Avoid the bundled Emscripten loader's new URL(...wasm, import.meta.url),
+            // which makes Vite emit WASM even when wasmPaths points at the CDN.
+            // Workers inherit these conditions; both inference paths use the manifest.
+            conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions],
             alias: {
                 '@': resolve(__dirname, 'src'),
                 '@viewer': resolve(__dirname, 'src/modules/viewer'),

@@ -14,7 +14,7 @@
  *   { type: 'infer-error', id, error }
  */
 
-import { getRuntimeAssetUrls } from '../modules/shared/runtimeAssets.js';
+import { getOnnxRuntimeWasmPaths, getRuntimeAssetUrls } from '../modules/shared/runtimeAssets.js';
 
 const MODEL_INPUT_SIZE = 320;
 const MEAN = [0.485, 0.456, 0.406];
@@ -69,7 +69,7 @@ const getModelBuffer = createStickyPromiseLoader(async (postStatus) => {
 
 const getSession = createStickyPromiseLoader(async (postStatus) => {
     const ort = await import('onnxruntime-web');
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1/dist/';
+    ort.env.wasm.wasmPaths = getOnnxRuntimeWasmPaths();
     ort.env.wasm.numThreads = 1;
 
     const modelBuffer = await getModelBuffer(postStatus);

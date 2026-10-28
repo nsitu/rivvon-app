@@ -29,3 +29,18 @@ describe('FFmpeg WASM delivery', () => {
             .toBe('/preview/vendor/ffmpeg/0.12.10/ffmpeg-core.wasm');
     });
 });
+
+describe('ONNX Runtime delivery', () => {
+    it.each([
+        [{ cdn: 'https://cdn.rivvon.ca/' }, 'https://cdn.rivvon.ca/runtime-assets/onnxruntime/1.25.1/'],
+        [{}, '/vendor/onnxruntime/1.25.1/'],
+        [{ base: '/preview/', cdn: 'https://cdn.rivvon.ca', mode: 'local' }, '/preview/vendor/onnxruntime/1.25.1/'],
+    ])('keeps the JSEP module and WASM together for %j', async (options, prefix) => {
+        await resolveFfmpeg(options);
+        const { getOnnxRuntimeWasmPaths } = await import('./runtimeAssets.js');
+        expect(getOnnxRuntimeWasmPaths()).toEqual({
+            wasm: `${prefix}ort-wasm-simd-threaded.jsep.wasm`,
+            mjs: `${prefix}ort-wasm-simd-threaded.jsep.mjs`,
+        });
+    });
+});

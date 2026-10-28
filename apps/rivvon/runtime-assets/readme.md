@@ -18,6 +18,7 @@ This directory holds large application-owned runtime binaries that should not be
 
 - `rife422Model` is stored and published as a raw ONNX file.
 - `ffmpegCoreWasm` is sourced from `@ffmpeg/core@0.12.10` and published as `application/wasm` with immutable caching. Its matching JS loader stays on Pages; local mode copies WASM into `vendor/ffmpeg/0.12.10/` alongside it.
+- `onnxRuntimeJsepWasm` and `onnxRuntimeJsepModule` are sourced from pinned `onnxruntime-web@1.25.1` and published together under `runtime-assets/onnxruntime/1.25.1/`, with WASM and JavaScript content types and immutable caching. RIFE and contour inference both resolve this pair through the manifest. Local mode copies both into `vendor/onnxruntime/1.25.1/`. Vite selects ONNX Runtime's external-WASM export to prevent an additional bundled WASM copy. Upgrades must update the package pin and `ONNX_RUNTIME_VERSION` together and publish the new pair before using a preview.
 - `u2netModel` is published as a Brotli-compressed source file (`u2net.quant.onnx.br`) to a plain `.onnx` object key with `Content-Encoding: br`.
 - Local builds copy the raw `u2net.quant.onnx` fallback so local development does not depend on CDN delivery or compressed-origin handling.
 - The older ZIP-based U2Net delivery path is not part of the active manifest anymore.

@@ -67,3 +67,10 @@ export function getRuntimeAssetUrls(assetId) {
 export function getRuntimeAssetUrl(assetId) {
     return getRuntimeAssetUrls(assetId)[0];
 }
+
+export function getOnnxRuntimeWasmPaths() {
+    return {
+        wasm: getRuntimeAssetUrl('onnxRuntimeJsepWasm'),
+        mjs: getRuntimeAssetUrl('onnxRuntimeJsepModule'),
+    };
+}

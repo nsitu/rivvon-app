@@ -5,12 +5,10 @@ import {
     cropToOriginal,
     resizeImageData,
 } from './rifePadding.js';
-import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
+import { getOnnxRuntimeWasmPaths, getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
 import { createRealtimeCanvas, shouldUseDomCanvasForRealtime } from './realtimeCanvasSupport.js';
 
 const DEFAULT_MODEL_PATH = getRuntimeAssetUrl('rife422Model');
-const DEFAULT_ORT_VERSION = ort.env?.versions?.common || '1';
-const DEFAULT_WASM_PATH = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${DEFAULT_ORT_VERSION}/dist/`;
 
 function getExecutionProviderAttempts() {
     if (shouldUseDomCanvasForRealtime()) {
@@ -96,7 +94,7 @@ export class RIFEInterpolator {
             return this.session;
         }
 
-        ort.env.wasm.wasmPaths = DEFAULT_WASM_PATH;
+        ort.env.wasm.wasmPaths = getOnnxRuntimeWasmPaths();
         ort.env.wasm.numThreads = 1;
 
         const attemptErrors = [];

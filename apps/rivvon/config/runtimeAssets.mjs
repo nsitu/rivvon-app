@@ -1,4 +1,20 @@
+export const ONNX_RUNTIME_VERSION = '1.25.1';
+
 export const runtimeAssetManifest = Object.freeze({
+    onnxRuntimeJsepWasm: Object.freeze({
+        sourcePath: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm',
+        objectKey: `runtime-assets/onnxruntime/${ONNX_RUNTIME_VERSION}/ort-wasm-simd-threaded.jsep.wasm`,
+        localPath: `/vendor/onnxruntime/${ONNX_RUNTIME_VERSION}/ort-wasm-simd-threaded.jsep.wasm`,
+        contentType: 'application/wasm',
+        cacheControl: 'public, max-age=31536000, immutable',
+    }),
+    onnxRuntimeJsepModule: Object.freeze({
+        sourcePath: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs',
+        objectKey: `runtime-assets/onnxruntime/${ONNX_RUNTIME_VERSION}/ort-wasm-simd-threaded.jsep.mjs`,
+        localPath: `/vendor/onnxruntime/${ONNX_RUNTIME_VERSION}/ort-wasm-simd-threaded.jsep.mjs`,
+        contentType: 'text/javascript',
+        cacheControl: 'public, max-age=31536000, immutable',
+    }),
     ffmpegCoreWasm: Object.freeze({
         sourcePath: 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm',
         objectKey: 'runtime-assets/ffmpeg/0.12.10/ffmpeg-core.wasm',
