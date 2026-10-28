@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { savePreset, preparePresetTextures } from './presetService.js';
 import { createTextureThumbnail } from '../modules/shared/textureThumbnail.js';
-import { getTextureSet } from './localStorage.js';
+import { getCachedLocalId, getTextureSet, getTiles } from './localStorage.js';
 import { cacheTextureTiles, getCachedTextureTiles, getOrFetchTextureTiles, invalidateTextureTiles } from './sessionTextureCache.js';
 vi.mock('./localStorage.js', () => ({
+    getCachedLocalId: vi.fn(async () => null),
     getTextureSet: vi.fn(async () => null),
+    getTiles: vi.fn(async () => []),
     promoteTextureSetToCachedCloudTexture: vi.fn(async () => {}),
 }));
 vi.mock('../modules/shared/textureThumbnail.js', () => ({ createTextureThumbnail: vi.fn(async () => new Blob(['texture preview'], { type: 'image/jpeg' })) }));
@@ -15,6 +17,10 @@ const scene = () => ({ schemaVersion: 1,
 afterEach(() => {
     invalidateTextureTiles('existing');
     invalidateTextureTiles('second');
+    vi.mocked(getCachedLocalId).mockReset().mockResolvedValue(null);
+    vi.mocked(getTextureSet).mockReset().mockResolvedValue(null);
+    vi.mocked(getTiles).mockReset().mockResolvedValue([]);
+    vi.restoreAllMocks();
     vi.unstubAllGlobals(); vi.clearAllMocks();
 });
 describe('preset publication', () => {
@@ -110,7 +116,7 @@ describe('preset texture download progress', () => {
         } }), { headers: { 'Content-Length': '4' } })));
         const pending = preparePresetTextures('saved', input, progress);
         expect(progress).toHaveBeenCalledWith(expect.any(String), { stage: 'downloading', current: 0, total: 2 });
-        expect(streams).toHaveLength(2);
+        await vi.waitFor(() => expect(streams).toHaveLength(2));
         streams[1].enqueue(new Uint8Array([5, 6]));
         await vi.waitFor(() => expect(progress).toHaveBeenLastCalledWith(expect.any(String), { stage: 'downloading', current: 0.5, total: 2 }));
         streams[0].enqueue(new Uint8Array([1, 2]));
@@ -145,7 +151,7 @@ describe('preset texture download scheduling and cache reuse', () => {
         const fetch = vi.fn(url => new Promise(resolve => waiting.push(() => resolve(new Response(new Uint8Array([Number(url.match(/-(\d+)\.ktx2$/)[1]) + 1]))))));
         vi.stubGlobal('fetch', fetch);
         const pending = preparePresetTextures('saved', input);
-        expect(fetch).toHaveBeenCalledTimes(limit);
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(limit));
         // Free one slot: exactly one queued tile should start, even across textures.
         waiting.shift()();
         await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(limit + 1));
@@ -167,6 +173,7 @@ describe('preset texture download scheduling and cache reuse', () => {
         const libraryEntry = await getOrFetchTextureTiles(textureSet);
         const [fromLibrary] = await preparePresetTextures('saved', scene());
         expect(fromLibrary.tileEntry).toBe(libraryEntry);
+        expect(getCachedLocalId).not.toHaveBeenCalled();
         expect(fetch).toHaveBeenCalledTimes(1);
 
         invalidateTextureTiles('existing');
@@ -187,6 +194,100 @@ describe('preset texture download scheduling and cache reuse', () => {
         expect(entries).toHaveLength(2);
         expect(entries[0].tileEntry).toBe(entries[1].tileEntry);
         expect(entries[1].textureSet.name).toBe('Second strand');
+    });
+
+    const localTexture = () => ({ id: 'local-cache', cached_from: 'existing', tile_count: 2,
+        tile_resolution: 512, layer_count: 60, cross_section_type: 'waves' });
+    const ktx2Bytes = () => new Uint8Array([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
+    const localTiles = () => [
+        { tile_index: 1, blob: new Blob([ktx2Bytes()]) },
+        { tile_index: 0, bytes: ktx2Bytes().buffer },
+    ];
+
+    it('reuses persistent library tiles after a page reload and warms the shared session cache', async () => {
+        const input = scene(); input.textures[0].tileCount = 2;
+        input.textures.push({ ...input.textures[0], name: 'Second strand' });
+        vi.mocked(getCachedLocalId).mockResolvedValueOnce('local-cache');
+        vi.mocked(getTextureSet).mockResolvedValueOnce(localTexture());
+        vi.mocked(getTiles).mockResolvedValueOnce(localTiles());
+        const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+        const progress = vi.fn();
+        const entries = await preparePresetTextures('saved', input, progress);
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(getCachedLocalId).toHaveBeenCalledExactlyOnceWith('existing');
+        expect(getTiles).toHaveBeenCalledExactlyOnceWith('local-cache');
+        expect(entries[0].textureSet.id).toBe('existing');
+        expect(entries[0].tileEntry.zipFiles).toEqual({ '0.ktx2': ktx2Bytes(), '1.ktx2': ktx2Bytes() });
+        expect(entries[1].tileEntry).toBe(entries[0].tileEntry);
+        expect(getCachedTextureTiles('existing')).toBe(entries[0].tileEntry);
+        expect(progress).toHaveBeenLastCalledWith(expect.any(String), { stage: 'downloading', current: 2, total: 2 });
+
+        const [reloaded] = await preparePresetTextures('another-preset', input);
+        expect(reloaded.tileEntry).toBe(entries[0].tileEntry);
+        expect(getCachedLocalId).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['missing metadata', null],
+        ['tile count', { tile_count: 1 }],
+        ['resolution', { tile_resolution: 256 }],
+        ['layers', { layer_count: 30 }],
+        ['variant', { cross_section_type: 'rings' }],
+    ])('downloads when persistent cache has mismatching %s', async (_, updates) => {
+        const input = scene(); input.textures[0].tileCount = 2;
+        vi.mocked(getCachedLocalId).mockResolvedValueOnce('local-cache');
+        vi.mocked(getTextureSet).mockResolvedValueOnce(updates && { ...localTexture(), ...updates });
+        const fetch = vi.fn(async () => new Response(ktx2Bytes())); vi.stubGlobal('fetch', fetch);
+        await preparePresetTextures('saved', input);
+        expect(getTiles).not.toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+        ['empty', () => []],
+        ['partial', () => localTiles().slice(0, 1)],
+        ['duplicate indices', () => localTiles().map(tile => ({ ...tile, tile_index: 0 }))],
+        ['missing index', () => localTiles().map(tile => ({ ...tile, tile_index: tile.tile_index + 1 }))],
+        ['corrupt bytes', () => [{ tile_index: 0, bytes: new Uint8Array([1, 2]) }, localTiles()[0]]],
+        ['missing payload', () => [{ tile_index: 0 }, localTiles()[0]]],
+    ])('downloads when persistent tiles are %s', async (_, tiles) => {
+        const input = scene(); input.textures[0].tileCount = 2;
+        vi.mocked(getCachedLocalId).mockResolvedValueOnce('local-cache');
+        vi.mocked(getTextureSet).mockResolvedValueOnce(localTexture());
+        vi.mocked(getTiles).mockResolvedValueOnce(tiles());
+        const fetch = vi.fn(async () => new Response(ktx2Bytes())); vi.stubGlobal('fetch', fetch);
+        const [entry] = await preparePresetTextures('saved', input);
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(entry.tileEntry.source).toBe('preset');
+    });
+
+    it('downloads only uncached textures in a preset and keeps progress increasing', async () => {
+        const input = scene(); input.textures[0].tileCount = 2;
+        input.textures.push({ ...input.textures[0], id: 'second', tileCount: 1 });
+        vi.mocked(getCachedLocalId).mockResolvedValueOnce('local-cache');
+        vi.mocked(getTextureSet).mockResolvedValueOnce(localTexture());
+        vi.mocked(getTiles).mockResolvedValueOnce(localTiles());
+        const fetch = vi.fn(async () => new Response(ktx2Bytes())); vi.stubGlobal('fetch', fetch);
+        const progress = vi.fn();
+        const entries = await preparePresetTextures('saved', input, progress);
+        expect(fetch).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('texture-1-0.ktx2'), expect.any(Object));
+        expect(entries.map(entry => entry.tileEntry.source)).toEqual(['cached-local', 'preset']);
+        const values = progress.mock.calls.map(call => call[1].current);
+        expect(values).toEqual([...values].sort((a, b) => a - b));
+        expect(progress).toHaveBeenLastCalledWith(expect.any(String), { stage: 'downloading', current: 3, total: 3 });
+    });
+
+    it.each(['lookup', 'metadata', 'tiles'])('falls back to downloading if persistent cache %s fails', async stage => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const input = scene(); input.textures[0].tileCount = 2;
+        vi.mocked(getCachedLocalId).mockResolvedValue('local-cache');
+        vi.mocked(getTextureSet).mockResolvedValue(localTexture());
+        const operation = { lookup: getCachedLocalId, metadata: getTextureSet, tiles: getTiles }[stage];
+        vi.mocked(operation).mockRejectedValueOnce(new Error('Storage unavailable'));
+        const fetch = vi.fn(async () => new Response(ktx2Bytes())); vi.stubGlobal('fetch', fetch);
+        await preparePresetTextures('saved', input);
+        expect(fetch).toHaveBeenCalledTimes(2);
     });
 
     it('redownloads cached bytes when the metadata does not match', async () => {
@@ -210,7 +311,7 @@ describe('preset texture download scheduling and cache reuse', () => {
         vi.stubGlobal('fetch', fetch);
         const progress = vi.fn();
         const pending = preparePresetTextures('saved', input, progress);
-        expect(fetch).toHaveBeenCalledTimes(6);
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(6));
         rejectFirst(new Error('Network interrupted'));
         await expect(pending).rejects.toThrow('Network interrupted');
         expect(fetch.mock.calls.every(([, options]) => options.signal.aborted)).toBe(true);

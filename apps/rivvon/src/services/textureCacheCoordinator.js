@@ -137,6 +137,16 @@ async function buildSessionTileEntryFromLocalTiles(textureSet, tiles = [], sourc
     };
 }
 
+export async function readLocalTextureTileEntry(textureSet, tiles = []) {
+    if (!await hasValidLocalKtx2Tiles(tiles)) return null;
+
+    const entry = await buildSessionTileEntryFromLocalTiles(textureSet, tiles, 'cached-local');
+    if (!entry.isComplete || !Array.from({ length: entry.tileCount }, (_, tile) =>
+        entry.zipFiles[`${tile}.ktx2`]?.byteLength > 0).every(Boolean)) return null;
+
+    return entry;
+}
+
 async function warmSessionTextureTiles(cacheId, textureSet, tiles, { source = 'local' } = {}) {
     if (!cacheId || !Array.isArray(tiles) || tiles.length === 0) {
         return null;

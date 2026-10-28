@@ -1,6 +1,7 @@
 <script setup>
     import { computed, getCurrentInstance } from 'vue';
     import InputNumber from 'primevue/inputnumber';
+    import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -8,6 +9,11 @@
     const app = useViewerStore();
     const instanceUid = getCurrentInstance()?.uid ?? Math.round(Math.random() * 1e9);
     const inputIdPrefix = `lighting-settings-${instanceUid}`;
+    const projectionPreviewResolutionOptions = [
+        { label: '256', value: 256 },
+        { label: '512', value: 512 },
+        { label: 'Full size', value: 'full' },
+    ];
 
     const sceneLightingEnabledModel = computed({
         get: () => app.sceneLightingEnabled,
@@ -37,6 +43,11 @@
     const sceneColoredShadowsEnabledModel = computed({
         get: () => app.sceneColoredShadowsEnabled,
         set: (value) => app.setSceneColoredShadowsEnabled(value)
+    });
+
+    const sceneProjectionPreviewResolutionModel = computed({
+        get: () => app.sceneProjectionPreviewResolution,
+        set: (value) => app.setSceneProjectionPreviewResolution(value)
     });
 
     function getInputId(name) {
@@ -95,6 +106,22 @@
                                 :disabled="!sceneLightingEnabledModel"
                             />
                         </div>
+                    </div>
+                    <div class="lighting-slider-control">
+                        <label class="lighting-slider-label" :for="getInputId('projectionPreviewResolution')">Projection preview resolution</label>
+                        <Select
+                            v-model="sceneProjectionPreviewResolutionModel"
+                            :input-id="getInputId('projectionPreviewResolution')"
+                            :options="projectionPreviewResolutionOptions"
+                            option-label="label"
+                            option-value="value"
+                            :disabled="!sceneLightingEnabledModel || !sceneColoredShadowsEnabledModel"
+                            :aria-describedby="getInputId('projectionPreviewResolutionHint')"
+                            class="lighting-resolution-select"
+                        />
+                        <small :id="getInputId('projectionPreviewResolutionHint')" class="lighting-resolution-hint">
+                            Full size uses the current preview dimensions. Exports always use full resolution.
+                        </small>
                     </div>
                     <div class="lighting-slider-control">
                         <div class="lighting-slider-label">
@@ -205,6 +232,15 @@
 
     .lighting-distance-slider {
         margin: 0 0.5rem;
+    }
+
+    .lighting-resolution-select {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .lighting-resolution-hint {
+        color: var(--viewer-toolbar-muted-text, var(--p-text-muted-color));
     }
 
     .tools-toggle-row {

@@ -8,12 +8,15 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.unstubAllGlobals());
 function fixture() {
     const camera = new PerspectiveCamera(40, 2, 0.1, 100); camera.position.set(1,2,3);
-    const renderer = { domElement:{ width:800,height:400 },getPixelRatio:() => 2,setPixelRatio:vi.fn(),setSize:vi.fn() };
+    let pixelRatio = 2;
+    const renderer = { domElement:{ width:800,height:400 },getPixelRatio:() => pixelRatio,
+        setPixelRatio:vi.fn(value => { pixelRatio = value; }),
+        setSize:vi.fn((width, height) => { renderer.domElement.width = width * pixelRatio; renderer.domElement.height = height * pixelRatio; }) };
     const ctx = { renderer:{ value:renderer },scene:{ value:{} },camera:{ value:camera },
         app:{},tileManager:{ value:{ resetAnimationState:vi.fn(),tickDeterministic:vi.fn() } },tileManagers:{ value:[] },
         controls:{ value:{ target:new Vector3(),enabled:false,update:vi.fn() } },ribbonSeries:{ value:null },
         audio:{ setBlocked:vi.fn() },cinematicCamera:{ hasROIs:{ value:false } } };
-    const deps = { renderScene:vi.fn(),pauseRenderLoop:vi.fn(),resumeRenderLoop:vi.fn() };
+    const deps = { renderScene:vi.fn(),pauseRenderLoop:vi.fn(),resumeRenderLoop:vi.fn(),restoreLightingPreview:vi.fn() };
     const writer = { add:vi.fn(),finalize:vi.fn().mockResolvedValue(new Blob(['mp4'])),dispose:vi.fn() };
     createCanvasVideoExport.mockResolvedValue(writer);
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
@@ -76,6 +79,9 @@ describe('scene video export timing and restoration', () => {
 
     it('uses export-quality backgrounds for still images and restores the viewport', async () => {
         const { ctx, deps, exporter } = fixture();
+        deps.restoreLightingPreview.mockImplementation(() => {
+            expect(ctx.renderer.value.domElement).toMatchObject({ width: 800, height: 400 });
+        });
         const canvas = { getContext: () => ({ drawImage: vi.fn() }), toBlob: callback => callback(new Blob(['png'])) };
         vi.stubGlobal('document', { createElement: () => canvas });
         const capture = await exporter.captureImageBlobWithSettings({ width: 1920, height: 1080, logoOverlayEnabled: false });
@@ -83,6 +89,27 @@ describe('scene video export timing and restoration', () => {
         expect(deps.renderScene).toHaveBeenCalledWith(expect.objectContaining({ blurMode: 'export', width: 1920, height: 1080 }));
         expect(ctx.renderer.value.setPixelRatio).toHaveBeenLastCalledWith(2);
         expect(ctx.renderer.value.setSize).toHaveBeenLastCalledWith(400, 200, false);
+        expect(ctx.camera.value.aspect).toBe(2);
+        expect(deps.restoreLightingPreview).toHaveBeenCalledOnce();
+    });
+
+    it.each([[1920, 1080], [2160, 2160]])('passes the actual %i × %i video dimensions to lighting and restores it before resuming', async (width, height) => {
+        const { deps, exporter } = fixture();
+        await exporter.exportVideo({ width, height, fps: 30, duration: 2 / 30 });
+        expect(deps.renderScene).toHaveBeenCalledTimes(2);
+        for (const [options] of deps.renderScene.mock.calls) {
+            expect(options).toMatchObject({ blurMode: 'export', width, height });
+        }
+        expect(deps.restoreLightingPreview).toHaveBeenCalledOnce();
+        expect(deps.restoreLightingPreview.mock.invocationCallOrder[0]).toBeLessThan(deps.resumeRenderLoop.mock.invocationCallOrder[0]);
+    });
+
+    it('restores lighting and the viewport after a still image render fails', async () => {
+        const { ctx, deps, exporter } = fixture();
+        deps.renderScene.mockImplementationOnce(() => { throw new Error('Projection render failed'); });
+        expect(await exporter.captureImageBlobWithSettings({ width: 2160, height: 2160, logoOverlayEnabled: false })).toBeNull();
+        expect(deps.restoreLightingPreview).toHaveBeenCalledOnce();
+        expect(ctx.renderer.value.domElement).toMatchObject({ width: 800, height: 400 });
         expect(ctx.camera.value.aspect).toBe(2);
     });
 
@@ -150,6 +177,7 @@ describe('scene video export timing and restoration', () => {
         writer.add.mockImplementationOnce(() => { controller.abort(); throw new DOMException('Cancelled','AbortError'); });
         expect(await exporter.exportVideo({ duration:1,signal:controller.signal })).toBeNull();
         expect(writer.finalize).not.toHaveBeenCalled(); expect(writer.dispose).toHaveBeenCalledOnce();
+        expect(deps.restoreLightingPreview).toHaveBeenCalledOnce();
         expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
         expect(ctx.audio.setBlocked).toHaveBeenLastCalledWith('scene-export',false);
     });
@@ -157,6 +185,7 @@ describe('scene video export timing and restoration', () => {
         const { ctx,deps,writer,exporter } = fixture();
         writer.finalize.mockRejectedValue(new Error('MP4 nclx and H.264 VUI colour metadata disagree.'));
         await expect(exporter.exportVideo({ duration:1/30 })).rejects.toThrow('disagree');
+        expect(deps.restoreLightingPreview).toHaveBeenCalledOnce();
         expect(writer.dispose).toHaveBeenCalledOnce(); expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
         expect(ctx.audio.setBlocked).toHaveBeenLastCalledWith('scene-export',false);
     });

@@ -32,6 +32,10 @@ import {
 } from "../modules/viewer/capStyle.js";
 import { normalizeExportDimensionSettings } from "../modules/viewer/exportVideoDimensions.js";
 import {
+  getDefaultSceneProjectionPreviewResolution,
+  normalizeSceneProjectionPreviewResolution,
+} from "../modules/viewer/sceneProjectionResolution.js";
+import {
   EXPORT_LOGO_DEFAULT_CORNER,
   normalizeExportLogoCorner,
 } from "../modules/viewer/exportLogoOverlay.js";
@@ -765,6 +769,9 @@ export const useViewerStore = defineStore("viewer", {
       sceneShadowOpacity: normalizeSceneShadowOpacity(
         readViewerPreferences().sceneShadowOpacity,
       ),
+      sceneProjectionPreviewResolution: normalizeSceneProjectionPreviewResolution(
+        readViewerPreferences().sceneProjectionPreviewResolution,
+      ),
 
       // Drawing state
       isDrawingMode: false,
@@ -1212,6 +1219,7 @@ export const useViewerStore = defineStore("viewer", {
       this.sceneLightDistance = DEFAULT_SCENE_LIGHT_DISTANCE;
       this.sceneShadowPlaneDistance = DEFAULT_SCENE_SHADOW_PLANE_DISTANCE;
       this.sceneColoredShadowsEnabled = DEFAULT_SCENE_COLORED_SHADOWS_ENABLED;
+      this.sceneProjectionPreviewResolution = getDefaultSceneProjectionPreviewResolution();
       this.sceneShadowOpacity = DEFAULT_SCENE_SHADOW_OPACITY;
       this.artworkMotionMode = "none";
       this.viewerMotionLoopCount = DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER;
@@ -1334,6 +1342,7 @@ export const useViewerStore = defineStore("viewer", {
         sceneLightDistance: DEFAULT_SCENE_LIGHT_DISTANCE,
         sceneShadowPlaneDistance: DEFAULT_SCENE_SHADOW_PLANE_DISTANCE,
         sceneColoredShadowsEnabled: DEFAULT_SCENE_COLORED_SHADOWS_ENABLED,
+        sceneProjectionPreviewResolution: this.sceneProjectionPreviewResolution,
         sceneShadowOpacity: DEFAULT_SCENE_SHADOW_OPACITY,
         artworkMotionMode: "none",
         viewerMotionLoopCount: DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER,
@@ -1994,6 +2003,7 @@ sphericalProjectionVerticalWrapAuto:
         sceneLightDistance: this.sceneLightDistance,
         sceneShadowPlaneDistance: this.sceneShadowPlaneDistance,
         sceneShadowOpacity: this.sceneShadowOpacity,
+        sceneProjectionPreviewResolution: this.sceneProjectionPreviewResolution,
         showTextureMetadataOverlay: this.showTextureMetadataOverlay,
         screenWakeLockEnabled: this.screenWakeLockEnabled,
         viewerPanelBackgroundColor: this.viewerPanelBackgroundColor,
@@ -2159,6 +2169,7 @@ this.sphericalProjectionVerticalWrapAuto !==
         this.sceneShadowPlaneDistance !==
           original.sceneShadowPlaneDistance ||
         this.sceneShadowOpacity !== original.sceneShadowOpacity ||
+        this.sceneProjectionPreviewResolution !== original.sceneProjectionPreviewResolution ||
         this.showTextureMetadataOverlay !==
           original.showTextureMetadataOverlay ||
         this.screenWakeLockEnabled !== original.screenWakeLockEnabled ||
@@ -2635,6 +2646,13 @@ this.sphericalProjectionVerticalWrapAuto !==
       const nextValue = normalizeSceneShadowOpacity(value);
       this.sceneShadowOpacity = nextValue;
       writeViewerPreferences({ sceneShadowOpacity: nextValue });
+      return nextValue;
+    },
+
+    setSceneProjectionPreviewResolution(value) {
+      const nextValue = normalizeSceneProjectionPreviewResolution(value);
+      this.sceneProjectionPreviewResolution = nextValue;
+      writeViewerPreferences({ sceneProjectionPreviewResolution: nextValue });
       return nextValue;
     },
 

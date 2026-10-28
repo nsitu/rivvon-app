@@ -117,7 +117,7 @@ export function useThreeSetup() {
   function renderSceneWithBackground(renderOptions = {}) {
     const render = () => {
       background.updateBackground({ timeSeconds: renderLoop.getArtworkTime(), ...renderOptions });
-      lighting.tick();
+      lighting.tick(renderOptions);
       renderFilter.renderScene(renderOptions.target ?? null);
     };
     // Still-image captures use the latest signal. Synthetic video frames opt out
@@ -146,6 +146,7 @@ export function useThreeSetup() {
     renderScene: renderSceneWithBackground,
     createBackgroundExportInterpolation: background.createExportInterpolation,
     restoreBackgroundPreview: background.updateBackground,
+    restoreLightingPreview: lighting.restorePreviewResolution,
   });
 
   const presets = useScenePreset(ctx, { textures, ribbons, renderLoop, background,

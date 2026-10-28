@@ -24,6 +24,13 @@ are made. Local textures without a publication are uploaded once through the
 existing texture uploader and then referenced; a browser cache records their
 cloud IDs. The preset stores only JSON and its thumbnail in private R2 storage.
 
+Preset loading checks the shared memory cache, then the IndexedDB cache linked
+to each texture's library ID, before downloading its tiles. Persistent copies
+must match the saved tile count, resolution, layer count, and variant, with a
+complete set of tiles carrying KTX2 headers. Missing, mismatched, or unreadable
+copies fall back to the preset asset endpoint. Reused tiles populate the shared
+memory cache, and repeated texture assignments share one tile entry.
+
 Reading a visible preset grants access to its registered media dependencies
 through the API, including source media not separately listed publicly.
 Derivative presets retain references to those same assets. Changing visibility

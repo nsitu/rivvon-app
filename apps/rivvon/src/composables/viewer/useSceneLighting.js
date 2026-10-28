@@ -6,12 +6,14 @@ import {
   createBackgroundSurfaceGeometry,
   deformBackgroundSurface,
 } from "../../modules/viewer/backgroundCurvature.js";
+import {
+  getDefaultSceneProjectionPreviewResolution,
+  normalizeSceneProjectionPreviewResolution,
+} from "../../modules/viewer/sceneProjectionResolution.js";
 
 const SHADOW_CATCHER_RENDER_ORDER = -9999;
 const SHADOW_CATCHER_OVERSCAN = 1.02;
 const SPOTLIGHT_BASE_INTENSITY = 100;
-const TRANSMISSION_MAP_SIZE_DESKTOP = 512;
-const TRANSMISSION_MAP_SIZE_MOBILE = 256;
 
 export function useSceneLighting(ctx) {
   let spotLight = null;
@@ -112,13 +114,55 @@ export function useSceneLighting(ctx) {
     shadowCatcher.receiveShadow = !colored;
   }
 
+  function getTransmissionResolution(renderOptions = {}) {
+    const previewResolution = normalizeSceneProjectionPreviewResolution(
+      ctx.app.sceneProjectionPreviewResolution,
+    );
+    const previewSize =
+      previewResolution === "full"
+        ? getDefaultSceneProjectionPreviewResolution()
+        : previewResolution;
+    const exporting = renderOptions.blurMode === "export";
+    const width = exporting
+      ? renderOptions.width
+      : ctx.renderer.value?.domElement?.width;
+    const height = exporting
+      ? renderOptions.height
+      : ctx.renderer.value?.domElement?.height;
+    const fullResolution =
+      isColoredProjectionActive() &&
+      (exporting || previewResolution === "full") &&
+      Number.isFinite(width) &&
+      width > 0 &&
+      Number.isFinite(height) &&
+      height > 0;
+    return fullResolution
+      ? {
+          width: Math.max(1, Math.round(width)),
+          height: Math.max(1, Math.round(height)),
+        }
+      : { width: previewSize, height: previewSize };
+  }
+
+  function syncTransmissionResolution(renderOptions = {}) {
+    if (!transmissionRenderTarget) return;
+    const { width, height } = getTransmissionResolution(renderOptions);
+    // Keep the same texture bound to both receiver materials. setSize releases
+    // the old GPU allocation only when dimensions change, so video frames reuse it.
+    if (
+      transmissionRenderTarget.width !== width ||
+      transmissionRenderTarget.height !== height
+    ) {
+      transmissionRenderTarget.setSize(width, height);
+    }
+  }
+
+  function restorePreviewResolution() {
+    syncTransmissionResolution();
+  }
+
   function createTransmissionRenderTarget(renderer) {
-    const coarsePointer =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(pointer: coarse)").matches;
-    const size = coarsePointer
-      ? TRANSMISSION_MAP_SIZE_MOBILE
-      : TRANSMISSION_MAP_SIZE_DESKTOP;
+    const { width, height } = getTransmissionResolution();
     const options = {
       type: THREE.HalfFloatType,
       format: THREE.RGBAFormat,
@@ -129,8 +173,8 @@ export function useSceneLighting(ctx) {
       colorSpace: THREE.LinearSRGBColorSpace,
     };
     const target = renderer.isWebGPURenderer
-      ? new THREE.RenderTarget(size, size, options)
-      : new THREE.WebGLRenderTarget(size, size, options);
+      ? new THREE.RenderTarget(width, height, options)
+      : new THREE.WebGLRenderTarget(width, height, options);
     target.texture.name = "RivvonColoredTransmissionMap";
     target.texture.generateMipmaps = false;
     return target;
@@ -508,9 +552,10 @@ export function useSceneLighting(ctx) {
     tick();
   }
 
-  function tick() {
+  function tick(renderOptions = {}) {
     const camera = ctx.camera.value;
     if (!camera || !spotLight || !spotTarget) return;
+    syncTransmissionResolution(renderOptions);
 
     camera.getWorldPosition(cameraPosition);
     resolveArtworkCenter(artworkCenter);
@@ -599,6 +644,7 @@ export function useSceneLighting(ctx) {
   return {
     init,
     tick,
+    restorePreviewResolution,
     dispose,
     syncMaterialLighting,
   };

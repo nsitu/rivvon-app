@@ -1,9 +1,10 @@
 import { normalizeScenePreset } from '../../../../packages/shared-types/src/scenePreset.js';
-import { getTextureSet, promoteTextureSetToCachedCloudTexture } from './localStorage.js';
+import { getCachedLocalId, getTextureSet, getTiles, promoteTextureSetToCachedCloudTexture } from './localStorage.js';
 import { createTextureThumbnail } from '../modules/shared/textureThumbnail.js';
 import { cacheTextureTiles, getCachedTextureTiles } from './sessionTextureCache.js';
 import { getMaxConcurrentTextureDownloads, mapWithConcurrency } from './textureDownloadConcurrency.js';
 import { getTextureStorageLabel } from './textureStorage.js';
+import { readLocalTextureTileEntry } from './textureCacheCoordinator.js';
 
 const API = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 export const presetAssetUrl = (id, asset) => `${API}/presets/${encodeURIComponent(id)}/assets/${encodeURIComponent(asset)}`;
@@ -63,6 +64,21 @@ export async function savePreset({ scene, uploads = [], uploadTexture, storagePr
     }
 }
 
+async function getPersistedPresetTexture(texture) {
+    try {
+        const localId = await getCachedLocalId(texture.id);
+        if (!localId) return null;
+        const local = await getTextureSet(localId);
+        if (!local || local.tile_count !== texture.tileCount || local.tile_resolution !== texture.tileResolution
+            || local.layer_count !== texture.layerCount || local.cross_section_type !== texture.variant) return null;
+
+        return await readLocalTextureTileEntry(local, await getTiles(localId));
+    } catch (error) {
+        console.warn(`[PresetService] Could not read cached texture ${texture.id}, falling back to download`, error);
+        return null;
+    }
+}
+
 export async function preparePresetTextures(id, input, onProgress) {
     const scene = normalizeScenePreset(input);
     // A texture may be assigned to several strands. Download its bytes only once.
@@ -93,9 +109,16 @@ export async function preparePresetTextures(id, input, onProgress) {
             completed += texture.tileCount;
             continue;
         }
+        const persisted = await getPersistedPresetTexture(texture);
+        if (persisted) {
+            group.tileEntry = persisted;
+            group.cacheAfterLoad = true;
+            completed += texture.tileCount;
+            continue;
+        }
         group.tileEntry = { zipFiles: {}, tileCount: texture.tileCount, layerCount: texture.layerCount,
             variant: texture.variant, isComplete: true, source: 'preset' };
-        group.cacheAfterDownload = true;
+        group.cacheAfterLoad = true;
         for (let tile = 0; tile < texture.tileCount; tile++) {
             jobs.push({ group, tile });
         }
@@ -124,7 +147,7 @@ export async function preparePresetTextures(id, input, onProgress) {
         throw error;
     }
     for (const group of groups.values()) {
-        if (group.cacheAfterDownload) group.tileEntry = cacheTextureTiles(group.texture.id, group.tileEntry);
+        if (group.cacheAfterLoad) group.tileEntry = cacheTextureTiles(group.texture.id, group.tileEntry);
     }
     return assignments.map(({ texture, group }) => ({ textureSet: { id: texture.id, name: texture.name,
             tile_count: texture.tileCount, tile_resolution: texture.tileResolution,

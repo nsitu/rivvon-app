@@ -125,6 +125,7 @@ export function useSceneExport(ctx, deps = {}) {
         } finally {
             renderer.setPixelRatio(savedPixelRatio);
             renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
+            deps.restoreLightingPreview?.();
             ctx.camera.value.aspect = savedAspect;
             ctx.camera.value.updateProjectionMatrix();
 
@@ -995,6 +996,7 @@ export function useSceneExport(ctx, deps = {}) {
 
             // Resume live render loop
             try {
+                deps.restoreLightingPreview?.();
                 deps.restoreBackgroundPreview?.();
             } finally {
                 deps.resumeRenderLoop?.();

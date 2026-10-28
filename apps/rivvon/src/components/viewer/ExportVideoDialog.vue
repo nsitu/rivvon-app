@@ -544,7 +544,8 @@
                 : DEFAULT_SEAMLESS_LOOP_COUNT,
             artworkMotionMode: textureOnlyMode.value ? 'none' : artworkMotionMode.value,
             quality: quality.value,
-            backgroundInterpolation: textureOnlyMode.value ? 'crossfade' : backgroundInterpolation.value,
+            backgroundInterpolation: textureOnlyMode.value || app.backgroundMode === 'gradient'
+                ? 'crossfade' : backgroundInterpolation.value,
             logoOverlayEnabled: exportLogoOverlayEnabled.value,
             logoOverlayCorner: exportLogoOverlayCorner.value,
         });
@@ -803,7 +804,7 @@
                             </div>
                         </div>
 
-                        <div v-if="!textureOnlyMode && app.animatedBackgroundEnabled && app.textureAnimationEnabled !== false && app.backgroundBaseEnabled !== false"
+                        <div v-if="!textureOnlyMode && app.backgroundMode !== 'gradient' && app.animatedBackgroundEnabled && app.textureAnimationEnabled !== false && app.backgroundBaseEnabled !== false"
                             class="form-field">
                             <label for="export-background-interpolation">Background interpolation</label>
                             <Select v-model="backgroundInterpolation" input-id="export-background-interpolation"

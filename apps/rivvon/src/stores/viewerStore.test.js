@@ -18,6 +18,35 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it.each([256, 512, 'full'])('persists the %s projection preview choice as a device preference', resolution => {
+        const store = useViewerStore();
+        expect(store.sceneProjectionPreviewResolution).toBe(512);
+        store.captureToolsPanelOriginalState();
+        store.setSceneProjectionPreviewResolution(resolution);
+        expect(store.getViewerSettingsSnapshot().sceneProjectionPreviewResolution).toBe(resolution);
+        expect(store.toolsPanelOriginalState.sceneProjectionPreviewResolution).toBe(512);
+        expect(store.getArtworkSettingsSnapshot()).not.toHaveProperty('sceneProjectionPreviewResolution');
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored.sceneProjectionPreviewResolution).toBe(resolution);
+        restored.applyArtworkSettingsSnapshot({});
+        expect(restored.sceneProjectionPreviewResolution).toBe(resolution);
+        restored.resetToolbarSettingsToDefaults();
+        setActivePinia(createPinia());
+        expect(useViewerStore().sceneProjectionPreviewResolution).toBe(512);
+    });
+
+    it('defaults touch projection previews to 256 and normalizes invalid stored choices', () => {
+        window.matchMedia = () => ({ matches: true });
+        preferences.set('rivvon.viewer.preferences', JSON.stringify({ sceneProjectionPreviewResolution: 1024 }));
+        const store = useViewerStore();
+        expect(store.sceneProjectionPreviewResolution).toBe(256);
+        expect(store.setSceneProjectionPreviewResolution('full')).toBe('full');
+        expect(store.setSceneProjectionPreviewResolution('invalid')).toBe(256);
+        store.resetToolbarSettingsToDefaults();
+        expect(store.sceneProjectionPreviewResolution).toBe(256);
+    });
+
     it('persists gradient controls, round-trips artwork, and restores texture mode for older presets', () => {
         const store = useViewerStore();
         store.captureToolsPanelOriginalState();
