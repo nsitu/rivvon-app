@@ -8,6 +8,7 @@ import {
   getExportBlurSigma,
 } from "../../modules/viewer/backgroundExportBlur.js";
 import { getBackgroundTextureOption } from "../../modules/viewer/backgroundTextures.js";
+import { createBackgroundTextureAdjustments, STATIC_TEXTURE_ADJUSTMENTS_GLSL } from "../../modules/viewer/backgroundTextureAdjustments.js";
 import {
   createGradientPaletteCache, createGradientNode, samplePaletteNode,
   PALETTE_SAMPLE_GLSL, GRADIENT_GLSL, GRADIENT_GRID_SIZE,
@@ -299,6 +300,7 @@ function getBackgroundLayerState(ctx) {
 function createWebGLBackgroundDisplayMaterial(
   textureOverlay = null,
   gradient = false,
+  textureAdjustments,
 ) {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -308,6 +310,7 @@ function createWebGLBackgroundDisplayMaterial(
       uGradientFalloff: { value: 2 },
       uTexture: { value: textureOverlay },
       uStaticTextureEnabled: { value: textureOverlay ? 1 : 0 },
+      ...textureAdjustments.uniforms,
       uWaterEnabled: { value: 0 },
       uWaterColor: { value: new THREE.Color("#66c7d8") },
       uWaterFlow: { value: 35 },
@@ -343,6 +346,7 @@ function createWebGLBackgroundDisplayMaterial(
             varying vec2 vUv;
 
             ${gradient ? GRADIENT_GLSL : ''}
+            ${STATIC_TEXTURE_ADJUSTMENTS_GLSL}
 
             vec3 softLightBlend(vec3 base, vec3 blend) {
                 vec3 low = base - (1.0 - 2.0 * blend) * base * (1.0 - base);
@@ -395,7 +399,7 @@ function createWebGLBackgroundDisplayMaterial(
                 if (uLinearBlur) background = sRGBTransferOETF(background);
                 vec3 color = mix(background.rgb, uOverlayColor, uOverlayOpacity);
                 if (uStaticTextureEnabled == 1) {
-                    color = softLightBlend(color, texture2D(uTexture, vUv).rgb);
+                    color = softLightBlend(color, adjustStaticTexture(texture2D(uTexture, vUv).rgb));
                 }
                 if (uWaterEnabled == 1) {
                     color = softLightBlend(color, proceduralWater(vUv, uTime));
@@ -566,18 +570,21 @@ export function useSceneBackground(ctx) {
     const isWebGPU = ctx.app.rendererType === "webgpu";
     let runtime = null;
     let gradientCache = null;
+    const textureAdjustments = createBackgroundTextureAdjustments(ctx.app);
 
     try {
       if (ctx.app.backgroundMode === 'gradient') {
         gradientCache = await createGradientPaletteCache(ctx.renderer.value, isWebGPU);
       }
-      const runtimeOptions = { ...options, textureOverlay, gradientCache };
+      const runtimeOptions = { ...options, textureOverlay, gradientCache, textureAdjustments };
       runtime = isWebGPU
         ? await createTileBackgroundRuntimeWebGPU(ctx, runtimeOptions)
         : createTileBackgroundRuntimeWebGL(ctx, runtimeOptions);
 
       const disposeRuntime = runtime.dispose;
-      runtime.dispose = () => { disposeRuntime(); gradientCache?.dispose(); };
+      const updateRuntime = runtime.update;
+      runtime.update = (renderOptions) => { textureAdjustments.update(); updateRuntime(renderOptions); };
+      runtime.dispose = () => { disposeRuntime(); gradientCache?.dispose(); textureAdjustments.dispose(); };
 
       if (requestToken !== backgroundGenerationToken) {
         runtime.dispose();
@@ -590,6 +597,7 @@ export function useSceneBackground(ctx) {
     } catch (error) {
       runtime?.dispose?.();
       gradientCache?.dispose();
+      textureAdjustments.dispose();
       if (requestToken !== backgroundGenerationToken) {
         return;
       }
@@ -838,6 +846,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
       uExportLinear: { value: false },
       uBaseEnabled: { value: initialLayerState.baseEnabled ? 1 : 0 },
       uTexture: { value: options.textureOverlay || null },
+      ...options.textureAdjustments.uniforms,
       uStaticTextureEnabled: {
         value:
           initialLayerState.staticEnabled && options.textureOverlay ? 1 : 0,
@@ -890,6 +899,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
             uniform float uOverlayOpacity;
             uniform int uSeamSafeBlend;
             uniform float uOpacity;
+            ${STATIC_TEXTURE_ADJUSTMENTS_GLSL}
 
             in vec2 vUv;
             out vec4 outColor;
@@ -1017,7 +1027,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
 
                 vec3 compositedColor = mix(color.rgb, uOverlayColor, uOverlayOpacity);
                 if (uStaticTextureEnabled == 1) {
-                    compositedColor = softLightBlend(compositedColor, texture(uTexture, vUv).rgb);
+                    compositedColor = softLightBlend(compositedColor, adjustStaticTexture(texture(uTexture, vUv).rgb));
                 }
                 if (uWaterEnabled == 1) {
                     compositedColor = softLightBlend(compositedColor, proceduralWater(vUv, uTime));
@@ -1232,6 +1242,7 @@ function createProcessedTileBackgroundRuntimeWebGL(
   const displayMaterial = createWebGLBackgroundDisplayMaterial(
     options.textureOverlay,
     !!options.gradientCache,
+    options.textureAdjustments,
   );
   const plane = attachCameraBackgroundPlane(ctx, displayMaterial);
 
@@ -1650,7 +1661,7 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       ? mix(outputColor.rgb, overlayColor, overlayOpacityUniform)
       : outputColor.rgb;
     const staticTextureColor = options.textureOverlay
-      ? textureNode(options.textureOverlay, baseUv).rgb
+      ? options.textureAdjustments.createNode(tsl, textureNode(options.textureOverlay, baseUv).rgb, material)
       : null;
     const withStaticTexture =
       includeOverlay && staticTextureColor
@@ -2029,7 +2040,7 @@ async function createProcessedTileBackgroundRuntimeWebGPU(
     }
 
     const staticTextureColor = options.textureOverlay
-      ? textureNode(options.textureOverlay, uv()).rgb
+      ? options.textureAdjustments.createNode(tsl, textureNode(options.textureOverlay, uv()).rgb, material)
       : null;
     const withStaticTexture = staticTextureColor
       ? staticTextureEnabledUniform

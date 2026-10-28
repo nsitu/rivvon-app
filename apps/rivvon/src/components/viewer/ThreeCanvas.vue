@@ -249,6 +249,14 @@
         updateBackground();
     });
 
+    watch(() => [
+        app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
+        app.backgroundTextureContrast, app.backgroundTextureSaturation,
+    ], () => {
+        if (app.isRestoringPreset) return;
+        updateBackground();
+    }, { deep: true });
+
     watch(() => [app.backgroundTextureEnabled, app.backgroundTexture], () => {
         if (app.isRestoringPreset) return;
         setBackgroundFromTileManager().catch((error) => {

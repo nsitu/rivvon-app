@@ -21,6 +21,9 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     backgroundGradientFalloff: DEFAULT_BACKGROUND_GRADIENT_FALLOFF,
     backgroundOverlayEnabled: false, backgroundOverlayColor: '#ffffff', backgroundOverlayOpacity: 0.35,
     backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundBaseEnabled: true,
+    backgroundTextureGradientMapEnabled: false,
+    backgroundTextureGradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
+    backgroundTextureContrast: 1, backgroundTextureSaturation: 1,
     backgroundSphericalLayersEnabled: false, backgroundCurvature: 0.6,
     backgroundWaterEnabled: false, backgroundWaterColor: '#66c7d8', backgroundWaterFlow: 35,
     backgroundWaterScale: 8, backgroundWaterSpeed: 1, backgroundWaterStrength: 0.28,
@@ -53,11 +56,12 @@ const ENUMS = {
     peakTroughEffectType: ['transparency', 'blur'], renderFilterMode: ['none', 'gradientMap'],
     transparencyMethod: ['brightness', 'color', 'saturation'], transparencyMode: ['shadows', 'highlights'],
     ribbonPathAlignmentMode: ['inside', 'center', 'outside'], surfaceMode: ['ribbon', 'tube'],
-    capStyle: ['rounded', 'square', 'pointed', 'swallowtail'], backgroundTexture: ['card', 'textile'],
+    capStyle: ['rounded', 'square', 'pointed', 'swallowtail'], backgroundTexture: ['card', 'textile', 'cenote'],
 };
 const COLOR = /^#[\da-f]{6}([\da-f]{2})?$/i;
 const RANGES = {
     backgroundGradientInfluence: [0.15, 1.5], backgroundGradientFalloff: [0.5, 6],
+    backgroundTextureContrast: [0, 2], backgroundTextureSaturation: [0, 2],
     viewerMotionLoopCount: [0.125, 8], flowSpeed: [0, 10], backgroundLayerIndex: [0, 4095],
     backgroundCycleDuration: [0.25, 120],
     backgroundFlowSpeed: [0, 10], backgroundBlurAmount: [0, 200], backgroundOverlayOpacity: [0, 1],
@@ -88,7 +92,7 @@ export function normalizeArtworkSettings(input = {}) {
     const result = {};
     for (const [key, fallback] of Object.entries(ARTWORK_DEFAULTS)) {
         const value = input[key] ?? clone(fallback);
-        if (key === 'gradientMapStops') {
+        if (key === 'gradientMapStops' || key === 'backgroundTextureGradientMapStops') {
             if (!Array.isArray(value) || value.length < 2 || value.length > 8) throw new Error('Invalid gradient map');
             const ids = new Set();
             result[key] = value.map((stop, index) => {

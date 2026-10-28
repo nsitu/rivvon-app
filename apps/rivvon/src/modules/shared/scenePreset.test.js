@@ -10,6 +10,27 @@ export function sampleScene() {
 }
 
 describe('scene preset contract', () => {
+    it('round trips an independent static texture treatment and defaults older artwork to neutral', () => {
+        const input = sampleScene();
+        input.artwork = {
+            backgroundTexture: 'cenote', backgroundTextureEnabled: true,
+            backgroundTextureContrast: 1.8, backgroundTextureSaturation: 0,
+            backgroundTextureGradientMapEnabled: true,
+            backgroundTextureGradientMapStops: [{ id: 'low', position: 0.1, color: '#123456' }, { id: 'high', position: 0.8, color: '#abcdef' }],
+        };
+        const saved = normalizeScenePreset(input);
+        expect(saved.artwork).toMatchObject(input.artwork);
+        expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+        expect(saved.artwork.gradientMapStops).not.toEqual(saved.artwork.backgroundTextureGradientMapStops);
+        expect(normalizeScenePreset({ ...input, artwork: {} }).artwork).toMatchObject({
+            backgroundTextureContrast: 1, backgroundTextureSaturation: 1, backgroundTextureGradientMapEnabled: false,
+        });
+        input.artwork.backgroundTextureContrast = 3;
+        expect(() => normalizeScenePreset(input)).toThrow('Invalid backgroundTextureContrast');
+        input.artwork.backgroundTextureContrast = 1;
+        input.artwork.backgroundTextureGradientMapStops[0].color = 'invalid';
+        expect(() => normalizeScenePreset(input)).toThrow('Invalid gradient color');
+    });
     it('round trips the grid recipe without expanding saved source paths and defaults older presets off', () => {
         const input = sampleScene();
         input.artwork = { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true, gridRepeatColumnSpacing: -5, gridRepeatRowSpacing: -2.35 };

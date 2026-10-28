@@ -4,6 +4,7 @@
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
+    import GradientMapEditor from './GradientMapEditor.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { BACKGROUND_TEXTURE_OPTIONS } from '../../modules/viewer/backgroundTextures.js';
     import { MIN_BACKGROUND_CYCLE_DURATION, MAX_BACKGROUND_CYCLE_DURATION } from '../../modules/viewer/backgroundAnimation.js';
@@ -159,6 +160,11 @@
     const backgroundTextureModel = computed({
         get: () => app.backgroundTextureEnabled,
         set: (value) => app.setBackgroundTextureEnabled(!!value),
+    });
+
+    const backgroundTextureGradientMapModel = computed({
+        get: () => app.backgroundTextureGradientMapEnabled,
+        set: value => app.setBackgroundTextureGradientMapEnabled(value),
     });
 
     const selectedBackgroundTextureOption = computed({
@@ -933,18 +939,76 @@
                         </div>
                     </div>
 
-                    <div
-                        v-if="backgroundTextureModel"
-                        class="tools-select-block background-texture-select"
-                    >
-                        <label class="tools-select-label">Texture</label>
-                        <div class="tools-select-wrap">
-                            <Select
-                                v-model="selectedBackgroundTextureOption"
-                                :options="BACKGROUND_TEXTURE_OPTIONS"
-                                option-label="label"
-                                class="tools-select"
+                    <div v-if="backgroundTextureModel">
+                        <div class="tools-select-block background-texture-select">
+                            <label class="tools-select-label" :for="getInputId('static-texture-choice')">Texture</label>
+                            <div class="tools-select-wrap">
+                                <Select
+                                    :inputId="getInputId('static-texture-choice')"
+                                    v-model="selectedBackgroundTextureOption"
+                                    :options="BACKGROUND_TEXTURE_OPTIONS"
+                                    option-label="label"
+                                    class="tools-select"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="tools-toggle-row">
+                            <label class="tools-toggle-main" :for="getInputId('static-texture-gradient-map')">
+                                <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+                                <span>Gradient Map</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-hint tools-toggle-hint">{{ backgroundTextureGradientMapModel ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('static-texture-gradient-map')"
+                                    v-model="backgroundTextureGradientMapModel"
+                                    aria-label="Static texture gradient map"
+                                />
+                            </div>
+                        </div>
+
+                        <GradientMapEditor
+                            v-if="backgroundTextureGradientMapModel"
+                            :modelValue="app.backgroundTextureGradientMapStops"
+                            subject="static texture"
+                            @update:modelValue="app.setBackgroundTextureGradientMapStops"
+                        />
+
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label" :for="getInputId('static-texture-contrast')">
+                                    <span class="material-symbols-outlined" aria-hidden="true">contrast</span>
+                                    <span>Contrast</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ Math.round(app.backgroundTextureContrast * 100) }}%</span>
+                            </div>
+                            <Slider
+                                :id="getInputId('static-texture-contrast')"
+                                :modelValue="app.backgroundTextureContrast * 100"
+                                :min="0" :max="200" :step="1"
+                                aria-label="Static texture contrast"
+                                @update:modelValue="app.setBackgroundTextureContrast($event / 100)"
                             />
+                            <div class="tools-slider-caption"><span>Soft</span><span>Strong</span></div>
+                        </div>
+
+                        <div class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label" :for="getInputId('static-texture-saturation')">
+                                    <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+                                    <span>Saturation</span>
+                                </label>
+                                <span class="tools-hint tools-slider-hint">{{ Math.round(app.backgroundTextureSaturation * 100) }}%</span>
+                            </div>
+                            <Slider
+                                :id="getInputId('static-texture-saturation')"
+                                :modelValue="app.backgroundTextureSaturation * 100"
+                                :min="0" :max="200" :step="1"
+                                aria-label="Static texture saturation"
+                                @update:modelValue="app.setBackgroundTextureSaturation($event / 100)"
+                            />
+                            <div class="tools-slider-caption"><span>Grayscale</span><span>Vivid</span></div>
                         </div>
                     </div>
 

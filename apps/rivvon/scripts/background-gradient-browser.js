@@ -83,9 +83,43 @@ window.backgroundGradientTest = (async () => {
             app.backgroundWaterEnabled = false; app.backgroundBaseEnabled = false;
             const neutral = draw();
             assert(Math.abs(neutral[0] - neutral[1]) <= 1 && Math.abs(neutral[1] - neutral[2]) <= 1, 'Base toggle did not yield neutral');
+            app.backgroundTextureEnabled = true;
+            app.backgroundTexture = 'cenote';
+            const staticTextureReports = [];
+            for (const mode of ['sharp', 'blurred', 'gradient']) {
+                app.backgroundMode = mode === 'gradient' ? 'gradient' : 'texture';
+                app.backgroundBlurEnabled = mode === 'blurred';
+                app.backgroundTextureContrast = 1;
+                app.backgroundTextureSaturation = 1;
+                app.backgroundTextureGradientMapEnabled = false;
+                await background.setBackgroundFromTileManager();
+                const original = draw();
+                app.backgroundTextureSaturation = 0;
+                const grayscale = draw();
+                let grayscaleError = 0;
+                for (let index = 0; index < grayscale.length; index += 4) {
+                    grayscaleError = Math.max(grayscaleError, Math.abs(grayscale[index] - grayscale[index + 1]), Math.abs(grayscale[index + 1] - grayscale[index + 2]));
+                }
+                assert(grayscaleError <= 1, `${mode}: static saturation did not produce grayscale (${grayscaleError})`);
+                assert(mae(original, grayscale) > 0.1, `${mode}: static saturation has no effect`);
+                app.backgroundTextureContrast = 0;
+                const flat = draw();
+                assert(mae(grayscale, flat) > 0.1, `${mode}: static contrast has no effect`);
+                app.backgroundTextureContrast = 1;
+                app.backgroundTextureGradientMapEnabled = true;
+                app.backgroundTextureGradientMapStops = [{ position: 0, color: '#ff0000' }, { position: 1, color: '#ff0000' }];
+                const red = draw();
+                app.backgroundTextureGradientMapStops = [{ position: 0, color: '#0000ff' }, { position: 1, color: '#0000ff' }];
+                const blue = draw();
+                assert(red[0] > red[2] + 20 && blue[2] > blue[0] + 20, `${mode}: static gradient edits did not recolor texture`);
+                const exported = draw(0, { blurMode: 'export', width: 192, height: 128 });
+                const previewExportMAE = mae(blue, exported);
+                assert(previewExportMAE < 1, `${mode}: static treatment differs in export (${previewExportMAE})`);
+                staticTextureReports.push({ mode, grayscaleError, previewExportMAE });
+            }
             await new Promise(resolve => setTimeout(resolve, 100));
             assert(errors.length === 0, errors.join('\n'));
-            reports.push({ rendererType, layers: source.image.depth, flipError, animationMAE: mae(baseline, changed), previewExportMAE: mae(baseline, exportPixels) });
+            reports.push({ rendererType, layers: source.image.depth, flipError, animationMAE: mae(baseline, changed), previewExportMAE: mae(baseline, exportPixels), staticTextureReports });
             console.log(`[Background gradient test] Passed ${rendererType}`);
         } finally {
             background?.disposeBackground(); source?.dispose(); loader.dispose(); renderer.dispose();
@@ -118,7 +152,53 @@ window.backgroundGradientTest = (async () => {
         }
         store.setBackgroundMode('texture'); await nextTick();
         assert(!host.querySelector('[aria-label="Gradient color influence"]') && host.querySelector('[aria-label="Background blur amount"]'), 'Texture mode did not restore blur controls');
+        assert(!host.querySelector('[aria-label="Static texture contrast"]'), 'Static controls should be hidden while disabled');
+        store.setBackgroundTextureEnabled(true);
+        store.setBackgroundTextureGradientMapEnabled(true);
+        await nextTick();
+        for (const [label, key] of [['Static texture contrast', 'backgroundTextureContrast'], ['Static texture saturation', 'backgroundTextureSaturation']]) {
+            const slider = host.querySelector(`[role="slider"][aria-label="${label}"]`);
+            assert(slider, `${label} is missing its accessible slider name`);
+            slider.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true }));
+            await nextTick();
+            assert(Math.abs(store[key] - 1.01) < 0.001, `${label} did not update from keyboard`);
+        }
+        const sceneStops = JSON.stringify(store.gradientMapStops);
+        const editor = host.querySelector('.gradient-map-editor');
+        const handle = editor.querySelector('.gradient-map-handle');
+        handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        await nextTick();
+        assert(store.backgroundTextureGradientMapStops[0].position === 0.01, 'Static gradient handle did not update from keyboard');
+        assert(JSON.stringify(store.gradientMapStops) === sceneStops, 'Static gradient editor changed scene gradient stops');
+        editor.querySelector('.gradient-map-add').click();
+        await nextTick();
+        assert(store.backgroundTextureGradientMapStops.length === 4, 'Static gradient Add did not create a stop');
+        editor.querySelector('.gradient-map-remove').click();
+        await nextTick();
+        assert(store.backgroundTextureGradientMapStops.length === 3, 'Static gradient Remove did not remove a stop');
+        for (const element of editor.querySelectorAll('.gradient-map-stop-row, input, button')) {
+            assert(element.getBoundingClientRect().right <= host.getBoundingClientRect().right + 1, 'Static gradient editor overflows 320px panel');
+        }
         reports.push({ controls: 'Keyboard interaction and 320px layout passed' });
     } finally { vue.unmount(); host.remove(); }
+    const { default: SceneControls } = await import('../src/components/viewer/TextureSettingsControls.vue');
+    const sceneHost = document.createElement('div');
+    sceneHost.style.width = '320px'; document.body.append(sceneHost);
+    store.setRenderFilterMode('gradientMap');
+    const sceneVue = createApp(SceneControls, { showDuotoneFilter: true }).use(pinia).use(PrimeVue, { theme: { preset: Aura } });
+    sceneVue.mount(sceneHost);
+    try {
+        await nextTick();
+        const backgroundStops = JSON.stringify(store.backgroundTextureGradientMapStops);
+        const editor = sceneHost.querySelector('.gradient-map-editor');
+        assert(editor, 'Shared scene gradient editor is missing');
+        const hex = editor.querySelector('input[aria-label="Stop color"]');
+        hex.value = '#fedcba';
+        hex.dispatchEvent(new Event('change', { bubbles: true }));
+        await nextTick();
+        assert(store.gradientMapStops[0].color === '#fedcba', 'Shared scene gradient color edit failed');
+        assert(JSON.stringify(store.backgroundTextureGradientMapStops) === backgroundStops, 'Scene editor changed static gradient stops');
+        reports.push({ sceneEditor: 'Shared editor preserves independent scene and static texture stops' });
+    } finally { sceneVue.unmount(); sceneHost.remove(); }
     return reports;
 })();

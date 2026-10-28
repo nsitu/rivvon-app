@@ -898,6 +898,14 @@ export const useViewerStore = defineStore("viewer", {
       backgroundTexture: normalizeBackgroundTexture(
         readViewerPreferences().backgroundTexture,
       ),
+      backgroundTextureGradientMapEnabled: normalizeViewerBooleanPreference(
+        readViewerPreferences().backgroundTextureGradientMapEnabled, false,
+      ),
+      backgroundTextureGradientMapStops: normalizeGradientMapStops(
+        readViewerPreferences().backgroundTextureGradientMapStops,
+      ),
+      backgroundTextureContrast: normalizeContrast(readViewerPreferences().backgroundTextureContrast),
+      backgroundTextureSaturation: normalizeSaturation(readViewerPreferences().backgroundTextureSaturation),
       backgroundBaseEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundBaseEnabled,
         DEFAULT_BACKGROUND_BASE_ENABLED,
@@ -1250,6 +1258,10 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundOverlayOpacity = DEFAULT_BACKGROUND_OVERLAY_OPACITY;
       this.backgroundTextureEnabled = false;
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
+      this.backgroundTextureGradientMapEnabled = false;
+      this.backgroundTextureGradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
+      this.backgroundTextureContrast = DEFAULT_CONTRAST;
+      this.backgroundTextureSaturation = DEFAULT_SATURATION;
       this.backgroundBaseEnabled = DEFAULT_BACKGROUND_BASE_ENABLED;
       this.backgroundSphericalLayersEnabled =
         DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED;
@@ -1369,6 +1381,10 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: DEFAULT_BACKGROUND_OVERLAY_OPACITY,
         backgroundTextureEnabled: false,
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
+        backgroundTextureGradientMapEnabled: false,
+        backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops,
+        backgroundTextureContrast: DEFAULT_CONTRAST,
+        backgroundTextureSaturation: DEFAULT_SATURATION,
         backgroundBaseEnabled: DEFAULT_BACKGROUND_BASE_ENABLED,
         backgroundSphericalLayersEnabled:
           DEFAULT_BACKGROUND_SPHERICAL_LAYERS_ENABLED,
@@ -1678,6 +1694,26 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ backgroundTexture: nextValue });
     },
 
+    setBackgroundTextureGradientMapEnabled(enabled) {
+      this.backgroundTextureGradientMapEnabled = !!enabled;
+      writeViewerPreferences({ backgroundTextureGradientMapEnabled: this.backgroundTextureGradientMapEnabled });
+    },
+
+    setBackgroundTextureGradientMapStops(stops, { persist = true } = {}) {
+      this.backgroundTextureGradientMapStops = normalizeGradientMapStops(stops, this.backgroundTextureGradientMapStops);
+      if (persist) writeViewerPreferences({ backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops });
+    },
+
+    setBackgroundTextureContrast(value) {
+      this.backgroundTextureContrast = normalizeContrast(value);
+      writeViewerPreferences({ backgroundTextureContrast: this.backgroundTextureContrast });
+    },
+
+    setBackgroundTextureSaturation(value) {
+      this.backgroundTextureSaturation = normalizeSaturation(value);
+      writeViewerPreferences({ backgroundTextureSaturation: this.backgroundTextureSaturation });
+    },
+
     setBackgroundBaseEnabled(enabled) {
       const nextValue = !!enabled;
       this.backgroundBaseEnabled = nextValue;
@@ -1927,6 +1963,10 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: this.backgroundOverlayOpacity,
         backgroundTextureEnabled: this.backgroundTextureEnabled,
         backgroundTexture: this.backgroundTexture,
+        backgroundTextureGradientMapEnabled: this.backgroundTextureGradientMapEnabled,
+        backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops.map(stop => ({ ...stop })),
+        backgroundTextureContrast: this.backgroundTextureContrast,
+        backgroundTextureSaturation: this.backgroundTextureSaturation,
         backgroundBaseEnabled: this.backgroundBaseEnabled,
         backgroundSphericalLayersEnabled:
           this.backgroundSphericalLayersEnabled,
@@ -2075,6 +2115,10 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundOverlayOpacity !== original.backgroundOverlayOpacity ||
         this.backgroundTextureEnabled !== original.backgroundTextureEnabled ||
         this.backgroundTexture !== original.backgroundTexture ||
+        this.backgroundTextureGradientMapEnabled !== original.backgroundTextureGradientMapEnabled ||
+        serializeGradientMapStops(this.backgroundTextureGradientMapStops) !== serializeGradientMapStops(original.backgroundTextureGradientMapStops) ||
+        this.backgroundTextureContrast !== original.backgroundTextureContrast ||
+        this.backgroundTextureSaturation !== original.backgroundTextureSaturation ||
         this.backgroundBaseEnabled !== original.backgroundBaseEnabled ||
         this.backgroundSphericalLayersEnabled !==
           original.backgroundSphericalLayersEnabled ||

@@ -1285,11 +1285,13 @@
     );
 
     watch(
-        () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity, app.backgroundGradientInfluence, app.backgroundGradientFalloff],
+        () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity, app.backgroundGradientInfluence, app.backgroundGradientFalloff,
+            app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureContrast, app.backgroundTextureSaturation],
         () => {
             sceneBackground.updateBackground();
             renderCurrentScene();
-        }
+        },
+        { deep: true },
     );
 
     watch(

@@ -18,6 +18,56 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it.each([
+        ['backgroundTextureGradientMapEnabled', true],
+        ['backgroundTextureGradientMapStops', [{ id: 'dark', position: 0, color: '#123456' }, { id: 'light', position: 1, color: '#abcdef' }]],
+        ['backgroundTextureContrast', 1.7],
+        ['backgroundTextureSaturation', 0.3],
+    ])('persists, tracks, and restores independent static texture setting %s', (key, value) => {
+        const store = useViewerStore();
+        const original = store.getArtworkSettingsSnapshot();
+        store.captureToolsPanelOriginalState();
+        store[`set${key[0].toUpperCase()}${key.slice(1)}`](value);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        expect(store.getViewerSettingsSnapshot()[key]).toEqual(value);
+        expect(store.toolsPanelOriginalState[key]).toEqual(original[key]);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(saved[key]).toEqual(value);
+        expect(saved.contrast).toBe(1);
+        expect(saved.saturation).toBe(1);
+        expect(saved.renderFilterMode).toBe('none');
+        expect(saved.gradientMapStops).toEqual(original.gradientMapStops);
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored[key]).toEqual(value);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored[key]).toEqual(original[key]);
+        setActivePinia(createPinia());
+        expect(useViewerStore()[key]).toEqual(original[key]);
+        const before = [...preferences];
+        restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored[key]).toEqual(value);
+        expect([...preferences]).toEqual(before);
+        restored.applyArtworkSettingsSnapshot({});
+        if (key === 'backgroundTextureGradientMapStops') {
+            expect(restored[key].map(({ id, ...stop }) => stop)).toEqual(original[key].map(({ id, ...stop }) => stop));
+        } else expect(restored[key]).toEqual(original[key]);
+    });
+
+    it('clamps static texture adjustments independently and preserves Cenote in presets', () => {
+        const store = useViewerStore();
+        store.setBackgroundTexture('cenote');
+        store.setBackgroundTextureContrast(99);
+        store.setBackgroundTextureSaturation(-1);
+        expect(store.getArtworkSettingsSnapshot()).toMatchObject({
+            backgroundTexture: 'cenote', backgroundTextureContrast: 2, backgroundTextureSaturation: 0,
+        });
+        store.setBackgroundTextureContrast(NaN);
+        store.setBackgroundTextureSaturation(Infinity);
+        expect(store.backgroundTextureContrast).toBe(1);
+        expect(store.backgroundTextureSaturation).toBe(1);
+    });
+
     it.each([256, 512, 'full'])('persists the %s projection preview choice as a device preference', resolution => {
         const store = useViewerStore();
         expect(store.sceneProjectionPreviewResolution).toBe(512);

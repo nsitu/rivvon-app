@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DataArrayTexture, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, Scene, UnsignedByteType } from 'three';
+import { DataArrayTexture, DataTexture, TextureLoader, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, Scene, UnsignedByteType } from 'three';
 import { useSceneBackground } from './useSceneBackground.js';
 
 function fixture(rendererType) {
@@ -29,6 +29,54 @@ describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendere
         };
         return { ...result, renders, renderer: result.ctx.renderer.value };
     }
+
+    it.each(['sharp', 'blurred', 'gradient'])('updates static texture treatment in %s preview and export without rebuilding', async mode => {
+        const loader = vi.spyOn(TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+            const texture = new DataTexture(new Uint8Array([120, 100, 80, 255]), 1, 1);
+            onLoad(texture);
+            return texture;
+        });
+        const { runtime, camera, app } = blurredFixture();
+        app.backgroundBlurEnabled = mode === 'blurred';
+        app.backgroundMode = mode === 'gradient' ? 'gradient' : 'texture';
+        app.backgroundTextureEnabled = true;
+        app.backgroundTexture = 'cenote';
+        app.backgroundTextureContrast = 1.6;
+        app.backgroundTextureSaturation = 0.2;
+        app.backgroundTextureGradientMapEnabled = true;
+        app.backgroundTextureGradientMapStops = [{ position: 0, color: '#123456' }, { position: 1, color: '#abcdef' }];
+        // The scene treatment must not drive background-local uniforms.
+        app.contrast = 0.7;
+        app.saturation = 1.8;
+        try {
+            await runtime.setBackgroundFromTileManager();
+            expect(camera.children).toHaveLength(1);
+            const material = camera.children[0].material;
+            const uniforms = rendererType === 'webgl' ? material.uniforms : material._staticTextureAdjustmentUniforms;
+            expect(uniforms.uStaticTextureContrast.value).toBe(1.6);
+            expect(uniforms.uStaticTextureSaturation.value).toBe(0.2);
+            expect(uniforms.uStaticTextureGradientMapEnabled.value).toBe(true);
+            app.backgroundTextureContrast = 0.5;
+            app.backgroundTextureSaturation = 0;
+            app.backgroundTextureGradientMapEnabled = false;
+            runtime.updateBackground({ timeSeconds: 3 });
+            expect(uniforms.uStaticTextureContrast.value).toBe(0.5);
+            expect(uniforms.uStaticTextureSaturation.value).toBe(0);
+            expect(uniforms.uStaticTextureGradientMapEnabled.value).toBe(false);
+            expect(camera.children[0].material).toBe(material);
+            runtime.updateBackground({ blurMode: 'export', width: 384, height: 192, timeSeconds: 3 });
+            const exportMaterial = camera.children[0].material;
+            const exportUniforms = rendererType === 'webgl' ? exportMaterial.uniforms : exportMaterial._staticTextureAdjustmentUniforms;
+            expect(exportUniforms.uStaticTextureContrast.value).toBe(0.5);
+            expect(exportUniforms.uStaticTextureSaturation.value).toBe(0);
+            expect(exportUniforms.uStaticTextureGradientMapEnabled.value).toBe(false);
+            expect(app.contrast).toBe(0.7);
+            expect(app.saturation).toBe(1.8);
+        } finally {
+            runtime.disposeBackground();
+            loader.mockRestore();
+        }
+    });
 
     it('caches source palettes and updates only nine colors without blur targets in preview or export', async () => {
         const { runtime, ctx, camera, app, renderer, renders } = blurredFixture();
