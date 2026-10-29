@@ -1,5 +1,7 @@
 // Real native clip playback and timestamp-directed background rendering on WebGL/WebGPU.
 import { createServer } from 'vite';
+import { Input, ALL_FORMATS, BlobSource } from 'mediabunny';
+import { inspectClipInput, getClipInputFormats } from '../../../packages/shared-types/src/clipAsset.js';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -17,7 +19,13 @@ if (!binary) throw new Error('Set BROWSER_BINARY to a WebGPU-capable Chrome/Edge
 const profile = await mkdtemp(join(tmpdir(), 'rivvon-clip-background-test-'));
 process.env.VITE_ASSET_MODE = 'local';
 process.env.VITE_API_URL = 'http://127.0.0.1:5189';
-const clipBytes = await readFile(resolve(root, '../../packages/shared-types/fixtures/clip.mp4'));
+const fixtures = new Map();
+for (const [id, name] of [['test-clip', 'clip.mp4'], ['vp9-clip', 'clip-vp9.webm'], ['mkv-clip', 'clip-vp9.mkv'], ['mov-clip', 'clip.mov'], ['hevc-clip', 'clip-hevc.mp4'], ['av1-clip', 'clip-av1.mp4'], ['ts-clip', 'clip.mts']]) {
+    const bytes = await readFile(resolve(root, '../../packages/shared-types/fixtures', name));
+    const input = new Input({ formats: getClipInputFormats(ALL_FORMATS), source: new BlobSource(new Blob([bytes])) });
+    try { const info = await inspectClipInput(input); fixtures.set(id, { bytes, info: { ...info, id, name: id === 'test-clip' ? 'Test clip' : name, mime_type: info.mimeType } }); }
+    finally { input.dispose(); }
+}
 const server = await createServer({ root, server: { host: '127.0.0.1', port: 5189, strictPort: true, open: false }, plugins: [{
     name: 'clip-background-test-page',
     configureServer(server) {
@@ -26,13 +34,16 @@ const server = await createServer({ root, server: { host: '127.0.0.1', port: 518
             if (req.url !== '/' && !req.url.startsWith('/?')) return next();
             res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ clips: [{ id: 'test-clip', name: 'Test clip', width: 32, height: 24, duration: 1.2 }], pagination: { total: 1 } }));
         });
-        server.middlewares.use('/clips/test-clip', (req, res) => {
-            if (!req.url.includes('/assets/')) { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ clip: { id: 'test-clip', name: 'Test clip', width: 32, height: 24, duration: 1.2, firstTimestamp: 0 } })); return; }
+        server.middlewares.use('/clips', (req, res) => {
+            const id = req.url.split('/').filter(Boolean)[0], fixture = fixtures.get(id);
+            if (!fixture) { res.statusCode = 404; res.end(); return; }
+            const { bytes: clipBytes, info } = fixture;
+            if (!req.url.includes('/assets/')) { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ clip: info })); return; }
             if (req.url.includes('/thumbnail')) { const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6UAAAAASUVORK5CYII=', 'base64'); res.setHeader('Content-Type', 'image/png'); res.end(png); return; }
             let start = 0, end = clipBytes.length - 1;
             const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
             if (range) { start = Number(range[1]); end = range[2] ? Math.min(end, Number(range[2])) : end; res.statusCode = 206; res.setHeader('Content-Range', `bytes ${start}-${end}/${clipBytes.length}`); }
-            res.setHeader('Content-Type', 'video/mp4'); res.setHeader('Accept-Ranges', 'bytes'); res.setHeader('Content-Length', end - start + 1); res.end(clipBytes.subarray(start, end + 1));
+            res.setHeader('Content-Type', info.mime_type); res.setHeader('Accept-Ranges', 'bytes'); res.setHeader('Content-Length', end - start + 1); res.end(clipBytes.subarray(start, end + 1));
         });
         server.middlewares.use('/__clip_background_test', (_req, res) => {
             res.setHeader('Content-Type', 'text/html');

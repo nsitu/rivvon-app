@@ -2,13 +2,13 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { Hono } from 'hono';
-import { Input, MP4, BlobSource } from 'mediabunny';
+import { Input, ALL_FORMATS, BlobSource } from 'mediabunny';
 import { clipRoutes, clipUploadRoutes, cleanupClips } from './clips';
 import { presetRoutes } from './presets';
 import { createSessionToken } from '../utils/session';
-import { inspectClipInput, MAX_CLIP_BYTES, CLIP_UPLOAD_PART_BYTES } from '../../../packages/shared-types/src/clipAsset.js';
+import { inspectClipInput, getClipInputFormats, MAX_CLIP_BYTES, CLIP_UPLOAD_PART_BYTES } from '../../../packages/shared-types/src/clipAsset.js';
 
-const fixture = name => new Uint8Array(readFileSync(new URL(`../../../packages/shared-types/fixtures/${name}.mp4`, import.meta.url)));
+const fixture = name => new Uint8Array(readFileSync(new URL(`../../../packages/shared-types/fixtures/${name.includes('.') ? name : `${name}.mp4`}`, import.meta.url)));
 const bytes = fixture('clip');
 const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6UAAAAASUVORK5CYII=', 'base64'));
 function bucket() {
@@ -74,8 +74,8 @@ describe('private clip resources', () => {
     afterEach(() => { db.close(); vi.unstubAllGlobals(); });
     const json = (method, body, auth = headers) => ({ method, headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const put = (id, asset, body, extra = {}) => app.request(`/clip/${id}/assets/${asset}`, { method: 'PUT', headers: { ...headers, 'Content-Type': asset === 'clip' ? 'video/mp4' : 'image/png', 'Content-Length': String(body.length), ...extra }, body }, env);
-    async function pending(data = bytes) {
-        const response = await app.request('/clip', json('POST', { name: 'Clip', mimeType: 'video/mp4', width: 32, height: 24, fileSize: data.length, thumbnailSize: png.length, thumbnailMimeType: 'image/png' }), env);
+    async function pending(data = bytes, mimeType = 'video/mp4') {
+        const response = await app.request('/clip', json('POST', { name: 'Clip', mimeType, width: 32, height: 24, fileSize: data.length, thumbnailSize: png.length, thumbnailMimeType: 'image/png' }), env);
         expect(response.status).toBe(201); return (await response.json()).clipId;
     }
     const complete = id => app.request(`/clip/${id}/complete`, { method: 'POST', headers }, env);
@@ -84,8 +84,8 @@ describe('private clip resources', () => {
         const result = await complete(id); expect(result.status).toBe(200); expect((await result.json()).clip).toMatchObject({ duration: 1.2, width: 32, height: 24 }); return id;
     }
     const startUpload = id => app.request(`/clip/${id}/upload`, { method: 'POST', headers }, env);
-    const putPart = (id, session, number, data, auth = headers) => app.request(`/clip/${id}/upload/${session}/parts/${number}`, {
-        method: 'PUT', headers: { ...auth, 'Content-Type': 'video/mp4', 'Content-Length': String(data.length) }, body: data,
+    const putPart = (id, session, number, data, auth = headers, mimeType = 'video/mp4') => app.request(`/clip/${id}/upload/${session}/parts/${number}`, {
+        method: 'PUT', headers: { ...auth, 'Content-Type': mimeType, 'Content-Length': String(data.length) }, body: data,
     }, env);
     const assemble = (id, session, parts) => app.request(`/clip/${id}/upload/${session}/complete`, json('POST', { parts }), env);
     it('accepts exactly 1 GB, rejects one byte more, and keeps legacy requests bounded', async () => {
@@ -123,6 +123,16 @@ describe('private clip resources', () => {
         expect((await assemble(id, session.sessionId, [first])).status).toBe(400);
         expect((await assemble(id, session.sessionId, [last, first])).status).toBe(400);
         expect((await assemble(id, session.sessionId, [first, last])).status).toBe(200);
+    });
+    it('preserves a non-MP4 container through multipart assembly and media verification', async () => {
+        const data = fixture('clip-vp9.webm'), id = await pending(data, 'video/webm');
+        const session = await startUpload(id).then(response => response.json());
+        expect(env.CLIPS_BUCKET.createMultipartUpload).toHaveBeenCalledWith(expect.any(String), { httpMetadata: { contentType: 'video/webm' } });
+        const part = await putPart(id, session.sessionId, 1, data, headers, 'video/webm').then(response => response.json());
+        expect((await assemble(id, session.sessionId, [part])).status).toBe(200);
+        await put(id, 'thumbnail', png);
+        const result = await complete(id); expect(result.status).toBe(200);
+        expect((await result.json()).clip.mime_type).toBe('video/webm');
     });
     it('aborts unfinished parts on cancel and expiry and cannot assemble after deletion', async () => {
         const id = await pending(), session = await startUpload(id).then(r => r.json());
@@ -196,9 +206,31 @@ describe('private clip resources', () => {
         const expired = await pending(); await put(expired, 'clip', bytes); db.prepare('UPDATE clip_assets SET upload_expires_at = 0 WHERE id = ?').run(expired);
         await cleanupClips(env); expect(db.prepare('SELECT id FROM clip_assets WHERE id = ?').get(expired)).toBeUndefined();
     });
-    it('rejects interlaced source parameters before decoding', async () => {
-        const input = new Input({ formats: [MP4], source: new BlobSource(new Blob([fixture('interlaced-clip')])) });
-        try { await expect(inspectClipInput(input)).rejects.toThrow('Interlaced'); } finally { input.dispose(); }
+    it.each([
+        ['clip-vp9.webm', 'video/webm', 'vp09'], ['clip-vp9.mkv', 'video/x-matroska', 'vp09'],
+        ['clip.mov', 'video/quicktime', 'avc1'], ['clip-hevc.mp4', 'video/mp4', 'hev1'],
+        ['clip-av1.mp4', 'video/mp4', 'av01'], ['clip.mts', 'video/mp2t', 'avc1'],
+    ])('verifies and serves the actual format of %s without a codec allowlist', async (name, mimeType, codecPrefix) => {
+        const data = fixture(name), id = await pending(data, mimeType);
+        expect((await put(id, 'clip', data, { 'Content-Type': mimeType })).status).toBe(200);
+        await put(id, 'thumbnail', png);
+        const result = await complete(id); expect(result.status).toBe(200);
+        const clip = (await result.json()).clip;
+        expect(clip.mime_type).toBe(mimeType); expect(clip.codec.startsWith(codecPrefix)).toBe(true);
+        expect((await app.request(`/clips/${id}/assets/clip`, { headers }, env)).headers.get('Content-Type')).toBe(mimeType);
+    });
+    it('checks the real container instead of accepting spoofed upload metadata', async () => {
+        const data = fixture('clip-vp9.webm'), id = await pending(data, 'video/mp4');
+        await put(id, 'clip', data); await put(id, 'thumbnail', png);
+        const result = await complete(id); expect(result.status).toBe(400);
+        expect((await result.json()).error).toContain('format does not match');
+    });
+    it('leaves decoding capability decisions to the client instead of imposing an AVC profile gate', async () => {
+        const input = new Input({ formats: getClipInputFormats(ALL_FORMATS), source: new BlobSource(new Blob([fixture('interlaced-clip')])) });
+        try { await expect(inspectClipInput(input)).resolves.toMatchObject({ width: 32, height: 32, mimeType: 'video/mp4' }); } finally { input.dispose(); }
+    });
+    it('excludes external playlists from the local-file parser set', () => {
+        expect(getClipInputFormats(ALL_FORMATS).some(format => format.mimeType.includes('mpegurl'))).toBe(false);
     });
     it('preserves existing resource dependencies when applying migration 014', () => {
         // The common test fixture includes the latest schema. Remove the clip

@@ -6,8 +6,8 @@ import type { AppEnv, AppBindings } from '../types/hono';
 import { syncUser } from '../utils/user';
 import { getLinkedPresets, parseAcceptedPresetIds, prepareMediaDeletion } from '../utils/presetDependencies';
 import { inspectImage, MAX_THUMBNAIL_BYTES, MAX_THUMBNAIL_SIDE, IMAGE_MIME_TYPES } from '../../../packages/shared-types/src/imageAsset.js';
-import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SIDE, CLIP_MIME_TYPE, CLIP_UPLOAD_PART_BYTES, MAX_CLIP_SINGLE_UPLOAD_BYTES, MAX_CLIP_INSPECTION_BYTES } from '../../../packages/shared-types/src/clipAsset.js';
-import { Input, MP4, CustomSource } from 'mediabunny';
+import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SIDE, CLIP_MIME_TYPES, getClipInputFormats, CLIP_UPLOAD_PART_BYTES, MAX_CLIP_SINGLE_UPLOAD_BYTES, MAX_CLIP_INSPECTION_BYTES } from '../../../packages/shared-types/src/clipAsset.js';
+import { Input, ALL_FORMATS, CustomSource } from 'mediabunny';
 
 type ClipRow = { id: string; owner_id: string; status: string; clip_key: string; thumbnail_key: string;
     name: string; mime_type: string; width: number; height: number; expected_file_size: number;
@@ -145,7 +145,7 @@ clipRoutes.on(['GET', 'HEAD'], '/:id/assets/:asset', async (c) => {
 clipUploadRoutes.post('/', async (c) => {
     const body = await c.req.json().catch(() => null);
     const name = typeof body?.name === 'string' ? body.name.trim() : '';
-    if (!name || name.length > 120 || body?.mimeType !== CLIP_MIME_TYPE || !IMAGE_MIME_TYPES.includes(body?.thumbnailMimeType)
+    if (!name || name.length > 120 || !CLIP_MIME_TYPES.includes(body?.mimeType) || !IMAGE_MIME_TYPES.includes(body?.thumbnailMimeType)
         || ![body?.width, body?.height].every(n => Number.isInteger(n) && n > 0 && n <= MAX_CLIP_SIDE)
         || !Number.isInteger(body?.fileSize) || body.fileSize <= 0 || body.fileSize > MAX_CLIP_BYTES
         || !Number.isInteger(body?.thumbnailSize) || body.thumbnailSize <= 0 || body.thumbnailSize > MAX_THUMBNAIL_BYTES) fail('Invalid clip metadata');
@@ -198,7 +198,7 @@ clipUploadRoutes.post('/:id/upload', async (c) => {
     const existing = await readUploadSession(c.env.DB, row.id);
     if (existing) return c.json(describe(existing));
     const id = nanoid(), objectKey = `clips/${row.id}/clip-${id}`;
-    const upload = await c.env.CLIPS_BUCKET.createMultipartUpload(objectKey, { httpMetadata: { contentType: CLIP_MIME_TYPE } });
+    const upload = await c.env.CLIPS_BUCKET.createMultipartUpload(objectKey, { httpMetadata: { contentType: row.mime_type } });
     let session;
     try {
         session = await c.env.DB.prepare(`INSERT INTO clip_upload_sessions (clip_id, id, upload_id, object_key)
@@ -222,7 +222,7 @@ clipUploadRoutes.put('/:id/upload/:sessionId/parts/:partNumber', async (c) => {
     const rawPart = c.req.param('partNumber'), partNumber = Number(rawPart);
     const partCount = Math.ceil(row.expected_file_size / CLIP_UPLOAD_PART_BYTES);
     if (!/^\d+$/.test(rawPart) || !Number.isInteger(partNumber) || partNumber < 1 || partNumber > partCount) fail('Invalid clip upload part');
-    if (c.req.header('Content-Type')?.split(';')[0] !== CLIP_MIME_TYPE) fail('Invalid clip part content type');
+    if (c.req.header('Content-Type')?.split(';')[0] !== row.mime_type) fail('Invalid clip part content type');
     const expectedSize = Math.min(CLIP_UPLOAD_PART_BYTES, row.expected_file_size - (partNumber - 1) * CLIP_UPLOAD_PART_BYTES);
     const upload = c.env.CLIPS_BUCKET.resumeMultipartUpload(session!.object_key, session!.upload_id);
     const part = await uploadPartStream(c.req.raw, expectedSize, stream => upload.uploadPart(partNumber, stream));
@@ -317,7 +317,7 @@ clipUploadRoutes.post('/:id/complete', async (c) => {
     if (!clip || !thumbnail || clip.size !== row.expected_file_size || thumbnail.size !== row.thumbnail_size) fail('Clip upload is incomplete', 409);
     // Pure JS demuxing works in Workers; only bounded ranges are retained.
     let bytesRead = 0, reads = 0;
-    const input = new Input({ formats: [MP4], source: new CustomSource({ getSize: () => clip!.size, maxCacheSize: 2 * 1024 * 1024,
+    const input = new Input({ formats: getClipInputFormats(ALL_FORMATS), source: new CustomSource({ getSize: () => clip!.size, maxCacheSize: 2 * 1024 * 1024,
         async read(start, end) {
             bytesRead += end - start;
             if (++reads > 4096 || bytesRead > MAX_CLIP_INSPECTION_BYTES) throw new Error('Clip metadata exceeds the inspection budget');
@@ -328,8 +328,9 @@ clipUploadRoutes.post('/:id/complete', async (c) => {
     }) });
     let info;
     try { info = await inspectClipInput(input); }
-    catch (error) { fail(error instanceof Error ? error.message : 'Invalid MP4 clip'); }
+    catch (error) { fail(error instanceof Error ? error.message : 'Invalid video clip'); }
     finally { input.dispose(); }
+    if (info!.mimeType !== row.mime_type) fail('Clip format does not match the upload metadata');
     if (info!.width !== row.width || info!.height !== row.height) fail('Clip dimensions do not match the upload metadata');
     const done = await c.env.DB.prepare(`UPDATE clip_assets SET status = 'complete', file_size = expected_file_size, metadata_json = ?, updated_at = unixepoch()
         WHERE id = ? AND status = 'uploading' AND clip_key = ? AND thumbnail_key = ? AND upload_expires_at > unixepoch() RETURNING *`)

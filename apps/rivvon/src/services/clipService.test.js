@@ -10,10 +10,10 @@ describe('large clip uploads', () => {
         vi.stubGlobal('XMLHttpRequest', class {
             upload = {};
             open(_method, url) { this.url = url; }
-            setRequestHeader() {}
+            setRequestHeader(name, value) { this.headers ||= {}; this.headers[name] = value; }
             abort() { this.aborted = true; this.onabort?.(); }
             send(blob) {
-                sent.push({ url: this.url, size: blob.size });
+                sent.push({ url: this.url, size: blob.size, type: this.headers['Content-Type'] });
                 queueMicrotask(() => {
                     const partNumber = Number(/\/parts\/(\d+)$/.exec(this.url)?.[1]);
                     this.upload.onprogress?.({ lengthComputable: true, loaded: blob.size, total: blob.size });
@@ -56,6 +56,12 @@ describe('large clip uploads', () => {
         await expect(uploadClipBytes('clip-1', largeFile(), { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
         expect(sent).toHaveLength(1);
         expect(fetch.mock.calls.some(([url]) => url.endsWith('/complete'))).toBe(false);
+    });
+    it('preserves a detected non-MP4 container MIME on every multipart request', async () => {
+        const file = { ...largeFile(), type: 'video/webm' };
+        await uploadClipBytes('clip-webm', file);
+        expect(sent.every(part => part.type === 'video/webm')).toBe(true);
+        expect(file.slice.mock.calls.every(([, , type]) => type === 'video/webm')).toBe(true);
     });
     it('rejects files above 1 GB before media inspection or any upload request', async () => {
         await expect(uploadClipBytes('clip-1', { size: MAX_CLIP_BYTES + 1 })).rejects.toThrow('1 GB');

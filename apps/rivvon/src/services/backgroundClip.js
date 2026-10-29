@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Input, MP4, UrlSource, CanvasSink } from 'mediabunny';
+import { Input, ALL_FORMATS, UrlSource, CanvasSink } from 'mediabunny';
+import { getClipInputFormats } from '../../../../packages/shared-types/src/clipAsset.js';
 import { fetchClip, clipAssetUrl } from './clipService.js';
 import { createClipTimingPlan, getClipLocalTime } from '../modules/viewer/clipTiming.js';
 
@@ -19,7 +20,9 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
     const controller = new AbortController();
     const canvas = document.createElement('canvas');
     const video = document.createElement('video');
-    let disposed = false, input = null, exporting = false, manualPause = false;
+    let disposed = false, exporting = false, manualPause = false;
+    const inputs = new Set();
+    let decodedPlayback = false, liveDecoder = null, liveInput = null, liveBusy = false, liveGeneration = 0, lastDecodedTime = -Infinity;
     let nativeRate = 1, lastFrame = -1, lastTarget = 0, lastPlan, pauseTime = null, timeOffset = 0, lastSceneTime = 0;
     let videoFrameCallback = null, frameAvailable = true;
     let blocked = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -31,7 +34,8 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
     consumers.add(consumer);
     function release() {
         if (disposed) return;
-        disposed = true; controller.abort(); input?.dispose(); input = null;
+        disposed = true; controller.abort();
+        for (const input of inputs) input.dispose(); inputs.clear();
         if (videoFrameCallback != null) video.cancelVideoFrameCallback?.(videoFrameCallback);
         video.pause(); video.removeAttribute('src'); video.load();
         // An old runtime can survive until its asynchronous replacement commits.
@@ -40,25 +44,28 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
         texture.needsUpdate = true; texture.dispose(); consumers.delete(consumer);
         document.removeEventListener('visibilitychange', visibility);
     }
-    function visibility() { if (document.hidden) video.pause(); }
+    function visibility() { if (document.hidden) { pauseTime ??= lastSceneTime; video.pause(); stopDecodedPlayback(); } }
     document.addEventListener('visibilitychange', visibility);
     function createInput() {
-        return new Input({ formats: [MP4], source: new UrlSource(clipAssetUrl(source.id, { presetId }), {
+        return new Input({ formats: getClipInputFormats(ALL_FORMATS), source: new UrlSource(clipAssetUrl(source.id, { presetId }), {
             requestInit: { credentials: 'include', cache: 'no-store' }, maxCacheSize: 4 * 1024 * 1024,
             getRetryDelay: () => null,
         }) });
     }
-    async function openDecoder(signal) {
-        input = createInput();
-        const current = input;
+    async function openDecoder(signal, onCreate = () => {}) {
+        const current = createInput(); inputs.add(current); onCreate(current);
         const abort = () => current.dispose();
-        signal?.throwIfAborted(); signal?.addEventListener('abort', abort, { once: true });
         try {
+            signal?.throwIfAborted(); signal?.addEventListener('abort', abort, { once: true });
             const track = await current.getPrimaryVideoTrack();
-            if (!track || !await track.canDecode()) throw new Error('This browser cannot decode background clips for export. Use a browser with H.264 WebCodecs support.');
+            if (!track || !await track.canDecode()) throw new Error('This browser cannot decode the video codec in this clip. Try a compatible browser or convert the video.');
             return { sink: new CanvasSink(track, { width: canvas.width, height: canvas.height, fit: 'fill' }),
-                dispose() { signal?.removeEventListener('abort', abort); current.dispose(); if (input === current) input = null; } };
-        } catch (error) { signal?.removeEventListener('abort', abort); current.dispose(); if (input === current) input = null; throw error; }
+                dispose() { signal?.removeEventListener('abort', abort); current.dispose(); inputs.delete(current); } };
+        } catch (error) { signal?.removeEventListener('abort', abort); current.dispose(); inputs.delete(current); throw error; }
+    }
+    function stopDecodedPlayback() {
+        liveGeneration++; liveDecoder?.dispose(); liveDecoder = null;
+        liveInput?.dispose(); liveInput = null; lastDecodedTime = -Infinity;
     }
     try {
         const clip = await fetchClip(source.id, presetId, controller.signal);
@@ -73,12 +80,40 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
             if (!first || disposed) throw new Error('Could not decode the background clip');
             context.drawImage(first.canvas, 0, 0); texture.needsUpdate = true;
         } finally { decoder.dispose(); }
+        const mimeType = clip.mime_type || clip.mimeType || 'video/mp4';
+        decodedPlayback = !video.canPlayType(clip.codec ? `${mimeType}; codecs="${clip.codec}"` : mimeType);
+        function useDecodedPlayback() {
+            if (decodedPlayback || disposed) return;
+            decodedPlayback = true; video.pause();
+            if (videoFrameCallback != null) video.cancelVideoFrameCallback?.(videoFrameCallback);
+            video.removeAttribute('src'); video.load();
+            if (!blocked) onError('');
+        }
+        async function drawDecoded(localTime) {
+            // Keep one decode in flight, dropping obsolete live frames instead
+            // of queuing work. Export still awaits every requested timestamp.
+            if (liveBusy || disposed || exporting || localTime === lastDecodedTime) return;
+            liveBusy = true; const generation = liveGeneration;
+            try {
+                if (!liveDecoder) {
+                    const decoder = await openDecoder(controller.signal, input => { liveInput = input; });
+                    if (disposed || exporting || generation !== liveGeneration) { decoder.dispose(); return; }
+                    liveDecoder = decoder;
+                }
+                const frame = await liveDecoder.sink.getCanvas(clip.firstTimestamp + localTime);
+                if (disposed || exporting || generation !== liveGeneration) return;
+                if (!frame) throw new Error('No decoded video frame was available');
+                context.drawImage(frame.canvas, 0, 0); texture.needsUpdate = true; lastDecodedTime = localTime;
+            } catch (error) {
+                if (!disposed && !exporting && generation === liveGeneration) { blocked = true; onError(`Could not decode this clip: ${error.message}`); }
+            } finally { liveBusy = false; }
+        }
         video.crossOrigin = 'use-credentials'; video.muted = true; video.defaultMuted = true;
         video.playsInline = true; video.loop = true; video.preload = 'auto';
-        video.addEventListener('error', () => { if (!disposed) onError('Background clip playback failed. Choose another clip or retry.'); }, { signal: controller.signal });
-        video.src = clipAssetUrl(source.id, { presetId });
+        video.addEventListener('error', useDecodedPlayback, { signal: controller.signal });
+        if (!decodedPlayback) video.src = clipAssetUrl(source.id, { presetId });
         const watchFrames = () => {
-            if (disposed || !video.requestVideoFrameCallback) return;
+            if (disposed || decodedPlayback || !video.requestVideoFrameCallback) return;
             videoFrameCallback = video.requestVideoFrameCallback(() => { frameAvailable = true; watchFrames(); });
         };
         watchFrames();
@@ -95,6 +130,7 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
             if (disposed || exporting) return;
             if (paused || manualPause || blocked || document.hidden) {
                 if (pauseTime == null) pauseTime = lastSceneTime;
+                if (liveInput) stopDecodedPlayback();
                 video.pause(); return;
             }
             // Keep the displayed phase when rendering resumes after a pause.
@@ -102,6 +138,7 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
             lastSceneTime = timeSeconds;
             lastPlan = createClipTimingPlan(clip.duration, targetDuration, playbackMode);
             lastTarget = getClipLocalTime(timeSeconds - timeOffset, lastPlan);
+            if (decodedPlayback) { void drawDecoded(lastTarget); return; }
             try {
                 if (nativeRate !== lastPlan.rate) {
                     video.playbackRate = lastPlan.rate;
@@ -109,23 +146,29 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
                     nativeRate = lastPlan.rate;
                 }
             } catch {
-                blocked = true; video.pause(); onError(`This device cannot preview ${lastPlan.rate.toFixed(2)}× playback. Frame-accurate export remains available.`); return;
+                useDecodedPlayback(); void drawDecoded(lastTarget); return;
             }
             if (video.readyState >= 2 && !video.seeking && Math.abs(video.currentTime - (clip.firstTimestamp + lastTarget)) > 0.2) {
                 video.currentTime = clip.firstTimestamp + lastTarget;
             }
-            if (video.paused && video.readyState >= 2) video.play().catch(error => { if (!disposed && !exporting) { blocked = true; onError(error.name === 'NotAllowedError' ? 'Press Play to start the background clip.' : 'Background clip playback failed. Try another clip.'); } });
+            if (video.paused && video.readyState >= 2) video.play().catch(error => {
+                if (disposed || exporting || decodedPlayback || manualPause || error.name === 'AbortError') return;
+                if (error.name === 'NotAllowedError') { blocked = true; onError('Press Play to start the background clip.'); }
+                else useDecodedPlayback();
+            });
             drawVideo();
         }
         async function beginExport({ targetDuration, playbackMode, signal } = {}) {
             if (disposed) throw new Error('Background clip is unavailable');
             if (exporting) throw new Error('A background clip capture is already in progress');
+            const plan = createClipTimingPlan(clip.duration, targetDuration, playbackMode);
             const savedTime = video.currentTime, wasPaused = video.paused;
-            exporting = true; video.pause();
+            const savedCanvas = document.createElement('canvas'); savedCanvas.width = canvas.width; savedCanvas.height = canvas.height;
+            savedCanvas.getContext('2d').drawImage(canvas, 0, 0);
+            exporting = true; video.pause(); stopDecodedPlayback();
             let decoder;
             try { decoder = await openDecoder(signal); }
             catch (error) { exporting = false; throw error; }
-            const plan = createClipTimingPlan(clip.duration, targetDuration, playbackMode);
             let ended = false;
             return { plan,
                 async prepareFrame(time) {
@@ -138,13 +181,17 @@ export async function acquireBackgroundClip(source, { presetId = '', maxTextureS
                 },
                 dispose() {
                     if (ended) return; ended = true; decoder.dispose(); exporting = false;
-                    if (!disposed) { video.currentTime = savedTime; lastFrame = -1; frameAvailable = true; drawVideo(); if (!wasPaused && !blocked && !document.hidden) video.play().catch(() => {}); }
+                    if (!disposed) {
+                        context.drawImage(savedCanvas, 0, 0); texture.needsUpdate = true;
+                        if (!decodedPlayback) { video.currentTime = savedTime; lastFrame = -1; frameAvailable = true; if (!wasPaused && !blocked && !document.hidden) video.play().catch(() => {}); }
+                    }
+                    savedCanvas.width = savedCanvas.height = 1;
                 },
             };
         }
         return { ...consumer, texture, duration: clip.duration, update, beginExport,
             getTime: () => Math.max(0, lastSceneTime - timeOffset),
-            pause() { manualPause = true; pauseTime = lastSceneTime; video.pause(); },
+            pause() { manualPause = true; pauseTime = lastSceneTime; video.pause(); stopDecodedPlayback(); },
             resume: consumer.resume,
         };
     } catch (error) { release(); throw error; }

@@ -1,19 +1,18 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '../../stores/authStore.js';
-import { fetchClipBlob, clipAssetUrl } from '../../services/clipService.js';
+import { fetchClipBlob } from '../../services/clipService.js';
+import ClipPlaybackPreview from './ClipPlaybackPreview.vue';
 const props = defineProps({ source: { type: Object, required: true }, presetId: { type: String, default: '' }, title: { type: String, default: '' }, full: Boolean });
 const auth = useAuthStore(), url = ref(''), error = ref('');
-const videoRef = ref(null);
 let controller, objectUrl;
 function cleanup() {
     controller?.abort();
-    if (videoRef.value) { videoRef.value.pause(); videoRef.value.removeAttribute('src'); videoRef.value.load(); }
     if (objectUrl) URL.revokeObjectURL(objectUrl); objectUrl = '';
 }
 watch(() => [props.source.kind, props.source.id, props.presetId, props.full, auth.user?.id], async () => {
     cleanup(); url.value = ''; error.value = '';
-    if (props.full) { url.value = clipAssetUrl(props.source.id, { presetId: props.presetId }); return; }
+    if (props.full) return;
     const request = controller = new AbortController();
     try {
         const blob = await fetchClipBlob(props.source.id, { presetId: props.presetId, asset: 'thumbnail', signal: request.signal });
@@ -24,9 +23,8 @@ watch(() => [props.source.kind, props.source.id, props.presetId, props.full, aut
 onBeforeUnmount(cleanup);
 </script>
 <template>
-    <div class="clip-asset-preview" :aria-busy="!url && !error">
-        <!-- Native transport is intentional: it provides accessible video playback. -->
-        <video v-if="url && full" ref="videoRef" :key="url" :src="url" crossorigin="use-credentials" muted loop playsinline controls preload="metadata" :aria-label="title" @error="error = 'Clip preview unavailable'; url = ''" />
+    <div class="clip-asset-preview" :aria-busy="!full && !url && !error">
+        <ClipPlaybackPreview v-if="full" :source="source" :preset-id="presetId" :title="title" />
         <img v-else-if="url" :src="url" :alt="title" loading="lazy" @error="error = 'Clip preview unavailable'; url = ''" />
         <span v-else-if="error" class="clip-preview-message" role="status">{{ error }}</span>
         <span v-else class="clip-preview-message" role="status">Loading clip…</span>

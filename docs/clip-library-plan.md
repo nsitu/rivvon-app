@@ -1,6 +1,6 @@
 # Clip library and looping video backgrounds
 
-Status: implemented locally, 2026-10-29. See [clip-library.md](clip-library.md) for behavior, verification, deployment steps, and remaining device checks. The following records the implementation plan; native playback reports an unsupported preview state for rates the device cannot represent. No deployment is included.
+Status: implemented locally, 2026-10-29. See [clip-library.md](clip-library.md) for behavior, verification, deployment steps, and remaining device checks. The following records the implementation plan. Subsequent updates replaced the initial H.264-only policy with detected-container and first-frame decoding checks, and added decoded playback when native playback is unavailable. No deployment is included.
 
 ## Recommendation and scope
 
@@ -14,8 +14,8 @@ Recommended boundaries:
 - Rename the user-facing **Static Texture** section to **Background Media**; keep existing stored setting names where practical. Do not duplicate all image adjustments for clips.
 - Applying a clip enables the layer and defaults a change of source kind to Normal blending. Replacing one clip with another retains the selected blend and adjustments. Applying an image from a clip defaults to Normal; built-ins retain their established Soft Light behavior.
 - Playback is always muted. Embedded audio is ignored by scene playback and exports; the existing scene audio system remains responsible for sound. Original clip bytes may still contain audio and metadata: private storage is not a metadata-removal promise.
-- Proposed initial input policy: progressive SDR MP4/H.264, up to 1 GB (1,000,000,000 bytes), 60 seconds, 60 fps, 1920 pixels on the longest side, and 2,073,600 displayed pixels. Accept portrait orientation within the same budget. Validate support for native playback and deterministic decoding. These are proposed product limits, not current platform limits.
-- No transcoding, HDR tone mapping, interlaced processing, trimming, arbitrary speed control, crossfades, transparent video, external streaming URLs, Drive destinations, or gallery-to-clip conversion in this release. WebM can follow once both playback paths have fixtures and verified support. Unsupported files receive an actionable conversion message.
+- Input policy: self-contained video containers readable by Mediabunny, with browser decodability and a successful first-frame probe, up to 1 GB (1,000,000,000 bytes), 60 seconds, 60 fps, 1920 pixels on the longest side, and 2,073,600 displayed pixels. Accept portrait orientation within the same budget. Validate support for native playback and deterministic decoding. These are proposed product limits, not current platform limits.
+- No transcoding, HDR tone mapping, interlaced processing, trimming, arbitrary speed control, crossfades, transparent video, external streaming URLs, Drive destinations, or gallery-to-clip conversion in this release. Container support includes MP4, MOV, WebM, MKV, MPEG-TS and Ogg video. Unsupported files receive an actionable read/decode message; opening a container alone does not prove its video track can be decoded.
 
 ## Existing implementation to build on
 

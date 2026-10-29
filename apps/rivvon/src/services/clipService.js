@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SINGLE_UPLOAD_BYTES, CLIP_UPLOAD_PART_BYTES } from '../../../../packages/shared-types/src/clipAsset.js';
+import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SINGLE_UPLOAD_BYTES, CLIP_UPLOAD_PART_BYTES, getClipInputFormats } from '../../../../packages/shared-types/src/clipAsset.js';
 import { MAX_THUMBNAIL_SIDE } from '../../../../packages/shared-types/src/imageAsset.js';
-import { Input, MP4, BlobSource, CanvasSink } from 'mediabunny';
+import { Input, ALL_FORMATS, BlobSource, CanvasSink } from 'mediabunny';
 
 const API = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 export const CLIP_LIBRARY_KEY = Symbol('clip-library');
@@ -29,21 +29,26 @@ const canvasBlob = (canvas, type, quality) => new Promise((resolve, reject) => c
 export const clipAssetUrl = (id, { asset = 'clip', presetId = '' } = {}) => `${API}/clips/${encodeURIComponent(id)}/assets/${asset}${grant(presetId)}`;
 
 export async function prepareClipUpload(file, { signal } = {}) {
-    if (!file.size || file.size > MAX_CLIP_BYTES) throw new Error('Choose an H.264 MP4 clip of at most 1 GB (1,000,000,000 bytes)');
-    const input = new Input({ formats: [MP4], source: new BlobSource(file) });
+    if (!file.size || file.size > MAX_CLIP_BYTES) throw new Error('Choose a video clip of at most 1 GB (1,000,000,000 bytes)');
+    const input = new Input({ formats: getClipInputFormats(ALL_FORMATS), source: new BlobSource(file) });
     const abort = () => input.dispose();
     signal?.throwIfAborted(); signal?.addEventListener('abort', abort, { once: true });
     try {
         const info = await inspectClipInput(input);
         const track = await input.getPrimaryVideoTrack();
-        if (!await track.canDecode()) throw new Error('This browser cannot decode the clip. Try a supported browser or convert to H.264 MP4.');
+        if (!await track.canDecode()) throw new Error('This browser cannot decode the video codec in this clip. Try a compatible browser or convert the video.');
         const scale = Math.min(1, MAX_THUMBNAIL_SIDE / Math.max(info.width, info.height));
         const sink = new CanvasSink(track, { width: Math.max(1, Math.round(info.width * scale)), height: Math.max(1, Math.round(info.height * scale)), fit: 'fill' });
-        const frame = await sink.getCanvas(info.firstTimestamp);
+        let frame;
+        try { frame = await sink.getCanvas(info.firstTimestamp); }
+        catch (error) {
+            signal?.throwIfAborted();
+            throw new Error('This browser could not decode a frame from this video. Try a compatible browser or convert the video.', { cause: error });
+        }
         if (!frame) throw new Error('The clip has no decodable first frame.');
         const thumbnailBlob = await canvasBlob(frame.canvas, 'image/webp', 0.85);
         signal?.throwIfAborted();
-        return { ...info, blob: new Blob([file], { type: 'video/mp4' }), thumbnailBlob };
+        return { ...info, blob: new Blob([file], { type: info.mimeType }), thumbnailBlob };
     } finally { signal?.removeEventListener('abort', abort); input.dispose(); }
 }
 
@@ -84,7 +89,7 @@ export async function uploadClipBytes(id, blob, { signal, onProgress, onStatus }
         const start = index * CLIP_UPLOAD_PART_BYTES, end = Math.min(blob.size, start + CLIP_UPLOAD_PART_BYTES);
         onStatus?.(`Uploading clip part ${index + 1} of ${expectedParts}…`);
         const part = await retryTransfer(() => uploadBlob(`/clip/${id}/upload/${session.sessionId}/parts/${index + 1}`,
-            blob.slice(start, end, 'video/mp4'), { signal, onProgress: value => onProgress?.((start + value * (end - start)) / blob.size) }), signal);
+            blob.slice(start, end, blob.type || 'video/mp4'), { signal, onProgress: value => onProgress?.((start + value * (end - start)) / blob.size) }), signal);
         if (part?.partNumber !== index + 1 || typeof part.etag !== 'string' || !part.etag) throw new Error('The clip part upload returned an invalid receipt');
         parts.push(part);
     }

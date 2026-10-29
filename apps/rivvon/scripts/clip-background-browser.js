@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { useSceneBackground } from '../src/composables/viewer/useSceneBackground.js';
 import { applyRendererDisplayConfig } from '../src/modules/viewer/rendererConfig.js';
 import { acquireBackgroundClip } from '../src/services/backgroundClip.js';
+import { prepareClipUpload, clipAssetUrl } from '../src/services/clipService.js';
+import { Input, ALL_FORMATS, BlobSource } from 'mediabunny';
+import { getClipInputFormats } from '../../../packages/shared-types/src/clipAsset.js';
 import { createApp, h, nextTick } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import PrimeVue from 'primevue/config';
@@ -22,6 +25,48 @@ window.addEventListener('unhandledrejection', event => errors.push(String(event.
 
 window.clipBackgroundTest = (async () => {
     const reports = [];
+    for (const id of ['test-clip', 'vp9-clip', 'mkv-clip', 'mov-clip', 'hevc-clip', 'av1-clip', 'ts-clip']) {
+        console.log('[Clip background test] Probing', id);
+        const blob = await fetch(clipAssetUrl(id)).then(response => response.blob());
+        // Ignore the filename and browser MIME, just as a real generic upload.
+        const file = new File([blob], 'video.bin', { type: 'application/octet-stream' });
+        const input = new Input({ formats: getClipInputFormats(ALL_FORMATS), source: new BlobSource(file) });
+        let decodable;
+        try { decodable = await (await input.getPrimaryVideoTrack()).canDecode(); } finally { input.dispose(); }
+        if (decodable) {
+            let prepared;
+            try { prepared = await prepareClipUpload(file); }
+            catch (error) {
+                if (!['hevc-clip', 'av1-clip'].includes(id)) throw error;
+                assert(error.message.includes('could not decode a frame'), `${id}: failed decode is not actionable`);
+                reports.push({ id, failedFirstFrameReported: true }); continue;
+            }
+            assert(prepared.blob.type !== 'application/octet-stream', `${id}: container MIME was not detected`);
+            assert(prepared.thumbnailBlob.size > 0, `${id}: no first-frame poster`);
+            reports.push({ id, uploadProbe: true, mimeType: prepared.blob.type });
+        } else {
+            try { await prepareClipUpload(file); throw new Error(`${id}: unsupported decoder was accepted`); }
+            catch (error) { assert(error.message.includes('cannot decode the video codec'), `${id}: wrong capability error: ${error.message}`); }
+            reports.push({ id, unsupportedDecoderReported: true });
+            continue;
+        }
+        // Includes MPEG-TS, which needs the decoded-playback fallback on Chrome.
+        const consumer = await acquireBackgroundClip({ kind: 'clip', id });
+        try {
+            const initial = pixels(consumer.texture.image), start = performance.now();
+            while (performance.now() - start < 650) {
+                consumer.update({ timeSeconds: (performance.now() - start) / 1000, targetDuration: consumer.duration });
+                await new Promise(requestAnimationFrame);
+            }
+            assert(difference(initial, pixels(consumer.texture.image)) > 0.1, `${id}: playback did not advance`);
+            const session = await consumer.beginExport({ targetDuration: 1, playbackMode: 'alignLoop' });
+            try {
+                await session.prepareFrame(0); const first = pixels(consumer.texture.image);
+                await session.prepareFrame(0.5); assert(difference(first, pixels(consumer.texture.image)) > 0.1, `${id}: export frame did not advance`);
+                await session.prepareFrame(2); assert(difference(first, pixels(consumer.texture.image)) === 0, `${id}: export did not wrap exactly`);
+            } finally { session.dispose(); }
+        } finally { consumer.release(); }
+    }
     // Live viewing uses a native decoder; export uses timestamp-directed WebCodecs.
     const lease = await acquireBackgroundClip({ kind: 'clip', id: 'test-clip' });
     try {
@@ -95,11 +140,14 @@ window.clipBackgroundTest = (async () => {
     try {
         const preview = await waitFor('[aria-label="Preview Test clip"]');
         preview.click(); await nextTick();
-        const video = await waitFor('.clip-library-preview video');
-        assert(video.muted && video.loop && video.controls, 'Preview lacks muted loop/transport controls');
+        await waitFor('.clip-library-preview canvas');
+        const transport = await waitFor('[aria-label="Pause clip preview"]');
+        assert(root.textContent.includes('Muted'), 'Preview does not identify muted loop playback');
+        transport.click(); await nextTick();
+        assert(root.querySelector('[aria-label="Play clip preview"]'), 'Preview cannot pause');
         const back = [...root.querySelectorAll('button')].find(button => button.textContent.includes('Back to Clips'));
         back.click(); await nextTick();
-        assert(!root.querySelector('video'), 'Closing the preview retained its decoder');
+        assert(!root.querySelector('.clip-playback-preview'), 'Closing the preview retained its player');
         assert(document.activeElement === preview, 'Closing the preview did not return focus');
         const apply = [...root.querySelectorAll('button')].find(button => button.textContent.includes('Apply as background'));
         apply.click(); assert(applied?.source.kind === 'clip' && applied?.id === 'test-clip', 'Apply did not emit a clip reference');

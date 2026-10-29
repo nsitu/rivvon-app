@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue';
+import { CLIP_FILE_ACCEPT } from '../../../../packages/shared-types/src/clipAsset.js';
 import Button from 'primevue/button';
 import ScrollPanel from 'primevue/scrollpanel';
 import Dialog from 'primevue/dialog';
@@ -100,8 +101,8 @@ onBeforeUnmount(() => { alive = false; generation++; dependencyGeneration++; for
                         <template v-else>
                             <section v-if="collection === 'mine'" class="clip-upload-section" aria-label="Upload clips">
                                 <p>Clips are saved to Rivvon’s private cloud storage. Sharing a preset grants access to its background clip.</p>
-                                <p class="clip-library-hint">Progressive SDR H.264 MP4, up to 1 GB (1,000,000,000 bytes), 60 seconds, 60 fps and 1920 × 1080 pixels (portrait supported). Original files are retained; scene playback is muted.</p>
-                                <FileUpload mode="basic" name="clips" accept="video/mp4,.mp4" multiple custom-upload auto choose-label="Upload clips" @uploader="uploadFiles" />
+                                <p class="clip-library-hint">Videos that Mediabunny can read and this browser can decode, up to 1 GB (1,000,000,000 bytes), 60 seconds, 60 fps and 1920 × 1080 pixels (portrait supported). MP4, MOV, WebM, MKV and MPEG-TS are supported when their video codec is decodable. Original files are retained; scene playback is muted.</p>
+                                <FileUpload mode="basic" name="clips" :accept="CLIP_FILE_ACCEPT" multiple custom-upload auto choose-label="Upload clips" @uploader="uploadFiles" />
                                 <div v-for="job in jobs" :key="job.key" class="clip-upload-job" :aria-label="job.file.name">
                                     <span>{{ job.file.name }} · {{ job.error || job.status }}</span>
                                     <ProgressBar v-if="job.state === 'uploading'" :value="job.progress" />
