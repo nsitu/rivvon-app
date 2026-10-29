@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { Object3D, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { useSceneExport } from './useSceneExport.js';
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
 
@@ -22,6 +22,28 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it.each([[0, 35], [40, 0], [12.5, 50]])('exports independent %s° horizontal and %s° vertical tilt and restores the artwork', async (horizontal, vertical) => {
+        const { ctx, deps, exporter } = fixture();
+        ctx.camera.value.position.set(0, 0, 5);
+        ctx.tileManager.value.getSeamlessLoopDuration = () => 1;
+        ctx.app.artworkTiltHorizontalDegrees = horizontal;
+        ctx.app.artworkTiltVerticalDegrees = vertical;
+        const root = new Object3D();
+        ctx.ribbonSeries.value = { getTransformRoot: () => root, update: vi.fn() };
+        const frames = [];
+        deps.renderScene.mockImplementation(() => frames.push(root.quaternion.clone()));
+        await exporter.exportVideo({ fps: 4, duration: 1, artworkMotionMode: 'circularTilt' });
+        const expected = [
+            new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), horizontal * Math.PI / 180),
+            new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), vertical * Math.PI / 180),
+            new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -horizontal * Math.PI / 180),
+            new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -vertical * Math.PI / 180),
+        ];
+        expect(frames).toHaveLength(4);
+        frames.forEach((frame, index) => expect(frame.angleTo(expected[index])).toBeCloseTo(0, 7));
+        expect(root.quaternion.equals(new Quaternion())).toBe(true);
+        expect(root.position.equals(new Vector3())).toBe(true);
+    });
     it('waits for background readiness and refuses still/video exports if the selected image failed', async () => {
         const { deps, exporter } = fixture();
         deps.ensureBackgroundReady = vi.fn().mockRejectedValue(new Error('Selected image unavailable'));

@@ -5,7 +5,7 @@ import { Quaternion, Vector3 } from 'three';
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
 import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
-import { createMouseTiltController, getCircularTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
+import { createMouseTiltController, getEllipticalTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
 import { alignSceneLoopDuration as alignDurations } from '../../modules/viewer/backgroundAnimation.js';
 import {
@@ -811,7 +811,7 @@ export function useSceneExport(ctx, deps = {}) {
                 circularTiltReady = circularTiltController.activate(savedControlsTarget);
 
                 if (!circularTiltReady) {
-                    console.warn('[ThreeSetup] Circular tilt export requested but no camera baseline could be captured — camera will stay fixed');
+                    console.warn('[ThreeSetup] Elliptical tilt export requested but no camera baseline could be captured — camera will stay fixed');
                 }
             }
 
@@ -888,7 +888,7 @@ export function useSceneExport(ctx, deps = {}) {
 
                 if (circularTiltReady) {
                     const motionProgress = t / artworkMotionDuration;
-                    circularTiltController.apply(getCircularTiltAnglesAtProgress(motionProgress));
+                    circularTiltController.apply(getEllipticalTiltAnglesAtProgress(motionProgress, ctx.app));
                 }
 
                 if (circularOrbitReady) {

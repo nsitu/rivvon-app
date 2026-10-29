@@ -29,9 +29,10 @@ export const ARTWORK_MOTION_OPTIONS = [
     description: "Artwork stays fixed while you control the camera.",
   },
   {
-    label: "Circular Tilt",
+    label: "Elliptical Tilt",
+    // Retain the persisted identifier so existing presets and preferences still load.
     value: "circularTilt",
-    description: "Artwork tilts through one full 360° rotation.",
+    description: "Artwork follows a tilt loop with independent horizontal and vertical angles.",
   },
   {
     label: "Counterclockwise Orbit",

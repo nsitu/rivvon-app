@@ -5,6 +5,7 @@
     import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
+    import ArtworkTiltControls from './ArtworkTiltControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
     import {
@@ -152,7 +153,8 @@
     });
 
     const viewerMotionLoopDescription = computed(() => {
-        const motionLabel = app.artworkMotionMode === 'tumbleOrbit' ? 'tumble path' : 'artwork turn';
+        const motionLabel = app.artworkMotionMode === 'tumbleOrbit' ? 'tumble path'
+            : app.artworkMotionMode === 'circularTilt' ? 'tilt loop' : 'artwork turn';
         const option = selectedViewerMotionLoopCountOption.value;
         const materialLoopLabel = option.materialLoopCount === 1 ? 'loop' : 'loops';
 
@@ -332,6 +334,8 @@
                     </div>
                     <div class="tools-setting-description">{{ artworkMotionDescription }}</div>
                 </div>
+
+                <ArtworkTiltControls v-if="app.artworkMotionMode === 'circularTilt'" />
 
                 <div
                     v-if="app.artworkMotionMode !== 'none'"

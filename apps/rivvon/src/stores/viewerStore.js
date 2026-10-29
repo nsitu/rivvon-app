@@ -59,6 +59,11 @@ import {
 } from "../modules/viewer/sphericalProjection.js";
 import { normalizeArtworkMotionMode } from "../modules/viewer/viewerMotion.js";
 import {
+  DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES,
+  DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES,
+  normalizeArtworkTiltDegrees,
+} from '../../../../packages/shared-types/src/artworkTilt.js';
+import {
   DEFAULT_BACKGROUND_CYCLE_DURATION,
   normalizeBackgroundCycleDuration,
 } from "../modules/viewer/backgroundAnimation.js";
@@ -807,6 +812,12 @@ export const useViewerStore = defineStore("viewer", {
       artworkMotionMode: normalizeArtworkMotionMode(
         getStoredArtworkMotionMode(),
       ),
+      artworkTiltHorizontalDegrees: normalizeArtworkTiltDegrees(
+        readViewerPreferences().artworkTiltHorizontalDegrees, DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES,
+      ),
+      artworkTiltVerticalDegrees: normalizeArtworkTiltDegrees(
+        readViewerPreferences().artworkTiltVerticalDegrees, DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES,
+      ),
       viewerMotionLoopCount: normalizeMotionLoopDurationMultiplier(
         readViewerPreferences().viewerMotionLoopCount,
       ),
@@ -1234,6 +1245,16 @@ export const useViewerStore = defineStore("viewer", {
       writeViewerPreferences({ artworkMotionMode: nextMode });
     },
 
+    setArtworkTiltHorizontalDegrees(value) {
+      this.artworkTiltHorizontalDegrees = normalizeArtworkTiltDegrees(value, DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES);
+      writeViewerPreferences({ artworkTiltHorizontalDegrees: this.artworkTiltHorizontalDegrees });
+    },
+
+    setArtworkTiltVerticalDegrees(value) {
+      this.artworkTiltVerticalDegrees = normalizeArtworkTiltDegrees(value, DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES);
+      writeViewerPreferences({ artworkTiltVerticalDegrees: this.artworkTiltVerticalDegrees });
+    },
+
     setViewerMotionLoopCount(value) {
       const nextCount = normalizeMotionLoopDurationMultiplier(value);
       this.viewerMotionLoopCount = nextCount;
@@ -1252,6 +1273,8 @@ export const useViewerStore = defineStore("viewer", {
       this.sceneProjectionPreviewResolution = getDefaultSceneProjectionPreviewResolution();
       this.sceneShadowOpacity = DEFAULT_SCENE_SHADOW_OPACITY;
       this.artworkMotionMode = "none";
+      this.artworkTiltHorizontalDegrees = DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES;
+      this.artworkTiltVerticalDegrees = DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES;
       this.viewerMotionLoopCount = DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER;
       this.scrollDrivenTiltEnabled = true;
       this.scrollDrivenLayerCycleEnabled = true;
@@ -1386,6 +1409,8 @@ export const useViewerStore = defineStore("viewer", {
         sceneProjectionPreviewResolution: this.sceneProjectionPreviewResolution,
         sceneShadowOpacity: DEFAULT_SCENE_SHADOW_OPACITY,
         artworkMotionMode: "none",
+        artworkTiltHorizontalDegrees: DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES,
+        artworkTiltVerticalDegrees: DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES,
         viewerMotionLoopCount: DEFAULT_MOTION_LOOP_DURATION_MULTIPLIER,
         scrollDrivenTiltEnabled: true,
         scrollDrivenLayerCycleEnabled: true,
@@ -1994,6 +2019,8 @@ export const useViewerStore = defineStore("viewer", {
       const snapshot = {
         viewerControlMode: this.viewerControlMode,
         artworkMotionMode: this.artworkMotionMode,
+        artworkTiltHorizontalDegrees: this.artworkTiltHorizontalDegrees,
+        artworkTiltVerticalDegrees: this.artworkTiltVerticalDegrees,
         viewerMotionLoopCount: this.viewerMotionLoopCount,
         scrollDrivenTiltEnabled: this.scrollDrivenTiltEnabled,
         scrollDrivenLayerCycleEnabled: this.scrollDrivenLayerCycleEnabled,
@@ -2152,6 +2179,8 @@ sphericalProjectionVerticalWrapAuto:
       return (
         this.viewerControlMode !== original.viewerControlMode ||
         this.artworkMotionMode !== original.artworkMotionMode ||
+        this.artworkTiltHorizontalDegrees !== original.artworkTiltHorizontalDegrees ||
+        this.artworkTiltVerticalDegrees !== original.artworkTiltVerticalDegrees ||
         this.viewerMotionLoopCount !== original.viewerMotionLoopCount ||
         this.scrollDrivenTiltEnabled !== original.scrollDrivenTiltEnabled ||
         this.scrollDrivenLayerCycleEnabled !==

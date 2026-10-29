@@ -9,6 +9,28 @@ export function sampleScene() {
         camera: { position: [0, 0, 5], target: [0, 0, 0], up: [0, 1, 0], quaternion: [0, 0, 0, 1], fov: 45 } };
 }
 
+describe('elliptical tilt presets', () => {
+    it('round trips independent angles and preserves defaults for existing circular tilt presets', () => {
+        const input = sampleScene();
+        input.artwork = { artworkMotionMode: 'circularTilt', artworkTiltHorizontalDegrees: 0, artworkTiltVerticalDegrees: 48.5 };
+        const saved = normalizeScenePreset(input);
+        expect(saved.artwork).toMatchObject(input.artwork);
+        expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+        input.artwork = { artworkMotionMode: 'circularTilt' };
+        expect(normalizeScenePreset(input).artwork).toMatchObject({
+            artworkMotionMode: 'circularTilt', artworkTiltHorizontalDegrees: 30, artworkTiltVerticalDegrees: 22.5,
+        });
+    });
+
+    it.each([-0.5, 90.5, NaN, Infinity, '20'])('rejects invalid persisted tilt angle %s', value => {
+        for (const key of ['artworkTiltHorizontalDegrees', 'artworkTiltVerticalDegrees']) {
+            const input = sampleScene();
+            input.artwork[key] = value;
+            expect(() => normalizeScenePreset(input)).toThrow(`Invalid ${key}`);
+        }
+    });
+});
+
 describe('scene preset contract', () => {
     it('round trips artwork blend independently from background blending and defaults legacy presets to Normal', () => {
         const input = sampleScene(); input.artwork.artworkBlendMode = 'softLight'; input.artwork.backgroundTextureBlendMode = 'normal';

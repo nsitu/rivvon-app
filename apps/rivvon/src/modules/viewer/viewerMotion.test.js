@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Quaternion } from 'three';
+import { getEllipticalTiltAnglesAtProgress, getCircularTiltAnglesAtProgress } from './mouseTiltMotion.js';
 import {
     getTumbleOrbitQuaternionAtProgress,
     normalizeArtworkMotionMode,
@@ -11,6 +12,43 @@ function expectQuaternionClose(actual, expected, precision = 12) {
     expect(actual.z).toBeCloseTo(expected.z, precision);
     expect(actual.w).toBeCloseTo(expected.w, precision);
 }
+
+describe('elliptical tilt motion', () => {
+    it('preserves the existing default tilt and scroll-driven circular path', () => {
+        for (const progress of [0, 0.13, 0.25, 0.5, 0.75, 1]) {
+            const angles = getEllipticalTiltAnglesAtProgress(progress);
+            expect(angles.yaw).toBeCloseTo(-Math.cos(progress * Math.PI * 2) * Math.PI / 6, 12);
+            expect(angles.pitch).toBeCloseTo(Math.sin(progress * Math.PI * 2) * Math.PI / 8, 12);
+            expect(getCircularTiltAnglesAtProgress(progress)).toEqual(angles);
+        }
+    });
+
+    it.each([[0, 0], [0, 45], [60, 0], [12, 48], [90, 90]])('uses independent %s° horizontal and %s° vertical limits', (horizontal, vertical) => {
+        const settings = { artworkTiltHorizontalDegrees: horizontal, artworkTiltVerticalDegrees: vertical };
+        const start = getEllipticalTiltAnglesAtProgress(0, settings);
+        const quarter = getEllipticalTiltAnglesAtProgress(0.25, settings);
+        expect(start.yaw).toBeCloseTo(-horizontal * Math.PI / 180, 12);
+        expect(start.pitch).toBe(0);
+        expect(quarter.yaw).toBeCloseTo(0, 12);
+        expect(quarter.pitch).toBeCloseTo(vertical * Math.PI / 180, 12);
+        for (const progress of [-0.2, 0.2, 0.63, 1]) {
+            const angles = getEllipticalTiltAnglesAtProgress(progress, settings);
+            const repeated = getEllipticalTiltAnglesAtProgress(progress + 2, settings);
+            expect(repeated.yaw).toBeCloseTo(angles.yaw, 12);
+            expect(repeated.pitch).toBeCloseTo(angles.pitch, 12);
+            if (horizontal === 0) expect(Math.abs(angles.yaw)).toBe(0);
+            if (vertical === 0) expect(Math.abs(angles.pitch)).toBe(0);
+        }
+    });
+
+    it('traces a circle in angle space when both amounts are equal', () => {
+        const settings = { artworkTiltHorizontalDegrees: 25, artworkTiltVerticalDegrees: 25 };
+        for (let sample = 0; sample < 20; sample++) {
+            const { yaw, pitch } = getEllipticalTiltAnglesAtProgress(sample / 20, settings);
+            expect(Math.hypot(yaw, pitch)).toBeCloseTo(25 * Math.PI / 180, 12);
+        }
+    });
+});
 
 describe('tumble orbit motion', () => {
     it('accepts tumbleOrbit as an artwork motion mode', () => {

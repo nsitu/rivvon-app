@@ -14,6 +14,7 @@
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import AnimationSettingsControls from './AnimationSettingsControls.vue';
+    import ArtworkTiltControls from './ArtworkTiltControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
     import ExportColourReport from './ExportColourReport.vue';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -138,7 +139,7 @@
         const options = [
             { label: 'None', value: 'none', description: 'Camera stays fixed' },
             { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
-            { label: 'Circular Tilt', value: 'circularTilt', description: 'Artwork tilts through one full 360° rotation over the export duration' },
+            { label: 'Elliptical Tilt', value: 'circularTilt', description: 'Artwork follows a tilt loop with independent horizontal and vertical angles' },
             { label: 'Counterclockwise Orbit', value: 'circularOrbit', description: 'View completes one full counterclockwise orbit around the artwork center over the export duration' },
             { label: 'Clockwise Orbit', value: 'circularOrbitReverse', description: 'View completes one full clockwise orbit around the artwork center over the export duration' },
             { label: 'Tumble Orbit', value: 'tumbleOrbit', description: 'Artwork follows a seamless organic tumble across all three axes' },
@@ -358,7 +359,7 @@
         }
 
         if (artworkMotionMode.value === 'circularTilt') {
-            return `Circular Tilt retains the viewer's motion rate. Auto mode spans ${formatDuration(resolvedDuration.value)} so artwork and material cycles return together.`;
+            return `Elliptical Tilt retains the viewer's tilt angles and motion rate. Auto mode spans ${formatDuration(resolvedDuration.value)} so artwork and material cycles return together.`;
         }
 
         if (isCircularOrbitMovement(artworkMotionMode.value)) {
@@ -809,6 +810,9 @@
                                 {{ artworkMotionDescription }}
                             </div>
                         </div>
+
+                        <ArtworkTiltControls v-if="!textureOnlyMode && artworkMotionMode === 'circularTilt'"
+                            :disabled="isEncoding" class="form-field" />
 
                         <div v-if="!textureOnlyMode && app.backgroundMode !== 'gradient' && app.animatedBackgroundEnabled && app.textureAnimationEnabled !== false && app.backgroundBaseEnabled !== false"
                             class="form-field">

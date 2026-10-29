@@ -18,6 +18,40 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it.each([
+        ['artworkTiltHorizontalDegrees', 'artworkTiltVerticalDegrees', 30],
+        ['artworkTiltVerticalDegrees', 'artworkTiltHorizontalDegrees', 22.5],
+    ])('persists and tracks independent tilt setting %s through reset and presets', (key, otherKey, fallback) => {
+        const store = useViewerStore();
+        const setter = `set${key[0].toUpperCase()}${key.slice(1)}`;
+        const otherValue = store[otherKey];
+        store.captureToolsPanelOriginalState();
+        store[setter](0);
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        expect(store.toolsPanelOriginalState[key]).toBe(fallback);
+        expect(store.getViewerSettingsSnapshot()[key]).toBe(0);
+        expect(store[otherKey]).toBe(otherValue);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(saved[key]).toBe(0);
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored[key]).toBe(0);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored[key]).toBe(fallback);
+        setActivePinia(createPinia());
+        expect(useViewerStore()[key]).toBe(fallback);
+        const before = [...preferences];
+        restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored[key]).toBe(0);
+        expect([...preferences]).toEqual(before);
+        restored.applyArtworkSettingsSnapshot({});
+        expect(restored[key]).toBe(fallback);
+        for (const [value, expected] of [[-1, 0], [91, 90], [12.5, 12.5], [NaN, fallback], [undefined, fallback]]) {
+            restored[setter](value);
+            expect(restored[key]).toBe(expected);
+        }
+    });
+
     it('persists independent artwork blending through preferences, Tools tracking, presets and reset', () => {
         const app = useViewerStore();
         expect(app.artworkBlendMode).toBe('normal'); app.captureToolsPanelOriginalState();

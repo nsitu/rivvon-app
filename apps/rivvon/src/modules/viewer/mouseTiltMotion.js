@@ -1,4 +1,9 @@
 import { HeadTrackingCameraController } from './headTracking/headTrackingCameraController';
+import {
+    DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES,
+    DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES,
+    normalizeArtworkTiltDegrees,
+} from '../../../../../packages/shared-types/src/artworkTilt.js';
 
 export const MOUSE_TILT_MAX_YAW = Math.PI / 6;
 export const MOUSE_TILT_MAX_PITCH = Math.PI / 8;
@@ -33,11 +38,17 @@ export function getMouseTiltAnglesFromNormalizedPosition(normalizedX, normalized
 }
 
 export function getCircularTiltAnglesAtProgress(progress) {
+    return getEllipticalTiltAnglesAtProgress(progress);
+}
+
+export function getEllipticalTiltAnglesAtProgress(progress, settings = {}) {
     const normalizedProgress = ((progress % 1) + 1) % 1;
     const angle = normalizedProgress * CIRCULAR_TILT_TURN_RADIANS;
 
-    return getMouseTiltAnglesFromNormalizedPosition(
-        Math.cos(angle),
-        Math.sin(angle),
-    );
+    const horizontal = normalizeArtworkTiltDegrees(settings.artworkTiltHorizontalDegrees, DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES);
+    const vertical = normalizeArtworkTiltDegrees(settings.artworkTiltVerticalDegrees, DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES);
+    return {
+        yaw: -Math.cos(angle) * horizontal * Math.PI / 180,
+        pitch: Math.sin(angle) * vertical * Math.PI / 180,
+    };
 }

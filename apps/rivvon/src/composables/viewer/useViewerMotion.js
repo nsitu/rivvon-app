@@ -5,7 +5,7 @@ import {
   getTumbleOrbitQuaternionAtProgress,
   normalizeArtworkMotionMode,
 } from "../../modules/viewer/viewerMotion.js";
-import { getCircularTiltAnglesAtProgress } from "../../modules/viewer/mouseTiltMotion.js";
+import { getEllipticalTiltAnglesAtProgress } from "../../modules/viewer/mouseTiltMotion.js";
 import { getSeamlessLoopDurationForMotionRate } from "../../modules/viewer/seamlessLoop.js";
 
 const WORLD_UP = new Vector3(0, 1, 0);
@@ -113,8 +113,8 @@ export function useViewerMotion(ctx) {
     }
   }
 
-  function applyCircularTilt(progress) {
-    const { yaw, pitch } = getCircularTiltAnglesAtProgress(progress);
+  function applyEllipticalTilt(progress) {
+    const { yaw, pitch } = getEllipticalTiltAnglesAtProgress(progress, ctx.app);
     const ribbonYaw = -yaw;
 
     yawQuaternion.setFromAxisAngle(baseline.baseUp, ribbonYaw);
@@ -174,7 +174,7 @@ export function useViewerMotion(ctx) {
     const progress = (Math.max(0, now - motionStartTime) / 1000) / motionDuration;
 
     if (activeMode === "circularTilt") {
-      applyCircularTilt(progress);
+      applyEllipticalTilt(progress);
     } else if (activeMode === "circularOrbit") {
       applyCircularOrbit(progress, 1);
     } else if (activeMode === "circularOrbitReverse") {

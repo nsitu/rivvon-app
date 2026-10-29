@@ -1,5 +1,6 @@
 import { normalizeBackgroundSource } from './imageAsset.js';
 import { normalizeSvgNodes } from './svgNodes.js';
+import { DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES, DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES, MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES } from './artworkTilt.js';
 import { DEFAULT_BACKGROUND_MODE, DEFAULT_BACKGROUND_GRADIENT_INFLUENCE, DEFAULT_BACKGROUND_GRADIENT_FALLOFF } from './backgroundGradient.js';
 import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT, MIN_GRID_REPEAT_SPACING, MAX_GRID_REPEAT_SPACING } from './gridRepeat.js';
 
@@ -8,6 +9,8 @@ import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT, MIN
 export const SCENE_PRESET_VERSION = 2;
 export const ARTWORK_DEFAULTS = Object.freeze({
     artworkMotionMode: 'none', viewerMotionLoopCount: 1,
+    artworkTiltHorizontalDegrees: DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES,
+    artworkTiltVerticalDegrees: DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES,
     flowState: 'off', flowSpeed: 0.25, undulationEnabled: true,
     flowCycleAlignmentEnabled: true, textureAnimationEnabled: true,
     textureAnimationReversed: false, textureRepeatMode: 'mirrorTile',
@@ -67,6 +70,8 @@ const ENUMS = {
 };
 const COLOR = /^#[\da-f]{6}([\da-f]{2})?$/i;
 const RANGES = {
+    artworkTiltHorizontalDegrees: [MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES],
+    artworkTiltVerticalDegrees: [MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES],
     gradientMapMix: [0, 1], backgroundTextureGradientMapMix: [0, 1],
     backgroundGradientInfluence: [0.15, 1.5], backgroundGradientFalloff: [0.5, 6],
     backgroundTextureContrast: [0, 2], backgroundTextureSaturation: [0, 2],
