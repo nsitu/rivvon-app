@@ -1,3 +1,4 @@
+import { ARTWORK_BACKDROP_FLAG } from '../../modules/viewer/artworkBlend.js';
 // src/composables/viewer/useSceneBackground.js
 // Scene background management via a camera-locked textured plane.
 
@@ -692,6 +693,7 @@ function attachCameraBackgroundPlane(ctx, material) {
   let previousCurvature = -1;
 
   mesh.name = "RivvonCameraLockedBackground";
+  mesh.userData[ARTWORK_BACKDROP_FLAG] = true;
   mesh.frustumCulled = false;
   mesh.renderOrder = BACKGROUND_RENDER_ORDER;
   mesh.position.set(0, 0, -BACKGROUND_DISTANCE);

@@ -41,6 +41,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     filmstripGapLength: 0.15, filmstripHoleLength: 0.1, filmstripAperture: 0.23, filmstripHoleRoundedness: 0.33,
     gradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
     gradientMapMix: 1,
+    artworkBlendMode: 'normal',
     contrast: 1, saturation: 1, ribbonWidthScale: 1, ribbonPathAlignmentMode: 'center',
     surfaceMode: 'ribbon', tubeRadiusScale: 0.5, tubeRadialSegments: 8, tubeTextureJoinOffsetDegrees: 0,
     helixMode: false, helixRadius: 0.2, helixPitch: 9, helixStrandWidth: 0.5,
@@ -54,6 +55,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
 });
 
 const ENUMS = {
+    artworkBlendMode: ['normal', 'softLight'],
     backgroundTextureBlendMode: ['normal', 'softLight'],
     backgroundMode: ['texture', 'gradient'],
     artworkMotionMode: ['none', 'circularTilt', 'circularOrbit', 'circularOrbitReverse', 'tumbleOrbit'],

@@ -18,6 +18,22 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it('persists independent artwork blending through preferences, Tools tracking, presets and reset', () => {
+        const app = useViewerStore();
+        expect(app.artworkBlendMode).toBe('normal'); app.captureToolsPanelOriginalState();
+        app.setArtworkBlendMode('softLight');
+        expect(app.hasToolsPanelChanges()).toBe(true);
+        expect(app.toolsPanelOriginalState.artworkBlendMode).toBe('normal');
+        expect(app.backgroundTextureBlendMode).toBe('softLight');
+        const saved = app.getArtworkSettingsSnapshot(); expect(saved.artworkBlendMode).toBe('softLight');
+        setActivePinia(createPinia()); const restored = useViewerStore();
+        expect(restored.artworkBlendMode).toBe('softLight'); restored.resetToolbarSettingsToDefaults();
+        expect(restored.artworkBlendMode).toBe('normal');
+        const previousPreferences = [...preferences]; restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored.artworkBlendMode).toBe('softLight'); expect([...preferences]).toEqual(previousPreferences);
+        restored.applyArtworkSettingsSnapshot({}); expect(restored.artworkBlendMode).toBe('normal');
+    });
+
     it('persists image selection and blend independently, includes them in Tools snapshots and resets them', () => {
         const store = useViewerStore();
         store.captureToolsPanelOriginalState();

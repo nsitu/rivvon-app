@@ -10,6 +10,12 @@ export function sampleScene() {
 }
 
 describe('scene preset contract', () => {
+    it('round trips artwork blend independently from background blending and defaults legacy presets to Normal', () => {
+        const input = sampleScene(); input.artwork.artworkBlendMode = 'softLight'; input.artwork.backgroundTextureBlendMode = 'normal';
+        expect(normalizeScenePreset(normalizeScenePreset(input)).artwork).toMatchObject({ artworkBlendMode: 'softLight', backgroundTextureBlendMode: 'normal' });
+        expect(normalizeScenePreset({ ...input, artwork: {} }).artwork.artworkBlendMode).toBe('normal');
+        input.artwork.artworkBlendMode = 'unknown'; expect(() => normalizeScenePreset(input)).toThrow('Invalid artworkBlendMode');
+    });
     it('preserves independent gradient map mixes, defaults older presets to full strength, and rejects invalid mixes', () => {
         const input = sampleScene();
         input.artwork.gradientMapMix = 0;

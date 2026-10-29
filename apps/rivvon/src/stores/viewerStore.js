@@ -1,3 +1,4 @@
+import { normalizeArtworkBlendMode } from '../modules/viewer/artworkBlend.js';
 import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/imageAsset.js';
 // src/stores/viewerStore.js
 // Pinia store for rivvon viewer state
@@ -1098,6 +1099,7 @@ export const useViewerStore = defineStore("viewer", {
       ),
       gradientMapStops: storedFilterSettings.gradientMapStops,
       gradientMapMix: storedFilterSettings.gradientMapMix,
+      artworkBlendMode: normalizeArtworkBlendMode(readViewerPreferences().artworkBlendMode),
       contrast: storedFilterSettings.contrast,
       saturation: storedFilterSettings.saturation,
       currentTextureId: null,
@@ -1342,6 +1344,7 @@ export const useViewerStore = defineStore("viewer", {
       this.filmstripHoleRoundedness = DEFAULT_FILMSTRIP_HOLE_ROUNDEDNESS;
       this.gradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
       this.gradientMapMix = DEFAULT_GRADIENT_MAP_MIX;
+      this.artworkBlendMode = 'normal';
       this.contrast = DEFAULT_CONTRAST;
       this.saturation = DEFAULT_SATURATION;
       this.ribbonWidthScale = 1;
@@ -1469,6 +1472,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripHoleSize: DEFAULT_FILMSTRIP_APERTURE,
         gradientMapStops: this.gradientMapStops,
         gradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
+        artworkBlendMode: 'normal',
         contrast: DEFAULT_CONTRAST,
         saturation: DEFAULT_SATURATION,
         undulationEnabled: true,
@@ -2075,6 +2079,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripHoleRoundedness: this.filmstripHoleRoundedness,
         gradientMapStops: this.gradientMapStops,
         gradientMapMix: this.gradientMapMix,
+        artworkBlendMode: this.artworkBlendMode,
         contrast: this.contrast,
         saturation: this.saturation,
         ribbonWidthScale: this.ribbonWidthScale,
@@ -2240,6 +2245,7 @@ sphericalProjectionVerticalWrapAuto:
         serializeGradientMapStops(this.gradientMapStops) !==
           serializeGradientMapStops(original.gradientMapStops) ||
         this.gradientMapMix !== original.gradientMapMix ||
+        this.artworkBlendMode !== original.artworkBlendMode ||
         this.contrast !== original.contrast ||
         this.saturation !== original.saturation ||
         this.ribbonWidthScale !== original.ribbonWidthScale ||
@@ -2652,6 +2658,11 @@ this.sphericalProjectionVerticalWrapAuto !==
         writeViewerPreferences({ gradientMapStops: normalized });
       }
       return normalized;
+    },
+
+    setArtworkBlendMode(value) {
+      this.artworkBlendMode = normalizeArtworkBlendMode(value);
+      writeViewerPreferences({ artworkBlendMode: this.artworkBlendMode });
     },
 
     setContrast(value) {

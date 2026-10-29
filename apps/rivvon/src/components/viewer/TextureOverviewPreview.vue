@@ -1304,6 +1304,7 @@
             app.transparentShadowsThresholdMin,
             app.transparentShadowsThresholdMax,
             app.renderFilterMode,
+            app.artworkBlendMode,
             app.gradientMapStops,
             app.gradientMapMix,
             app.contrast,

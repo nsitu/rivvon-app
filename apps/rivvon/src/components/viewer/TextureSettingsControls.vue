@@ -9,6 +9,7 @@
         applyLiveContrast,
         applyLiveSaturation,
     } from '../../modules/viewer/rendererAdjustmentBus';
+    import { ARTWORK_BLEND_OPTIONS } from '../../modules/viewer/artworkBlend.js';
     import GradientMapEditor from './GradientMapEditor.vue';
 
     defineProps({
@@ -16,6 +17,7 @@
         showDuotoneFilter: { type: Boolean, default: false },
         showTransparentShadowsFilter: { type: Boolean, default: false },
         showVerticalFlip: { type: Boolean, default: true },
+        disabled: Boolean,
     });
 
     const app = useViewerStore();
@@ -872,6 +874,13 @@
             <div class="tools-section-label">Scene</div>
 
             <div class="tools-section-items">
+                <div class="tools-select-block">
+                    <label class="tools-select-label" :for="getInputId('artwork-blend-mode')">Artwork Blend</label>
+                    <Select :input-id="getInputId('artwork-blend-mode')" aria-label="Artwork Blend" :aria-describedby="getInputId('artwork-blend-hint')" :model-value="app.artworkBlendMode"
+                        :options="ARTWORK_BLEND_OPTIONS" option-label="label" option-value="value" class="tools-select"
+                        :disabled="disabled" @update:model-value="app.setArtworkBlendMode" />
+                    <div :id="getInputId('artwork-blend-hint')" class="tools-slider-note">Blends the completed artwork with the scene background.</div>
+                </div>
                 <div
                     v-if="showDuotoneFilter"
                     class="tools-toggle-row"

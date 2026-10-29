@@ -1,3 +1,4 @@
+import { createArtworkBlendCompositor } from '../../modules/viewer/artworkBlend.js';
 import * as THREE from 'three';
 import {
     createGradientMapLut,
@@ -6,6 +7,7 @@ import {
 } from '../../modules/viewer/gradientMap.js';
 
 export function useRenderFilter(ctx) {
+    const artworkBlend = createArtworkBlendCompositor(ctx);
     let activeRendererType = 'webgl';
     let webGPUDeps = null;
     let filterScene = null;
@@ -19,6 +21,7 @@ export function useRenderFilter(ctx) {
     let filterContrastUniform = null;
     let filterSaturationUniform = null;
     let filterGradientMapMixUniform = null;
+    let filterEncodedAlphaUniform = null;
     let filterGradientTexture = null;
     let filterGradientSignature = null;
     let overlapRenderTarget = null;
@@ -172,6 +175,7 @@ export function useRenderFilter(ctx) {
 
             webGPUDeps = { threeWebGPU, threeTSL };
         }
+        artworkBlend.init(activeRendererType, webGPUDeps);
     }
 
     function createRenderTarget(width, height, { depthBuffer = true, colorSpace = null } = {}) {
@@ -539,7 +543,7 @@ export function useRenderFilter(ctx) {
 
     function createWebGPUFilterMaterial(texture) {
         const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-        const { texture: textureNode, uniform, uv, float, vec2, vec3, vec4, dot, max, mix } = webGPUDeps.threeTSL;
+        const { texture: textureNode, uniform, uv, float, vec2, vec3, vec4, dot, max, mix, sRGBTransferEOTF, sRGBTransferOETF } = webGPUDeps.threeTSL;
         const filterMode = getPostProcessFilterMode();
         const contrastValue = getContrastValue();
         const saturationValue = getSaturationValue();
@@ -577,7 +581,9 @@ export function useRenderFilter(ctx) {
         filterContrastUniform = contrastUniform;
         filterSaturationUniform = saturationUniform;
         filterGradientMapMixUniform = gradientMapMixUniform;
-        material.colorNode = vec4(premultipliedFiltered, alpha);
+        filterEncodedAlphaUniform = uniform(false);
+        const encodedPremultiplied = sRGBTransferOETF(filteredBase.clamp(0, 1)).mul(alpha);
+        material.colorNode = vec4(filterEncodedAlphaUniform.select(sRGBTransferEOTF(encodedPremultiplied), premultipliedFiltered), alpha);
         material.transparent = true;
         material.depthWrite = false;
         material.depthTest = false;
@@ -624,14 +630,14 @@ export function useRenderFilter(ctx) {
         return true;
     }
 
-    function ensureFilterResources() {
+    function ensureFilterResources(target = null) {
         const renderer = ctx.renderer.value;
         if (!renderer?.domElement || !filterScene || !filterCamera) {
             return false;
         }
 
-        const width = renderer.domElement.width;
-        const height = renderer.domElement.height;
+        const width = target?.width || renderer.domElement.width;
+        const height = target?.height || renderer.domElement.height;
 
         if (!width || !height) {
             return false;
@@ -736,7 +742,7 @@ export function useRenderFilter(ctx) {
         });
     }
 
-    function applyCapMaskFilterOverrides(scene) {
+    function applyCapMaskFilterOverrides(scene, artworkLayer = false) {
         const overrides = [];
 
         scene.traverse((obj) => {
@@ -745,7 +751,7 @@ export function useRenderFilter(ctx) {
                 : (obj.material ? [obj.material] : []);
 
             materials.forEach((material) => {
-                if (!material || !material._hasCapMask) {
+                if (!material || (!material._hasCapMask && !(artworkLayer && material.alphaToCoverage))) {
                     return;
                 }
 
@@ -761,10 +767,11 @@ export function useRenderFilter(ctx) {
                 // For post-processing to preserve cap transparency correctly,
                 // use real alpha blending instead of alpha-to-coverage while
                 // retaining depth behavior to avoid sorting artifacts.
+                const wasTransparent = material.transparent;
                 material.transparent = true;
-                material.depthWrite = true;
+                if (!artworkLayer) material.depthWrite = true;
                 material.depthTest = true;
-                material.alphaTest = Math.max(material.alphaTest || 0, 0.05);
+                if (!artworkLayer || !wasTransparent) material.alphaTest = Math.max(material.alphaTest || 0, 0.05);
                 material.alphaToCoverage = false;
                 material.needsUpdate = true;
             });
@@ -815,13 +822,30 @@ export function useRenderFilter(ctx) {
             renderOverlapMask();
         }
 
-        if (!shouldApplyFilter() || !ensureFilterResources()) {
-            renderer.setRenderTarget(target);
-            renderer.render(ctx.scene.value, ctx.camera.value);
-            return;
+        const filtered = shouldApplyFilter() && ensureFilterResources(target);
+        const softLight = ctx.app.artworkBlendMode === 'softLight';
+        if (softLight) {
+            artworkBlend.render(filtered ? filterRenderTarget : target, () => {
+                const overrides = applyCapMaskFilterOverrides(ctx.scene.value, true);
+                try { renderer.render(ctx.scene.value, ctx.camera.value); }
+                finally { restoreCapMaskFilterOverrides(overrides); }
+            });
+            if (!filtered) return;
+        } else {
+            artworkBlend.dispose(); // Normal keeps its original render path and memory footprint.
+            if (!filtered) {
+                renderer.setRenderTarget(target);
+                renderer.render(ctx.scene.value, ctx.camera.value);
+                return;
+            }
         }
 
         filterQuad.material = filterMaterial;
+        // The blend target already contains premultiplied source-over coverage.
+        // Drawing the filtered result with normal blending would apply alpha twice.
+        const blending = softLight ? THREE.NoBlending : THREE.NormalBlending;
+        if (filterMaterial.blending !== blending) { filterMaterial.blending = blending; filterMaterial.needsUpdate = true; }
+        if (filterEncodedAlphaUniform) filterEncodedAlphaUniform.value = softLight && target === null && renderer.outputColorSpace === THREE.SRGBColorSpace;
 
         if (filterMaterial?.uniforms?.uContrast) {
             filterMaterial.uniforms.uContrast.value = getContrastValue();
@@ -845,14 +869,16 @@ export function useRenderFilter(ctx) {
         // Save current clear color and alpha
         const savedClearColor = renderer.getClearColor(new THREE.Color());
         const savedClearAlpha = renderer.getClearAlpha();
-        const capMaskOverrides = applyCapMaskFilterOverrides(ctx.scene.value);
+        const capMaskOverrides = softLight ? [] : applyCapMaskFilterOverrides(ctx.scene.value);
 
         try {
             // Render scene to filter target with transparent clear color
-            renderer.setClearColor(0x000000, 0); // Clear to transparent black
-            renderer.setRenderTarget(filterRenderTarget);
-            renderer.clear(); // Explicitly clear the render target
-            renderer.render(ctx.scene.value, ctx.camera.value);
+            if (!softLight) {
+                renderer.setClearColor(0x000000, 0); // Clear to transparent black
+                renderer.setRenderTarget(filterRenderTarget);
+                renderer.clear();
+                renderer.render(ctx.scene.value, ctx.camera.value);
+            }
         } finally {
             restoreCapMaskFilterOverrides(capMaskOverrides);
         }
@@ -864,6 +890,7 @@ export function useRenderFilter(ctx) {
     }
 
     function disposeRenderFilter() {
+        artworkBlend.dispose();
         filterRenderTarget?.dispose?.();
         filterRenderTarget = null;
 
@@ -874,6 +901,7 @@ export function useRenderFilter(ctx) {
         filterContrastUniform = null;
         filterSaturationUniform = null;
         filterGradientMapMixUniform = null;
+        filterEncodedAlphaUniform = null;
 
         filterGradientTexture?.dispose?.();
         filterGradientTexture = null;

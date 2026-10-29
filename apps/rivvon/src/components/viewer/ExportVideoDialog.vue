@@ -508,6 +508,7 @@
         () => app.backgroundTextureVerticalAlignment,
         () => app.backgroundTextureSource,
         () => app.backgroundTextureBlendMode,
+        () => app.artworkBlendMode,
         () => app.contrast,
         () => app.saturation,
         () => app.textureRepeatMode,
@@ -828,7 +829,7 @@
                             :disabled="isEncoding"
                         />
 
-                        <TextureSettingsControls class="export-texture-settings" />
+                        <TextureSettingsControls class="export-texture-settings" :disabled="isEncoding" />
 
                         <div
                             class="form-line-break"

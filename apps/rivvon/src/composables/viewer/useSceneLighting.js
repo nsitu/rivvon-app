@@ -1,3 +1,4 @@
+import { ARTWORK_BACKDROP_FLAG } from '../../modules/viewer/artworkBlend.js';
 // Camera-key scene lighting and a transparent shadow catcher for the viewer.
 
 import { watch } from "vue";
@@ -542,6 +543,7 @@ export function useSceneLighting(ctx) {
       shadowCatcherMaterial,
     );
     shadowCatcher.name = "RivvonBackgroundShadowCatcher";
+    shadowCatcher.userData[ARTWORK_BACKDROP_FLAG] = true;
     shadowCatcher.receiveShadow = true;
     shadowCatcher.frustumCulled = false;
     shadowCatcher.renderOrder = SHADOW_CATCHER_RENDER_ORDER;
