@@ -59,7 +59,10 @@ presetRoutes.post('/', verifySession, async (c) => {
     const sourceId = scene.audio?.sourcePresetId;
     const audioSource = sourceId ? await readRow(c.env.DB, sourceId) : null;
     if (sourceId && !accessible(audioSource, auth.userId)) return c.json({ error: 'Audio source preset is unavailable.' }, 400);
-    const grants = [parent?.id, audioSource?.id].filter(Boolean);
+    const backgroundSourceId = typeof body.backgroundSourcePresetId === 'string' ? body.backgroundSourcePresetId : null;
+    const backgroundSource = backgroundSourceId ? await readRow(c.env.DB, backgroundSourceId) : null;
+    if (backgroundSourceId && !accessible(backgroundSource, auth.userId)) return c.json({ error: 'Background source preset is unavailable.' }, 400);
+    const grants = [parent?.id, audioSource?.id, backgroundSource?.id].filter(Boolean);
     const hasGrant = async (column: string, id: string) => {
         if (!grants.length) return false;
         return Boolean(await c.env.DB.prepare(`SELECT preset_id FROM preset_media_dependencies WHERE ${column} = ? AND preset_id IN (${grants.map(() => '?').join(',')})`)
@@ -75,6 +78,11 @@ presetRoutes.post('/', verifySession, async (c) => {
             assignment.tileCount = texture.tile_count; assignment.tileResolution = texture.tile_resolution;
             assignment.layerCount = texture.layer_count; assignment.variant = texture.cross_section_type === 'planes' ? 'planes' : 'waves';
         }
+    }
+    const backgroundImageId = scene.artwork.backgroundTextureSource?.kind === 'image' ? scene.artwork.backgroundTextureSource.id : null;
+    if (backgroundImageId) {
+        const image = await c.env.DB.prepare("SELECT id, owner_id FROM image_assets WHERE id = ? AND status = 'complete'").bind(backgroundImageId).first<any>();
+        if (!image || (image.owner_id !== auth.userId && !await hasGrant('image_asset_id', image.id))) return c.json({ error: 'Preset background image is unavailable.' }, 400);
     }
     let audio: any = null;
     if (scene.audio?.assetId) {
@@ -95,6 +103,7 @@ presetRoutes.post('/', verifySession, async (c) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, auth.userId, parentId, name,
             typeof body.description === 'string' ? body.description.slice(0, 2000) : '', body.visibility || 'private',
             scene.schemaVersion, JSON.stringify(scene.textures), audio ? JSON.stringify(audio) : null),
+        ...(backgroundImageId ? [c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, image_asset_id) VALUES (?, ?)').bind(id, backgroundImageId)] : []),
         ...textureIds.map(textureId => c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, texture_set_id) VALUES (?, ?)').bind(id, textureId)),
         ...(audio ? [c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, audio_asset_id) VALUES (?, ?)').bind(id, audio.id)] : []),
     ]); } catch (error) {
@@ -152,6 +161,11 @@ presetRoutes.get('/:id/assets/:asset', async (c) => {
     const asset = c.req.param('asset'), match = /^texture-(\d+)-(\d+)\.ktx2$/.exec(asset);
     let object: R2ObjectBody | null = null;
     if (asset === 'thumbnail') object = await c.env.PRESETS_BUCKET.get(key(row.id, asset));
+    else if (asset === 'background-image') {
+        const dependency = await c.env.DB.prepare(`SELECT i.image_key FROM image_assets i JOIN preset_media_dependencies d ON d.image_asset_id = i.id
+            WHERE d.preset_id = ? AND i.status = 'complete'`).bind(row.id).first<any>();
+        if (dependency?.image_key && c.env.IMAGES_BUCKET) object = await c.env.IMAGES_BUCKET.get(dependency.image_key);
+    }
     else if (asset === 'audio') {
         const dependency = await c.env.DB.prepare(`SELECT a.r2_key FROM audio_assets a JOIN preset_media_dependencies d ON d.audio_asset_id = a.id
             WHERE d.preset_id = ? AND a.status = 'complete'`).bind(row.id).first<any>();

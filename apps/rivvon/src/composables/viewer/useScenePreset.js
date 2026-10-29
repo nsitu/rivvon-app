@@ -1,5 +1,5 @@
 import { nextTick } from 'vue';
-import { normalizeScenePreset } from '../../../../../packages/shared-types/src/scenePreset.js';
+import { normalizeScenePreset, SCENE_PRESET_VERSION } from '../../../../../packages/shared-types/src/scenePreset.js';
 import { serializeDrawingPaths, inflateDrawingPaths } from '../../modules/shared/drawingLibrary.js';
 
 /** Owns the capture/restore boundary, including transactional GPU texture loading. */
@@ -33,7 +33,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
         });
         const cinematic = ctx.cinematicCamera.getInstance();
         const scene = normalizeScenePreset({
-            schemaVersion: 1,
+            schemaVersion: SCENE_PRESET_VERSION,
             geometry: { paths: serializeDrawingPaths(series.sourcePathsPoints), kind, title,
                 source: series.svgNodes?.length
                     ? { ...source, svgNodes: series.svgNodes, svgSmoothNodesEnabled: ctx.app.svgSmoothNodesEnabled }
@@ -74,7 +74,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
         camera.updateMatrixWorld(true);
     }
 
-    async function restoreScene(input, textureEntries, onProgress = null) {
+    async function restoreScene(input, textureEntries, onProgress = null, { backgroundPresetId = '' } = {}) {
         const scene = normalizeScenePreset(input);
         const previous = captureScene({ includeAssets: false }).scene;
         // Decode every tile in separate managers before touching the working scene.
@@ -82,6 +82,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
         onProgress?.('applying', 0, 3);
         const old = { managers: ctx.tileManagers.value, manager: ctx.tileManager.value,
             series: ctx.ribbonSeries.value, ribbon: ctx.ribbon.value,
+            backgroundPresetId: ctx.app.backgroundImagePresetId,
             snapshot: previous, proceduralPathMode: ctx.app.proceduralPathMode,
             proceduralSourceType: ctx.app.proceduralSourceType, sineWaveSettings: ctx.app.sineWaveSettings,
             clockSettings: ctx.app.clockSettings, mobiusSettings: ctx.app.mobiusSettings };
@@ -92,6 +93,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
         let committed = false;
         try {
             ctx.app.applyArtworkSettingsSnapshot(scene.artwork);
+            ctx.app.backgroundImagePresetId = backgroundPresetId;
             await nextTick();
             ctx.tileManagers.value = prepared;
             ctx.tileManager.value = prepared[0];
@@ -132,6 +134,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
             ctx.app.svgNodesAvailable = !!old.series?.svgNodes?.length;
             ctx.ribbon.value = old.ribbon;
             ctx.app.applyArtworkSettingsSnapshot(old.snapshot.artwork);
+            ctx.app.backgroundImagePresetId = old.backgroundPresetId;
             ctx.app.proceduralPathMode = old.proceduralPathMode;
             ctx.app.proceduralSourceType = old.proceduralSourceType;
             ctx.app.sineWaveSettings = old.sineWaveSettings;
@@ -139,7 +142,7 @@ export function useScenePreset(ctx, { textures, ribbons, renderLoop, updateBackg
             ctx.app.mobiusSettings = old.mobiusSettings;
             await nextTick();
             renderLoop.setArtworkTime(old.snapshot.animation.time);
-            await updateBackground();
+            await updateBackground({ allowMissingImage: true });
             restoreCamera(old.snapshot.camera);
             ctx.viewerMotion?.restoreSnapshot?.(old.snapshot.animation.motion);
             background?.restoreLayerProgress?.(old.snapshot.animation.backgroundLayerProgress, old.snapshot.animation.time);

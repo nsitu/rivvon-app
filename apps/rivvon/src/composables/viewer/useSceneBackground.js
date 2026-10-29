@@ -7,7 +7,7 @@ import {
   createExportGaussianTexture,
   getExportBlurSigma,
 } from "../../modules/viewer/backgroundExportBlur.js";
-import { getBackgroundTextureOption } from "../../modules/viewer/backgroundTextures.js";
+import { acquireBackgroundImage } from "../../services/backgroundImageCache.js";
 import { createBackgroundTextureAdjustments, STATIC_TEXTURE_ADJUSTMENTS_GLSL } from "../../modules/viewer/backgroundTextureAdjustments.js";
 import {
   createGradientPaletteCache, createGradientNode, samplePaletteNode,
@@ -33,7 +33,7 @@ const MAX_BACKGROUND_BLUR_RADIUS_PASSES = 128;
 const MAX_REALTIME_GAUSSIAN_PASSES = 6;
 const BACKGROUND_FLOW_TIME_ORIGIN =
   typeof performance !== "undefined" ? performance.now() : Date.now();
-const BACKGROUND_TEXTURE_CACHE = new Map();
+
 
 function positiveModulo(value, modulus) {
   if (!modulus) return 0;
@@ -227,32 +227,12 @@ function getBackgroundTimeSeconds(renderOptions = {}) {
 }
 
 async function loadBackgroundTexture(ctx) {
-  if (!ctx.app.backgroundTextureEnabled) {
-    return null;
-  }
-
-  const option = getBackgroundTextureOption(ctx.app.backgroundTexture);
-  if (option.type === "procedural" || !option.url) {
-    return null;
-  }
-  if (BACKGROUND_TEXTURE_CACHE.has(option.url)) {
-    return BACKGROUND_TEXTURE_CACHE.get(option.url);
-  }
-
-  const loader = new THREE.TextureLoader();
-  loader.crossOrigin = "anonymous";
-  const texture = await new Promise((resolve, reject) => {
-    loader.load(option.url, resolve, undefined, reject);
+  if (!ctx.app.backgroundTextureEnabled) return null;
+  return acquireBackgroundImage(ctx.app.backgroundTextureSource, {
+    legacy: ctx.app.backgroundTexture,
+    presetId: ctx.app.backgroundImagePresetId,
+    maxTextureSize: ctx.renderer.value?.capabilities?.maxTextureSize || 4096,
   });
-
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
-  BACKGROUND_TEXTURE_CACHE.set(option.url, texture);
-  return texture;
 }
 
 function getBackgroundOverlayState(ctx) {
@@ -399,7 +379,9 @@ function createWebGLBackgroundDisplayMaterial(
                 if (uLinearBlur) background = sRGBTransferOETF(background);
                 vec3 color = mix(background.rgb, uOverlayColor, uOverlayOpacity);
                 if (uStaticTextureEnabled == 1) {
-                    color = softLightBlend(color, adjustStaticTexture(texture2D(uTexture, getStaticTextureUv(vUv)).rgb));
+                    vec4 staticSample = texture2D(uTexture, getStaticTextureUv(vUv));
+                    vec3 staticColor = adjustStaticTexture(staticSample.rgb);
+                    color = mix(color, uStaticTextureNormalMode ? staticColor : softLightBlend(color, staticColor), staticSample.a);
                 }
                 if (uWaterEnabled == 1) {
                     color = softLightBlend(color, proceduralWater(vUv, uTime));
@@ -520,20 +502,18 @@ export function useSceneBackground(ctx) {
     }
   }
 
-  async function setBackgroundFromTileManager(options = {}) {
-    tileBackgroundActive = false;
+  let pendingBackgroundUpdate = Promise.resolve();
+  function setBackgroundFromTileManager(options = {}) {
+    pendingBackgroundUpdate = buildBackgroundFromTileManager(options);
+    pendingBackgroundUpdate.catch(() => {}); // Callers still observe the failure.
+    return pendingBackgroundUpdate;
+  }
+  async function buildBackgroundFromTileManager(options = {}) {
     if (timelineTileManager !== ctx.tileManager.value) {
       ctx.backgroundLayerTimeline.reset();
       timelineTileManager = ctx.tileManager.value;
     }
     const requestToken = ++backgroundGenerationToken;
-    activeRuntime?.dispose?.();
-    activeRuntime = null;
-    ctx.backgroundTexture.value = null;
-
-    if (ctx.scene.value) {
-      ctx.scene.value.background = null;
-    }
 
     if (
       !ctx.scene.value ||
@@ -556,14 +536,18 @@ export function useSceneBackground(ctx) {
       return;
     }
 
-    let textureOverlay = null;
-    try {
-      textureOverlay = await loadBackgroundTexture(ctx);
-    } catch (error) {
-      console.warn("[ThreeSetup] Failed to load background texture:", error);
+    let textureLease;
+    try { textureLease = await loadBackgroundTexture(ctx); }
+    catch (error) {
+      if (requestToken !== backgroundGenerationToken) return;
+      if (!options.allowMissingImage) throw error;
+      ctx.app.backgroundImageError = error.message || 'Background image unavailable';
     }
+    if (textureLease || !ctx.app.backgroundTextureEnabled) ctx.app.backgroundImageError = '';
+    const textureOverlay = textureLease?.texture || null;
 
     if (requestToken !== backgroundGenerationToken) {
+      textureLease?.release();
       return;
     }
 
@@ -592,24 +576,28 @@ export function useSceneBackground(ctx) {
         textureAdjustments.update(aspect);
         updateRuntime(renderOptions);
       };
-      runtime.dispose = () => { disposeRuntime(); gradientCache?.dispose(); textureAdjustments.dispose(); };
+      runtime.dispose = () => { disposeRuntime(); gradientCache?.dispose(); textureAdjustments.dispose(); textureLease?.release(); };
 
       if (requestToken !== backgroundGenerationToken) {
         runtime.dispose();
         return;
       }
 
+      runtime.update();
+      const previousRuntime = activeRuntime;
       activeRuntime = runtime;
-      activeRuntime.update();
+      previousRuntime?.dispose?.();
+      ctx.scene.value.background = null;
       tileBackgroundActive = true;
     } catch (error) {
       runtime?.dispose?.();
       gradientCache?.dispose();
       textureAdjustments.dispose();
+      textureLease?.release();
       if (requestToken !== backgroundGenerationToken) {
         return;
       }
-      console.error("[ThreeSetup] Failed to set background from tile:", error);
+      throw error;
     }
   }
 
@@ -678,6 +666,10 @@ export function useSceneBackground(ctx) {
 
   return {
     disposeBackground,
+    async ensureReady() {
+      await pendingBackgroundUpdate;
+      if (ctx.app.backgroundTextureEnabled && ctx.app.backgroundImageError) throw new Error(ctx.app.backgroundImageError);
+    },
     setBackgroundFromTileManager,
     setBackgroundFromUrl,
     updateBackground,
@@ -1035,7 +1027,9 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
 
                 vec3 compositedColor = mix(color.rgb, uOverlayColor, uOverlayOpacity);
                 if (uStaticTextureEnabled == 1) {
-                    compositedColor = softLightBlend(compositedColor, adjustStaticTexture(texture(uTexture, getStaticTextureUv(vUv)).rgb));
+                    vec4 staticSample = texture(uTexture, getStaticTextureUv(vUv));
+                    vec3 staticColor = adjustStaticTexture(staticSample.rgb);
+                    compositedColor = mix(compositedColor, uStaticTextureNormalMode ? staticColor : softLightBlend(compositedColor, staticColor), staticSample.a);
                 }
                 if (uWaterEnabled == 1) {
                     compositedColor = softLightBlend(compositedColor, proceduralWater(vUv, uTime));
@@ -1669,14 +1663,14 @@ async function createTileBackgroundRuntimeWebGPU(ctx, options = {}) {
       ? mix(outputColor.rgb, overlayColor, overlayOpacityUniform)
       : outputColor.rgb;
     const staticTextureColor = options.textureOverlay
-      ? options.textureAdjustments.createNode(tsl, baseUv, material)
+      ? options.textureAdjustments.compositeNode(tsl, baseUv, material, colorWithOverlay, softLightBlend)
       : null;
     const withStaticTexture =
       includeOverlay && staticTextureColor
         ? staticTextureEnabledUniform
             .equal(1)
             .select(
-              softLightBlend(colorWithOverlay, staticTextureColor),
+              staticTextureColor,
               colorWithOverlay,
             )
         : colorWithOverlay;
@@ -2048,13 +2042,13 @@ async function createProcessedTileBackgroundRuntimeWebGPU(
     }
 
     const staticTextureColor = options.textureOverlay
-      ? options.textureAdjustments.createNode(tsl, uv(), material)
+      ? options.textureAdjustments.compositeNode(tsl, uv(), material, colorWithOverlay, softLightBlend)
       : null;
     const withStaticTexture = staticTextureColor
       ? staticTextureEnabledUniform
           .equal(1)
           .select(
-            softLightBlend(colorWithOverlay, staticTextureColor),
+            staticTextureColor,
             colorWithOverlay,
           )
       : colorWithOverlay;

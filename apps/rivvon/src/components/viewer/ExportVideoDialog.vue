@@ -506,6 +506,8 @@
         () => app.gradientMapMix,
         () => app.backgroundTextureGradientMapMix,
         () => app.backgroundTextureVerticalAlignment,
+        () => app.backgroundTextureSource,
+        () => app.backgroundTextureBlendMode,
         () => app.contrast,
         () => app.saturation,
         () => app.textureRepeatMode,
@@ -823,6 +825,7 @@
                         <AnimationSettingsControls
                             class="export-animation-settings"
                             :show-undulation="!textureOnlyMode"
+                            :disabled="isEncoding"
                         />
 
                         <TextureSettingsControls class="export-texture-settings" />

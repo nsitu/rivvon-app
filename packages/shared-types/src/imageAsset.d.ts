@@ -1,0 +1,10 @@
+export type BackgroundImageSource = { kind: 'builtin' | 'image'; id: string };
+export const MAX_IMAGE_BYTES: number;
+export const MAX_IMAGE_PIXELS: number;
+export const MAX_IMAGE_SIDE: number;
+export const MAX_THUMBNAIL_SIDE: number;
+export const MAX_THUMBNAIL_BYTES: number;
+export const IMAGE_MIME_TYPES: string[];
+export const BUILTIN_BACKGROUND_IDS: string[];
+export function normalizeBackgroundSource(value?: unknown, legacy?: string): BackgroundImageSource;
+export function inspectImage(input: Uint8Array | ArrayBuffer): { mimeType: string; width: number; height: number };

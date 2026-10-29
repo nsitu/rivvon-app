@@ -21,7 +21,7 @@ export const fetchPreset = (id) => request(`/${encodeURIComponent(id)}`);
 export const deletePreset = (id) => request(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
 export const updatePreset = (id, updates) => request(`/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
 
-export async function savePreset({ scene, uploads = [], uploadTexture, storageProvider, thumbnail, name, visibility = 'private', parentPresetId = null, onProgress }) {
+export async function savePreset({ scene, uploads = [], uploadTexture, storageProvider, thumbnail, name, visibility = 'private', parentPresetId = null, backgroundSourcePresetId = null, onProgress }) {
     const publishedLocals = new Map(uploads.filter(upload => upload.localId && scene.textures[upload.assignment].id)
         .map(upload => [upload.localId, scene.textures[upload.assignment].id]));
     for (const upload of uploads) {
@@ -52,7 +52,7 @@ export async function savePreset({ scene, uploads = [], uploadTexture, storagePr
         }).catch(() => {}); // Cache bookkeeping must not discard a successful publication.
     }
     const created = await request('', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scene: normalizeScenePreset(scene), name, visibility, parentPresetId }) });
+        body: JSON.stringify({ scene: normalizeScenePreset(scene), name, visibility, parentPresetId, backgroundSourcePresetId }) });
     const id = created.preset.id;
     try {
         onProgress?.('Saving preset thumbnail…');

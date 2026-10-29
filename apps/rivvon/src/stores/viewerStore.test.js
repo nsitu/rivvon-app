@@ -18,6 +18,28 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it('persists image selection and blend independently, includes them in Tools snapshots and resets them', () => {
+        const store = useViewerStore();
+        store.captureToolsPanelOriginalState();
+        store.setBackgroundTextureSource({ kind: 'image', id: 'uploaded-image' }, { presetId: 'source-preset' });
+        store.setBackgroundTextureBlendMode('normal');
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        expect(store.toolsPanelOriginalState.backgroundTextureSource).toEqual({ kind: 'builtin', id: 'card' });
+        const artwork = store.getArtworkSettingsSnapshot();
+        expect(artwork.backgroundTextureSource).toEqual({ kind: 'image', id: 'uploaded-image' });
+        expect(artwork.backgroundTextureBlendMode).toBe('normal');
+        expect(artwork).not.toHaveProperty('backgroundImagePresetId');
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored.backgroundImagePresetId).toBe('source-preset');
+        expect(restored.backgroundTextureSource).toEqual(artwork.backgroundTextureSource);
+        restored.setBackgroundTextureEnabled(false);
+        expect(restored.backgroundTextureSource).toEqual(artwork.backgroundTextureSource);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored.backgroundTextureBlendMode).toBe('softLight');
+        expect(restored.backgroundTextureSource).toEqual({ kind: 'builtin', id: 'card' });
+    });
+
     it.each(['gradientMapMix', 'backgroundTextureGradientMapMix'])('persists and restores independent %s including zero and legacy defaults', key => {
         const store = useViewerStore();
         const setter = `set${key[0].toUpperCase()}${key.slice(1)}`;

@@ -6,11 +6,12 @@
     import ToggleSwitch from 'primevue/toggleswitch';
     import GradientMapEditor from './GradientMapEditor.vue';
     import { useViewerStore } from '../../stores/viewerStore';
-    import { BACKGROUND_TEXTURE_OPTIONS } from '../../modules/viewer/backgroundTextures.js';
+    import BackgroundImageSelection from './BackgroundImageSelection.vue';
     import { MIN_BACKGROUND_CYCLE_DURATION, MAX_BACKGROUND_CYCLE_DURATION } from '../../modules/viewer/backgroundAnimation.js';
 
     defineProps({
         showUndulation: { type: Boolean, default: true },
+        disabled: Boolean,
     });
 
     const app = useViewerStore();
@@ -167,15 +168,7 @@
         set: value => app.setBackgroundTextureGradientMapEnabled(value),
     });
 
-    const selectedBackgroundTextureOption = computed({
-        get: () => BACKGROUND_TEXTURE_OPTIONS.find(
-            (option) => option.value === app.backgroundTexture,
-        ) ?? BACKGROUND_TEXTURE_OPTIONS[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setBackgroundTexture(option.value);
-        },
-    });
+    const blendOptions = [{ label: 'Normal', value: 'normal' }, { label: 'Soft Light', value: 'softLight' }];
 
     const backgroundOverlayModel = computed({
         get: () => app.backgroundOverlayEnabled,
@@ -935,22 +928,18 @@
                             <ToggleSwitch
                                 :inputId="getInputId('background-texture')"
                                 v-model="backgroundTextureModel"
+                                :disabled="disabled || app.isApplyingBackgroundImage"
                             />
                         </div>
                     </div>
 
                     <div v-if="backgroundTextureModel">
-                        <div class="tools-select-block background-texture-select">
-                            <label class="tools-select-label" :for="getInputId('static-texture-choice')">Texture</label>
-                            <div class="tools-select-wrap">
-                                <Select
-                                    :inputId="getInputId('static-texture-choice')"
-                                    v-model="selectedBackgroundTextureOption"
-                                    :options="BACKGROUND_TEXTURE_OPTIONS"
-                                    option-label="label"
-                                    class="tools-select"
-                                />
-                            </div>
+                        <BackgroundImageSelection :disabled="disabled || app.isApplyingBackgroundImage" />
+                        <div class="tools-select-block">
+                            <label class="tools-select-label" :for="getInputId('static-image-blend')">Blend</label>
+                            <Select :input-id="getInputId('static-image-blend')" :model-value="app.backgroundTextureBlendMode"
+                                :options="blendOptions" option-label="label" option-value="value" class="tools-select"
+                                :disabled="disabled || app.isApplyingBackgroundImage" @update:model-value="app.setBackgroundTextureBlendMode" />
                         </div>
 
                         <div class="tools-slider-block">

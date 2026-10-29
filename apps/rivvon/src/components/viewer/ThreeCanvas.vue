@@ -250,20 +250,20 @@
     });
 
     watch(() => [
-        app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
+        app.backgroundTextureBlendMode, app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
         app.backgroundTextureGradientMapMix,
         app.backgroundTextureContrast, app.backgroundTextureSaturation,
         app.backgroundTextureVerticalAlignment,
     ], () => {
-        if (app.isRestoringPreset) return;
+        if (app.isRestoringPreset || app.isApplyingBackgroundImage) return;
         updateBackground();
     }, { deep: true });
 
-    watch(() => [app.backgroundTextureEnabled, app.backgroundTexture], () => {
-        if (app.isRestoringPreset) return;
+    watch(() => [app.backgroundTextureEnabled, app.backgroundTextureSource, app.backgroundImagePresetId, app.backgroundTexture], () => {
+        if (app.isRestoringPreset || app.isApplyingBackgroundImage) return;
         setBackgroundFromTileManager().catch((error) => {
-        if (app.isRestoringPreset) return;
-            console.error('[ThreeCanvas] Failed to update scene background texture:', error);
+        if (app.isRestoringPreset || app.isApplyingBackgroundImage) return;
+            toast.add({ severity: 'error', summary: 'Background image unavailable', detail: error.message, life: 6000 });
         });
     });
 

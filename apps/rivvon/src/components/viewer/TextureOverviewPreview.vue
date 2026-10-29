@@ -1127,6 +1127,7 @@
     }
 
     async function exportVideoWithLiveScene(options = {}) {
+        await sceneBackground.ensureReady();
         if (!renderer || !scene || !camera || !tileManager || isLoading.value || !isReady.value) {
             throw new Error('Overview preview is not ready for export.');
         }
@@ -1275,10 +1276,10 @@
     );
 
     watch(
-        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundFlipHorizontal, app.backgroundMode, app.backgroundBlurEnabled, app.backgroundBlurAmount, app.backgroundTextureEnabled, app.backgroundTexture, app.backgroundBaseEnabled, app.backgroundWaterEnabled, app.backgroundWaterColor, app.backgroundWaterFlow, app.backgroundWaterScale, app.backgroundWaterSpeed, app.backgroundWaterStrength],
+        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundFlipHorizontal, app.backgroundMode, app.backgroundBlurEnabled, app.backgroundBlurAmount, app.backgroundTextureEnabled, app.backgroundTextureSource, app.backgroundImagePresetId, app.backgroundTexture, app.backgroundBaseEnabled, app.backgroundWaterEnabled, app.backgroundWaterColor, app.backgroundWaterFlow, app.backgroundWaterScale, app.backgroundWaterSpeed, app.backgroundWaterStrength],
         async ([enabled]) => {
             if (!tileManager || !renderer) return;
-            if (enabled) await sceneBackground.setBackgroundFromTileManager({ opacity: 1 });
+            if (enabled) { try { await sceneBackground.setBackgroundFromTileManager({ opacity: 1 }); } catch (error) { console.warn('Background preview unavailable:', error); } }
             else sceneBackground.disposeBackground();
             renderCurrentScene();
         },
@@ -1286,7 +1287,7 @@
 
     watch(
         () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity, app.backgroundGradientInfluence, app.backgroundGradientFalloff,
-            app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation, app.backgroundTextureVerticalAlignment],
+            app.backgroundTextureBlendMode, app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation, app.backgroundTextureVerticalAlignment],
         () => {
             sceneBackground.updateBackground();
             renderCurrentScene();

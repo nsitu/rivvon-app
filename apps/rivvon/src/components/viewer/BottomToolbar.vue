@@ -1,5 +1,6 @@
 <script setup>
-    import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
+    import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch, inject } from 'vue';
+    import { IMAGE_LIBRARY_KEY } from '../../services/imageService.js';
     import Button from 'primevue/button';
     import ChromeButton from '../shared/ChromeButton.vue';
     import PanelActionBar from '../shared/PanelActionBar.vue';
@@ -30,6 +31,7 @@ import InputNumber from 'primevue/inputnumber';
     import { openGooglePhotosWindow } from '../../services/googlePhotos.js';
     import { useRouter } from 'vue-router';
 
+    const imageLibrary = inject(IMAGE_LIBRARY_KEY, null);
     const app = useViewerStore();
     const slyce = useSlyceStore();
     const router = useRouter();
@@ -961,6 +963,7 @@ const activeLauncherTitle = computed(() => {
     ]));
 
     const browseLauncherSections = computed(() => ([
+        { label: 'Image', items: [{ label: 'Browse', contextLabel: 'Image Library', description: 'Upload and choose background images.', icon: 'image', command: () => { closeLaunchers(); imageLibrary?.open(); } }] },
         {
             label: 'Preset',
             items: [{ label: 'Browse', contextLabel: 'Presets', description: 'Reopen saved ribbons and complete scenes.',

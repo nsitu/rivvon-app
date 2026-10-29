@@ -22,6 +22,15 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it('waits for background readiness and refuses still/video exports if the selected image failed', async () => {
+        const { deps, exporter } = fixture();
+        deps.ensureBackgroundReady = vi.fn().mockRejectedValue(new Error('Selected image unavailable'));
+        await expect(exporter.captureImageBlobWithSettings()).rejects.toThrow('Selected image unavailable');
+        await expect(exporter.exportVideo({ duration: 1 / 30 })).rejects.toThrow('Selected image unavailable');
+        await expect(exporter.exportVideoLegacy()).rejects.toThrow('Selected image unavailable');
+        expect(deps.renderScene).not.toHaveBeenCalled();
+        expect(createCanvasVideoExport).not.toHaveBeenCalled();
+    });
     it('awaits generated background pixels at each synthetic timestamp, then restores preview and disposes on success', async () => {
         const { deps, writer, exporter } = fixture();
         const events = [];

@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { authErrorRedirect } from '../services/authRedirect.js';
 
 const routes = [
+    { path: '/images', name: 'image-library', component: () => import('../views/RibbonView.vue') },
     // ============ VIEWER ROUTES ============
     {
         path: '/',

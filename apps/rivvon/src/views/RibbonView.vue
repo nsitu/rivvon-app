@@ -1,4 +1,6 @@
 <script setup>
+    import { IMAGE_LIBRARY_KEY, fetchImage } from '../services/imageService.js';
+    import { acquireBackgroundImage, invalidateBackgroundImage, setBackgroundImageAccessScope } from '../services/backgroundImageCache.js';
     import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent, nextTick, provide } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { useSlyceStore } from '../stores/slyceStore';
@@ -55,6 +57,7 @@
     const BetaModal = defineAsyncComponent(() => import('../components/viewer/BetaModal.vue'));
     const VideoGalleryPanel = defineAsyncComponent(() => import('./VideoGalleryView.vue'));
     const VideoPlayerPanel = defineAsyncComponent(() => import('./VideoPlayerView.vue'));
+    const ImageLibraryPanel = defineAsyncComponent(() => import('./ImageLibraryView.vue'));
     const AudioLibraryPanel = defineAsyncComponent(() => import('./AudioLibraryView.vue'));
     const AudioPlayerPanel = defineAsyncComponent(() => import('./AudioPlayerView.vue'));
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
@@ -94,6 +97,80 @@
     const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
     const isVideoPlayerRoute = computed(() => route.name === 'video-player');
     const videoPlayerTitle = ref('');
+    const isImageLibraryRoute = computed(() => route.name === 'image-library');
+    const imageBusy = ref(false);
+    let imageReturn = null;
+    function openImageLibrary() {
+        if (exportAbortController.value || imageBusy.value || isImageLibraryRoute.value) return;
+        imageReturn = { location: route.fullPath, tools: app.toolsPanelVisible, applied: false, focus: document.activeElement };
+        app.toolsPanelVisible = false; // Keep the Tools original-state snapshot.
+        activeToolbarOverlay.value = null;
+        void router.push({ name: 'image-library', query: route.query });
+    }
+    function closeImageLibrary({ applied = false } = {}) {
+        if (imageReturn) { imageReturn.applied = applied; router.back(); }
+        else void router.replace({ name: 'home', query: route.query });
+    }
+    watch(isImageLibraryRoute, visible => {
+        if (!visible && imageReturn) {
+            const previous = imageReturn; imageReturn = null;
+            const returnedToCaller = route.fullPath === previous.location;
+            if (previous.tools && !previous.applied && returnedToCaller) app.toolsPanelVisible = true;
+            if (previous.applied || !returnedToCaller) app.toolsPanelOriginalState = null;
+            nextTick(() => { if (returnedToCaller && previous.focus?.isConnected) previous.focus.focus(); });
+        }
+    });
+    provide(IMAGE_LIBRARY_KEY, { open: openImageLibrary });
+    async function applyLibraryImage(image) {
+        if (imageBusy.value || !isReady.value) return;
+        imageBusy.value = true;
+        closeImageLibrary({ applied: true });
+        const previous = { source: { ...app.backgroundTextureSource }, presetId: app.backgroundImagePresetId,
+            enabled: app.backgroundTextureEnabled, blend: app.backgroundTextureBlendMode, legacy: app.backgroundTexture };
+        let lease;
+        try {
+            lease = await acquireBackgroundImage(image.source, { maxTextureSize: threeCanvasRef.value?.renderer?.capabilities?.maxTextureSize || 4096 });
+            app.isApplyingBackgroundImage = true;
+            app.setBackgroundTextureSource(image.source, { persist: false });
+            app.backgroundTextureEnabled = true;
+            app.backgroundTextureBlendMode = image.source.kind === previous.source.kind ? previous.blend : image.source.kind === 'image' ? 'normal' : 'softLight';
+            await nextTick();
+            await threeCanvasRef.value.setBackgroundFromTileManager();
+            app.setBackgroundTextureSource(image.source);
+            app.setBackgroundTextureBlendMode(app.backgroundTextureBlendMode);
+            app.setBackgroundTextureEnabled(true);
+            await nextTick();
+        } catch (error) {
+            if (app.isApplyingBackgroundImage) {
+                app.setBackgroundTextureSource(previous.source, { presetId: previous.presetId, persist: false });
+                app.backgroundTextureEnabled = previous.enabled; app.backgroundTextureBlendMode = previous.blend;
+                app.backgroundTexture = previous.legacy;
+                await nextTick();
+                try { await threeCanvasRef.value.setBackgroundFromTileManager({ allowMissingImage: true }); }
+                catch (restoreError) { console.warn('Could not refresh the previous background:', restoreError); }
+            }
+            toast.add({ severity: 'error', summary: 'Could not apply background', detail: error.message, life: 6000 });
+        } finally { lease?.release(); app.isApplyingBackgroundImage = false; imageBusy.value = false; }
+    }
+    function handleImageDeleted(id) {
+        invalidateBackgroundImage(id);
+        if (app.backgroundTextureSource?.kind === 'image' && app.backgroundTextureSource.id === id) {
+            app.setBackgroundTextureEnabled(false);
+            app.setBackgroundTextureSource({ kind: 'builtin', id: 'card' });
+        }
+    }
+    watch(() => user.value?.id || user.value?.email || '', async (identity, previous) => {
+        setBackgroundImageAccessScope(identity);
+        if (previous === undefined || app.backgroundTextureSource?.kind !== 'image') return;
+        const sourceId = app.backgroundTextureSource.id, wasEnabled = app.backgroundTextureEnabled;
+        app.setBackgroundTextureEnabled(false);
+        if (wasEnabled) {
+            try {
+                await fetchImage(sourceId, app.backgroundImagePresetId);
+                if (app.backgroundTextureSource.id === sourceId && (user.value?.id || user.value?.email || '') === identity) app.setBackgroundTextureEnabled(true);
+            } catch { /* Keep the reference visible so the user can select a replacement. */ }
+        }
+    }, { immediate: true });
     const isAudioLibraryRoute = computed(() => route.name === 'audio-library');
     const isAudioPlayerRoute = computed(() => route.name === 'audio-player');
     const { saveDrawing: saveLocalDrawing, updateDrawing: updateLocalDrawing } = useDrawingStorage();
@@ -1334,6 +1411,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
     // Initialize when Three.js canvas is ready
     async function handleThreeInitialized(context) {
+        if (app.backgroundImageError) toast.add({ severity: 'warn', summary: 'Background image unavailable', detail: app.backgroundImageError, life: 6000 });
         console.log('[RibbonView] Three.js initialized with context:', context);
         console.log('[RibbonView] tileManager:', context.tileManager);
         console.log('[RibbonView] scene:', context.scene);
@@ -2652,7 +2730,7 @@ const activeToolbarOverlayTitle = computed(() => {
             const image = await canvas.captureImageBlobWithSettings({ width, height: Math.min(960, height), format: 'webp', quality: 0.74, logoOverlayEnabled: false, audioReactive: false });
             if (!image?.blob) throw new Error('Could not capture the preset thumbnail.');
             if (presetCapture.value?.previewUrl) URL.revokeObjectURL(presetCapture.value.previewUrl);
-            presetCapture.value = { ...capture, thumbnail: image.blob, previewUrl: URL.createObjectURL(image.blob), microphoneExcluded: state.microphoneActive || state.microphonePending };
+            presetCapture.value = { ...capture, backgroundSourcePresetId: app.backgroundImagePresetId, thumbnail: image.blob, previewUrl: URL.createObjectURL(image.blob), microphoneExcluded: state.microphoneActive || state.microphonePending };
             presetSaveVisible.value = true;
         } catch (error) {
             toast.add({ severity: 'error', summary: 'Could not capture preset', detail: error.message, life: 5000 });
@@ -2713,7 +2791,7 @@ const activeToolbarOverlayTitle = computed(() => {
                 presetProgress.value = value;
                 handleTextureLoadProgress(progress.stage, progress.current, progress.total);
             });
-            const scene = await threeCanvasRef.value.restoreScene(saved.scene, entries, handleTextureLoadProgress);
+            const scene = await threeCanvasRef.value.restoreScene(saved.scene, entries, handleTextureLoadProgress, { backgroundPresetId: id });
             setCurrentDrawingHeader({ kind: scene.geometry.kind, title: scene.geometry.title, source: scene.geometry.source });
             setCurrentViewShareState({ kind: 'unshareable' });
             currentPresetId.value = id;
@@ -2992,6 +3070,9 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     const primaryWorkflowNavigation = computed(() => {
+        if (isImageLibraryRoute.value) return { id: 'imageLibrary', group: 'image', breadcrumbs: ['Image Library'],
+            statusLabel: null, canGoBack: false, back: () => false, canExit: true,
+            exit: () => { closeImageLibrary(); return true; } };
         if (isAudioPlayerRoute.value) {
             return {
                 id: 'audioPlayer',
@@ -3164,6 +3245,7 @@ const activeToolbarOverlayTitle = computed(() => {
         return null;
     });
     const activeNavigationModal = computed(() => {
+        if (isImageLibraryRoute.value) return null;
         if (showExportDialog.value) {
             return {
                 id: 'exportVideo',
@@ -3317,6 +3399,7 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     const activePanelContext = computed(() => resolveOrderedContext([
+        { title: 'Image Library', isActive: () => isImageLibraryRoute.value, close: () => closeImageLibrary() },
         {
             title: 'Audio Player',
             isActive: () => isAudioPlayerRoute.value,
@@ -4343,6 +4426,8 @@ const activeToolbarOverlayTitle = computed(() => {
             @video-title-change="handleVideoPlayerTitleChange"
         />
 
+        <ImageLibraryPanel v-if="isImageLibraryRoute" :can-apply="isReady && !imageBusy" @apply="applyLibraryImage" @close="closeImageLibrary" @deleted="handleImageDeleted" />
+
         <AudioLibraryPanel
             v-if="isAudioLibraryRoute"
             @request-use-audio="handleAudioActivate"
@@ -4393,6 +4478,7 @@ const activeToolbarOverlayTitle = computed(() => {
         <!-- Export Video Dialog -->
         <ExportVideoDialog
             v-if="showExportDialog"
+            v-show="!isImageLibraryRoute"
             :visible="showExportDialog"
             :export-info="exportInfo"
             :initial-settings="exportDialogInitialSettings"
@@ -4453,13 +4539,13 @@ const activeToolbarOverlayTitle = computed(() => {
         <!-- Loading overlay for texture loading or viewer reinitialization -->
         <Transition name="fade">
             <div
-                v-if="isLoadingTexture || app.isReinitializing || (presetBusy && !presetSaveVisible)"
+                v-if="imageBusy || isLoadingTexture || app.isReinitializing || (presetBusy && !presetSaveVisible)"
                 class="loading-overlay"
                 :class="{ 'loading-overlay--preset': presetBusy && !presetSaveVisible }"
             >
                 <LoadingIndicator
                     class="loading-content"
-                    :message="isLoadingTexture || app.isReinitializing ? (loadingMessage || 'Loading...') : (presetProgress || 'Preparing preset…')"
+                    :message="imageBusy ? 'Loading background image…' : isLoadingTexture || app.isReinitializing ? (loadingMessage || 'Loading...') : (presetProgress || 'Preparing preset…')"
                     :status-text="isLoadingTexture ? loadingStatusText : ''"
                 />
             </div>
@@ -4506,6 +4592,7 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.video-player-panel),
     .ribbon-view :deep(.audio-creator-panel),
     .ribbon-view :deep(.audio-library-panel),
+    .ribbon-view :deep(.image-library-panel),
     .ribbon-view :deep(.preset-browser),
     .ribbon-view :deep(.audio-player-panel),
     .ribbon-view :deep(.texture-creator-panel.active),

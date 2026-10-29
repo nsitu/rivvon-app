@@ -29,6 +29,20 @@ function harness() {
     return { ctx, deps, staged, oldManager, oldSeries, engine: useScenePreset(ctx, deps) };
 }
 describe('scene restoration boundary', () => {
+    it('restores the original image grant and scene when a preset background fails to load', async () => {
+        const h = harness();
+        h.ctx.app.backgroundImagePresetId = 'original-grant';
+        h.ctx.app.backgroundTextureSource = { kind: 'image', id: 'original-image' };
+        const input = h.engine.captureScene({ includeAssets: false }).scene;
+        input.artwork.backgroundTextureSource = { kind: 'image', id: 'missing-image' };
+        h.deps.updateBackground.mockRejectedValueOnce(new Error('Background unavailable'));
+        await expect(h.engine.restoreScene(input, [], null, { backgroundPresetId: 'new-grant' })).rejects.toThrow('Background unavailable');
+        expect(h.ctx.app.backgroundImagePresetId).toBe('original-grant');
+        expect(h.ctx.app.backgroundTextureSource).toEqual({ kind: 'image', id: 'original-image' });
+        expect(h.ctx.ribbonSeries.value).toBe(h.oldSeries);
+        expect(h.deps.updateBackground).toHaveBeenCalledTimes(2);
+        expect(h.deps.renderLoop.resumeRenderLoop).toHaveBeenCalled();
+    });
     it('captures grid settings beside source geometry and restores or rolls them back with the scene', async () => {
         const h = harness();
         Object.assign(h.ctx.app, { gridRepeatEnabled: true, gridRepeatRows: 2, gridRepeatColumns: 3, gridRepeatCheckerboard: true, gridRepeatColumnSpacing: 0, gridRepeatRowSpacing: 2.35 });

@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataArrayTexture, DataTexture, TextureLoader, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, OrthographicCamera, Scene, UnsignedByteType } from 'three';
 import { useSceneBackground } from './useSceneBackground.js';
+import { setBackgroundImageAccessScope } from '../../services/backgroundImageCache.js';
+beforeEach(() => setBackgroundImageAccessScope(crypto.randomUUID()));
 
 function fixture(rendererType) {
     const texture = new DataArrayTexture(new Uint8Array(4 * 4), 1, 1, 4);
@@ -13,6 +15,53 @@ function fixture(rendererType) {
             getLayerCount: () => 4, getSeamlessLoopDuration: () => 12 } } };
     return { app, camera, ctx, runtime: useSceneBackground(ctx) };
 }
+
+describe('background replacement transactions', () => {
+    it.each(['webgl', 'webgpu'])('updates Normal/Soft Light without rebuilding the %s background', async rendererType => {
+        setBackgroundImageAccessScope(crypto.randomUUID());
+        const loader = vi.spyOn(TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+            const texture = new DataTexture(new Uint8Array([120, 100, 80, 128]), 1, 1); onLoad(texture); return texture;
+        });
+        const { runtime, app, camera } = fixture(rendererType);
+        app.backgroundTextureEnabled = true; app.backgroundTexture = 'card'; app.backgroundTextureBlendMode = 'softLight';
+        try {
+            await runtime.setBackgroundFromTileManager();
+            const material = camera.children[0].material;
+            const uniforms = rendererType === 'webgl' ? material.uniforms : material._staticTextureAdjustmentUniforms;
+            expect(uniforms.uStaticTextureNormalMode.value).toBe(false);
+            app.backgroundTextureBlendMode = 'normal'; runtime.updateBackground();
+            expect(uniforms.uStaticTextureNormalMode.value).toBe(true);
+            expect(camera.children[0].material).toBe(material);
+            if (rendererType === 'webgl') expect(material.fragmentShader).toContain('staticSample.a');
+        } finally { runtime.disposeBackground(); loader.mockRestore(); }
+    });
+
+    it('retains the active runtime after failure and ignores an older replacement that completes late', async () => {
+        setBackgroundImageAccessScope(crypto.randomUUID());
+        const pending = new Map();
+        const loader = vi.spyOn(TextureLoader.prototype, 'load').mockImplementation((url, resolve, _progress, reject) => {
+            const texture = new DataTexture(new Uint8Array(4), 1, 1);
+            if (url.includes('card')) resolve(texture); else pending.set(url, { resolve: () => resolve(texture), reject });
+            return texture;
+        });
+        const { runtime, app, camera } = fixture('webgl');
+        app.backgroundTextureEnabled = true; app.backgroundTexture = 'card';
+        try {
+            await runtime.setBackgroundFromTileManager(); const original = camera.children[0];
+            app.backgroundTexture = 'textile'; const failed = runtime.setBackgroundFromTileManager();
+            pending.get('/background-textures/textile.jpg').reject(new Error('Offline'));
+            await expect(failed).rejects.toThrow('Offline');
+            expect(camera.children[0]).toBe(original);
+            await expect(runtime.ensureReady()).rejects.toThrow('Offline');
+            const older = runtime.setBackgroundFromTileManager();
+            app.backgroundTexture = 'cenote'; const newer = runtime.setBackgroundFromTileManager();
+            pending.get('/background-textures/cenote.jpg').resolve(); await newer;
+            const current = camera.children[0]; expect(current).not.toBe(original);
+            pending.get('/background-textures/textile.jpg').resolve(); await older;
+            expect(camera.children[0]).toBe(current); await runtime.ensureReady();
+        } finally { runtime.disposeBackground(); loader.mockRestore(); }
+    });
+});
 
 describe.each(['webgl', 'webgpu'])('background renderer uniforms (%s)', (rendererType) => {
     function blurredFixture() {

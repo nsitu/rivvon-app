@@ -1,3 +1,4 @@
+import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/imageAsset.js';
 // src/stores/viewerStore.js
 // Pinia store for rivvon viewer state
 
@@ -87,6 +88,12 @@ import {
   normalizeGradientMapStops,
   serializeGradientMapStops,
 } from "../modules/viewer/gradientMap.js";
+
+function readBackgroundSourcePreference() {
+  const prefs = readViewerPreferences();
+  try { return normalizeBackgroundSource(prefs.backgroundTextureSource, prefs.backgroundTexture); }
+  catch { return normalizeBackgroundSource(null, prefs.backgroundTexture); }
+}
 
 const VIEWER_PREFERENCES_STORAGE_KEY = "rivvon.viewer.preferences";
 const PREFERRED_TEXTURE_RESOLUTION_VALUES = [256, 512, 1024];
@@ -903,6 +910,11 @@ export const useViewerStore = defineStore("viewer", {
       backgroundTexture: normalizeBackgroundTexture(
         readViewerPreferences().backgroundTexture,
       ),
+      isApplyingBackgroundImage: false,
+      backgroundImageError: '',
+      backgroundTextureSource: readBackgroundSourcePreference(),
+      backgroundTextureBlendMode: readViewerPreferences().backgroundTextureBlendMode === 'normal' ? 'normal' : 'softLight',
+      backgroundImagePresetId: readViewerPreferences().backgroundImagePresetId || '',
       backgroundTextureGradientMapEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundTextureGradientMapEnabled, false,
       ),
@@ -1266,6 +1278,9 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundOverlayOpacity = DEFAULT_BACKGROUND_OVERLAY_OPACITY;
       this.backgroundTextureEnabled = false;
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
+      this.backgroundTextureSource = { kind: 'builtin', id: DEFAULT_BACKGROUND_TEXTURE };
+      this.backgroundTextureBlendMode = 'softLight';
+      this.backgroundImagePresetId = '';
       this.backgroundTextureGradientMapEnabled = false;
       this.backgroundTextureGradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
       this.backgroundTextureGradientMapMix = DEFAULT_GRADIENT_MAP_MIX;
@@ -1392,6 +1407,8 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: DEFAULT_BACKGROUND_OVERLAY_OPACITY,
         backgroundTextureEnabled: false,
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
+        backgroundTextureSource: { kind: 'builtin', id: DEFAULT_BACKGROUND_TEXTURE },
+        backgroundTextureBlendMode: 'softLight', backgroundImagePresetId: '',
         backgroundTextureGradientMapEnabled: false,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops,
         backgroundTextureGradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
@@ -1705,7 +1722,20 @@ export const useViewerStore = defineStore("viewer", {
     setBackgroundTexture(texture) {
       const nextValue = normalizeBackgroundTexture(texture);
       this.backgroundTexture = nextValue;
-      writeViewerPreferences({ backgroundTexture: nextValue });
+      this.backgroundTextureSource = { kind: 'builtin', id: nextValue };
+      this.backgroundImagePresetId = '';
+      writeViewerPreferences({ backgroundTexture: nextValue, backgroundTextureSource: this.backgroundTextureSource, backgroundImagePresetId: '' });
+    },
+
+    setBackgroundTextureSource(source, { presetId = '', persist = true } = {}) {
+      this.backgroundTextureSource = normalizeBackgroundSource(source);
+      this.backgroundImagePresetId = presetId;
+      if (source.kind === 'builtin') this.backgroundTexture = source.id;
+      if (persist) writeViewerPreferences({ backgroundTextureSource: this.backgroundTextureSource, backgroundImagePresetId: presetId, backgroundTexture: this.backgroundTexture });
+    },
+    setBackgroundTextureBlendMode(value) {
+      this.backgroundTextureBlendMode = value === 'normal' ? 'normal' : 'softLight';
+      writeViewerPreferences({ backgroundTextureBlendMode: this.backgroundTextureBlendMode });
     },
 
     setBackgroundTextureGradientMapEnabled(enabled) {
@@ -1987,6 +2017,9 @@ export const useViewerStore = defineStore("viewer", {
         backgroundOverlayOpacity: this.backgroundOverlayOpacity,
         backgroundTextureEnabled: this.backgroundTextureEnabled,
         backgroundTexture: this.backgroundTexture,
+        backgroundTextureSource: { ...this.backgroundTextureSource },
+        backgroundTextureBlendMode: this.backgroundTextureBlendMode,
+        backgroundImagePresetId: this.backgroundImagePresetId,
         backgroundTextureGradientMapEnabled: this.backgroundTextureGradientMapEnabled,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops.map(stop => ({ ...stop })),
         backgroundTextureGradientMapMix: this.backgroundTextureGradientMapMix,
@@ -2142,6 +2175,8 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundOverlayOpacity !== original.backgroundOverlayOpacity ||
         this.backgroundTextureEnabled !== original.backgroundTextureEnabled ||
         this.backgroundTexture !== original.backgroundTexture ||
+        JSON.stringify(this.backgroundTextureSource) !== JSON.stringify(original.backgroundTextureSource) ||
+        this.backgroundTextureBlendMode !== original.backgroundTextureBlendMode ||
         this.backgroundTextureGradientMapEnabled !== original.backgroundTextureGradientMapEnabled ||
         this.backgroundTextureGradientMapMix !== original.backgroundTextureGradientMapMix ||
         serializeGradientMapStops(this.backgroundTextureGradientMapStops) !== serializeGradientMapStops(original.backgroundTextureGradientMapStops) ||

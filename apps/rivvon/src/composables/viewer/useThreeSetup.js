@@ -146,11 +146,12 @@ export function useThreeSetup() {
     renderScene: renderSceneWithBackground,
     createBackgroundExportInterpolation: background.createExportInterpolation,
     restoreBackgroundPreview: background.updateBackground,
+    ensureBackgroundReady: background.ensureReady,
     restoreLightingPreview: lighting.restorePreviewResolution,
   });
 
   const presets = useScenePreset(ctx, { textures, ribbons, renderLoop, background,
-    updateBackground: () => background.setBackgroundFromTileManager(),
+    updateBackground: (options) => background.setBackgroundFromTileManager(options),
   });
 
   // ── Initialization ─────────────────────────────────────────────────
@@ -230,7 +231,7 @@ export function useThreeSetup() {
       ribbons.setFlowState(app.flowState);
 
       // Set blurred background from the first tile texture
-      await background.setBackgroundFromTileManager();
+      await background.setBackgroundFromTileManager({ allowMissingImage: true });
 
       // Initialize cinematic camera system
       cinematicCamera.init(result.camera, result.controls);

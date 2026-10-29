@@ -1,8 +1,8 @@
 import type { AppBindings } from '../types/hono';
 
-export type MediaKind = 'texture' | 'audio';
+export type MediaKind = 'texture' | 'audio' | 'image';
 export type LinkedPreset = { id: string; name: string; visibility: string };
-const column = (kind: MediaKind) => kind === 'texture' ? 'texture_set_id' : 'audio_asset_id';
+const column = (kind: MediaKind) => ({ texture: 'texture_set_id', audio: 'audio_asset_id', image: 'image_asset_id' })[kind];
 
 export async function getLinkedPresets(db: D1Database, kind: MediaKind, ids: string[], userId: string): Promise<LinkedPreset[]> {
     if (!ids.length) return [];
@@ -47,7 +47,7 @@ export async function prepareMediaDeletion(env: AppBindings, kind: MediaKind, id
     const linked = await getLinkedPresets(env.DB, kind, ids, userId);
     if (!acceptsPresetCascade(linked, acceptedIds)) return { conflict: linked, deletedPresets: [] };
     const presetIds = linked.map(preset => preset.id);
-    const table = kind === 'texture' ? 'texture_sets' : 'audio_assets';
+    const table = ({ texture: 'texture_sets', audio: 'audio_assets', image: 'image_assets' })[kind];
     try {
         await env.DB.batch([
             ...presetDeletionStatements(env.DB, presetIds),

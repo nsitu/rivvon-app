@@ -35,3 +35,11 @@ R2_BUCKET_NAME = "rivvon-textures"
 # SESSION_SECRET       - Secret for signing session tokens (min 32 chars)
 # R2_ACCESS_KEY_ID      - R2 S3 API token access key (Object Read & Write)
 # R2_SECRET_ACCESS_KEY  - R2 S3 API token secret key
+
+# Private user images: access is mediated by the API and preset grants.
+[[r2_buckets]]
+binding = "IMAGES_BUCKET"
+bucket_name = "rivvon-images"
+
+[triggers]
+crons = ["23 * * * *"]

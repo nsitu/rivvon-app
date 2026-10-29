@@ -57,6 +57,7 @@ export function useSceneExport(ctx, deps = {}) {
     }
 
     async function createImageExportCanvas(options = {}) {
+        await deps.ensureBackgroundReady?.();
         if (!ctx.renderer.value || !ctx.scene.value || !ctx.camera.value) {
             console.error('[ThreeSetup] Cannot capture image export canvas - not initialized');
             return null;
@@ -500,6 +501,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @returns {Promise<Blob>} The recorded video blob
      */
     async function exportVideoLegacy(options = {}) {
+        await deps.ensureBackgroundReady?.();
         const {
             duration = 5,
             fps = 30,
@@ -657,6 +659,7 @@ export function useSceneExport(ctx, deps = {}) {
      * @returns {Promise<Blob|null>} The encoded video blob, or null on cancel
      */
     async function exportVideo(options = {}) {
+        await deps.ensureBackgroundReady?.();
         const {
             width = 1920,
             height = 1080,
