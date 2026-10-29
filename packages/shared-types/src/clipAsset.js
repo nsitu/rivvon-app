@@ -1,4 +1,7 @@
-export const MAX_CLIP_BYTES = 64 * 1024 * 1024;
+export const MAX_CLIP_BYTES = 1_000_000_000; // 1 GB (decimal), shared by client and API.
+export const CLIP_UPLOAD_PART_BYTES = 8 * 1024 * 1024;
+export const MAX_CLIP_SINGLE_UPLOAD_BYTES = 64 * 1024 * 1024;
+export const MAX_CLIP_INSPECTION_BYTES = 128 * 1024 * 1024;
 export const MAX_CLIP_DURATION = 60;
 export const MAX_CLIP_SIDE = 1920;
 export const MAX_CLIP_PIXELS = 1920 * 1080;

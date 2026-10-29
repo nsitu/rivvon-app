@@ -6,7 +6,7 @@ import type { AppEnv, AppBindings } from '../types/hono';
 import { syncUser } from '../utils/user';
 import { getLinkedPresets, parseAcceptedPresetIds, prepareMediaDeletion } from '../utils/presetDependencies';
 import { inspectImage, MAX_THUMBNAIL_BYTES, MAX_THUMBNAIL_SIDE, IMAGE_MIME_TYPES } from '../../../packages/shared-types/src/imageAsset.js';
-import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SIDE, CLIP_MIME_TYPE } from '../../../packages/shared-types/src/clipAsset.js';
+import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SIDE, CLIP_MIME_TYPE, CLIP_UPLOAD_PART_BYTES, MAX_CLIP_SINGLE_UPLOAD_BYTES, MAX_CLIP_INSPECTION_BYTES } from '../../../packages/shared-types/src/clipAsset.js';
 import { Input, MP4, CustomSource } from 'mediabunny';
 
 type ClipRow = { id: string; owner_id: string; status: string; clip_key: string; thumbnail_key: string;
@@ -16,6 +16,20 @@ const metadata = (row: ClipRow) => ({ id: row.id, name: row.name, width: row.wid
     ...JSON.parse(row.metadata_json || '{}'), mime_type: row.mime_type, file_size: row.file_size, created_at: row.created_at, updated_at: row.updated_at });
 const read = (db: D1Database, id: string) => db.prepare('SELECT * FROM clip_assets WHERE id = ?').bind(id).first<ClipRow>();
 const fail = (message: string, status: 400 | 404 | 409 | 413 = 400): never => { throw new HTTPException(status, { message }); };
+type UploadSession = { clip_id: string; id: string; upload_id: string; object_key: string };
+const readUploadSession = (db: D1Database, clipId: string) => db.prepare('SELECT * FROM clip_upload_sessions WHERE clip_id = ?').bind(clipId).first<UploadSession>();
+const isWritable = (row: ClipRow) => row.status === 'uploading' && row.upload_expires_at > Date.now() / 1000;
+
+async function discardUploadSession(env: AppBindings, id: string) {
+    const session = await readUploadSession(env.DB, id);
+    if (!session) return;
+    // Completed multipart objects have no active upload left to abort.
+    if (!await env.CLIPS_BUCKET.head(session.object_key)) {
+        try { await env.CLIPS_BUCKET.resumeMultipartUpload(session.object_key, session.upload_id).abort(); }
+        catch (error) { if (!/NoSuchUpload|does not exist|not found/i.test(String(error))) throw error; }
+    }
+    await env.DB.prepare('DELETE FROM clip_upload_sessions WHERE clip_id = ? AND id = ?').bind(id, session.id).run();
+}
 
 async function owned(c: Context<AppEnv>) {
     const row = await read(c.env.DB, c.req.param('id'));
@@ -37,6 +51,7 @@ async function accessible(c: Context<AppEnv>) {
 }
 
 export async function removeClipFiles(env: AppBindings, id: string) {
+    await discardUploadSession(env, id);
     // Prefix cleanup also removes upload attempts whose finalization was interrupted.
     let cursor: string | undefined;
     do {
@@ -57,6 +72,10 @@ export async function cleanupClips(env: AppBindings) {
         await removeClipFiles(env, id);
         await env.DB.prepare("DELETE FROM clip_assets WHERE id = ? AND status = 'deleting'").bind(id).run();
     }
+    // A finalization response may be interrupted after committing the asset.
+    const completed = await env.DB.prepare(`SELECT s.clip_id FROM clip_upload_sessions s
+        JOIN clip_assets c ON c.id = s.clip_id WHERE c.status = 'complete' LIMIT 50`).all<{ clip_id: string }>();
+    for (const { clip_id } of completed.results) await discardUploadSession(env, clip_id);
 }
 
 export const clipRoutes = new Hono<AppEnv>();
@@ -145,7 +164,7 @@ clipUploadRoutes.post('/', async (c) => {
 
 async function readBounded(request: Request, limit: number) {
     const reader = request.body?.getReader();
-    if (!reader) fail('An clip file is required');
+    if (!reader) fail('A clip file is required');
     const chunks: Uint8Array[] = []; let size = 0;
     try {
         while (true) {
@@ -160,11 +179,101 @@ async function readBounded(request: Request, limit: number) {
     return result;
 }
 
+// Bound each HTTP request independently of the whole-file limit. R2 needs a
+// known-length stream; this also rejects truncated/oversized chunk bodies.
+async function uploadPartStream(request: Request, expectedSize: number, write: (stream: ReadableStream) => Promise<R2UploadedPart>) {
+    if (!request.body || Number(request.headers.get('Content-Length')) !== expectedSize) fail('The clip part length does not match its expected size');
+    const stream = new FixedLengthStream(expectedSize), controller = new AbortController();
+    const transfer = request.body!.pipeTo(stream.writable, { signal: controller.signal });
+    transfer.catch(() => {});
+    try { const part = await write(stream.readable); await transfer; return part; }
+    catch (error) { controller.abort(); await transfer.catch(() => {}); throw error; }
+}
+
+clipUploadRoutes.post('/:id/upload', async (c) => {
+    const row = await owned(c);
+    if (!isWritable(row)) fail('This clip upload is no longer writable', 409);
+    const describe = (session: UploadSession) => ({ sessionId: session.id, partSize: CLIP_UPLOAD_PART_BYTES,
+        partCount: Math.ceil(row.expected_file_size / CLIP_UPLOAD_PART_BYTES) });
+    const existing = await readUploadSession(c.env.DB, row.id);
+    if (existing) return c.json(describe(existing));
+    const id = nanoid(), objectKey = `clips/${row.id}/clip-${id}`;
+    const upload = await c.env.CLIPS_BUCKET.createMultipartUpload(objectKey, { httpMetadata: { contentType: CLIP_MIME_TYPE } });
+    let session;
+    try {
+        session = await c.env.DB.prepare(`INSERT INTO clip_upload_sessions (clip_id, id, upload_id, object_key)
+            SELECT id, ?, ?, ? FROM clip_assets WHERE id = ? AND status = 'uploading' AND upload_expires_at > unixepoch()
+            ON CONFLICT(clip_id) DO NOTHING RETURNING *`).bind(id, upload.uploadId, objectKey, row.id).first<UploadSession>();
+    } catch (error) { await upload.abort(); throw error; }
+    if (!session) {
+        await upload.abort();
+        const winner = await readUploadSession(c.env.DB, row.id);
+        if (!winner || !isWritable((await read(c.env.DB, row.id)) || { ...row, status: 'deleting' })) fail('The clip changed while preparing its upload', 409);
+        return c.json(describe(winner!));
+    }
+    return c.json(describe(session), 201);
+});
+
+clipUploadRoutes.put('/:id/upload/:sessionId/parts/:partNumber', async (c) => {
+    const row = await owned(c);
+    if (!isWritable(row)) fail('This clip upload is no longer writable', 409);
+    const session = await readUploadSession(c.env.DB, row.id);
+    if (!session || session.id !== c.req.param('sessionId')) fail('Clip upload session not found', 404);
+    const rawPart = c.req.param('partNumber'), partNumber = Number(rawPart);
+    const partCount = Math.ceil(row.expected_file_size / CLIP_UPLOAD_PART_BYTES);
+    if (!/^\d+$/.test(rawPart) || !Number.isInteger(partNumber) || partNumber < 1 || partNumber > partCount) fail('Invalid clip upload part');
+    if (c.req.header('Content-Type')?.split(';')[0] !== CLIP_MIME_TYPE) fail('Invalid clip part content type');
+    const expectedSize = Math.min(CLIP_UPLOAD_PART_BYTES, row.expected_file_size - (partNumber - 1) * CLIP_UPLOAD_PART_BYTES);
+    const upload = c.env.CLIPS_BUCKET.resumeMultipartUpload(session!.object_key, session!.upload_id);
+    const part = await uploadPartStream(c.req.raw, expectedSize, stream => upload.uploadPart(partNumber, stream));
+    return c.json(part);
+});
+
+clipUploadRoutes.post('/:id/upload/:sessionId/complete', async (c) => {
+    const row = await owned(c);
+    if (row.status === 'complete') return c.json({ success: true });
+    if (!isWritable(row)) fail('This clip upload is no longer writable', 409);
+    const session = await readUploadSession(c.env.DB, row.id);
+    if (!session || session.id !== c.req.param('sessionId')) fail('Clip upload session not found', 404);
+    const expectedParts = Math.ceil(row.expected_file_size / CLIP_UPLOAD_PART_BYTES);
+    const body = await readBounded(c.req.raw, 64 * 1024);
+    let parts: R2UploadedPart[];
+    try { parts = JSON.parse(new TextDecoder().decode(body)).parts; } catch { fail('Invalid clip part manifest'); }
+    if (!Array.isArray(parts!) || parts!.length !== expectedParts || parts!.some((part, index) => part?.partNumber !== index + 1
+        || typeof part.etag !== 'string' || !part.etag.length || part.etag.length > 256 || !/^[\x20-\x7e]+$/.test(part.etag))) fail('Upload every clip part in order before completing');
+    const key = session!.object_key;
+    // An assembled object is immutable and also makes retries safe when the
+    // client lost the assembly response before the D1 pointer was committed.
+    let object = await c.env.CLIPS_BUCKET.head(key);
+    if (!object) {
+        try { object = await c.env.CLIPS_BUCKET.resumeMultipartUpload(key, session!.upload_id).complete(parts!); }
+        catch (error) {
+            object = await c.env.CLIPS_BUCKET.head(key);
+            if (!object) throw error;
+        }
+    }
+    if (object!.size !== row.expected_file_size || object!.size > MAX_CLIP_BYTES) {
+        await c.env.CLIPS_BUCKET.delete(key); fail('Assembled clip size does not match the upload metadata');
+    }
+    const updated = await c.env.DB.prepare(`UPDATE clip_assets SET clip_key = ?, updated_at = unixepoch()
+        WHERE id = ? AND status = 'uploading' AND clip_key = ? AND upload_expires_at > unixepoch() RETURNING id`)
+        .bind(key, row.id, row.clip_key).first();
+    if (!updated) {
+        const latest = await read(c.env.DB, row.id);
+        if (latest?.clip_key !== key || !['uploading', 'complete'].includes(latest.status)) {
+            await c.env.CLIPS_BUCKET.delete(key); fail('The clip changed during upload', 409);
+        }
+    }
+    if (row.clip_key !== key) await c.env.CLIPS_BUCKET.delete(row.clip_key);
+    return c.json({ success: true });
+});
+
 clipUploadRoutes.put('/:id/assets/:asset', async (c) => {
     const row = await owned(c), asset = c.req.param('asset');
     if (!['clip', 'thumbnail'].includes(asset)) fail('Clip asset not found', 404);
     if (row.status !== 'uploading' || row.upload_expires_at <= Date.now() / 1000) fail('This clip upload is no longer writable', 409);
     const thumbnail = asset === 'thumbnail', expectedSize = thumbnail ? row.thumbnail_size : row.expected_file_size;
+    if (!thumbnail && expectedSize > MAX_CLIP_SINGLE_UPLOAD_BYTES) fail('Use multipart upload for this clip', 413);
     const type = thumbnail ? row.thumbnail_mime_type : row.mime_type;
     if (c.req.header('Content-Type')?.split(';')[0] !== type) fail('Uploaded clip does not match its metadata');
     let body: Uint8Array | ReadableStream;
@@ -211,7 +320,7 @@ clipUploadRoutes.post('/:id/complete', async (c) => {
     const input = new Input({ formats: [MP4], source: new CustomSource({ getSize: () => clip!.size, maxCacheSize: 2 * 1024 * 1024,
         async read(start, end) {
             bytesRead += end - start;
-            if (++reads > 4096 || bytesRead > MAX_CLIP_BYTES * 2) throw new Error('Clip metadata exceeds the inspection budget');
+            if (++reads > 4096 || bytesRead > MAX_CLIP_INSPECTION_BYTES) throw new Error('Clip metadata exceeds the inspection budget');
             const part = await c.env.CLIPS_BUCKET.get(row.clip_key, { range: { offset: start, length: end - start } });
             if (!part) throw new Error('Clip upload is unavailable');
             return part.body;
@@ -226,6 +335,7 @@ clipUploadRoutes.post('/:id/complete', async (c) => {
         WHERE id = ? AND status = 'uploading' AND clip_key = ? AND thumbnail_key = ? AND upload_expires_at > unixepoch() RETURNING *`)
         .bind(JSON.stringify(info), row.id, row.clip_key, row.thumbnail_key).first<ClipRow>();
     if (!done) fail('Clip changed during finalization. Try again.', 409);
+    await discardUploadSession(c.env, row.id);
     return c.json({ clip: metadata(done!) });
 });
 clipUploadRoutes.patch('/:id', async (c) => {

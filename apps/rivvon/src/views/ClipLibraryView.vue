@@ -100,7 +100,7 @@ onBeforeUnmount(() => { alive = false; generation++; dependencyGeneration++; for
                         <template v-else>
                             <section v-if="collection === 'mine'" class="clip-upload-section" aria-label="Upload clips">
                                 <p>Clips are saved to Rivvon’s private cloud storage. Sharing a preset grants access to its background clip.</p>
-                                <p class="clip-library-hint">Progressive SDR H.264 MP4, up to 64 MiB, 60 seconds, 60 fps and 1920 × 1080 pixels (portrait supported). Original files are retained; scene playback is muted.</p>
+                                <p class="clip-library-hint">Progressive SDR H.264 MP4, up to 1 GB (1,000,000,000 bytes), 60 seconds, 60 fps and 1920 × 1080 pixels (portrait supported). Original files are retained; scene playback is muted.</p>
                                 <FileUpload mode="basic" name="clips" accept="video/mp4,.mp4" multiple custom-upload auto choose-label="Upload clips" @uploader="uploadFiles" />
                                 <div v-for="job in jobs" :key="job.key" class="clip-upload-job" :aria-label="job.file.name">
                                     <span>{{ job.file.name }} · {{ job.error || job.status }}</span>

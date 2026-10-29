@@ -7,10 +7,10 @@ Background Media accepts one image or clip, retaining cover fitting, vertical al
 ## Formats and storage
 
 - Progressive SDR H.264 MP4, Baseline/Main/High, 8-bit 4:2:0.
-- At most 64 MiB, 60 seconds, 60 fps, 1920 pixels on the longest side, and 1920 × 1080 pixels total; portrait is supported.
+- At most 1 GB (1,000,000,000 bytes), 60 seconds, 60 fps, 1920 pixels on the longest side, and 1920 × 1080 pixels total; portrait is supported.
 - A decoded first frame becomes a poster of at most 512 pixels on either side. Uploads run sequentially with progress, cancellation, and retry.
-- The API streams video uploads into the private `CLIPS_BUCKET` using a fixed-length stream. It verifies container/track metadata, AVC sequence parameters, dimensions, duration, size, and the thumbnail before finalization. Media inspection uses bounded R2 ranges and an explicit read budget. No Worker-side video decode or transcoding is required.
-- Immutable objects use unique keys per attempt. Finalization, deletion, and late upload requests use conditional state transitions. Scheduled cleanup removes expired uploads and retries deletions.
+- The API accepts small uploads through the existing bounded stream endpoint. Clips above 64 MiB use R2 multipart uploads with sequential 8 MiB requests, so the 1 GB file limit does not depend on accepting a 1 GB Worker request. `clip_upload_sessions` records owner-scoped multipart state for cancellation and expiry cleanup; each chunk is streamed through a fixed-length stream. Part retries reuse the same part number, and assembly is idempotent. It verifies container/track metadata, AVC sequence parameters, dimensions, duration, size, and the thumbnail before finalization. Media inspection uses bounded R2 ranges and an explicit read budget. No Worker-side video decode or transcoding is required.
+- Immutable objects use unique keys per attempt. Finalization, deletion, and late upload requests use conditional state transitions. Scheduled cleanup removes expired uploads, aborts unfinished multipart sessions, and retries deletions. The inspection byte budget remains 128 MiB independently of the 1 GB file limit; the API reads MP4 metadata by range rather than buffering the full file.
 
 Owner or preset access is required for metadata, posters, HEAD, and byte-range playback. Responses use private, no-store caching. Preset dependencies are retained even when Background Media is disabled. A visible preset grants read access to its registered clip; derivative presets retain their own dependency. Deleting a preset keeps its clip. Deleting a clip reviews and rechecks linked-preset deletion, following the image library's existing consent behavior.
 
@@ -39,13 +39,13 @@ Preset schema 3 stores the stable clip reference and playback mode. Schemas 1 an
 
 ## Validation and release
 
-The frontend/API test suites cover timing, frame preparation order, failure cleanup, persistence/migrations, private access, range responses, verified upload completion, immutable writes, linked-preset consent, and expiry. `pnpm --filter rivvon test:clip-background` runs a real Chromium check for native playback, synthetic sample changes, exact first-frame pixels after repeated wraps, WebGL/WebGPU sharp/blurred backgrounds, library preview, focus return, Apply, and clearing private cards on sign-out. The small MP4 fixtures are generated test patterns, including an interlaced rejection fixture.
+The frontend/API test suites cover timing, frame preparation order, failure cleanup, persistence/migrations, private access, range responses, verified upload completion, immutable writes, linked-preset consent, and expiry. Large-upload tests exercise the exact 1 GB boundary with a virtual file (without allocating or uploading a gigabyte), bounded parts, retry receipts, ownership, assembly races, cancellation, and cleanup. `pnpm --filter rivvon test:clip-background` runs a real Chromium check for native playback, synthetic sample changes, exact first-frame pixels after repeated wraps, WebGL/WebGPU sharp/blurred backgrounds, library preview, focus return, Apply, and clearing private cards on sign-out. The small MP4 fixtures are generated test patterns, including an interlaced rejection fixture.
 
 Before release:
 
-1. Create private R2 bucket `rivvon-clips`, with no public domain or r2.dev access. `CLIPS_BUCKET` is declared in `apps/api/wrangler.toml`.
-2. Apply cumulative D1 migrations through `014_clip_assets.sql`. The migration preserves texture, audio, and image dependency rows and recreates their integrity triggers/indexes.
+1. The private R2 bucket `rivvon-clips` was created with Wrangler on 2026-10-29 and its r2.dev access was verified disabled. `CLIPS_BUCKET` is declared in `apps/api/wrangler.toml`. Keep delivery private.
+2. Apply cumulative D1 migrations through `015_clip_multipart_uploads.sql`. Migration 014 preserves texture, audio, and image dependency rows and recreates their integrity triggers/indexes; migration 015 adds multipart upload sessions. Deploy the migrated API before the frontend that uploads large clips.
 3. Deploy the API that accepts preset schemas 1–3, then the frontend that writes schema 3.
 4. Verify authenticated cross-origin upload/range playback, shared presets, and export against actual deployed storage. Local tests do not exercise production cookies or bucket configuration.
 
-Chromium WebGL/WebGPU is exercised locally. Safari/mobile compatibility, 1080p performance on low-power devices, and extreme-rate preview behavior still need device verification. No remote storage, migration, or deployment was changed. The standalone API TypeScript check retains existing errors in unchanged audio upload, video routes, and texture-upload tests; the clip routes add no TypeScript errors.
+Chromium WebGL/WebGPU is exercised locally. Safari/mobile compatibility, 1080p performance on low-power devices, and extreme-rate preview behavior still need device verification. No remote migrations or deployments were run for the 1 GB upload change. The standalone API TypeScript check retains existing errors in unchanged audio upload, video routes, and texture-upload tests; the clip routes add no TypeScript errors.

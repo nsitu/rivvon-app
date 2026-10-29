@@ -239,6 +239,14 @@ CREATE TABLE IF NOT EXISTS clip_assets (
 );
 CREATE INDEX IF NOT EXISTS idx_clip_assets_owner ON clip_assets(owner_id, status, created_at);
 
+CREATE TABLE IF NOT EXISTS clip_upload_sessions (
+    clip_id TEXT PRIMARY KEY REFERENCES clip_assets(id) ON DELETE CASCADE,
+    id TEXT NOT NULL UNIQUE,
+    upload_id TEXT NOT NULL,
+    object_key TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 -- Complete, immutable artwork snapshots; media lives in the private PRESETS_BUCKET.
 CREATE TABLE IF NOT EXISTS scene_presets (
     id TEXT PRIMARY KEY,

@@ -1,4 +1,7 @@
 export const MAX_CLIP_BYTES: number;
+export const CLIP_UPLOAD_PART_BYTES: number;
+export const MAX_CLIP_SINGLE_UPLOAD_BYTES: number;
+export const MAX_CLIP_INSPECTION_BYTES: number;
 export const MAX_CLIP_DURATION: number;
 export const MAX_CLIP_SIDE: number;
 export const MAX_CLIP_PIXELS: number;

@@ -6,14 +6,38 @@ import { Input, MP4, BlobSource } from 'mediabunny';
 import { clipRoutes, clipUploadRoutes, cleanupClips } from './clips';
 import { presetRoutes } from './presets';
 import { createSessionToken } from '../utils/session';
-import { inspectClipInput } from '../../../packages/shared-types/src/clipAsset.js';
+import { inspectClipInput, MAX_CLIP_BYTES, CLIP_UPLOAD_PART_BYTES } from '../../../packages/shared-types/src/clipAsset.js';
 
 const fixture = name => new Uint8Array(readFileSync(new URL(`../../../packages/shared-types/fixtures/${name}.mp4`, import.meta.url)));
 const bytes = fixture('clip');
 const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6UAAAAASUVORK5CYII=', 'base64'));
 function bucket() {
-    const objects = new Map();
-    return { objects,
+    const objects = new Map(), uploads = new Map();
+    return { objects, uploads,
+        createMultipartUpload: vi.fn(async (key, options) => {
+            const uploadId = crypto.randomUUID(), parts = new Map();
+            const upload = { key, uploadId, parts,
+                uploadPart: vi.fn(async (partNumber, data) => {
+                    if (!uploads.has(uploadId)) throw new Error('NoSuchUpload');
+                    const bytes = new Uint8Array(await new Response(data).arrayBuffer()), etag = crypto.randomUUID();
+                    parts.set(partNumber, { bytes, etag }); return { partNumber, etag };
+                }),
+                complete: vi.fn(async receipts => {
+                    if (!uploads.has(uploadId)) throw new Error('NoSuchUpload');
+                    const data = receipts.map(part => {
+                        const saved = parts.get(part.partNumber); if (!saved || saved.etag !== part.etag) throw new Error('Invalid part'); return saved.bytes;
+                    });
+                    objects.set(key, { bytes: new Uint8Array(await new Blob(data).arrayBuffer()), type: options.httpMetadata.contentType });
+                    uploads.delete(uploadId); return { size: objects.get(key).bytes.length };
+                }),
+                abort: vi.fn(async () => { uploads.delete(uploadId); }),
+            };
+            uploads.set(uploadId, upload); return upload;
+        }),
+        resumeMultipartUpload: vi.fn((key, id) => {
+            const upload = uploads.get(id);
+            if (!upload || upload.key !== key) throw new Error('NoSuchUpload'); return upload;
+        }),
         put: vi.fn(async (key, data, options) => { objects.set(key, { bytes: new Uint8Array(await new Response(data).arrayBuffer()), type: options.httpMetadata.contentType }); }),
         head: vi.fn(async key => objects.has(key) ? { size: objects.get(key).bytes.length } : null),
         get: vi.fn(async (key, { range } = {}) => {
@@ -59,6 +83,69 @@ describe('private clip resources', () => {
         const id = await pending(); expect((await put(id, 'clip', bytes)).status).toBe(200); expect((await put(id, 'thumbnail', png)).status).toBe(200);
         const result = await complete(id); expect(result.status).toBe(200); expect((await result.json()).clip).toMatchObject({ duration: 1.2, width: 32, height: 24 }); return id;
     }
+    const startUpload = id => app.request(`/clip/${id}/upload`, { method: 'POST', headers }, env);
+    const putPart = (id, session, number, data, auth = headers) => app.request(`/clip/${id}/upload/${session}/parts/${number}`, {
+        method: 'PUT', headers: { ...auth, 'Content-Type': 'video/mp4', 'Content-Length': String(data.length) }, body: data,
+    }, env);
+    const assemble = (id, session, parts) => app.request(`/clip/${id}/upload/${session}/complete`, json('POST', { parts }), env);
+    it('accepts exactly 1 GB, rejects one byte more, and keeps legacy requests bounded', async () => {
+        const id = await pending({ length: MAX_CLIP_BYTES });
+        const session = await startUpload(id).then(r => r.json());
+        expect(session).toMatchObject({ partSize: CLIP_UPLOAD_PART_BYTES, partCount: Math.ceil(MAX_CLIP_BYTES / CLIP_UPLOAD_PART_BYTES) });
+        const tooLarge = await app.request('/clip', json('POST', { name: 'Clip', mimeType: 'video/mp4', width: 32, height: 24,
+            fileSize: MAX_CLIP_BYTES + 1, thumbnailSize: png.length, thumbnailMimeType: 'image/png' }), env);
+        expect(tooLarge.status).toBe(400);
+        expect((await put(id, 'clip', bytes)).status).toBe(413);
+    });
+    it('assembles, verifies, and finalizes multipart clips idempotently without retaining sessions', async () => {
+        const id = await pending(), session = await startUpload(id).then(r => r.json());
+        expect((await startUpload(id).then(r => r.json())).sessionId).toBe(session.sessionId);
+        expect(env.CLIPS_BUCKET.createMultipartUpload).toHaveBeenCalledOnce();
+        const receipt = await putPart(id, session.sessionId, 1, bytes).then(r => r.json());
+        expect((await assemble(id, session.sessionId, [receipt])).status).toBe(200);
+        expect((await assemble(id, session.sessionId, [receipt])).status).toBe(200);
+        await put(id, 'thumbnail', png);
+        expect((await complete(id)).status).toBe(200);
+        expect(env.CLIPS_BUCKET.uploads.size).toBe(0);
+        expect(db.prepare('SELECT * FROM clip_upload_sessions').all()).toEqual([]);
+        expect((await putPart(id, session.sessionId, 1, bytes)).status).toBe(409);
+    });
+    it('enforces owner, session, part count/size, and assembly receipts', async () => {
+        const id = await pending({ length: CLIP_UPLOAD_PART_BYTES + bytes.length });
+        const session = await startUpload(id).then(r => r.json());
+        expect((await putPart(id, session.sessionId, 1, bytes, otherHeaders)).status).toBe(404);
+        expect((await putPart(id, 'other-session', 1, bytes)).status).toBe(404);
+        expect((await putPart(id, session.sessionId, 0, bytes)).status).toBe(400);
+        expect((await putPart(id, session.sessionId, 3, bytes)).status).toBe(400);
+        expect((await putPart(id, session.sessionId, 1, bytes)).status).toBe(400);
+        const first = await putPart(id, session.sessionId, 1, new Uint8Array(CLIP_UPLOAD_PART_BYTES)).then(r => r.json());
+        const last = await putPart(id, session.sessionId, 2, bytes).then(r => r.json());
+        expect((await assemble(id, session.sessionId, [first])).status).toBe(400);
+        expect((await assemble(id, session.sessionId, [last, first])).status).toBe(400);
+        expect((await assemble(id, session.sessionId, [first, last])).status).toBe(200);
+    });
+    it('aborts unfinished parts on cancel and expiry and cannot assemble after deletion', async () => {
+        const id = await pending(), session = await startUpload(id).then(r => r.json());
+        const receipt = await putPart(id, session.sessionId, 1, bytes).then(r => r.json());
+        const upload = [...env.CLIPS_BUCKET.uploads.values()][0];
+        expect((await app.request(`/clip/${id}`, json('DELETE', {}), env)).status).toBe(200);
+        expect(upload.abort).toHaveBeenCalledOnce(); expect(env.CLIPS_BUCKET.uploads.size).toBe(0);
+        expect((await assemble(id, session.sessionId, [receipt])).status).toBe(404);
+        const expired = await pending(); await startUpload(expired);
+        db.prepare('UPDATE clip_assets SET upload_expires_at = 0 WHERE id = ?').run(expired);
+        await cleanupClips(env); expect(env.CLIPS_BUCKET.uploads.size).toBe(0);
+        expect(db.prepare('SELECT * FROM clip_upload_sessions').all()).toEqual([]);
+    });
+    it('rejects assembly if deletion starts after R2 completes and removes the new object', async () => {
+        const id = await pending(), session = await startUpload(id).then(r => r.json());
+        const receipt = await putPart(id, session.sessionId, 1, bytes).then(r => r.json());
+        const upload = [...env.CLIPS_BUCKET.uploads.values()][0], real = upload.complete.getMockImplementation();
+        upload.complete.mockImplementationOnce(async parts => {
+            const result = await real(parts); db.prepare("UPDATE clip_assets SET status = 'deleting' WHERE id = ?").run(id); return result;
+        });
+        expect((await assemble(id, session.sessionId, [receipt])).status).toBe(409);
+        expect(env.CLIPS_BUCKET.objects.size).toBe(0);
+    });
     async function preset(id, auth = headers, extra = {}) {
         db.exec("INSERT OR IGNORE INTO texture_sets (id, owner_id, name, tile_resolution, tile_count, layer_count, status, is_public) VALUES ('texture', 'owner', 'Texture', 512, 1, 1, 'complete', 1)");
         const scene = { schemaVersion: 3, geometry: { paths: [[{ x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 0 }]] }, textures: [{ id: 'texture', tileCount: 1, tileResolution: 512, layerCount: 1 }],

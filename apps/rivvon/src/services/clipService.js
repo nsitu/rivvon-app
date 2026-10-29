@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { inspectClipInput, MAX_CLIP_BYTES } from '../../../../packages/shared-types/src/clipAsset.js';
+import { inspectClipInput, MAX_CLIP_BYTES, MAX_CLIP_SINGLE_UPLOAD_BYTES, CLIP_UPLOAD_PART_BYTES } from '../../../../packages/shared-types/src/clipAsset.js';
 import { MAX_THUMBNAIL_SIDE } from '../../../../packages/shared-types/src/imageAsset.js';
 import { Input, MP4, BlobSource, CanvasSink } from 'mediabunny';
 
@@ -29,7 +29,7 @@ const canvasBlob = (canvas, type, quality) => new Promise((resolve, reject) => c
 export const clipAssetUrl = (id, { asset = 'clip', presetId = '' } = {}) => `${API}/clips/${encodeURIComponent(id)}/assets/${asset}${grant(presetId)}`;
 
 export async function prepareClipUpload(file, { signal } = {}) {
-    if (!file.size || file.size > MAX_CLIP_BYTES) throw new Error('Choose an H.264 MP4 clip of at most 64 MiB');
+    if (!file.size || file.size > MAX_CLIP_BYTES) throw new Error('Choose an H.264 MP4 clip of at most 1 GB (1,000,000,000 bytes)');
     const input = new Input({ formats: [MP4], source: new BlobSource(file) });
     const abort = () => input.dispose();
     signal?.throwIfAborted(); signal?.addEventListener('abort', abort, { once: true });
@@ -55,14 +55,42 @@ function uploadBlob(path, blob, { signal, onProgress } = {}) {
         xhr.open('PUT', `${API}${path}`); xhr.withCredentials = true; xhr.setRequestHeader('Content-Type', blob.type);
         xhr.upload.onprogress = event => { if (event.lengthComputable) onProgress?.(event.loaded / event.total); };
         xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) finish(resolve);
-            else { let data; try { data = JSON.parse(xhr.responseText); } catch {} finish(reject, new Error(data?.error || 'Clip upload failed')); }
+            let data; try { data = JSON.parse(xhr.responseText); } catch {}
+            if (xhr.status >= 200 && xhr.status < 300) finish(resolve, data);
+            else { const error = new Error(data?.error || 'Clip upload failed'); error.status = xhr.status; finish(reject, error); }
         };
         xhr.onerror = () => finish(reject, new Error('Clip upload failed. Check your connection and try again.'));
         xhr.onabort = () => finish(reject, new DOMException('Upload cancelled', 'AbortError'));
         if (signal?.aborted) { reject(new DOMException('Upload cancelled', 'AbortError')); return; }
         signal?.addEventListener('abort', abort, { once: true }); xhr.send(blob);
     });
+}
+
+async function retryTransfer(operation, signal) {
+    try { return await operation(); }
+    catch (error) { signal?.throwIfAborted(); if (error.status && error.status < 500) throw error; return operation(); }
+}
+
+export async function uploadClipBytes(id, blob, { signal, onProgress, onStatus } = {}) {
+    if (!blob.size || blob.size > MAX_CLIP_BYTES) throw new Error('Clips must be at most 1 GB (1,000,000,000 bytes)');
+    if (blob.size <= MAX_CLIP_SINGLE_UPLOAD_BYTES) return uploadBlob(`/clip/${id}/assets/clip`, blob, { signal, onProgress });
+    const session = await retryTransfer(() => request(`/clip/${id}/upload`, { method: 'POST', signal }), signal);
+    const expectedParts = Math.ceil(blob.size / CLIP_UPLOAD_PART_BYTES);
+    if (session.partSize !== CLIP_UPLOAD_PART_BYTES || session.partCount !== expectedParts || typeof session.sessionId !== 'string'
+        || !/^[\w-]{1,64}$/.test(session.sessionId)) throw new Error('Invalid clip upload session');
+    const parts = [];
+    for (let index = 0; index < expectedParts; index++) {
+        signal?.throwIfAborted();
+        const start = index * CLIP_UPLOAD_PART_BYTES, end = Math.min(blob.size, start + CLIP_UPLOAD_PART_BYTES);
+        onStatus?.(`Uploading clip part ${index + 1} of ${expectedParts}…`);
+        const part = await retryTransfer(() => uploadBlob(`/clip/${id}/upload/${session.sessionId}/parts/${index + 1}`,
+            blob.slice(start, end, 'video/mp4'), { signal, onProgress: value => onProgress?.((start + value * (end - start)) / blob.size) }), signal);
+        if (part?.partNumber !== index + 1 || typeof part.etag !== 'string' || !part.etag) throw new Error('The clip part upload returned an invalid receipt');
+        parts.push(part);
+    }
+    onStatus?.('Assembling clip…');
+    await retryTransfer(() => request(`/clip/${id}/upload/${session.sessionId}/complete`, { ...json('POST', { parts }), signal }), signal);
+    onProgress?.(1);
 }
 
 export async function uploadClip(file, { signal, onProgress, onStatus } = {}) {
@@ -74,7 +102,7 @@ export async function uploadClip(file, { signal, onProgress, onStatus } = {}) {
         fileSize: prepared.blob.size, thumbnailSize: prepared.thumbnailBlob.size, thumbnailMimeType: prepared.thumbnailBlob.type }), signal });
     try {
         onStatus?.('Uploading clip…');
-        await uploadBlob(`/clip/${created.clipId}/assets/clip`, prepared.blob, { signal, onProgress: value => onProgress?.(value * 0.9) });
+        await uploadClipBytes(created.clipId, prepared.blob, { signal, onStatus, onProgress: value => onProgress?.(value * 0.9) });
         await uploadBlob(`/clip/${created.clipId}/assets/thumbnail`, prepared.thumbnailBlob, { signal, onProgress: value => onProgress?.(0.9 + value * 0.1) });
         onStatus?.('Finalizing…');
         // Finalization is idempotent; one retry covers a dropped response.
