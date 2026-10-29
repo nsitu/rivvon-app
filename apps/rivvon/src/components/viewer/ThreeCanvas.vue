@@ -263,7 +263,7 @@
         if (app.isRestoringPreset || app.isApplyingBackgroundImage) return;
         setBackgroundFromTileManager().catch((error) => {
         if (app.isRestoringPreset || app.isApplyingBackgroundImage) return;
-            toast.add({ severity: 'error', summary: 'Background image unavailable', detail: error.message, life: 6000 });
+            toast.add({ severity: 'error', summary: 'Background media unavailable', detail: error.message, life: 6000 });
         });
     });
 

@@ -1,5 +1,6 @@
 <script setup>
     import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch, inject } from 'vue';
+    import { CLIP_LIBRARY_KEY } from '../../services/clipService.js';
     import { IMAGE_LIBRARY_KEY } from '../../services/imageService.js';
     import Button from 'primevue/button';
     import ChromeButton from '../shared/ChromeButton.vue';
@@ -32,6 +33,7 @@ import InputNumber from 'primevue/inputnumber';
     import { useRouter } from 'vue-router';
 
     const imageLibrary = inject(IMAGE_LIBRARY_KEY, null);
+    const clipLibrary = inject(CLIP_LIBRARY_KEY, null);
     const app = useViewerStore();
     const slyce = useSlyceStore();
     const router = useRouter();
@@ -963,6 +965,7 @@ const activeLauncherTitle = computed(() => {
     ]));
 
     const browseLauncherSections = computed(() => ([
+        { label: 'Clips', items: [{ label: 'Browse', contextLabel: 'Clip Library', description: 'Upload and choose looping background clips.', icon: 'movie', command: () => { closeLaunchers(); clipLibrary?.open(); } }] },
         { label: 'Image', items: [{ label: 'Browse', contextLabel: 'Image Library', description: 'Upload and choose background images.', icon: 'image', command: () => { closeLaunchers(); imageLibrary?.open(); } }] },
         {
             label: 'Preset',

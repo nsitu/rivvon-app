@@ -341,6 +341,7 @@ export function useRenderLoop(ctx, deps = {}) {
     function pauseRenderLoop() {
         if (renderLoopPaused) return;
         renderLoopPaused = true;
+        deps.pauseBackgroundMedia?.();
         if (animationId) {
             cancelAnimationFrame(animationId);
             animationId = null;
@@ -354,6 +355,7 @@ export function useRenderLoop(ctx, deps = {}) {
     function resumeRenderLoop() {
         if (!renderLoopPaused) return;
         renderLoopPaused = false;
+        deps.resumeBackgroundMedia?.();
         if (renderCallback) {
             startRenderLoop(renderCallback);
         }

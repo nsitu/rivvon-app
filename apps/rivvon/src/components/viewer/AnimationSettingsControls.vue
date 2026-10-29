@@ -921,7 +921,7 @@
                             :for="getInputId('background-texture')"
                         >
                             <span class="material-symbols-outlined">texture</span>
-                            <span>Static Texture</span>
+                            <span>Background Media</span>
                         </label>
                         <div class="tools-toggle-control">
                             <span class="tools-hint tools-toggle-hint">{{ backgroundTextureModel ? 'On' : 'Off' }}</span>

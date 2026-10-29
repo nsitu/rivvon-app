@@ -8,6 +8,7 @@ import {
   createExportGaussianTexture,
   getExportBlurSigma,
 } from "../../modules/viewer/backgroundExportBlur.js";
+import { acquireBackgroundClip } from '../../services/backgroundClip.js';
 import { acquireBackgroundImage } from "../../services/backgroundImageCache.js";
 import { createBackgroundTextureAdjustments, STATIC_TEXTURE_ADJUSTMENTS_GLSL } from "../../modules/viewer/backgroundTextureAdjustments.js";
 import {
@@ -229,7 +230,9 @@ function getBackgroundTimeSeconds(renderOptions = {}) {
 
 async function loadBackgroundTexture(ctx) {
   if (!ctx.app.backgroundTextureEnabled) return null;
-  return acquireBackgroundImage(ctx.app.backgroundTextureSource, {
+  const acquire = ctx.app.backgroundTextureSource?.kind === 'clip' ? acquireBackgroundClip : acquireBackgroundImage;
+  return acquire(ctx.app.backgroundTextureSource, {
+    onError: message => { ctx.app.backgroundClipPlaybackError = message; },
     legacy: ctx.app.backgroundTexture,
     presetId: ctx.app.backgroundImagePresetId,
     maxTextureSize: ctx.renderer.value?.capabilities?.maxTextureSize || 4096,
@@ -487,6 +490,9 @@ export function useSceneBackground(ctx) {
   ctx = { ...ctx, backgroundLayerTimeline: createBackgroundLayerTimeline() };
   let timelineTileManager = null;
   let activeRuntime = null;
+  let activeMedia = null;
+  let clipTimeOrigin = null;
+  let clipSourceId = null;
   let tileBackgroundActive = false;
   let backgroundGenerationToken = 0;
 
@@ -495,6 +501,7 @@ export function useSceneBackground(ctx) {
     backgroundGenerationToken += 1;
     activeRuntime?.dispose?.();
     activeRuntime = null;
+    activeMedia = null;
     ctx.backgroundTexture.value = null;
     ctx.app.setBackgroundLayerCount?.(1);
 
@@ -568,7 +575,15 @@ export function useSceneBackground(ctx) {
 
       const disposeRuntime = runtime.dispose;
       const updateRuntime = runtime.update;
-      runtime.update = (renderOptions) => {
+      runtime.update = (renderOptions = {}) => {
+        const clipPeriod = ctx.app.backgroundClipPreviewDuration || renderOptions.backgroundLoopDuration || getBackgroundSceneLoopDuration(ctx);
+        if (textureLease?.duration && ctx.getBackgroundTime) ctx.app.backgroundClipLiveDuration = clipPeriod;
+        textureLease?.update?.({
+          timeSeconds: Math.max(0, (renderOptions.timeSeconds ?? ctx.getBackgroundTime?.() ?? getBackgroundTimeSeconds()) - (clipTimeOrigin || 0)),
+          targetDuration: clipPeriod,
+          playbackMode: ctx.app.backgroundClipPlaybackMode,
+          paused: ctx.app.backgroundClipPaused,
+        });
         // Match the surface's projection, including temporary export cameras.
         const camera = ctx.camera.value;
         const aspect = camera.isOrthographicCamera
@@ -584,9 +599,17 @@ export function useSceneBackground(ctx) {
         return;
       }
 
-      runtime.update();
       const previousRuntime = activeRuntime;
+      const previousTimeOrigin = clipTimeOrigin, previousSourceId = clipSourceId;
+      if (!textureLease?.duration) { clipSourceId = null; clipTimeOrigin = null; }
+      else if (clipSourceId !== ctx.app.backgroundTextureSource?.id) {
+        clipSourceId = ctx.app.backgroundTextureSource.id; clipTimeOrigin = ctx.getBackgroundTime?.() ?? getBackgroundTimeSeconds();
+      }
+      try { runtime.update(); }
+      catch (error) { clipTimeOrigin = previousTimeOrigin; clipSourceId = previousSourceId; throw error; }
       activeRuntime = runtime;
+      activeMedia = textureLease;
+      ctx.app.backgroundClipDuration = textureLease?.duration || 0;
       previousRuntime?.dispose?.();
       ctx.scene.value.background = null;
       tileBackgroundActive = true;
@@ -607,6 +630,7 @@ export function useSceneBackground(ctx) {
     const requestToken = ++backgroundGenerationToken;
     activeRuntime?.dispose?.();
     activeRuntime = null;
+    activeMedia = null;
     ctx.backgroundTexture.value = null;
 
     if (ctx.scene.value) {
@@ -666,6 +690,10 @@ export function useSceneBackground(ctx) {
   }
 
   return {
+    pauseMedia: () => activeMedia?.pause?.(),
+    resumeMedia: () => activeMedia?.resume?.(),
+    beginMediaExport: options => activeMedia?.beginExport?.(options),
+    getMediaTime: () => activeMedia?.getTime?.() ?? 0,
     disposeBackground,
     async ensureReady() {
       await pendingBackgroundUpdate;

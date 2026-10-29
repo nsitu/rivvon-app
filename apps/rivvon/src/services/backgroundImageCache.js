@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/imageAsset.js';
+import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/backgroundMediaSource.js';
 import { getBackgroundTextureOption } from '../modules/viewer/backgroundTextures.js';
 import { fetchImageBlob } from './imageService.js';
 
@@ -32,6 +32,7 @@ export function invalidateBackgroundImage(id) {
 }
 export async function acquireBackgroundImage(source, { legacy, presetId = '', maxTextureSize = 4096 } = {}) {
     source = normalizeBackgroundSource(source, legacy);
+    if (source.kind === 'clip') throw new Error('Video backgrounds require the clip loader');
     const key = JSON.stringify([accessScope, source, presetId]);
     let entry = entries.get(key);
     if (!entry) {

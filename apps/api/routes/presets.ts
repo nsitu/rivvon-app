@@ -84,6 +84,11 @@ presetRoutes.post('/', verifySession, async (c) => {
         const image = await c.env.DB.prepare("SELECT id, owner_id FROM image_assets WHERE id = ? AND status = 'complete'").bind(backgroundImageId).first<any>();
         if (!image || (image.owner_id !== auth.userId && !await hasGrant('image_asset_id', image.id))) return c.json({ error: 'Preset background image is unavailable.' }, 400);
     }
+    const backgroundClipId = scene.artwork.backgroundTextureSource?.kind === 'clip' ? scene.artwork.backgroundTextureSource.id : null;
+    if (backgroundClipId) {
+        const clip = await c.env.DB.prepare("SELECT id, owner_id FROM clip_assets WHERE id = ? AND status = 'complete'").bind(backgroundClipId).first<any>();
+        if (!clip || (clip.owner_id !== auth.userId && !await hasGrant('clip_asset_id', clip.id))) return c.json({ error: 'Preset background clip is unavailable.' }, 400);
+    }
     let audio: any = null;
     if (scene.audio?.assetId) {
         audio = await c.env.DB.prepare("SELECT id, name, owner_id, is_public, duration, channel_count, mime_type FROM audio_assets WHERE id = ? AND status = 'complete'")
@@ -103,6 +108,7 @@ presetRoutes.post('/', verifySession, async (c) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, auth.userId, parentId, name,
             typeof body.description === 'string' ? body.description.slice(0, 2000) : '', body.visibility || 'private',
             scene.schemaVersion, JSON.stringify(scene.textures), audio ? JSON.stringify(audio) : null),
+        ...(backgroundClipId ? [c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, clip_asset_id) VALUES (?, ?)').bind(id, backgroundClipId)] : []),
         ...(backgroundImageId ? [c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, image_asset_id) VALUES (?, ?)').bind(id, backgroundImageId)] : []),
         ...textureIds.map(textureId => c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, texture_set_id) VALUES (?, ?)').bind(id, textureId)),
         ...(audio ? [c.env.DB.prepare('INSERT INTO preset_media_dependencies (preset_id, audio_asset_id) VALUES (?, ?)').bind(id, audio.id)] : []),

@@ -14,6 +14,7 @@
     "test:run": "vitest run",
     "test:deinterlace": "node scripts/test-deinterlace.mjs",
     "test:background-interpolation": "node scripts/test-background-interpolation.mjs",
+    "test:clip-background": "node scripts/test-clip-background.mjs",
     "test:background-gradient": "node scripts/test-background-gradient.mjs",
     "test:artwork-blend": "node scripts/test-artwork-blend.mjs",
     "test:video-colour": "node scripts/test-video-colour.mjs",

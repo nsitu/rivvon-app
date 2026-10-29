@@ -1,20 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { inspectImage, normalizeBackgroundSource } from '../../../../../packages/shared-types/src/imageAsset.js';
-import { normalizeArtworkSettings, normalizeScenePreset } from '../../../../../packages/shared-types/src/scenePreset.js';
+import { normalizeArtworkSettings, normalizeScenePreset, SCENE_PRESET_VERSION } from '../../../../../packages/shared-types/src/scenePreset.js';
 const png = () => Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6UAAAAASUVORK5CYII=', 'base64'));
 const scene = artwork => ({ schemaVersion: 1, artwork, geometry: { paths: [[{ x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 0 }]] },
     textures: [{ id: 'texture', tileCount: 1, tileResolution: 512, layerCount: 1 }], camera: { position: [0, 0, 5], target: [0, 0, 0], quaternion: [0, 0, 0, 1], fov: 45 } });
 describe('image contracts', () => {
-    it('migrates every legacy built-in and preserves selected blend modes in version 2', () => {
+    it('round-trips version-3 clip references and speed alignment while upconverting version-2 images', () => {
+        const input = { ...scene({ backgroundTextureSource: { kind: 'clip', id: 'clip-123' }, backgroundClipPlaybackMode: 'alignLoop' }), schemaVersion: 3 };
+        expect(normalizeScenePreset(normalizeScenePreset(input)).artwork).toMatchObject(input.artwork);
+        const old = { ...scene({ backgroundTextureSource: { kind: 'image', id: 'image-123' }, backgroundTextureBlendMode: 'normal' }), schemaVersion: 2 };
+        expect(normalizeScenePreset(old).artwork).toMatchObject({ ...old.artwork, backgroundClipPlaybackMode: 'native' });
+        expect(() => normalizeArtworkSettings({ backgroundClipPlaybackMode: 'slow' })).toThrow('backgroundClipPlaybackMode');
+    });
+    it('migrates every legacy built-in and preserves selected blend modes across preset versions', () => {
         for (const id of ['card', 'textile', 'cenote']) {
             const migrated = normalizeScenePreset(scene({ backgroundTexture: id }));
-            expect(migrated.schemaVersion).toBe(2);
+            expect(migrated.schemaVersion).toBe(SCENE_PRESET_VERSION);
             expect(migrated.artwork.backgroundTextureSource).toEqual({ kind: 'builtin', id });
             expect(migrated.artwork.backgroundTextureBlendMode).toBe('softLight');
         }
         const input = scene({ backgroundTextureSource: { kind: 'image', id: 'upload' }, backgroundTextureBlendMode: 'normal' }); input.schemaVersion = 2;
         expect(normalizeScenePreset(normalizeScenePreset(input)).artwork).toMatchObject(input.artwork);
-        expect(() => normalizeScenePreset({ ...input, schemaVersion: 3 })).toThrow('version');
+        expect(() => normalizeScenePreset({ ...input, schemaVersion: SCENE_PRESET_VERSION + 1 })).toThrow('version');
     });
     it('rejects arbitrary image URLs, malformed references and unknown blend modes', () => {
         for (const value of [{ kind: 'image', id: 'https://example.com' }, { kind: 'builtin', id: 'unknown' }, { kind: 'file', id: 'upload' }, 'card']) {

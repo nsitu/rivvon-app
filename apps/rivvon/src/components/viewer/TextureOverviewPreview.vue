@@ -1,4 +1,5 @@
 <script setup>
+import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
     import * as THREE from 'three';
     import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
     import LoadingIndicator from '../shared/LoadingIndicator.vue';
@@ -931,6 +932,7 @@
     }
 
     function stopAnimationLoop() {
+        sceneBackground.pauseMedia();
         if (!animationFrameId) {
             return false;
         }
@@ -941,6 +943,7 @@
     }
 
     function startAnimationLoop() {
+        sceneBackground.resumeMedia();
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
@@ -1154,6 +1157,7 @@
 
         const shouldResumeLoop = stopAnimationLoop();
         let videoExport = null;
+        let backgroundMediaExport = null;
 
         try {
             rebuildLayout(width, height);
@@ -1165,7 +1169,10 @@
             const exportDuration = duration != null
                 ? duration
                 : seamlessLoopDuration * normalizedLoopCount;
-            const totalFrames = Math.ceil(exportDuration * fps);
+            const clipPeriod = app.backgroundTextureEnabled && app.backgroundTextureSource?.kind === 'clip'
+                ? getClipExportPeriod(duration ?? seamlessLoopDuration, fps, normalizedLoopCount, duration != null) : null;
+            const totalFrames = clipPeriod?.totalFrames ?? Math.ceil(exportDuration * fps);
+            backgroundMediaExport = await sceneBackground.beginMediaExport({ targetDuration: clipPeriod?.targetDuration || exportDuration, playbackMode: app.backgroundClipPlaybackMode, signal });
             const deltaSec = 1 / fps;
             const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
@@ -1187,6 +1194,7 @@
 
                 tileManager.tickDeterministic?.(animationDelta);
                 syncCellMaterials();
+                await backgroundMediaExport?.prepareFrame(time);
                 renderCurrentScene({ timeSeconds: time, deterministicBackground: true,
                     backgroundLoopDuration: duration != null ? duration : seamlessLoopDuration,
                     blurMode: 'export', width, height });
@@ -1203,7 +1211,7 @@
             if (signal?.aborted) return null;
             throw error;
         } finally {
-            await videoExport?.dispose();
+            await Promise.allSettled([Promise.resolve().then(() => videoExport?.dispose()), Promise.resolve().then(() => backgroundMediaExport?.dispose())]);
             if (renderer && tileManager) {
                 tileManager.resetAnimationState?.();
                 rebuildLayout();

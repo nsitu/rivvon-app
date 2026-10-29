@@ -1,4 +1,4 @@
-export type BackgroundImageSource = { kind: 'builtin' | 'image'; id: string };
+export type BackgroundImageSource = { kind: 'builtin' | 'image' | 'clip'; id: string };
 export const MAX_IMAGE_BYTES: number;
 export const MAX_IMAGE_PIXELS: number;
 export const MAX_IMAGE_SIDE: number;

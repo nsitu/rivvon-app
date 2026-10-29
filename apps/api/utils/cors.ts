@@ -1,9 +1,10 @@
 // src/utils/cors.ts
 export function getCorsHeaders(origin: string, allowedOrigins: string[]): HeadersInit {
     const headers: HeadersInit = {
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Range',
         'Access-Control-Max-Age': '86400',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, ETag',
     };
 
     if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {

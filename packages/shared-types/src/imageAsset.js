@@ -4,16 +4,7 @@ export const MAX_IMAGE_SIDE = 4096;
 export const MAX_THUMBNAIL_SIDE = 512;
 export const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-export const BUILTIN_BACKGROUND_IDS = ['card', 'textile', 'cenote'];
-
-export function normalizeBackgroundSource(value, legacy = 'card') {
-    if (value == null) return { kind: 'builtin', id: BUILTIN_BACKGROUND_IDS.includes(legacy) ? legacy : 'card' };
-    if (!value || !['builtin', 'image'].includes(value.kind) || typeof value.id !== 'string'
-        || !/^[\w-]{1,64}$/.test(value.id) || (value.kind === 'builtin' && !BUILTIN_BACKGROUND_IDS.includes(value.id))) {
-        throw new Error('Invalid background image reference');
-    }
-    return { kind: value.kind, id: value.id };
-}
+export { BUILTIN_BACKGROUND_IDS, normalizeBackgroundSource } from './backgroundMediaSource.js';
 
 // Read the raster container before decoding. Shared by upload validation and the
 // browser so dimensions/animation limits are enforced before allocating pixels.

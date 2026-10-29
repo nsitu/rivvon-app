@@ -22,6 +22,32 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it('prepares aligned clip pixels before rendering at every timestamp and quantizes repeated cycles once', async () => {
+        const { ctx, deps, writer, exporter } = fixture();
+        ctx.app.backgroundTextureEnabled = true;
+        ctx.app.backgroundTextureSource = { kind: 'clip', id: 'clip' };
+        ctx.app.backgroundClipPlaybackMode = 'alignLoop';
+        ctx.tileManager.value.getSeamlessLoopDuration = () => 1.01;
+        const events = [];
+        const clip = { prepareFrame: vi.fn(async t => { await Promise.resolve(); events.push(`decode:${t}`); }), dispose: vi.fn() };
+        deps.beginBackgroundMediaExport = vi.fn(async () => clip);
+        deps.renderScene.mockImplementation(options => events.push(`render:${options.timeSeconds}`));
+        writer.add.mockImplementation(t => events.push(`encode:${t}`));
+        await exporter.exportVideo({ fps: 2, loopCount: 2 });
+        expect(deps.beginBackgroundMediaExport).toHaveBeenCalledWith(expect.objectContaining({ targetDuration: 1.5, playbackMode: 'alignLoop' }));
+        expect(clip.prepareFrame.mock.calls.map(([t]) => t)).toEqual([0, 0.5, 1, 1.5, 2, 2.5]);
+        expect(events.slice(0, 3)).toEqual(['decode:0', 'render:0', 'encode:0']);
+        expect(clip.dispose).toHaveBeenCalledOnce();
+        expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
+    });
+    it('restores clip playback and the scene after a decode failure', async () => {
+        const { deps, exporter } = fixture();
+        const clip = { prepareFrame: vi.fn().mockRejectedValue(new Error('Decode failed')), dispose: vi.fn() };
+        deps.beginBackgroundMediaExport = vi.fn(async () => clip);
+        await expect(exporter.exportVideo({ duration: 1, fps: 2 })).rejects.toThrow('Decode failed');
+        expect(clip.dispose).toHaveBeenCalledOnce(); expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
+        expect(deps.renderScene).not.toHaveBeenCalled();
+    });
     it.each([[0, 35], [40, 0], [12.5, 50]])('exports independent %s° horizontal and %s° vertical tilt and restores the artwork', async (horizontal, vertical) => {
         const { ctx, deps, exporter } = fixture();
         ctx.camera.value.position.set(0, 0, 5);

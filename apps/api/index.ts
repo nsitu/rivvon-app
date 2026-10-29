@@ -1,3 +1,4 @@
+import { clipRoutes, clipUploadRoutes, cleanupClips } from './routes/clips';
 import { imageRoutes, imageUploadRoutes, cleanupImages } from './routes/images';
 // src/index.ts
 import { Hono } from 'hono';
@@ -108,12 +109,14 @@ app.route('/video', videoUploadRoutes);
 app.route('/audios', audioRoutes);
 app.route('/audio', audioUploadRoutes);
 app.route('/presets', presetRoutes);
+app.route('/clips', clipRoutes);
+app.route('/clip', clipUploadRoutes);
 app.route('/images', imageRoutes);
 app.route('/image', imageUploadRoutes);
 
 export default {
     fetch: app.fetch,
     scheduled(_event: ScheduledEvent, env: AppEnv['Bindings'], context: ExecutionContext) {
-        context.waitUntil(cleanupImages(env));
+        context.waitUntil(Promise.allSettled([cleanupImages(env), cleanupClips(env)]));
     },
 };

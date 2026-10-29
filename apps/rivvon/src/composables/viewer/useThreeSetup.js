@@ -147,6 +147,8 @@ export function useThreeSetup() {
     createBackgroundExportInterpolation: background.createExportInterpolation,
     restoreBackgroundPreview: background.updateBackground,
     ensureBackgroundReady: background.ensureReady,
+    beginBackgroundMediaExport: background.beginMediaExport,
+    getBackgroundMediaTime: background.getMediaTime,
     restoreLightingPreview: lighting.restorePreviewResolution,
   });
 
@@ -338,6 +340,8 @@ export function useThreeSetup() {
   // Wire the circular dependency: render loop recovery needs teardownViewer
   renderLoopDeps.teardownViewer = teardownViewer;
   renderLoopDeps.renderScene = renderSceneWithBackground;
+  renderLoopDeps.pauseBackgroundMedia = background.pauseMedia;
+  renderLoopDeps.resumeBackgroundMedia = background.resumeMedia;
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
 

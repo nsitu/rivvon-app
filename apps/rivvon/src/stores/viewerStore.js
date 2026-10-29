@@ -1,5 +1,5 @@
 import { normalizeArtworkBlendMode } from '../modules/viewer/artworkBlend.js';
-import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/imageAsset.js';
+import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/backgroundMediaSource.js';
 // src/stores/viewerStore.js
 // Pinia store for rivvon viewer state
 
@@ -922,6 +922,12 @@ export const useViewerStore = defineStore("viewer", {
       backgroundTexture: normalizeBackgroundTexture(
         readViewerPreferences().backgroundTexture,
       ),
+      backgroundClipPlaybackMode: readViewerPreferences().backgroundClipPlaybackMode === 'alignLoop' ? 'alignLoop' : 'native',
+      backgroundClipDuration: 0,
+      backgroundClipPaused: false,
+      backgroundClipPreviewDuration: 0,
+      backgroundClipLiveDuration: 0,
+      backgroundClipPlaybackError: '',
       isApplyingBackgroundImage: false,
       backgroundImageError: '',
       backgroundTextureSource: readBackgroundSourcePreference(),
@@ -1305,6 +1311,10 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
       this.backgroundTextureSource = { kind: 'builtin', id: DEFAULT_BACKGROUND_TEXTURE };
       this.backgroundTextureBlendMode = 'softLight';
+      this.backgroundClipPlaybackMode = 'native';
+      this.backgroundClipPlaybackError = '';
+      this.backgroundClipPaused = false;
+      this.backgroundClipPreviewDuration = 0;
       this.backgroundImagePresetId = '';
       this.backgroundTextureGradientMapEnabled = false;
       this.backgroundTextureGradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
@@ -1436,7 +1446,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTextureEnabled: false,
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
         backgroundTextureSource: { kind: 'builtin', id: DEFAULT_BACKGROUND_TEXTURE },
-        backgroundTextureBlendMode: 'softLight', backgroundImagePresetId: '',
+        backgroundTextureBlendMode: 'softLight', backgroundClipPlaybackMode: 'native', backgroundImagePresetId: '',
         backgroundTextureGradientMapEnabled: false,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops,
         backgroundTextureGradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
@@ -1757,10 +1767,17 @@ export const useViewerStore = defineStore("viewer", {
     },
 
     setBackgroundTextureSource(source, { presetId = '', persist = true } = {}) {
+      if (source.kind !== this.backgroundTextureSource?.kind || source.id !== this.backgroundTextureSource?.id) {
+        this.backgroundClipPaused = false; this.backgroundClipPlaybackError = '';
+      }
       this.backgroundTextureSource = normalizeBackgroundSource(source);
       this.backgroundImagePresetId = presetId;
       if (source.kind === 'builtin') this.backgroundTexture = source.id;
       if (persist) writeViewerPreferences({ backgroundTextureSource: this.backgroundTextureSource, backgroundImagePresetId: presetId, backgroundTexture: this.backgroundTexture });
+    },
+    setBackgroundClipPlaybackMode(value) {
+      this.backgroundClipPlaybackMode = value === 'alignLoop' ? 'alignLoop' : 'native';
+      writeViewerPreferences({ backgroundClipPlaybackMode: this.backgroundClipPlaybackMode });
     },
     setBackgroundTextureBlendMode(value) {
       this.backgroundTextureBlendMode = value === 'normal' ? 'normal' : 'softLight';
@@ -2050,6 +2067,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTexture: this.backgroundTexture,
         backgroundTextureSource: { ...this.backgroundTextureSource },
         backgroundTextureBlendMode: this.backgroundTextureBlendMode,
+        backgroundClipPlaybackMode: this.backgroundClipPlaybackMode,
         backgroundImagePresetId: this.backgroundImagePresetId,
         backgroundTextureGradientMapEnabled: this.backgroundTextureGradientMapEnabled,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops.map(stop => ({ ...stop })),
@@ -2211,6 +2229,7 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundTexture !== original.backgroundTexture ||
         JSON.stringify(this.backgroundTextureSource) !== JSON.stringify(original.backgroundTextureSource) ||
         this.backgroundTextureBlendMode !== original.backgroundTextureBlendMode ||
+        this.backgroundClipPlaybackMode !== original.backgroundClipPlaybackMode ||
         this.backgroundTextureGradientMapEnabled !== original.backgroundTextureGradientMapEnabled ||
         this.backgroundTextureGradientMapMix !== original.backgroundTextureGradientMapMix ||
         serializeGradientMapStops(this.backgroundTextureGradientMapStops) !== serializeGradientMapStops(original.backgroundTextureGradientMapStops) ||

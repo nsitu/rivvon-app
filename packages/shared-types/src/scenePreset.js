@@ -1,4 +1,4 @@
-import { normalizeBackgroundSource } from './imageAsset.js';
+import { normalizeBackgroundSource } from './backgroundMediaSource.js';
 import { normalizeSvgNodes } from './svgNodes.js';
 import { DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES, DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES, MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES } from './artworkTilt.js';
 import { DEFAULT_BACKGROUND_MODE, DEFAULT_BACKGROUND_GRADIENT_INFLUENCE, DEFAULT_BACKGROUND_GRADIENT_FALLOFF } from './backgroundGradient.js';
@@ -6,7 +6,7 @@ import { GRID_REPEAT_DEFAULTS, MIN_GRID_REPEAT_COUNT, MAX_GRID_REPEAT_COUNT, MIN
 
 // This allowlist is the persisted artwork contract. Never add renderer quality,
 // input devices, wake lock, panel visibility, or other personal preferences here.
-export const SCENE_PRESET_VERSION = 2;
+export const SCENE_PRESET_VERSION = 3;
 export const ARTWORK_DEFAULTS = Object.freeze({
     artworkMotionMode: 'none', viewerMotionLoopCount: 1,
     artworkTiltHorizontalDegrees: DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES,
@@ -24,7 +24,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     backgroundGradientInfluence: DEFAULT_BACKGROUND_GRADIENT_INFLUENCE,
     backgroundGradientFalloff: DEFAULT_BACKGROUND_GRADIENT_FALLOFF,
     backgroundOverlayEnabled: false, backgroundOverlayColor: '#ffffff', backgroundOverlayOpacity: 0.35,
-    backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundTextureSource: { kind: 'builtin', id: 'card' }, backgroundTextureBlendMode: 'softLight', backgroundBaseEnabled: true,
+    backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundTextureSource: { kind: 'builtin', id: 'card' }, backgroundTextureBlendMode: 'softLight', backgroundClipPlaybackMode: 'native', backgroundBaseEnabled: true,
     backgroundTextureGradientMapEnabled: false,
     backgroundTextureGradientMapMix: 1,
     backgroundTextureGradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
@@ -58,6 +58,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
 });
 
 const ENUMS = {
+    backgroundClipPlaybackMode: ['native', 'alignLoop'],
     artworkBlendMode: ['normal', 'softLight'],
     backgroundTextureBlendMode: ['normal', 'softLight'],
     backgroundMode: ['texture', 'gradient'],
@@ -164,7 +165,7 @@ function authoringMetadata(input) {
 
 /** Strictly validate before loading; unknown fields are discarded on both client and server. */
 export function normalizeScenePreset(input) {
-    if (!input || ![1, SCENE_PRESET_VERSION].includes(input.schemaVersion)) throw new Error('This preset version is not supported.');
+    if (!input || ![1, 2, SCENE_PRESET_VERSION].includes(input.schemaVersion)) throw new Error('This preset version is not supported.');
     const geometry = input.geometry;
     if (!geometry || !Array.isArray(geometry.paths) || geometry.paths.length > 2048) throw new Error('Invalid preset geometry');
     let pointCount = 0;

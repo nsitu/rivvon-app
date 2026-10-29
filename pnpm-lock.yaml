@@ -25,6 +25,9 @@ importers:
       hono:
         specifier: ^4.11.7
         version: 4.11.7
+      mediabunny:
+        specifier: ^1.60.0
+        version: 1.60.0
       nanoid:
         specifier: ^5.1.6
         version: 5.1.6

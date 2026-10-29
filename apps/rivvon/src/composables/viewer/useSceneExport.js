@@ -2,6 +2,7 @@
 // Scene export: PNG, legacy WebM, and frame-accurate SDR MP4 / WebCodecs WebM.
 
 import { Quaternion, Vector3 } from 'three';
+import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
 import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
@@ -75,8 +76,11 @@ export function useSceneExport(ctx, deps = {}) {
         const savedWidth = renderCanvas.width;
         const savedHeight = renderCanvas.height;
         const savedAspect = ctx.camera.value.aspect;
+        const mediaTime = deps.getBackgroundMediaTime?.() || 0;
+        const mediaCapture = await deps.beginBackgroundMediaExport?.({ targetDuration: getCycleInfo().cinematicAutoDuration || getSeamlessLoopDuration(), playbackMode: ctx.app.backgroundClipPlaybackMode });
 
         try {
+            await mediaCapture?.prepareFrame(mediaTime);
             renderer.setPixelRatio(1);
             renderer.setSize(width, height, false);
             ctx.camera.value.aspect = width / height;
@@ -124,6 +128,7 @@ export function useSceneExport(ctx, deps = {}) {
             console.error('[ThreeSetup] Failed to create image export canvas:', error);
             return null;
         } finally {
+            mediaCapture?.dispose();
             renderer.setPixelRatio(savedPixelRatio);
             renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
             deps.restoreLightingPreview?.();
@@ -783,7 +788,9 @@ export function useSceneExport(ctx, deps = {}) {
         const tumbleOrbitWobble = new Quaternion();
 
         // Compute total frames (after cinematic setup which may have updated exportDuration)
-        const totalFrames = Math.ceil(exportDuration * fps);
+        const clipPeriod = ctx.app.backgroundTextureEnabled && ctx.app.backgroundTextureSource?.kind === 'clip'
+            ? getClipExportPeriod(backgroundLoopDuration, fps, normalizedLoopCount, duration != null) : null;
+        const totalFrames = clipPeriod?.totalFrames ?? Math.ceil(exportDuration * fps);
         const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
         console.log(`[ThreeSetup] Frame-accurate export: ${totalFrames} frames, ${exportDuration.toFixed(2)}s @ ${fps}fps, ${format}/${codec}, ${width}×${height}`);
@@ -794,7 +801,13 @@ export function useSceneExport(ctx, deps = {}) {
 
         let videoExport = null;
         let backgroundInterpolator = null;
+        let backgroundMediaExport = null;
         try {
+            backgroundMediaExport = await deps.beginBackgroundMediaExport?.({ targetDuration: clipPeriod?.targetDuration || backgroundLoopDuration, playbackMode: ctx.app.backgroundClipPlaybackMode, signal });
+            if (backgroundMediaExport?.plan?.mode === 'alignLoop') {
+                const plan = backgroundMediaExport.plan;
+                progress.status(`Background clip: ${plan.rate.toFixed(3)}× (+${((plan.rate - 1) * 100).toFixed(1)}%), ${plan.repetitions} repetitions per ${plan.targetDuration.toFixed(3)}s loop`);
+            }
             // --- Resize renderer for export ---
             ctx.renderer.value.setPixelRatio(1); // Exact pixel output
             ctx.renderer.value.setSize(width, height);
@@ -927,6 +940,7 @@ export function useSceneExport(ctx, deps = {}) {
                     timeSeconds: t,
                     deterministicBackground: true,
                 };
+                await backgroundMediaExport?.prepareFrame(t);
                 const backgroundFrame = await backgroundInterpolator?.prepareFrame(frameOptions);
                 if (signal?.aborted) return null;
                 // Render only after the generated pixels match this synthetic timestamp.
@@ -954,6 +968,7 @@ export function useSceneExport(ctx, deps = {}) {
             await Promise.allSettled([
                 Promise.resolve().then(() => videoExport?.dispose()),
                 Promise.resolve().then(() => backgroundInterpolator?.dispose()),
+                Promise.resolve().then(() => backgroundMediaExport?.dispose()),
             ]);
             circularTiltController?.deactivate({ restoreBaseline: true });
 

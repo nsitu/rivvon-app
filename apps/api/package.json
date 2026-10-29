@@ -21,6 +21,7 @@
   "dependencies": {
     "aws4fetch": "^1.0.20",
     "hono": "^4.11.7",
+    "mediabunny": "^1.60.0",
     "nanoid": "^5.1.6"
   },
   "devDependencies": {

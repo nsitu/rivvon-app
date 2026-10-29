@@ -1,4 +1,6 @@
 <script setup>
+    import { CLIP_LIBRARY_KEY, fetchClip } from '../services/clipService.js';
+    import { acquireBackgroundClip, invalidateBackgroundClip, setBackgroundClipAccessScope } from '../services/backgroundClip.js';
     import { IMAGE_LIBRARY_KEY, fetchImage } from '../services/imageService.js';
     import { acquireBackgroundImage, invalidateBackgroundImage, setBackgroundImageAccessScope } from '../services/backgroundImageCache.js';
     import { ref, computed, onMounted, onUnmounted, watch, shallowRef, defineAsyncComponent, nextTick, provide } from 'vue';
@@ -57,6 +59,7 @@
     const BetaModal = defineAsyncComponent(() => import('../components/viewer/BetaModal.vue'));
     const VideoGalleryPanel = defineAsyncComponent(() => import('./VideoGalleryView.vue'));
     const VideoPlayerPanel = defineAsyncComponent(() => import('./VideoPlayerView.vue'));
+    const ClipLibraryPanel = defineAsyncComponent(() => import('./ClipLibraryView.vue'));
     const ImageLibraryPanel = defineAsyncComponent(() => import('./ImageLibraryView.vue'));
     const AudioLibraryPanel = defineAsyncComponent(() => import('./AudioLibraryView.vue'));
     const AudioPlayerPanel = defineAsyncComponent(() => import('./AudioPlayerView.vue'));
@@ -97,15 +100,17 @@
     const isVideoGalleryRoute = computed(() => route.name === 'video-gallery');
     const isVideoPlayerRoute = computed(() => route.name === 'video-player');
     const videoPlayerTitle = ref('');
-    const isImageLibraryRoute = computed(() => route.name === 'image-library');
+    const isImageLibraryRoute = computed(() => ['image-library', 'clip-library'].includes(route.name));
+    const isClipLibraryRoute = computed(() => route.name === 'clip-library');
     const imageBusy = ref(false);
     let imageReturn = null;
-    function openImageLibrary() {
+    function openClipLibrary() { openImageLibrary('clip-library'); }
+    function openImageLibrary(libraryRoute = 'image-library') {
         if (exportAbortController.value || imageBusy.value || isImageLibraryRoute.value) return;
         imageReturn = { location: route.fullPath, tools: app.toolsPanelVisible, applied: false, focus: document.activeElement };
         app.toolsPanelVisible = false; // Keep the Tools original-state snapshot.
         activeToolbarOverlay.value = null;
-        void router.push({ name: 'image-library', query: route.query });
+        void router.push({ name: libraryRoute, query: route.query });
     }
     function closeImageLibrary({ applied = false } = {}) {
         if (imageReturn) { imageReturn.applied = applied; router.back(); }
@@ -120,7 +125,8 @@
             nextTick(() => { if (returnedToCaller && previous.focus?.isConnected) previous.focus.focus(); });
         }
     });
-    provide(IMAGE_LIBRARY_KEY, { open: openImageLibrary });
+    provide(IMAGE_LIBRARY_KEY, { open: () => openImageLibrary() });
+    provide(CLIP_LIBRARY_KEY, { open: openClipLibrary });
     async function applyLibraryImage(image) {
         if (imageBusy.value || !isReady.value) return;
         imageBusy.value = true;
@@ -129,11 +135,11 @@
             enabled: app.backgroundTextureEnabled, blend: app.backgroundTextureBlendMode, legacy: app.backgroundTexture };
         let lease;
         try {
-            lease = await acquireBackgroundImage(image.source, { maxTextureSize: threeCanvasRef.value?.renderer?.capabilities?.maxTextureSize || 4096 });
+            lease = await (image.source.kind === 'clip' ? acquireBackgroundClip : acquireBackgroundImage)(image.source, { maxTextureSize: threeCanvasRef.value?.renderer?.capabilities?.maxTextureSize || 4096 });
             app.isApplyingBackgroundImage = true;
             app.setBackgroundTextureSource(image.source, { persist: false });
             app.backgroundTextureEnabled = true;
-            app.backgroundTextureBlendMode = image.source.kind === previous.source.kind ? previous.blend : image.source.kind === 'image' ? 'normal' : 'softLight';
+            app.backgroundTextureBlendMode = image.source.kind === previous.source.kind ? previous.blend : image.source.kind !== 'builtin' ? 'normal' : 'softLight';
             await nextTick();
             await threeCanvasRef.value.setBackgroundFromTileManager();
             app.setBackgroundTextureSource(image.source);
@@ -152,6 +158,13 @@
             toast.add({ severity: 'error', summary: 'Could not apply background', detail: error.message, life: 6000 });
         } finally { lease?.release(); app.isApplyingBackgroundImage = false; imageBusy.value = false; }
     }
+    function handleClipDeleted(id) {
+        invalidateBackgroundClip(id);
+        if (app.backgroundTextureSource?.kind === 'clip' && app.backgroundTextureSource.id === id) {
+            app.setBackgroundTextureEnabled(false);
+            app.backgroundImageError = 'This clip was deleted. Choose another background.';
+        }
+    }
     function handleImageDeleted(id) {
         invalidateBackgroundImage(id);
         if (app.backgroundTextureSource?.kind === 'image' && app.backgroundTextureSource.id === id) {
@@ -161,12 +174,13 @@
     }
     watch(() => user.value?.id || user.value?.email || '', async (identity, previous) => {
         setBackgroundImageAccessScope(identity);
-        if (previous === undefined || app.backgroundTextureSource?.kind !== 'image') return;
+        setBackgroundClipAccessScope(identity);
+        if (previous === undefined || !['image', 'clip'].includes(app.backgroundTextureSource?.kind)) return;
         const sourceId = app.backgroundTextureSource.id, wasEnabled = app.backgroundTextureEnabled;
         app.setBackgroundTextureEnabled(false);
         if (wasEnabled) {
             try {
-                await fetchImage(sourceId, app.backgroundImagePresetId);
+                await (app.backgroundTextureSource.kind === 'clip' ? fetchClip : fetchImage)(sourceId, app.backgroundImagePresetId);
                 if (app.backgroundTextureSource.id === sourceId && (user.value?.id || user.value?.email || '') === identity) app.setBackgroundTextureEnabled(true);
             } catch { /* Keep the reference visible so the user can select a replacement. */ }
         }
@@ -3070,7 +3084,7 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     const primaryWorkflowNavigation = computed(() => {
-        if (isImageLibraryRoute.value) return { id: 'imageLibrary', group: 'image', breadcrumbs: ['Image Library'],
+        if (isImageLibraryRoute.value) return { id: 'imageLibrary', group: 'image', breadcrumbs: [isClipLibraryRoute.value ? 'Clip Library' : 'Image Library'],
             statusLabel: null, canGoBack: false, back: () => false, canExit: true,
             exit: () => { closeImageLibrary(); return true; } };
         if (isAudioPlayerRoute.value) {
@@ -3399,6 +3413,7 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     const activePanelContext = computed(() => resolveOrderedContext([
+        { title: 'Clip Library', isActive: () => isClipLibraryRoute.value, close: () => closeImageLibrary() },
         { title: 'Image Library', isActive: () => isImageLibraryRoute.value, close: () => closeImageLibrary() },
         {
             title: 'Audio Player',
@@ -4426,7 +4441,8 @@ const activeToolbarOverlayTitle = computed(() => {
             @video-title-change="handleVideoPlayerTitleChange"
         />
 
-        <ImageLibraryPanel v-if="isImageLibraryRoute" :can-apply="isReady && !imageBusy" @apply="applyLibraryImage" @close="closeImageLibrary" @deleted="handleImageDeleted" />
+        <ClipLibraryPanel v-if="isClipLibraryRoute" :can-apply="isReady && !imageBusy" @apply="applyLibraryImage" @close="closeImageLibrary" @deleted="handleClipDeleted" />
+        <ImageLibraryPanel v-else-if="isImageLibraryRoute" :can-apply="isReady && !imageBusy" @apply="applyLibraryImage" @close="closeImageLibrary" @deleted="handleImageDeleted" />
 
         <AudioLibraryPanel
             v-if="isAudioLibraryRoute"
@@ -4545,7 +4561,7 @@ const activeToolbarOverlayTitle = computed(() => {
             >
                 <LoadingIndicator
                     class="loading-content"
-                    :message="imageBusy ? 'Loading background image…' : isLoadingTexture || app.isReinitializing ? (loadingMessage || 'Loading...') : (presetProgress || 'Preparing preset…')"
+                    :message="imageBusy ? 'Loading background media…' : isLoadingTexture || app.isReinitializing ? (loadingMessage || 'Loading...') : (presetProgress || 'Preparing preset…')"
                     :status-text="isLoadingTexture ? loadingStatusText : ''"
                 />
             </div>
@@ -4592,6 +4608,7 @@ const activeToolbarOverlayTitle = computed(() => {
     .ribbon-view :deep(.video-player-panel),
     .ribbon-view :deep(.audio-creator-panel),
     .ribbon-view :deep(.audio-library-panel),
+    .ribbon-view :deep(.clip-library-panel),
     .ribbon-view :deep(.image-library-panel),
     .ribbon-view :deep(.preset-browser),
     .ribbon-view :deep(.audio-player-panel),

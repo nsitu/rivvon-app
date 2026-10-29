@@ -1,5 +1,6 @@
 <script setup>
-    import { ref, computed, watch, inject } from 'vue';
+import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
+    import { ref, computed, watch, inject, onBeforeUnmount } from 'vue';
     import { VIEWER_AUDIO_KEY } from '../../modules/viewer/audioReactivity.js';
     import Accordion from 'primevue/accordion';
     import AccordionPanel from 'primevue/accordionpanel';
@@ -373,9 +374,19 @@
         return `Auto mode uses the ${formatDuration(seamlessLoopDuration.value)} seamless material loop so enabled cycles return to frame zero together.`;
     });
 
-    const totalFrames = computed(() => {
-        return Math.ceil(resolvedDuration.value * fps.value);
+    const clipExportPeriod = computed(() => {
+        if (!app.backgroundTextureEnabled || app.backgroundTextureSource?.kind !== 'clip') return null;
+        const manual = durationMode.value === 'custom';
+        const loops = manual ? 1 : cycleCount.value;
+        return getClipExportPeriod(manual ? resolvedDuration.value : resolvedDuration.value / loops, fps.value, loops, manual);
     });
+    const clipTiming = computed(() => app.backgroundClipDuration > 0 && clipExportPeriod.value
+        ? createClipTimingPlan(app.backgroundClipDuration, clipExportPeriod.value.targetDuration, app.backgroundClipPlaybackMode) : null);
+    watch(() => [props.visible, clipExportPeriod.value?.targetDuration], () => {
+        app.backgroundClipPreviewDuration = props.visible ? clipExportPeriod.value?.targetDuration || 0 : 0;
+    }, { immediate: true });
+    onBeforeUnmount(() => { app.backgroundClipPreviewDuration = 0; });
+    const totalFrames = computed(() => clipExportPeriod.value?.totalFrames ?? Math.ceil(resolvedDuration.value * fps.value));
 
     const qualityBitrateEstimate = computed(() => {
         const map = {
@@ -908,6 +919,11 @@
                             />
                         </div>
 
+                        <div v-if="clipTiming" class="form-field" role="status">
+                            <span>Background clip: {{ clipTiming.rate.toFixed(3) }}× (+{{ ((clipTiming.rate - 1) * 100).toFixed(1) }}%)</span>
+                            <small v-if="clipTiming.mode === 'alignLoop'">{{ clipTiming.repetitions }} full repetitions per {{ clipTiming.targetDuration.toFixed(3) }} s loop. The source clip's end-to-start cut remains visible if it is not seamless.</small>
+                            <small v-else>Original speed repeats independently. The exported file may end partway through the clip; enable “Speed up to align with loop” under Background Media to align it.</small>
+                        </div>
                         <Accordion class="loop-details-accordion">
                             <AccordionPanel value="0">
                                 <AccordionHeader>

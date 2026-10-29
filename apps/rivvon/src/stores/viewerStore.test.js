@@ -68,6 +68,19 @@ describe('viewer preferences', () => {
         restored.applyArtworkSettingsSnapshot({}); expect(restored.artworkBlendMode).toBe('normal');
     });
 
+    it('persists clip timing, detects timing-only Tools changes, and restores/reset snapshots', () => {
+        const store = useViewerStore(); store.setBackgroundTextureSource({ kind: 'clip', id: 'clip-123' });
+        store.captureToolsPanelOriginalState(); store.setBackgroundClipPlaybackMode('alignLoop');
+        expect(store.hasToolsPanelChanges()).toBe(true);
+        const saved = store.getArtworkSettingsSnapshot();
+        expect(saved.backgroundClipPlaybackMode).toBe('alignLoop');
+        expect(saved).not.toHaveProperty('backgroundClipDuration');
+        setActivePinia(createPinia()); const restored = useViewerStore();
+        expect(restored.backgroundClipPlaybackMode).toBe('alignLoop');
+        expect(restored.backgroundTextureSource).toEqual({ kind: 'clip', id: 'clip-123' });
+        restored.resetToolbarSettingsToDefaults(); expect(restored.backgroundClipPlaybackMode).toBe('native');
+        restored.applyArtworkSettingsSnapshot(saved); expect(restored.backgroundClipPlaybackMode).toBe('alignLoop');
+    });
     it('persists image selection and blend independently, includes them in Tools snapshots and resets them', () => {
         const store = useViewerStore();
         store.captureToolsPanelOriginalState();

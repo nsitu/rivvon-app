@@ -41,5 +41,10 @@ R2_BUCKET_NAME = "rivvon-textures"
 binding = "IMAGES_BUCKET"
 bucket_name = "rivvon-images"
 
+# Private scene clip resources; delivery requires owner or preset access.
+[[r2_buckets]]
+binding = "CLIPS_BUCKET"
+bucket_name = "rivvon-clips"
+
 [triggers]
 crons = ["23 * * * *"]
