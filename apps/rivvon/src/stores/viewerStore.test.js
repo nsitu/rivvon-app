@@ -68,6 +68,25 @@ describe('viewer preferences', () => {
         restored.applyArtworkSettingsSnapshot({}); expect(restored.artworkBlendMode).toBe('normal');
     });
 
+    it.each(['softLight', 'multiply', 'screen', 'overlay', 'difference'])('persists independent %s modes across reloads and presets', mode => {
+        const app = useViewerStore();
+        app.setArtworkBlendMode(mode); app.setBackgroundTextureBlendMode(mode);
+        const saved = app.getArtworkSettingsSnapshot();
+        setActivePinia(createPinia());
+        const restored = useViewerStore();
+        expect(restored.artworkBlendMode).toBe(mode);
+        expect(restored.backgroundTextureBlendMode).toBe(mode);
+        restored.resetToolbarSettingsToDefaults();
+        expect(restored.artworkBlendMode).toBe('normal');
+        expect(restored.backgroundTextureBlendMode).toBe('softLight');
+        restored.applyArtworkSettingsSnapshot(saved);
+        expect(restored.artworkBlendMode).toBe(mode);
+        expect(restored.backgroundTextureBlendMode).toBe(mode);
+        restored.setArtworkBlendMode('invalid'); restored.setBackgroundTextureBlendMode('invalid');
+        expect(restored.artworkBlendMode).toBe('normal');
+        expect(restored.backgroundTextureBlendMode).toBe('softLight');
+    });
+
     it('persists clip timing, detects timing-only Tools changes, and restores/reset snapshots', () => {
         const store = useViewerStore(); store.setBackgroundTextureSource({ kind: 'clip', id: 'clip-123' });
         store.captureToolsPanelOriginalState(); store.setBackgroundClipPlaybackMode('alignLoop');
@@ -103,7 +122,7 @@ describe('viewer preferences', () => {
         expect(restored.backgroundTextureSource).toEqual({ kind: 'builtin', id: 'card' });
     });
 
-    it.each(['gradientMapMix', 'backgroundTextureGradientMapMix'])('persists and restores independent %s including zero and legacy defaults', key => {
+    it.each(['gradientMapMix', 'backgroundTextureGradientMapMix', 'artworkBlendStrength', 'backgroundTextureBlendStrength'])('persists and restores independent %s including zero and legacy defaults', key => {
         const store = useViewerStore();
         const setter = `set${key[0].toUpperCase()}${key.slice(1)}`;
         const otherKey = key === 'gradientMapMix' ? 'backgroundTextureGradientMapMix' : 'gradientMapMix';

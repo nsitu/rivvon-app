@@ -1,10 +1,8 @@
 import * as THREE from 'three';
+import { BLEND_MODES_GLSL, createBlendNode } from './blendModes.js';
+import { getBlendModeIndex, normalizeBlendStrength } from '../../../../../packages/shared-types/src/blendModes.js';
 
-export const ARTWORK_BLEND_OPTIONS = [
-    { label: 'Normal', value: 'normal' },
-    { label: 'Soft Light', value: 'softLight' },
-];
-export const normalizeArtworkBlendMode = value => value === 'softLight' ? 'softLight' : 'normal';
+export { BLEND_MODE_OPTIONS as ARTWORK_BLEND_OPTIONS, normalizeBlendMode as normalizeArtworkBlendMode } from '../../../../../packages/shared-types/src/blendModes.js';
 
 // Layer tags avoid depending on mesh names or changing the camera's layers.
 export const ARTWORK_BACKDROP_FLAG = 'rivvonArtworkBackdrop';
@@ -16,6 +14,7 @@ export function createArtworkBlendCompositor(ctx) {
     let rendererType = 'webgl', webGPUDeps = null;
     let artworkTarget = null, backgroundTarget = null, material = null;
     let outputEncodedAlpha = null;
+    let blendMode = null, blendStrength = null;
     let compositeScene = null, compositeCamera = null, geometry = null;
     const drawingSize = new THREE.Vector2();
 
@@ -23,6 +22,7 @@ export function createArtworkBlendCompositor(ctx) {
         artworkTarget?.dispose(); backgroundTarget?.dispose(); material?.dispose(); geometry?.dispose();
         artworkTarget = backgroundTarget = material = geometry = compositeScene = compositeCamera = null;
         outputEncodedAlpha = null;
+        blendMode = blendStrength = null;
     }
     function init(type, deps = null) { dispose(); rendererType = type; webGPUDeps = deps; }
 
@@ -48,7 +48,7 @@ export function createArtworkBlendCompositor(ctx) {
     function createMaterial() {
         if (rendererType === 'webgpu') {
             const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-            const { uv, texture, vec2, vec3, vec4, float, uniform, mix, max, sRGBTransferOETF, sRGBTransferEOTF } = webGPUDeps.threeTSL;
+            const { uv, texture, vec2, vec4, float, uniform, mix, max, sRGBTransferOETF, sRGBTransferEOTF } = webGPUDeps.threeTSL;
             const mat = new MeshBasicNodeMaterial();
             const coordinates = uv();
             // Match the existing WebGPU filter's render-target orientation.
@@ -58,15 +58,19 @@ export function createArtworkBlendCompositor(ctx) {
             const sourceLinear = source.rgb.div(max(sourceAlpha, float(0.00001))).clamp(0, 1);
             const backdropLinear = backdrop.rgb.div(max(backdropAlpha, float(0.00001))).clamp(0, 1);
             const sourceColor = sRGBTransferOETF(sourceLinear), base = sRGBTransferOETF(backdropLinear);
-            const low = base.sub(float(1).sub(sourceColor.mul(2)).mul(base).mul(float(1).sub(base)));
-            const high = base.add(sourceColor.mul(2).sub(1).mul(base.sqrt().sub(base)));
-            // TSL select reduces vector predicates to one boolean. mix keeps
-            // the Soft Light branch independent for each RGB channel.
-            const blended = mix(high, low, sourceColor.lessThan(vec3(0.5)));
+            blendMode = uniform(getBlendModeIndex(ctx.app.artworkBlendMode));
+            blendStrength = uniform(normalizeBlendStrength(ctx.app.artworkBlendStrength));
+            const blended = createBlendNode(webGPUDeps.threeTSL, base, sourceColor, blendMode, float(1));
             const alpha = sourceAlpha.add(backdropAlpha.mul(float(1).sub(sourceAlpha)));
-            const encoded = sourceColor.mul(sourceAlpha.mul(float(1).sub(backdropAlpha)))
+            const fullBlend = sourceColor.mul(sourceAlpha.mul(float(1).sub(backdropAlpha)))
                 .add(blended.mul(sourceAlpha.mul(backdropAlpha)))
                 .add(base.mul(backdropAlpha.mul(float(1).sub(sourceAlpha))));
+            // Normal's WebGPU path composites in linear light. Interpolate the
+            // final displayed results so 0% actually matches that Normal result.
+            const normalLinear = sourceLinear.mul(sourceAlpha)
+                .add(backdropLinear.mul(backdropAlpha.mul(float(1).sub(sourceAlpha))));
+            const normalEncoded = sRGBTransferOETF(normalLinear.div(max(alpha, float(0.00001)))).mul(alpha);
+            const encoded = mix(normalEncoded, fullBlend, blendStrength);
             // Convert straight RGB, then reassociate alpha. Encoding premultiplied
             // RGB directly would introduce halos along translucent edges.
             const straight = encoded.div(max(alpha, float(0.00001)));
@@ -81,13 +85,17 @@ export function createArtworkBlendCompositor(ctx) {
             return mat;
         }
         return new THREE.ShaderMaterial({
-            uniforms: { tArtwork: { value: artworkTarget.texture }, tBackdrop: { value: backgroundTarget.texture } },
+            uniforms: { tArtwork: { value: artworkTarget.texture }, tBackdrop: { value: backgroundTarget.texture },
+                uBlendMode: { value: 0 }, uBlendStrength: { value: 1 } },
             vertexShader: `varying vec2 vUv;
                 void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
             fragmentShader: `precision highp float;
                 varying vec2 vUv;
                 uniform sampler2D tArtwork;
                 uniform sampler2D tBackdrop;
+                uniform float uBlendMode;
+                uniform float uBlendStrength;
+                ${BLEND_MODES_GLSL}
                 void main() {
                     vec4 source = texture2D(tArtwork, vUv);
                     vec4 backdrop = texture2D(tBackdrop, vUv);
@@ -95,9 +103,7 @@ export function createArtworkBlendCompositor(ctx) {
                     float ba = clamp(backdrop.a, 0.0, 1.0);
                     vec3 s = clamp(source.rgb / max(sa, 0.00001), 0.0, 1.0);
                     vec3 b = clamp(backdrop.rgb / max(ba, 0.00001), 0.0, 1.0);
-                    vec3 low = b - (1.0 - 2.0 * s) * b * (1.0 - b);
-                    vec3 high = b + (2.0 * s - 1.0) * (sqrt(b) - b);
-                    vec3 blended = mix(low, high, step(vec3(0.5), s));
+                    vec3 blended = rivvonBlend(b, s, uBlendMode, uBlendStrength);
                     vec3 color = sa * (1.0 - ba) * s + sa * ba * blended + (1.0 - sa) * ba * b;
                     gl_FragColor = vec4(color, sa + ba * (1.0 - sa));
                 }`,
@@ -123,6 +129,10 @@ export function createArtworkBlendCompositor(ctx) {
 
     function render(target, renderArtwork) {
         ensureResources(target);
+        const mode = getBlendModeIndex(ctx.app.artworkBlendMode);
+        const strength = normalizeBlendStrength(ctx.app.artworkBlendStrength);
+        if (blendMode) { blendMode.value = mode; blendStrength.value = strength; }
+        else { material.uniforms.uBlendMode.value = mode; material.uniforms.uBlendStrength.value = strength; }
         const renderer = ctx.renderer.value, scene = ctx.scene.value, camera = ctx.camera.value;
         const savedTarget = renderer.getRenderTarget();
         const savedColor = renderer.getClearColor(new THREE.Color()), savedAlpha = renderer.getClearAlpha();

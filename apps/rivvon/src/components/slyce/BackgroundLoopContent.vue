@@ -1,16 +1,23 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import Button from 'primevue/button';
 import InputNumber from 'primevue/inputnumber';
 import InputText from 'primevue/inputtext';
+import SelectButton from 'primevue/selectbutton';
 import ProgressBar from 'primevue/progressbar';
 import Dialog from 'primevue/dialog';
 import PanelActionBar from '../shared/PanelActionBar.vue';
+import BackgroundSourcePreview from './BackgroundSourcePreview.vue';
 import { useBackgroundLoopStore } from '../../stores/backgroundLoopStore.js';
 const props = defineProps({ phase: { type: String, default: 'settings' } });
 const emit = defineEmits(['show-result']);
 const loop = useBackgroundLoopStore();
 const pendingDiscard = ref(null);
+const previewPlan = computed(() => loop.plan ?? loop.limits);
+const samplingOptions = computed(() => loop.source ? [
+    { label: `Long side (${Math.max(loop.source.width, loop.source.height)} px)`, value: 'long' },
+    { label: `Short side (${Math.min(loop.source.width, loop.source.height)} px)`, value: 'short' },
+] : []);
 async function show(id) { if (await loop.showJob(id)) emit('show-result'); }
 async function assemble(id) { if (await loop.reassemble(id)) emit('show-result'); }
 async function discard() { if (await loop.discard(pendingDiscard.value)) pendingDiscard.value = null; }
@@ -20,21 +27,32 @@ async function discard() { if (await loop.discard(pendingDiscard.value)) pending
     <div class="background-loop-content">
         <ProgressBar v-if="loop.operation === 'preparing'" mode="indeterminate" aria-label="Reading video source" />
         <template v-if="props.phase === 'settings' && loop.source">
-            <p>{{ loop.source.name }} · {{ loop.source.width }} × {{ loop.source.height }} · {{ loop.source.frameCount.toLocaleString() }} source frames</p>
-            <div class="background-loop-fields">
-                <label for="background-size">Square size
-                    <InputNumber v-model="loop.size" input-id="background-size" :min="2" :max="loop.limits?.maxSize ?? 3840" :step="2" :disabled="loop.busy" />
-                </label>
-                <label for="background-duration">Loop duration (seconds)
-                    <InputNumber v-model="loop.duration" input-id="background-duration" :min="1" :max="(loop.limits?.maxPhases ?? 240) / 30" :step="1 / 30" :max-fraction-digits="3" :disabled="loop.busy" />
-                </label>
-                <label for="background-start">Start at source frame
-                    <InputNumber v-model="loop.sourceStartFrame" input-id="background-start" :min="1" :max="loop.source.frameCount - 1" :disabled="loop.busy" />
-                </label>
+            <!-- On narrow screens the source preview sits above the settings in the shared scroll region. -->
+            <div class="background-source-settings">
+                <BackgroundSourcePreview :source="loop.source" :plan="previewPlan" />
+                <div class="background-source-controls">
+                    <p>{{ loop.source.name }} · {{ loop.source.width }} × {{ loop.source.height }} · {{ loop.source.frameCount.toLocaleString() }} source frames</p>
+                    <div class="background-sampling-side">
+                        <span id="background-side-label">Sample from</span>
+                        <SelectButton v-model="loop.samplingSide" :options="samplingOptions" option-label="label" option-value="value" :allow-empty="false"
+                            :disabled="loop.busy" aria-labelledby="background-side-label" />
+                    </div>
+                    <div class="background-loop-fields">
+                        <label for="background-size">Square size
+                            <InputNumber v-model="loop.size" input-id="background-size" :min="2" :max="loop.limits?.maxSize ?? 3840" :step="2" :disabled="loop.busy" />
+                        </label>
+                        <label for="background-duration">Loop duration (seconds)
+                            <InputNumber v-model="loop.duration" input-id="background-duration" :min="1" :max="(loop.limits?.maxPhases ?? 240) / 30" :step="1 / 30" :max-fraction-digits="3" :disabled="loop.busy" />
+                        </label>
+                        <label for="background-start">Start at source frame
+                            <InputNumber v-model="loop.sourceStartFrame" input-id="background-start" :min="1" :max="loop.source.frameCount - 1" :disabled="loop.busy" />
+                        </label>
+                    </div>
+                    <p v-if="loop.plan">{{ loop.plan.size }} × {{ loop.plan.size }} pixels · {{ loop.plan.phaseCount }} frames at 30 fps · {{ loop.plan.duration.toFixed(3) }} seconds</p>
+                    <p v-if="loop.limits" class="background-loop-note">Up to {{ loop.limits.maxSize }} square and {{ (loop.limits.maxPhases / 30).toFixed(2) }} seconds from this source. Each square uses {{ loop.size }} successive source frames. Ribbon textures have their own settings.</p>
+                    <p v-if="loop.planError" role="status">{{ loop.planError }}</p>
+                </div>
             </div>
-            <p v-if="loop.plan">{{ loop.plan.size }} × {{ loop.plan.size }} pixels · {{ loop.plan.phaseCount }} frames at 30 fps · {{ loop.plan.duration.toFixed(3) }} seconds</p>
-            <p v-if="loop.limits" class="background-loop-note">Up to {{ loop.limits.maxSize }} square and {{ (loop.limits.maxPhases / 30).toFixed(2) }} seconds from this source. Each square uses {{ loop.size }} successive source frames. Ribbon textures have their own settings.</p>
-            <p v-if="loop.planError" role="status">{{ loop.planError }}</p>
         </template>
         <template v-if="props.phase === 'results'">
             <ProgressBar v-if="loop.busy" :value="loop.progress" />
@@ -73,6 +91,11 @@ async function discard() { if (await loop.discard(pendingDiscard.value)) pending
 
 <style scoped>
 .background-loop-content { max-width: 64rem; margin-inline: auto; min-width: 0; }
+.background-source-settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.background-source-controls { min-width: 0; }
+.background-sampling-side { display: flex; flex-direction: column; gap: .5rem; }
+.background-sampling-side :deep(.p-selectbutton) { flex-wrap: wrap; }
+@media (min-width: 960px) { .background-source-settings { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .background-loop-fields { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
 .background-loop-fields label, .background-loop-name { display: flex; flex-direction: column; gap: .5rem; max-width: 100%; }
 .background-loop-name { max-width: 32rem; margin-block: 1rem; }

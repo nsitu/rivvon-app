@@ -41,7 +41,8 @@ async function validateBatches() {
     for (const rotation of [0, 90]) {
         const file = await createFixture({ width: 128, height: 64, frames: 128, rotation });
         const source = await inspectBackgroundLoopSource(file);
-        const plan = planBackgroundLoop(source, { duration: 31 / 30, batchSize: 31 });
+        for (const samplingSide of ['long', 'short']) {
+        const plan = planBackgroundLoop(source, { duration: 31 / 30, batchSize: 31, samplingSide });
         const baseline = await sampleBackgroundLoopBatch(source, plan, 0);
         const expected = baseline.canvases.map(hash);
         for (const canvas of baseline.canvases) canvas.width = canvas.height = 1;
@@ -58,7 +59,8 @@ async function validateBatches() {
         try { await sampleBackgroundLoopBatch(source, plan, 0, { signal: controller.signal, onFrame: () => controller.abort() }); }
         catch (error) { cancelled = error.name === 'AbortError'; }
         assert(cancelled, 'Sampling cancellation was not propagated.');
-        results.push({ rotation, samplingMode: plan.samplingMode, phases: 31, bitExactAcrossBatches: true, cancellation: true });
+        results.push({ rotation, samplingSide, samplingMode: plan.samplingMode, phases: 31, bitExactAcrossBatches: true, cancellation: true });
+        }
     }
     return results;
 }

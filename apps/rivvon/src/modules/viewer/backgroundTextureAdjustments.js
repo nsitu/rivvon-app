@@ -1,9 +1,13 @@
 import * as THREE from 'three';
+import { BLEND_MODES_GLSL, createBlendNode } from './blendModes.js';
+import { getBlendModeIndex, normalizeBlendStrength } from '../../../../../packages/shared-types/src/blendModes.js';
 import { createGradientMapLut, serializeGradientMapStops, GRADIENT_MAP_LUT_SIZE, normalizeGradientMapMix } from './gradientMap.js';
 import { getBackgroundTextureCoverScale, normalizeBackgroundTextureVerticalAlignment } from './backgroundTextures.js';
 
 export const STATIC_TEXTURE_ADJUSTMENTS_GLSL = /* glsl */ `
-    uniform bool uStaticTextureNormalMode;
+    uniform float uStaticTextureBlendMode;
+    uniform float uStaticTextureBlendStrength;
+    ${BLEND_MODES_GLSL}
     uniform float uStaticTextureContrast;
     uniform float uStaticTextureSaturation;
     uniform bool uStaticTextureGradientMapEnabled;
@@ -43,7 +47,8 @@ export function createBackgroundTextureAdjustments(app, sourceTexture = null) {
     gradientTexture.magFilter = THREE.LinearFilter;
     gradientTexture.generateMipmaps = false;
     const uniforms = {
-        uStaticTextureNormalMode: { value: false },
+        uStaticTextureBlendMode: { value: 1 },
+        uStaticTextureBlendStrength: { value: 1 },
         uStaticTextureContrast: { value: 1 },
         uStaticTextureSaturation: { value: 1 },
         uStaticTextureGradientMapEnabled: { value: false },
@@ -56,7 +61,8 @@ export function createBackgroundTextureAdjustments(app, sourceTexture = null) {
     let gradientSignature = null;
 
     function update(surfaceAspect = 1) {
-        uniforms.uStaticTextureNormalMode.value = app.backgroundTextureBlendMode === 'normal';
+        uniforms.uStaticTextureBlendMode.value = getBlendModeIndex(app.backgroundTextureBlendMode, 'softLight');
+        uniforms.uStaticTextureBlendStrength.value = normalizeBlendStrength(app.backgroundTextureBlendStrength);
         const image = sourceTexture?.image;
         uniforms.uStaticTextureUvScale.value.set(...getBackgroundTextureCoverScale(
             image?.naturalWidth || image?.width, image?.naturalHeight || image?.height, surfaceAspect,
@@ -105,7 +111,10 @@ export function createBackgroundTextureAdjustments(app, sourceTexture = null) {
         const nodes = material._staticTextureAdjustmentUniforms;
         const sampleUv = sourceUv.mul(nodes.uStaticTextureUvScale).add(nodes.uStaticTextureUvOffset);
         const alpha = tsl.texture(sourceTexture, sampleUv).a;
-        const blended = nodes.uStaticTextureNormalMode.select(adjusted, softLightBlend(base, adjusted));
+        const selected = createBlendNode(tsl, base, adjusted, nodes.uStaticTextureBlendMode, nodes.uStaticTextureBlendStrength);
+        // Preserve the legacy background Soft Light node graph for existing presets.
+        const softLight = tsl.mix(adjusted, softLightBlend(base, adjusted), nodes.uStaticTextureBlendStrength);
+        const blended = nodes.uStaticTextureBlendMode.equal(1).select(softLight, selected);
         return tsl.mix(base, blended, alpha);
     }
     update();

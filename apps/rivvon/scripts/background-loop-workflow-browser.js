@@ -32,6 +32,20 @@ export async function setup() {
         element.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
     }
     await wait(() => loop.plan?.size === 256 && loop.plan?.phaseCount === 31, 'Duration/size inputs did not update the sampling plan.');
+    await wait(() => document.querySelector('.background-source-preview video')?.readyState >= 2, 'Source video preview did not load.');
+    await wait(() => document.querySelector('.background-source-preview .sampling-overlay')?.dataset.samplingMode === 'rows', 'Long-side sampling preview did not appear.');
+    assert(document.querySelector('[aria-label="Seek source video"]'), 'Source playback/seek controls are missing.');
+    button('Short side (180 px)').click();
+    await wait(() => loop.plan?.samplingMode === 'columns' && loop.size === 180, 'Short-side selection did not update the plan and size limit.');
+    await wait(() => document.querySelector('.background-source-preview .sampling-overlay')?.dataset.samplingMode === 'columns', 'Sampling lines did not change to columns.');
+    assert(loop.limits.maxPhases === 320, 'Short-side phase ceiling used the wrong dimension.');
+    const sizeInput = document.getElementById('background-size'); sizeInput.value = '128';
+    sizeInput.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+    await wait(() => loop.plan?.size === 128, 'Short-side output size did not update.');
+    const sourceVideo = document.querySelector('.background-source-preview video'); sourceVideo.pause();
+    const startInput = document.getElementById('background-start'); startInput.value = '5';
+    startInput.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+    await wait(() => Math.abs(sourceVideo.currentTime - 4 / 30) < .02, 'The source preview did not seek to the chosen starting frame.');
     assert(loop.plan.batchSize === 16 && loop.plan.passes === 2, 'The integrated workflow did not use the new batch size.');
     return { sourceFileSelected: true, durationControl: true, batchSize: loop.plan.batchSize };
 }
@@ -53,6 +67,7 @@ export async function run() {
         }
     } finally { input.dispose(); }
     assert(frames === 31, 'The partial final batch lost or duplicated frames.');
+    assert(loop.job.plan.samplingSide === 'short' && loop.job.plan.samplingMode === 'columns', 'Generation lost the chosen sampling side.');
     button('Save to Clips').click();
     await wait(() => loop.savedClip && !loop.busy, 'Clip upload failed: ' + loop.error);
     assert(button('Open Clips'), 'The saved clip library action is missing.');
@@ -66,8 +81,9 @@ export async function run() {
     button('Background video').click();
     await wait(() => document.querySelector('#background-duration'), 'Background settings did not return.');
     assert(loop.resultReady, 'Switching between output types discarded the retained background.');
+    assert(loop.samplingSide === 'short', 'Switching output types lost the selected sampling side.');
     return { sourceFileSelected: true, durationControl: true, defaultBatchSize: 16, decodedFrames: frames,
-        savedClipId: loop.savedClip.id, sourceSharedWithTextures: true, retainedResult: true,
+        savedClipId: loop.savedClip.id, sourceSharedWithTextures: true, retainedResult: true, samplingSide: loop.job.plan.samplingSide, sourcePreview: true,
         outputBytes: loop.blob.size, jobId: loop.job.id };
 }
 

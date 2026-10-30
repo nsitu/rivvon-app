@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { inspectBackgroundLoopSource, generateBackgroundLoop, assembleBackgroundLoop } from '../modules/slyce/backgroundLoop.js';
 import { planBackgroundLoop } from '../modules/slyce/backgroundLoopPlan.js';
 import { listBackgroundLoopJobs, getBackgroundLoopJob, getBackgroundLoopBlob,
@@ -10,6 +10,7 @@ import { useViewerStore } from './viewerStore.js';
 export const useBackgroundLoopStore = defineStore('background-loop', () => {
     const source = shallowRef(null), job = shallowRef(null), blob = shallowRef(null);
     const size = ref(1920), duration = ref(8), sourceStartFrame = ref(1), name = ref('');
+    const samplingSide = ref('long');
     const operation = ref(null), error = ref(''), status = ref(''), progress = ref(0), previewUrl = ref('');
     const jobs = ref([]), savedClip = shallowRef(null);
     let controller = null, selectedFile = null;
@@ -20,7 +21,7 @@ export const useBackgroundLoopStore = defineStore('background-loop', () => {
     const canAssemble = computed(() => job.value && job.value.batches.reduce((n, batch) => n + batch.frames, 0) === job.value.plan.phaseCount);
     const limits = computed(() => {
         if (!source.value) return null;
-        try { return planBackgroundLoop(source.value, { sourceStartFrame: sourceStartFrame.value }); }
+        try { return planBackgroundLoop(source.value, { sourceStartFrame: sourceStartFrame.value, samplingSide: samplingSide.value }); }
         catch { return null; }
     });
     const planError = computed(() => {
@@ -29,7 +30,13 @@ export const useBackgroundLoopStore = defineStore('background-loop', () => {
         catch (failure) { return failure.message; }
     });
     const plan = computed(() => !planError.value ? planBackgroundLoop(source.value, settings()) : null);
-    function settings() { return { size: size.value, duration: duration.value, sourceStartFrame: sourceStartFrame.value }; }
+    function settings() { return { size: size.value, duration: duration.value, sourceStartFrame: sourceStartFrame.value, samplingSide: samplingSide.value }; }
+    watch(samplingSide, () => {
+        if (limits.value) {
+            size.value = Math.min(size.value, limits.value.maxSize);
+            duration.value = Math.min(duration.value, limits.value.maxPhases / limits.value.fps);
+        }
+    }, { flush: 'sync' });
     function cancel() { controller?.abort(); }
     function clearPreview() {
         if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
@@ -70,7 +77,7 @@ export const useBackgroundLoopStore = defineStore('background-loop', () => {
         await run('preparing', async signal => {
             status.value = 'Reading video source…';
             const next = await inspectBackgroundLoopSource(file, { signal });
-            const defaults = planBackgroundLoop(next);
+            const defaults = planBackgroundLoop(next, { samplingSide: samplingSide.value });
             signal.throwIfAborted();
             source.value = next; size.value = Math.min(1920, defaults.maxSize);
             duration.value = defaults.duration; sourceStartFrame.value = 1;
@@ -146,7 +153,7 @@ export const useBackgroundLoopStore = defineStore('background-loop', () => {
             if (job.value?.id === id) { clearPreview(); job.value = null; status.value = ''; }
         });
     }
-    return { source, size, duration, sourceStartFrame, name, job, blob, jobs, savedClip, operation, busy, generating, saving,
+    return { source, size, duration, sourceStartFrame, samplingSide, name, job, blob, jobs, savedClip, operation, busy, generating, saving,
         resultReady, canAssemble, limits, planError, plan, error, status, progress, previewUrl,
         prepare, generate, cancel, showJob, reassemble, saveToClips, discard, refreshJobs };
 });

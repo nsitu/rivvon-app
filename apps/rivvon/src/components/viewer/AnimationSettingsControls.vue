@@ -3,6 +3,7 @@
     import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
     import Select from 'primevue/select';
     import Slider from 'primevue/slider';
+    import { BLEND_MODE_OPTIONS } from '../../../../../packages/shared-types/src/blendModes.js';
     import ToggleSwitch from 'primevue/toggleswitch';
     import GradientMapEditor from './GradientMapEditor.vue';
     import { useViewerStore } from '../../stores/viewerStore';
@@ -168,7 +169,7 @@
         set: value => app.setBackgroundTextureGradientMapEnabled(value),
     });
 
-    const blendOptions = [{ label: 'Normal', value: 'normal' }, { label: 'Soft Light', value: 'softLight' }];
+
 
     const backgroundOverlayModel = computed({
         get: () => app.backgroundOverlayEnabled,
@@ -938,8 +939,20 @@
                         <div class="tools-select-block">
                             <label class="tools-select-label" :for="getInputId('static-image-blend')">Blend</label>
                             <Select :input-id="getInputId('static-image-blend')" :model-value="app.backgroundTextureBlendMode"
-                                :options="blendOptions" option-label="label" option-value="value" class="tools-select"
+                                :options="BLEND_MODE_OPTIONS" option-label="label" option-value="value" class="tools-select"
                                 :disabled="disabled || app.isApplyingBackgroundImage" @update:model-value="app.setBackgroundTextureBlendMode" />
+                        </div>
+
+                        <div v-if="app.backgroundTextureBlendMode !== 'normal'" class="tools-slider-block">
+                            <div class="tools-slider-head">
+                                <label class="tools-slider-label" :for="getInputId('background-blend-strength')">Blend Strength</label>
+                                <span class="tools-hint tools-slider-hint">{{ Math.round(app.backgroundTextureBlendStrength * 100) }}%</span>
+                            </div>
+                            <Slider :id="getInputId('background-blend-strength')" :model-value="Math.round(app.backgroundTextureBlendStrength * 100)"
+                                :min="0" :max="100" :step="1" aria-label="Background blend strength"
+                                :disabled="disabled || app.isApplyingBackgroundImage"
+                                @update:model-value="app.setBackgroundTextureBlendStrength($event / 100)" />
+                            <div class="tools-slider-note">0% uses Normal; 100% applies the selected blend fully.</div>
                         </div>
 
                         <div class="tools-slider-block">

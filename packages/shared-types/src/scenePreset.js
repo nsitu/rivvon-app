@@ -1,3 +1,4 @@
+import { BLEND_MODES } from './blendModes.js';
 import { normalizeBackgroundSource } from './backgroundMediaSource.js';
 import { normalizeSvgNodes } from './svgNodes.js';
 import { DEFAULT_ARTWORK_TILT_HORIZONTAL_DEGREES, DEFAULT_ARTWORK_TILT_VERTICAL_DEGREES, MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES } from './artworkTilt.js';
@@ -24,7 +25,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     backgroundGradientInfluence: DEFAULT_BACKGROUND_GRADIENT_INFLUENCE,
     backgroundGradientFalloff: DEFAULT_BACKGROUND_GRADIENT_FALLOFF,
     backgroundOverlayEnabled: false, backgroundOverlayColor: '#ffffff', backgroundOverlayOpacity: 0.35,
-    backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundTextureSource: { kind: 'builtin', id: 'card' }, backgroundTextureBlendMode: 'softLight', backgroundClipPlaybackMode: 'native', backgroundBaseEnabled: true,
+    backgroundTextureEnabled: false, backgroundTexture: 'card', backgroundTextureSource: { kind: 'builtin', id: 'card' }, backgroundTextureBlendMode: 'softLight', backgroundTextureBlendStrength: 1, backgroundClipPlaybackMode: 'native', backgroundBaseEnabled: true,
     backgroundTextureGradientMapEnabled: false,
     backgroundTextureGradientMapMix: 1,
     backgroundTextureGradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
@@ -44,7 +45,7 @@ export const ARTWORK_DEFAULTS = Object.freeze({
     filmstripGapLength: 0.15, filmstripHoleLength: 0.1, filmstripAperture: 0.23, filmstripHoleRoundedness: 0.33,
     gradientMapStops: [{ position: 0, color: '#000000' }, { position: 0.5, color: '#ff7a00' }, { position: 1, color: '#ffffff' }],
     gradientMapMix: 1,
-    artworkBlendMode: 'normal',
+    artworkBlendMode: 'normal', artworkBlendStrength: 1,
     contrast: 1, saturation: 1, ribbonWidthScale: 1, ribbonPathAlignmentMode: 'center',
     surfaceMode: 'ribbon', tubeRadiusScale: 0.5, tubeRadialSegments: 8, tubeTextureJoinOffsetDegrees: 0,
     helixMode: false, helixRadius: 0.2, helixPitch: 9, helixStrandWidth: 0.5,
@@ -59,8 +60,8 @@ export const ARTWORK_DEFAULTS = Object.freeze({
 
 const ENUMS = {
     backgroundClipPlaybackMode: ['native', 'alignLoop'],
-    artworkBlendMode: ['normal', 'softLight'],
-    backgroundTextureBlendMode: ['normal', 'softLight'],
+    artworkBlendMode: BLEND_MODES,
+    backgroundTextureBlendMode: BLEND_MODES,
     backgroundMode: ['texture', 'gradient'],
     artworkMotionMode: ['none', 'circularTilt', 'circularOrbit', 'circularOrbitReverse', 'tumbleOrbit'],
     flowState: ['off', 'forward', 'backward'], textureRepeatMode: ['wrap', 'mirrorTile', 'bounce'],
@@ -73,6 +74,7 @@ const COLOR = /^#[\da-f]{6}([\da-f]{2})?$/i;
 const RANGES = {
     artworkTiltHorizontalDegrees: [MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES],
     artworkTiltVerticalDegrees: [MIN_ARTWORK_TILT_DEGREES, MAX_ARTWORK_TILT_DEGREES],
+    artworkBlendStrength: [0, 1], backgroundTextureBlendStrength: [0, 1],
     gradientMapMix: [0, 1], backgroundTextureGradientMapMix: [0, 1],
     backgroundGradientInfluence: [0.15, 1.5], backgroundGradientFalloff: [0.5, 6],
     backgroundTextureContrast: [0, 2], backgroundTextureSaturation: [0, 2],

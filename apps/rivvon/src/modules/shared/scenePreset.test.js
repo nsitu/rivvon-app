@@ -32,9 +32,10 @@ describe('elliptical tilt presets', () => {
 });
 
 describe('scene preset contract', () => {
-    it('round trips artwork blend independently from background blending and defaults legacy presets to Normal', () => {
-        const input = sampleScene(); input.artwork.artworkBlendMode = 'softLight'; input.artwork.backgroundTextureBlendMode = 'normal';
-        expect(normalizeScenePreset(normalizeScenePreset(input)).artwork).toMatchObject({ artworkBlendMode: 'softLight', backgroundTextureBlendMode: 'normal' });
+    it.each(['softLight', 'multiply', 'screen', 'overlay', 'difference'])('round trips %s artwork blend independently from background blending and defaults legacy presets to Normal', mode => {
+        const input = sampleScene(); input.artwork.artworkBlendMode = mode; input.artwork.backgroundTextureBlendMode = mode;
+        input.artwork.artworkBlendStrength = 0.25; input.artwork.backgroundTextureBlendStrength = 0.75;
+        expect(normalizeScenePreset(normalizeScenePreset(input)).artwork).toMatchObject({ artworkBlendMode: mode, backgroundTextureBlendMode: mode, artworkBlendStrength: 0.25, backgroundTextureBlendStrength: 0.75 });
         expect(normalizeScenePreset({ ...input, artwork: {} }).artwork.artworkBlendMode).toBe('normal');
         input.artwork.artworkBlendMode = 'unknown'; expect(() => normalizeScenePreset(input)).toThrow('Invalid artworkBlendMode');
     });
@@ -45,8 +46,8 @@ describe('scene preset contract', () => {
         const saved = normalizeScenePreset(input);
         expect(saved.artwork).toMatchObject({ gradientMapMix: 0, backgroundTextureGradientMapMix: 0.5 });
         expect(normalizeScenePreset(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
-        expect(normalizeScenePreset({ ...input, artwork: {} }).artwork).toMatchObject({ gradientMapMix: 1, backgroundTextureGradientMapMix: 1 });
-        for (const key of ['gradientMapMix', 'backgroundTextureGradientMapMix']) {
+        expect(normalizeScenePreset({ ...input, artwork: {} }).artwork).toMatchObject({ gradientMapMix: 1, backgroundTextureGradientMapMix: 1, artworkBlendStrength: 1, backgroundTextureBlendStrength: 1 });
+        for (const key of ['gradientMapMix', 'backgroundTextureGradientMapMix', 'artworkBlendStrength', 'backgroundTextureBlendStrength']) {
             for (const value of [-0.01, 1.01, NaN, '0.5']) {
                 expect(() => normalizeScenePreset({ ...input, artwork: { [key]: value } })).toThrow(`Invalid ${key}`);
             }

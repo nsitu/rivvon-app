@@ -1,3 +1,4 @@
+import { normalizeBlendMode } from '../../../../../packages/shared-types/src/blendModes.js';
 import { createArtworkBlendCompositor } from '../../modules/viewer/artworkBlend.js';
 import * as THREE from 'three';
 import {
@@ -823,8 +824,8 @@ export function useRenderFilter(ctx) {
         }
 
         const filtered = shouldApplyFilter() && ensureFilterResources(target);
-        const softLight = ctx.app.artworkBlendMode === 'softLight';
-        if (softLight) {
+        const artworkBlending = normalizeBlendMode(ctx.app.artworkBlendMode) !== 'normal';
+        if (artworkBlending) {
             artworkBlend.render(filtered ? filterRenderTarget : target, () => {
                 const overrides = applyCapMaskFilterOverrides(ctx.scene.value, true);
                 try { renderer.render(ctx.scene.value, ctx.camera.value); }
@@ -843,9 +844,9 @@ export function useRenderFilter(ctx) {
         filterQuad.material = filterMaterial;
         // The blend target already contains premultiplied source-over coverage.
         // Drawing the filtered result with normal blending would apply alpha twice.
-        const blending = softLight ? THREE.NoBlending : THREE.NormalBlending;
+        const blending = artworkBlending ? THREE.NoBlending : THREE.NormalBlending;
         if (filterMaterial.blending !== blending) { filterMaterial.blending = blending; filterMaterial.needsUpdate = true; }
-        if (filterEncodedAlphaUniform) filterEncodedAlphaUniform.value = softLight && target === null && renderer.outputColorSpace === THREE.SRGBColorSpace;
+        if (filterEncodedAlphaUniform) filterEncodedAlphaUniform.value = artworkBlending && target === null && renderer.outputColorSpace === THREE.SRGBColorSpace;
 
         if (filterMaterial?.uniforms?.uContrast) {
             filterMaterial.uniforms.uContrast.value = getContrastValue();
@@ -869,11 +870,11 @@ export function useRenderFilter(ctx) {
         // Save current clear color and alpha
         const savedClearColor = renderer.getClearColor(new THREE.Color());
         const savedClearAlpha = renderer.getClearAlpha();
-        const capMaskOverrides = softLight ? [] : applyCapMaskFilterOverrides(ctx.scene.value);
+        const capMaskOverrides = artworkBlending ? [] : applyCapMaskFilterOverrides(ctx.scene.value);
 
         try {
             // Render scene to filter target with transparent clear color
-            if (!softLight) {
+            if (!artworkBlending) {
                 renderer.setClearColor(0x000000, 0); // Clear to transparent black
                 renderer.setRenderTarget(filterRenderTarget);
                 renderer.clear();

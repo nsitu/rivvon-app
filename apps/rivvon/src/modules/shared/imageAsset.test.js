@@ -27,7 +27,7 @@ describe('image contracts', () => {
         for (const value of [{ kind: 'image', id: 'https://example.com' }, { kind: 'builtin', id: 'unknown' }, { kind: 'file', id: 'upload' }, 'card']) {
             expect(() => normalizeBackgroundSource(value)).toThrow('reference');
         }
-        expect(() => normalizeArtworkSettings({ backgroundTextureBlendMode: 'multiply' })).toThrow('backgroundTextureBlendMode');
+        expect(() => normalizeArtworkSettings({ backgroundTextureBlendMode: 'unknown' })).toThrow('backgroundTextureBlendMode');
     });
     it('checks container dimensions before decoding and rejects animated or truncated PNGs', () => {
         expect(inspectImage(png())).toEqual({ mimeType: 'image/png', width: 1, height: 1 });

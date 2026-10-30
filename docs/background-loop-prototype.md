@@ -6,14 +6,24 @@ wave-sampled MP4 and saves through the existing private Clips upload path.
 Switching between output types preserves the source and retained background;
 neither animation nor sampling settings need to match the ribbon textures.
 
+An optional KTX2 array representation is recorded in the
+[deferred KTX2 background exploration](background-ktx2-exploration.md), including
+GPU/memory limits and whether backgrounds need mipmaps. Implementation is deferred.
+
 ## Try it
 
-Open Create with a video source and select **Background video**. Choose square
-size, loop duration, starting source frame and clip name, then **Generate
+Open Create with a video source and select **Background video**. Choose the long
+or short sampling side, square size, loop duration, starting source frame and clip name, then **Generate
 Background**. Progress and cancellation use the creator's existing Process step;
 the Done step offers loop preview, download, **Save to Clips**, and **Open Clips**.
 The viewer is suspended while generating. Navigating away stops generation;
 already committed work is retained on the device.
+
+Background settings retain the source-video preview with playback, seeking and
+wave sampling lines. The overlay uses the selected background side and phase
+settings, independent of ribbon crop/interpolation settings. Changing the start
+frame seeks the source preview to that position. The preview stacks above the
+settings on narrow screens and sits alongside them on wider screens.
 
 The production encoder is the existing verified SDR FFmpeg WASM/x264 path, with
 one worker per batch, high quality, no audio and no export logo. Saving to Clips
@@ -37,12 +47,16 @@ shell. Its work files are shared with the integrated creator.
   frame: `phases = round(seconds * 30)`. Minimum is 30 phases/one second; default
   is 240 phases/eight seconds, reduced when the input cannot support that count.
 - The phase ceiling follows the input dimension perpendicular to the sampled
-  line: the short edge when sampling the long edge. For 1920 × 1080 input the
-  maximum is 1080 phases/36 seconds. The existing clip duration limit adds a
+  line: the short edge when sampling the long edge, and the long edge when
+  sampling the short edge. For 1920 × 1080 input, long-side sampling allows up to
+  1920 square and 1080 phases/36 seconds; short-side sampling allows up to 1080
+  square and 1800 phases/60 seconds. The existing clip duration limit adds a
   1800-phase/60-second ceiling for larger inputs; extending that is a separate
   product decision.
-- The largest square without enlarging samples is the smaller of the long
+- The largest square without enlarging samples is the smaller of the chosen
   spatial edge, available source frames and 3840, rounded down to an even size.
+  Changing sides clamps the selected size/duration only when the new limits
+  require it, and preserves the side when switching between output types.
 - A square of side S consumes S successive source frames, each contributing one
   row/column. S is independent of the number of output phases. The starting
   source frame is selectable in background settings.

@@ -594,6 +594,7 @@
         <div class="texture-creator-container viewer-panel viewer-chrome-panel-container">
             <!-- Main content area -->
             <ScrollPanel class="rivvon-scroll-panel texture-creator-content">
+                <div class="texture-creator-scroll-content">
                 <Stepper
                     :value="stepperValue"
                     linear
@@ -725,6 +726,7 @@
                         </template>
                     </StepPanels>
                 </Stepper>
+                </div>
             </ScrollPanel>
 
             <PanelActionBar
@@ -896,8 +898,13 @@
          */
     }
 
-    .texture-creator-content {
+    .texture-creator-scroll-content {
+        box-sizing: border-box;
+        min-width: 0;
         padding: 20px;
+    }
+
+    .texture-creator-content {
         width: 100%;
         --texture-creator-step-muted: var(--p-stepper-step-number-color, var(--p-text-muted-color, #888));
         --texture-creator-step-surface: var(--p-stepper-step-number-background, var(--p-content-background, #333));

@@ -10,6 +10,8 @@
         offsetX: { type: Number, default: 0 },
         offsetY: { type: Number, default: 0 },
         videoPlayer: { type: Object, default: null },
+        // Background plans use display-normalized dimensions and independent settings.
+        samplingPlan: { type: Object, default: null },
     });
 
     const canvasRef = ref(null);
@@ -21,7 +23,9 @@
     // --- Display line orientation ---
     // In raw video: 'rows' = horizontal lines, 'columns' = vertical lines
     // After 90/270° rotation the browser swaps axes, so XOR with isRotated
-    const isHorizontal = computed(() => (app.samplingAxis === 'rows') !== isRotated.value);
+    const isHorizontal = computed(() => props.samplingPlan
+        ? props.samplingPlan.samplingMode === 'rows'
+        : (app.samplingAxis === 'rows') !== isRotated.value);
 
     // --- Effective video dimensions (perceived, post-rotation) ---
     const effectiveVideoW = computed(() => isRotated.value ? (app.fileInfo?.height || 1) : (app.fileInfo?.width || 1));
@@ -34,7 +38,7 @@
     // --- Bounding region for lines (display coordinates) ---
     // Without crop: full display. With crop: the crop region mapped to display.
     const lineRegion = computed(() => {
-        if (!app.cropMode) {
+        if (props.samplingPlan || !app.cropMode) {
             return { x: 0, y: 0, w: props.containerWidth, h: props.containerHeight };
         }
         // Map crop coordinates to display space (same transform as CropOverlay)
@@ -66,6 +70,7 @@
 
     // --- Frame rate ---
     const frameRate = computed(() => {
+        if (props.samplingPlan) return props.samplingPlan.sourceFps || 30;
         const fr = app.fileInfo?.r_frame_rate;
         if (!fr) return 30;
         if (typeof fr === 'string' && fr.includes('/')) {
@@ -77,6 +82,7 @@
 
     // --- Frames used by the tile plan (same as videoProcessor's framesUsed) ---
     const framesUsed = computed(() => {
+        if (props.samplingPlan) return props.samplingPlan.sourceFrames;
         const effectiveFrameCount = app.effectiveFrameCount;
         const pot = app.potResolution || 256;
         return Math.floor(effectiveFrameCount / pot) * pot;
@@ -102,7 +108,9 @@
         const omega = (2 * Math.PI) / fc;
         const currentFrame = Math.round(currentTime * frameRate.value);
         // Mirror tileBuilder: globalIndex = min(frameNumber, frameCount) - 1
-        const globalIndex = Math.max(0, Math.min(currentFrame, fc) - 1);
+        const globalIndex = props.samplingPlan
+            ? Math.max(0, Math.min(currentFrame - (props.samplingPlan.sourceStartFrame - 1), fc - 1))
+            : Math.max(0, Math.min(currentFrame, fc) - 1);
 
         const positions = new Array(count);
         for (let i = 0; i < count; i++) {
@@ -139,10 +147,10 @@
         const h = props.containerHeight;
         ctx.clearRect(0, 0, w, h);
 
-        const count = app.crossSectionCount || 0;
+        const count = props.samplingPlan?.phaseCount ?? app.crossSectionCount ?? 0;
         if (count <= 0) return;
 
-        const isWaves = app.crossSectionType !== 'planes';
+        const isWaves = Boolean(props.samplingPlan) || app.crossSectionType !== 'planes';
 
         // Compute normalized positions (0–1)
         let positions;
@@ -224,6 +232,8 @@
     <canvas
         ref="canvasRef"
         class="sampling-overlay"
+        aria-hidden="true"
+        :data-sampling-mode="isHorizontal ? 'rows' : 'columns'"
         :style="{
             left: `${offsetX}px`,
             top: `${offsetY}px`,

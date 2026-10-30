@@ -46,6 +46,21 @@ describe('background creation workflow', () => {
         expect(await store.saveToClips()).toBe(true); expect(store.savedClip.id).toBe('clip-1');
         expect(await store.saveToClips()).toBe(false); expect(uploadClip).toHaveBeenCalledTimes(2);
     });
+    it('updates side-dependent limits, clamps settings and forwards the selected side to generation', async () => {
+        const store = useBackgroundLoopStore(), file = new File(['source'], 'ocean.mov');
+        await store.prepare(file);
+        store.samplingSide = 'short';
+        expect(store.size).toBe(1080);
+        expect(store.plan).toMatchObject({ samplingMode: 'columns', maxPhases: 1800 });
+        store.duration = 60;
+        store.samplingSide = 'long';
+        expect(store.duration).toBe(36); expect(store.size).toBe(1080);
+        store.samplingSide = 'short';
+        await store.generate();
+        expect(generateBackgroundLoop).toHaveBeenCalledWith(source, expect.objectContaining({ samplingSide: 'short', size: 1080 }));
+        await store.prepare(file);
+        expect(store.samplingSide).toBe('short');
+    });
     it('does not upload twice when recording a successful upload locally fails', async () => {
         const store = useBackgroundLoopStore(); await store.prepare(new File(['a'], 'a.mov')); await store.generate();
         uploadClip.mockResolvedValueOnce({ id: 'clip-1', name: 'ocean background' });

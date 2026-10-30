@@ -385,7 +385,7 @@ function createWebGLBackgroundDisplayMaterial(
                 if (uStaticTextureEnabled == 1) {
                     vec4 staticSample = texture2D(uTexture, getStaticTextureUv(vUv));
                     vec3 staticColor = adjustStaticTexture(staticSample.rgb);
-                    color = mix(color, uStaticTextureNormalMode ? staticColor : softLightBlend(color, staticColor), staticSample.a);
+                    color = mix(color, rivvonBlend(color, staticColor, uStaticTextureBlendMode, uStaticTextureBlendStrength), staticSample.a);
                 }
                 if (uWaterEnabled == 1) {
                     color = softLightBlend(color, proceduralWater(vUv, uTime));
@@ -1059,7 +1059,7 @@ function createTileBackgroundRuntimeWebGL(ctx, options = {}) {
                 if (uStaticTextureEnabled == 1) {
                     vec4 staticSample = texture(uTexture, getStaticTextureUv(vUv));
                     vec3 staticColor = adjustStaticTexture(staticSample.rgb);
-                    compositedColor = mix(compositedColor, uStaticTextureNormalMode ? staticColor : softLightBlend(compositedColor, staticColor), staticSample.a);
+                    compositedColor = mix(compositedColor, rivvonBlend(compositedColor, staticColor, uStaticTextureBlendMode, uStaticTextureBlendStrength), staticSample.a);
                 }
                 if (uWaterEnabled == 1) {
                     compositedColor = softLightBlend(compositedColor, proceduralWater(vUv, uTime));

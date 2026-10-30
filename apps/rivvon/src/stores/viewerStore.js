@@ -1,4 +1,4 @@
-import { normalizeArtworkBlendMode } from '../modules/viewer/artworkBlend.js';
+import { normalizeBlendMode, normalizeBlendStrength } from '../../../../packages/shared-types/src/blendModes.js';
 import { normalizeBackgroundSource } from '../../../../packages/shared-types/src/backgroundMediaSource.js';
 // src/stores/viewerStore.js
 // Pinia store for rivvon viewer state
@@ -931,7 +931,8 @@ export const useViewerStore = defineStore("viewer", {
       isApplyingBackgroundImage: false,
       backgroundImageError: '',
       backgroundTextureSource: readBackgroundSourcePreference(),
-      backgroundTextureBlendMode: readViewerPreferences().backgroundTextureBlendMode === 'normal' ? 'normal' : 'softLight',
+      backgroundTextureBlendMode: normalizeBlendMode(readViewerPreferences().backgroundTextureBlendMode, 'softLight'),
+      backgroundTextureBlendStrength: normalizeBlendStrength(readViewerPreferences().backgroundTextureBlendStrength),
       backgroundImagePresetId: readViewerPreferences().backgroundImagePresetId || '',
       backgroundTextureGradientMapEnabled: normalizeViewerBooleanPreference(
         readViewerPreferences().backgroundTextureGradientMapEnabled, false,
@@ -1116,7 +1117,8 @@ export const useViewerStore = defineStore("viewer", {
       ),
       gradientMapStops: storedFilterSettings.gradientMapStops,
       gradientMapMix: storedFilterSettings.gradientMapMix,
-      artworkBlendMode: normalizeArtworkBlendMode(readViewerPreferences().artworkBlendMode),
+      artworkBlendMode: normalizeBlendMode(readViewerPreferences().artworkBlendMode),
+      artworkBlendStrength: normalizeBlendStrength(readViewerPreferences().artworkBlendStrength),
       contrast: storedFilterSettings.contrast,
       saturation: storedFilterSettings.saturation,
       currentTextureId: null,
@@ -1311,6 +1313,7 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundTexture = DEFAULT_BACKGROUND_TEXTURE;
       this.backgroundTextureSource = { kind: 'builtin', id: DEFAULT_BACKGROUND_TEXTURE };
       this.backgroundTextureBlendMode = 'softLight';
+      this.backgroundTextureBlendStrength = 1;
       this.backgroundClipPlaybackMode = 'native';
       this.backgroundClipPlaybackError = '';
       this.backgroundClipPaused = false;
@@ -1378,6 +1381,7 @@ export const useViewerStore = defineStore("viewer", {
       this.gradientMapStops = normalizeGradientMapStops(DEFAULT_GRADIENT_MAP_STOPS);
       this.gradientMapMix = DEFAULT_GRADIENT_MAP_MIX;
       this.artworkBlendMode = 'normal';
+      this.artworkBlendStrength = 1;
       this.contrast = DEFAULT_CONTRAST;
       this.saturation = DEFAULT_SATURATION;
       this.ribbonWidthScale = 1;
@@ -1446,7 +1450,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTextureEnabled: false,
         backgroundTexture: DEFAULT_BACKGROUND_TEXTURE,
         backgroundTextureSource: { kind: 'builtin', id: DEFAULT_BACKGROUND_TEXTURE },
-        backgroundTextureBlendMode: 'softLight', backgroundClipPlaybackMode: 'native', backgroundImagePresetId: '',
+        backgroundTextureBlendMode: 'softLight', backgroundTextureBlendStrength: 1, backgroundClipPlaybackMode: 'native', backgroundImagePresetId: '',
         backgroundTextureGradientMapEnabled: false,
         backgroundTextureGradientMapStops: this.backgroundTextureGradientMapStops,
         backgroundTextureGradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
@@ -1507,7 +1511,7 @@ export const useViewerStore = defineStore("viewer", {
         filmstripHoleSize: DEFAULT_FILMSTRIP_APERTURE,
         gradientMapStops: this.gradientMapStops,
         gradientMapMix: DEFAULT_GRADIENT_MAP_MIX,
-        artworkBlendMode: 'normal',
+        artworkBlendMode: 'normal', artworkBlendStrength: 1,
         contrast: DEFAULT_CONTRAST,
         saturation: DEFAULT_SATURATION,
         undulationEnabled: true,
@@ -1779,8 +1783,13 @@ export const useViewerStore = defineStore("viewer", {
       this.backgroundClipPlaybackMode = value === 'alignLoop' ? 'alignLoop' : 'native';
       writeViewerPreferences({ backgroundClipPlaybackMode: this.backgroundClipPlaybackMode });
     },
+    setBackgroundTextureBlendStrength(value) {
+      this.backgroundTextureBlendStrength = normalizeBlendStrength(value);
+      writeViewerPreferences({ backgroundTextureBlendStrength: this.backgroundTextureBlendStrength });
+    },
+
     setBackgroundTextureBlendMode(value) {
-      this.backgroundTextureBlendMode = value === 'normal' ? 'normal' : 'softLight';
+      this.backgroundTextureBlendMode = normalizeBlendMode(value, 'softLight');
       writeViewerPreferences({ backgroundTextureBlendMode: this.backgroundTextureBlendMode });
     },
 
@@ -2067,6 +2076,7 @@ export const useViewerStore = defineStore("viewer", {
         backgroundTexture: this.backgroundTexture,
         backgroundTextureSource: { ...this.backgroundTextureSource },
         backgroundTextureBlendMode: this.backgroundTextureBlendMode,
+        backgroundTextureBlendStrength: this.backgroundTextureBlendStrength,
         backgroundClipPlaybackMode: this.backgroundClipPlaybackMode,
         backgroundImagePresetId: this.backgroundImagePresetId,
         backgroundTextureGradientMapEnabled: this.backgroundTextureGradientMapEnabled,
@@ -2125,6 +2135,7 @@ export const useViewerStore = defineStore("viewer", {
         gradientMapStops: this.gradientMapStops,
         gradientMapMix: this.gradientMapMix,
         artworkBlendMode: this.artworkBlendMode,
+        artworkBlendStrength: this.artworkBlendStrength,
         contrast: this.contrast,
         saturation: this.saturation,
         ribbonWidthScale: this.ribbonWidthScale,
@@ -2229,6 +2240,7 @@ sphericalProjectionVerticalWrapAuto:
         this.backgroundTexture !== original.backgroundTexture ||
         JSON.stringify(this.backgroundTextureSource) !== JSON.stringify(original.backgroundTextureSource) ||
         this.backgroundTextureBlendMode !== original.backgroundTextureBlendMode ||
+        this.backgroundTextureBlendStrength !== original.backgroundTextureBlendStrength ||
         this.backgroundClipPlaybackMode !== original.backgroundClipPlaybackMode ||
         this.backgroundTextureGradientMapEnabled !== original.backgroundTextureGradientMapEnabled ||
         this.backgroundTextureGradientMapMix !== original.backgroundTextureGradientMapMix ||
@@ -2294,6 +2306,7 @@ sphericalProjectionVerticalWrapAuto:
           serializeGradientMapStops(original.gradientMapStops) ||
         this.gradientMapMix !== original.gradientMapMix ||
         this.artworkBlendMode !== original.artworkBlendMode ||
+        this.artworkBlendStrength !== original.artworkBlendStrength ||
         this.contrast !== original.contrast ||
         this.saturation !== original.saturation ||
         this.ribbonWidthScale !== original.ribbonWidthScale ||
@@ -2708,8 +2721,13 @@ this.sphericalProjectionVerticalWrapAuto !==
       return normalized;
     },
 
+    setArtworkBlendStrength(value) {
+      this.artworkBlendStrength = normalizeBlendStrength(value);
+      writeViewerPreferences({ artworkBlendStrength: this.artworkBlendStrength });
+    },
+
     setArtworkBlendMode(value) {
-      this.artworkBlendMode = normalizeArtworkBlendMode(value);
+      this.artworkBlendMode = normalizeBlendMode(value);
       writeViewerPreferences({ artworkBlendMode: this.artworkBlendMode });
     },
 

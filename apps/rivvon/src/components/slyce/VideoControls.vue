@@ -137,6 +137,7 @@
             class="control-button rivvon-icon-action"
             @click="togglePlay"
             :title="isPlaying ? 'Pause' : 'Play'"
+            :aria-label="isPlaying ? 'Pause source video' : 'Play source video'"
         >
             <span class="material-symbols-outlined">
                 {{ isPlaying ? 'pause' : 'play_arrow' }}
@@ -146,6 +147,7 @@
         <input
             type="range"
             class="seek-bar"
+            aria-label="Seek source video"
             :min="0"
             :max="duration || 100"
             :value="currentTime"
@@ -161,6 +163,7 @@
 
 <style scoped>
     .video-controls {
+        box-sizing: border-box;
         width: 100%;
         display: flex;
         align-items: center;

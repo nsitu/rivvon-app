@@ -15,6 +15,15 @@ describe('background loop planning', () => {
         expect(() => planBackgroundLoop(hd, { size: 1922 })).toThrow('square size');
         expect(() => planBackgroundLoop(hd, { size: 1919 })).toThrow('even');
     });
+    it('samples either side in display coordinates and derives limits from the chosen axis', () => {
+        expect(planBackgroundLoop(hd, { samplingSide: 'short' })).toMatchObject({
+            samplingSide: 'short', samplingMode: 'columns', size: 1080, maxSize: 1080, maxPhases: 1800,
+        });
+        expect(planBackgroundLoop({ ...hd, width: 1080, height: 1920 }, { samplingSide: 'short' }))
+            .toMatchObject({ samplingMode: 'rows', maxSize: 1080, maxPhases: 1800 });
+        expect(() => planBackgroundLoop(hd, { samplingSide: 'short', size: 1920 })).toThrow('1080');
+        expect(() => planBackgroundLoop(hd, { samplingSide: 'diagonal' })).toThrow('long or short');
+    });
     it('quantizes duration to complete frames, retaining artistic phase choices', () => {
         expect(planBackgroundLoop(hd, { duration: 1 })).toMatchObject({ phaseCount: 30, duration: 1 });
         expect(planBackgroundLoop(hd, { duration: 1.05 })).toMatchObject({ phaseCount: 32, duration: 32 / 30 });

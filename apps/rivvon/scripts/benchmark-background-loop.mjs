@@ -81,6 +81,12 @@ try {
         await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
         const overflow = await evaluate('document.documentElement.scrollWidth > innerWidth');
         if (overflow) throw new Error(`Prototype UI overflows horizontally at ${width}px.`);
+        if (integration) {
+            const overflow = await evaluate(`(() => { const preview = document.querySelector('.background-source-preview'); const controls = preview?.querySelector('.video-controls'); return controls && controls.getBoundingClientRect().right > preview.getBoundingClientRect().right + 1; })()`);
+            if (overflow) throw new Error(`Source playback controls overflow at ${width}px.`);
+            const panelOverflow = await evaluate(`(() => { const panel = document.querySelector('.texture-creator-content .p-scrollpanel-content'); return panel && panel.scrollWidth > panel.clientWidth + 1; })()`);
+            if (panelOverflow) throw new Error(`Creator content overflows horizontally at ${width}px.`);
+        }
         const screenshot = await call('Page.captureScreenshot', { format: 'png' });
         await writeFile(join(outputDir, `lab-${name}.png`), Buffer.from(screenshot.result.data, 'base64'));
     }

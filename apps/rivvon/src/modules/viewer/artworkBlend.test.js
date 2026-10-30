@@ -62,8 +62,9 @@ describe('completed artwork compositing', () => {
         expect(h.renderer.getClearAlpha()).toBe(.4); compositor.dispose();
     });
 
-    it('uses export target dimensions, restores preview size, and disposes targets when Normal is selected', async () => {
+    it.each(['softLight', 'multiply', 'screen', 'overlay', 'difference'])('uses export target dimensions, restores preview size, and disposes %s targets when Normal is selected', async mode => {
         const h = fixture(), filter = useRenderFilter(h.ctx); await filter.initRenderFilter('webgl');
+        h.ctx.app.artworkBlendMode = mode;
         h.artwork.material._hasCapMask = true; h.artwork.material.alphaToCoverage = true;
         filter.renderScene();
         const source = h.draws[0].target, backdrop = h.draws[1].target;

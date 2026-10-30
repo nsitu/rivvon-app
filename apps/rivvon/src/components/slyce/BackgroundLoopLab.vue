@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import Button from 'primevue/button';
 import FileUpload from 'primevue/fileupload';
 import InputNumber from 'primevue/inputnumber';
@@ -14,15 +14,22 @@ import { listBackgroundLoopJobs, getBackgroundLoopBlob, discardBackgroundLoop } 
 import { uploadClip } from '../../services/clipService.js';
 
 const source = ref(null), size = ref(1920), duration = ref(8), batchSize = ref(BACKGROUND_LOOP_BATCH_SIZE), encodingMethod = ref('ffmpeg');
+const samplingSide = ref('long');
 const busy = ref(false), error = ref(''), status = ref('Choose a source video.'), progress = ref(0), preview = ref('');
 const jobs = ref([]), activeJob = ref(null);
 let controller;
 const plan = computed(() => {
     if (!source.value) return null;
-    try { return planBackgroundLoop(source.value, { size: size.value, duration: duration.value, batchSize: batchSize.value }); }
+    try { return planBackgroundLoop(source.value, { size: size.value, duration: duration.value, batchSize: batchSize.value, samplingSide: samplingSide.value }); }
     catch { return null; }
 });
-const maximum = computed(() => source.value ? planBackgroundLoop(source.value) : null);
+const maximum = computed(() => source.value ? planBackgroundLoop(source.value, { samplingSide: samplingSide.value }) : null);
+watch(samplingSide, () => {
+    if (maximum.value) {
+        size.value = Math.min(size.value, maximum.value.maxSize);
+        duration.value = Math.min(duration.value, maximum.value.maxPhases / 30);
+    }
+});
 const refresh = async () => { jobs.value = (await listBackgroundLoopJobs()).sort((a, b) => b.createdAt - a.createdAt); };
 const clearPreview = () => { if (preview.value) URL.revokeObjectURL(preview.value); preview.value = ''; };
 function update(event) {
@@ -40,7 +47,7 @@ async function choose(event) {
     await work(async signal => {
         source.value = null;
         const candidate = await inspectBackgroundLoopSource(event.files[0], { signal });
-        const defaults = planBackgroundLoop(candidate);
+        const defaults = planBackgroundLoop(candidate, { samplingSide: samplingSide.value });
         source.value = candidate;
         size.value = Math.min(1920, defaults.maxSize); duration.value = defaults.duration;
         status.value = `${source.value.name}: ${source.value.width} × ${source.value.height}, ${source.value.frameCount} source frames`;
@@ -52,7 +59,7 @@ async function show(id) {
 async function generate() {
     await work(async signal => {
         const result = await generateBackgroundLoop(source.value, { size: size.value, duration: duration.value,
-            batchSize: batchSize.value, encodingMethod: encodingMethod.value, signal, onProgress: update });
+            batchSize: batchSize.value, samplingSide: samplingSide.value, encodingMethod: encodingMethod.value, signal, onProgress: update });
         await show(result.job.id); progress.value = 100;
         status.value = `Complete: ${(result.job.samplingMs / 1000).toFixed(1)} s sampling/encoding; ${(result.job.assemblyMs / 1000).toFixed(1)} s assembly.`;
     });
@@ -84,6 +91,7 @@ onBeforeUnmount(() => { controller?.abort(); clearPreview(); });
             <div class="loop-lab-content">
                 <FileUpload mode="basic" accept="video/*,.mts,.m2ts" choose-label="Choose source video" :disabled="busy" @select="choose" />
                 <div class="loop-lab-fields">
+                    <label for="lab-sampling-side">Sample from <Select v-model="samplingSide" input-id="lab-sampling-side" :options="['long', 'short']" :disabled="busy" /></label>
                     <label for="loop-size">Square size <InputNumber v-model="size" input-id="loop-size" :min="2" :max="maximum?.maxSize ?? 3840" :step="2" :disabled="busy || !source" /></label>
                     <label for="loop-duration">Duration (seconds) <InputNumber v-model="duration" input-id="loop-duration" :min="1" :max="(maximum?.maxPhases ?? 240) / 30" :step="1 / 30" :max-fraction-digits="3" :disabled="busy || !source" /></label>
                     <label for="loop-batch">Phases per sampling pass <InputNumber v-model="batchSize" input-id="loop-batch" :min="1" :max="32" :disabled="busy" /></label>

@@ -1295,7 +1295,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
 
     watch(
         () => [app.backgroundOverlayEnabled, app.backgroundOverlayColor, app.backgroundOverlayOpacity, app.backgroundGradientInfluence, app.backgroundGradientFalloff,
-            app.backgroundTextureBlendMode, app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation, app.backgroundTextureVerticalAlignment],
+            app.backgroundTextureBlendMode, app.backgroundTextureBlendStrength, app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops, app.backgroundTextureGradientMapMix, app.backgroundTextureContrast, app.backgroundTextureSaturation, app.backgroundTextureVerticalAlignment],
         () => {
             sceneBackground.updateBackground();
             renderCurrentScene();
@@ -1312,7 +1312,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             app.transparentShadowsThresholdMin,
             app.transparentShadowsThresholdMax,
             app.renderFilterMode,
-            app.artworkBlendMode,
+            app.artworkBlendMode, app.artworkBlendStrength,
             app.gradientMapStops,
             app.gradientMapMix,
             app.contrast,

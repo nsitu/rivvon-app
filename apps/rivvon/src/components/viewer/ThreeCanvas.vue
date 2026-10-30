@@ -250,7 +250,7 @@
     });
 
     watch(() => [
-        app.backgroundTextureBlendMode, app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
+        app.backgroundTextureBlendMode, app.backgroundTextureBlendStrength, app.backgroundTextureGradientMapEnabled, app.backgroundTextureGradientMapStops,
         app.backgroundTextureGradientMapMix,
         app.backgroundTextureContrast, app.backgroundTextureSaturation,
         app.backgroundTextureVerticalAlignment,

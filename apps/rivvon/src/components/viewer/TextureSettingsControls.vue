@@ -9,7 +9,7 @@
         applyLiveContrast,
         applyLiveSaturation,
     } from '../../modules/viewer/rendererAdjustmentBus';
-    import { ARTWORK_BLEND_OPTIONS } from '../../modules/viewer/artworkBlend.js';
+    import { BLEND_MODE_OPTIONS } from '../../../../../packages/shared-types/src/blendModes.js';
     import GradientMapEditor from './GradientMapEditor.vue';
 
     defineProps({
@@ -877,9 +877,19 @@
                 <div class="tools-select-block">
                     <label class="tools-select-label" :for="getInputId('artwork-blend-mode')">Artwork Blend</label>
                     <Select :input-id="getInputId('artwork-blend-mode')" aria-label="Artwork Blend" :aria-describedby="getInputId('artwork-blend-hint')" :model-value="app.artworkBlendMode"
-                        :options="ARTWORK_BLEND_OPTIONS" option-label="label" option-value="value" class="tools-select"
+                        :options="BLEND_MODE_OPTIONS" option-label="label" option-value="value" class="tools-select"
                         :disabled="disabled" @update:model-value="app.setArtworkBlendMode" />
                     <div :id="getInputId('artwork-blend-hint')" class="tools-slider-note">Blends the completed artwork with the scene background.</div>
+                </div>
+                <div v-if="app.artworkBlendMode !== 'normal'" class="tools-slider-block">
+                    <div class="tools-slider-head">
+                        <label class="tools-slider-label" :for="getInputId('artwork-blend-strength')">Blend Strength</label>
+                        <span class="tools-hint tools-slider-hint">{{ Math.round(app.artworkBlendStrength * 100) }}%</span>
+                    </div>
+                    <Slider :id="getInputId('artwork-blend-strength')" :model-value="Math.round(app.artworkBlendStrength * 100)"
+                        :min="0" :max="100" :step="1" aria-label="Artwork blend strength" :disabled="disabled"
+                        @update:model-value="app.setArtworkBlendStrength($event / 100)" />
+                    <div class="tools-slider-note">0% uses Normal; 100% applies the selected blend fully.</div>
                 </div>
                 <div
                     v-if="showDuotoneFilter"

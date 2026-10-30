@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataArrayTexture, DataTexture, TextureLoader, HalfFloatType, LinearSRGBColorSpace, PerspectiveCamera, OrthographicCamera, Scene, UnsignedByteType } from 'three';
+import { BLEND_MODES } from '../../../../../packages/shared-types/src/blendModes.js';
 import { useSceneBackground } from './useSceneBackground.js';
 import { setBackgroundImageAccessScope } from '../../services/backgroundImageCache.js';
 beforeEach(() => setBackgroundImageAccessScope(crypto.randomUUID()));
@@ -17,7 +18,7 @@ function fixture(rendererType) {
 }
 
 describe('background replacement transactions', () => {
-    it.each(['webgl', 'webgpu'])('updates Normal/Soft Light without rebuilding the %s background', async rendererType => {
+    it.each(['webgl', 'webgpu'])('updates blend modes and strength without rebuilding the %s background', async rendererType => {
         setBackgroundImageAccessScope(crypto.randomUUID());
         const loader = vi.spyOn(TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
             const texture = new DataTexture(new Uint8Array([120, 100, 80, 128]), 1, 1); onLoad(texture); return texture;
@@ -28,10 +29,16 @@ describe('background replacement transactions', () => {
             await runtime.setBackgroundFromTileManager();
             const material = camera.children[0].material;
             const uniforms = rendererType === 'webgl' ? material.uniforms : material._staticTextureAdjustmentUniforms;
-            expect(uniforms.uStaticTextureNormalMode.value).toBe(false);
-            app.backgroundTextureBlendMode = 'normal'; runtime.updateBackground();
-            expect(uniforms.uStaticTextureNormalMode.value).toBe(true);
-            expect(camera.children[0].material).toBe(material);
+            expect(uniforms.uStaticTextureBlendMode.value).toBe(1);
+            for (const [index, mode] of BLEND_MODES.entries()) {
+                for (const strength of [0, 0.5, 1]) {
+                    app.backgroundTextureBlendMode = mode; app.backgroundTextureBlendStrength = strength;
+                    runtime.updateBackground();
+                    expect(uniforms.uStaticTextureBlendMode.value).toBe(index);
+                    expect(uniforms.uStaticTextureBlendStrength.value).toBe(strength);
+                    expect(camera.children[0].material).toBe(material);
+                }
+            }
             if (rendererType === 'webgl') expect(material.fragmentShader).toContain('staticSample.a');
         } finally { runtime.disposeBackground(); loader.mockRestore(); }
     });
