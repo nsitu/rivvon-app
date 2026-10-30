@@ -18,6 +18,7 @@ export const useSlyceStore = defineStore('slyce', {
         frameStart: 1,       // Start frame of range (1-indexed)
         frameEnd: 0,         // End frame of range (0 = unset; defaults to frameCount)
         frameNumber: 0,
+        fileOutput: 'texture', // texture | background — independent settings, shared source
         crossSectionCount: 60,
         crossSectionType: 'waves', // planes, waves
         samplingSide: 'long',       // long, short — resolved to rows/columns via samplingAxis getter
@@ -282,6 +283,7 @@ export const useSlyceStore = defineStore('slyce', {
 
             // Reset all state to initial values
             this.config = {};
+            this.fileOutput = 'texture';
             this.frameCount = 0;
             this.frameStart = 1;
             this.frameEnd = 0;

@@ -1,0 +1,364 @@
+{
+  "date": "2026-10-30T14:30:27.748Z",
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+  "hardwareConcurrency": 24,
+  "fixture": {
+    "width": 1920,
+    "height": 1080,
+    "frames": 1920,
+    "bytes": 10967398,
+    "fixtureMs": 9773.855000019073
+  },
+  "validation": [
+    {
+      "rotation": 0,
+      "samplingMode": "rows",
+      "phases": 31,
+      "bitExactAcrossBatches": true,
+      "cancellation": true
+    },
+    {
+      "rotation": 90,
+      "samplingMode": "columns",
+      "phases": 31,
+      "bitExactAcrossBatches": true,
+      "cancellation": true
+    }
+  ],
+  "results": [
+    {
+      "settings": {
+        "size": 512,
+        "duration": 1,
+        "batchSize": 16
+      },
+      "plan": {
+        "version": 1,
+        "size": 512,
+        "maxSize": 1920,
+        "samplingMode": "rows",
+        "sourceStartFrame": 1,
+        "sourceFrames": 512,
+        "fps": 30,
+        "phaseCount": 30,
+        "maxPhases": 1080,
+        "duration": 1,
+        "batchSize": 16,
+        "passes": 2,
+        "phaseSurfaceBytes": 16777216
+      },
+      "totalMs": 5075.8150000572205,
+      "samplingMs": 5059.585000038147,
+      "assemblyMs": 12.335000038146973,
+      "outputBytes": 81436,
+      "encodedBatchBytes": 82278,
+      "stageTotals": {
+        "decodeMs": 3657.8449943065643,
+        "drawMs": 391.65500235557556,
+        "encodeMs": 982.1000001430511,
+        "persistMs": 5.599999904632568,
+        "decodedFrames": 1024
+      },
+      "batches": [
+        {
+          "offset": 0,
+          "frames": 16,
+          "bytes": 42258,
+          "decodedFrames": 512,
+          "sampledFrames": 512,
+          "decodeMs": 1568.325001001358,
+          "drawMs": 196.04499769210815,
+          "encodeMs": 600.5199999809265,
+          "persistMs": 3.174999952316284,
+          "totalMs": 2377.0250000953674
+        },
+        {
+          "offset": 16,
+          "frames": 14,
+          "bytes": 40020,
+          "decodedFrames": 512,
+          "sampledFrames": 512,
+          "decodeMs": 2089.5199933052063,
+          "drawMs": 195.6100046634674,
+          "encodeMs": 381.58000016212463,
+          "persistMs": 2.424999952316284,
+          "totalMs": 2678.7750000953674
+        }
+      ],
+      "observedJsHeapPeakBytes": 51014860,
+      "metadata": {
+        "mimeType": "video/mp4",
+        "formatName": "MP4",
+        "colorSpace": {
+          "primaries": "bt709",
+          "transfer": "bt709",
+          "matrix": "bt709",
+          "fullRange": false
+        },
+        "width": 512,
+        "height": 512,
+        "duration": 1,
+        "firstTimestamp": 0,
+        "fps": 30,
+        "codec": "avc1.64001e",
+        "rotation": 0,
+        "codedWidth": 512,
+        "codedHeight": 512,
+        "decodedFrames": 30
+      },
+      "reassembly": true,
+      "jobId": "ac74db06-cfd9-4e29-a5c6-8fd3bb401316"
+    },
+    {
+      "settings": {
+        "size": 1920,
+        "duration": 8,
+        "batchSize": 16
+      },
+      "plan": {
+        "version": 1,
+        "size": 1920,
+        "maxSize": 1920,
+        "samplingMode": "rows",
+        "sourceStartFrame": 1,
+        "sourceFrames": 1920,
+        "fps": 30,
+        "phaseCount": 240,
+        "maxPhases": 1080,
+        "duration": 8,
+        "batchSize": 16,
+        "passes": 15,
+        "phaseSurfaceBytes": 235929600
+      },
+      "totalMs": 172954.84999990463,
+      "samplingMs": 172888.75500011444,
+      "assemblyMs": 61.6800000667572,
+      "outputBytes": 9202732,
+      "encodedBatchBytes": 9213948,
+      "stageTotals": {
+        "decodeMs": 120886.05997157097,
+        "drawMs": 9683.045026063919,
+        "encodeMs": 41856.46500015259,
+        "persistMs": 98.90499997138977,
+        "decodedFrames": 28800
+      },
+      "batches": [
+        {
+          "offset": 0,
+          "frames": 16,
+          "bytes": 607280,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 9316.425004005432,
+          "drawMs": 755.9500012397766,
+          "encodeMs": 2816.109999895096,
+          "persistMs": 7.1600000858306885,
+          "totalMs": 12925.849999904633
+        },
+        {
+          "offset": 16,
+          "frames": 16,
+          "bytes": 607575,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7823.994995355606,
+          "drawMs": 696.8700008392334,
+          "encodeMs": 2778.180000066757,
+          "persistMs": 4.5249998569488525,
+          "totalMs": 11328.469999790192
+        },
+        {
+          "offset": 32,
+          "frames": 16,
+          "bytes": 613987,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7417.415000677109,
+          "drawMs": 637.8999993801117,
+          "encodeMs": 2762.130000114441,
+          "persistMs": 8.40499997138977,
+          "totalMs": 10849.444999933243
+        },
+        {
+          "offset": 48,
+          "frames": 16,
+          "bytes": 613605,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7831.899991035461,
+          "drawMs": 645.5800013542175,
+          "encodeMs": 2826.225000143051,
+          "persistMs": 3.9700000286102295,
+          "totalMs": 11331.165000200272
+        },
+        {
+          "offset": 64,
+          "frames": 16,
+          "bytes": 608388,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7698.38999247551,
+          "drawMs": 657.6000084877014,
+          "encodeMs": 2806.0250000953674,
+          "persistMs": 9.859999895095825,
+          "totalMs": 11195.850000143051
+        },
+        {
+          "offset": 80,
+          "frames": 16,
+          "bytes": 613600,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7712.6049971580505,
+          "drawMs": 609.5349988937378,
+          "encodeMs": 2749.8450000286102,
+          "persistMs": 9.399999856948853,
+          "totalMs": 11103.925000190735
+        },
+        {
+          "offset": 96,
+          "frames": 16,
+          "bytes": 614268,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 9066.564997196198,
+          "drawMs": 578.0200047492981,
+          "encodeMs": 2775.774999856949,
+          "persistMs": 7.395000219345093,
+          "totalMs": 12448.894999980927
+        },
+        {
+          "offset": 112,
+          "frames": 16,
+          "bytes": 612518,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7758.9150059223175,
+          "drawMs": 599.5199928283691,
+          "encodeMs": 2764.2799999713898,
+          "persistMs": 7.2200000286102295,
+          "totalMs": 11153.810000181198
+        },
+        {
+          "offset": 128,
+          "frames": 16,
+          "bytes": 618310,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 8442.78500008583,
+          "drawMs": 634.1550004482269,
+          "encodeMs": 2767.125,
+          "persistMs": 5.164999961853027,
+          "totalMs": 11871.68499994278
+        },
+        {
+          "offset": 144,
+          "frames": 16,
+          "bytes": 616917,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 9108.640000581741,
+          "drawMs": 602.8450064659119,
+          "encodeMs": 2809.3099999427795,
+          "persistMs": 4.120000123977661,
+          "totalMs": 12547.394999980927
+        },
+        {
+          "offset": 160,
+          "frames": 16,
+          "bytes": 611314,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7280.714998006821,
+          "drawMs": 631.2749972343445,
+          "encodeMs": 2769.7000000476837,
+          "persistMs": 8.285000085830688,
+          "totalMs": 10712.534999847412
+        },
+        {
+          "offset": 176,
+          "frames": 16,
+          "bytes": 616409,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 8417.875001907349,
+          "drawMs": 614.0649974346161,
+          "encodeMs": 2780.109999895096,
+          "persistMs": 9.370000123977661,
+          "totalMs": 11842.710000038147
+        },
+        {
+          "offset": 192,
+          "frames": 16,
+          "bytes": 618674,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 6958.324993848801,
+          "drawMs": 705.8300130367279,
+          "encodeMs": 2810.0250000953674,
+          "persistMs": 5.920000076293945,
+          "totalMs": 10504.980000019073
+        },
+        {
+          "offset": 208,
+          "frames": 16,
+          "bytes": 623312,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 8681.114998579025,
+          "drawMs": 672.6850025653839,
+          "encodeMs": 2837.194999933243,
+          "persistMs": 3.994999885559082,
+          "totalMs": 12219.08999991417
+        },
+        {
+          "offset": 224,
+          "frames": 16,
+          "bytes": 617791,
+          "decodedFrames": 1920,
+          "sampledFrames": 1920,
+          "decodeMs": 7370.394994735718,
+          "drawMs": 641.2150011062622,
+          "encodeMs": 2804.430000066757,
+          "persistMs": 4.114999771118164,
+          "totalMs": 10842.69000005722
+        }
+      ],
+      "observedJsHeapPeakBytes": 72303744,
+      "metadata": {
+        "mimeType": "video/mp4",
+        "formatName": "MP4",
+        "colorSpace": {
+          "primaries": "bt709",
+          "transfer": "bt709",
+          "matrix": "bt709",
+          "fullRange": false
+        },
+        "width": 1920,
+        "height": 1920,
+        "duration": 8,
+        "firstTimestamp": 0,
+        "fps": 30,
+        "codec": "avc1.640032",
+        "rotation": 0,
+        "codedWidth": 1920,
+        "codedHeight": 1920,
+        "decodedFrames": 240
+      },
+      "reassembly": true,
+      "jobId": "a1cb9d9b-e8b6-409d-b757-fd04acf4d258"
+    }
+  ],
+  "caveats": [
+    "Synthetic progressive source; source generation and final decode verification are excluded from generation timing.",
+    "Canvas sampling baseline, FFmpeg WASM/x264 with one encoder worker per phase batch. No claim for other devices or footage.",
+    "JS heap telemetry excludes GPU surfaces, browser decoder allocations and WASM heaps. Phase surface bytes are an allocation estimate, not total peak memory.",
+    "Encoded batches and fragmented MP4 output parts are committed to IndexedDB. Final assembly remuxes packets without decoding or concatenating full byte buffers.",
+    "Final Blob uses stored Blob handles; actual browser residency is implementation-dependent."
+  ],
+  "host": {
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "platform": "win32",
+    "release": "10.0.26300"
+  }
+}

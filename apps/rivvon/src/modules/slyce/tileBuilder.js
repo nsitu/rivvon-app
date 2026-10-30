@@ -30,7 +30,9 @@ export class TileBuilder extends EventEmitter {
         } else {
             this._phaseShifts = new Float64Array(crossSectionCount);
             for (let i = 0; i < crossSectionCount; i++) {
-                this._phaseShifts[i] = (2 * Math.PI * i) / crossSectionCount;
+                // Background video batches retain their position in the full phase cycle.
+                this._phaseShifts[i] = (2 * Math.PI * (i + (settings.phaseOffset ?? 0)))
+                    / (settings.phaseCount ?? crossSectionCount);
             }
             this._waveAmplitude = this._distributionRange / 2;
             this._waveOffset = this._distributionRange / 2;

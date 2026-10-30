@@ -20,6 +20,8 @@
     "test:video-colour": "node scripts/test-video-colour.mjs",
     "test:gpu-yuv": "node scripts/test-gpu-yuv.mjs",
     "benchmark:yuv": "node scripts/benchmark-yuv.mjs",
+    "benchmark:background-loop": "node scripts/benchmark-background-loop.mjs",
+    "test:background-loop-workflow": "node scripts/benchmark-background-loop.mjs --integration",
     "test:video-pool": "node scripts/test-sdr-worker-pool.mjs",
     "lint": "echo 'No linter configured'",
     "generate:sprites": "node scripts/build-emoji-sprites.mjs",

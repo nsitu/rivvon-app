@@ -3,8 +3,8 @@ export const CLIP_UPLOAD_PART_BYTES = 8 * 1024 * 1024;
 export const MAX_CLIP_SINGLE_UPLOAD_BYTES = 64 * 1024 * 1024;
 export const MAX_CLIP_INSPECTION_BYTES = 128 * 1024 * 1024;
 export const MAX_CLIP_DURATION = 60;
-export const MAX_CLIP_SIDE = 1920;
-export const MAX_CLIP_PIXELS = 1920 * 1080;
+export const MAX_CLIP_SIDE = 3840;
+export const MAX_CLIP_PIXELS = 3840 * 3840;
 export const MAX_CLIP_FPS = 60;
 export const CLIP_MIME_TYPE = 'video/mp4';
 
@@ -34,7 +34,7 @@ export async function inspectClipInput(input) {
         || width * height > MAX_CLIP_PIXELS || track.codedWidth * track.codedHeight > MAX_CLIP_PIXELS
         || !Number.isFinite(duration) || duration <= 0 || duration > MAX_CLIP_DURATION + 1e-6
         || !Number.isFinite(start) || !Number.isFinite(fps) || fps <= 0 || fps > MAX_CLIP_FPS + 0.01) {
-        throw new Error('Clips must be at most 60 seconds, 60 fps, and 1920 × 1080 pixels (portrait is supported).');
+        throw new Error('Clips must be at most 60 seconds, 60 fps, and 3840 × 3840 pixels.');
     }
     return { mimeType, formatName: format.name, colorSpace: config.colorSpace || null, width, height, duration, firstTimestamp: start, fps, codec: config.codec, rotation: track.rotation, codedWidth: track.codedWidth, codedHeight: track.codedHeight };
 }

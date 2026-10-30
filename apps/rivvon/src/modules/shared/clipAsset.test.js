@@ -18,9 +18,14 @@ describe('clip media metadata validation', () => {
         await expect(inspectClipInput(input({ codec: null, config: null }))).rejects.toThrow('identify the video codec');
     });
     it('retains dimension, duration and finite-timing budgets', async () => {
-        await expect(inspectClipInput(input({ displayWidth: 4096 }))).rejects.toThrow('1920');
+        await expect(inspectClipInput(input({ displayWidth: 4096 }))).rejects.toThrow('3840');
         await expect(inspectClipInput(input({ computeDuration: async () => 100 }))).rejects.toThrow('60 seconds');
         await expect(inspectClipInput(input({ getFirstTimestamp: async () => NaN }))).rejects.toThrow('60 seconds');
+    });
+    it('accepts 3840-square clips and still checks coded dimensions', async () => {
+        await expect(inspectClipInput(input({ displayWidth: 3840, displayHeight: 3840, codedWidth: 3840, codedHeight: 3840 })))
+            .resolves.toMatchObject({ width: 3840, height: 3840 });
+        await expect(inspectClipInput(input({ codedHeight: 3841 }))).rejects.toThrow('3840');
     });
     it('excludes playlists and audio-only formats from uploaded video containers', () => {
         const formats = [{ mimeType: 'video/webm' }, { mimeType: 'video/MP2T' }, { mimeType: 'audio/wav' }, { mimeType: 'application/vnd.apple.mpegurl' }];

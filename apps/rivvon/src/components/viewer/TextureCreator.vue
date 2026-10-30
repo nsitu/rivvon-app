@@ -1,9 +1,14 @@
 <script setup>
-    import { computed, nextTick, ref, watch, watchEffect } from 'vue';
+    import { computed, nextTick, ref, watch, watchEffect, onBeforeUnmount } from 'vue';
+    import { useRouter } from 'vue-router';
     import { useSlyceStore } from '../../stores/slyceStore';
+    import { useBackgroundLoopStore } from '../../stores/backgroundLoopStore.js';
+    import { useGoogleAuth } from '../../composables/shared/useGoogleAuth.js';
     import { useRealtimeSlyce } from '../../composables/slyce/useRealtimeSlyce.js';
 
     import Button from 'primevue/button';
+    import SelectButton from 'primevue/selectbutton';
+    import BackgroundLoopContent from '../slyce/BackgroundLoopContent.vue';
     import UploadArea from '../slyce/UploadArea.vue';
     import SettingsArea from '../slyce/SettingsArea.vue';
     import ResultsArea from '../slyce/ResultsArea.vue';
@@ -46,12 +51,17 @@
     ]);
 
     const slyce = useSlyceStore();
+    const background = useBackgroundLoopStore();
+    const router = useRouter();
+    const { isAuthenticated, login, user } = useGoogleAuth();
     const realtime = useRealtimeSlyce();
     const { tilePlan } = useTilePlan();
 
     // Check if processing is in progress
-    const isProcessing = computed(() => Object.keys(slyce.status).length > 0);
     const selectedSource = ref(null);
+    const isBackgroundMode = computed(() => selectedSource.value === 'file' && slyce.fileOutput === 'background');
+    const isProcessing = computed(() => isBackgroundMode.value ? background.generating : Object.keys(slyce.status).length > 0);
+    const outputOptions = [{ label: 'Ribbon textures', value: 'texture' }, { label: 'Background video', value: 'background' }];
     const selectingPhotos = ref(false);
     const cameraStep = ref('1');
     const suppressRealtimeAutoStart = ref(false);
@@ -72,7 +82,7 @@
     );
 
     const isFileFinished = computed(() =>
-        slyce.currentStep === '3' && slyce.isComplete
+        slyce.currentStep === '3' && (isBackgroundMode.value ? background.resultReady && !background.generating : slyce.isComplete)
     );
 
     const isCameraFinished = computed(() =>
@@ -122,7 +132,7 @@
     });
     const isSourceNavigationLocked = computed(() => {
         if (selectedSource.value === 'camera') return realtime.isSavingLocally.value;
-        if (selectedSource.value === 'file') return slyce.isSavingLocally;
+        if (selectedSource.value === 'file') return isBackgroundMode.value ? background.saving : slyce.isSavingLocally;
         return false;
     });
     const canGoBack = computed(() => {
@@ -148,10 +158,11 @@
         && !selectingPhotos.value
         && slyce.currentStep === '3'
     ));
-    const showFileCompletedFooter = computed(() => showFileResultsFooter.value && slyce.isComplete);
-    const canProcessVideo = computed(() => (tilePlan.value?.tiles?.length ?? 0) > 0);
-    const isFinalizingOutput = computed(() => slyce.isSavingLocally || slyce.isPublishingToCloud);
+    const showFileCompletedFooter = computed(() => showFileResultsFooter.value && isFileFinished.value);
+    const canProcessVideo = computed(() => isBackgroundMode.value ? Boolean(background.plan) && !background.busy : (tilePlan.value?.tiles?.length ?? 0) > 0);
+    const isFinalizingOutput = computed(() => isBackgroundMode.value ? background.saving : slyce.isSavingLocally || slyce.isPublishingToCloud);
     const processDisabledReason = computed(() => {
+        if (isBackgroundMode.value) return background.busy ? 'Reading video source…' : background.planError;
         if (canProcessVideo.value) {
             return '';
         }
@@ -248,7 +259,7 @@
     }
 
     const navigationBreadcrumbs = computed(() => {
-        const breadcrumbs = ['Create Texture'];
+        const breadcrumbs = [isBackgroundMode.value ? 'Create Background' : 'Create Texture'];
 
         if (selectedSource.value === 'file') {
             breadcrumbs.push(selectingPhotos.value ? 'Google Photos' : 'Video');
@@ -269,7 +280,7 @@
             breadcrumbs: navigationBreadcrumbs.value,
             statusLabel: null,
             canGoBack: canGoBack.value,
-            canExit: true,
+            canExit: !isFinalizingOutput.value,
         };
     });
 
@@ -288,6 +299,12 @@
 
     function handleSettingsFooterProcess() {
         if (!canProcessVideo.value) {
+            return;
+        }
+
+        if (isBackgroundMode.value) {
+            slyce.currentStep = '3';
+            void background.generate();
             return;
         }
 
@@ -313,6 +330,10 @@
     }
 
     function handleAbortProcessing() {
+        if (isBackgroundMode.value) {
+            background.cancel();
+            return;
+        }
         const confirmed = confirm('Abort processing? Any progress will be lost.');
         if (!confirmed) {
             return;
@@ -350,6 +371,13 @@
     }
 
     function stepBackFromFileResults() {
+        if (isBackgroundMode.value) {
+            if (background.saving) return false;
+            if (background.generating && !confirm('Stop generating this background? Completed work will remain on this device.')) return false;
+            background.cancel();
+            slyce.currentStep = '2';
+            return true;
+        }
         if (isProcessing.value) {
             const confirmed = confirm(
                 'Processing is in progress. Going back will abandon the current process and clear any generated results. Continue?'
@@ -386,12 +414,14 @@
      * confirm before navigating away (which cancels the process).
      */
     function handleStepClick(activateCallback, targetStep) {
+        if (isFinalizingOutput.value) return;
         if (selectedSource.value === null && targetStep !== '1') {
             return;
         }
 
         // Only guard when navigating away from step 3 while processing
         if (slyce.currentStep === '3' && targetStep !== '3' && isProcessing.value) {
+            if (isBackgroundMode.value) { stepBackFromFileResults(); return; }
             const confirmed = confirm(
                 'Video processing is in progress. Navigating away will cancel the current process and discard any results. Continue?'
             );
@@ -428,6 +458,13 @@
     }
 
     function handleNavigationExit() {
+        if (isFinalizingOutput.value) return false;
+        if (isBackgroundMode.value && background.generating) {
+            if (!confirm('Stop generating and close? Completed work will remain on this device.')) return false;
+            background.cancel();
+            emit('request-close');
+            return true;
+        }
         if (selectedSource.value === 'file' && isProcessing.value) {
             const confirmed = confirm(
                 'Video processing is in progress. Leaving will cancel the current process and discard any results. Continue?'
@@ -454,6 +491,27 @@
         return true;
     }
 
+    async function saveBackground() {
+        if (!isAuthenticated.value) { await login(); return; }
+        await background.saveToClips(user.value?.id ?? null);
+    }
+    function openClips() { emit('request-close'); router.push({ name: 'clip-library' }); }
+    function showBackgroundResult() { selectedSource.value = 'file'; slyce.currentStep = '3'; }
+    watch(() => [props.active, isBackgroundMode.value, slyce.file], ([active, backgroundMode, file]) => {
+        if (!active) { if (background.busy) background.cancel(); return; }
+        if (backgroundMode) {
+            void background.prepare(file);
+            void background.refreshJobs().catch(error => { background.error = error.message; });
+        }
+    }, { immediate: true });
+    watch(() => user.value?.id, () => { if (background.saving) background.cancel(); });
+    watch(() => [user.value?.id, background.job?.id], ([owner]) => {
+        // Session checks can finish after local recovery; restore the publication
+        // for its owner rather than permanently clearing it while auth is loading.
+        background.savedClip = owner && background.job?.savedClipOwnerId === owner ? background.job.savedClip ?? null : null;
+    });
+    onBeforeUnmount(() => background.cancel());
+
     watchEffect(() => {
         const nextNavigationState = navigationState.value;
 
@@ -479,6 +537,7 @@
     async function handleDrop(e) {
         e.preventDefault();
         e.stopPropagation();
+        if (isFinalizingOutput.value) return;
         const file = e.dataTransfer?.files[0];
         if (isVideoFile(file)) {
             selectedSource.value = 'file';
@@ -552,7 +611,7 @@
                                 <button
                                     class="step-button"
                                     :class="{ active: isStepActive(value) }"
-                                    :disabled="selectedSource === null"
+                                    :disabled="selectedSource === null || isFinalizingOutput"
                                     @click="selectedSource === 'camera' ? handleCameraStepClick('2') : handleStepClick(activateCallback, '2')"
                                     v-bind="a11yAttrs.header"
                                 >
@@ -634,6 +693,11 @@
                                 v-slot="{ activateCallback }"
                                 value="2"
                             >
+                                <div class="file-output-choice">
+                                    <span id="file-output-label">Create from this video</span>
+                                    <SelectButton v-model="slyce.fileOutput" :options="outputOptions" option-label="label" option-value="value"
+                                        :allow-empty="false" :disabled="background.busy || isFinalizingOutput" aria-labelledby="file-output-label" />
+                                </div>
                                 <UploadArea
                                     v-if="selectingPhotos || !slyce.file"
                                     :photos-only="selectingPhotos"
@@ -644,16 +708,19 @@
                                     @request-next="handleFileSelected"
                                 />
                                 <SettingsArea
-                                    v-else
+                                    v-else-if="!isBackgroundMode"
                                     :show-action-buttons="false"
                                     @request-back="handleBackFromSettings(activateCallback)"
                                 />
+                                <BackgroundLoopContent v-if="isBackgroundMode && !selectingPhotos" phase="settings" @show-result="showBackgroundResult" />
                             </StepPanel>
                             <StepPanel value="3">
-                                <ResultsArea />
+                                <BackgroundLoopContent v-if="isBackgroundMode" phase="results" @show-result="showBackgroundResult" />
+                                <ResultsArea v-else />
                             </StepPanel>
                             <StepPanel value="4">
-                                <ResultsArea />
+                                <BackgroundLoopContent v-if="isBackgroundMode" phase="results" @show-result="showBackgroundResult" />
+                                <ResultsArea v-else />
                             </StepPanel>
                         </template>
                     </StepPanels>
@@ -672,7 +739,7 @@
                 </template>
 
                 <template
-                    v-else-if="showFileCompletedFooter"
+                    v-else-if="showFileCompletedFooter && !isBackgroundMode"
                     #leading
                 >
                     <OutputActions
@@ -700,8 +767,21 @@
                         @click="handleSettingsFooterProcess"
                     >
                         <span class="material-symbols-outlined">play_arrow</span>
-                        Process
+                        {{ isBackgroundMode ? 'Generate Background' : 'Process' }}
                     </Button>
+                </template>
+
+                <template v-else-if="isBackgroundMode && showFileResultsFooter">
+                    <Button label="Back" severity="secondary" variant="outlined" :disabled="background.saving" @click="handleResultsFooterBack" />
+                    <Button v-if="background.generating" label="Cancel" severity="danger" variant="outlined" @click="handleAbortProcessing" />
+                    <template v-else>
+                        <Button v-if="background.resultReady" as="a" :href="background.previewUrl" :download="`${background.name || 'background'}.mp4`" label="Download MP4" severity="secondary" variant="outlined" />
+                        <Button v-if="background.resultReady && !background.savedClip" :label="isAuthenticated ? 'Save to Clips' : 'Sign in to save to Clips'"
+                            :loading="background.saving" :disabled="background.busy || !background.name.trim()" @click="saveBackground" />
+                        <Button v-if="background.savedClip" label="Open Clips" severity="secondary" variant="outlined" :disabled="background.busy" @click="openClips" />
+                        <Button v-if="background.canAssemble && !background.resultReady" label="Finish video" :disabled="background.busy" @click="background.reassemble()" />
+                        <Button label="Done" severity="secondary" :disabled="background.busy" @click="handleNavigationExit" />
+                    </template>
                 </template>
 
                 <template v-else-if="showFileResultsFooter && !showFileCompletedFooter">
@@ -835,6 +915,8 @@
         max-width: 920px;
         margin: 0 auto;
     }
+    .file-output-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; max-width: 64rem; margin: 0 auto 1.5rem; }
+    .file-output-choice :deep(.p-selectbutton) { flex-wrap: wrap; }
 
     .texture-creator-footer {
         --panel-action-bar-padding: 0.9rem 1.25rem 1rem;
