@@ -1,7 +1,9 @@
 # Artwork blending
 
 Tools → Scene → **Artwork Blend** offers Normal, Soft Light, Multiply, Screen,
-Overlay, and Difference. The same control appears in Export Video. It is independent of Static Texture's background blend.
+Overlay, Difference, Darken, Lighten, Hard Light, Exclusion, Color Dodge,
+Color Burn, Hue, Saturation, Color, and Luminosity. The same control appears in
+Export Video. Static Texture's independent background blend offers the same modes.
 Normal is the default for existing preferences and presets. The setting is saved
 as `artworkBlendMode` in viewer preferences, Tools snapshots, and the shared
 preset artwork contract. No database migration or new storage is needed; deploy
@@ -17,6 +19,16 @@ existing encoded RGB rendering. Backgrounds retain their existing color-space
 and legacy Soft Light treatment. Mode/strength edits update uniforms without
 allocating a new compositor. Both menus use the shared blend-mode registry,
 which also supplies the API preset allowlist.
+
+The additional modes follow [W3C Compositing Level 1](https://www.w3.org/TR/compositing-1/#blending).
+Hue, Saturation, Color, and Luminosity use its luminosity weights (0.3, 0.59, 0.11),
+channel-range saturation and gamut clipping, rather than an HSL lightness swap.
+Greys have zero channel-range saturation. Color Dodge and Color Burn explicitly
+handle black/white boundaries without dividing by zero. WebGPU artwork preserves
+exact white during sRGB encoding so transfer-function rounding does not change
+those boundary cases. The original mode indices remain stable; additions append
+to the registry. WebGPU uses uniform shader branches to run only the selected
+mode's colour math, and the new modes use the existing render passes and targets.
 
 Normal uses the existing rendering path. Other modes render the completed,
 depth-tested ribbon into an offscreen target and blend that image over a
@@ -56,6 +68,9 @@ Verification:
 - `pnpm --filter rivvon test:artwork-blend` checks real WebGL/WebGPU pixel output
   against known colors, including mixed RGB branches, transparency, filtering,
   depth-tested crossings, actual export targets, strength endpoints/midpoints,
-  and all three background paths (sharp, blurred, gradient).
+  and all three background paths (sharp, blurred, gradient). Native Canvas 2D
+  blending is also used as an independent oracle for black/white boundaries,
+  greys, saturated colours and all channel orderings.
 - `pnpm --filter rivvon test:background-gradient` checks the existing background,
-  scene-filter, and preview/export paths in both renderers.
+  scene-filter, and preview/export paths in both renderers, plus all menu options
+  and keyboard access to Luminosity in both selectors.

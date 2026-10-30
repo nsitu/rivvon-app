@@ -1,3 +1,4 @@
+import { BLEND_MODES } from '../../../../../packages/shared-types/src/blendModes.js';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createArtworkBlendCompositor, ARTWORK_BACKDROP_FLAG } from './artworkBlend.js';
@@ -62,7 +63,7 @@ describe('completed artwork compositing', () => {
         expect(h.renderer.getClearAlpha()).toBe(.4); compositor.dispose();
     });
 
-    it.each(['softLight', 'multiply', 'screen', 'overlay', 'difference'])('uses export target dimensions, restores preview size, and disposes %s targets when Normal is selected', async mode => {
+    it.each(BLEND_MODES.filter(mode => mode !== 'normal'))('uses export target dimensions, restores preview size, and disposes %s targets when Normal is selected', async mode => {
         const h = fixture(), filter = useRenderFilter(h.ctx); await filter.initRenderFilter('webgl');
         h.ctx.app.artworkBlendMode = mode;
         h.artwork.material._hasCapMask = true; h.artwork.material.alphaToCoverage = true;

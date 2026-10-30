@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BLEND_MODE_OPTIONS } from '../../../packages/shared-types/src/blendModes.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { normalizeWebGPUArrayTexture } from '../src/modules/shared/webgpuTextureCompatibility.js';
 import { applyRendererDisplayConfig } from '../src/modules/viewer/rendererConfig.js';
@@ -270,6 +271,19 @@ window.backgroundGradientTest = (async () => {
     host.style.width = '320px'; document.body.append(host);
     const pinia = createPinia();
     const store = useViewerStore(pinia);
+    async function checkBlendMenu(host, idSuffix, setting) {
+        const select = host.querySelector(`[role="combobox"][id$="${idSuffix}"]`);
+        assert(select, `${setting} blend menu is missing`);
+        select.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+        await nextTick();
+        const list = document.getElementById(select.getAttribute('aria-controls'));
+        const labels = [...list.querySelectorAll('[role="option"]')].map(option => option.textContent.trim());
+        assert(JSON.stringify(labels) === JSON.stringify(BLEND_MODE_OPTIONS.map(option => option.label)), `${setting} does not list all 16 blend modes`);
+        select.dispatchEvent(new KeyboardEvent('keydown', { code: 'End', bubbles: true }));
+        select.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+        await nextTick();
+        assert(store[setting] === 'luminosity', `${setting} cannot reach Luminosity using the keyboard`);
+    }
     store.setBackgroundMode('gradient');
     const vue = createApp(Controls).use(pinia).use(PrimeVue, { theme: { preset: Aura } });
     vue.mount(host);
@@ -290,6 +304,7 @@ window.backgroundGradientTest = (async () => {
         store.setBackgroundTextureEnabled(true);
         store.setBackgroundTextureGradientMapEnabled(true);
         await nextTick();
+        await checkBlendMenu(host, 'static-image-blend', 'backgroundTextureBlendMode');
         store.setBackgroundTextureBlendMode('multiply');
         await nextTick();
         const blendStrength = host.querySelector('[role="slider"][aria-label="Background blend strength"]');
@@ -359,6 +374,9 @@ window.backgroundGradientTest = (async () => {
     const sceneVue = createApp(SceneControls, { showDuotoneFilter: true }).use(pinia).use(PrimeVue, { theme: { preset: Aura } });
     sceneVue.mount(sceneHost);
     try {
+        await nextTick();
+        await checkBlendMenu(sceneHost, 'artwork-blend-mode', 'artworkBlendMode');
+        store.setArtworkBlendMode('normal');
         await nextTick();
         assert(!sceneHost.querySelector('[aria-label="Artwork blend strength"]'), 'Normal should hide artwork blend strength');
         store.setArtworkBlendMode('screen');

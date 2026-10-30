@@ -1,3 +1,4 @@
+import { BLEND_MODES } from '../../../../../packages/shared-types/src/blendModes.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useViewerStore } from '../../stores/viewerStore.js';
@@ -32,7 +33,7 @@ describe('elliptical tilt presets', () => {
 });
 
 describe('scene preset contract', () => {
-    it.each(['softLight', 'multiply', 'screen', 'overlay', 'difference'])('round trips %s artwork blend independently from background blending and defaults legacy presets to Normal', mode => {
+    it.each(BLEND_MODES.filter(mode => mode !== 'normal'))('round trips %s artwork blend independently from background blending and defaults legacy presets to Normal', mode => {
         const input = sampleScene(); input.artwork.artworkBlendMode = mode; input.artwork.backgroundTextureBlendMode = mode;
         input.artwork.artworkBlendStrength = 0.25; input.artwork.backgroundTextureBlendStrength = 0.75;
         expect(normalizeScenePreset(normalizeScenePreset(input)).artwork).toMatchObject({ artworkBlendMode: mode, backgroundTextureBlendMode: mode, artworkBlendStrength: 0.25, backgroundTextureBlendStrength: 0.75 });

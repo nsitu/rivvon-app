@@ -6,6 +6,16 @@ export const BLEND_MODE_OPTIONS = Object.freeze([
     { label: 'Screen', value: 'screen' },
     { label: 'Overlay', value: 'overlay' },
     { label: 'Difference', value: 'difference' },
+    { label: 'Darken', value: 'darken' },
+    { label: 'Lighten', value: 'lighten' },
+    { label: 'Hard Light', value: 'hardLight' },
+    { label: 'Exclusion', value: 'exclusion' },
+    { label: 'Color Dodge', value: 'colorDodge' },
+    { label: 'Color Burn', value: 'colorBurn' },
+    { label: 'Hue', value: 'hue' },
+    { label: 'Saturation', value: 'saturation' },
+    { label: 'Color', value: 'color' },
+    { label: 'Luminosity', value: 'luminosity' },
 ].map(Object.freeze));
 export const BLEND_MODES = Object.freeze(BLEND_MODE_OPTIONS.map(option => option.value));
 export const normalizeBlendMode = (value, fallback = 'normal') => BLEND_MODES.includes(value) ? value : fallback;

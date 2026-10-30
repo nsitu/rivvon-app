@@ -1,3 +1,4 @@
+import { BLEND_MODES } from '../../../../packages/shared-types/src/blendModes.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { useViewerStore } from './viewerStore.js';
@@ -68,7 +69,7 @@ describe('viewer preferences', () => {
         restored.applyArtworkSettingsSnapshot({}); expect(restored.artworkBlendMode).toBe('normal');
     });
 
-    it.each(['softLight', 'multiply', 'screen', 'overlay', 'difference'])('persists independent %s modes across reloads and presets', mode => {
+    it.each(BLEND_MODES.filter(mode => mode !== 'normal'))('persists independent %s modes across reloads and presets', mode => {
         const app = useViewerStore();
         app.setArtworkBlendMode(mode); app.setBackgroundTextureBlendMode(mode);
         const saved = app.getArtworkSettingsSnapshot();

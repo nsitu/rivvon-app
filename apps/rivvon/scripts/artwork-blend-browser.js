@@ -9,7 +9,51 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const blendReferences = {
     multiply: [.1875, .125, .375], screen: [.8125, .625, .875],
     overlay: [.375, .25, .75], difference: [.5, .25, .25],
+    darken: [.25, .25, .5], lighten: [.75, .5, .75], hardLight: [.625, .25, .75],
+    exclusion: [.625, .5, .5], colorDodge: [1, 2 / 3, 1], colorBurn: [0, 0, .5],
+    hue: [.775, .275, .525], saturation: [.25, .5, .75],
+    color: [.775, .275, .525], luminosity: [.225, .475, .725],
 };
+const referenceLum = c => .3 * c[0] + .59 * c[1] + .11 * c[2];
+const referenceSat = c => Math.max(...c) - Math.min(...c);
+function referenceSetLum(c, l) {
+    let result = c.map(v => v + l - referenceLum(c));
+    const luminosity = referenceLum(result), n = Math.min(...result), x = Math.max(...result);
+    if (n < 0) result = result.map(v => luminosity + (v - luminosity) * luminosity / (luminosity - n));
+    if (x > 1) result = result.map(v => luminosity + (v - luminosity) * (1 - luminosity) / (x - luminosity));
+    return result;
+}
+function referenceSetSat(c, s) {
+    const order = [0, 1, 2].sort((a, b) => c[a] - c[b]), [low, mid, high] = order;
+    const result = [0, 0, 0];
+    if (c[high] > c[low]) { result[mid] = (c[mid] - c[low]) * s / (c[high] - c[low]); result[high] = s; }
+    return result;
+}
+function referenceBlend(mode, b, s) {
+    if (mode === 'hue') return referenceSetLum(referenceSetSat(s, referenceSat(b)), referenceLum(b));
+    if (mode === 'saturation') return referenceSetLum(referenceSetSat(b, referenceSat(s)), referenceLum(b));
+    if (mode === 'color') return referenceSetLum(s, referenceLum(b));
+    if (mode === 'luminosity') return referenceSetLum(b, referenceLum(s));
+    const functions = {
+        multiply: (b, s) => b * s, screen: (b, s) => b + s - b * s,
+        overlay: (b, s) => b <= .5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s), difference: (b, s) => Math.abs(b - s),
+        darken: Math.min, lighten: Math.max,
+        hardLight: (b, s) => s <= .5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s),
+        exclusion: (b, s) => b + s - 2 * b * s,
+        colorDodge: (b, s) => b === 0 ? 0 : s === 1 ? 1 : Math.min(1, b / (1 - s)),
+        colorBurn: (b, s) => b === 1 ? 1 : s === 0 ? 0 : 1 - Math.min(1, (1 - b) / s),
+    };
+    return b.map((v, i) => functions[mode](v, s[i]));
+}
+const canvasMode = mode => mode.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+function canvasReference(mode, b, s) {
+    const context = new OffscreenCanvas(1, 1).getContext('2d');
+    context.fillStyle = `rgb(${b.join(',')})`; context.fillRect(0, 0, 1, 1);
+    context.globalCompositeOperation = canvasMode(mode);
+    assert(context.globalCompositeOperation === canvasMode(mode), `Missing Canvas reference mode ${mode}`);
+    context.fillStyle = `rgb(${s.join(',')})`; context.fillRect(0, 0, 1, 1);
+    return [...context.getImageData(0, 0, 1, 1).data];
+}
 const sourceRGB = [.75, .25, .5], baseRGB = [.25, .5, .75];
 const expectedPixel = (blend, strength, sourceAlpha = .5, baseAlpha = 1, gpu = false) => {
     const alpha = sourceAlpha + baseAlpha * (1 - sourceAlpha);
@@ -104,6 +148,26 @@ window.artworkBlendTest = (async () => {
                 }
                 modeResults.push(mode);
             }
+            const originalArtwork = artwork.material, originalBackdrop = backdrop.material;
+            const edgeColors = [
+                [[0, 0, 0], [255, 255, 255]], [[255, 255, 255], [0, 0, 0]],
+                [[0, 255, 128], [255, 0, 128]], [[128, 128, 128], [255, 32, 224]],
+                [[32, 224, 128], [128, 128, 128]], [[0, 255, 0], [255, 0, 255]],
+                [[0, 0, 255], [255, 0, 0]], [[255, 0, 0], [0, 255, 255]],
+                [[0, 0, 0], [0, 0, 0]], [[255, 255, 255], [255, 255, 255]],
+                ...[[32, 128, 224], [32, 224, 128], [128, 32, 224], [128, 224, 32], [224, 32, 128], [224, 128, 32]]
+                    .map(b => [b, [b[2], b[0], b[1]]]),
+            ];
+            for (const [base, source] of edgeColors) {
+                backdrop.material = material(base.map(v => v / 255));
+                artwork.material = material(source.map(v => v / 255));
+                for (const mode of Object.keys(blendReferences)) {
+                    app.artworkBlendMode = mode; app.artworkBlendStrength = 1;
+                    close(await pixel(48, 19), canvasReference(mode, base, source), `${mode} Canvas reference ${base}/${source}`);
+                }
+                backdrop.material.dispose(); artwork.material.dispose();
+            }
+            artwork.material = originalArtwork; backdrop.material = originalBackdrop;
             app.artworkBlendMode = 'softLight'; app.artworkBlendStrength = 1;
             const blended = await pixel(48, 19), background = await pixel(48, 48);
             close(blended, [80, 112, 191, 255], 'soft-light source-over');
@@ -173,9 +237,8 @@ window.artworkBlendTest = (async () => {
                             const copy = new OffscreenCanvas(96, 64), context = copy.getContext('2d'); context.drawImage(renderer.domElement, 0, 0);
                             // Backgrounds retain their existing linear texture/tint treatment.
                             const base = new THREE.Color('#4080bf').toArray(), source = new THREE.Color('#bf4080').toArray();
-                            const functions = { multiply: (b, s) => b * s, screen: (b, s) => b + s - b * s,
-                                overlay: (b, s) => b < .5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s), difference: (b, s) => Math.abs(b - s) };
-                            const result = base.map((b, i) => b * .5 + .5 * (source[i] * (1 - strength) + functions[mode](b, source[i]) * strength));
+                            const blended = referenceBlend(mode, base, source);
+                            const result = base.map((b, i) => b * .5 + .5 * (source[i] * (1 - strength) + blended[i] * strength));
                             const displayed = new THREE.Color().setRGB(...result);
                             if (gpu) displayed.convertLinearToSRGB();
                             close([...context.getImageData(48, 32, 1, 1).data], [...displayed.toArray().map(v => Math.round(v * 255)), 255], `${path} background ${mode} ${strength}`);

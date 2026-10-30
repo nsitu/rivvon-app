@@ -48,7 +48,7 @@ export function createArtworkBlendCompositor(ctx) {
     function createMaterial() {
         if (rendererType === 'webgpu') {
             const { MeshBasicNodeMaterial } = webGPUDeps.threeWebGPU;
-            const { uv, texture, vec2, vec4, float, uniform, mix, max, sRGBTransferOETF, sRGBTransferEOTF } = webGPUDeps.threeTSL;
+            const { uv, texture, vec2, vec3, vec4, float, uniform, mix, max, sRGBTransferOETF, sRGBTransferEOTF } = webGPUDeps.threeTSL;
             const mat = new MeshBasicNodeMaterial();
             const coordinates = uv();
             // Match the existing WebGPU filter's render-target orientation.
@@ -57,7 +57,10 @@ export function createArtworkBlendCompositor(ctx) {
             const sourceAlpha = source.a.clamp(0, 1), backdropAlpha = backdrop.a.clamp(0, 1);
             const sourceLinear = source.rgb.div(max(sourceAlpha, float(0.00001))).clamp(0, 1);
             const backdropLinear = backdrop.rgb.div(max(backdropAlpha, float(0.00001))).clamp(0, 1);
-            const sourceColor = sRGBTransferOETF(sourceLinear), base = sRGBTransferOETF(backdropLinear);
+            // Preserve exact white through the transfer function's floating-point
+            // rounding: Dodge/Burn have explicit boundary cases at 1.
+            const encode = color => mix(sRGBTransferOETF(color), vec3(1), color.greaterThanEqual(vec3(1)));
+            const sourceColor = encode(sourceLinear), base = encode(backdropLinear);
             blendMode = uniform(getBlendModeIndex(ctx.app.artworkBlendMode));
             blendStrength = uniform(normalizeBlendStrength(ctx.app.artworkBlendStrength));
             const blended = createBlendNode(webGPUDeps.threeTSL, base, sourceColor, blendMode, float(1));
