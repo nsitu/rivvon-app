@@ -6,6 +6,7 @@ import { jsonResponse, notFoundResponse } from '../utils/response';
 
 const VIDEO_COLUMNS = `
         v.id, v.owner_id, v.name, v.description, v.thumbnail_url,
+        v.video_thumbnail_url, v.video_thumbnail_width, v.video_thumbnail_height, v.video_thumbnail_file_size,
         v.format, v.mime_type, v.width, v.height, v.duration, v.fps,
         v.file_size, v.storage_provider, v.playback_url,
         v.drive_file_id, v.status, v.is_public, v.export_settings_json,
@@ -100,9 +101,25 @@ videoRoutes.get('/', async (c) => {
     ]);
 
     return jsonResponse({
-        videos: (rows.results as Record<string, any>[]).map(serializeVideo),
+        videos: (rows.results as Record<string, any>[]).map(row => serializeVideo(row)),
         pagination: { limit, offset, total: Number(count?.total || 0) },
     });
+});
+
+// Public embeds keep the same URL across regeneration. The media itself stays
+// immutable at the CDN; never cache this redirect to a superseded object.
+videoRoutes.on(['GET', 'HEAD'], '/:id/video-thumbnail', async (c) => {
+    const video = await c.env.DB.prepare(`
+        SELECT video_thumbnail_url FROM video_exports
+        WHERE id = ? AND status = 'complete' AND is_public = 1
+    `).bind(c.req.param('id')).first<{ video_thumbnail_url: string | null }>();
+    if (!video?.video_thumbnail_url) return notFoundResponse('Video thumbnail not found');
+    return new Response(null, { status: 302, headers: {
+        Location: video.video_thumbnail_url,
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+    } });
 });
 
 videoRoutes.get('/:id', optionalSession, async (c) => {
@@ -149,7 +166,7 @@ myVideoRoutes.get('/', async (c) => {
     ]);
 
     return jsonResponse({
-        videos: (rows.results as Record<string, any>[]).map(serializeVideo),
+        videos: (rows.results as Record<string, any>[]).map(row => serializeVideo(row)),
         pagination: { limit, offset, total: Number(count?.total || 0) },
     });
 });

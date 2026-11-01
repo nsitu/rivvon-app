@@ -6,6 +6,7 @@
     import ScrollPanel from 'primevue/scrollpanel';
     import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import ChromeButton from '../components/shared/ChromeButton.vue';
+    import VideoGalleryPoster from '../components/shared/VideoGalleryPoster.vue';
     import InputText from 'primevue/inputtext';
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
@@ -546,12 +547,9 @@
                 </section>
                 <section v-else class="video-card-grid" aria-live="polite">
                     <article v-for="video in videos" :key="video.id" class="video-card">
-                        <RouterLink :to="{ name: 'video-player', params: { videoId: video.id } }" class="video-card-poster">
-                            <img v-if="video.thumbnail_url" :src="video.thumbnail_url" :alt="`Poster for ${video.name}`">
-                            <span v-else class="video-card-placeholder material-symbols-outlined">movie</span>
-                            <span class="video-card-play material-symbols-outlined">play_circle</span>
-                            <span class="video-card-duration">{{ formatDuration(video.duration) }}</span>
-                        </RouterLink>
+                        <VideoGalleryPoster :to="{ name: 'video-player', params: { videoId: video.id } }"
+                            :name="video.name" :poster="video.thumbnail_url || ''" :src="video.video_thumbnail_url || ''"
+                            :duration="formatDuration(video.duration)" />
                         <div class="video-card-content">
                             <div class="video-card-title-row">
                                 <div>

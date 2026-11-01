@@ -1,5 +1,9 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.rivvon.ca';
 
+export function videoThumbnailEmbedUrl(videoId) {
+    return `${API_BASE_URL}/videos/${encodeURIComponent(videoId)}/video-thumbnail`;
+}
+
 async function parseResponse(response, fallbackMessage) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -86,14 +90,23 @@ export function uploadVideoBlob({ uploadUrl, uploadHeaders = {}, blob, signal, o
     });
 }
 
-export async function uploadVideoThumbnail(videoId, thumbnailBlob) {
+export async function uploadVideoThumbnail(videoId, thumbnailBlob, { signal } = {}) {
     const response = await fetch(`${API_BASE_URL}/video/${encodeURIComponent(videoId)}/thumbnail`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': thumbnailBlob.type || 'image/webp' },
         body: thumbnailBlob,
+        signal,
     });
     return parseResponse(response, 'Failed to upload video thumbnail');
+}
+
+export async function uploadVideoPreviewThumbnail(videoId, blob, { signal } = {}) {
+    const response = await fetch(`${API_BASE_URL}/video/${encodeURIComponent(videoId)}/video-thumbnail`, {
+        method: 'PUT', credentials: 'include', signal,
+        headers: { 'Content-Type': blob.type || 'video/mp4' }, body: blob,
+    });
+    return parseResponse(response, 'Failed to upload video preview thumbnail');
 }
 
 export async function completeVideoPublication(videoId) {
@@ -120,6 +133,14 @@ export async function publishVideoBlob({
         throw new Error('A video file is required');
     }
 
+    signal?.throwIfAborted();
+    onStatus?.('Generating video thumbnail…');
+    const { createVideoPreviewThumbnail } = await import('../modules/viewer/videoPreviewThumbnail.js');
+    const videoThumbnailBlob = await createVideoPreviewThumbnail(blob, {
+        signal, onProgress: progress => onStatus?.(`Generating video thumbnail… ${Math.round(progress * 100)}%`),
+    });
+    signal?.throwIfAborted();
+
     const publication = await createVideoPublication({
         ...metadata,
         mimeType: metadata.mimeType || blob.type,
@@ -138,8 +159,12 @@ export async function publishVideoBlob({
 
         if (thumbnailBlob) {
             onStatus?.('Uploading thumbnail…');
-            await uploadVideoThumbnail(publication.videoId, thumbnailBlob);
+            await uploadVideoThumbnail(publication.videoId, thumbnailBlob, { signal });
         }
+
+        onStatus?.('Uploading video thumbnail…');
+        await uploadVideoPreviewThumbnail(publication.videoId, videoThumbnailBlob, { signal });
+        signal?.throwIfAborted();
 
         onStatus?.('Finalizing gallery entry…');
         await completeVideoPublication(publication.videoId);

@@ -106,6 +106,22 @@ npx wrangler r2 bucket cors set rivvon-textures --file=./r2-cors.json
 
 R2 CORS configuration is managed separately with Wrangler when it changes. D1 migrations are applied automatically by the GitHub Actions API deployment before the Worker is released. The API verifies the finished R2 object and its byte size before a video becomes visible in the gallery.
 
+### Video thumbnails
+
+Apply migration `016_video_thumbnails.sql` before deploying this version. Still posters continue to use `thumbnail_url`. List, detail, and My Videos responses additionally expose nullable `video_thumbnail_url`, `video_thumbnail_width`, `video_thumbnail_height`, and `video_thumbnail_file_size` fields. Existing videos keep null values until an administrator uses **Regenerate thumbnails** in the video player.
+
+The browser generates a full-length, silent AVC MP4 with WebCodecs through Mediabunny: at most 360 pixels on either side, 15 fps, and a target bitrate of 200 kbps (lower for long videos). The picture retains its proportions using contain fitting; dimensions round to even pixels for AVC. New publications generate this variant before uploading. An unavailable encoder or decoder produces a visible error and can be retried in a compatible browser.
+
+`PUT /video/:id/video-thumbnail` accepts `video/mp4` from the owner or an administrator, up to 32 MiB. The API checks the actual MP4 codec, dimensions, and absence of audio, stores it in R2, and returns `{ videoId, videoThumbnailUrl, width, height, size }`. Replacement creates a new immutable URL and removes the previous object. Deleting a video removes its preview as well.
+
+For public videos, the player's **Copy video thumbnail URL** action copies a stable URL (`GET` or `HEAD /videos/:id/video-thumbnail`) that redirects to the current MP4 with `Cache-Control: no-store` and cross-origin access. The URL keeps working after regeneration. Private entries copy their direct CDN URL instead; the public redirect returns 404 for private, incomplete, or missing previews. Clients can use `video_thumbnail_url` directly or the stable endpoint for public embeds. For a looping embed on a blog such as nsitu.ca, substitute that copied URL below:
+
+```html
+<video src="COPIED_VIDEO_THUMBNAIL_URL" autoplay muted loop playsinline preload="metadata"></video>
+```
+
+Public embed URLs require no API session. As with existing video and poster CDN URLs, possession of a direct CDN URL permits playback, including for entries hidden from the public gallery. Direct URLs change on regeneration; use the stable endpoint for public blog embeds. The checked-in bucket CORS policy allows GET and HEAD from all origins, including nsitu.ca.
+
 Audio previews and viewer playback must both request media with anonymous CORS. A prior preview fetched without an `Origin` header can leave an immutable browser-cache entry without CORS headers, which later blocks Web Audio playback even when the bucket policy is correct. The frontend's shared `audioPlayback.js` helper versions public CDN audio URLs with `rivvon_audio_cors=1` to avoid those legacy entries while retaining stable caching. If the bucket policy changes, also purge the custom-domain CDN cache so existing cached objects pick up the new headers. See [Cloudflare's CORS caching guidance](https://developers.cloudflare.com/r2/buckets/cors/#use-cors-with-a-custom-domain).
 
 ## Configuration

@@ -18,6 +18,7 @@
     "test:background-gradient": "node scripts/test-background-gradient.mjs",
     "test:artwork-blend": "node scripts/test-artwork-blend.mjs",
     "test:video-colour": "node scripts/test-video-colour.mjs",
+    "test:video-thumbnails": "node scripts/test-video-thumbnails.mjs",
     "test:gpu-yuv": "node scripts/test-gpu-yuv.mjs",
     "benchmark:yuv": "node scripts/benchmark-yuv.mjs",
     "benchmark:background-loop": "node scripts/benchmark-background-loop.mjs",

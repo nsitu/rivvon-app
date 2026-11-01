@@ -1,6 +1,7 @@
 import { AwsClient } from 'aws4fetch';
 import { Hono, type Context } from 'hono';
 import { nanoid } from 'nanoid';
+import { BufferSource, Input, MP4 } from 'mediabunny';
 import { verifySession } from '../middleware/session';
 import type { AppEnv, SessionAuthContext } from '../types/hono';
 import { isAdminUser, syncUserIfProvided } from '../utils/user';
@@ -8,6 +9,7 @@ import {
     buildCdnUrl,
     buildVideoR2Key,
     buildVideoThumbnailR2Key,
+    buildVideoPreviewR2Key,
 } from '../utils/storagePaths';
 import {
     badRequestResponse,
@@ -19,6 +21,7 @@ import {
 
 const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_THUMBNAIL_BYTES = 32 * 1024 * 1024;
 const MAX_SOURCE_DRAWING_PAYLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_RENDER_SNAPSHOT_BYTES = 512 * 1024;
 const UPLOAD_URL_TTL_SECONDS = 60 * 60;
@@ -41,6 +44,7 @@ type VideoRecord = {
     expected_file_size: number;
     r2_key: string | null;
     thumbnail_r2_key: string | null;
+    video_thumbnail_r2_key: string | null;
 };
 
 function normalizePositiveNumber(value: unknown, { integer = false, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -99,7 +103,7 @@ async function getManageableVideo(
     const auth = c.get('auth') as SessionAuthContext;
     const video = await c.env.DB.prepare(`
         SELECT id, owner_id, name, status, mime_type, expected_file_size,
-               r2_key, thumbnail_r2_key
+               r2_key, thumbnail_r2_key, video_thumbnail_r2_key
         FROM video_exports
         WHERE id = ?
     `).bind(videoId).first<VideoRecord>();
@@ -304,6 +308,82 @@ videoUploadRoutes.put('/:id/thumbnail', async (c) => {
     return successResponse({ videoId, thumbnailUrl, size: body.byteLength });
 });
 
+videoUploadRoutes.put('/:id/video-thumbnail', async (c) => {
+    const videoId = c.req.param('id');
+    const access = await getManageableVideo(c, videoId);
+    if (access.error || !access.video) return access.error;
+    if ((c.req.header('Content-Type') || '').toLowerCase() !== 'video/mp4') {
+        return badRequestResponse('Video thumbnail must be an AVC MP4');
+    }
+    if (Number(c.req.header('Content-Length') || 0) > MAX_VIDEO_THUMBNAIL_BYTES) {
+        return badRequestResponse('Video thumbnail exceeds the 32 MB limit');
+    }
+
+    // Bound the body even when Content-Length is absent or incorrect.
+    const reader = c.req.raw.body?.getReader();
+    if (!reader) return badRequestResponse('Video thumbnail is empty');
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            length += value.byteLength;
+            if (length > MAX_VIDEO_THUMBNAIL_BYTES) {
+                await reader.cancel();
+                return badRequestResponse('Video thumbnail exceeds the 32 MB limit');
+            }
+            chunks.push(value);
+        }
+    } finally { reader.releaseLock(); }
+    if (!length) return badRequestResponse('Video thumbnail is empty');
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    chunks.length = 0;
+
+    const input = new Input({ formats: [MP4], source: new BufferSource(bytes) });
+    let width: number, height: number;
+    try {
+        const tracks = await input.getVideoTracks();
+        const audio = await input.getAudioTracks();
+        if (tracks.length !== 1 || audio.length || await tracks[0].getCodec() !== 'avc') {
+            return badRequestResponse('Video thumbnail must contain one AVC video track and no audio');
+        }
+        [width, height] = await Promise.all([tracks[0].getDisplayWidth(), tracks[0].getDisplayHeight()]);
+        const [codedWidth, codedHeight] = await Promise.all([tracks[0].getCodedWidth(), tracks[0].getCodedHeight()]);
+        if (![width, height, codedWidth, codedHeight].every(side => Number.isFinite(side) && side > 0 && side <= 360)) {
+            return badRequestResponse('Video thumbnail dimensions must be at most 360×360');
+        }
+        const duration = await tracks[0].computeDuration();
+        if (!Number.isFinite(duration) || duration <= 0) return badRequestResponse('Video thumbnail has no video frames');
+    } catch {
+        return badRequestResponse('Unable to read the video thumbnail MP4');
+    } finally { input.dispose(); }
+
+    // Each replacement has its own URL so immutable CDN caches stay correct.
+    const key = buildVideoPreviewR2Key(videoId, nanoid());
+    const videoThumbnailUrl = buildCdnUrl(key);
+    await c.env.BUCKET.put(key, bytes, {
+        httpMetadata: { contentType: 'video/mp4', cacheControl: 'public, max-age=31536000, immutable' },
+    });
+    try {
+        await c.env.DB.prepare(`
+            UPDATE video_exports
+            SET video_thumbnail_url = ?, video_thumbnail_r2_key = ?, video_thumbnail_width = ?,
+                video_thumbnail_height = ?, video_thumbnail_file_size = ?, updated_at = unixepoch()
+            WHERE id = ?
+        `).bind(videoThumbnailUrl, key, width, height, length, videoId).run();
+    } catch (error) {
+        await c.env.BUCKET.delete(key);
+        throw error;
+    }
+    if (access.video.video_thumbnail_r2_key) {
+        await c.env.BUCKET.delete(access.video.video_thumbnail_r2_key).catch(error => console.warn('Unable to delete old video thumbnail', error));
+    }
+    return successResponse({ videoId, videoThumbnailUrl, width, height, size: length });
+});
+
 videoUploadRoutes.patch('/:id', async (c) => {
     const videoId = c.req.param('id');
     const access = await getManageableVideo(c, videoId);
@@ -342,7 +422,7 @@ videoUploadRoutes.delete('/:id', async (c) => {
     const access = await getManageableVideo(c, videoId);
     if (access.error || !access.video) return access.error;
 
-    const keys = [access.video.r2_key, access.video.thumbnail_r2_key].filter(Boolean) as string[];
+    const keys = [access.video.r2_key, access.video.thumbnail_r2_key, access.video.video_thumbnail_r2_key].filter(Boolean) as string[];
     if (keys.length) {
         await c.env.BUCKET.delete(keys);
     }

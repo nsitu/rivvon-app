@@ -5,8 +5,9 @@ import Button from 'primevue/button';
 import ScrollPanel from 'primevue/scrollpanel';
 import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
-    import { fetchVideo, uploadVideoThumbnail } from '../services/videoService.js';
+    import { fetchVideo, uploadVideoThumbnail, uploadVideoPreviewThumbnail, videoThumbnailEmbedUrl } from '../services/videoService.js';
     import { createVideoThumbnailFromUrl } from '../modules/viewer/videoThumbnail.js';
+    import { createVideoPreviewThumbnail } from '../modules/viewer/videoPreviewThumbnail.js';
 
     const emit = defineEmits(['video-title-change']);
 
@@ -20,6 +21,8 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
     const videoElement = ref(null);
     const isFullscreen = ref(false);
     const copied = ref(false);
+    const copiedThumbnail = ref(false);
+    let thumbnailAbortController = null;
     const isRegeneratingThumbnail = ref(false);
     const thumbnailStatus = ref('');
     const thumbnailError = ref('');
@@ -43,6 +46,9 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
     }
 
     async function loadVideo() {
+        thumbnailAbortController?.abort();
+        isRegeneratingThumbnail.value = false;
+        copiedThumbnail.value = false;
         isLoading.value = true;
         error.value = '';
         thumbnailStatus.value = '';
@@ -89,24 +95,53 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
         if (!canRegenerateThumbnail.value || !video.value || isRegeneratingThumbnail.value) return;
 
         isRegeneratingThumbnail.value = true;
-        thumbnailStatus.value = 'Generating thumbnail…';
+        thumbnailStatus.value = 'Generating thumbnails…';
         thumbnailError.value = '';
+        const currentVideo = video.value;
+        const controller = new AbortController();
+        thumbnailAbortController = controller;
         try {
             const thumbnailBlob = await createVideoThumbnailFromUrl(playbackUrl.value);
-            const result = await uploadVideoThumbnail(video.value.id, thumbnailBlob);
-            video.value = { ...video.value, thumbnail_url: result.thumbnailUrl };
-            thumbnailStatus.value = 'Thumbnail regenerated.';
+            controller.signal.throwIfAborted();
+            const previewBlob = await createVideoPreviewThumbnail(playbackUrl.value, {
+                signal: controller.signal,
+                onProgress: progress => { thumbnailStatus.value = `Generating video thumbnail… ${Math.round(progress * 100)}%`; },
+            });
+            thumbnailStatus.value = 'Uploading thumbnails…';
+            const result = await uploadVideoThumbnail(currentVideo.id, thumbnailBlob, { signal: controller.signal });
+            if (video.value?.id === currentVideo.id) video.value = { ...video.value, thumbnail_url: result.thumbnailUrl };
+            const preview = await uploadVideoPreviewThumbnail(currentVideo.id, previewBlob, { signal: controller.signal });
+            controller.signal.throwIfAborted();
+            video.value = { ...video.value, video_thumbnail_url: preview.videoThumbnailUrl };
+            thumbnailStatus.value = 'Thumbnails regenerated.';
         } catch (thumbnailFailure) {
+            if (controller.signal.aborted) return;
             thumbnailStatus.value = '';
-            thumbnailError.value = thumbnailFailure?.message || 'Unable to regenerate the thumbnail.';
+            thumbnailError.value = thumbnailFailure?.message || 'Unable to regenerate the thumbnails.';
         } finally {
-            isRegeneratingThumbnail.value = false;
+            if (thumbnailAbortController === controller) {
+                isRegeneratingThumbnail.value = false;
+                thumbnailAbortController = null;
+            }
+        }
+    }
+
+    async function copyThumbnailLink() {
+        try {
+            await navigator.clipboard.writeText(video.value.is_public
+                ? videoThumbnailEmbedUrl(video.value.id)
+                : video.value.video_thumbnail_url);
+            copiedThumbnail.value = true;
+            window.setTimeout(() => { copiedThumbnail.value = false; }, 1800);
+        } catch {
+            thumbnailError.value = 'Unable to copy the video thumbnail URL.';
         }
     }
 
     watch(() => route.params.videoId, loadVideo);
     onMounted(() => document.addEventListener('fullscreenchange', handleFullscreenChange));
     onBeforeUnmount(() => {
+        thumbnailAbortController?.abort();
         emit('video-title-change', '');
         document.removeEventListener('fullscreenchange', handleFullscreenChange);
     });
@@ -130,6 +165,10 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
                         <span class="material-symbols-outlined">link</span>
                         {{ copied ? 'Copied' : 'Copy Link' }}
                     </Button>
+                    <Button v-if="video.video_thumbnail_url" type="button" @click="copyThumbnailLink">
+                        <span class="material-symbols-outlined" aria-hidden="true">link</span>
+                        {{ copiedThumbnail ? 'Copied' : 'Copy video thumbnail URL' }}
+                    </Button>
                     <a
                         class="video-player-download"
                         :href="video.playback_url"
@@ -145,7 +184,7 @@ import PanelActionBar from '../components/shared/PanelActionBar.vue';
                         @click="regenerateThumbnail"
                     >
                         <span class="material-symbols-outlined">{{ isRegeneratingThumbnail ? 'progress_activity' : 'refresh' }}</span>
-                        {{ isRegeneratingThumbnail ? 'Regenerating…' : 'Regenerate Thumbnail' }}
+                        {{ isRegeneratingThumbnail ? 'Regenerating…' : 'Regenerate thumbnails' }}
                     </Button>
                 </template>
             </PanelActionBar>

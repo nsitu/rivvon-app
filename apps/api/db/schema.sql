@@ -122,6 +122,11 @@ CREATE TABLE IF NOT EXISTS video_exports (
     description TEXT,
     thumbnail_url TEXT,
     thumbnail_r2_key TEXT,
+    video_thumbnail_url TEXT,
+    video_thumbnail_r2_key TEXT,
+    video_thumbnail_width INTEGER,
+    video_thumbnail_height INTEGER,
+    video_thumbnail_file_size INTEGER,
 
     -- Encoded media metadata
     format TEXT NOT NULL,
