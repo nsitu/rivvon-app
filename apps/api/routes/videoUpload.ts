@@ -352,8 +352,8 @@ videoUploadRoutes.put('/:id/video-thumbnail', async (c) => {
         }
         [width, height] = await Promise.all([tracks[0].getDisplayWidth(), tracks[0].getDisplayHeight()]);
         const [codedWidth, codedHeight] = await Promise.all([tracks[0].getCodedWidth(), tracks[0].getCodedHeight()]);
-        if (![width, height, codedWidth, codedHeight].every(side => Number.isFinite(side) && side > 0 && side <= 360)) {
-            return badRequestResponse('Video thumbnail dimensions must be at most 360×360');
+        if (![width, height, codedWidth, codedHeight].every(side => Number.isFinite(side) && side > 0 && side <= 640)) {
+            return badRequestResponse('Video thumbnail dimensions must be at most 640×640');
         }
         const duration = await tracks[0].computeDuration();
         if (!Number.isFinite(duration) || duration <= 0) return badRequestResponse('Video thumbnail has no video frames');

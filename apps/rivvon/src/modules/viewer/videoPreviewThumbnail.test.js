@@ -29,8 +29,8 @@ beforeEach(() => {
 });
 describe('video preview thumbnails', () => {
     it.each([
-        [1920, 1080, 360, 202], [1080, 1920, 202, 360], [1080, 1080, 360, 360],
-        [32, 24, 32, 24], [361, 360, 360, 360], [720, 3600, 72, 360],
+        [1920, 1080, 640, 360], [1080, 1920, 360, 640], [1080, 1080, 640, 640],
+        [32, 24, 32, 24], [641, 640, 640, 640], [720, 3600, 128, 640],
     ])('bounds %s×%s to an AVC-compatible %s×%s', (w, h, width, height) => {
         expect(videoThumbnailSize(w, h)).toEqual({ width, height });
     });
@@ -44,8 +44,8 @@ describe('video preview thumbnails', () => {
         expect(result.type).toBe('video/mp4');
         expect(result.size).toBe(3);
         expect(mocks.options).toMatchObject({ tracks: 'primary', audio: { discard: true }, video: {
-            codec: 'avc', frameRate: 15, bitrate: 200_000, forceTranscode: true,
-            width: 202, height: 360, fit: 'contain', allowTransformationMetadata: false,
+            codec: 'avc', frameRate: 15, bitrate: 1_200_000, forceTranscode: true,
+            width: 360, height: 640, fit: 'contain', allowTransformationMetadata: false,
         } });
         expect(mocks.options.trim).toBeUndefined();
         expect(onProgress).toHaveBeenCalledWith(1);

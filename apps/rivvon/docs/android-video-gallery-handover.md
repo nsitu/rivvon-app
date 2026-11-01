@@ -124,7 +124,7 @@ Private records deliberately look nonexistent to unauthenticated clients.
 
 Use `playback_url` exactly as returned by the API; do not reconstruct R2 object keys in the app. Use `thumbnail_url` exactly as returned when it is present.
 
-Video entries also provide nullable `video_thumbnail_url`, `video_thumbnail_width`, `video_thumbnail_height`, and `video_thumbnail_file_size` fields. This is a separate, full-length silent AVC MP4 preview, bounded by 360×360 pixels with the source proportions retained, encoded at 15 fps. Use it for lightweight animated previews or embeds; retain `playback_url` for full-quality playback. Older entries may have no video preview until thumbnails are regenerated. Use the returned CDN URL directly and refresh gallery metadata after regeneration because replacements get a new URL.
+Video entries also provide nullable `video_thumbnail_url`, `video_thumbnail_width`, `video_thumbnail_height`, and `video_thumbnail_file_size` fields. This is a separate, full-length silent AVC MP4 preview, bounded by 640×640 pixels with the source proportions retained, encoded at 15 fps and a target bitrate of 1.2 Mbps (lower for long videos). Use it for lightweight animated previews or embeds; retain `playback_url` for full-quality playback. Older entries may have no video preview or a smaller preview until thumbnails are regenerated. Use the returned CDN URL directly and refresh gallery metadata after regeneration because replacements get a new URL.
 
 For persistent public embeds, `GET` or `HEAD /videos/{id}/video-thumbnail` redirects to the current preview without caching the redirect. It requires no session and supports cross-origin playback. It returns 404 when the entry is private, incomplete, or has no preview.
 

@@ -59,9 +59,19 @@ describe('video thumbnail storage and API contract', () => {
         expect((await upload(env, owner, body, headers)).status).toBe(400);
         expect(env.BUCKET.put).not.toHaveBeenCalled();
     });
-    it('rejects dimensions over 360', async () => {
+    it('accepts dimensions at the 640 pixel limit', async () => {
         const { env } = environment();
-        const spy = vi.spyOn(InputVideoTrack.prototype, 'getDisplayWidth').mockResolvedValue(720);
+        const spies = ['getDisplayWidth', 'getDisplayHeight', 'getCodedWidth', 'getCodedHeight']
+            .map(method => vi.spyOn(InputVideoTrack.prototype, method).mockResolvedValue(640));
+        try {
+            const response = await upload(env);
+            expect(response.status).toBe(200);
+            expect(await response.json()).toMatchObject({ width: 640, height: 640 });
+        } finally { spies.forEach(spy => spy.mockRestore()); }
+    });
+    it('rejects dimensions over 640', async () => {
+        const { env } = environment();
+        const spy = vi.spyOn(InputVideoTrack.prototype, 'getDisplayWidth').mockResolvedValue(642);
         try { expect((await upload(env)).status).toBe(400); }
         finally { spy.mockRestore(); }
         expect(env.BUCKET.put).not.toHaveBeenCalled();

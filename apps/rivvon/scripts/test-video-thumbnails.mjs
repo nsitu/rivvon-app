@@ -27,7 +27,7 @@ const server = await createServer({ root, optimizeDeps: { noDiscovery: true, inc
     configureServer(server) {
         server.middlewares.use('/__thumbnail_test', (_req, res) => {
             res.setHeader('Content-Type', 'text/html');
-            res.end('<html><body style="background:#222;color:white"><div id="app" style="width:360px"></div></body></html>');
+            res.end('<html><body style="background:#222;color:white"><div id="app" style="width:640px"></div></body></html>');
         });
     },
 }] });
@@ -72,7 +72,7 @@ try {
         const { createVideoPreviewThumbnail } = await import('/src/modules/viewer/videoPreviewThumbnail.js');
         const assert = (value, message) => { if (!value) throw new Error(message); };
         const report = [];
-        for (const [width, height, rotation = 0] of [[1280,720], [720,1280], [512,512], [32,24], [1280,720,90]]) {
+        for (const [width, height, rotation = 0] of [[1280,720], [720,1280], [1024,1024], [32,24], [1280,720,90]]) {
             const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
             const context = canvas.getContext('2d');
             const target = new MB.BufferTarget();
@@ -90,7 +90,8 @@ try {
             const input = new MB.Input({ formats:MB.ALL_FORMATS, source:new MB.BlobSource(thumbnail) });
             const track = await input.getPrimaryVideoTrack();
             const w = await track.getDisplayWidth(), h = await track.getDisplayHeight();
-            assert(w <= 360 && h <= 360, 'Preview exceeded 360 pixels');
+            assert(w <= 640 && h <= 640, 'Preview exceeded 640 pixels');
+            assert(Math.max(w,h) === Math.min(640,Math.max(width,height)), 'Preview did not use the available resolution');
             const aspect = rotation === 90 ? height/width : width/height;
             assert(Math.abs(w/h - aspect) / aspect < .015, 'Incorrect preview proportions');
             assert(await track.getCodec() === 'avc', 'Incorrect codec');

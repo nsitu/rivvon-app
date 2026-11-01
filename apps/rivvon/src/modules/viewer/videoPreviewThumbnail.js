@@ -5,10 +5,10 @@ export function videoThumbnailSize(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
         throw new Error('Video has no readable dimensions');
     }
-    const scale = Math.min(1, 360 / Math.max(width, height));
+    const scale = Math.min(1, 640 / Math.max(width, height));
     // AVC requires even dimensions. Contain preserves the picture's proportions
     // within the nearest even-sized rectangle (at most a pixel of padding).
-    const even = value => Math.max(2, Math.min(360, Math.round(value / 2) * 2));
+    const even = value => Math.max(2, Math.min(640, Math.round(value / 2) * 2));
     return { width: even(width * scale), height: even(height * scale) };
 }
 
@@ -45,7 +45,7 @@ export async function createVideoPreviewThumbnail(source, { signal, onProgress }
             video: {
                 ...size, fit: 'contain', codec: 'avc', frameRate: 15,
                 // Leave headroom for MP4 overhead on long videos.
-                bitrate: Math.min(200_000, Math.floor(MAX_VIDEO_THUMBNAIL_BYTES * 8 * 0.85 / Math.max(1, duration))),
+                bitrate: Math.min(1_200_000, Math.floor(MAX_VIDEO_THUMBNAIL_BYTES * 8 * 0.85 / Math.max(1, duration))),
                 forceTranscode: true, allowTransformationMetadata: false, keyFrameInterval: 2,
             },
         });
