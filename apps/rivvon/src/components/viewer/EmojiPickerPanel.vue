@@ -1,5 +1,7 @@
 <script setup>
-    import { nextTick, ref, watch } from 'vue';
+    import { computed, nextTick, ref, watch } from 'vue';
+    import Button from 'primevue/button';
+    import InputText from 'primevue/inputtext';
     import Tabs from 'primevue/tabs';
     import TabList from 'primevue/tablist';
     import Tab from 'primevue/tab';
@@ -32,6 +34,14 @@
 
     const spriteContainerRef = ref(null);
     const activeTab = ref(0);
+    const searchQuery = ref('');
+    const normalizedSearch = computed(() => searchQuery.value.trim().toLowerCase());
+    const searchResults = computed(() => {
+        if (!normalizedSearch.value) return [];
+        return (emojiGroups.value || []).flatMap((group) =>
+            group.emojis.filter((entry) => entry.n.toLowerCase().includes(normalizedSearch.value))
+        );
+    });
     const highlightedEmojiHexcode = ref('');
     const emojiButtonRefs = new Map();
 
@@ -45,6 +55,7 @@
         }
 
         if (!visible) {
+            searchQuery.value = '';
             highlightedEmojiHexcode.value = '';
         }
     }, { immediate: true });
@@ -58,6 +69,7 @@
     }
 
     function close() {
+        searchQuery.value = '';
         highlightedEmojiHexcode.value = '';
         emit('update:visible', false);
     }
@@ -69,7 +81,7 @@
         }
 
         if (element) {
-            emojiButtonRefs.set(normalizedHexcode, element);
+            emojiButtonRefs.set(normalizedHexcode, element.$el || element);
             return;
         }
 
@@ -118,6 +130,7 @@
             return false;
         }
 
+        searchQuery.value = '';
         activeTab.value = location.groupIndex;
         highlightedEmojiHexcode.value = normalizedHexcode;
 
@@ -163,6 +176,16 @@
         ></div>
 
         <div class="emoji-picker-container viewer-panel viewer-chrome-panel-container">
+            <div v-if="isDataLoaded" class="emoji-search">
+                <label for="emoji-name-search">Search all emoji</label>
+                <InputText
+                    id="emoji-name-search"
+                    v-model="searchQuery"
+                    type="search"
+                    placeholder="Search by name"
+                    @keydown.esc.stop="searchQuery = ''"
+                />
+            </div>
             <ScrollPanel class="rivvon-scroll-panel emoji-picker-scroll">
                 <div class="emoji-picker-content">
                 <!-- Loading spinner for initial data load -->
@@ -185,9 +208,37 @@
                     class="error-message"
                 >{{ error }}</p>
 
-                <!-- Tabbed view -->
+                <div v-if="isDataLoaded && normalizedSearch" class="emoji-search-results">
+                    <p role="status" class="emoji-search-status">
+                        {{ searchResults.length ? `${searchResults.length} emoji found` : 'No emoji found. Try another name.' }}
+                    </p>
+                    <LoadingIndicator
+                        v-if="isSpriteLoading"
+                        class="sprite-loading"
+                        message="Loading emoji..."
+                    />
+                    <div v-else class="emoji-grid" aria-label="Emoji search results">
+                        <Button
+                            v-for="entry in searchResults"
+                            :key="entry.h"
+                            variant="text"
+                            severity="secondary"
+                            class="rivvon-icon-action emoji-btn"
+                            :aria-label="entry.n"
+                            :title="entry.n"
+                            :disabled="isLoading"
+                            @click="handleEmojiClick(entry)"
+                        >
+                            <svg class="emoji-img" viewBox="0 0 72 72" aria-hidden="true">
+                                <use :href="'#' + entry.h" />
+                            </svg>
+                        </Button>
+                    </div>
+                </div>
+
+                <!-- Clearing search restores the previously selected category. -->
                 <Tabs
-                    v-if="isDataLoaded"
+                    v-if="isDataLoaded && !normalizedSearch"
                     v-model:value="activeTab"
                     class="emoji-tabs"
                 >
@@ -197,11 +248,13 @@
                             :key="group.slug"
                             :value="idx"
                             class="emoji-tab"
+                            :aria-label="group.name"
                             v-tooltip.bottom="group.name"
                         >
                             <svg
                                 class="tab-icon"
                                 viewBox="0 0 72 72"
+                                aria-hidden="true"
                             >
                                 <use :href="'#' + group.emojis[0].h" />
                             </svg>
@@ -222,12 +275,15 @@
                                 v-else
                                 class="emoji-grid"
                             >
-                                <button
+                                <Button
                                     v-for="entry in group.emojis"
                                     :key="entry.h"
-                                    class="emoji-btn"
+                                    variant="text"
+                                    severity="secondary"
+                                    class="rivvon-icon-action emoji-btn"
                                     :class="{ 'emoji-btn--highlighted': isHighlightedEmoji(entry.h) }"
                                     :title="entry.n"
+                                    :aria-label="entry.n"
                                     :disabled="isLoading"
                                     :ref="(element) => setEmojiButtonRef(entry.h, element)"
                                     @click="handleEmojiClick(entry)"
@@ -235,10 +291,11 @@
                                     <svg
                                         class="emoji-img"
                                         viewBox="0 0 72 72"
+                                        aria-hidden="true"
                                     >
                                         <use :href="'#' + entry.h" />
                                     </svg>
-                                </button>
+                                </Button>
                             </div>
                         </TabPanel>
                     </TabPanels>
@@ -288,6 +345,21 @@
         flex-direction: column;
         height: 100%;
         width: 100%;
+        min-height: 0;
+    }
+
+    .emoji-search {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 20px 20px 0;
+        flex-shrink: 0;
+        color: var(--p-text-color);
+    }
+
+    .emoji-search-status {
+        margin: 0 0 1rem;
+        color: var(--p-text-muted-color);
     }
 
     .emoji-picker-content {
@@ -363,18 +435,20 @@
         align-items: center;
         justify-content: center;
         width: 100%;
+        min-width: 0;
+        height: auto;
         aspect-ratio: 1;
         background: transparent;
-        border: none;
+        border: 1px solid transparent;
         border-radius: 6px;
         cursor: pointer;
         transition: background 0.15s ease;
         padding: 4px;
-        color: #e0e0e0;
+        color: var(--p-text-color);
     }
 
     .emoji-btn:hover:not(:disabled) {
-        background: #333;
+        background: var(--p-content-hover-background);
     }
 
     .emoji-btn--highlighted {
@@ -388,7 +462,7 @@
     }
 
     .emoji-btn:active:not(:disabled) {
-        background: #444;
+        background: var(--p-content-hover-background);
     }
 
     .emoji-btn:disabled {
