@@ -13,7 +13,7 @@ export function getSdrWorkerLimit(requested = 4, nav = globalThis.navigator) {
 
 // Each FFmpeg instance already owns a Web Worker. Keep x264 single-threaded
 // inside each instance, so this pool requires neither shared memory nor COEP.
-export async function createSdrEncoderPool({ width, height, fps, quality, signal, onStatus, workerLimit = 4 }) {
+export async function createSdrEncoderPool({ width, height, fps, quality, bitrateMode, bitrate, quantizer, signal, onStatus, workerLimit = 4 }) {
     const { FFmpeg } = await import('@ffmpeg/ffmpeg');
     const slots = [], chunks = [];
     let limit = getSdrWorkerLimit(workerLimit);
@@ -102,7 +102,7 @@ export async function createSdrEncoderPool({ width, height, fps, quality, signal
                 slot.batch = batch;
                 const run = async () => {
                     await slot.ffmpeg.writeFile('frames.yuv', data);
-                    await exec(slot, getSdrEncodeArgs({ width, height, fps, frames, quality }));
+                    await exec(slot, getSdrEncodeArgs({ width, height, fps, frames, quality, bitrateMode, bitrate, quantizer }));
                     const chunk = await slot.ffmpeg.readFile('chunk.h264');
                     check();
                     assertSdrSps(inspectAnnexBSps(chunk), { width, height });

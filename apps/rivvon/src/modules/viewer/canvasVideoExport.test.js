@@ -4,6 +4,7 @@ import { createSdrVideoExport } from './sdrVideoExport.js';
 import { inspectMp4Colour } from './videoColourMetadata.js';
 import { repairMissingSpsColour } from './repairWebCodecsColour.js';
 import { createGpuYuvConversion } from './gpuYuvConversion.js';
+import { getSdrBitrate } from './exportColour.js';
 
 const mocks = vi.hoisted(() => ({ outputs: [], sources: [], samples: [], overlay: vi.fn() }));
 vi.mock('./sdrVideoExport.js', () => ({ createSdrVideoExport: vi.fn().mockResolvedValue({ software: true }) }));
@@ -29,6 +30,7 @@ vi.mock('mediabunny', () => ({
         close = vi.fn();
     },
     Mp4OutputFormat: class {}, WebMOutputFormat: class {}, BufferTarget: class {},
+    Quality: class { constructor(options) { this.options = options; } },
     QUALITY_VERY_LOW: 'very-low', QUALITY_LOW: 'low', QUALITY_MEDIUM: 'medium', QUALITY_HIGH: 'high', QUALITY_VERY_HIGH: 'very-high',
 }));
 let frameClose;
@@ -52,6 +54,30 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 const options = { width: 320, height: 240, fps: 30, format: 'mp4', encodingMethod: 'webcodecs' };
 describe('encoder selection and final reports', () => {
+    it.each(['variable', 'constant'])('sends the exact selected %s bitrate to Mediabunny', async bitrateMode => {
+        const writer = await createCanvasVideoExport({}, { ...options, bitrateMode, bitrate: 14_000_000 });
+        expect(mocks.sources[0].config.quality.options).toEqual({ bitrate: 14_000_000, bitrateMode });
+        await writer.dispose();
+    });
+    it('sends the explicit quantizer alone and reports it as QP, including zero', async () => {
+        const reports = vi.fn();
+        const writer = await createCanvasVideoExport({}, { ...options, bitrateMode: 'quantizer', quantizer: 0,
+            bitrate: 14_000_000, onColourMetadata: reports });
+        expect(mocks.sources[0].config.quality.options).toEqual({ quantizer: 0 });
+        await writer.add(0, 1 / 30); await writer.finalize();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ bitrateMode: 'quantizer', quantizer: 0, targetBitrate: null });
+    });
+    it.each(['mp4', 'webm'])('uses an explicit resolution-aware bitrate rather than fixed quantizer quality for %s', async format => {
+        const reports = vi.fn();
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2160, height: 2160,
+            format, quality: 'very-high', hardwareAcceleration: 'prefer-hardware', onColourMetadata: reports });
+        const targetBitrate = getSdrBitrate(2160, 2160, 'very-high');
+        expect(mocks.sources[0].config.quality.options).toEqual({ bitrate: targetBitrate, bitrateMode: 'variable' });
+        expect(mocks.sources[0].config.bitrate).toBeUndefined();
+        expect(mocks.outputs[0].addVideoTrack).toHaveBeenCalledWith(mocks.sources[0], { frameRate: 30 });
+        await writer.add(0, 1 / 30); await writer.finalize();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ targetBitrate, bitrateMode: 'variable' });
+    });
     it('encodes shader-produced I420 and releases the GPU converter after finalization', async () => {
         const context = yuvContext(), reports = vi.fn();
         context.getImageData = vi.fn(() => { throw new Error('RGBA readback should not run'); });

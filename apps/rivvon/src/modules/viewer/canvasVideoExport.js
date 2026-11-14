@@ -3,6 +3,7 @@ import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
 import { inspectMp4Colour } from './videoColourMetadata.js';
 import { SDR_VIDEO_COLOUR, validateSdrDimensions } from './exportColour.js';
+import { resolveVideoRateControl } from './videoRateControl.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
 import { createExportBlob } from './exportBlob.js';
 
@@ -19,12 +20,14 @@ export async function createCanvasVideoExport(canvas, options) {
     const explicitYuv = videoRange !== 'auto';
     if (explicitYuv) validateSdrDimensions(width, height, fps);
     if (signal?.aborted) throw new DOMException('Video export cancelled', 'AbortError');
+    const control = resolveVideoRateControl({ ...options, format, encodingMethod });
     const MB = await import('mediabunny');
     const report = { schemaVersion: 1, phase: 'encoding', encodingMethod, format,
         pipeline: explicitYuv ? `sRGB → BT.709 transfer → ${videoRange} I420 → browser encoder → Mediabunny`
             : 'Canvas → VideoFrame → browser encoder → Mediabunny', encoder: 'WebCodecs (implementation not exposed)',
         videoRange, explicitYuv,
-        width, height, fps, quality, logo: Boolean(logoOverlayEnabled), hardwareAcceleration: options.hardwareAcceleration ?? 'no-preference',
+        width, height, fps, targetBitrate: control.bitrate, bitrateMode: control.bitrateMode, quantizer: control.quantizer,
+        logo: Boolean(logoOverlayEnabled), hardwareAcceleration: options.hardwareAcceleration ?? 'no-preference',
         environment: await collectExportEnvironment(options.renderContext), videoFrame: null, decoderConfig: null, encoderConfig: null,
         decoderColourSpaces: [] };
     const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
@@ -36,10 +39,10 @@ export async function createCanvasVideoExport(canvas, options) {
         if (explicitYuv && context.getContextAttributes?.().colorSpace !== 'srgb') throw new Error('An sRGB export canvas is required.');
     }
     const output = new MB.Output({ format: format === 'webm' ? new MB.WebMOutputFormat() : new MB.Mp4OutputFormat(), target: new MB.BufferTarget() });
-    const qualityMap = { 'very-low': MB.QUALITY_VERY_LOW, low: MB.QUALITY_LOW, medium: MB.QUALITY_MEDIUM,
-        high: MB.QUALITY_HIGH, 'very-high': MB.QUALITY_VERY_HIGH };
     const config = { codec: format === 'webm' ? 'vp9' : 'avc',
-        bitrate: qualityMap[quality] ?? MB.QUALITY_VERY_HIGH, hardwareAcceleration: report.hardwareAcceleration,
+        quality: new MB.Quality(control.bitrateMode === 'quantizer'
+            ? { quantizer: control.quantizer } : { bitrate: control.bitrate, bitrateMode: control.bitrateMode }),
+        hardwareAcceleration: report.hardwareAcceleration,
         onEncoderConfig(config) { report.encoderConfig = { ...config }; },
         onEncodedPacket(_packet, meta) {
             const cfg = meta?.decoderConfig;
@@ -55,7 +58,7 @@ export async function createCanvasVideoExport(canvas, options) {
     };
     const source = explicitYuv ? new MB.VideoSampleSource(config) : new MB.CanvasSource(sourceCanvas, config);
     const yuv = explicitYuv ? new Uint8Array(width * height * 3 / 2) : null;
-    output.addVideoTrack(source);
+    output.addVideoTrack(source, { frameRate: fps });
     const repairController = new AbortController();
     let disposed = false, converter = null;
     const dispose = async () => {

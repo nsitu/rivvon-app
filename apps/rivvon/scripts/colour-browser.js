@@ -9,6 +9,7 @@ import { repairMissingSpsColour } from '../src/modules/viewer/repairWebCodecsCol
 import { createExportBlob, readExportBlob } from '../src/modules/viewer/exportBlob.js';
 import spsRepairWorkerUrl from '../src/modules/viewer/spsRepairWorker.js?worker&url';
 import { getRuntimeAssetUrl } from '../src/modules/shared/runtimeAssets.js';
+import { getSdrBitrate } from '../src/modules/viewer/exportColour.js';
 
 const params = new URLSearchParams(location.search);
 const width = Number(params.get('width') || 960), height = Number(params.get('height') || 540);
@@ -206,6 +207,76 @@ async function checkLargeRepairInput(originalBlob, decoderColourSpaces, paddingM
     }
     return { inputBytes: data.byteLength, packagedBytes, returnedBytes, nativeBlobError, outputBytes: result.data.byteLength, ...result.repair };
 }
+async function checkSourceBitrate(sourceUrl, receiver) {
+    const MB = await import('mediabunny');
+    const input = new MB.Input({ formats: MB.ALL_FORMATS, source: new MB.UrlSource(sourceUrl) });
+    let writer;
+    try {
+        const track = await input.getPrimaryVideoTrack();
+        const width = await track.getDisplayWidth(), height = await track.getDisplayHeight(), fps = 30;
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
+        let metadata, frames = 0;
+        writer = await createCanvasVideoExport(canvas, { width, height, fps, format: 'mp4', encodingMethod: 'webcodecs',
+            videoRange: 'limited', quality: 'very-high', hardwareAcceleration: 'prefer-hardware', logoOverlayEnabled: false,
+            onColourMetadata: report => { metadata = report; } });
+        for await (const sample of new MB.VideoSampleSink(track).samples(0, 3)) {
+            try {
+                context.drawImage(sample.toCanvasImageSource(), 0, 0, width, height);
+                await writer.add(frames / fps, 1 / fps); frames++;
+            } finally { sample.close(); }
+        }
+        const blob = await writer.finalize();
+        const targetBitrate = getSdrBitrate(width, height, 'very-high'), duration = frames / fps;
+        const actualBitrate = blob.size * 8 / duration;
+        if (!frames || metadata.encoderConfig?.bitrateMode !== 'variable' || metadata.encoderConfig?.bitrate !== targetBitrate) {
+            throw new Error('Native encoder did not use the explicit variable bitrate target.');
+        }
+        // Allow GOP/startup variation while rejecting a return to unconstrained
+        // QP encoding (the reported case was about 8x this resolution's target).
+        if (actualBitrate > targetBitrate * 1.5) throw new Error(`Native bitrate exceeded the test tolerance: ${actualBitrate}`);
+        await save('bitrate-regression.mp4', blob, receiver);
+        return { width, height, fps, frames, duration, targetBitrate, actualBitrate, bytes: blob.size,
+            projected120SecondMiB: actualBitrate * 120 / 8 / 1024 / 1024,
+            estimated120SecondMiB: targetBitrate * 120 / 8 / 1024 / 1024,
+            encoderConfig: metadata.encoderConfig };
+    } finally { await writer?.dispose(); input.dispose(); }
+}
+async function checkRateControlModes(receiver) {
+    const results = [];
+    for (const format of ['mp4', 'webm']) for (const bitrateMode of ['variable', 'constant', 'quantizer']) {
+        let metadata;
+        const writer = await createCanvasVideoExport(chart, { width, height, fps, format, encodingMethod: 'webcodecs',
+            videoRange: 'limited', bitrateMode, bitrate: 2_000_000, quantizer: 23, logoOverlayEnabled: false,
+            onColourMetadata: report => { metadata = report; } });
+        try {
+            for (let frame = 0; frame < 12; frame++) await writer.add(frame / fps, 1 / fps);
+            const blob = await writer.finalize();
+            if (!blob.size || metadata.encoderConfig?.bitrateMode !== bitrateMode) throw new Error(`Incorrect native rate-control mode: ${format}/${bitrateMode}`);
+            if (bitrateMode === 'quantizer') {
+                if (metadata.encoderConfig.bitrate != null || metadata.quantizer !== 23 || metadata.targetBitrate !== null) {
+                    throw new Error('Quantizer mode acquired a hidden bitrate target.');
+                }
+            } else if (metadata.encoderConfig.bitrate !== 2_000_000) throw new Error('Native encoder changed the selected bitrate.');
+            if (format === 'mp4') await save(`rate-control-webcodecs-${bitrateMode}.mp4`, blob, receiver);
+            results.push({ format, bitrateMode, bytes: blob.size, quantizer: metadata.quantizer, encoderConfig: metadata.encoderConfig });
+        } finally { await writer.dispose(); }
+    }
+    for (const bitrateMode of ['variable', 'quantizer']) {
+        let metadata;
+        const writer = await createCanvasVideoExport(chart, { width, height, fps, format: 'mp4', encodingMethod: 'ffmpeg',
+            bitrateMode, bitrate: 2_000_000, quantizer: 23, logoOverlayEnabled: false,
+            onColourMetadata: report => { metadata = report; } });
+        try {
+            for (let frame = 0; frame < 12; frame++) await writer.add(frame / fps, 1 / fps);
+            const blob = await writer.finalize();
+            if (!metadata.verification.matchesSdrTarget || metadata.bitrateMode !== bitrateMode) throw new Error('FFmpeg rate-control export failed verification.');
+            await save(`rate-control-ffmpeg-${bitrateMode}.mp4`, blob, receiver);
+            results.push({ format: 'mp4', encodingMethod: 'ffmpeg', bitrateMode, bytes: blob.size, quantizer: metadata.quantizer, targetBitrate: metadata.targetBitrate });
+        } finally { await writer.dispose(); }
+    }
+    return results;
+}
 async function exportComparisons({ receiver, hardwareAcceleration = 'no-preference', includeLegacy = true, repairPaddingMiB = 256 } = {}) {
     const results = { ...environment, hardwareAcceleration, exports:[] };
     let checkedLargeInput = false;
@@ -285,6 +356,8 @@ async function exportComparisons({ receiver, hardwareAcceleration = 'no-preferen
     setTimeout(() => controller.abort(),10);
     try { const writer = await loading; writer.dispose(); throw new Error('Cancellation was ignored.'); }
     catch (error) { if (error.name !== 'AbortError') throw error; results.cancellation = 'passed'; }
+    if (params.get('bitrate-source')) results.bitrateRegression = await checkSourceBitrate(params.get('bitrate-source'), receiver);
+    results.rateControlModes = await checkRateControlModes(receiver);
     await save('browser-report.json',new Blob([JSON.stringify(results,null,2)],{ type:'application/json' }),receiver);
     return results;
 }

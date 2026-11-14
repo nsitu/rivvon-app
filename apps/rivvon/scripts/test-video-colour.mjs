@@ -68,6 +68,7 @@ try {
     for (const [key,env] of [['width','COLOUR_WIDTH'],['height','COLOUR_HEIGHT'],['fps','COLOUR_FPS'],['frames','COLOUR_FRAMES']]) {
         if (process.env[env]) query.set(key,process.env[env]);
     }
+    if (process.env.COLOUR_BITRATE_SOURCE) query.set('bitrate-source', process.env.COLOUR_BITRATE_SOURCE);
     await call('Page.navigate',{ url:`${server.resolvedUrls.local[0]}colour-test.html?${query}` });
     const result = await Promise.race([
         browserError,
@@ -161,6 +162,8 @@ try {
     await writeFile(join(output,'native-report.json'),JSON.stringify(native,null,2));
     console.log(JSON.stringify({ userAgent:report.userAgent,gpu:report.gpu,frames:report.frames,fps:report.fps,
         chartMaxError:report.chartMaxError,cancellation:report.cancellation,largeInputRepair:report.largeInputRepair,
+        bitrateRegression:report.bitrateRegression,
+        rateControlModes:report.rateControlModes,
         exports:native.map(({ name,ffprobe,patchMaxError }) => ({ name,ffprobe,patchMaxError })) },null,2));
     console.log(`Colour comparison files: ${output}`);
 } finally {

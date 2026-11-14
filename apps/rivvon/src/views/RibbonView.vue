@@ -3540,6 +3540,9 @@ const activeToolbarOverlayTitle = computed(() => {
                 hardwareAcceleration: settings.hardwareAcceleration,
                 videoRange: settings.videoRange,
                 yuvConversion: settings.yuvConversion,
+                bitrateMode: settings.bitrateMode,
+                bitrate: settings.bitrate,
+                quantizer: settings.quantizer,
                 signal: exportAbortController.value.signal,
                 onColourMetadata: (report) => { colourReport = report; },
                 onStatus: (status) => {

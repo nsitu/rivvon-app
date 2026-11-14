@@ -78,6 +78,55 @@ prove that every backend preserves pixel values. WebM reports encoder metadata;
 its container and VP9 bitstream are explicitly marked as not independently
 inspected.
 
+### Bitrate and size estimates
+
+The export UI exposes numeric encoder controls instead of qualitative presets:
+
+- **Variable bitrate (VBR)** sends `new Quality({ bitrate, bitrateMode: 'variable' })`.
+- **Constant bitrate (CBR)** sends `new Quality({ bitrate, bitrateMode: 'constant' })`.
+- **Constant quantizer (QP)** sends `new Quality({ quantizer })` without a bitrate
+  fallback. Unsupported quantizer configurations fail rather than substituting VBR.
+
+Target bitrate is entered in Mb/s and converted to integer bits/s. The initial
+suggestion is resolution-aware, but the visible numeric value stays fixed when
+resolution changes. The dialog estimate uses that target and the actual planned
+frame count divided by fps. VBR/CBR are encoder requests, not hard file-size caps.
+QP has its own integer field: 0–51 for H.264 and 0–63 for VP9. Lower values retain
+more detail and usually produce larger files; values are not comparable across
+codecs. QP mode shows **Content-dependent** instead of a bitrate-based size estimate.
+The final report records mode, target bitrate or QP, and the actual WebCodecs
+configuration. Binary file sizes are labelled MiB/KiB.
+
+FFmpeg WASM supports VBR via x264 `-b:v` and constant QP via `-qp` with no `-b:v`.
+CBR is disabled for FFmpeg and stale/unsupported configurations show an error,
+requiring an explicit choice rather than silently switching modes. Settings
+travel unchanged through scene, texture overview, and texture preview exports.
+Legacy named presets remain accepted by older callers and diagnostic scripts.
+
+Mediabunny 1.60's named quality presets prefer quantizer encoding when supported.
+In particular, `QUALITY_VERY_HIGH` offers AVC QP 16 without a bitrate target.
+Previously the dialog independently assumed 14 Mb/s for Very High at every
+resolution. A 2160×2160, 30 fps, 120-second texture export was therefore predicted
+as 200.3 MiB but encoded at 206.65 Mb/s (3,099,809,401 bytes). Its first slice
+confirmed QP 16. This was a rate-control/estimate mismatch, not colour metadata
+overhead.
+
+At that resolution the initial bitrate suggestion is 25.928 Mb/s, giving a 120-second target
+estimate of 370.9 MiB. A three-second excerpt of the
+reported file was decoded and re-encoded with the production hardware-preferred,
+GPU-converted limited-range path: 76,737,227 source bytes became 12,255,041 output
+bytes (32.68 Mb/s). The short test includes startup/GOP variation and does not
+guarantee the final size of a full-length export.
+
+To include a local source excerpt in the browser regression, set
+`COLOUR_BITRATE_SOURCE=/colour-test-output/bitrate-regression/source.mp4` and run
+`pnpm --filter rivvon test:video-colour`. It checks the actual native encoder
+configuration, file size against a tolerance, and records the measured bitrate
+in `browser-report.json`. Source/test outputs stay out of Git.
+The regular colour regression also exercises H.264 and VP9 in all three native
+rate-control modes and x264 in VBR/QP, checking the actual native configuration
+and the absence of a bitrate fallback in QP mode.
+
 ### GPU shader or CPU colour conversion
 
 For FFmpeg MP4 and explicit-range WebCodecs MP4, **Colour conversion** selects

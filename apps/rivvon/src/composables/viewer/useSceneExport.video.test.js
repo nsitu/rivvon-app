@@ -196,6 +196,14 @@ describe('scene video export timing and restoration', () => {
         await exporter.exportVideo({ width:320,height:240,fps:30,duration:0.1,encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',videoRange:'limited',yuvConversion:'cpu',onColourMetadata:report });
         expect(createCanvasVideoExport).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({ encodingMethod:'webcodecs',hardwareAcceleration:'prefer-software',videoRange:'limited',yuvConversion:'cpu',onColourMetadata:report }));
     });
+    it.each(['ffmpeg', 'webcodecs'])('forwards explicit rate control through the scene export to %s', async encodingMethod => {
+        vi.stubGlobal('VideoEncoder', class {});
+        const { exporter } = fixture();
+        await exporter.exportVideo({ duration: 1 / 30, encodingMethod, bitrateMode: 'quantizer', quantizer: 19 });
+        expect(createCanvasVideoExport).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            encodingMethod, bitrateMode: 'quantizer', quantizer: 19,
+        }));
+    });
     it.each(['ffmpeg', 'webcodecs'])('retains frame metrics in %s encoder statuses', async (encodingMethod) => {
         vi.stubGlobal('VideoEncoder', class {});
         const { writer, exporter } = fixture(), onStatus = vi.fn();

@@ -30,6 +30,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('pooled SDR canvas export', () => {
+    it('forwards an explicit QP through the pool and into the final report', async () => {
+        const reports = vi.fn();
+        const writer = await createSdrVideoExport({}, { width: 2, height: 2, bitrateMode: 'quantizer', quantizer: 19,
+            logoOverlayEnabled: false, onColourMetadata: reports });
+        expect(createSdrEncoderPool).toHaveBeenCalledWith(expect.objectContaining({ bitrateMode: 'quantizer', quantizer: 19, bitrate: null }));
+        await writer.add(); await writer.finalize();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ bitrateMode: 'quantizer', quantizer: 19, targetBitrate: null });
+    });
     it('submits full and partial batches, drains before verification, and reports worker counts', async () => {
         const onColourMetadata = vi.fn(), onStatus = vi.fn();
         const writer = await createSdrVideoExport({}, { width: 2048, height: 2048, fps: 30,

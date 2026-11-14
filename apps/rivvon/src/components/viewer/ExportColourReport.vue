@@ -10,6 +10,9 @@ const rangeLabel = computed(() => props.report.videoRange === 'full' ? 'full' : 
 const conversion = computed(() => props.report.yuvConversion);
 const rows = computed(() => [
     ['Encoding method', props.report.encodingMethod === 'ffmpeg' ? 'FFmpeg WASM / x264' : 'WebCodecs / browser encoder'],
+    ...(props.report.bitrateMode ? [['Rate control', ({ variable: 'Variable bitrate (VBR)', constant: 'Constant bitrate (CBR)', quantizer: 'Constant quantizer (QP)' })[props.report.bitrateMode]]] : []),
+    ...(props.report.targetBitrate ? [['Target video bitrate', `${(props.report.targetBitrate / 1_000_000).toFixed(2)} Mb/s`]] : []),
+    ...(props.report.quantizer != null ? [['Quantizer (QP)', String(props.report.quantizer)]] : []),
     ...(conversion.value ? [
         ['Colour conversion', conversion.value.method === 'gpu' ? 'GPU shader → I420 readback' : 'RGBA readback → CPU conversion'],
         ['Readback per frame', `${(conversion.value.readbackBytesPerFrame / 1024 / 1024).toFixed(2)} MiB`],

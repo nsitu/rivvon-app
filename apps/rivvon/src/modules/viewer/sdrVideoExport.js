@@ -1,4 +1,5 @@
 import { validateSdrDimensions } from './exportColour.js';
+import { resolveVideoRateControl } from './videoRateControl.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
 import { assertSdrMp4, restoreCfrMp4Timing } from './videoColourMetadata.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
@@ -15,6 +16,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
     const { width = canvas.width, height = canvas.height, fps = 30, quality = 'very-high', signal,
         onStatus, onColourMetadata, logoOverlayEnabled = true, logoOverlayCorner = 'bottomLeft' } = options;
     validateSdrDimensions(width, height, fps);
+    const control = resolveVideoRateControl({ ...options, width, height, quality, encodingMethod: 'ffmpeg', format: 'mp4' });
     if (signal?.aborted) throw abortError();
     let pool = null, converter = null;
     let terminated = false, count = 0, pending = 0, raw = null;
@@ -35,7 +37,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
     try {
         check();
         const batches = options.totalFrames > 0 ? Math.ceil(options.totalFrames / batchFrames) : 4;
-        pool = await createSdrEncoderPool({ width, height, fps, quality, signal, onStatus,
+        pool = await createSdrEncoderPool({ width, height, fps, quality, ...control, signal, onStatus,
             workerLimit: Math.min(options.wasmWorkerCount ?? 4, batches) });
         check();
         const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
@@ -48,7 +50,8 @@ export async function createSdrVideoExport(canvas, options = {}) {
         raw = new Uint8Array(batchFrames * frameBytes);
         const report = { schemaVersion: 1, phase: 'encoding', encodingMethod: 'ffmpeg', format: 'mp4',
             pipeline: 'sRGB → BT.709 transfer → limited I420 → x264', encoder: '@ffmpeg/core 0.12.10 / libx264',
-            width, height, fps, quality, logo: Boolean(logo),
+            width, height, fps, targetBitrate: control.bitrate, bitrateMode: control.bitrateMode,
+            quantizer: control.quantizer, logo: Boolean(logo),
             workerLimit: pool.workerLimit, workerCount: pool.workerCount,
             yuvConversion: converter.info,
             environment: await collectExportEnvironment(options.renderContext) };

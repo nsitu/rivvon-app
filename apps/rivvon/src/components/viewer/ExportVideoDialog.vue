@@ -1,5 +1,7 @@
 <script setup>
 import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
+    import { getSdrBitrate } from '../../modules/viewer/exportColour.js';
+    import { getVideoQuantizerMax, resolveVideoRateControl } from '../../modules/viewer/videoRateControl.js';
     import { ref, computed, watch, inject, onBeforeUnmount } from 'vue';
     import { VIEWER_AUDIO_KEY } from '../../modules/viewer/audioReactivity.js';
     import Accordion from 'primevue/accordion';
@@ -9,14 +11,13 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import Message from 'primevue/message';
     import InputText from 'primevue/inputtext';
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import ScrollPanel from 'primevue/scrollpanel';
-    import AnimationSettingsControls from './AnimationSettingsControls.vue';
     import ArtworkTiltControls from './ArtworkTiltControls.vue';
-    import TextureSettingsControls from './TextureSettingsControls.vue';
     import ExportColourReport from './ExportColourReport.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import {
@@ -91,7 +92,8 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
             }
         },
     });
-    const quality = ref('very-high');
+    const bitrateMode = ref('variable');
+    const quantizer = ref(23);
     const backgroundInterpolation = ref('crossfade');
     const backgroundInterpolationOptions = [
         { label: 'Crossfade', value: 'crossfade' },
@@ -240,18 +242,17 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         { label: 'Custom', value: 'custom', icon: 'schedule' }
     ];
 
-    const qualityOptions = [
-        { label: 'Very Low', value: 'very-low', description: 'Smallest file size, lower fidelity' },
-        { label: 'Low', value: 'low', description: 'Small file, acceptable quality' },
-        { label: 'Medium', value: 'medium', description: 'Balanced file size and quality' },
-        { label: 'High', value: 'high', description: 'Recommended — sharp detail, reasonable size' },
-        { label: 'Very High', value: 'very-high', description: 'Maximum quality, larger file' },
-    ];
-
-    const qualityDescription = computed(() => {
-        const option = qualityOptions.find((entry) => entry.value === quality.value);
-        return option?.description ?? '';
-    });
+    const rateControlOptions = computed(() => [
+        { label: 'Variable bitrate (VBR)', value: 'variable' },
+        { label: 'Constant bitrate (CBR)', value: 'constant', disabled: !usesWebCodecs.value },
+        { label: 'Constant quantizer (QP)', value: 'quantizer' },
+    ]);
+    const rateControlDescription = computed(() => ({
+        variable: 'Targets an average bitrate while allowing individual frames to use more or fewer bits. Actual file size varies with content.',
+        constant: 'Requests constant-bitrate encoding from WebCodecs. Keyframes and short clips can still vary; this is not a hard file-size limit.',
+        quantizer: 'Uses a fixed quantizer instead of a bitrate target. File size depends on the content. No bitrate fallback is used.',
+    })[bitrateMode.value]);
+    const quantizerMax = computed(() => getVideoQuantizerMax(format.value));
 
     function applyInitialDimensionSettings(settings = null) {
         if (!settings) {
@@ -269,6 +270,14 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     const resolvedWidth = computed(() => exportDimensionSettings.value.width);
 
     const resolvedHeight = computed(() => exportDimensionSettings.value.height);
+    const bitrateMbps = ref(getSdrBitrate(resolvedWidth.value, resolvedHeight.value) / 1_000_000);
+    const rateControlState = computed(() => {
+        try {
+            const bits = bitrateMbps.value == null ? null : Math.round(bitrateMbps.value * 1_000_000);
+            return { control: resolveVideoRateControl({ bitrateMode: bitrateMode.value, bitrate: bits, quantizer: quantizer.value,
+                format: format.value, encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg' }), error: '' };
+        } catch (error) { return { control: null, error: error.message }; }
+    });
 
     const seamlessLoopDuration = computed(() => {
         return activeModeInfo.value?.seamlessLoopDuration ?? 3.0;
@@ -388,26 +397,18 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     onBeforeUnmount(() => { app.backgroundClipPreviewDuration = 0; });
     const totalFrames = computed(() => clipExportPeriod.value?.totalFrames ?? Math.ceil(resolvedDuration.value * fps.value));
 
-    const qualityBitrateEstimate = computed(() => {
-        const map = {
-            'very-low': 1_500_000,
-            'low': 3_000_000,
-            'medium': 5_000_000,
-            'high': 8_000_000,
-            'very-high': 14_000_000,
-        };
-        return map[quality.value] ?? 14_000_000;
-    });
-
     const estimatedSize = computed(() => {
-        const bytes = (qualityBitrateEstimate.value * resolvedDuration.value) / 8;
-        if (bytes > 1024 * 1024) return `~${(bytes / 1024 / 1024).toFixed(1)} MB`;
-        return `~${(bytes / 1024).toFixed(0)} KB`;
+        if (bitrateMode.value === 'quantizer') return 'Content-dependent';
+        if (!rateControlState.value.control) return '—';
+        const bytes = (rateControlState.value.control.bitrate * totalFrames.value / fps.value) / 8;
+        if (bytes > 1024 * 1024) return `~${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+        return `~${(bytes / 1024).toFixed(0)} KiB`;
     });
 
-    const canEncode = computed(() => {
+    const encodingAvailable = computed(() => {
         return usesWebCodecs.value ? (props.exportInfo?.hasWebCodecs ?? false) : typeof WebAssembly !== 'undefined';
     });
+    const canEncode = computed(() => encodingAvailable.value && Boolean(rateControlState.value.control));
 
     const hasEncodedVideo = computed(() => Boolean(props.encodedFilename));
     const isPublishing = computed(() => Boolean(props.publishState?.isPublishing));
@@ -418,8 +419,8 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     const encodedSizeLabel = computed(() => {
         const bytes = Number(props.encodedSize) || 0;
         if (bytes <= 0) return '';
-        if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-        return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+        if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+        return `${Math.max(1, Math.round(bytes / 1024))} KiB`;
     });
 
     watch(
@@ -440,6 +441,23 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         },
         { immediate: true }
     );
+
+    // Seed the suggestion after initial dimensions are applied. Once shown,
+    // numeric bitrate stays explicit and is not rescaled on resolution changes.
+    let rateControlInitialized = false;
+    watch(() => props.visible, visible => {
+        if (!visible) return;
+        const settings = props.initialSettings;
+        if (settings?.format) format.value = settings.format;
+        if (settings?.encodingMethod) encodingMethod.value = settings.encodingMethod;
+        if (!rateControlInitialized) {
+            bitrateMbps.value = getSdrBitrate(resolvedWidth.value, resolvedHeight.value, settings?.quality) / 1_000_000;
+            rateControlInitialized = true;
+        }
+        if (settings?.bitrate != null) bitrateMbps.value = settings.bitrate / 1_000_000;
+        if (settings?.bitrateMode) bitrateMode.value = settings.bitrateMode;
+        if (settings?.quantizer != null) quantizer.value = settings.quantizer;
+    }, { immediate: true });
 
     watch(
         () => [props.visible, props.exportInfo?.defaultExportMode, exportModeOptions.value.map((option) => option.value).join(',')],
@@ -485,7 +503,9 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         cycleCount,
         fps,
         artworkMotionMode,
-        quality,
+        bitrateMode,
+        bitrateMbps,
+        quantizer,
         backgroundInterpolation,
         exportLogoOverlayEnabled,
         exportLogoOverlayCorner,
@@ -547,6 +567,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     // --- Methods ---
     function handleExport() {
+        if (!canEncode.value) return;
         emit('request-export', {
             exportMode: exportMode.value,
             width: resolvedWidth.value,
@@ -563,7 +584,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                 ? cycleCount.value
                 : DEFAULT_SEAMLESS_LOOP_COUNT,
             artworkMotionMode: textureOnlyMode.value ? 'none' : artworkMotionMode.value,
-            quality: quality.value,
+            ...rateControlState.value.control,
             backgroundInterpolation: textureOnlyMode.value || app.backgroundMode === 'gradient'
                 ? 'crossfade' : backgroundInterpolation.value,
             logoOverlayEnabled: exportLogoOverlayEnabled.value,
@@ -614,7 +635,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                         Microphone input stops during encoding; start it again afterward.
                     </p>
                     <div
-                        v-if="!canEncode"
+                        v-if="!encodingAvailable"
                         class="warning-banner"
                     >
                         <span class="material-symbols-outlined">warning</span>
@@ -785,22 +806,41 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             </div>
                         </div>
 
-                        <div class="form-field quality-field">
-                            <label>Quality</label>
-                            <Select
-                                v-model="quality"
-                                :options="qualityOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                :disabled="isEncoding"
-                                class="w-full"
-                            />
-                            <div
-                                v-if="qualityDescription"
-                                class="field-description"
-                            >
-                                {{ qualityDescription }}
+                        <div class="rate-control-fields" role="group" aria-label="Video compression">
+                        <div class="form-field">
+                            <label for="videoBitrateMode">Rate control</label>
+                            <Select v-model="bitrateMode" :options="rateControlOptions" option-label="label" option-value="value" option-disabled="disabled"
+                                input-id="videoBitrateMode" placeholder="Choose rate control" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" class="w-full"
+                                :pt="{ label: { 'aria-describedby': 'videoBitrateModeHelp' } }" />
+                            <div id="videoBitrateModeHelp" class="field-description">
+                                {{ rateControlDescription }}
+                                <template v-if="!usesWebCodecs">FFmpeg WASM supports VBR and constant QP here; CBR requires WebCodecs.</template>
                             </div>
+                            <Message v-if="rateControlState.error" severity="error" :closable="false">{{ rateControlState.error }}</Message>
+                        </div>
+
+                        <div v-if="bitrateMode !== 'quantizer'" class="form-field">
+                            <label for="videoTargetBitrate">Target bitrate</label>
+                            <InputNumber v-model="bitrateMbps" input-id="videoTargetBitrate" :min="0.000001" :max-fraction-digits="6"
+                                suffix=" Mb/s" :use-grouping="false" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" fluid
+                                :pt="{ pcInputText: { root: { 'aria-describedby': 'videoTargetBitrateHelp' } } }" />
+                            <div id="videoTargetBitrateHelp" class="field-description">
+                                1 Mb/s = 1,000,000 bits/s. Sent as {{ rateControlState.control?.bitrate?.toLocaleString() ?? '—' }} bits/s to {{ usesWebCodecs ? 'WebCodecs' : 'x264' }}.
+                                Higher rates generally retain more detail and produce larger files. This value stays fixed when resolution changes.
+                            </div>
+                        </div>
+
+                        <div v-else class="form-field">
+                            <label for="videoQuantizer">Quantizer (QP)</label>
+                            <InputNumber v-model="quantizer" input-id="videoQuantizer" :min="0" :max="quantizerMax" :max-fraction-digits="0"
+                                :use-grouping="false" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" fluid
+                                :pt="{ pcInputText: { root: { 'aria-describedby': 'videoQuantizerHelp' } } }" />
+                            <div id="videoQuantizerHelp" class="field-description">
+                                {{ format === 'webm' ? 'VP9' : 'H.264' }} accepts 0–{{ quantizerMax }}.
+                                Lower values retain more detail and usually produce larger files. QP values are not comparable across codecs.
+                                {{ usesWebCodecs ? 'Sent as the encoder quantizer; export stops if this mode is unsupported.' : 'Sent to x264 as -qp.' }}
+                            </div>
+                        </div>
                         </div>
 
                         <div
@@ -839,14 +879,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                                     : 'Blends neighboring background layers, matching the scene preview.' }}
                             </div>
                         </div>
-
-                        <AnimationSettingsControls
-                            class="export-animation-settings"
-                            :show-undulation="!textureOnlyMode"
-                            :disabled="isEncoding"
-                        />
-
-                        <TextureSettingsControls class="export-texture-settings" :disabled="isEncoding" />
 
                         <div
                             class="form-line-break"
@@ -1356,6 +1388,23 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         padding: 0.25rem 0.1rem 0.35rem;
     }
 
+    .rate-control-fields {
+        display: grid;
+        flex: 1 1 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: inherit;
+    }
+
+    .rate-control-fields > .form-field {
+        min-width: 0;
+    }
+
+    @media (max-width: 767px) {
+        .rate-control-fields {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
     .form-field {
         display: flex;
         flex-direction: column;
@@ -1367,18 +1416,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     .form-line-break {
         flex: 0 0 100%;
         height: 0;
-    }
-
-    .export-animation-settings {
-        flex: 1 1 100%;
-        width: 100%;
-        padding-top: 0.6rem;
-        border-top: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
-    }
-
-    .export-texture-settings {
-        flex: 1 1 100%;
-        width: 100%;
     }
 
     .aspect-ratio-option {

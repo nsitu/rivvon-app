@@ -1,3 +1,6 @@
+import { resolveVideoRateControl } from './videoRateControl.js';
+export { getDefaultVideoBitrate as getSdrBitrate } from './videoRateControl.js';
+
 // Canvas bytes are display-referred sRGB, including the legacy numeric-RGB shaders.
 // Decode sRGB and re-encode BT.709 BEFORE the BT.709 limited-range Y'CbCr matrix.
 export const SDR_VIDEO_COLOUR = Object.freeze({ primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false });
@@ -50,12 +53,6 @@ export function rgbaToBt709I420(rgba, width, height, target = new Uint8Array(wid
     return target;
 }
 
-// Match Mediabunny 1.60's AVC subjective-quality bitrate curve.
-export function getSdrBitrate(width, height, quality = 'very-high') {
-    const factors = { 'very-low': 0.3, low: 0.6, medium: 1, high: 2, 'very-high': 4 };
-    return Math.ceil(3_000_000 * (width * height / (1920 * 1080)) ** 0.95 * (factors[quality] ?? 4) / 1000) * 1000;
-}
-
 function frameRateFraction(fps) {
     // Explicit rational avoids FFmpeg's named-rate snapping (29.97 → 30000/1001).
     const scale = 1_000_000;
@@ -66,11 +63,13 @@ function frameRateFraction(fps) {
     return `${numerator}/${denominator}`;
 }
 
-export function getSdrEncodeArgs({ width, height, fps, frames, quality }) {
+export function getSdrEncodeArgs({ width, height, fps, frames, quality, bitrateMode, bitrate, quantizer }) {
     validateSdrDimensions(width, height, fps);
+    const control = resolveVideoRateControl({ width, height, quality, bitrateMode, bitrate, quantizer, encodingMethod: 'ffmpeg' });
     return ['-f', 'rawvideo', '-pixel_format', 'yuv420p', '-video_size', `${width}x${height}`,
         '-framerate', frameRateFraction(fps), '-i', 'frames.yuv', '-frames:v', String(frames), '-an',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '1', '-b:v', String(getSdrBitrate(width, height, quality)),
+        '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '1',
+        ...(control.bitrateMode === 'quantizer' ? ['-qp', String(control.quantizer)] : ['-b:v', String(control.bitrate)]),
         '-pix_fmt', 'yuv420p', '-bf', '0', '-color_range', 'tv', '-colorspace', 'bt709',
         '-color_primaries', 'bt709', '-color_trc', 'bt709', '-chroma_sample_location', 'center',
         '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709:range=tv:chromaloc=1',

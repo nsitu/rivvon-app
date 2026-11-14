@@ -32,9 +32,10 @@ describe('real sRGB → BT.709 limited conversion', () => {
         expect(() => validateSdrDimensions(321, 240, 30)).toThrow('even');
         expect(() => validateSdrDimensions(320, 241, 30)).toThrow('even');
     });
-    it('retains Mediabunny quality targets and specifies the encoder input explicitly', () => {
+    it('shares resolution-aware bitrate targets with size estimates and specifies the encoder input explicitly', () => {
         expect(getSdrBitrate(1920, 1080, 'very-high')).toBe(12_000_000);
         expect(getSdrBitrate(1920, 1080, 'medium')).toBe(3_000_000);
+        expect(getSdrBitrate(2160, 2160, 'very-high')).toBe(25_928_000);
         const args = getSdrEncodeArgs({ width: 1280, height: 720, fps: 30, frames: 10 });
         expect(args).toContain('yuv420p'); expect(args).toContain('libx264'); expect(args).toContain('tv');
     });
@@ -43,5 +44,14 @@ describe('real sRGB → BT.709 limited conversion', () => {
         expect(rgba).toEqual(createColourChartRgba(320, 240));
         expect([...rgba.slice(0,4)]).toEqual([255,255,255,255]);
         expect([...rgba.slice(240 * 4,240 * 4 + 4)]).toEqual([0,0,255,255]);
+    });
+    it('passes numeric bitrate and QP directly to x264 without mixing rate control modes', () => {
+        const options = { width: 1920, height: 1080, fps: 30, frames: 30 };
+        const vbr = getSdrEncodeArgs({ ...options, bitrateMode: 'variable', bitrate: 14_000_000 });
+        expect(vbr.slice(vbr.indexOf('-b:v'), vbr.indexOf('-b:v') + 2)).toEqual(['-b:v', '14000000']);
+        expect(vbr).not.toContain('-qp');
+        const qp = getSdrEncodeArgs({ ...options, bitrateMode: 'quantizer', quantizer: 0 });
+        expect(qp.slice(qp.indexOf('-qp'), qp.indexOf('-qp') + 2)).toEqual(['-qp', '0']);
+        expect(qp).not.toContain('-b:v');
     });
 });

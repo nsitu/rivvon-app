@@ -682,6 +682,7 @@ export function useSceneExport(ctx, deps = {}) {
             signal = null,
             artworkMotionMode = 'none',
             quality = 'very-high',
+            bitrateMode, bitrate, quantizer,
             backgroundInterpolation = 'crossfade',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
@@ -874,7 +875,8 @@ export function useSceneExport(ctx, deps = {}) {
             }
 
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
-                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion, quality, logoOverlayEnabled, logoOverlayCorner,
+                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+                quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,
             });

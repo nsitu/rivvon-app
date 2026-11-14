@@ -349,6 +349,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         duration = null,
         loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
         quality = 'very-high',
+        bitrateMode, bitrate, quantizer,
         logoOverlayEnabled = true,
         logoOverlayCorner = 'bottomLeft',
         signal = null,
@@ -391,7 +392,8 @@ export async function exportTextureOverviewVideo(options = {}) {
         const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
         videoExport = await createCanvasVideoExport(renderer.domElement, {
-            width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion, quality, logoOverlayEnabled, logoOverlayCorner,
+            width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+            quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
             renderContext: renderer.getContext?.(),
             signal, onStatus: progress.status, onColourMetadata,
         });
