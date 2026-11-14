@@ -54,9 +54,10 @@ still uses the browser encoder. Explicit YUV conversion offers GPU and CPU
 methods, independently of encoder preference. Browser
 default retains canvas capture and the optional transparent logo compositor.
 All three paths use native AVC encoding and Mediabunny muxing. A completed
-WebCodecs MP4 is inspected and, when eligible,
-missing SPS declarations are added with FFmpeg's `h264_metadata` stream-copy
-filter. This is metadata repair, not colour conversion. WebM uses
+WebCodecs MP4 is inspected and returned with its original encoded bytes. Missing
+SPS declarations are reported without an automatic FFmpeg repair pass. Diagnostic
+comparisons can opt in to `h264_metadata` stream-copy repair; that changes tags,
+not the pixel range. WebM uses
 WebCodecs/VP9. The optional WebCodecs preference is browser decides, prefer
 hardware or prefer software; these are hints, not confirmation of the encoder
 actually selected. Unsupported native configurations fail without an automatic
@@ -65,9 +66,12 @@ switch to another method.
 Every completed export shows a colour report in the dialog, with a downloadable
 JSON file. MP4 reports inspect the final MP4 `nclx` and every SPS in `avcC`,
 including range, primaries, transfer, matrix, chroma format and bit depth. Missing
-fields remain **not declared**; conflicting fields are reported. Explicit-range
-exports fail if final container/SPS do not establish the selected BT.709 range,
-8-bit 4:2:0 output. Browser-default files remain downloadable when declarations
+fields remain **not declared**; conflicting fields are reported. Limited-range
+exports allow missing declarations with warnings, while known contradictory
+container/SPS/encoder output declarations or pixel formats still fail. Malformed
+metadata that cannot be inspected also fails explicit-range export. Full-range
+exports retain strict target verification because missing range declarations
+can lead players to assume limited range. Browser-default files remain downloadable when declarations
 differ from the SDR target. Reports distinguish explicit input conversion from
 browser-managed conversion; neither matching tags nor explicit input alone
 prove that every backend preserves pixel values. WebM reports encoder metadata;
@@ -131,12 +135,22 @@ ribbon and random-RGB stress content; these gains are not a cross-device promise
 
 ### Missing SPS declarations on WebCodecs exports
 
-The repair runs only when MP4 `nclx` and all observed encoder output colour
+Normal WebCodecs exports do not load or run the repair tool. The explicit YUV
+conversion already determines the input pixels' transfer, matrix and range.
+Repair only adds declarations; it cannot prove that a browser encoder preserved
+those samples. Limited-range files with incomplete metadata remain downloadable
+with warnings and without claiming fully verified declarations. This avoids the
+WASM heap, remux, and extra full-file allocations after encoding. The original
+BufferTarget and final download still require memory; this is not a general
+guarantee against allocation failures elsewhere in the export.
+
+The comparison lab and production-input colour test explicitly request
+`repairSpsColour: true`. This diagnostic repair runs only when MP4 `nclx` and all observed encoder output colour
 configurations provide complete, consistent declarations. Any already-declared
 SPS fields must agree. Missing/unspecified SPS fields are filled with those
 **observed output values**, not the desired BT.709 limited target. Existing
 conflicts or insufficient evidence leave Browser default files available with an
-explanation in the final report; explicit ranges fail final target validation.
+explanation in the final report; full range retains strict target validation.
 Already-complete SPS declarations need no
 repair tool. A tool failure or changed frame timing fails the export rather than
 returning an incorrectly repaired file.
@@ -669,9 +683,9 @@ The lazy-loaded core adds about **32 MB** of WASM plus its JS wrapper and encode
 on the CPU. High-resolution export can be slower than native WebCodecs. Short
 batch GOPs may change size/quality at the same bitrate, especially at 4K. No
 claim is made that arbitrary scenes render identically across GPUs.
-WebCodecs also loads this core when missing SPS declarations require repair;
-that pass copies the compressed stream and does not encode on the CPU. Complete
-or ineligible native SPS declarations do not load the core for repair.
+Normal WebCodecs exports do not load this core for metadata repair. Diagnostic
+comparisons can explicitly request repair of eligible missing SPS declarations;
+that pass copies the compressed stream and does not re-encode it.
 
 The core is GPL-2.0-or-later (including x264), while the wrapper is MIT. See
 `apps/rivvon/public/licenses/ffmpeg/NOTICE.md` and the shipped GPL text for

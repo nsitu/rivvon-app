@@ -94,6 +94,40 @@ describe('encoder selection and final reports', () => {
         await expect(writer.finalize()).rejects.toThrow('requested BT.709 limited-range');
         expect(reports.mock.calls.some(([report]) => report.phase === 'complete')).toBe(false);
     });
+    it.each([null, 2])('downloads limited-range output with unspecified SPS colour (%s), without loading repair', async missing => {
+        yuvContext(); const reports = vi.fn();
+        const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange: false };
+        inspectMp4Colour.mockReturnValue({ container: [colour], sps: [{
+            primaries: missing, transfer: missing, matrix: missing, fullRange: null,
+            chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8,
+        }] });
+        repairMissingSpsColour.mockRejectedValue(new RangeError('Array buffer allocation failed'));
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited', onColourMetadata: reports });
+        await writer.add(0, 1 / 30);
+        const blob = await writer.finalize();
+        expect(await blob.arrayBuffer()).toEqual(mocks.outputs[0].target.buffer);
+        expect(repairMissingSpsColour).not.toHaveBeenCalled();
+        const report = reports.mock.calls.at(-1)[0];
+        expect(report).toMatchObject({ phase: 'complete', spsRepair: { status: 'not-requested' },
+            verification: { matchesRequestedColour: false, conflictsWithRequestedColour: false, containerAndBitstream: 'incomplete' } });
+        expect(report.verification.warnings.join()).toContain('player interpretation may vary');
+    });
+    it('retains strict full-range verification when SPS declarations are missing', async () => {
+        yuvContext();
+        inspectMp4Colour.mockReturnValue({ container: [{ primaries: 1, transfer: 1, matrix: 1, fullRange: true }], sps: [] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'full' });
+        await writer.add(0, 1 / 30);
+        await expect(writer.finalize()).rejects.toThrow('requested BT.709 full-range');
+        expect(repairMissingSpsColour).not.toHaveBeenCalled();
+    });
+    it('rejects known encoder range conflicts even when file metadata is incomplete', async () => {
+        yuvContext();
+        inspectMp4Colour.mockReturnValue({ container: [], sps: [] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited' });
+        await writer.add(0, 1 / 30);
+        mocks.sources[0].config.onEncodedPacket(null, { decoderConfig: { colorSpace: { fullRange: true } } });
+        await expect(writer.finalize()).rejects.toThrow('requested BT.709 limited-range');
+    });
     it('closes raw frames and samples if the native encoder rejects them', async () => {
         yuvContext();
         const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoRange: 'limited' });
@@ -161,7 +195,7 @@ describe('encoder selection and final reports', () => {
     it('returns repaired bytes, preserves an exact original comparison copy, and reports the repair', async () => {
         const repaired = Uint8Array.from([1,2,3]), before = vi.fn(), reports = vi.fn();
         repairMissingSpsColour.mockResolvedValue({ data: repaired, repair: { status: 'added', sampleConversion: false } });
-        const writer = await createCanvasVideoExport({}, { ...options, onBeforeSpsRepair: before, onColourMetadata: reports });
+        const writer = await createCanvasVideoExport({}, { ...options, repairSpsColour: true, onBeforeSpsRepair: before, onColourMetadata: reports });
         await writer.add(0, 1 / 30); const blob = await writer.finalize();
         expect(new Uint8Array(await blob.arrayBuffer())).toEqual(repaired);
         expect((await before.mock.calls[0][0].arrayBuffer()).byteLength).toBe(8);
@@ -170,7 +204,7 @@ describe('encoder selection and final reports', () => {
     });
     it('fails export if an attempted repair fails verification', async () => {
         repairMissingSpsColour.mockRejectedValue(new Error('Timing changed'));
-        const reports = vi.fn(), writer = await createCanvasVideoExport({}, { ...options, onColourMetadata: reports });
+        const reports = vi.fn(), writer = await createCanvasVideoExport({}, { ...options, repairSpsColour: true, onColourMetadata: reports });
         await writer.add(0, 1 / 30);
         await expect(writer.finalize()).rejects.toThrow('Timing changed');
         expect(reports.mock.calls.some(([report]) => report.phase === 'complete')).toBe(false);
@@ -178,7 +212,7 @@ describe('encoder selection and final reports', () => {
     it('reuses the repaired worker Blob for the download', async () => {
         const data = new Uint8Array([1, 2, 3]), blob = new Blob([data], { type: 'video/mp4' });
         repairMissingSpsColour.mockResolvedValue({ data, blob, repair: { status: 'added' } });
-        const writer = await createCanvasVideoExport({}, options);
+        const writer = await createCanvasVideoExport({}, { ...options, repairSpsColour: true });
         await writer.add(0, 1 / 30);
         expect(await writer.finalize()).toBe(blob);
     });
@@ -190,7 +224,7 @@ describe('encoder selection and final reports', () => {
             signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), { once: true });
             started();
         }));
-        const writer = await createCanvasVideoExport({}, { ...options, signal: controller.signal, onColourMetadata: reports });
+        const writer = await createCanvasVideoExport({}, { ...options, repairSpsColour: true, signal: controller.signal, onColourMetadata: reports });
         await writer.add(0, 1 / 30);
         const rejected = expect(writer.finalize()).rejects.toMatchObject({ name: 'AbortError' });
         await executing;

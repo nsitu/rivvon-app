@@ -71,7 +71,7 @@ report(environment);
 async function legacy(canvas, logoEnabled, hardwareAcceleration, metadata) {
     let originalBlob, originalMetadata;
     const writer = await createCanvasVideoExport(canvas,{ width,height,fps,format:'mp4',encodingMethod:'webcodecs',
-        quality:'very-high',logoOverlayEnabled:logoEnabled,logoOverlayCorner:'bottomLeft',hardwareAcceleration,
+        quality:'very-high',logoOverlayEnabled:logoEnabled,logoOverlayCorner:'bottomLeft',hardwareAcceleration,repairSpsColour:true,
         renderContext:gl,onBeforeSpsRepair:(blob,meta) => { originalBlob = blob; originalMetadata = meta; },onColourMetadata:meta => {
             metadata.metadata = meta; metadata.videoFrame = meta.videoFrame; metadata.decoderConfig = meta.decoderConfig;
         } });
@@ -211,6 +211,27 @@ async function exportComparisons({ receiver, hardwareAcceleration = 'no-preferen
     let checkedLargeInput = false;
     for (const [asset,canvas,render] of [['chart',chart,renderChart],['ribbon',ribbon,renderRibbon]]) {
         render(); await save(`${asset}-preview.png`,await new Promise(r => canvas.toBlob(r)),receiver);
+        // Normal limited-range exports retain the original WebCodecs bytes,
+        // including incomplete SPS declarations, without the repair pass.
+        const native = { name: `${asset}-limited-webcodecs.mp4` };
+        let original;
+        const nativeWriter = await createCanvasVideoExport(canvas, { width, height, fps, format: 'mp4',
+            encodingMethod: 'webcodecs', videoRange: 'limited', hardwareAcceleration, quality: 'very-high', logoOverlayEnabled: false,
+            onBeforeSpsRepair: blob => { original = blob; }, onColourMetadata: metadata => { native.metadata = metadata; } });
+        try {
+            for (let n = 0; n < frames; n++) await nativeWriter.add(n / fps, 1 / fps);
+            const blob = await nativeWriter.finalize();
+            if (native.metadata.spsRepair.status !== 'not-requested' || native.metadata.verification.conflictsWithRequestedColour) {
+                throw new Error('Normal limited export unexpectedly repaired or contradicted the requested colour.');
+            }
+            const before = new Uint8Array(await original.arrayBuffer()), after = new Uint8Array(await blob.arrayBuffer());
+            if (before.length !== after.length || !before.every((byte, i) => byte === after[i])) {
+                throw new Error('Normal limited export changed the original encoded file.');
+            }
+            await save(native.name, blob, receiver);
+            native.desktopPlaybackPatches = await desktopPlayback(blob, native.name, receiver);
+            results.exports.push(native);
+        } finally { await nativeWriter.dispose(); }
         for (const logoOverlayEnabled of [false,true]) {
             const name = `${asset}-logo-${logoOverlayEnabled ? 'on':'off'}`;
             if (includeLegacy) {

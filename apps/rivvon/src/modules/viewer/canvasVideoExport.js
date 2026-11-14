@@ -2,7 +2,6 @@ import { createSdrVideoExport } from './sdrVideoExport.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
 import { inspectMp4Colour } from './videoColourMetadata.js';
-import { repairMissingSpsColour } from './repairWebCodecsColour.js';
 import { SDR_VIDEO_COLOUR, validateSdrDimensions } from './exportColour.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
 import { createExportBlob } from './exportBlob.js';
@@ -129,18 +128,24 @@ export async function createCanvasVideoExport(canvas, options) {
                         await options.onBeforeSpsRepair(await createExportBlob(data, { signal: repairController.signal }), metadata);
                     }
                     if (signal?.aborted || repairController.signal.aborted) throw new DOMException('Video export cancelled', 'AbortError');
-                    if (!inspectionError) {
+                    if (!inspectionError && options.repairSpsColour === true) {
+                        // Diagnostic comparisons may opt in; normal exports
+                        // retain the original bytes without a WASM remux/copy.
+                        const { repairMissingSpsColour } = await import('./repairWebCodecsColour.js');
                         const result = await repairMissingSpsColour(data, { decoderColourSpaces: report.decoderColourSpaces,
                             signal: repairController.signal, onStatus: options.onStatus });
                         data = result.data; report.spsRepair = result.repair;
                         repairedBlob = result.blob;
                         if (result.repair.status === 'added') report.pipeline += ' → FFmpeg h264_metadata (stream copy)';
                         metadata = inspectMp4Colour(data);
-                    } else report.spsRepair = { status: 'skipped', reason: 'The completed MP4 could not be inspected.' };
+                    } else report.spsRepair = inspectionError
+                        ? { status: 'skipped', reason: 'The completed MP4 could not be inspected.' }
+                        : { status: 'not-requested', reason: 'Original encoder output retained; automatic metadata repair is disabled.' };
                 }
                 if (signal?.aborted || repairController.signal.aborted) throw new DOMException('Video export cancelled', 'AbortError');
                 const finalReport = completeExportColourReport(report, metadata, inspectionError);
-                if (explicitYuv && !finalReport.verification.matchesRequestedColour) {
+                if (explicitYuv && (inspectionError || finalReport.verification.conflictsWithRequestedColour
+                    || (videoRange === 'full' && !finalReport.verification.matchesRequestedColour))) {
                     throw new Error(`The browser did not establish the requested BT.709 ${videoRange}-range output. Try FFmpeg WASM for limited-range export or another encoder preference.`);
                 }
                 const blob = repairedBlob ?? await createExportBlob(data, {

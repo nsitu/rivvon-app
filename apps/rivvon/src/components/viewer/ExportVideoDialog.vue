@@ -656,7 +656,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             <div class="field-description">
                                 {{ encodingMethod === 'ffmpeg'
                                     ? 'Consistent BT.709 limited colour. Encoding runs on the CPU and loads a 32 MB encoder; pixel conversion is selected below.'
-                                    : 'Uses the browser encoder. Colour can vary by browser and device. Missing H.264 declarations may load a 32 MB repair tool; inspect the final report.' }}
+                                    : 'Uses the browser encoder. Colour can vary by browser and device. Keeps the original encoded video without metadata repair; inspect the final colour report.' }}
                             </div>
                         </div>
 
@@ -678,7 +678,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                                     ? 'The browser chooses RGB-to-YUV conversion and range, which can differ between hardware and software encoders. Skips explicit YUV conversion and its readback step.'
                                     : videoRange === 'full'
                                         ? 'Converts actual pixels to BT.709 full range (0–255). Some players handle full range poorly. Export stops if its colour declarations do not match.'
-                                        : 'Converts actual pixels to BT.709 limited range (luma 16–235, chroma 16–240), suitable for most players. Export stops if its colour declarations do not match.' }}
+                                        : 'Converts actual pixels to BT.709 limited range (luma 16–235, chroma 16–240). Missing colour declarations are reported as warnings; conflicting output declarations stop export.' }}
                             </div>
                         </div>
 

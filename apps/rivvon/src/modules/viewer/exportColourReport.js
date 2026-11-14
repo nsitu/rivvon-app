@@ -4,6 +4,7 @@ const colourNames = {
     matrix: { 0: 'RGB', 1: 'BT.709', 6: 'SMPTE 170M', rgb: 'RGB', bt709: 'BT.709', smpte170m: 'SMPTE 170M' },
 };
 const colourKeys = ['primaries', 'transfer', 'matrix', 'fullRange'];
+const declared = (colour, key) => colour?.[key] != null && (key === 'fullRange' || colour[key] !== 2);
 const target = colour => colour?.primaries === 1 && colour.transfer === 1 && colour.matrix === 1 && colour.fullRange === false;
 
 export function describeColour(colour) {
@@ -51,20 +52,29 @@ export function completeExportColourReport(base, metadata = null, inspectionErro
     const declarations = [...container, ...sps];
     const warnings = [];
     let agreement = 'incomplete';
-    if (container.length && sps.length && declarations.every(c => colourKeys.every(k => c[k] != null))) agreement = 'agree';
+    if (container.length && sps.length && declarations.every(c => colourKeys.every(k => declared(c, k)))) agreement = 'agree';
     if (declarations.some((c, i) => declarations.slice(i + 1).some(other =>
-        colourKeys.some(k => c[k] != null && other[k] != null && c[k] !== other[k])))) agreement = 'conflict';
+        colourKeys.some(k => declared(c, k) && declared(other, k) && c[k] !== other[k])))) agreement = 'conflict';
     const matchesSdrTarget = !inspectionError && base.format === 'mp4' && container.length > 0 && sps.length > 0
         && declarations.every(target) && sps.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8);
     const requestedColour = base.explicitYuv && ['limited', 'full'].includes(base.videoRange);
     const matchesRequestedColour = requestedColour ? !inspectionError && base.format === 'mp4' && container.length > 0 && sps.length > 0
         && declarations.every(c => c.primaries === 1 && c.transfer === 1 && c.matrix === 1 && c.fullRange === (base.videoRange === 'full'))
         && sps.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8) : null;
+    const requested = { primaries: 1, transfer: 1, matrix: 1, fullRange: base.videoRange === 'full' };
+    const conflictsWithRequestedColour = requestedColour ? declarations.some(c =>
+        colourKeys.some(key => declared(c, key) && c[key] !== requested[key]))
+        || sps.some(s => Object.entries({ chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 })
+            .some(([key, value]) => s[key] != null && s[key] !== value))
+        || (base.decoderColourSpaces ?? []).some(c => c && (
+            ['primaries', 'transfer', 'matrix'].some(key => c[key] != null && c[key] !== 'bt709')
+            || (typeof c.fullRange === 'boolean' && c.fullRange !== requested.fullRange))) : null;
     if (base.format === 'mp4') {
         if (!container.length) warnings.push('MP4 colour declaration is absent or could not be inspected.');
-        if (!sps.length || sps.some(s => colourKeys.some(k => s[k] == null))) warnings.push('H.264 SPS colour declaration is absent or incomplete.');
+        if (!sps.length || sps.some(s => colourKeys.some(k => !declared(s, k)))) warnings.push('H.264 SPS colour declaration is absent or incomplete.');
         if (agreement === 'conflict') warnings.push('Container and/or bitstream colour declarations conflict.');
-        if (requestedColour && !matchesRequestedColour) warnings.push(`This file does not establish the requested BT.709 ${base.videoRange}, 8-bit 4:2:0 contract.`);
+        if (conflictsWithRequestedColour) warnings.push(`Known output declarations or pixel format conflict with the requested BT.709 ${base.videoRange}, 8-bit 4:2:0 output.`);
+        else if (requestedColour && !matchesRequestedColour) warnings.push(`Incomplete metadata does not fully confirm BT.709 ${base.videoRange} output; player interpretation may vary.`);
         else if (!requestedColour && !matchesSdrTarget) warnings.push('This file does not establish the complete BT.709 limited, 8-bit 4:2:0 contract.');
     } else warnings.push('WebM container and VP9 bitstream colour are not independently inspected; encoder metadata is reported.');
     if (inspectionError) warnings.push(`Colour inspection failed: ${inspectionError}`);
@@ -73,7 +83,7 @@ export function completeExportColourReport(base, metadata = null, inspectionErro
         ? 'BT.709 I420 pixels were explicitly supplied; colour tags alone do not verify that the encoder preserved their values.'
         : 'Colour tags describe the output; they do not prove correct browser-managed pixel conversion.');
     return { ...base, ...(metadata ?? {}), phase: 'complete', completedAt: new Date().toISOString(),
-        verification: { matchesSdrTarget: Boolean(matchesSdrTarget), matchesRequestedColour, containerAndBitstream: agreement,
+        verification: { matchesSdrTarget: Boolean(matchesSdrTarget), matchesRequestedColour, conflictsWithRequestedColour, containerAndBitstream: agreement,
             pixelConversion: base.encodingMethod === 'ffmpeg' ? 'explicit-sRGB-to-BT.709-limited-I420'
                 : base.explicitYuv ? `explicit-sRGB-to-BT.709-${base.videoRange}-I420` : 'browser-managed-unverified', warnings } };
 }

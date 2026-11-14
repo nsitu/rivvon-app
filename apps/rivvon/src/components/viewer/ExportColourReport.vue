@@ -25,7 +25,9 @@ const rows = computed(() => [
         ['Container / bitstream', props.report.verification?.containerAndBitstream ?? 'incomplete'],
         ...(props.report.spsRepair ? [['SPS repair', props.report.spsRepair.status === 'added'
             ? 'Missing declarations added; encoded pixels unchanged'
-            : props.report.spsRepair.status === 'not-needed' ? 'Already declared; no repair needed' : `Skipped: ${props.report.spsRepair.reason}`]] : []),
+            : props.report.spsRepair.status === 'not-needed' ? 'Already declared; no repair needed'
+                : props.report.spsRepair.status === 'not-requested' ? 'Not applied; original encoder output retained'
+                    : `Skipped: ${props.report.spsRepair.reason}`]] : []),
     ] : [['Encoder output', describeColour(props.report.decoderConfig?.colorSpace)]]),
     ['Environment', exportEnvironmentLabel(props.report.environment)],
 ]);

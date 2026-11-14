@@ -51,7 +51,7 @@ try{
   const caseId=[input,range,hardwareAcceleration,repeat,logo].join('-');performance.mark(caseId+':start');
   if(input==='production'){
    let original,report;
-   const writer=await createCanvasVideoExport(canvas,{width:w,height:h,fps,format:'mp4',encodingMethod:'webcodecs',hardwareAcceleration,videoRange:range,yuvConversion:${JSON.stringify(process.env.COLOUR_CONVERSION || 'gpu')},quality:'very-high',logoOverlayEnabled:logo,
+   const writer=await createCanvasVideoExport(canvas,{width:w,height:h,fps,format:'mp4',encodingMethod:'webcodecs',hardwareAcceleration,videoRange:range,yuvConversion:${JSON.stringify(process.env.COLOUR_CONVERSION || 'gpu')},quality:'very-high',logoOverlayEnabled:logo,repairSpsColour:true,
     onBeforeSpsRepair:async blob=>{original=new Uint8Array(await blob.arrayBuffer());},onColourMetadata:r=>{report=r;}});
    try{
     const ctx=canvas.getContext('2d');

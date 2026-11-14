@@ -19,6 +19,21 @@ describe('export colour reports', () => {
         expect(report.verification).toMatchObject({ matchesSdrTarget: true, containerAndBitstream: 'agree', pixelConversion: 'browser-managed-unverified' });
         expect(report.verification.warnings.join()).toContain('do not prove');
     });
+    it.each([null, 2])('distinguishes incomplete declarations (%s) from a known contradiction', missing => {
+        const report = completeExportColourReport({ ...base, videoRange: 'limited', explicitYuv: true }, {
+            container: [colour], sps: [{ ...sps, transfer: missing, fullRange: null }],
+        });
+        expect(report.verification).toMatchObject({ matchesRequestedColour: false,
+            conflictsWithRequestedColour: false, containerAndBitstream: 'incomplete' });
+        expect(report.verification.warnings.join()).toContain('player interpretation may vary');
+    });
+    it.each([{ fullRange: true }, { transfer: 13 }, { matrix: 6 }, { primaries: 9 }, { chromaFormat: 3 }, { bitDepthLuma: 10 }])(
+        'detects known output contradictions %j even with other missing fields', change => {
+            const report = completeExportColourReport({ ...base, videoRange: 'limited', explicitYuv: true }, {
+                container: [], sps: [{ ...sps, transfer: null, ...change }],
+            });
+            expect(report.verification.conflictsWithRequestedColour).toBe(true);
+        });
     it('reports the original hardware path without assigning a default to missing SPS colour', () => {
         const report = completeExportColourReport(base, { container: [{ ...colour, transfer: 13, fullRange: true }],
             sps: [{ ...sps, primaries: null, transfer: null, matrix: null, fullRange: null }] });
