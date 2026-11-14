@@ -151,6 +151,12 @@ format must survive inspection unchanged. Cancellation terminates the repair
 worker. The final JSON records original SPS values, applied filter, final
 declarations and whether repair was added, unnecessary or skipped.
 
+The repair worker reads its input from a Blob mounted through WORKERFS. This
+avoids transferring a complete MP4 ArrayBuffer through `postMessage` and keeping
+another full input copy in FFmpeg's in-memory filesystem. The colour regression
+includes a 256 MiB padded MP4 with an imposed 128 MiB input-transfer limit;
+output bytes and the completed export still require browser memory.
+
 This can address decoders that mishandle absent bitstream declarations. It cannot
 establish that the browser's RGB-to-YUV conversion was correct or normalize
 full-range/sRGB/601 samples. FFmpeg WASM encoding remains the default for the

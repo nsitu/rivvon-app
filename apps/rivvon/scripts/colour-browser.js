@@ -5,6 +5,7 @@ import { applyRendererDisplayConfig } from '../src/modules/viewer/rendererConfig
 import { createColourChartRgba } from '../src/modules/viewer/colourTestChart.js';
 import { createCanvasVideoExport } from '../src/modules/viewer/canvasVideoExport.js';
 import { completeExportColourReport } from '../src/modules/viewer/exportColourReport.js';
+import { repairMissingSpsColour } from '../src/modules/viewer/repairWebCodecsColour.js';
 
 const params = new URLSearchParams(location.search);
 const width = Number(params.get('width') || 960), height = Number(params.get('height') || 540);
@@ -120,6 +121,35 @@ async function desktopPlayback(blob,name,receiver) {
         return patches;
     } catch (error) { URL.revokeObjectURL(url); throw error; }
 }
+async function checkLargeRepairInput(originalBlob, decoderColourSpaces) {
+    const original = new Uint8Array(await originalBlob.arrayBuffer());
+    // A trailing MP4 free box makes a large, valid input without encoding
+    // minutes of video or changing sample offsets, colour, or frame timing.
+    const paddingBytes = 256 * 1024 * 1024;
+    const data = new Uint8Array(original.length + paddingBytes);
+    data.set(original);
+    new DataView(data.buffer).setUint32(original.length, paddingBytes);
+    data.set([0x66, 0x72, 0x65, 0x65], original.length + 4); // free
+    // Reproduce a restricted transfer range even on browsers with a higher
+    // limit. The real FFmpeg worker must still read and repair the large file.
+    const postMessage = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, transfer) {
+        if (transfer?.some(buffer => buffer instanceof ArrayBuffer && buffer.byteLength > 128 * 1024 * 1024)) {
+            throw new RangeError('The ArrayBuffer/ArrayBufferView size exceeds the supported range.');
+        }
+        return postMessage.call(this, message, transfer);
+    };
+    let result;
+    try { result = await repairMissingSpsColour(data, { decoderColourSpaces }); }
+    finally { Worker.prototype.postMessage = postMessage; }
+    if (result.repair.status !== 'added' && result.repair.status !== 'not-needed') {
+        throw new Error(`Large input repair could not be verified: ${result.repair.reason}`);
+    }
+    if (data.byteLength !== original.length + paddingBytes || !original.every((byte, i) => data[i] === byte)) {
+        throw new Error('Large input repair detached or changed the original MP4.');
+    }
+    return { inputBytes: data.byteLength, outputBytes: result.data.byteLength, ...result.repair };
+}
 async function exportComparisons({ receiver, hardwareAcceleration = 'no-preference', includeLegacy = true } = {}) {
     const results = { ...environment, hardwareAcceleration, exports:[] };
     for (const [asset,canvas,render] of [['chart',chart,renderChart],['ribbon',ribbon,renderRibbon]]) {
@@ -130,6 +160,9 @@ async function exportComparisons({ receiver, hardwareAcceleration = 'no-preferen
                 const before = { name:`${name}-before.mp4` };
                 try {
                     const encoded = await legacy(canvas,logoOverlayEnabled,hardwareAcceleration,before);
+                    if (!results.largeInputRepair) {
+                        results.largeInputRepair = await checkLargeRepairInput(encoded.originalBlob, before.metadata.decoderColourSpaces);
+                    }
                     const repaired = { ...before, name:`${name}-webcodecs-repaired.mp4` };
                     before.metadata = completeExportColourReport({ ...before.metadata, spsRepair: { status:'unrepaired-comparison-copy' } }, encoded.originalMetadata);
                     await save(before.name,encoded.originalBlob,receiver);

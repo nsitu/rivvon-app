@@ -38,7 +38,7 @@ export function planSpsColourRepair(metadata, decoderColourSpaces = []) {
 
 export function getSpsColourRepairArgs(plan, metadata) {
     const colour = plan.colour;
-    return ['-copyts', '-i', 'input.mp4', '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', plan.bitstreamFilter,
+    return ['-copyts', '-i', '/input/input.mp4', '-map', '0:v:0', '-c:v', 'copy', '-bsf:v', plan.bitstreamFilter,
         '-color_primaries', String(colour.primaries), '-color_trc', String(colour.transfer), '-colorspace', String(colour.matrix),
         '-color_range', colour.fullRange ? 'pc' : 'tv', '-avoid_negative_ts', 'disabled',
         '-video_track_timescale', String(metadata.timescale), '-movie_timescale', String(metadata.movieTimescale),
@@ -98,9 +98,16 @@ export async function repairMissingSpsColour(data, { decoderColourSpaces, signal
         await ffmpeg.load({ coreURL: `${base}ffmpeg-core-stackfix.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
         check(); onStatus?.('Adding missing H.264 colour declarations…');
         check();
-        // writeFile transfers its buffer; retain the original for validation/test copies.
-        await ffmpeg.writeFile('input.mp4', data.slice());
+        // Mount a Blob instead of transferring a full MP4 ArrayBuffer to the
+        // worker. WORKERFS reads only the requested ranges, avoiding Chrome's
+        // postMessage buffer-size limit and an extra full-file MEMFS copy.
+        await ffmpeg.createDir('/input');
         check();
+        const mounted = await ffmpeg.mount('WORKERFS', {
+            blobs: [{ name: 'input.mp4', data: new Blob([data], { type: 'video/mp4' }) }],
+        }, '/input');
+        check();
+        if (!mounted) throw new Error('The H.264 colour repair tool could not mount the exported video.');
         if (await ffmpeg.exec(getSpsColourRepairArgs(plan, before)) !== 0) {
             throw new Error(`H.264 colour repair failed: ${logs.slice(-6).join('\n')}`);
         }

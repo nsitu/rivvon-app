@@ -156,7 +156,7 @@ try {
     }
     await writeFile(join(output,'native-report.json'),JSON.stringify(native,null,2));
     console.log(JSON.stringify({ userAgent:report.userAgent,gpu:report.gpu,frames:report.frames,fps:report.fps,
-        chartMaxError:report.chartMaxError,cancellation:report.cancellation,
+        chartMaxError:report.chartMaxError,cancellation:report.cancellation,largeInputRepair:report.largeInputRepair,
         exports:native.map(({ name,ffprobe,patchMaxError }) => ({ name,ffprobe,patchMaxError })) },null,2));
     console.log(`Colour comparison files: ${output}`);
 } finally {

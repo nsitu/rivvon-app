@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertSpsColourRepair, getSpsColourRepairArgs, planSpsColourRepair, repairMissingSpsColour } from './repairWebCodecsColour.js';
 
 const mocks = vi.hoisted(() => ({ inspect: vi.fn(), load: vi.fn(), exec: vi.fn(),
-    writeFile: vi.fn(), readFile: vi.fn(), terminate: vi.fn() }));
+    writeFile: vi.fn(), createDir: vi.fn(), mount: vi.fn(), readFile: vi.fn(), terminate: vi.fn() }));
 vi.mock('./videoColourMetadata.js', () => ({ inspectMp4Colour: mocks.inspect }));
 vi.mock('@ffmpeg/ffmpeg', () => ({ FFmpeg: class {
     on() {}
     load = mocks.load; exec = mocks.exec; writeFile = mocks.writeFile;
+    createDir = mocks.createDir; mount = mocks.mount;
     readFile = mocks.readFile; terminate = mocks.terminate;
 } }));
 
@@ -69,11 +70,43 @@ describe('repair validation', () => {
     });
 });
 
-describe('repair worker cancellation', () => {
+describe('repair worker handoff and cancellation', () => {
     beforeEach(() => {
         Object.values(mocks).forEach(mock => mock.mockReset());
         mocks.inspect.mockImplementation(() => fixture());
         mocks.load.mockResolvedValue(true); mocks.writeFile.mockResolvedValue(undefined);
+        mocks.mount.mockResolvedValue(true); mocks.exec.mockResolvedValue(0);
+    });
+    it('mounts exactly the input view as a Blob without transferring or detaching the original buffer', async () => {
+        const original = new Uint8Array([99, 1, 2, 3, 99]), data = original.subarray(1, 4);
+        const repaired = new Uint8Array([4, 5, 6]);
+        mocks.readFile.mockResolvedValue(repaired);
+        mocks.inspect.mockReturnValueOnce(fixture()).mockReturnValueOnce({ ...fixture(), sps: [{ ...sps, ...colour }] });
+        const result = await repairMissingSpsColour(data, { decoderColourSpaces: [encoder] });
+        expect(result).toMatchObject({ data: repaired, repair: { status: 'added', timingPreserved: true } });
+        expect(mocks.createDir).toHaveBeenCalledWith('/input');
+        expect(mocks.mount).toHaveBeenCalledWith('WORKERFS', {
+            blobs: [{ name: 'input.mp4', data: expect.any(Blob) }],
+        }, '/input');
+        const blob = mocks.mount.mock.calls[0][1].blobs[0].data;
+        expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+        expect([...original]).toEqual([99, 1, 2, 3, 99]);
+        expect(mocks.writeFile).not.toHaveBeenCalled();
+        expect(mocks.exec.mock.calls[0][0].slice(0, 3)).toEqual(['-copyts', '-i', '/input/input.mp4']);
+        expect(mocks.terminate).toHaveBeenCalledOnce();
+    });
+    it('stops before executing if the input filesystem is unavailable', async () => {
+        mocks.mount.mockResolvedValue(false);
+        await expect(repairMissingSpsColour(new Uint8Array([1]), { decoderColourSpaces: [encoder] }))
+            .rejects.toThrow('could not mount');
+        expect(mocks.exec).not.toHaveBeenCalled(); expect(mocks.terminate).toHaveBeenCalledOnce();
+    });
+    it('does not start a repair after cancellation while mounting the input', async () => {
+        const controller = new AbortController();
+        mocks.mount.mockImplementation(async () => { controller.abort(); return true; });
+        await expect(repairMissingSpsColour(new Uint8Array([1]), { decoderColourSpaces: [encoder], signal: controller.signal }))
+            .rejects.toMatchObject({ name: 'AbortError' });
+        expect(mocks.exec).not.toHaveBeenCalled(); expect(mocks.terminate).toHaveBeenCalledOnce();
     });
     it('avoids loading WASM when encoder declarations cannot support a repair', async () => {
         const data = new Uint8Array([1, 2]);
