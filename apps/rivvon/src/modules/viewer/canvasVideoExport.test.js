@@ -175,6 +175,13 @@ describe('encoder selection and final reports', () => {
         await expect(writer.finalize()).rejects.toThrow('Timing changed');
         expect(reports.mock.calls.some(([report]) => report.phase === 'complete')).toBe(false);
     });
+    it('reuses the repaired worker Blob for the download', async () => {
+        const data = new Uint8Array([1, 2, 3]), blob = new Blob([data], { type: 'video/mp4' });
+        repairMissingSpsColour.mockResolvedValue({ data, blob, repair: { status: 'added' } });
+        const writer = await createCanvasVideoExport({}, options);
+        await writer.add(0, 1 / 30);
+        expect(await writer.finalize()).toBe(blob);
+    });
     it.each(['signal', 'dispose'])('cancels the repair stage through %s without returning a completed export', async method => {
         const controller = new AbortController(), reports = vi.fn();
         let started;

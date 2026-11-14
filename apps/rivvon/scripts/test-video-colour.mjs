@@ -11,6 +11,10 @@ import { rgbaToBt709I420 } from '../src/modules/viewer/exportColour.js';
 import { createColourChartRgba } from '../src/modules/viewer/colourTestChart.js';
 
 const root = fileURLToPath(new URL('..',import.meta.url));
+const repairPaddingMiB = Number(process.env.COLOUR_REPAIR_PADDING_MIB || 256);
+if (!Number.isSafeInteger(repairPaddingMiB) || repairPaddingMiB < 256 || repairPaddingMiB >= 4096) {
+    throw new Error('COLOUR_REPAIR_PADDING_MIB must be an integer between 256 and 4095.');
+}
 const binary = process.env.BROWSER_BINARY || [
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -68,7 +72,7 @@ try {
     const result = await Promise.race([
         browserError,
         call('Runtime.evaluate',{
-            expression:`(async () => { while (!window.colourLab) await new Promise(r => setTimeout(r,100)); return await colourLab.exportComparisons({ receiver:'/__colour_output', hardwareAcceleration:${JSON.stringify(process.env.HARDWARE_ACCELERATION || 'no-preference')} }); })()`,
+            expression:`(async () => { while (!window.colourLab) await new Promise(r => setTimeout(r,100)); return await colourLab.exportComparisons({ receiver:'/__colour_output', repairPaddingMiB:${repairPaddingMiB}, hardwareAcceleration:${JSON.stringify(process.env.HARDWARE_ACCELERATION || 'no-preference')} }); })()`,
             awaitPromise:true,returnByValue:true,
         }),
         new Promise((_,reject) => setTimeout(() => reject(new Error('Colour regression timed out after 10 minutes.')),600000).unref()),

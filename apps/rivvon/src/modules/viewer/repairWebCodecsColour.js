@@ -1,5 +1,7 @@
 import { inspectMp4Colour } from './videoColourMetadata.js';
 import { getRuntimeAssetUrl } from '../shared/runtimeAssets.js';
+import { createExportBlob, readExportBlob } from './exportBlob.js';
+import spsRepairWorkerUrl from './spsRepairWorker.js?worker&url';
 
 const keys = ['primaries', 'transfer', 'matrix', 'fullRange'];
 const enums = {
@@ -95,7 +97,8 @@ export async function repairMissingSpsColour(data, { decoderColourSpaces, signal
         check(); onStatus?.('Loading SPS colour repair tool…');
         check();
         const base = `${import.meta.env.BASE_URL}vendor/ffmpeg/0.12.10/`;
-        await ffmpeg.load({ coreURL: `${base}ffmpeg-core-stackfix.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
+        await ffmpeg.load({ classWorkerURL: spsRepairWorkerUrl,
+            coreURL: `${base}ffmpeg-core-stackfix.js`, wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
         check(); onStatus?.('Adding missing H.264 colour declarations…');
         check();
         // Mount a Blob instead of transferring a full MP4 ArrayBuffer to the
@@ -103,8 +106,10 @@ export async function repairMissingSpsColour(data, { decoderColourSpaces, signal
         // postMessage buffer-size limit and an extra full-file MEMFS copy.
         await ffmpeg.createDir('/input');
         check();
+        const inputBlob = await createExportBlob(data, { signal });
+        check();
         const mounted = await ffmpeg.mount('WORKERFS', {
-            blobs: [{ name: 'input.mp4', data: new Blob([data], { type: 'video/mp4' }) }],
+            blobs: [{ name: 'input.mp4', data: inputBlob }],
         }, '/input');
         check();
         if (!mounted) throw new Error('The H.264 colour repair tool could not mount the exported video.');
@@ -112,10 +117,14 @@ export async function repairMissingSpsColour(data, { decoderColourSpaces, signal
             throw new Error(`H.264 colour repair failed: ${logs.slice(-6).join('\n')}`);
         }
         check();
-        const repaired = await ffmpeg.readFile('repaired.mp4');
+        const file = await ffmpeg.readFile('repaired.mp4');
+        check();
+        const blob = file instanceof Blob ? file : null;
+        const repaired = blob ? await readExportBlob(blob, { signal }) : file;
+        check();
         const after = inspectMp4Colour(repaired, { includeTiming: true });
         assertSpsColourRepair(before, after, plan.colour);
-        return { data: repaired, repair: { ...plan, status: 'added', originalSps: before.sps,
+        return { data: repaired, blob, repair: { ...plan, status: 'added', originalSps: before.sps,
             sampleConversion: false, timingPreserved: true } };
     } catch (error) { if (signal?.aborted) throw abortError(); throw error; }
     finally { dispose(); }

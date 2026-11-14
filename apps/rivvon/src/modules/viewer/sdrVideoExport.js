@@ -4,6 +4,7 @@ import { assertSdrMp4, restoreCfrMp4Timing } from './videoColourMetadata.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
 import { createSdrEncoderPool } from './sdrEncoderPool.js';
+import { createExportBlob } from './exportBlob.js';
 
 const RAW_BATCH_BYTES = 32 * 1024 * 1024;
 const abortError = () => new DOMException('Video export cancelled', 'AbortError');
@@ -17,10 +18,12 @@ export async function createSdrVideoExport(canvas, options = {}) {
     if (signal?.aborted) throw abortError();
     let pool = null, converter = null;
     let terminated = false, count = 0, pending = 0, raw = null;
+    const packagingController = new AbortController();
     const frameBytes = width * height * 3 / 2;
     const batchFrames = Math.max(1, Math.min(Math.floor(RAW_BATCH_BYTES / frameBytes),
         options.totalFrames > 0 ? Math.ceil(options.totalFrames) : Infinity));
     const dispose = () => {
+        packagingController.abort();
         signal?.removeEventListener('abort', abort);
         if (!terminated) { terminated = true; pool?.dispose(); }
         converter?.dispose();
@@ -82,10 +85,12 @@ export async function createSdrVideoExport(canvas, options = {}) {
                     const data = await pool.mux();
                     restoreCfrMp4Timing(data, { fps, frames: count });
                     const metadata = assertSdrMp4(data, { width, height, fps, frames: count });
+                    const blob = await createExportBlob(data, { signal: packagingController.signal });
+                    check();
                     onColourMetadata?.(completeExportColourReport({ ...report,
                         workerLimit: pool.workerLimit, workerCount: pool.workerCount }, metadata));
                     if (import.meta.env.DEV) console.info('[Rivvon export colour verified]', metadata);
-                    return new Blob([data], { type: 'video/mp4' });
+                    return blob;
                 } finally { dispose(); }
             },
             dispose,

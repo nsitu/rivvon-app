@@ -6,6 +6,9 @@ import { createColourChartRgba } from '../src/modules/viewer/colourTestChart.js'
 import { createCanvasVideoExport } from '../src/modules/viewer/canvasVideoExport.js';
 import { completeExportColourReport } from '../src/modules/viewer/exportColourReport.js';
 import { repairMissingSpsColour } from '../src/modules/viewer/repairWebCodecsColour.js';
+import { createExportBlob, readExportBlob } from '../src/modules/viewer/exportBlob.js';
+import spsRepairWorkerUrl from '../src/modules/viewer/spsRepairWorker.js?worker&url';
+import { getRuntimeAssetUrl } from '../src/modules/shared/runtimeAssets.js';
 
 const params = new URLSearchParams(location.search);
 const width = Number(params.get('width') || 960), height = Number(params.get('height') || 540);
@@ -121,37 +124,91 @@ async function desktopPlayback(blob,name,receiver) {
         return patches;
     } catch (error) { URL.revokeObjectURL(url); throw error; }
 }
-async function checkLargeRepairInput(originalBlob, decoderColourSpaces) {
+async function checkLargeRepairInput(originalBlob, decoderColourSpaces, paddingMiB) {
     const original = new Uint8Array(await originalBlob.arrayBuffer());
     // A trailing MP4 free box makes a large, valid input without encoding
     // minutes of video or changing sample offsets, colour, or frame timing.
-    const paddingBytes = 256 * 1024 * 1024;
+    const paddingBytes = paddingMiB * 1024 * 1024;
     const data = new Uint8Array(original.length + paddingBytes);
     data.set(original);
     new DataView(data.buffer).setUint32(original.length, paddingBytes);
     data.set([0x66, 0x72, 0x65, 0x65], original.length + 4); // free
+    let nativeBlobError = null;
+    try { new Blob([data]); }
+    catch (error) { nativeBlobError = `${error.name}: ${error.message}`; }
     // Reproduce a restricted transfer range even on browsers with a higher
     // limit. The real FFmpeg worker must still read and repair the large file.
     const postMessage = Worker.prototype.postMessage;
+    const NativeBlob = Blob;
+    if (paddingMiB < 2048) window.Blob = new Proxy(NativeBlob, {
+        construct(target, [parts, options], newTarget) {
+            for (const part of parts) {
+                const buffer = ArrayBuffer.isView(part) ? part.buffer : part;
+                if (buffer instanceof ArrayBuffer && buffer.byteLength > 128 * 1024 * 1024) {
+                    throw new RangeError('The ArrayBuffer/ArrayBufferView size exceeds the supported range.');
+                }
+            }
+            return Reflect.construct(target, [parts, options], newTarget);
+        }
+    });
     Worker.prototype.postMessage = function (message, transfer) {
         if (transfer?.some(buffer => buffer instanceof ArrayBuffer && buffer.byteLength > 128 * 1024 * 1024)) {
             throw new RangeError('The ArrayBuffer/ArrayBufferView size exceeds the supported range.');
         }
         return postMessage.call(this, message, transfer);
     };
-    let result;
-    try { result = await repairMissingSpsColour(data, { decoderColourSpaces }); }
-    finally { Worker.prototype.postMessage = postMessage; }
+    let result, packagedBytes, returnedBytes, stage = 'packaging';
+    try {
+        // Exercise final download packaging too, without flattening the Blob
+        // back into an oversized buffer just to inspect it in the test.
+        const packaged = await createExportBlob(data);
+        packagedBytes = packaged.size;
+        stage = 'reading packaged header';
+        const header = new Uint8Array(await packaged.slice(0, original.length).arrayBuffer());
+        if (!original.every((byte, i) => header[i] === byte)) throw new Error('Large Blob changed the MP4 header.');
+        stage = 'reading packaged tail';
+        const tail = new Uint8Array(await packaged.slice(-8).arrayBuffer());
+        if (packaged.size !== data.length || tail.some(byte => byte !== 0)) throw new Error('Large Blob truncated the MP4.');
+        stage = 'repairing mounted input';
+        result = await repairMissingSpsColour(data, { decoderColourSpaces });
+        stage = 'returning a large worker file';
+        // Repair drops the free box, so explicitly read the large mounted file
+        // through the same worker to exercise a multi-GB outgoing response too.
+        const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+        const ffmpeg = new FFmpeg();
+        try {
+            await ffmpeg.load({ classWorkerURL: spsRepairWorkerUrl,
+                coreURL: '/vendor/ffmpeg/0.12.10/ffmpeg-core-stackfix.js', wasmURL: getRuntimeAssetUrl('ffmpegCoreWasm') });
+            await ffmpeg.createDir('/input');
+            if (!await ffmpeg.mount('WORKERFS', { blobs: [{ name: 'input.mp4', data: packaged }] }, '/input')) {
+                throw new Error('Large worker response fixture could not be mounted.');
+            }
+            // Copy bytes without remuxing, keeping the free box in MEMFS. A
+            // full read of WORKERFS itself hits FileReaderSync's buffer limit.
+            if (await ffmpeg.exec(['-f', 'data', '-raw_packet_size', '1048576', '-i', '/input/input.mp4',
+                '-map', '0:0', '-c', 'copy', '-f', 'data', 'copy.mp4']) !== 0) throw new Error('Large response copy failed.');
+            const returned = await ffmpeg.readFile('copy.mp4');
+            if (!(returned instanceof NativeBlob) || returned.size !== data.length) throw new Error('Worker did not return the complete Blob.');
+            const received = await readExportBlob(returned);
+            if (!original.every((byte, i) => received[i] === byte) || received[received.length - 1] !== 0) {
+                throw new Error('Large worker response changed the file.');
+            }
+            returnedBytes = received.byteLength;
+        } finally { ffmpeg.terminate(); }
+    } catch (error) {
+        throw new Error(`Large-input ${stage} failed (${data.length} bytes, native Blob: ${nativeBlobError}): ${error}`);
+    } finally { Worker.prototype.postMessage = postMessage; window.Blob = NativeBlob; }
     if (result.repair.status !== 'added' && result.repair.status !== 'not-needed') {
         throw new Error(`Large input repair could not be verified: ${result.repair.reason}`);
     }
     if (data.byteLength !== original.length + paddingBytes || !original.every((byte, i) => data[i] === byte)) {
         throw new Error('Large input repair detached or changed the original MP4.');
     }
-    return { inputBytes: data.byteLength, outputBytes: result.data.byteLength, ...result.repair };
+    return { inputBytes: data.byteLength, packagedBytes, returnedBytes, nativeBlobError, outputBytes: result.data.byteLength, ...result.repair };
 }
-async function exportComparisons({ receiver, hardwareAcceleration = 'no-preference', includeLegacy = true } = {}) {
+async function exportComparisons({ receiver, hardwareAcceleration = 'no-preference', includeLegacy = true, repairPaddingMiB = 256 } = {}) {
     const results = { ...environment, hardwareAcceleration, exports:[] };
+    let checkedLargeInput = false;
     for (const [asset,canvas,render] of [['chart',chart,renderChart],['ribbon',ribbon,renderRibbon]]) {
         render(); await save(`${asset}-preview.png`,await new Promise(r => canvas.toBlob(r)),receiver);
         for (const logoOverlayEnabled of [false,true]) {
@@ -160,8 +217,9 @@ async function exportComparisons({ receiver, hardwareAcceleration = 'no-preferen
                 const before = { name:`${name}-before.mp4` };
                 try {
                     const encoded = await legacy(canvas,logoOverlayEnabled,hardwareAcceleration,before);
-                    if (!results.largeInputRepair) {
-                        results.largeInputRepair = await checkLargeRepairInput(encoded.originalBlob, before.metadata.decoderColourSpaces);
+                    if (!checkedLargeInput) {
+                        checkedLargeInput = true;
+                        results.largeInputRepair = await checkLargeRepairInput(encoded.originalBlob, before.metadata.decoderColourSpaces, repairPaddingMiB);
                     }
                     const repaired = { ...before, name:`${name}-webcodecs-repaired.mp4` };
                     before.metadata = completeExportColourReport({ ...before.metadata, spsRepair: { status:'unrepaired-comparison-copy' } }, encoded.originalMetadata);

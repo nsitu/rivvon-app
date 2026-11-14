@@ -153,9 +153,25 @@ declarations and whether repair was added, unnecessary or skipped.
 
 The repair worker reads its input from a Blob mounted through WORKERFS. This
 avoids transferring a complete MP4 ArrayBuffer through `postMessage` and keeping
-another full input copy in FFmpeg's in-memory filesystem. The colour regression
-includes a 256 MiB padded MP4 with an imposed 128 MiB input-transfer limit;
-output bytes and the completed export still require browser memory.
+another full input copy in FFmpeg's in-memory filesystem. Repair input and final
+download packaging stream independently copied 32 MiB buffers into a Response
+Blob. Passing one large buffer to `new Blob` also exceeds Chrome's WebIDL range;
+holding many Blob parts can exhaust its Blob storage quota. Streaming lets the
+browser move the data to storage with backpressure.
+
+The repair-specific FFmpeg worker also streams binary `READ_FILE` responses
+into Blobs instead of transferring their entire ArrayBuffers. The main thread
+reads bounded Blob slices for metadata verification and reuses the worker Blob
+for the final download. The protocol adapter targets pinned `@ffmpeg/ffmpeg`
+0.12.15; the normal SDR encoder pool retains its existing worker protocol.
+
+The colour regression includes a 256 MiB padded MP4 with imposed 128 MiB buffer
+limits on Blob construction and worker transfers. Set
+`COLOUR_REPAIR_PADDING_MIB=2048` to reproduce Chrome's actual direct-Blob
+RangeError above 2 GiB and verify streaming packaging, mounted input repair,
+and a complete large-file round trip from FFmpeg's MEMFS through the worker and
+the main-thread Blob reader. The fixture uses padding rather than encoding a
+multi-minute video; colour repair still verifies the actual sample timings.
 
 This can address decoders that mishandle absent bitstream declarations. It cannot
 establish that the browser's RGB-to-YUV conversion was correct or normalize

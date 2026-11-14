@@ -101,6 +101,15 @@ describe('repair worker handoff and cancellation', () => {
             .rejects.toThrow('could not mount');
         expect(mocks.exec).not.toHaveBeenCalled(); expect(mocks.terminate).toHaveBeenCalledOnce();
     });
+    it('inspects the worker Blob response and keeps it for the final download', async () => {
+        const bytes = new Uint8Array([4, 5, 6]), blob = new Blob([bytes]);
+        mocks.readFile.mockResolvedValue(blob);
+        mocks.inspect.mockReturnValueOnce(fixture()).mockReturnValueOnce({ ...fixture(), sps: [{ ...sps, ...colour }] });
+        const result = await repairMissingSpsColour(new Uint8Array([1]), { decoderColourSpaces: [encoder] });
+        expect(result.blob).toBe(blob); expect(result.data).toEqual(bytes);
+        expect(mocks.inspect).toHaveBeenLastCalledWith(bytes, { includeTiming: true });
+        expect(mocks.terminate).toHaveBeenCalledOnce();
+    });
     it('does not start a repair after cancellation while mounting the input', async () => {
         const controller = new AbortController();
         mocks.mount.mockImplementation(async () => { controller.abort(); return true; });

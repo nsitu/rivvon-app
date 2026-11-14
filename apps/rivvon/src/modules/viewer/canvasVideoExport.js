@@ -5,6 +5,7 @@ import { inspectMp4Colour } from './videoColourMetadata.js';
 import { repairMissingSpsColour } from './repairWebCodecsColour.js';
 import { SDR_VIDEO_COLOUR, validateSdrDimensions } from './exportColour.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
+import { createExportBlob } from './exportBlob.js';
 
 // Shared encoder choice and diagnostics for all three public video entry points.
 export async function createCanvasVideoExport(canvas, options) {
@@ -116,7 +117,7 @@ export async function createCanvasVideoExport(canvas, options) {
                 converter?.dispose();
                 if (signal?.aborted) throw new DOMException('Video export cancelled', 'AbortError');
                 disposed = true;
-                let metadata = null, inspectionError = null;
+                let metadata = null, inspectionError = null, repairedBlob = null;
                 let data = new Uint8Array(output.target.buffer);
                 if (format === 'mp4') {
                     options.onStatus?.('Checking H.264 colour declarations…');
@@ -124,28 +125,31 @@ export async function createCanvasVideoExport(canvas, options) {
                     catch (error) { inspectionError = error.message; }
                     // Developer comparison hook: this is the identical encoded
                     // stream before metadata repair, rather than another encode.
-                    await options.onBeforeSpsRepair?.(new Blob([data], { type: 'video/mp4' }), metadata);
+                    if (options.onBeforeSpsRepair) {
+                        await options.onBeforeSpsRepair(await createExportBlob(data, { signal: repairController.signal }), metadata);
+                    }
                     if (signal?.aborted || repairController.signal.aborted) throw new DOMException('Video export cancelled', 'AbortError');
                     if (!inspectionError) {
-                        let result;
-                        try {
-                            result = await repairMissingSpsColour(data, { decoderColourSpaces: report.decoderColourSpaces,
-                                signal: repairController.signal, onStatus: options.onStatus });
-                        } finally { signal?.removeEventListener('abort', abort); }
+                        const result = await repairMissingSpsColour(data, { decoderColourSpaces: report.decoderColourSpaces,
+                            signal: repairController.signal, onStatus: options.onStatus });
                         data = result.data; report.spsRepair = result.repair;
+                        repairedBlob = result.blob;
                         if (result.repair.status === 'added') report.pipeline += ' → FFmpeg h264_metadata (stream copy)';
                         metadata = inspectMp4Colour(data);
                     } else report.spsRepair = { status: 'skipped', reason: 'The completed MP4 could not be inspected.' };
                 }
-                signal?.removeEventListener('abort', abort);
                 if (signal?.aborted || repairController.signal.aborted) throw new DOMException('Video export cancelled', 'AbortError');
                 const finalReport = completeExportColourReport(report, metadata, inspectionError);
                 if (explicitYuv && !finalReport.verification.matchesRequestedColour) {
                     throw new Error(`The browser did not establish the requested BT.709 ${videoRange}-range output. Try FFmpeg WASM for limited-range export or another encoder preference.`);
                 }
+                const blob = repairedBlob ?? await createExportBlob(data, {
+                    type: format === 'webm' ? 'video/webm' : 'video/mp4', signal: repairController.signal,
+                });
+                signal?.removeEventListener('abort', abort);
                 onColourMetadata?.(finalReport);
                 if (import.meta.env.DEV) console.info('[Rivvon export colour]', finalReport);
-                return new Blob([data], { type: format === 'webm' ? 'video/webm' : 'video/mp4' });
+                return blob;
             },
             dispose,
         };
