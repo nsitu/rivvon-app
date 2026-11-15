@@ -5,7 +5,7 @@ export function getDefaultVideoBitrate(width, height, quality = 'very-high') {
     return Math.ceil(3_000_000 * (width * height / (1920 * 1080)) ** 0.95 * (factors[quality] ?? 4) / 1000) * 1000;
 }
 
-export const getVideoQuantizerMax = (format, videoCodec) => format === 'webm' || videoCodec === 'av1' ? 63 : 51;
+export const getVideoQuantizerMax = (format, videoCodec) => videoCodec === 'av1' ? 255 : format === 'webm' ? 63 : 51;
 
 export function resolveVideoRateControl({ bitrateMode = 'variable', bitrate, quantizer = 23,
     width, height, quality, format = 'mp4', videoCodec, encodingMethod = 'webcodecs' } = {}) {

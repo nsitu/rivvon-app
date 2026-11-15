@@ -22,7 +22,8 @@ function render() {
         const reference = results.find(item => item.inputSha256 && item.width === result.width && item.height === result.height);
         const values = [result.path, `${result.width ?? result.outputWidth ?? '—'}×${result.height ?? result.outputHeight ?? '—'}`,
             result.hardwareAcceleration, result.codec ?? 'avc1.640032', result.bitrateMode ?? 'variable',
-            result.latencyMode ?? (result.explicitQuality ? 'quality (explicit)' : 'quality (default)'), result.bitrate / 1e6,
+            result.latencyMode ?? (result.explicitQuality ? 'quality (explicit)' : 'quality (default)'),
+            result.bitrateMode === 'quantizer' ? `QP ${result.quantizer}` : result.bitrate / 1e6,
             result.error ?? (result.actualBitrate / 1e6).toFixed(3), `${result.encodedFrames ?? '—'}/${result.frames ?? '—'}`,
             result.inputSha256 ? String(result.inputSha256 === reference.inputSha256) : '—'];
         row.replaceChildren(...values.map(value => { const cell = document.createElement('td'); cell.textContent = value; return cell; }));
@@ -31,7 +32,7 @@ function render() {
     document.querySelector('#report').textContent = JSON.stringify({ environment, sourceUrl, codecSupport, results }, null, 2);
 }
 
-async function encode({ path, hardwareAcceleration, bitrate, explicitQuality,
+async function encode({ path, hardwareAcceleration, bitrate, quantizer, explicitQuality,
     latencyMode = explicitQuality ? 'quality' : undefined, codec = 'avc1.640032', bitrateMode = 'variable', outputWidth, outputHeight }) {
     const input = new MB.Input({ formats: MB.ALL_FORMATS, source: new MB.UrlSource(sourceUrl) });
     let encoder, output, converter, encoderError;
@@ -60,7 +61,8 @@ async function encode({ path, hardwareAcceleration, bitrate, explicitQuality,
         converter = createExportYuvConversion(width, height, { method: 'gpu', fullRange: false });
         const pixels = new Uint8Array(width * height * 3 / 2);
         const config = { codec, width, height, displayWidth: width, displayHeight: height,
-            bitrate, bitrateMode, framerate: fps, hardwareAcceleration, alpha: 'discard', ...codecExtension(codec),
+            ...(bitrateMode === 'quantizer' ? {} : { bitrate }), bitrateMode,
+            framerate: fps, hardwareAcceleration, alpha: 'discard', ...codecExtension(codec),
             ...(latencyMode ? { latencyMode } : {}) };
         let source;
         if (path === 'native') {
@@ -78,7 +80,7 @@ async function encode({ path, hardwareAcceleration, bitrate, explicitQuality,
         } else {
             output = new MB.Output({ format: new MB.Mp4OutputFormat(), target: new MB.BufferTarget() });
             source = new MB.VideoSampleSource({ codec: codecName(codec), fullCodecString: config.codec,
-                quality: new MB.Quality({ bitrate, bitrateMode }), hardwareAcceleration,
+                quality: new MB.Quality(bitrateMode === 'quantizer' ? { quantizer } : { bitrate, bitrateMode }), hardwareAcceleration,
                 ...(latencyMode ? { latencyMode } : {}),
                 onEncoderConfig(value) { encoderConfig = JSON.parse(JSON.stringify(value)); },
                 onEncodedPacket(packet, meta) { capture(packet.data, Math.round(packet.timestamp * 1e6), packet.type, meta); },
@@ -95,7 +97,8 @@ async function encode({ path, hardwareAcceleration, bitrate, explicitQuality,
                 frame = new VideoFrame(pixels, { format: 'I420', codedWidth: width, codedHeight: height,
                     timestamp: Math.round(frames / fps * 1e6), duration: Math.round(1e6 / fps),
                     colorSpace: { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false } });
-                const options = { keyFrame: frames % 60 === 0 };
+                const options = { keyFrame: frames % 60 === 0,
+                    ...(bitrateMode === 'quantizer' ? { [codecName(codec)]: { quantizer } } : {}) };
                 if (encoder) {
                     if (encoderError) throw encoderError;
                     encoder.encode(frame, options);
@@ -113,7 +116,15 @@ async function encode({ path, hardwareAcceleration, bitrate, explicitQuality,
         if (encoder) await encoder.flush(); else await output.finalize();
         if (encoderError) throw encoderError;
         await Promise.all(hashesPending);
-        return { path, hardwareAcceleration, bitrate, explicitQuality, latencyMode, codec, bitrateMode,
+        // The optional local capture server persists MP4s for independent slice
+        // inspection. The comparison also works on a plain Vite dev server.
+        if (params.get('saveQp') === '1' && bitrateMode === 'quantizer' && output?.target.buffer) {
+            const saved = await fetch(`/__qp_output/${hardwareAcceleration}-qp${quantizer}.mp4`, {
+                method: 'POST', body: output.target.buffer,
+            });
+            if (!saved.ok) throw new Error('Could not save local QP diagnostic output.');
+        }
+        return { path, hardwareAcceleration, bitrate, quantizer, explicitQuality, latencyMode, codec, bitrateMode,
             encoderConfig, decoderConfig, width, height, fps, frames,
             sourceWidth, sourceHeight, resize: 'stretch-to-output-dimensions',
             encodedFrames: packets.length, encodedBytes, actualBitrate: encodedBytes * 8 / (frames / fps),
@@ -142,6 +153,24 @@ async function run(explicitQuality) {
 }
 document.querySelector('#run').addEventListener('click', () => run(false));
 document.querySelector('#quality').addEventListener('click', () => run(true));
+
+document.querySelector('#quantizers').addEventListener('click', async () => {
+    if (!sourceUrl) { status.textContent = 'Add ?source=/path/to/a/detailed-source.mp4'; return; }
+    const buttons = [...document.querySelectorAll('button')]; buttons.forEach(button => { button.disabled = true; });
+    try {
+        for (const hardwareAcceleration of ['prefer-hardware', 'prefer-software']) {
+            for (const quantizer of [16, 20, 24, 28, 32, 36]) for (const path of ['native', 'mediabunny']) {
+                const settings = { path, hardwareAcceleration, quantizer, bitrateMode: 'quantizer',
+                    codec: 'avc1.640032', latencyMode: 'quality', outputWidth: 2160, outputHeight: 2160 };
+                status.textContent = `Encoding ${path}, ${hardwareAcceleration}, QP ${quantizer}, no bitrate…`;
+                try { results.push(await encode(settings)); }
+                catch (error) { results.push({ ...settings, error: String(error) }); }
+                render();
+            }
+        }
+        status.textContent = `Completed ${results.length} quantizer cases.`;
+    } finally { buttons.forEach(button => { button.disabled = false; }); }
+});
 
 document.querySelector('#profile-latency').addEventListener('click', async () => {
     if (!sourceUrl) { status.textContent = 'Add ?source=/path/to/a/detailed-source.mp4'; return; }

@@ -14,8 +14,9 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere}caption{text-align:left;font-wei
 <button id="profile-latency">Compare latency and profile at 25.928 / 51.856 Mb/s</button>
 <button id="dimensions">Compare dimensions and bitrate response</button>
 <button id="codecs">Compare H.264, HEVC, AV1 and VP9</button>
+<button id="quantizers">Compare H.264 QP 16–36 without bitrate</button>
 <p id="status" role="status">Ready</p>
-<table><caption>Measured results</caption><thead><tr><th>Path</th><th>Dimensions</th><th>Preference</th><th>Codec</th><th>Rate mode</th><th>Latency</th><th>Target Mb/s</th><th>Measured Mb/s</th><th>Encoded / input frames</th><th>Identical input within size</th></tr></thead><tbody id="results"></tbody></table>
+<table><caption>Measured results</caption><thead><tr><th>Path</th><th>Dimensions</th><th>Preference</th><th>Codec</th><th>Rate mode</th><th>Latency</th><th>Target Mb/s or QP</th><th>Measured Mb/s</th><th>Encoded / input frames</th><th>Identical input within size</th></tr></thead><tbody id="results"></tbody></table>
 <details><summary>Full diagnostic JSON</summary><pre id="report"></pre></details>
 <script type="module" src="/scripts/rate-control-browser.js"></script>
 </body></html>

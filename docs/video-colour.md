@@ -91,9 +91,22 @@ Target bitrate is entered in Mb/s and converted to integer bits/s. The initial
 suggestion is resolution-aware, but the visible numeric value stays fixed when
 resolution changes. The dialog estimate uses that target and the actual planned
 frame count divided by fps. VBR/CBR are encoder requests, not hard file-size caps.
-QP has its own integer field: 0–51 for H.264 and 0–63 for VP9. Lower values retain
+QP has its own integer field: 0–51 for H.264, 0–63 for VP9 and 0–255 for AV1. Lower values retain
 more detail and usually produce larger files; values are not comparable across
 codecs. QP mode shows **Content-dependent** instead of a bitrate-based size estimate.
+The QP slider displays the codec, current numeric value and codec-specific
+endpoints: lower means more detail/larger files, higher means less detail/smaller
+files. It supports integer steps, arrow keys, Home and End. Changing to a codec
+with a smaller range brings an out-of-range slider value down to its maximum;
+values within the new range are retained without treating them as equivalent
+quality across codecs.
+
+For H.264 VBR/CBR through WebCodecs, **Browser decides** and **Prefer hardware**
+show a warning about the observed Chrome 7–9 Mb/s plateau. The warning explicitly
+identifies this as a test result rather than a universal ceiling, explains that
+size estimates can differ, and suggests constant QP or FFmpeg WASM. It is hidden
+for QP, software preference, FFmpeg WASM and other codecs.
+
 The final report records mode, target bitrate or QP, and the actual WebCodecs
 configuration. Binary file sizes are labelled MiB/KiB.
 
@@ -861,7 +874,7 @@ WebM (VP9). It emits `format: 'mp4', videoCodec: 'av1'` and uses WebCodecs;
 FFmpeg WASM/x264 is unavailable for this choice. All three export routes forward
 the codec choice, while filename extensions, MIME types and draft containers
 remain MP4. Bitrate and constant-QP controls remain explicit; AV1 QP accepts
-0–63 and has no hidden bitrate fallback. Browser/device codec support is checked
+0–255 and has no hidden bitrate fallback. Browser/device codec support is checked
 by the normal Mediabunny configuration path; unsupported configurations stop
 instead of silently switching to H.264.
 
@@ -883,6 +896,48 @@ full white/black as 255/0. Full QP23 also completed with matching sequence-heade
 and container declarations, with no bitrate in the native encoder config.
 These are environment-specific checks, not a guarantee for other encoders or
 players. Artifacts are in the ignored `colour-test-output/av1-menu/` directory.
+
+### H.264 constant-QP isolation (15 November 2026)
+
+The same detailed three-second source used for the bitrate comparisons was
+encoded at 2160×2160, 30 fps, BT.709 limited I420, High profile Level 5.0
+(`avc1.640032`), quality latency, two-second keyframe requests. Chrome
+157.0.8103.51 received `bitrateMode: 'quantizer'` without `bitrate`, and each
+frame received `avc: { quantizer }`. Mediabunny received only
+`new Quality({ quantizer })`, with the same fixed codec string and inputs.
+
+| QP | Hardware-preferred payload Mb/s (native and Mediabunny) |
+| --- | ---: |
+| 16 | 196.226 |
+| 20 | 140.570 |
+| 24 | 101.422 |
+| 28 | 71.448 |
+| 32 | 47.443 |
+| 36 | 29.734 |
+
+All twelve hardware-preferred cases encoded all 90 frames. Input hashes were
+identical across the sweep, and native/Mediabunny encoded packet hashes matched
+at every QP. Independent FFmpeg `trace_headers` inspection of all 90 slices in
+each saved Mediabunny MP4 confirmed `26 + pic_init_qp_minus26 + slice_qp_delta`
+equalled the requested QP throughout. FFprobe confirmed 90-frame, three-second
+H.264 High Level 5.0 tracks. Software-preferred WebCodecs QP configurations were
+unsupported at these settings in both paths; no bitrate fallback was used.
+
+This bypasses the earlier 7–9 Mb/s plateau on this Chrome/backend combination.
+It does not identify which component caused the VBR/CBR problem or guarantee
+behaviour on other drivers. QP supplies no application bitrate ceiling or file
+size guarantee. Profile/level compatibility and browser memory limits remain:
+for example QP16's measured average exceeds High Level 5.0's 168.75 Mb/s MaxBR,
+calculated from [Chromium's H.264 level table and High-profile multiplier](https://chromium.googlesource.com/chromium/src/+/lkgr/media/parsers/h264_level_limits.cc).
+No full HRD/CPB conformance or target-player playback test was performed here.
+
+The diagnostic's **Compare H.264 QP 16–36 without bitrate** button reproduces the
+sweep. Optional `saveQp=1` also saves MP4s when the local capture middleware is
+running. Full report, MP4s, slice verification and browser screenshot are under
+the ignored `colour-test-output/qp-sweep/` directory.
+
+AV1's input bound was also corrected from 63 to 255, matching the installed
+Mediabunny codec registry and the [current AV1 WebCodecs registration](https://www.w3.org/TR/webcodecs-av1-codec-registration/#av1-encode-options).
 
 ### Platform requirements
 

@@ -11,13 +11,13 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     import Button from 'primevue/button';
     import Select from 'primevue/select';
     import InputNumber from 'primevue/inputnumber';
+    import Slider from 'primevue/slider';
     import Message from 'primevue/message';
     import InputText from 'primevue/inputtext';
     import Textarea from 'primevue/textarea';
     import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import ScrollPanel from 'primevue/scrollpanel';
-    import ArtworkTiltControls from './ArtworkTiltControls.vue';
     import ExportColourReport from './ExportColourReport.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import {
@@ -77,22 +77,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     const cycleCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
     const fps = ref(30);
-    const exportOnlyCinematicMode = ref(false);
-    const selectedArtworkMotionMode = ref(
-        app.artworkMotionMode === 'recordedOrbit' ? 'none' : app.artworkMotionMode,
-    );
-    const artworkMotionMode = computed({
-        get: () => exportOnlyCinematicMode.value ? 'cinematic' : selectedArtworkMotionMode.value,
-        set: (value) => {
-            exportOnlyCinematicMode.value = value === 'cinematic';
-            selectedArtworkMotionMode.value = value;
-            if (!exportOnlyCinematicMode.value) {
-                if (value !== 'recordedOrbit') {
-                    app.setArtworkMotionMode(value);
-                }
-            }
-        },
-    });
+    const artworkMotionMode = computed(() => app.artworkMotionMode);
     const bitrateMode = ref('variable');
     const quantizer = ref(23);
     const backgroundInterpolation = ref('crossfade');
@@ -137,33 +122,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     function getCircularOrbitDirectionLabel(value) {
         return value === 'circularOrbitReverse' ? 'clockwise' : 'counterclockwise';
     }
-
-    const artworkMotionOptions = computed(() => {
-        const hasROIs = activeModeInfo.value?.hasROIs ?? false;
-        const options = [
-            { label: 'None', value: 'none', description: 'Camera stays fixed' },
-            { label: 'Cinematic', value: 'cinematic', description: hasROIs ? 'Smooth motion through authored camera regions' : 'Auto-generated from ribbon geometry (press C to author custom ROIs)' },
-            { label: 'Elliptical Tilt', value: 'circularTilt', description: 'Artwork follows a tilt loop with independent horizontal and vertical angles' },
-            { label: 'Counterclockwise Orbit', value: 'circularOrbit', description: 'View completes one full counterclockwise orbit around the artwork center over the export duration' },
-            { label: 'Clockwise Orbit', value: 'circularOrbitReverse', description: 'View completes one full clockwise orbit around the artwork center over the export duration' },
-            { label: 'Tumble Orbit', value: 'tumbleOrbit', description: 'Artwork follows a seamless organic tumble across all three axes' },
-        ];
-
-        if (activeModeInfo.value?.hasRecordedCameraMotion) {
-            options.splice(2, 0, {
-                label: 'Recorded Camera Motion',
-                value: 'recordedOrbit',
-                description: `Replay the captured OrbitControls path, including its ${formatDuration(activeModeInfo.value.recordedCameraMotionDuration || 0)} return loop`,
-            });
-        }
-
-        return options;
-    });
-
-    const artworkMotionDescription = computed(() => {
-        const option = artworkMotionOptions.value.find((entry) => entry.value === artworkMotionMode.value);
-        return option?.description ?? '';
-    });
 
     // --- Preset options ---
     const aspectRatioOptions = EXPORT_ASPECT_RATIO_OPTIONS;
@@ -260,6 +218,13 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         quantizer: 'Uses a fixed quantizer instead of a bitrate target. File size depends on the content. No bitrate fallback is used.',
     })[bitrateMode.value]);
     const quantizerMax = computed(() => getVideoQuantizerMax(format.value, videoCodec.value));
+    const quantizerCodecLabel = computed(() => videoCodec.value === 'av1' ? 'AV1' : format.value === 'webm' ? 'VP9' : 'H.264');
+    const showBitrateCeilingWarning = computed(() => usesWebCodecs.value && videoCodec.value === 'avc'
+        && bitrateMode.value !== 'quantizer' && hardwareAcceleration.value !== 'prefer-software');
+    // Keep the slider within its codec's range when changing format (e.g. AV1 → AVC).
+    watch(quantizerMax, max => {
+        if (Number.isInteger(quantizer.value)) quantizer.value = Math.min(max, Math.max(0, quantizer.value));
+    });
 
     function applyInitialDimensionSettings(settings = null) {
         if (!settings) {
@@ -835,7 +800,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             <label for="videoTargetBitrate">Target bitrate</label>
                             <InputNumber v-model="bitrateMbps" input-id="videoTargetBitrate" :min="0.000001" :max-fraction-digits="6"
                                 suffix=" Mb/s" :use-grouping="false" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" fluid
-                                :pt="{ pcInputText: { root: { 'aria-describedby': 'videoTargetBitrateHelp' } } }" />
+                                :pt="{ pcInputText: { root: { 'aria-describedby': showBitrateCeilingWarning ? 'videoTargetBitrateHelp videoBitrateCeilingWarning' : 'videoTargetBitrateHelp' } } }" />
                             <div id="videoTargetBitrateHelp" class="field-description">
                                 1 Mb/s = 1,000,000 bits/s. Sent as {{ rateControlState.control?.bitrate?.toLocaleString() ?? '—' }} bits/s to {{ usesWebCodecs ? 'WebCodecs' : 'x264' }}.
                                 Higher rates generally retain more detail and produce larger files. This value stays fixed when resolution changes.
@@ -843,41 +808,34 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                         </div>
 
                         <div v-else class="form-field">
-                            <label for="videoQuantizer">Quantizer (QP)</label>
-                            <InputNumber v-model="quantizer" input-id="videoQuantizer" :min="0" :max="quantizerMax" :max-fraction-digits="0"
-                                :use-grouping="false" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" fluid
-                                :pt="{ pcInputText: { root: { 'aria-describedby': 'videoQuantizerHelp' } } }" />
+                            <div class="quantizer-heading">
+                                <label id="videoQuantizerLabel" for="videoQuantizer">{{ quantizerCodecLabel }} quantization parameter (QP)</label>
+                                <output for="videoQuantizer" class="tools-slider-value">QP {{ quantizer }}</output>
+                            </div>
+                            <div class="quantizer-slider-space">
+                                <Slider v-model="quantizer" :min="0" :max="quantizerMax" :step="1" :disabled="isEncoding"
+                                    aria-labelledby="videoQuantizerLabel" class="quantizer-slider"
+                                    :pt="{ handle: { id: 'videoQuantizer', 'aria-describedby': 'videoQuantizerHelp videoQuantizerScale',
+                                        'aria-valuetext': `${quantizerCodecLabel} QP ${quantizer} of ${quantizerMax}`, 'aria-disabled': isEncoding,
+                                        'aria-invalid': Boolean(rateControlState.error), tabindex: isEncoding ? -1 : 0 } }" />
+                            </div>
+                            <div id="videoQuantizerScale" class="quantizer-scale">
+                                <span><strong>0 · More detail</strong><span>Larger files</span></span>
+                                <span><strong>{{ quantizerMax }} · Less detail</strong><span>Smaller files</span></span>
+                            </div>
                             <div id="videoQuantizerHelp" class="field-description">
-                                {{ videoCodec === 'av1' ? 'AV1' : format === 'webm' ? 'VP9' : 'H.264' }} accepts 0–{{ quantizerMax }}.
-                                Lower values retain more detail and usually produce larger files. QP values are not comparable across codecs.
+                                {{ quantizerCodecLabel }} uses a 0–{{ quantizerMax }} scale. Lower QP means less compression; file size depends on the content.
+                                The same QP does not mean the same quality across codecs. Zero does not guarantee a lossless export.
                                 {{ usesWebCodecs ? 'Sent as the encoder quantizer; export stops if this mode is unsupported.' : 'Sent to x264 as -qp.' }}
                             </div>
                         </div>
+                        <Message v-if="showBitrateCeilingWarning" id="videoBitrateCeilingWarning" severity="warn" :closable="false"
+                            class="bitrate-ceiling-warning">
+                            H.264 bitrate targets may be limited by the browser or driver. Chrome’s hardware-preferred path plateaued
+                            around 7–9 Mb/s in our tests, even with CBR; this is not a universal ceiling. Actual size may differ from
+                            the estimate. Try constant QP or FFmpeg WASM if the bitrate is too low.
+                        </Message>
                         </div>
-
-                        <div
-                            v-if="!textureOnlyMode"
-                            class="form-field camera-movement-field"
-                        >
-                            <label>Artwork Motion</label>
-                            <Select
-                                v-model="artworkMotionMode"
-                                :options="artworkMotionOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                :disabled="isEncoding"
-                                class="w-full"
-                            />
-                            <div
-                                v-if="artworkMotionDescription"
-                                class="field-description"
-                            >
-                                {{ artworkMotionDescription }}
-                            </div>
-                        </div>
-
-                        <ArtworkTiltControls v-if="!textureOnlyMode && artworkMotionMode === 'circularTilt'"
-                            :disabled="isEncoding" class="form-field" />
 
                         <div v-if="!textureOnlyMode && app.backgroundMode !== 'gradient' && app.animatedBackgroundEnabled && app.textureAnimationEnabled !== false && app.backgroundBaseEnabled !== false"
                             class="form-field">
@@ -1411,6 +1369,44 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         min-width: 0;
     }
 
+    .bitrate-ceiling-warning {
+        grid-column: 1 / -1;
+    }
+
+    .quantizer-heading,
+    .quantizer-scale {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.75rem;
+    }
+
+    .quantizer-slider-space {
+        display: flex;
+        align-items: center;
+        min-height: var(--rivvon-button-min-target-size, 44px);
+        padding-inline: 0.75rem;
+    }
+
+    .quantizer-slider {
+        flex: 1;
+    }
+
+    .quantizer-scale {
+        font-size: 0.78rem;
+        color: var(--p-text-muted-color);
+    }
+
+    .quantizer-scale > span {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .quantizer-scale > span:last-child {
+        text-align: right;
+    }
+
     @media (max-width: 767px) {
         .rate-control-fields {
             grid-template-columns: minmax(0, 1fr);
@@ -1796,9 +1792,4 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         word-break: break-word;
     }
 
-    @media (min-width: 769px) {
-        .export-video-panel-content {
-            max-width: 54rem;
-        }
-    }
 </style>
