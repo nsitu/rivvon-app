@@ -26,10 +26,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         normalizeExportDimensionSettings,
     } from '../../modules/viewer/exportVideoDimensions';
     import {
-        TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
-        TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
-    } from '../../modules/viewer/textureOverviewLayout.js';
-    import {
         DEFAULT_SEAMLESS_LOOP_COUNT,
         SEAMLESS_LOOP_COUNT_OPTIONS,
         normalizeMotionLoopDurationMultiplier,
@@ -142,16 +138,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         get: () => exportDimensionSettings.value.resolutionPreset,
         set: (value) => {
             app.setExportResolutionPreset(value);
-        },
-    });
-    const alignTilesToEdge = computed({
-        get: () => app.textureOverviewLayoutStrategy === TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE,
-        set: (value) => {
-            app.setTextureOverviewLayoutStrategy(
-                value
-                    ? TEXTURE_OVERVIEW_LAYOUT_STRATEGY_ALIGN_TO_EDGE
-                    : TEXTURE_OVERVIEW_LAYOUT_STRATEGY_FILL_FRAME,
-            );
         },
     });
     const customWidth = computed({
@@ -464,7 +450,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         resolutionPreset,
         customWidth,
         customHeight,
-        alignTilesToEdge,
+        () => app.textureOverviewLayoutStrategy,
         format,
         videoCodec,
         encodingMethod,
@@ -736,54 +722,35 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
                         <div
                             v-if="aspectRatioPreset === 'custom' || resolutionPreset === 'custom'"
-                            class="form-field form-row"
+                            class="form-field custom-width-field"
                         >
-                            <div class="flex-1">
-                                <label>Width</label>
-                                <InputNumber
-                                    v-model="customWidth"
-                                    :min="320"
-                                    :max="8192"
-                                    :step="2"
-                                    :disabled="isEncoding"
-                                    input-id="videoExportCustomWidth"
-                                    class="w-full"
-                                />
-                            </div>
-                            <span class="dimension-x" aria-hidden="true">x</span>
-                            <div class="flex-1">
-                                <label>Height</label>
-                                <InputNumber
-                                    v-model="customHeight"
-                                    :min="240"
-                                    :max="8192"
-                                    :step="2"
-                                    :disabled="isEncoding"
-                                    input-id="videoExportCustomHeight"
-                                    class="w-full"
-                                />
-                            </div>
+                            <label for="videoExportCustomWidth">Width</label>
+                            <InputNumber
+                                v-model="customWidth"
+                                :min="320"
+                                :max="8192"
+                                :step="2"
+                                :disabled="isEncoding"
+                                input-id="videoExportCustomWidth"
+                                class="w-full"
+                            />
                         </div>
-
                         <div
-                            v-if="textureOnlyMode"
+                            v-if="aspectRatioPreset === 'custom' || resolutionPreset === 'custom'"
                             class="form-field"
                         >
-                            <label for="alignTilesToEdgeToggle">Snap Tiles to Frame Height</label>
-                            <div class="toggle-control">
-                                <ToggleSwitch
-                                    inputId="alignTilesToEdgeToggle"
-                                    v-model="alignTilesToEdge"
-                                    :disabled="isEncoding"
-                                />
-                                <span class="toggle-copy">{{ alignTilesToEdge ? 'On' : 'Off' }}</span>
-                            </div>
-                            <div class="field-description">
-                                Snaps tile rows cleanly to the frame height while still filling the full width.
-                            </div>
+                            <label for="videoExportCustomHeight">Height</label>
+                            <InputNumber
+                                v-model="customHeight"
+                                :min="240"
+                                :max="8192"
+                                :step="2"
+                                :disabled="isEncoding"
+                                input-id="videoExportCustomHeight"
+                                class="w-full"
+                            />
                         </div>
 
-                        <div class="rate-control-fields" role="group" aria-label="Video compression">
                         <div class="form-field">
                             <label for="videoBitrateMode">Rate control</label>
                             <Select v-model="bitrateMode" :options="rateControlOptions" option-label="label" option-value="value" option-disabled="disabled"
@@ -835,7 +802,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             around 7–9 Mb/s in our tests, even with CBR; this is not a universal ceiling. Actual size may differ from
                             the estimate. Try constant QP or FFmpeg WASM if the bitrate is too low.
                         </Message>
-                        </div>
 
                         <div v-if="!textureOnlyMode && app.backgroundMode !== 'gradient' && app.animatedBackgroundEnabled && app.textureAnimationEnabled !== false && app.backgroundBaseEnabled !== false"
                             class="form-field">
@@ -850,37 +816,30 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             </div>
                         </div>
 
-                        <div
-                            class="form-line-break"
-                            aria-hidden="true"
-                        ></div>
-
                         <div class="form-field duration-field">
                             <label>Duration</label>
-                            <div class="duration-row">
-                                <Select
-                                    v-model="durationMode"
-                                    :options="durationOptions"
-                                    option-label="label"
-                                    option-value="value"
-                                    :disabled="isEncoding"
-                                    class="duration-mode-select"
-                                >
-                                    <template #value="{ value }">
-                                        <div class="duration-option">
-                                            <span class="material-symbols-outlined">{{durationOptions.find(o => o.value
-                                                === value)?.icon}}</span>
-                                            <span>{{durationOptions.find(o => o.value === value)?.label}}</span>
-                                        </div>
-                                    </template>
-                                    <template #option="{ option }">
-                                        <div class="duration-option">
-                                            <span class="material-symbols-outlined">{{ option.icon }}</span>
-                                            <span>{{ option.label }}</span>
-                                        </div>
-                                    </template>
-                                </Select>
-                            </div>
+                            <Select
+                                v-model="durationMode"
+                                :options="durationOptions"
+                                option-label="label"
+                                option-value="value"
+                                :disabled="isEncoding"
+                                class="w-full"
+                            >
+                                <template #value="{ value }">
+                                    <div class="duration-option">
+                                        <span class="material-symbols-outlined">{{durationOptions.find(o => o.value
+                                            === value)?.icon}}</span>
+                                        <span>{{durationOptions.find(o => o.value === value)?.label}}</span>
+                                    </div>
+                                </template>
+                                <template #option="{ option }">
+                                    <div class="duration-option">
+                                        <span class="material-symbols-outlined">{{ option.icon }}</span>
+                                        <span>{{ option.label }}</span>
+                                    </div>
+                                </template>
+                            </Select>
                             <div
                                 v-if="durationMode === 'custom'"
                                 class="field-description warning-inline"
@@ -923,7 +882,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             />
                         </div>
 
-                        <div v-if="clipTiming" class="form-field" role="status">
+                        <div v-if="clipTiming" class="form-field clip-timing-note" role="status">
                             <span>Background clip: {{ clipTiming.rate.toFixed(3) }}× (+{{ ((clipTiming.rate - 1) * 100).toFixed(1) }}%)</span>
                             <small v-if="clipTiming.mode === 'alignLoop'">{{ clipTiming.repetitions }} full repetitions per {{ clipTiming.targetDuration.toFixed(3) }} s loop. The source clip's end-to-start cut remains visible if it is not seamless.</small>
                             <small v-else>Original speed repeats independently. The exported file may end partway through the clip; enable “Speed up to align with loop” under Background Media to align it.</small>
@@ -1350,26 +1309,25 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     }
 
     .form-grid {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: flex-start;
+        display: grid;
+        /* All controls share tracks; partial rows keep the same field width.
+           The minimum fits one column even on narrow mobile panels. */
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+        align-items: start;
         gap: 0.7rem;
         padding: 0.25rem 0.1rem 0.35rem;
     }
 
-    .rate-control-fields {
-        display: grid;
-        flex: 1 1 100%;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: inherit;
-    }
-
-    .rate-control-fields > .form-field {
+    .form-grid > .form-field {
         min-width: 0;
     }
 
-    .bitrate-ceiling-warning {
+    .custom-width-field {
+        grid-column: 1;
+    }
+
+    .bitrate-ceiling-warning,
+    .clip-timing-note {
         grid-column: 1 / -1;
     }
 
@@ -1392,6 +1350,11 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         flex: 1;
     }
 
+    .quantizer-heading .tools-slider-value {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
     .quantizer-scale {
         font-size: 0.78rem;
         color: var(--p-text-muted-color);
@@ -1407,23 +1370,12 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         text-align: right;
     }
 
-    @media (max-width: 767px) {
-        .rate-control-fields {
-            grid-template-columns: minmax(0, 1fr);
-        }
-    }
-
     .form-field {
         display: flex;
         flex-direction: column;
         flex: 1 1 13rem;
         min-width: 13rem;
         gap: 0.375rem;
-    }
-
-    .form-line-break {
-        flex: 0 0 100%;
-        height: 0;
     }
 
     .aspect-ratio-option {
@@ -1458,36 +1410,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.6));
     }
 
-    .form-row {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-end;
-        gap: 0.5rem;
-        flex: 2 1 20rem;
-        min-width: 20rem;
-    }
-
-    .dimension-x {
-        padding-bottom: 0.5rem;
-        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.5));
-        font-size: 1.1rem;
-    }
-
-    .flex-1 {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-        min-width: 0;
-        overflow: hidden;
-    }
-
-    .flex-1 :deep(.p-inputnumber),
-    .flex-1 :deep(.p-inputnumber-input) {
-        width: 100%;
-        min-width: 0;
-    }
-
     .field-description {
         font-size: 0.78rem;
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.5));
@@ -1508,7 +1430,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     .loop-details-accordion {
         width: 100%;
-        flex: 1 1 100%;
+        grid-column: 1 / -1;
     }
 
     .accordion-header-text {
@@ -1686,23 +1608,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         height: auto;
         max-width: 100%;
         filter: drop-shadow(0 0.35rem 0.75rem rgba(0, 0, 0, 0.35));
-    }
-
-    .duration-row {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-
-    .duration-mode-select {
-        flex: 2;
-        min-width: 0;
-    }
-
-    .seconds-field {
-        flex: 0.9 1 11rem;
-        min-width: 11rem;
     }
 
     .summary-row {

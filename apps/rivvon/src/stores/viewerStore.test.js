@@ -19,6 +19,17 @@ describe('viewer preferences', () => {
 
     afterEach(() => vi.unstubAllGlobals());
 
+    it('initializes and resets export dimensions to square 2160', () => {
+        const store = useViewerStore();
+        expect(store.exportAspectRatioPreset).toBe('square');
+        expect(store.exportResolutionPreset).toBe('square-2160');
+        store.setExportDimensionSettings({ aspectRatioPreset: 'landscape', resolutionPreset: '1080p' });
+        expect(store.exportAspectRatioPreset).toBe('landscape');
+        store.resetToolbarSettingsToDefaults();
+        expect(store.exportAspectRatioPreset).toBe('square');
+        expect(store.exportResolutionPreset).toBe('square-2160');
+    });
+
     it.each([
         ['artworkTiltHorizontalDegrees', 'artworkTiltVerticalDegrees', 30],
         ['artworkTiltVerticalDegrees', 'artworkTiltHorizontalDegrees', 22.5],

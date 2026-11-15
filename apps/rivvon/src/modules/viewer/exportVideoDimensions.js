@@ -1,4 +1,5 @@
-export const DEFAULT_EXPORT_ASPECT_RATIO_PRESET = 'landscape';
+export const DEFAULT_EXPORT_ASPECT_RATIO_PRESET = 'square';
+export const DEFAULT_EXPORT_RESOLUTION_PRESET = 'square-2160';
 export const DEFAULT_EXPORT_CUSTOM_WIDTH = 1920;
 export const DEFAULT_EXPORT_CUSTOM_HEIGHT = 1080;
 
@@ -45,6 +46,7 @@ export function getExportResolutionOptions(aspectRatioPreset = DEFAULT_EXPORT_AS
 }
 
 export function getDefaultExportResolutionPreset(aspectRatioPreset = DEFAULT_EXPORT_ASPECT_RATIO_PRESET) {
+    if (aspectRatioPreset === DEFAULT_EXPORT_ASPECT_RATIO_PRESET) return DEFAULT_EXPORT_RESOLUTION_PRESET;
     return getExportResolutionOptions(aspectRatioPreset)[0]?.value || 'custom';
 }
 
@@ -79,7 +81,7 @@ export function resolveExportDimensions(options = {}) {
                 height: Math.max(240, Math.round(Number(customHeight) || DEFAULT_EXPORT_CUSTOM_HEIGHT)),
             };
         default:
-            return { width: 1920, height: 1080 };
+            return { width: 2160, height: 2160 };
     }
 }
 
