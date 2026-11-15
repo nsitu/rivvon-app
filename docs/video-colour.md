@@ -713,6 +713,179 @@ a 33.333 ms loop boundary. The public gallery files were not changed.
 
 ## Supported environments and costs
 
+### Native WebCodecs versus Mediabunny bitrate diagnostic
+
+Run the Rivvon Vite development server and open
+`/rate-control-test.html?source=/colour-test-output/bitrate-regression/source.mp4`
+in the affected browser profile. Supply a detailed H.264 source excerpt at that
+local URL, or change `source` to another local source URL. Keep private sources
+and generated reports under the ignored `colour-test-output/` directory.
+Click **Compare native WebCodecs and Mediabunny**, then optionally **Compare with
+explicit quality latency**. This developer-only page is not a production entry.
+
+The comparison decodes three seconds at 30 fps and explicitly converts pixels
+to BT.709 limited I420. Each case uses matching AVC High level 5.0 settings,
+frame timestamps, durations, and keyframe requests at frames 0 and 60. The native
+path calls `VideoEncoder` directly; the Mediabunny path uses `VideoSampleSource`
+with explicit bitrate-based `Quality`. Both count encoded packet payload bytes,
+excluding MP4 overhead. SHA-256 fingerprints cover every input frame and every
+encoded packet, and the JSON records packet timestamps, sizes and frame counts.
+No encoder API is intercepted or replaced. Frame buffers are released as the
+test advances rather than retaining the full raw sequence in memory.
+
+On 2026-11-15, Chrome 157.0.8103.51 on Windows produced the following results
+with the same 2160×2160, 90-frame input in the user's existing Chrome profile:
+
+| Preference | Target Mb/s | Direct WebCodecs Mb/s | Mediabunny Mb/s |
+| --- | ---: | ---: | ---: |
+| Browser decides | 50 | 7.891821 | 7.891821 |
+| Browser decides | 100 | 7.891821 | 7.891821 |
+| Prefer hardware | 50 | 7.891821 | 7.891821 |
+| Prefer hardware | 100 | 7.891821 | 7.891821 |
+| Prefer software | 50 | 49.785064 | 49.785064 |
+| Prefer software | 100 | 99.699245 | 99.699245 |
+
+All 16 cases (12 baseline and four explicit-quality-latency cases) encoded all
+90 frames and had identical input fingerprints. Native/Mediabunny output
+fingerprints matched for each configuration. All hardware/no-preference
+outputs also matched across the two bitrate targets; explicit
+`latencyMode: 'quality'` made no difference. This reproduces the rate-control
+failure below Rivvon/Mediabunny without establishing which native encoder ran.
+
+The Windows driver inventory was Intel Graphics `32.0.101.8860` and NVIDIA
+GeForce RTX 5070 Ti Laptop GPU `32.0.15.9201`. This inventory and the canvas GPU
+renderer do not establish the GPU selected for video encoding. Browser-tool URL
+policy blocked Chrome's internal diagnostics page, so no implementation name
+was obtained. A separate fresh headless Chrome run on the same machine did
+respond to the bitrate targets, which further limits any claim that this is a
+universal hardware limit. The baseline and explicit-latency reports are saved
+locally under `colour-test-output/rate-undershoot/native-comparison.json`.
+
+#### Profile and latency follow-up (2026-11-15)
+
+The **Compare latency and profile at 25.928 / 51.856 Mb/s** button runs 32 cases:
+direct WebCodecs and Mediabunny, High/Main profile at level 5.0, quality/realtime
+latency, CBR/VBR, and two bitrate targets. The targets match the reported
+25.928 Mb/s case and twice that rate. Input frames and keyframe requests remain
+identical to the earlier comparison; hardware preference remains explicit.
+The output decoder configuration's AVC description header is also recorded to
+distinguish the requested profile from the profile actually advertised by the
+encoded output.
+
+In the same Chrome profile, all 16 High cases produced **7.891821 Mb/s** and
+identical encoded packet hashes. All 16 Main cases produced **7.827101 Mb/s**
+and identical hashes within that profile. Decoder configuration headers confirmed
+profile IDs 100 (High) and 77 (Main): profile changes were reflected in output,
+but changing target bitrate, rate mode, or latency did not change encoded bytes
+within either profile. All 32 cases encoded all 90 input frames, so the realtime
+results did not conceal frame dropping. Input hashes were identical in all cases.
+Neither realtime latency nor switching to Main fixed rate control in this
+environment. No production encoder setting was changed based on this experiment.
+
+Full results are in the ignored local artifact
+`colour-test-output/rate-undershoot/profile-latency-comparison.json`.
+The attached 23.6-second CBR example independently measured 7.316684 Mb/s video
+payload in ffprobe, with 708 frames at 30 fps, High level 5.0, and first-frame
+QP48. The probe is saved as `constant-25928-ffprobe.json` in the same directory.
+
+#### Resolution and frame-shape isolation (2026-11-15)
+
+The **Compare dimensions and bitrate response** button tests direct WebCodecs
+at six output sizes, keeping High level 5.0, CBR, quality latency, 30 fps and
+hardware preference fixed. The original three-second source is scaled to each
+size; the 16:9 controls deliberately stretch the square source. Input hashes
+match within each size, not across different resamplings. Four targets test
+both low-rate response and the reported high-rate failure:
+
+| Dimensions | 2 Mb/s target | 8 Mb/s target | 25.928 Mb/s target | 51.856 Mb/s target |
+| --- | ---: | ---: | ---: | ---: |
+| 640×640 | 1.960 | 7.567 | 8.880 | 8.750 |
+| 1080×1080 | 1.998 | 6.635 | 8.780 | 8.555 |
+| 1920×1920 | 2.074 | 7.421 | 7.593 | 7.593 |
+| 2160×2160 | 2.090 | 7.404 | 7.892 | 7.892 |
+| 1280×720 | 1.993 | 6.644 | 8.856 | 8.466 |
+| 1920×1080 | 2.019 | 7.130 | 8.261 | 8.077 |
+
+These are measured encoded-video payload rates in Mb/s, excluding MP4 overhead.
+Four software controls at 1080×1080 and 2160×2160 reached 25.857–25.878 Mb/s
+and 51.462–51.771 Mb/s for the two higher targets. All 28 cases encoded all 90
+frames, and output timestamps matched the intended 30 fps timeline.
+
+This narrows the earlier statement that hardware ignored bitrate: low targets
+do affect output, while high targets show saturation around 7–9 Mb/s on this
+source across both square and standard 16:9 dimensions. Reducing resolution did
+not restore high-rate control. This is evidence for the tested Chrome profile,
+source and fixed codec level, not a universal hardware ceiling or an identified
+driver limit. Full local results are saved in
+`colour-test-output/rate-undershoot/dimensions-comparison.json`.
+
+#### Cross-codec isolation (2026-11-15)
+
+The **Compare H.264, HEVC, AV1 and VP9** button tests native WebCodecs with
+hardware preference, quality latency, the same 2160×2160 limited I420 source,
+and both CBR/VBR. Each candidate is checked with `isConfigSupported()` at all
+four bitrate targets before encoding. One codec string is held fixed across the
+targets in each mode. Alternative HEVC/AV1 tier candidates are available when
+the first candidate is rejected; support checks and recognized configurations
+are retained in JSON. The selected strings in this run were `avc1.640032`,
+`hev1.1.6.H150.B0`, `av01.0.12H.08`, and `vp09.00.50.08`.
+
+| Codec | Mode | 2 Mb/s target | 8 Mb/s target | 25.928 Mb/s target | 51.856 Mb/s target |
+| --- | --- | ---: | ---: | ---: | ---: |
+| H.264 | CBR | 2.090 | 7.404 | 7.892 | 7.892 |
+| H.264 | VBR | 2.090 | 7.404 | 7.892 | 7.892 |
+| HEVC | CBR | 10.734 | 10.734 | 11.061 | 11.061 |
+| HEVC | VBR | 10.734 | 10.734 | 11.061 | 11.061 |
+| AV1 | CBR | 8.017 | 8.651 | 25.663 | 51.150 |
+| AV1 | VBR | 8.017 | 8.651 | 25.663 | 51.150 |
+| VP9 | CBR | 8.226 | 8.816 | 25.983 | 51.178 |
+| VP9 | VBR | 3.738 | 8.922 | 26.498 | 52.200 |
+
+Rates measure encoded video payload, excluding container overhead. All 32 cases
+had identical input hashes, encoded all 90 frames and preserved the intended
+timestamps. HEVC also shows poor rate control and a higher plateau, while AV1
+and VP9 respond to the two higher targets. AV1 and VP9 CBR substantially
+overshoot the low target over this three-second test; do not infer accurate
+low-rate behavior or a fixed minimum without longer steady-state tests. These
+results concern the requested hardware preference in this Chrome environment;
+the actual encoder implementation remains unidentified. Those diagnostics
+initially ran separately from the production export dialog.
+
+Full local results and capability checks are saved in
+`colour-test-output/rate-undershoot/codec-comparison.json`.
+
+#### MP4 (AV1) test export option
+
+The format menu now includes **MP4 (AV1 · test)** alongside MP4 (H.264) and
+WebM (VP9). It emits `format: 'mp4', videoCodec: 'av1'` and uses WebCodecs;
+FFmpeg WASM/x264 is unavailable for this choice. All three export routes forward
+the codec choice, while filename extensions, MIME types and draft containers
+remain MP4. Bitrate and constant-QP controls remain explicit; AV1 QP accepts
+0–63 and has no hidden bitrate fallback. Browser/device codec support is checked
+by the normal Mediabunny configuration path; unsupported configurations stop
+instead of silently switching to H.264.
+
+AV1 reuses the selected GPU/CPU BT.709 I420 conversion and limited/full range.
+The independent AV1 inspector reads sequence-header OBUs from encoded packets,
+and the completed report compares their colour declarations, bit depth and
+subsampling with MP4 nclx declarations and the requested output. Missing limited
+declarations remain warnings; known conflicts or malformed inspection fail
+explicit-range export, and full range retains strict verification. H.264 SPS
+repair is never run on AV1 output.
+
+The actual dialog was exercised in Chrome 157.0.8103.51 with 640×360, 30-frame
+colour-chart exports in limited VBR, full VBR and full QP23. FFprobe independently
+confirmed AV1, 8-bit 4:2:0, 30 fps, one second and all 30 frames for limited/full
+VBR, with BT.709 primaries/transfer/matrix and matching range flags. Decoded
+interior chart patches differed from the expected converted YUV values by at
+most 3 levels for limited and 4 for full. Limited white/black decoded as 235/17;
+full white/black as 255/0. Full QP23 also completed with matching sequence-header
+and container declarations, with no bitrate in the native encoder config.
+These are environment-specific checks, not a guarantee for other encoders or
+players. Artifacts are in the ignored `colour-test-output/av1-menu/` directory.
+
+### Platform requirements
+
 The default FFmpeg MP4 export requires WebAssembly, module workers, readable canvas pixels and a
 Canvas2D context that confirms sRGB. It does not require VideoEncoder or
 SharedArrayBuffer/COEP. Chrome and Edge on Windows were tested. Safari/Firefox,

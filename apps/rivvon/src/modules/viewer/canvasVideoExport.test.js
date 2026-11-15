@@ -54,6 +54,49 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 const options = { width: 320, height: 240, fps: 30, format: 'mp4', encodingMethod: 'webcodecs' };
 describe('encoder selection and final reports', () => {
+    it('exports AV1 in MP4 using explicit limited I420, preserving native bytes without H.264 repair', async () => {
+        yuvContext(); const reports = vi.fn();
+        const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange: false };
+        inspectMp4Colour.mockReturnValue({ container: [colour], sps: [], sampleEntries: ['av01'] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoCodec: 'av1',
+            encodingMethod: 'ffmpeg', videoRange: 'limited', repairSpsColour: true, onColourMetadata: reports });
+        expect(createSdrVideoExport).not.toHaveBeenCalled();
+        expect(mocks.sources[0].config.codec).toBe('av1');
+        await writer.add(0, 1 / 30);
+        const packet = Uint8Array.from('12000a0d00000002afff9b5f2202020208320d1000a800000240000003d2c6e4'.match(/../g), h => parseInt(h, 16));
+        mocks.sources[0].config.onEncodedPacket({ data: packet });
+        const blob = await writer.finalize();
+        expect(blob.type).toBe('video/mp4');
+        expect(await blob.arrayBuffer()).toEqual(mocks.outputs[0].target.buffer);
+        expect(repairMissingSpsColour).not.toHaveBeenCalled();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ videoCodec: 'av1', encodingMethod: 'webcodecs',
+            sequenceHeaders: [{ fullRange: false, primaries: 1, transfer: 1, matrix: 1 }], verification: { matchesRequestedColour: true } });
+        expect(reports.mock.calls.at(-1)[0]).not.toHaveProperty('spsRepair');
+    });
+    it('rejects malformed AV1 encoded OBUs', async () => {
+        yuvContext();
+        inspectMp4Colour.mockReturnValue({ container: [{ primaries: 1, transfer: 1, matrix: 1, fullRange: false }], sps: [] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoCodec: 'av1', videoRange: 'limited' });
+        await writer.add(0, 1 / 30);
+        mocks.sources[0].config.onEncodedPacket({ data: Uint8Array.from([0x0a, 0x01, 0]) });
+        await expect(writer.finalize()).rejects.toThrow('requested BT.709 limited-range');
+    });
+    it('rejects an AV1 full-range bitstream returned for limited-range input', async () => {
+        yuvContext();
+        inspectMp4Colour.mockReturnValue({ container: [{ primaries: 1, transfer: 1, matrix: 1, fullRange: false }], sps: [] });
+        const writer = await createCanvasVideoExport({}, { ...options, width: 2, height: 2, videoCodec: 'av1', videoRange: 'limited' });
+        await writer.add(0, 1 / 30);
+        const packet = Uint8Array.from('12000a0d00000002afff9b5f2204040308320d1000a80000024000002c2f9880'.match(/../g), h => parseInt(h, 16));
+        mocks.sources[0].config.onEncodedPacket({ data: packet });
+        await expect(writer.finalize()).rejects.toThrow('requested BT.709 limited-range');
+    });
+    it('measures the completed output across submitted frame timestamps, including a nonzero start', async () => {
+        const reports = vi.fn();
+        const writer = await createCanvasVideoExport({}, { ...options, onColourMetadata: reports });
+        await writer.add(4, 0.5); await writer.add(4.5, 0.5);
+        await writer.finalize();
+        expect(reports.mock.calls.at(-1)[0].output).toEqual({ bytes: 8, duration: 1, averageBitrate: 64 });
+    });
     it.each(['variable', 'constant'])('sends the exact selected %s bitrate to Mediabunny', async bitrateMode => {
         const writer = await createCanvasVideoExport({}, { ...options, bitrateMode, bitrate: 14_000_000 });
         expect(mocks.sources[0].config.quality.options).toEqual({ bitrate: 14_000_000, bitrateMode });

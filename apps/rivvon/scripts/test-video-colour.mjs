@@ -73,7 +73,7 @@ try {
     const result = await Promise.race([
         browserError,
         call('Runtime.evaluate',{
-            expression:`(async () => { while (!window.colourLab) await new Promise(r => setTimeout(r,100)); return await colourLab.exportComparisons({ receiver:'/__colour_output', repairPaddingMiB:${repairPaddingMiB}, hardwareAcceleration:${JSON.stringify(process.env.HARDWARE_ACCELERATION || 'no-preference')} }); })()`,
+            expression:`(async () => { while (!window.colourLab) await new Promise(r => setTimeout(r,100)); return await colourLab.${process.env.COLOUR_RATE_SWEEP === '1' ? 'exportRateControlSweep' : 'exportComparisons'}({ receiver:'/__colour_output', repairPaddingMiB:${repairPaddingMiB}, hardwareAcceleration:${JSON.stringify(process.env.HARDWARE_ACCELERATION || 'no-preference')} }); })()`,
             awaitPromise:true,returnByValue:true,
         }),
         new Promise((_,reject) => setTimeout(() => reject(new Error('Colour regression timed out after 10 minutes.')),600000).unref()),
@@ -119,7 +119,7 @@ try {
         }
         native.push(data);
     }
-    if (process.env.FFMPEG_BINARY) {
+    if (process.env.FFMPEG_BINARY && !report.rateSweep) {
         for (const entry of report.exports.filter(e => e.name.endsWith('-webcodecs-repaired.mp4'))) {
             const originalName = entry.name.replace('-webcodecs-repaired.mp4','-before.mp4');
             const decoded = name => execFileSync(process.env.FFMPEG_BINARY,['-v','error','-i',join(output,name),
@@ -164,6 +164,7 @@ try {
         chartMaxError:report.chartMaxError,cancellation:report.cancellation,largeInputRepair:report.largeInputRepair,
         bitrateRegression:report.bitrateRegression,
         rateControlModes:report.rateControlModes,
+        rateSweep:report.rateSweep,
         exports:native.map(({ name,ffprobe,patchMaxError }) => ({ name,ffprobe,patchMaxError })) },null,2));
     console.log(`Colour comparison files: ${output}`);
 } finally {

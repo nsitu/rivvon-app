@@ -6,11 +6,14 @@ import { SDR_VIDEO_COLOUR, validateSdrDimensions } from './exportColour.js';
 import { resolveVideoRateControl } from './videoRateControl.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
 import { createExportBlob } from './exportBlob.js';
+import { inspectAv1ColourObus } from './av1ColourMetadata.js';
 
 // Shared encoder choice and diagnostics for all three public video entry points.
 export async function createCanvasVideoExport(canvas, options) {
     const format = options.format ?? 'mp4';
-    const encodingMethod = format === 'webm' ? 'webcodecs' : (options.encodingMethod ?? 'ffmpeg');
+    const videoCodec = options.videoCodec ?? (format === 'webm' ? 'vp9' : 'avc');
+    if (!(format === 'mp4' ? ['avc', 'av1'] : format === 'webm' ? ['vp9'] : []).includes(videoCodec)) throw new Error('Unsupported video format and codec combination.');
+    const encodingMethod = format === 'webm' || videoCodec === 'av1' ? 'webcodecs' : (options.encodingMethod ?? 'ffmpeg');
     if (!['ffmpeg', 'webcodecs'].includes(encodingMethod)) throw new Error('Unknown video encoding method.');
     if (format === 'mp4' && encodingMethod === 'ffmpeg') return createSdrVideoExport(canvas, options);
     if (typeof VideoEncoder === 'undefined') throw new Error('WebCodecs API is not available in this browser.');
@@ -22,14 +25,15 @@ export async function createCanvasVideoExport(canvas, options) {
     if (signal?.aborted) throw new DOMException('Video export cancelled', 'AbortError');
     const control = resolveVideoRateControl({ ...options, format, encodingMethod });
     const MB = await import('mediabunny');
-    const report = { schemaVersion: 1, phase: 'encoding', encodingMethod, format,
+    const report = { schemaVersion: 1, phase: 'encoding', encodingMethod, format, videoCodec,
         pipeline: explicitYuv ? `sRGB → BT.709 transfer → ${videoRange} I420 → browser encoder → Mediabunny`
             : 'Canvas → VideoFrame → browser encoder → Mediabunny', encoder: 'WebCodecs (implementation not exposed)',
         videoRange, explicitYuv,
         width, height, fps, targetBitrate: control.bitrate, bitrateMode: control.bitrateMode, quantizer: control.quantizer,
         logo: Boolean(logoOverlayEnabled), hardwareAcceleration: options.hardwareAcceleration ?? 'no-preference',
         environment: await collectExportEnvironment(options.renderContext), videoFrame: null, decoderConfig: null, encoderConfig: null,
-        decoderColourSpaces: [] };
+        decoderColourSpaces: [], ...(videoCodec === 'av1' ? { sequenceHeaders: [] } : {}) };
+    let av1InspectionError = null;
     const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
     let sourceCanvas = canvas, context;
     if (logo || explicitYuv) {
@@ -39,12 +43,19 @@ export async function createCanvasVideoExport(canvas, options) {
         if (explicitYuv && context.getContextAttributes?.().colorSpace !== 'srgb') throw new Error('An sRGB export canvas is required.');
     }
     const output = new MB.Output({ format: format === 'webm' ? new MB.WebMOutputFormat() : new MB.Mp4OutputFormat(), target: new MB.BufferTarget() });
-    const config = { codec: format === 'webm' ? 'vp9' : 'avc',
+    const config = { codec: videoCodec,
         quality: new MB.Quality(control.bitrateMode === 'quantizer'
             ? { quantizer: control.quantizer } : { bitrate: control.bitrate, bitrateMode: control.bitrateMode }),
         hardwareAcceleration: report.hardwareAcceleration,
         onEncoderConfig(config) { report.encoderConfig = { ...config }; },
         onEncodedPacket(_packet, meta) {
+            if (videoCodec === 'av1' && !av1InspectionError) {
+                try {
+                    for (const header of inspectAv1ColourObus(_packet.data)) {
+                        if (!report.sequenceHeaders.some(existing => JSON.stringify(existing) === JSON.stringify(header))) report.sequenceHeaders.push(header);
+                    }
+                } catch (error) { av1InspectionError = error.message; }
+            }
             const cfg = meta?.decoderConfig;
             if (cfg?.colorSpace && !report.decoderColourSpaces.some(c => JSON.stringify(c) === JSON.stringify(cfg.colorSpace))) {
                 report.decoderColourSpaces.push({ ...cfg.colorSpace });
@@ -60,7 +71,11 @@ export async function createCanvasVideoExport(canvas, options) {
     const yuv = explicitYuv ? new Uint8Array(width * height * 3 / 2) : null;
     output.addVideoTrack(source, { frameRate: fps });
     const repairController = new AbortController();
-    let disposed = false, converter = null;
+    let disposed = false, converter = null, firstTimestamp = Infinity, endTimestamp = -Infinity;
+    const recordFrame = (time, duration) => {
+        firstTimestamp = Math.min(firstTimestamp, time);
+        endTimestamp = Math.max(endTimestamp, time + duration);
+    };
     const dispose = async () => {
         repairController.abort();
         converter?.dispose();
@@ -101,6 +116,7 @@ export async function createCanvasVideoExport(canvas, options) {
                         }
                         sample = new MB.VideoSample(frame);
                         await source.add(sample);
+                        recordFrame(time, duration);
                     } finally { sample?.close(); frame.close(); }
                     return;
                 }
@@ -113,6 +129,7 @@ export async function createCanvasVideoExport(canvas, options) {
                     onColourMetadata?.({ ...report });
                 }
                 await source.add(time, duration);
+                recordFrame(time, duration);
             },
             async finalize() {
                 await output.finalize();
@@ -122,7 +139,7 @@ export async function createCanvasVideoExport(canvas, options) {
                 let metadata = null, inspectionError = null, repairedBlob = null;
                 let data = new Uint8Array(output.target.buffer);
                 if (format === 'mp4') {
-                    options.onStatus?.('Checking H.264 colour declarations…');
+                    options.onStatus?.(`Checking ${videoCodec === 'av1' ? 'AV1' : 'H.264'} colour declarations…`);
                     try { metadata = inspectMp4Colour(data); }
                     catch (error) { inspectionError = error.message; }
                     // Developer comparison hook: this is the identical encoded
@@ -131,7 +148,7 @@ export async function createCanvasVideoExport(canvas, options) {
                         await options.onBeforeSpsRepair(await createExportBlob(data, { signal: repairController.signal }), metadata);
                     }
                     if (signal?.aborted || repairController.signal.aborted) throw new DOMException('Video export cancelled', 'AbortError');
-                    if (!inspectionError && options.repairSpsColour === true) {
+                    if (videoCodec === 'avc' && !inspectionError && options.repairSpsColour === true) {
                         // Diagnostic comparisons may opt in; normal exports
                         // retain the original bytes without a WASM remux/copy.
                         const { repairMissingSpsColour } = await import('./repairWebCodecsColour.js');
@@ -141,12 +158,15 @@ export async function createCanvasVideoExport(canvas, options) {
                         repairedBlob = result.blob;
                         if (result.repair.status === 'added') report.pipeline += ' → FFmpeg h264_metadata (stream copy)';
                         metadata = inspectMp4Colour(data);
-                    } else report.spsRepair = inspectionError
+                    } else if (videoCodec === 'avc') report.spsRepair = inspectionError
                         ? { status: 'skipped', reason: 'The completed MP4 could not be inspected.' }
                         : { status: 'not-requested', reason: 'Original encoder output retained; automatic metadata repair is disabled.' };
                 }
                 if (signal?.aborted || repairController.signal.aborted) throw new DOMException('Video export cancelled', 'AbortError');
-                const finalReport = completeExportColourReport(report, metadata, inspectionError);
+                inspectionError ??= av1InspectionError;
+                const finalReport = completeExportColourReport({ ...report,
+                    output: { bytes: data.byteLength, duration: endTimestamp - firstTimestamp },
+                }, metadata, inspectionError ?? av1InspectionError);
                 if (explicitYuv && (inspectionError || finalReport.verification.conflictsWithRequestedColour
                     || (videoRange === 'full' && !finalReport.verification.matchesRequestedColour))) {
                     throw new Error(`The browser did not establish the requested BT.709 ${videoRange}-range output. Try FFmpeg WASM for limited-range export or another encoder preference.`);

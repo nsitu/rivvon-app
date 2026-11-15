@@ -11,6 +11,8 @@ describe('explicit video rate control', () => {
             .toEqual({ bitrateMode: 'quantizer', bitrate: null, quantizer: 0 });
     });
     it('uses codec-specific quantizer bounds', () => {
+        expect(resolveVideoRateControl({ bitrateMode: 'quantizer', format: 'mp4', videoCodec: 'av1', quantizer: 63 }).quantizer).toBe(63);
+        expect(() => resolveVideoRateControl({ bitrateMode: 'quantizer', format: 'mp4', videoCodec: 'av1', quantizer: 64 })).toThrow('0 to 63 for AV1');
         expect(resolveVideoRateControl({ bitrateMode: 'quantizer', format: 'webm', quantizer: 63 }).quantizer).toBe(63);
         expect(() => resolveVideoRateControl({ bitrateMode: 'quantizer', format: 'mp4', quantizer: 63 })).toThrow('0 to 51');
     });

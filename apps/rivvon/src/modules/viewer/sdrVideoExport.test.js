@@ -55,7 +55,8 @@ describe('pooled SDR canvas export', () => {
         expect(pool.mux).toHaveBeenCalledOnce();
         expect(restoreCfrMp4Timing).toHaveBeenCalledWith(expect.any(Uint8Array), { fps: 30, frames: 12 });
         expect(assertSdrMp4).toHaveBeenCalledWith(expect.any(Uint8Array), { width: 2048, height: 2048, fps: 30, frames: 12 });
-        expect(onColourMetadata.mock.calls.at(-1)[0]).toMatchObject({ phase: 'complete', workerCount: 3, workerLimit: 3 });
+        expect(onColourMetadata.mock.calls.at(-1)[0]).toMatchObject({ phase: 'complete', workerCount: 3, workerLimit: 3,
+            output: { bytes: 3, duration: 0.4, averageBitrate: 60 } });
         expect(pool.dispose).toHaveBeenCalledOnce();
     });
 

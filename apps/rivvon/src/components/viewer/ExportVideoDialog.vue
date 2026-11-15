@@ -65,6 +65,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     // --- Form state ---
     const format = ref('mp4');
+    const videoCodec = ref('avc');
     const encodingMethod = ref('ffmpeg');
     const hardwareAcceleration = ref('no-preference');
     const videoRange = ref('limited');
@@ -213,19 +214,25 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     const formatOptions = [
         { label: 'MP4 (H.264)', value: 'mp4' },
+        { label: 'MP4 (AV1 · test)', value: 'mp4-av1' },
         { label: 'WebM (VP9)', value: 'webm' }
     ];
+    const formatSelection = computed({
+        get: () => format.value === 'mp4' && videoCodec.value === 'av1' ? 'mp4-av1' : format.value,
+        set: value => { format.value = value === 'mp4-av1' ? 'mp4' : value; videoCodec.value = value === 'mp4-av1' ? 'av1' : value === 'webm' ? 'vp9' : 'avc'; },
+    });
 
-    const encodingMethodOptions = [
-        { label: 'FFmpeg WASM', value: 'ffmpeg' },
+    const encodingMethodOptions = computed(() => [
+        { label: 'FFmpeg WASM', value: 'ffmpeg', disabled: videoCodec.value === 'av1' },
         { label: 'WebCodecs', value: 'webcodecs' },
-    ];
+    ]);
     const hardwareAccelerationOptions = [
         { label: 'Browser decides', value: 'no-preference' },
         { label: 'Prefer hardware', value: 'prefer-hardware' },
         { label: 'Prefer software', value: 'prefer-software' },
     ];
-    const usesWebCodecs = computed(() => format.value === 'webm' || encodingMethod.value === 'webcodecs');
+    const usesWebCodecs = computed(() => videoCodec.value === 'av1' || format.value === 'webm' || encodingMethod.value === 'webcodecs');
+    const selectedEncodingMethod = computed({ get: () => usesWebCodecs.value ? 'webcodecs' : 'ffmpeg', set: value => { encodingMethod.value = value; } });
     const videoRangeOptions = [
         { label: 'Limited (recommended)', value: 'limited' },
         { label: 'Full', value: 'full' },
@@ -252,7 +259,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         constant: 'Requests constant-bitrate encoding from WebCodecs. Keyframes and short clips can still vary; this is not a hard file-size limit.',
         quantizer: 'Uses a fixed quantizer instead of a bitrate target. File size depends on the content. No bitrate fallback is used.',
     })[bitrateMode.value]);
-    const quantizerMax = computed(() => getVideoQuantizerMax(format.value));
+    const quantizerMax = computed(() => getVideoQuantizerMax(format.value, videoCodec.value));
 
     function applyInitialDimensionSettings(settings = null) {
         if (!settings) {
@@ -275,7 +282,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         try {
             const bits = bitrateMbps.value == null ? null : Math.round(bitrateMbps.value * 1_000_000);
             return { control: resolveVideoRateControl({ bitrateMode: bitrateMode.value, bitrate: bits, quantizer: quantizer.value,
-                format: format.value, encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg' }), error: '' };
+                format: format.value, videoCodec: videoCodec.value, encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg' }), error: '' };
         } catch (error) { return { control: null, error: error.message }; }
     });
 
@@ -449,6 +456,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         if (!visible) return;
         const settings = props.initialSettings;
         if (settings?.format) format.value = settings.format;
+        if (settings?.format) videoCodec.value = settings.videoCodec ?? (settings.format === 'webm' ? 'vp9' : 'avc');
         if (settings?.encodingMethod) encodingMethod.value = settings.encodingMethod;
         if (!rateControlInitialized) {
             bitrateMbps.value = getSdrBitrate(resolvedWidth.value, resolvedHeight.value, settings?.quality) / 1_000_000;
@@ -493,6 +501,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         customHeight,
         alignTilesToEdge,
         format,
+        videoCodec,
         encodingMethod,
         hardwareAcceleration,
         videoRange,
@@ -574,6 +583,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
             height: resolvedHeight.value,
             fps: fps.value,
             format: format.value,
+            videoCodec: videoCodec.value,
             encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg',
             hardwareAcceleration: usesWebCodecs.value ? hardwareAcceleration.value : null,
             videoRange: format.value === 'mp4' && usesWebCodecs.value ? videoRange.value : null,
@@ -659,23 +669,25 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                         </div>
 
                         <div class="form-field">
-                            <label>Format</label>
+                            <label for="videoExportFormat">Format</label>
                             <Select
-                                v-model="format"
+                                v-model="formatSelection"
+                                input-id="videoExportFormat"
                                 :options="formatOptions"
                                 option-label="label"
                                 option-value="value"
                                 :disabled="isEncoding"
                                 class="w-full"
                             />
+                            <div v-if="videoCodec === 'av1'" class="field-description">Test AV1 in an MP4 container using WebCodecs. Keeps the colour range and conversion selected below. Encoder and playback support depend on the browser and device.</div>
                         </div>
 
                         <div v-if="format === 'mp4'" class="form-field">
                             <label for="videoEncodingMethod">Encoding method</label>
-                            <Select v-model="encodingMethod" :options="encodingMethodOptions" option-label="label"
-                                option-value="value" input-id="videoEncodingMethod" :disabled="isEncoding" class="w-full" />
+                            <Select v-model="selectedEncodingMethod" :options="encodingMethodOptions" option-label="label"
+                                option-value="value" option-disabled="disabled" input-id="videoEncodingMethod" :disabled="isEncoding" class="w-full" />
                             <div class="field-description">
-                                {{ encodingMethod === 'ffmpeg'
+                                {{ selectedEncodingMethod === 'ffmpeg'
                                     ? 'Consistent BT.709 limited colour. Encoding runs on the CPU and loads a 32 MB encoder; pixel conversion is selected below.'
                                     : 'Uses the browser encoder. Colour can vary by browser and device. Keeps the original encoded video without metadata repair; inspect the final colour report.' }}
                             </div>
@@ -836,7 +848,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                                 :use-grouping="false" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" fluid
                                 :pt="{ pcInputText: { root: { 'aria-describedby': 'videoQuantizerHelp' } } }" />
                             <div id="videoQuantizerHelp" class="field-description">
-                                {{ format === 'webm' ? 'VP9' : 'H.264' }} accepts 0–{{ quantizerMax }}.
+                                {{ videoCodec === 'av1' ? 'AV1' : format === 'webm' ? 'VP9' : 'H.264' }} accepts 0–{{ quantizerMax }}.
                                 Lower values retain more detail and usually produce larger files. QP values are not comparable across codecs.
                                 {{ usesWebCodecs ? 'Sent as the encoder quantizer; export stops if this mode is unsupported.' : 'Sent to x264 as -qp.' }}
                             </div>

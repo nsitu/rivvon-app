@@ -91,6 +91,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
                     const blob = await createExportBlob(data, { signal: packagingController.signal });
                     check();
                     onColourMetadata?.(completeExportColourReport({ ...report,
+                        output: { bytes: blob.size, duration: count / fps },
                         workerLimit: pool.workerLimit, workerCount: pool.workerCount }, metadata));
                     if (import.meta.env.DEV) console.info('[Rivvon export colour verified]', metadata);
                     return blob;

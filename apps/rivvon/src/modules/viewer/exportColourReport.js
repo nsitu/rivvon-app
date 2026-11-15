@@ -48,30 +48,48 @@ export async function collectExportEnvironment(renderContext = null, nav = globa
 }
 
 export function completeExportColourReport(base, metadata = null, inspectionError = null) {
-    const container = metadata?.container ?? [], sps = metadata?.sps ?? [];
-    const declarations = [...container, ...sps];
+    // Measure the completed file without copying/decoding its media. This includes
+    // container overhead, so label it separately from the requested video bitrate.
+    const output = base.output?.duration > 0 && Number.isFinite(base.output.duration)
+        ? { ...base.output, averageBitrate: base.output.bytes * 8 / base.output.duration } : null;
+    const rateControlWarnings = [];
+    if (output && base.targetBitrate > 0 && base.bitrateMode !== 'quantizer') {
+        const ratio = output.averageBitrate / base.targetBitrate;
+        if (ratio < 0.5 || ratio > 1.5) {
+            rateControlWarnings.push(`Average file bitrate is ${(output.averageBitrate / 1_000_000).toFixed(2)} Mb/s against a ${(base.targetBitrate / 1_000_000).toFixed(2)} Mb/s video target. ${base.bitrateMode === 'constant'
+                ? 'The encoder output differs substantially from the CBR target.'
+                : 'VBR can use less data for simple content; a large mismatch on detailed content can also indicate that the encoder did not honour the target.'}`);
+            if (base.encodingMethod === 'webcodecs' && base.hardwareAcceleration !== 'prefer-software') {
+                rateControlWarnings.push('If quality is lower than expected, try Encoder preference → Prefer software. Browser hardware encoders can accept a bitrate configuration without producing the requested rate.');
+            }
+        }
+    }
+    const container = metadata?.container ?? [];
+    const bitstream = base.videoCodec === 'av1' ? base.sequenceHeaders ?? [] : metadata?.sps ?? [];
+    const bitstreamLabel = base.videoCodec === 'av1' ? 'AV1 sequence header' : 'H.264 SPS';
+    const declarations = [...container, ...bitstream];
     const warnings = [];
     let agreement = 'incomplete';
-    if (container.length && sps.length && declarations.every(c => colourKeys.every(k => declared(c, k)))) agreement = 'agree';
+    if (container.length && bitstream.length && declarations.every(c => colourKeys.every(k => declared(c, k)))) agreement = 'agree';
     if (declarations.some((c, i) => declarations.slice(i + 1).some(other =>
         colourKeys.some(k => declared(c, k) && declared(other, k) && c[k] !== other[k])))) agreement = 'conflict';
-    const matchesSdrTarget = !inspectionError && base.format === 'mp4' && container.length > 0 && sps.length > 0
-        && declarations.every(target) && sps.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8);
+    const matchesSdrTarget = !inspectionError && base.format === 'mp4' && container.length > 0 && bitstream.length > 0
+        && declarations.every(target) && bitstream.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8);
     const requestedColour = base.explicitYuv && ['limited', 'full'].includes(base.videoRange);
-    const matchesRequestedColour = requestedColour ? !inspectionError && base.format === 'mp4' && container.length > 0 && sps.length > 0
+    const matchesRequestedColour = requestedColour ? !inspectionError && base.format === 'mp4' && container.length > 0 && bitstream.length > 0
         && declarations.every(c => c.primaries === 1 && c.transfer === 1 && c.matrix === 1 && c.fullRange === (base.videoRange === 'full'))
-        && sps.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8) : null;
+        && bitstream.every(s => s.chromaFormat === 1 && s.bitDepthLuma === 8 && s.bitDepthChroma === 8) : null;
     const requested = { primaries: 1, transfer: 1, matrix: 1, fullRange: base.videoRange === 'full' };
     const conflictsWithRequestedColour = requestedColour ? declarations.some(c =>
         colourKeys.some(key => declared(c, key) && c[key] !== requested[key]))
-        || sps.some(s => Object.entries({ chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 })
+        || bitstream.some(s => Object.entries({ chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 })
             .some(([key, value]) => s[key] != null && s[key] !== value))
         || (base.decoderColourSpaces ?? []).some(c => c && (
             ['primaries', 'transfer', 'matrix'].some(key => c[key] != null && c[key] !== 'bt709')
             || (typeof c.fullRange === 'boolean' && c.fullRange !== requested.fullRange))) : null;
     if (base.format === 'mp4') {
         if (!container.length) warnings.push('MP4 colour declaration is absent or could not be inspected.');
-        if (!sps.length || sps.some(s => colourKeys.some(k => !declared(s, k)))) warnings.push('H.264 SPS colour declaration is absent or incomplete.');
+        if (!bitstream.length || bitstream.some(s => colourKeys.some(k => !declared(s, k)))) warnings.push(`${bitstreamLabel} colour declaration is absent or incomplete.`);
         if (agreement === 'conflict') warnings.push('Container and/or bitstream colour declarations conflict.');
         if (conflictsWithRequestedColour) warnings.push(`Known output declarations or pixel format conflict with the requested BT.709 ${base.videoRange}, 8-bit 4:2:0 output.`);
         else if (requestedColour && !matchesRequestedColour) warnings.push(`Incomplete metadata does not fully confirm BT.709 ${base.videoRange} output; player interpretation may vary.`);
@@ -82,7 +100,7 @@ export function completeExportColourReport(base, metadata = null, inspectionErro
     if (base.encodingMethod === 'webcodecs') warnings.push(base.explicitYuv
         ? 'BT.709 I420 pixels were explicitly supplied; colour tags alone do not verify that the encoder preserved their values.'
         : 'Colour tags describe the output; they do not prove correct browser-managed pixel conversion.');
-    return { ...base, ...(metadata ?? {}), phase: 'complete', completedAt: new Date().toISOString(),
+    return { ...base, ...(metadata ?? {}), output, rateControlWarnings, phase: 'complete', completedAt: new Date().toISOString(),
         verification: { matchesSdrTarget: Boolean(matchesSdrTarget), matchesRequestedColour, conflictsWithRequestedColour, containerAndBitstream: agreement,
             pixelConversion: base.encodingMethod === 'ffmpeg' ? 'explicit-sRGB-to-BT.709-limited-I420'
                 : base.explicitYuv ? `explicit-sRGB-to-BT.709-${base.videoRange}-I420` : 'browser-managed-unverified', warnings } };

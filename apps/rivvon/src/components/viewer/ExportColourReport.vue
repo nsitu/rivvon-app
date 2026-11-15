@@ -10,8 +10,13 @@ const rangeLabel = computed(() => props.report.videoRange === 'full' ? 'full' : 
 const conversion = computed(() => props.report.yuvConversion);
 const rows = computed(() => [
     ['Encoding method', props.report.encodingMethod === 'ffmpeg' ? 'FFmpeg WASM / x264' : 'WebCodecs / browser encoder'],
+    ['Video codec', props.report.videoCodec === 'av1' ? 'AV1 (test)' : props.report.format === 'webm' ? 'VP9' : 'H.264'],
     ...(props.report.bitrateMode ? [['Rate control', ({ variable: 'Variable bitrate (VBR)', constant: 'Constant bitrate (CBR)', quantizer: 'Constant quantizer (QP)' })[props.report.bitrateMode]]] : []),
     ...(props.report.targetBitrate ? [['Target video bitrate', `${(props.report.targetBitrate / 1_000_000).toFixed(2)} Mb/s`]] : []),
+    ...(props.report.output ? [
+        ['Average file bitrate', `${(props.report.output.averageBitrate / 1_000_000).toFixed(2)} Mb/s (including container overhead)`],
+        ['File size', `${(props.report.output.bytes / 1024 / 1024).toFixed(2)} MiB`],
+    ] : []),
     ...(props.report.quantizer != null ? [['Quantizer (QP)', String(props.report.quantizer)]] : []),
     ...(conversion.value ? [
         ['Colour conversion', conversion.value.method === 'gpu' ? 'GPU shader → I420 readback' : 'RGBA readback → CPU conversion'],
@@ -24,7 +29,8 @@ const rows = computed(() => [
     ] : []),
     ...(props.report.format === 'mp4' ? [
         ['MP4 container', describeColourEntries(props.report.container)],
-        ['H.264 bitstream', describeColourEntries(props.report.sps)],
+        [props.report.videoCodec === 'av1' ? 'AV1 sequence header' : 'H.264 bitstream',
+            describeColourEntries(props.report.videoCodec === 'av1' ? props.report.sequenceHeaders : props.report.sps)],
         ['Container / bitstream', props.report.verification?.containerAndBitstream ?? 'incomplete'],
         ...(props.report.spsRepair ? [['SPS repair', props.report.spsRepair.status === 'added'
             ? 'Missing declarations added; encoded pixels unchanged'
@@ -46,6 +52,9 @@ function downloadReport() {
 <template>
     <section class="colour-report" aria-label="Export colour report">
         <h3>Colour report</h3>
+        <Message v-for="warning in report.rateControlWarnings" :key="warning" severity="warn" :closable="false">
+            {{ warning }}
+        </Message>
         <Message :severity="matching ? 'success' : 'warn'" :closable="false">
             {{ matching ? `BT.709 ${rangeLabel}-range colour declarations verified.` : 'Colour declarations differ from the requested target or are incomplete.' }}
         </Message>

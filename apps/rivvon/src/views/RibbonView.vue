@@ -3536,6 +3536,7 @@ const activeToolbarOverlayTitle = computed(() => {
 
         try {
             const progressHandlers = {
+                videoCodec: settings.videoCodec,
                 encodingMethod: settings.encodingMethod,
                 hardwareAcceleration: settings.hardwareAcceleration,
                 videoRange: settings.videoRange,
@@ -3660,6 +3661,11 @@ const activeToolbarOverlayTitle = computed(() => {
         if (!payload?.texture) {
             return;
         }
+
+        app.setExportDimensionSettings({
+            aspectRatioPreset: 'square',
+            resolutionPreset: 'square-2160',
+        });
 
         textureOverviewSelection.value = {
             texture: payload.texture,

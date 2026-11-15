@@ -5,6 +5,37 @@ const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange: false };
 const sps = { ...colour, chromaFormat: 1, bitDepthLuma: 8, bitDepthChroma: 8 };
 const base = { format: 'mp4', encodingMethod: 'webcodecs' };
 describe('export colour reports', () => {
+    it('verifies AV1 sequence declarations and detects conflicts without H.264 SPS assumptions', () => {
+        const av1 = { ...base, videoCodec: 'av1', videoRange: 'limited', explicitYuv: true, sequenceHeaders: [sps] };
+        const report = completeExportColourReport(av1, { container: [colour], sps: [] });
+        expect(report.verification).toMatchObject({ matchesRequestedColour: true, containerAndBitstream: 'agree' });
+        expect(report.verification.warnings.join()).not.toContain('H.264');
+        expect(completeExportColourReport({ ...av1, sequenceHeaders: [{ ...sps, fullRange: true }] }, { container: [colour] })
+            .verification.conflictsWithRequestedColour).toBe(true);
+        expect(completeExportColourReport({ ...av1, sequenceHeaders: [] }, { container: [colour] })
+            .verification.warnings.join()).toContain('AV1 sequence header');
+    });
+    it('reports measured file bitrate and flags severe undershoot without claiming the target was verified', () => {
+        const report = completeExportColourReport({ ...base, bitrateMode: 'variable', targetBitrate: 100_000_000,
+            hardwareAcceleration: 'no-preference', output: { bytes: 116_170_786, duration: 120 } });
+        expect(report.output.averageBitrate).toBeCloseTo(7_744_719.07, 1);
+        expect(report.rateControlWarnings.join()).toContain('7.74 Mb/s against a 100.00 Mb/s');
+        expect(report.rateControlWarnings.join()).toContain('VBR can use less data for simple content');
+        expect(report.rateControlWarnings.join()).toContain('Prefer software');
+    });
+    it.each(['variable', 'constant'])('allows normal %s variation while flagging major overshoot', bitrateMode => {
+        const settings = { ...base, bitrateMode, targetBitrate: 50_000_000, hardwareAcceleration: 'prefer-software' };
+        expect(completeExportColourReport({ ...settings, output: { bytes: 18_670_501, duration: 3 } }).rateControlWarnings).toEqual([]);
+        const report = completeExportColourReport({ ...settings, output: { bytes: 75_000_000, duration: 3 } });
+        expect(report.rateControlWarnings).toHaveLength(1);
+        expect(report.rateControlWarnings[0]).toContain('200.00 Mb/s');
+    });
+    it('keeps QP measurements without comparing to a bitrate target and tolerates old or empty reports', () => {
+        expect(completeExportColourReport({ ...base, bitrateMode: 'quantizer', targetBitrate: null,
+            output: { bytes: 75_000_000, duration: 3 } })).toMatchObject({ output: { averageBitrate: 200_000_000 }, rateControlWarnings: [] });
+        expect(completeExportColourReport(base)).toMatchObject({ output: null, rateControlWarnings: [] });
+        expect(completeExportColourReport({ ...base, output: { bytes: 0, duration: 0 } }).output).toBeNull();
+    });
     it.each(['limited', 'full'])('verifies explicit %s output against the selected target', videoRange => {
         const declared = { ...sps, fullRange: videoRange === 'full' };
         const report = completeExportColourReport({ ...base, videoRange, explicitYuv: true }, { container: [declared], sps: [declared] });

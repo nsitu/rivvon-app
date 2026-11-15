@@ -1140,6 +1140,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             height = props.targetHeight,
             fps = 30,
             format = 'mp4',
+            videoCodec,
             encodingMethod = 'ffmpeg',
             hardwareAcceleration = 'no-preference',
             videoRange = 'auto',
@@ -1178,7 +1179,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
 
             videoExport = await createCanvasVideoExport(renderer.domElement, {
-                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+                width, height, fps, totalFrames, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
                 quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: renderer.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,

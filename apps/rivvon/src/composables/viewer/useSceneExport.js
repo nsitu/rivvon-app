@@ -670,6 +670,7 @@ export function useSceneExport(ctx, deps = {}) {
             height = 1080,
             fps = 30,
             format = 'mp4',
+            videoCodec,
             encodingMethod = 'ffmpeg',
             hardwareAcceleration = 'no-preference',
             videoRange = 'auto',
@@ -697,13 +698,13 @@ export function useSceneExport(ctx, deps = {}) {
             throw new Error('Unknown background interpolation method.');
         }
 
-        // MP4 uses pinned software x264; WebM still requires WebCodecs.
-        if ((format === 'webm' || encodingMethod === 'webcodecs') && typeof VideoEncoder === 'undefined') {
+        // AV1 MP4, WebM and explicitly selected browser encoding require WebCodecs.
+        if ((videoCodec === 'av1' || format === 'webm' || encodingMethod === 'webcodecs') && typeof VideoEncoder === 'undefined') {
             throw new Error('WebCodecs API is not available in this browser. Use Chrome 94+, Edge 94+, or Firefox 130+.');
         }
 
         // --- Determine codec ---
-        const codec = format === 'webm' ? 'vp9' : 'avc';
+        const codec = videoCodec ?? (format === 'webm' ? 'vp9' : 'avc');
 
         // --- Calculate duration ---
         const loopDuration = getSeamlessLoopDuration();
@@ -875,7 +876,7 @@ export function useSceneExport(ctx, deps = {}) {
             }
 
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
-                width, height, fps, totalFrames, format, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+                width, height, fps, totalFrames, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
                 quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,

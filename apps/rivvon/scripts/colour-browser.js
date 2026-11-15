@@ -207,7 +207,9 @@ async function checkLargeRepairInput(originalBlob, decoderColourSpaces, paddingM
     }
     return { inputBytes: data.byteLength, packagedBytes, returnedBytes, nativeBlobError, outputBytes: result.data.byteLength, ...result.repair };
 }
-async function checkSourceBitrate(sourceUrl, receiver) {
+async function checkSourceBitrate(sourceUrl, receiver, {
+    bitrate, bitrateMode = 'variable', hardwareAcceleration = 'prefer-hardware', name = 'bitrate-regression', saveOutput = true,
+} = {}) {
     const MB = await import('mediabunny');
     const input = new MB.Input({ formats: MB.ALL_FORMATS, source: new MB.UrlSource(sourceUrl) });
     let writer;
@@ -218,7 +220,7 @@ async function checkSourceBitrate(sourceUrl, receiver) {
         const context = canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
         let metadata, frames = 0;
         writer = await createCanvasVideoExport(canvas, { width, height, fps, format: 'mp4', encodingMethod: 'webcodecs',
-            videoRange: 'limited', quality: 'very-high', hardwareAcceleration: 'prefer-hardware', logoOverlayEnabled: false,
+            videoRange: 'limited', quality: 'very-high', bitrate, bitrateMode, hardwareAcceleration, logoOverlayEnabled: false,
             onColourMetadata: report => { metadata = report; } });
         for await (const sample of new MB.VideoSampleSink(track).samples(0, 3)) {
             try {
@@ -227,20 +229,41 @@ async function checkSourceBitrate(sourceUrl, receiver) {
             } finally { sample.close(); }
         }
         const blob = await writer.finalize();
-        const targetBitrate = getSdrBitrate(width, height, 'very-high'), duration = frames / fps;
+        const targetBitrate = bitrate ?? getSdrBitrate(width, height, 'very-high'), duration = frames / fps;
         const actualBitrate = blob.size * 8 / duration;
-        if (!frames || metadata.encoderConfig?.bitrateMode !== 'variable' || metadata.encoderConfig?.bitrate !== targetBitrate) {
-            throw new Error('Native encoder did not use the explicit variable bitrate target.');
+        if (!frames || metadata.encoderConfig?.bitrateMode !== bitrateMode || metadata.encoderConfig?.bitrate !== targetBitrate) {
+            throw new Error('Native encoder configuration did not receive the explicit bitrate/mode.');
+        }
+        if (!Number.isFinite(metadata.output?.averageBitrate) || Math.abs(metadata.output.averageBitrate - actualBitrate) > 1) {
+            throw new Error('Completed report did not measure the output bitrate.');
         }
         // Allow GOP/startup variation while rejecting a return to unconstrained
         // QP encoding (the reported case was about 8x this resolution's target).
         if (actualBitrate > targetBitrate * 1.5) throw new Error(`Native bitrate exceeded the test tolerance: ${actualBitrate}`);
-        await save('bitrate-regression.mp4', blob, receiver);
-        return { width, height, fps, frames, duration, targetBitrate, actualBitrate, bytes: blob.size,
+        if (saveOutput) await save(`${name}.mp4`, blob, receiver);
+        return { width, height, fps, frames, duration, hardwareAcceleration, bitrateMode, targetBitrate, actualBitrate, bytes: blob.size,
             projected120SecondMiB: actualBitrate * 120 / 8 / 1024 / 1024,
             estimated120SecondMiB: targetBitrate * 120 / 8 / 1024 / 1024,
-            encoderConfig: metadata.encoderConfig };
+            encoderConfig: metadata.encoderConfig, rateControlWarnings: metadata.rateControlWarnings };
     } finally { await writer?.dispose(); input.dispose(); }
+}
+async function exportRateControlSweep({ receiver, saveOutputs = true } = {}) {
+    const rateSweep = [];
+    const source = params.get('bitrate-source');
+    if (!source) throw new Error('Set COLOUR_BITRATE_SOURCE to a representative local source excerpt.');
+    for (const hardwareAcceleration of ['no-preference', 'prefer-hardware', 'prefer-software']) {
+        for (const bitrateMode of ['variable', 'constant']) for (const bitrate of [50_000_000, 100_000_000]) {
+            const name = `rate-sweep-${hardwareAcceleration}-${bitrateMode}-${bitrate / 1_000_000}`;
+            try {
+                const result = await checkSourceBitrate(source, receiver, { bitrate, bitrateMode, hardwareAcceleration, name, saveOutput: saveOutputs });
+                rateSweep.push({ name, ...result });
+            } catch (error) { rateSweep.push({ name, hardwareAcceleration, bitrateMode, targetBitrate: bitrate, error: String(error) }); }
+            report(rateSweep);
+        }
+    }
+    const results = { ...environment, exports: [], rateSweep };
+    if (saveOutputs) await save('rate-control-sweep.json', new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' }), receiver);
+    return results;
 }
 async function checkRateControlModes(receiver) {
     const results = [];
@@ -361,4 +384,4 @@ async function exportComparisons({ receiver, hardwareAcceleration = 'no-preferen
     await save('browser-report.json',new Blob([JSON.stringify(results,null,2)],{ type:'application/json' }),receiver);
     return results;
 }
-window.colourLab = { exportComparisons,environment,renderer,chart,ribbon };
+window.colourLab = { exportComparisons,exportRateControlSweep,environment,renderer,chart,ribbon };
