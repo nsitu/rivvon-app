@@ -143,6 +143,13 @@ does not save a video or draft: WebCodecs counts packet bytes into a streaming
 them or muxing an MP4. Final-file colour validation still occurs during the
 normal export; the bitrate sample itself does not establish colour correctness.
 
+The QP slider is paired with a synchronized PrimeVue number input for precise
+entry, using codec-specific bounds and integer values. The shared CRF control
+also pairs its slider with a number input, allowing fractional values. The pair
+spans two ordinary form fields when two tracks fit, and one track on narrow
+panels. Its slider and number input share the available width in a 75:25 ratio.
+Editing either control invalidates preflight, and both are disabled during encoding.
+
 The QP slider displays the codec, current numeric value and codec-specific
 endpoints: lower means more detail/larger files, higher means less detail/smaller
 files. It supports integer steps, arrow keys, Home and End. Changing to a codec

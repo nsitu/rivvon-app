@@ -848,7 +848,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             </div>
                         </div>
 
-                        <div v-else class="form-field">
+                        <div v-else class="form-field" :class="{ 'quantizer-field': bitrateMode !== 'basic' }">
                             <template v-if="bitrateMode === 'basic'">
                                 <label for="videoQualityLevel">Quality level</label>
                                 <Select v-model="basicQualityLevel" input-id="videoQualityLevel" :options="VIDEO_QUALITY_OPTIONS"
@@ -858,19 +858,26 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             </template>
                             <template v-else>
                             <div class="quantizer-heading">
-                                <label id="videoQuantizerLabel" for="videoQuantizer">{{ qualitySliderLabel }}</label>
-                                <output for="videoQuantizer" class="tools-slider-value">{{ qualitySliderUnit }} {{ qualitySliderValue }}</output>
+                                <label id="videoQuantizerLabel" for="videoQuantizerNumber">{{ qualitySliderLabel }}</label>
                             </div>
-                            <div class="quantizer-slider-space">
-                                <Slider v-model="qualitySliderValue" :min="0" :max="quantizerMax" :step="usesCrf ? 0.5 : 1" :disabled="isEncoding"
-                                    aria-labelledby="videoQuantizerLabel" class="quantizer-slider"
-                                    :pt="{ handle: { id: 'videoQuantizer', 'aria-describedby': 'videoQuantizerHelp videoQuantizerScale',
-                                        'aria-valuetext': `${qualitySliderUnit} ${qualitySliderValue} of ${quantizerMax}`, 'aria-disabled': isEncoding,
-                                        'aria-invalid': Boolean(rateControlState.error), tabindex: isEncoding ? -1 : 0 } }" />
-                            </div>
-                            <div id="videoQuantizerScale" class="quantizer-scale">
-                                <span><strong>0 · More detail</strong><span>Larger files</span></span>
-                                <span><strong>{{ quantizerMax }} · Less detail</strong><span>Smaller files</span></span>
+                            <div class="quantizer-controls">
+                                <div class="quantizer-slider-column">
+                                    <div class="quantizer-slider-space">
+                                        <Slider v-model="qualitySliderValue" :min="0" :max="quantizerMax" :step="usesCrf ? 0.5 : 1" :disabled="isEncoding"
+                                            aria-labelledby="videoQuantizerLabel" class="quantizer-slider"
+                                            :pt="{ handle: { id: 'videoQuantizer', 'aria-describedby': 'videoQuantizerHelp videoQuantizerScale',
+                                                'aria-valuetext': `${qualitySliderUnit} ${qualitySliderValue ?? 'unset'} of ${quantizerMax}`, 'aria-disabled': isEncoding,
+                                                'aria-invalid': Boolean(rateControlState.error), tabindex: isEncoding ? -1 : 0 } }" />
+                                    </div>
+                                    <div id="videoQuantizerScale" class="quantizer-scale">
+                                        <span><strong>0 · More detail</strong><span>Larger files</span></span>
+                                        <span><strong>{{ quantizerMax }} · Less detail</strong><span>Smaller files</span></span>
+                                    </div>
+                                </div>
+                                <InputNumber v-model="qualitySliderValue" input-id="videoQuantizerNumber" class="quantizer-number"
+                                    :min="0" :max="quantizerMax" :step="usesCrf ? 0.5 : 1" :max-fraction-digits="usesCrf ? 2 : 0"
+                                    :use-grouping="false" :disabled="isEncoding" :invalid="Boolean(rateControlState.error)" fluid
+                                    :pt="{ pcInputText: { root: { 'aria-labelledby': 'videoQuantizerLabel', 'aria-describedby': 'videoQuantizerHelp videoQuantizerScale' } } }" />
                             </div>
                             <div id="videoQuantizerHelp" class="field-description">
                                 <template v-if="usesWebCodecs">
@@ -1440,6 +1447,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     .form-grid {
         display: grid;
+        container-type: inline-size;
         /* All controls share tracks; partial rows keep the same field width.
            The minimum fits one column even on narrow mobile panels. */
         grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
@@ -1450,6 +1458,14 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     .form-grid > .form-field {
         min-width: 0;
+    }
+
+    /* Two 18rem tracks plus their 0.7rem gap must fit before spanning two
+       fields. On narrower panels the pair stays within the single track. */
+    @container (min-width: 36.7rem) {
+        .quantizer-field {
+            grid-column: span 2;
+        }
     }
 
     .custom-width-field {
@@ -1469,6 +1485,22 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         gap: 0.75rem;
     }
 
+    .quantizer-controls {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+    }
+
+    .quantizer-slider-column,
+    .quantizer-number {
+        min-width: 0;
+    }
+
+    .quantizer-number :deep(input) {
+        min-width: 0;
+    }
+
     .quantizer-slider-space {
         display: flex;
         align-items: center;
@@ -1478,11 +1510,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     .quantizer-slider {
         flex: 1;
-    }
-
-    .quantizer-heading .tools-slider-value {
-        flex-shrink: 0;
-        white-space: nowrap;
     }
 
     .quantizer-scale {
