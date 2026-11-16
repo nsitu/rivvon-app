@@ -1,5 +1,6 @@
 <script setup>
 import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
+    import { isVideoPreflightReady } from '../../modules/viewer/videoBitrateEstimate.js';
     import { getSdrBitrate } from '../../modules/viewer/exportColour.js';
     import { getBasicVideoQuality, getVideoQuantizerMax, resolveVideoRateControl, resolveFfmpegVideoRateControl, VIDEO_QUALITY_LEVELS, VIDEO_QUALITY_OPTIONS, X264_ENCODER_PRESETS } from '../../modules/viewer/videoRateControl.js';
     import { ref, computed, watch, inject, onBeforeUnmount } from 'vue';
@@ -39,14 +40,13 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         exportInfo: { type: Object, default: () => ({}) },
         initialSettings: { type: Object, default: null },
         isEncoding: { type: Boolean, default: false },
-        isEstimatingBitrate: { type: Boolean, default: false },
+        isPreflighting: { type: Boolean, default: false },
         exportStatus: { type: String, default: '' },
         encodedFilename: { type: String, default: '' },
         encodedSize: { type: Number, default: 0 },
         draftStorage: { type: Object, default: () => ({}) },
         colourReport: { type: Object, default: null },
-        bitrateEstimate: { type: Object, default: null },
-        canEstimateBitrate: { type: Boolean, default: false },
+        preflight: { type: Object, default: null },
         canShare: { type: Boolean, default: false },
         canPublish: { type: Boolean, default: false },
         isAuthenticated: { type: Boolean, default: false },
@@ -59,7 +59,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         'update:visible', 'request-export', 'request-download', 'request-share',
         'request-publish', 'request-cancel-publish', 'request-open-published',
         'request-save-to-drive', 'request-cancel-drive', 'request-open-drive',
-        'request-cancel', 'settings-change', 'request-open-drafts', 'request-retry-save', 'request-estimate',
+        'request-cancel', 'settings-change', 'request-open-drafts', 'request-retry-save', 'request-preflight',
     ]);
 
     // --- Form state ---
@@ -397,9 +397,8 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     const totalFrames = computed(() => clipExportPeriod.value?.totalFrames ?? Math.ceil(resolvedDuration.value * fps.value));
 
     const estimatedSize = computed(() => {
-        const rate = usesQualityEstimate.value ? props.bitrateEstimate?.bitrate : rateControlState.value.control?.bitrate;
-        if (usesQualityEstimate.value && !rate) return 'Content-dependent';
-        if (!rateControlState.value.control) return '—';
+        if (!preflightReady.value) return '—';
+        const rate = props.preflight.bitrate;
         const bytes = (rate * totalFrames.value / fps.value) / 8;
         if (bytes > 1024 * 1024) return `~${(bytes / 1024 / 1024).toFixed(1)} MiB`;
         return `~${(bytes / 1024).toFixed(0)} KiB`;
@@ -409,6 +408,15 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         return usesWebCodecs.value ? (props.exportInfo?.hasWebCodecs ?? false) : typeof WebAssembly !== 'undefined';
     });
     const canEncode = computed(() => encodingAvailable.value && Boolean(rateControlState.value.control));
+    const preflightReady = computed(() => canEncode.value && isVideoPreflightReady(props.preflight, getExportSettings()));
+    const estimatedEncodingTime = computed(() => {
+        if (!preflightReady.value) return '—';
+        const seconds = Math.max(1, Math.ceil(props.preflight.estimatedEncodingSeconds));
+        if (seconds < 60) return `~${seconds}s`;
+        if (seconds < 3600) return `~${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+        const minutes = Math.ceil(seconds / 60);
+        return `~${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    });
 
     const hasEncodedVideo = computed(() => Boolean(props.encodedFilename));
     const isPublishing = computed(() => Boolean(props.publishState?.isPublishing));
@@ -568,7 +576,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         }
 
         emit('settings-change');
-    });
+    }, { deep: true });
 
     function formatDuration(value) {
         const numeric = Number(value);
@@ -587,6 +595,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
             width: resolvedWidth.value,
             height: resolvedHeight.value,
             fps: fps.value,
+            totalFrames: totalFrames.value,
             format: format.value,
             videoCodec: videoCodec.value,
             encodingMethod: usesWebCodecs.value ? 'webcodecs' : 'ffmpeg',
@@ -609,13 +618,13 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     }
 
     function handleExport() {
-        if (!canEncode.value || props.isEncoding) return;
+        if (!preflightReady.value || props.isEncoding) return;
         emit('request-export', getExportSettings());
     }
 
-    function handleEstimate() {
+    function handlePreflight() {
         if (!canEncode.value || props.isEncoding) return;
-        emit('request-estimate', getExportSettings());
+        emit('request-preflight', getExportSettings());
     }
 
     function handleDownload() {
@@ -881,16 +890,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                                 </template>
                             </div>
                             </template>
-                            <Button v-if="canEstimateBitrate" type="button" severity="secondary" variant="outlined"
-                                label="Estimate bitrate & size" :disabled="isEncoding || !canEncode" @click="handleEstimate" />
-                            <div v-if="canEstimateBitrate" class="field-description" role="status">
-                                <template v-if="bitrateEstimate">
-                                    Estimated bitrate: ~{{ (bitrateEstimate.bitrate / 1_000_000).toFixed(2) }} Mb/s.
-                                    Measured from {{ bitrateEstimate.sampleDuration.toFixed(2) }} seconds at the start, using these settings.
-                                    The size estimate excludes container overhead. Later motion or texture changes may produce a different rate.
-                                </template>
-                                <template v-else>Encode up to two seconds at the start to estimate bitrate and total size. The sample is discarded.</template>
-                            </div>
                         </div>
                         <div v-if="!usesWebCodecs" class="form-field">
                             <label for="videoEncoderPreset">Encoding effort</label>
@@ -1131,7 +1130,16 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                     <span>{{ driveState.error || driveState.status }}</span>
                 </div>
 
-                <div class="summary-row">
+                <div class="preflight-description field-description" role="status">
+                    <template v-if="isPreflighting">Preflight is measuring a short sample. You can cancel without saving a video.</template>
+                    <template v-else-if="preflightReady">
+                        Preflight complete · {{ preflight.sampleFrames }} frames at {{ preflight.encodingFps.toFixed(1) }} processing FPS.
+                        Estimates use {{ preflight.sampleDuration.toFixed(2) }}s at the start; later content and system load can vary.
+                        Initial setup is included; final packaging is excluded.
+                    </template>
+                    <template v-else>Run preflight to check these settings and estimate bitrate, size and encoding time from a short sample. The sample is discarded.</template>
+                </div>
+                <div class="summary-row" aria-label="Video export summary" aria-live="polite">
                     <div class="summary-item">
                         <span class="summary-label">Frames</span>
                         <span class="summary-value">{{ totalFrames }}</span>
@@ -1141,8 +1149,16 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                         <span class="summary-value">{{ resolvedDuration.toFixed(2) }}s</span>
                     </div>
                     <div class="summary-item">
-                        <span class="summary-label">Size</span>
+                        <span class="summary-label">Est. size</span>
                         <span class="summary-value">{{ estimatedSize }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Est. bitrate</span>
+                        <span class="summary-value">{{ preflightReady ? `~${(preflight.bitrate / 1_000_000).toFixed(2)} Mb/s` : '—' }}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Est. encode time</span>
+                        <span class="summary-value">{{ estimatedEncodingTime }}</span>
                     </div>
                 </div>
 
@@ -1160,7 +1176,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             @click="isPublishing ? emit('request-cancel-publish') : (isSavingDrive ? emit('request-cancel-drive') : handleCancel())"
                         >
                             <span class="material-symbols-outlined">cancel</span>
-                            {{ isPublishing || isSavingDrive ? 'Cancel Upload' : isEstimatingBitrate ? 'Cancel estimate' : 'Cancel Encode' }}
+                            {{ isPublishing || isSavingDrive ? 'Cancel Upload' : isPreflighting ? 'Cancel preflight' : 'Cancel Encode' }}
                         </Button>
                     </template>
                     <template v-else-if="hasEncodedVideo">
@@ -1259,8 +1275,16 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             Cancel
                         </Button>
                         <Button
+                            v-if="!preflightReady"
                             type="button"
                             :disabled="!canEncode"
+                            @click="handlePreflight"
+                        >
+                            Run preflight
+                        </Button>
+                        <Button
+                            v-else
+                            type="button"
                             @click="handleExport"
                         >
                             <span class="material-symbols-outlined">videocam</span>
@@ -1717,11 +1741,17 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     }
 
     .summary-row {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+        gap: 0.75rem;
         padding: 0.7rem 0 0.85rem;
         border-bottom: 1px solid var(--p-content-border-color, rgba(255, 255, 255, 0.1));
         flex-shrink: 0;
+    }
+
+    .preflight-description {
+        flex-shrink: 0;
+        margin-top: 0.7rem;
     }
 
     .summary-item {

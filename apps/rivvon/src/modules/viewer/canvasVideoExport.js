@@ -10,6 +10,12 @@ import { inspectAv1ColourObus } from './av1ColourMetadata.js';
 
 // Shared encoder choice and diagnostics for all three public video entry points.
 export async function createCanvasVideoExport(canvas, options) {
+    const writer = await createCanvasVideoEncoder(canvas, options);
+    options.onEncodingReady?.();
+    return writer;
+}
+
+async function createCanvasVideoEncoder(canvas, options) {
     const format = options.format ?? 'mp4';
     const videoCodec = options.videoCodec ?? (format === 'webm' ? 'vp9' : 'avc');
     if (!(format === 'mp4' ? ['avc', 'av1'] : format === 'webm' ? ['vp9'] : []).includes(videoCodec)) throw new Error('Unsupported video format and codec combination.');

@@ -1,5 +1,5 @@
 <script setup>
-    import { calculateVideoBitrateEstimate } from '../modules/viewer/videoBitrateEstimate.js';
+    import { calculateVideoPreflight, isVideoPreflightReady } from '../modules/viewer/videoBitrateEstimate.js';
     import { CLIP_LIBRARY_KEY, fetchClip } from '../services/clipService.js';
     import { acquireBackgroundClip, invalidateBackgroundClip, setBackgroundClipAccessScope } from '../services/backgroundClip.js';
     import { IMAGE_LIBRARY_KEY, fetchImage } from '../services/imageService.js';
@@ -2411,7 +2411,8 @@ const activeToolbarOverlayTitle = computed(() => {
         clearSourceContext = false,
     } = {}) {
         resetEncodedVideoExport();
-        videoBitrateEstimate.value = null;
+        videoPreflight.value = null;
+        videoPreflightRevision++;
 
         if (clearInitialSettings) {
             exportDialogInitialSettings.value = null;
@@ -2423,7 +2424,9 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     async function handleVideoExportSettingsChange() {
-        videoBitrateEstimate.value = null;
+        videoPreflight.value = null;
+        videoPreflightRevision++;
+        if (isPreflightingVideo.value) exportAbortController.value?.abort();
         await refreshVideoExportInfo();
 
         if (
@@ -2847,7 +2850,7 @@ const activeToolbarOverlayTitle = computed(() => {
             return;
         }
 
-        videoExportStatus.value = 'Cancelling export…';
+        videoExportStatus.value = isPreflightingVideo.value ? 'Cancelling preflight…' : 'Cancelling export…';
         exportAbortController.value.abort();
     }
 
@@ -2916,8 +2919,9 @@ const activeToolbarOverlayTitle = computed(() => {
     });
     const encodedVideoDraft = computed(() => videoDrafts.getDraft(encodedVideoExport.value.id));
     const videoExportStatus = ref('');
-    const videoBitrateEstimate = ref(null);
-    const isEstimatingVideoBitrate = ref(false);
+    const videoPreflight = ref(null);
+    const isPreflightingVideo = ref(false);
+    let videoPreflightRevision = 0;
     const videoPublishAbortController = ref(null);
     const videoPublishState = ref({
         isPublishing: false,
@@ -3583,33 +3587,42 @@ const activeToolbarOverlayTitle = computed(() => {
         return blob;
     }
 
-    async function handleEstimateVideoBitrate(settings) {
-        if (exportAbortController.value || !['quantizer', 'basic', 'crf'].includes(settings.bitrateMode)) return;
+    async function handleVideoPreflight(settings) {
+        if (exportAbortController.value) return;
+        ensureOrbitControlsForInteraction('scene-export', 'Head tracking switched back to OrbitControls for export.');
         const controller = new AbortController();
+        const revision = ++videoPreflightRevision;
         exportAbortController.value = controller;
-        isEstimatingVideoBitrate.value = true;
-        videoBitrateEstimate.value = null;
-        videoExportStatus.value = 'Preparing bitrate sample…';
+        isPreflightingVideo.value = true;
+        videoPreflight.value = null;
+        videoExportStatus.value = 'Preparing preflight...';
         viewerAudio.setBlocked('encoding', true);
+        const startedAt = performance.now();
+        let encodingStartedAt = null;
         try {
             const sample = await renderVideoWithSettings(settings, {
                 videoCodec: settings.videoCodec, encodingMethod: settings.encodingMethod,
                 hardwareAcceleration: settings.hardwareAcceleration, videoRange: settings.videoRange,
-                yuvConversion: settings.yuvConversion, bitrateMode: settings.bitrateMode, quantizer: settings.quantizer, crf: settings.crf, encoderPreset: settings.encoderPreset,
+                yuvConversion: settings.yuvConversion, bitrateMode: settings.bitrateMode, bitrate: settings.bitrate,
+                quantizer: settings.quantizer, crf: settings.crf, encoderPreset: settings.encoderPreset,
                 measurementOnly: true, signal: controller.signal,
-                onStatus: status => { videoExportStatus.value = `Estimating bitrate: ${status}`; },
+                onEncodingReady: () => { encodingStartedAt = performance.now(); },
+                onStatus: status => { videoExportStatus.value = `Preflight: ${status}`; },
             });
-            if (controller.signal.aborted || !sample) {
-                videoExportStatus.value = 'Bitrate estimate cancelled.';
+            if (controller.signal.aborted || !sample || revision !== videoPreflightRevision) {
+                videoExportStatus.value = 'Preflight cancelled. Run preflight again before encoding.';
                 return;
             }
-            videoBitrateEstimate.value = calculateVideoBitrateEstimate(sample);
+            if (encodingStartedAt == null) throw new Error('Encoder timing was unavailable.');
+            videoPreflight.value = calculateVideoPreflight(sample, { settings,
+                processingSeconds: (performance.now() - encodingStartedAt) / 1000,
+                setupSeconds: (encodingStartedAt - startedAt) / 1000 });
             videoExportStatus.value = '';
         } catch (error) {
-            videoExportStatus.value = controller.signal.aborted ? 'Bitrate estimate cancelled.' : `Bitrate estimate unavailable: ${error.message}`;
+            videoExportStatus.value = controller.signal.aborted ? 'Preflight cancelled. Run preflight again before encoding.' : `Preflight failed: ${error.message}`;
         } finally {
             exportAbortController.value = null;
-            isEstimatingVideoBitrate.value = false;
+            isPreflightingVideo.value = false;
             viewerAudio.setBlocked('encoding', false);
         }
     }
@@ -3617,6 +3630,11 @@ const activeToolbarOverlayTitle = computed(() => {
     // Called when user confirms export settings in the dialog
     async function handleExportConfirm(settings) {
         if (exportAbortController.value) return;
+        if (!isVideoPreflightReady(videoPreflight.value, settings)) {
+            videoExportStatus.value = 'Run preflight with the current settings before encoding.';
+            return;
+        }
+        const preflight = videoPreflight.value;
         ensureOrbitControlsForInteraction(
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
@@ -3629,6 +3647,7 @@ const activeToolbarOverlayTitle = computed(() => {
         const renderSnapshot = buildCurrentRenderSnapshot(settings, sourceDrawingPayload);
 
         clearVideoExportDialogState();
+        videoPreflight.value = preflight;
         videoExportStatus.value = 'Preparing export…';
 
         exportAbortController.value = new AbortController();
@@ -4549,9 +4568,8 @@ const activeToolbarOverlayTitle = computed(() => {
             v-show="!isImageLibraryRoute"
             :visible="showExportDialog"
             :export-info="exportInfo"
-            :bitrate-estimate="videoBitrateEstimate"
-            :is-estimating-bitrate="isEstimatingVideoBitrate"
-            can-estimate-bitrate
+            :preflight="videoPreflight"
+            :is-preflighting="isPreflightingVideo"
             :initial-settings="exportDialogInitialSettings"
             :is-encoding="!!exportAbortController"
             :export-status="videoExportStatus"
@@ -4567,7 +4585,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :drive-state="videoDriveState"
             @update:visible="handleExportVideoDialogVisibleChange"
             @request-export="handleExportConfirm"
-            @request-estimate="handleEstimateVideoBitrate"
+            @request-preflight="handleVideoPreflight"
             @request-download="handleDownloadEncodedVideo"
             @request-share="handleShareEncodedVideo"
             @request-publish="handlePublishEncodedVideo"

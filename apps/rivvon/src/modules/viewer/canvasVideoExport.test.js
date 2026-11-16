@@ -54,6 +54,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 const options = { width: 320, height: 240, fps: 30, format: 'mp4', encodingMethod: 'webcodecs' };
 describe('encoder selection and final reports', () => {
+    it.each(['ffmpeg', 'webcodecs'])('starts preflight timing after %s initialization', async encodingMethod => {
+        const ready = vi.fn();
+        const writer = await createCanvasVideoExport({}, { ...options, encodingMethod, onEncodingReady: ready });
+        expect(ready).toHaveBeenCalledOnce();
+        if (encodingMethod === 'webcodecs') expect(mocks.outputs[0].start).toHaveBeenCalledOnce();
+        else expect(createSdrVideoExport).toHaveBeenCalledOnce();
+        await writer.dispose?.();
+    });
     it.each(['quantizer', 'variable'])('lets Mediabunny choose Basic %s mode and reports the selected controls', async selectedMode => {
         const reports = vi.fn();
         const writer = await createCanvasVideoExport({}, { ...options, bitrateMode: 'basic', quality: 'medium',

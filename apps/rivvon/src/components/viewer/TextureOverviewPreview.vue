@@ -1184,7 +1184,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
                 width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
                 quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: renderer.getContext?.(),
-                signal, onStatus: progress.status, onColourMetadata,
+                signal, onStatus: progress.status, onColourMetadata, onEncodingReady: options.onEncodingReady,
             });
 
             progress.start();

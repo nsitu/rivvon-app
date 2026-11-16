@@ -881,7 +881,7 @@ export function useSceneExport(ctx, deps = {}) {
                 width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
                 quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
-                signal, onStatus: progress.status, onColourMetadata,
+                signal, onStatus: progress.status, onColourMetadata, onEncodingReady: options.onEncodingReady,
             });
 
             progress.start();

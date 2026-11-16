@@ -34,11 +34,13 @@ describe('scene video export timing and restoration', () => {
         ctx.app.backgroundTextureSource = { kind: 'clip', id: 'clip' };
         const prepareFrame = vi.fn();
         deps.beginBackgroundMediaExport = vi.fn(async () => ({ prepareFrame, dispose: vi.fn() }));
-        await exporter.exportVideo({ duration: 120, fps: 2, measurementOnly: true, bitrateMode: 'quantizer', quantizer: 24 });
+        const onEncodingReady = vi.fn();
+        await exporter.exportVideo({ duration: 120, fps: 2, measurementOnly: true, bitrateMode: 'variable', bitrate: 17_000_000, onEncodingReady });
         expect(deps.beginBackgroundMediaExport).toHaveBeenCalledWith(expect.objectContaining({ targetDuration: 120 }));
         expect(writer.add).toHaveBeenCalledTimes(4);
         expect(prepareFrame.mock.calls.map(([t]) => t)).toEqual([0, 0.5, 1, 1.5]);
-        expect(createCanvasVideoExport).toHaveBeenCalledWith(ctx.renderer.value.domElement, expect.objectContaining({ measurementOnly: true, totalFrames: 4 }));
+        expect(createCanvasVideoExport).toHaveBeenCalledWith(ctx.renderer.value.domElement,
+            expect.objectContaining({ measurementOnly: true, totalFrames: 4, bitrateMode: 'variable', bitrate: 17_000_000, onEncodingReady }));
         expect(ctx.renderer.value.domElement).toMatchObject({ width: 800, height: 400 });
         expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
     });

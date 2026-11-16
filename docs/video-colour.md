@@ -114,18 +114,30 @@ frame count divided by fps. VBR/CBR are encoder requests, not hard file-size cap
 QP has its own integer field: 0–51 for H.264, 0–63 for VP9 and 0–255 for AV1. Lower values retain
 more detail and usually produce larger files; values are not comparable across
 codecs. QP mode shows **Content-dependent** instead of a bitrate-based size estimate.
-In Quality presets, QP or CRF mode, **Estimate bitrate & size** optionally renders and encodes the first
-two seconds (or the full clip if shorter) with the selected resolution, frame
+Every rate-control mode requires **Run preflight** before **Encode** becomes available.
+Preflight renders and encodes the first two seconds (or the full clip if shorter) with the selected resolution, frame
 rate, codec, QP/CRF, x264 preset or encoder preference, colour conversion, logo and motion settings.
 Animation and background-clip timing retain the planned full export period;
 only the number of frames encoded is limited. The measured compressed bytes
 divided by the actual sample duration supply an approximate bitrate and total
-size estimate. Later motion or texture changes can differ substantially, and
+size estimate. This uses measured output even for VBR/CBR/ABR, rather than the requested target.
+Later motion or texture changes can differ substantially, and
 container overhead is excluded. This is a prefix sample, not a whole-loop
 complexity analysis or a guaranteed output size.
 
-Sampling is a cancellable explicit action. Changing export settings clears the
-estimate. It uses the same rendering and encoding paths as a normal export but
+Preflight is a cancellable explicit action in the main action bar. The summary
+shows frames, playback duration, estimated size, measured bitrate and estimated
+encoding time; the estimates stay blank until preflight succeeds. Processing FPS
+is measured from encoder readiness through rendering, encoding, finalization and
+cleanup. The time estimate is initial setup time plus total frames divided by
+that measured throughput; initial setup is counted once. It excludes full-file
+packaging, validation, draft saving and thumbnails. Later content, worker startup,
+thermal throttling and system load can change the result.
+
+Changing export or rendering settings clears preflight and requires another run.
+An aborted, failed or stale sample never enables Encode. Both the dialog and
+export handler check that the successful preflight matches the current settings.
+It uses the same rendering and encoding paths as a normal export but
 does not save a video or draft: WebCodecs counts packet bytes into a streaming
 `NullTarget`, while x264 counts and discards compressed batches without joining
 them or muxing an MP4. Final-file colour validation still occurs during the
