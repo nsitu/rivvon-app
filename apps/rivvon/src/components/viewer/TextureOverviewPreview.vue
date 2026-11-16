@@ -20,6 +20,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
     import { createLazyLoader } from '../../modules/shared/lazyLoader';
     import { useRenderFilter } from '../../composables/viewer/useRenderFilter.js';
     import { useSceneBackground } from '../../composables/viewer/useSceneBackground.js';
+    import { normalizeBlendMode } from '../../../../../packages/shared-types/src/blendModes.js';
 
     const props = defineProps({
         texture: {
@@ -55,6 +56,9 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
     });
 
     const app = useViewerStore();
+    // Artwork blending needs the scene backdrop even when the tiles are opaque.
+    const needsSceneBackground = computed(() => props.showBlurredBackground
+        || normalizeBlendMode(app.artworkBlendMode) !== 'normal');
     const { cacheCloudTexture, getTextureSet: getLocalTextureSet, evictCachedTexture } = useLocalStorage();
     const wrapperRef = ref(null);
     const isLoading = ref(false);
@@ -1043,7 +1047,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             loadingStatusText.value = '100%';
             applyViewerSettings();
             rebuildLayout();
-            if (props.showBlurredBackground) {
+            if (needsSceneBackground.value) {
                 await sceneBackground.setBackgroundFromTileManager({ opacity: 1 });
             }
             isReady.value = true;
@@ -1119,7 +1123,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
         applyViewerSettings();
         tileManager.resetAnimationState?.();
         syncCellMaterials(true);
-        renderer?.render?.(scene, camera);
+        renderCurrentScene();
     }
 
     function getTextureOnlyExportInfo() {
@@ -1257,7 +1261,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
 
             await nextTick();
             rebuildLayout();
-            renderer?.render?.(scene, camera);
+            renderCurrentScene();
         }
     );
 
@@ -1269,7 +1273,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             }
 
             rebuildLayout();
-            renderer?.render?.(scene, camera);
+            renderCurrentScene();
         }
     );
 
@@ -1284,12 +1288,12 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
         () => app.textureFlipVertical,
         () => {
             tileManager?.setVerticalFlip?.(app.textureFlipVertical);
-            renderer?.render?.(scene, camera);
+            renderCurrentScene();
         }
     );
 
     watch(
-        () => [props.showBlurredBackground, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundFlipHorizontal, app.backgroundMode, app.backgroundBlurEnabled, app.backgroundBlurAmount, app.backgroundTextureEnabled, app.backgroundTextureSource, app.backgroundImagePresetId, app.backgroundTexture, app.backgroundBaseEnabled, app.backgroundWaterEnabled, app.backgroundWaterColor, app.backgroundWaterFlow, app.backgroundWaterScale, app.backgroundWaterSpeed, app.backgroundWaterStrength],
+        () => [needsSceneBackground.value, app.animatedBackgroundEnabled, app.backgroundFlipVertical, app.backgroundFlipHorizontal, app.backgroundMode, app.backgroundBlurEnabled, app.backgroundBlurAmount, app.backgroundTextureEnabled, app.backgroundTextureSource, app.backgroundImagePresetId, app.backgroundTexture, app.backgroundBaseEnabled, app.backgroundWaterEnabled, app.backgroundWaterColor, app.backgroundWaterFlow, app.backgroundWaterScale, app.backgroundWaterSpeed, app.backgroundWaterStrength],
         async ([enabled]) => {
             if (!tileManager || !renderer) return;
             if (enabled) { try { await sceneBackground.setBackgroundFromTileManager({ opacity: 1 }); } catch (error) { console.warn('Background preview unavailable:', error); } }

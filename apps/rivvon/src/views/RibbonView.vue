@@ -66,6 +66,7 @@
     const AudioPlayerPanel = defineAsyncComponent(() => import('./AudioPlayerView.vue'));
     const ExportImageDialog = defineAsyncComponent(() => import('../components/viewer/ExportImageDialog.vue'));
     const ExportVideoDialog = defineAsyncComponent(() => import('../components/viewer/ExportVideoDialog.vue'));
+    const VideoPublicationDialog = defineAsyncComponent(() => import('../components/shared/VideoPublicationDialog.vue'));
     import ThreeCanvas from '../components/viewer/ThreeCanvas.vue';
     const DrawCanvas = defineAsyncComponent(() => import('../components/viewer/DrawCanvas.vue'));
     const WalkCanvas = defineAsyncComponent(() => import('../components/viewer/WalkCanvas.vue'));
@@ -2523,6 +2524,7 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     function resetVideoPublishState() {
+        showVideoPublishDialog.value = false;
         videoPublishState.value = {
             isPublishing: false,
             status: '',
@@ -2530,6 +2532,22 @@ const activeToolbarOverlayTitle = computed(() => {
             videoId: '',
             error: '',
         };
+    }
+
+    function openVideoPublicationDialog() {
+        if (!encodedVideoExport.value?.blob || !isAuthenticated.value || !isAdmin.value
+            || videoPublishState.value.isPublishing || videoDriveState.value.isSaving) return;
+        resetVideoPublishState();
+        showVideoPublishDialog.value = true;
+    }
+
+    function closeVideoPublicationDialog() {
+        if (!videoPublishState.value.isPublishing) showVideoPublishDialog.value = false;
+    }
+
+    function cancelVideoPublicationDialog() {
+        if (videoPublishState.value.isPublishing) handleCancelVideoPublish();
+        else closeVideoPublicationDialog();
     }
 
     async function handlePublishEncodedVideo({ name, description = '', isPublic = true } = {}) {
@@ -2549,7 +2567,8 @@ const activeToolbarOverlayTitle = computed(() => {
 
         const controller = new AbortController();
         videoPublishAbortController.value = controller;
-        resetVideoPublishState();
+        videoPublishState.value.error = '';
+        videoPublishState.value.progress = 0;
         videoPublishState.value.isPublishing = true;
         videoPublishState.value.status = 'Preparing gallery publication…';
         try {
@@ -2579,6 +2598,7 @@ const activeToolbarOverlayTitle = computed(() => {
                 videoId: publication.videoId,
                 error: '',
             };
+            showVideoPublishDialog.value = false;
             toast.add({
                 severity: 'success',
                 summary: 'Video published',
@@ -2925,6 +2945,7 @@ const activeToolbarOverlayTitle = computed(() => {
     const isPreflightingVideo = ref(false);
     let videoPreflightRevision = 0;
     const videoPublishAbortController = ref(null);
+    const showVideoPublishDialog = ref(false);
     const videoPublishState = ref({
         isPublishing: false,
         status: '',
@@ -4590,7 +4611,7 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-preflight="handleVideoPreflight"
             @request-download="handleDownloadEncodedVideo"
             @request-share="handleShareEncodedVideo"
-            @request-publish="handlePublishEncodedVideo"
+            @request-publish="openVideoPublicationDialog"
             @request-cancel-publish="handleCancelVideoPublish"
             @request-open-published="handleOpenPublishedVideo"
             @request-save-to-drive="handleSaveEncodedVideoToDrive"
@@ -4600,6 +4621,27 @@ const activeToolbarOverlayTitle = computed(() => {
             @request-retry-save="videoDrafts.saveDraft(encodedVideoExport.id)"
             @request-cancel="handleCancelVideoExport"
             @settings-change="handleVideoExportSettingsChange"
+        />
+
+        <VideoPublicationDialog
+            v-if="showVideoPublishDialog"
+            :visible="showVideoPublishDialog"
+            draft
+            :file="encodedVideoExport.blob"
+            :filename="encodedVideoExport.filename"
+            :metadata="{
+                width: encodedVideoExport.settings?.width,
+                height: encodedVideoExport.settings?.height,
+                duration: encodedVideoExport.settings?.resolvedDuration || encodedVideoExport.settings?.duration,
+            }"
+            :initial-name="encodedVideoExport.filename.replace(/\.[^.]+$/, '')"
+            :is-uploading="videoPublishState.isPublishing"
+            :progress="videoPublishState.progress"
+            :status="videoPublishState.status"
+            :error="videoPublishState.error"
+            @update:visible="closeVideoPublicationDialog"
+            @submit="handlePublishEncodedVideo"
+            @cancel="cancelVideoPublicationDialog"
         />
 
         <ExportImageDialog

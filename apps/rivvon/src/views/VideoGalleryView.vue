@@ -7,9 +7,7 @@
     import PanelActionBar from '../components/shared/PanelActionBar.vue';
     import ChromeButton from '../components/shared/ChromeButton.vue';
     import VideoGalleryPoster from '../components/shared/VideoGalleryPoster.vue';
-    import InputText from 'primevue/inputtext';
-    import Textarea from 'primevue/textarea';
-    import ToggleSwitch from 'primevue/toggleswitch';
+    import VideoPublicationDialog from '../components/shared/VideoPublicationDialog.vue';
     import { useGoogleAuth } from '../composables/shared/useGoogleAuth.js';
     import { deleteVideoPublication, fetchMyVideos, fetchVideos, publishVideoBlob } from '../services/videoService.js';
     import { useVideoDraftStore } from '../stores/videoDraftStore.js';
@@ -48,14 +46,11 @@
 
     const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
     const uploadDialogVisible = ref(false);
-    const uploadFileInput = ref(null);
     const uploadFile = ref(null);
     const uploadDraftId = ref('');
     const uploadMetadata = ref(null);
     const uploadThumbnail = ref(null);
     const uploadName = ref('');
-    const uploadDescription = ref('');
-    const uploadIsPublic = ref(true);
     const uploadProgress = ref(0);
     const uploadStatus = ref('');
     const uploadError = ref('');
@@ -180,12 +175,9 @@
         uploadMetadata.value = null;
         uploadThumbnail.value = null;
         uploadName.value = '';
-        uploadDescription.value = '';
-        uploadIsPublic.value = true;
         uploadProgress.value = 0;
         uploadStatus.value = '';
         uploadError.value = '';
-        if (uploadFileInput.value) uploadFileInput.value.value = '';
     }
 
     function openUploadDialog() {
@@ -302,7 +294,7 @@
         }
     }
 
-    async function handleUpload() {
+    async function handleUpload({ name, description, isPublic }) {
         if (isUploading.value) return;
         if (!canUpload.value) {
             uploadError.value = 'Only signed-in administrators can upload gallery videos.';
@@ -321,9 +313,9 @@
         try {
             const publicationOptions = {
                 metadata: {
-                    name: uploadName.value.trim() || getFilenameTitle(uploadFile.value),
-                    description: uploadDescription.value,
-                    isPublic: uploadIsPublic.value,
+                    name: name.trim() || getFilenameTitle(uploadFile.value),
+                    description,
+                    isPublic,
                     mimeType: uploadFile.value.type,
                     width: uploadMetadata.value.width,
                     height: uploadMetadata.value.height,
@@ -609,138 +601,22 @@
             </template>
         </Dialog>
 
-        <Teleport to="body">
-            <div
-                v-if="uploadDialogVisible"
-                class="gallery-modal-backdrop"
-                @click.self="closeUploadDialog"
-            >
-                <section
-                    class="gallery-upload-dialog"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="gallery-upload-title"
-                >
-                    <ScrollPanel class="rivvon-scroll-panel gallery-upload-dialog-scroll">
-                    <div class="gallery-upload-dialog-content">
-                    <div class="gallery-upload-dialog-header">
-                        <div>
-                            <h2 id="gallery-upload-title">{{ uploadDraftId ? 'Publish draft' : 'Upload video' }}</h2>
-                            <p>{{ uploadDraftId ? 'Upload this completed encoding and its thumbnail to the video gallery.' : 'Add a rendered loop directly to the video gallery.' }}</p>
-                        </div>
-                        <Button
-                            type="button"
-                            variant="text"
-                            rounded
-                            class="gallery-dialog-close rivvon-icon-action"
-                            aria-label="Close upload dialog"
-                            :disabled="isUploading"
-                            @click="closeUploadDialog"
-                        >
-                            <span class="material-symbols-outlined">close</span>
-                        </Button>
-                    </div>
-
-                    <form class="gallery-upload-form" @submit.prevent="handleUpload">
-                        <label v-if="!uploadDraftId" class="gallery-file-picker">
-                            <span class="gallery-file-picker-label">Video file</span>
-                            <input
-                                ref="uploadFileInput"
-                                type="file"
-                                accept="video/mp4,video/webm"
-                                :disabled="isUploading"
-                                @change="handleUploadFileSelected"
-                            >
-                            <span class="gallery-file-picker-hint">Choose an MP4 or WebM file, up to 2 GB.</span>
-                        </label>
-
-                        <div v-if="uploadFile" class="gallery-selected-file">
-                            <span class="material-symbols-outlined">movie</span>
-                            <span>{{ videoDrafts.getDraft(uploadDraftId)?.filename || uploadFile.name }}</span>
-                            <span v-if="uploadMetadata" class="gallery-selected-file-meta">
-                                {{ uploadMetadata.width }}×{{ uploadMetadata.height }} · {{ formatDuration(uploadMetadata.duration) }}
-                            </span>
-                        </div>
-
-                        <div class="gallery-upload-field">
-                            <label for="gallery-upload-name">Title</label>
-                            <InputText
-                                id="gallery-upload-name"
-                                v-model="uploadName"
-                                maxlength="120"
-                                :disabled="isUploading"
-                                required
-                            />
-                        </div>
-
-                        <div class="gallery-upload-field">
-                            <label for="gallery-upload-description">Description</label>
-                            <Textarea
-                                id="gallery-upload-description"
-                                v-model="uploadDescription"
-                                rows="3"
-                                maxlength="2000"
-                                auto-resize
-                                :disabled="isUploading"
-                            />
-                        </div>
-
-                        <div class="gallery-upload-visibility">
-                            <div>
-                                <label for="gallery-upload-public">Public Gallery</label>
-                                <span>{{ uploadIsPublic ? 'Anyone can view this video.' : 'Only you can view this video in My Videos.' }}</span>
-                            </div>
-                            <ToggleSwitch
-                                input-id="gallery-upload-public"
-                                v-model="uploadIsPublic"
-                                :disabled="isUploading"
-                            />
-                        </div>
-
-                        <div
-                            v-if="uploadStatus"
-                            class="gallery-upload-status"
-                            :class="{ error: uploadError }"
-                            role="status"
-                        >
-                            <span class="material-symbols-outlined">{{ uploadError ? 'warning' : 'cloud_upload' }}</span>
-                            <span>{{ uploadError || uploadStatus }}</span>
-                        </div>
-                        <progress
-                            v-if="isUploading"
-                            class="gallery-upload-progress"
-                            :value="uploadProgress"
-                            max="1"
-                            aria-label="Video upload progress"
-                        />
-                        <div v-if="uploadError && !uploadStatus" class="gallery-upload-error" role="alert">
-                            <span class="material-symbols-outlined">warning</span>
-                            <span>{{ uploadError }}</span>
-                        </div>
-
-                        <div class="gallery-upload-actions">
-                            <Button
-                                type="button"
-                                severity="secondary"
-                                variant="outlined"
-                                @click="cancelUpload"
-                            >
-                                {{ isUploading ? 'Cancel upload' : 'Cancel' }}
-                            </Button>
-                            <Button
-                                type="submit"
-                                :disabled="isUploading || !uploadFile || !uploadMetadata"
-                            >
-                                <span class="material-symbols-outlined">cloud_upload</span>
-                                {{ isUploading ? 'Uploading…' : 'Upload to Gallery' }}
-                            </Button>
-                        </div>
-                    </form>
-                    </div>
-                    </ScrollPanel>
-                </section>
-            </div>
-        </Teleport>
+        <VideoPublicationDialog
+            :visible="uploadDialogVisible"
+            :draft="Boolean(uploadDraftId)"
+            :file="uploadFile"
+            :filename="videoDrafts.getDraft(uploadDraftId)?.filename || uploadFile?.name || ''"
+            :metadata="uploadMetadata"
+            :initial-name="uploadName"
+            :is-uploading="isUploading"
+            :progress="uploadProgress"
+            :status="uploadStatus"
+            :error="uploadError"
+            @update:visible="closeUploadDialog"
+            @select-file="handleUploadFileSelected"
+            @submit="handleUpload"
+            @cancel="cancelUpload"
+        />
     </main>
 </template>
 
@@ -791,55 +667,4 @@
     .gallery-spinner { animation: gallery-spin .9s linear infinite; }
     @keyframes gallery-spin { to { transform: rotate(360deg); } }
 
-    .gallery-modal-backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 1000;
-        display: grid;
-        padding: 1rem;
-        background: rgba(4, 5, 12, .78);
-        place-items: center;
-    }
-    .gallery-upload-dialog {
-        display: flex;
-        flex-direction: column;
-        width: min(100%, 34rem);
-        max-height: min(90vh, 46rem);
-        overflow: hidden;
-        border: 1px solid #373b52;
-        border-radius: 1rem;
-        color: #f8fafc;
-        background: #171827;
-        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .45);
-    }
-    .gallery-upload-dialog-scroll { flex: 1; min-height: 0; }
-    .gallery-upload-dialog-content { padding: 1.25rem; }
-    .gallery-upload-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-    .gallery-upload-dialog h2 { margin: 0; font-size: 1.25rem; }
-    .gallery-upload-dialog-header p { margin: .35rem 0 0; color: #9ca3af; font-size: .85rem; }
-    .gallery-dialog-close { display: grid; width: var(--rivvon-icon-action-size); height: var(--rivvon-icon-action-size); border: 0; border-radius: var(--rivvon-button-inline-radius); color: #cbd5e1; background: transparent; place-items: center; }
-    .gallery-dialog-close:hover { background: var(--rivvon-button-surface-hover); }
-    .gallery-dialog-close:disabled { cursor: not-allowed; opacity: .45; }
-    .gallery-upload-form { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.25rem; }
-    .gallery-file-picker, .gallery-upload-field { display: flex; flex-direction: column; gap: .4rem; }
-    .gallery-file-picker-label, .gallery-upload-field label, .gallery-upload-visibility label { color: #e5e7eb; font-size: .85rem; font-weight: 600; }
-    .gallery-file-picker input[type='file'] { width: 100%; padding: .65rem; border: 1px dashed #59617d; border-radius: .55rem; color: #cbd5e1; background: #10111e; }
-    .gallery-file-picker-hint { color: #818898; font-size: .75rem; }
-    .gallery-selected-file { display: flex; align-items: center; gap: .5rem; min-width: 0; padding: .65rem .75rem; border-radius: .55rem; color: #dbeafe; background: rgba(99, 102, 241, .12); font-size: .82rem; }
-    .gallery-selected-file > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .gallery-selected-file-meta { margin-left: auto; color: #9ca3af; white-space: nowrap; }
-    .gallery-upload-field :deep(.p-inputtext), .gallery-upload-field :deep(.p-textarea) { width: 100%; }
-    .gallery-upload-visibility { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem; border-radius: .6rem; background: rgba(255, 255, 255, .04); }
-    .gallery-upload-visibility > div { display: flex; flex-direction: column; gap: .25rem; }
-    .gallery-upload-visibility span { color: #818898; font-size: .75rem; }
-    .gallery-upload-status, .gallery-upload-error { display: flex; align-items: center; gap: .5rem; color: #a5b4fc; font-size: .82rem; }
-    .gallery-upload-status.error, .gallery-upload-error { color: #fca5a5; }
-    .gallery-upload-status .material-symbols-outlined, .gallery-upload-error .material-symbols-outlined { font-size: 1.1rem; }
-    .gallery-upload-progress { width: 100%; height: .45rem; accent-color: #818cf8; }
-    .gallery-upload-actions { display: flex; justify-content: flex-end; gap: .65rem; }
-
-    @media (max-width: 600px) {
-        .gallery-selected-file { flex-wrap: wrap; }
-        .gallery-selected-file-meta { width: 100%; margin-left: 1.6rem; }
-    }
 </style>

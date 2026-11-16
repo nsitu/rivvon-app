@@ -14,9 +14,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     import InputNumber from 'primevue/inputnumber';
     import Slider from 'primevue/slider';
     import Message from 'primevue/message';
-    import InputText from 'primevue/inputtext';
-    import Textarea from 'primevue/textarea';
-    import ToggleSwitch from 'primevue/toggleswitch';
     import PanelActionBar from '../shared/PanelActionBar.vue';
     import ScrollPanel from 'primevue/scrollpanel';
     import ExportColourReport from './ExportColourReport.vue';
@@ -99,9 +96,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         { label: 'Crossfade', value: 'crossfade' },
         { label: 'Motion interpolation (RIFE)', value: 'rife' },
     ];
-    const publishName = ref('');
-    const publishDescription = ref('');
-    const publishPublic = ref(true);
 
     const exportModeOptions = computed(() => {
         const options = [];
@@ -503,16 +497,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         { immediate: true }
     );
 
-    watch(() => props.encodedFilename, (filename) => {
-        if (!filename) {
-            return;
-        }
-
-        publishName.value = filename.replace(/\.[^.]+$/, '');
-        publishDescription.value = '';
-        publishPublic.value = true;
-    });
-
     watch([
         aspectRatioPreset,
         resolutionPreset,
@@ -665,14 +649,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     function handleShare() {
         emit('request-share');
-    }
-
-    function handlePublish() {
-        emit('request-publish', {
-            name: publishName.value,
-            description: publishDescription.value,
-            isPublic: publishPublic.value,
-        });
     }
 
     function handleCancel() {
@@ -1099,67 +1075,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                     </div>
                 </div>
 
-                <section
-                    v-if="hasEncodedVideo && canPublish"
-                    class="publish-video-card"
-                >
-                    <div class="publish-video-heading">
-                        <span class="material-symbols-outlined">video_library</span>
-                        <div>
-                            <strong>{{ isPublished ? 'Published video' : 'Publish to Gallery' }}</strong>
-                            <p>{{ isPublished ? publishState.status : 'Upload this encoded file and its thumbnail to the Rivvon video gallery.' }}</p>
-                        </div>
-                    </div>
-
-                    <template v-if="!isPublished">
-                        <div class="publish-video-fields">
-                            <div class="form-field">
-                                <label for="publish-video-name">Title</label>
-                                <InputText
-                                    id="publish-video-name"
-                                    v-model="publishName"
-                                    :disabled="isPublishing"
-                                    maxlength="120"
-                                />
-                            </div>
-                            <div class="form-field publish-description-field">
-                                <label for="publish-video-description">Description</label>
-                                <Textarea
-                                    id="publish-video-description"
-                                    v-model="publishDescription"
-                                    :disabled="isPublishing"
-                                    rows="2"
-                                    maxlength="2000"
-                                    auto-resize
-                                />
-                            </div>
-                        </div>
-                        <div class="toggle-row publish-visibility-row">
-                            <div class="toggle-text">
-                                <label>Public Gallery</label>
-                                <div class="field-description">Turn off to keep this entry in My Videos only.</div>
-                            </div>
-                            <div class="toggle-control">
-                                <span class="toggle-copy">{{ publishPublic ? 'On' : 'Off' }}</span>
-                                <ToggleSwitch
-                                    v-model="publishPublic"
-                                    :disabled="isPublishing"
-                                    aria-label="Publish video publicly"
-                                />
-                            </div>
-                        </div>
-                    </template>
-
-                    <div
-                        v-if="publishState.status || publishState.error"
-                        class="publish-video-status"
-                        :class="{ error: publishState.error }"
-                    >
-                        <span class="material-symbols-outlined">{{ publishState.error ? 'warning' : (isPublished ? 'cloud_done' : 'cloud_upload') }}</span>
-                        <span>{{ publishState.error || publishState.status }}</span>
-                    </div>
-                </section>
-
                 <div
                     v-if="hasEncodedVideo && canSaveToDrive && (driveState.status || driveState.error)"
                     class="publish-video-status drive-video-status"
@@ -1277,8 +1192,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                             type="button"
                             severity="secondary"
                             variant="outlined"
-                            :disabled="!publishName.trim()"
-                            @click="handlePublish"
+                            @click="emit('request-publish')"
                         >
                             <span class="material-symbols-outlined">cloud_upload</span>
                             Publish
@@ -1388,52 +1302,6 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     .gallery-login-notice {
         color: var(--p-text-muted-color, rgba(255, 255, 255, 0.7));
         font-size: 0.82rem;
-    }
-
-    .publish-video-card {
-        display: flex;
-        flex-direction: column;
-        gap: 0.85rem;
-        padding: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 0.85rem;
-        background: rgba(255, 255, 255, 0.045);
-    }
-
-    .publish-video-heading {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.7rem;
-    }
-
-    .publish-video-heading .material-symbols-outlined {
-        color: var(--p-primary-color, #6366f1);
-    }
-
-    .publish-video-heading strong {
-        display: block;
-        font-size: 0.95rem;
-    }
-
-    .publish-video-heading p {
-        margin: 0.2rem 0 0;
-        color: var(--p-text-muted-color, rgba(255, 255, 255, 0.62));
-        font-size: 0.8rem;
-        line-height: 1.4;
-    }
-
-    .publish-video-fields {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.7rem;
-    }
-
-    .publish-description-field {
-        flex-grow: 2;
-    }
-
-    .publish-visibility-row {
-        padding-top: 0.1rem;
     }
 
     .publish-video-status {

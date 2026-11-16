@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createRenderer, h, nextTick, ref, ssrContextKey } from 'vue';
+import { createRenderer, createSSRApp, h, nextTick, ref, ssrContextKey } from 'vue';
+import { renderToString } from 'vue/server-renderer';
+import PrimeVue from 'primevue/config';
 import { createPinia } from 'pinia';
 import ExportVideoDialog from './ExportVideoDialog.vue';
 
@@ -41,6 +43,20 @@ async function mountWorkflow(initialSettings = null) {
 }
 
 describe('video export settings', () => {
+    it('offers Publish after encoding without inline publication fields', async () => {
+        const instance = createSSRApp(ExportVideoDialog, {
+            visible: true, encodedFilename: 'loop.mp4', canPublish: true,
+            exportInfo: { hasWebCodecs: true, modes: { ribbons: { seamlessLoopDuration: 5 } } },
+        });
+        instance.use(createPinia()).use(PrimeVue);
+        const html = await renderToString(instance);
+        expect(html).toContain('Publish');
+        expect(html).not.toContain('publish-video-card');
+        expect(html).not.toContain('publish-video-name');
+        expect(html).not.toContain('publish-video-description');
+        expect(html).not.toContain('Publish video publicly');
+    });
+
     it('defaults to MP4 AV1 with hardware, QP and limited colour range', async () => {
         const workflow = await mountWorkflow();
         expect(workflow.form.formatSelection).toBe('mp4-av1');
