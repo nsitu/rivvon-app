@@ -64,9 +64,9 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     // --- Form state ---
     const format = ref('mp4');
-    const videoCodec = ref('avc');
-    const encodingMethod = ref('ffmpeg');
-    const hardwareAcceleration = ref('no-preference');
+    const videoCodec = ref('av1');
+    const encodingMethod = ref('webcodecs');
+    const hardwareAcceleration = ref('prefer-hardware');
     const videoRange = ref('limited');
     const yuvConversion = ref('gpu');
     const exportMode = ref('ribbons');
@@ -77,8 +77,8 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     const cycleCountOptions = SEAMLESS_LOOP_COUNT_OPTIONS;
     const fps = ref(30);
     const artworkMotionMode = computed(() => app.artworkMotionMode);
-    const webcodecsRateControl = ref('variable');
-    const ffmpegRateControl = ref('crf');
+    const webcodecsRateControl = ref('quantizer');
+    const ffmpegRateControl = ref('quantizer');
     const bitrateMode = computed({
         get: () => usesWebCodecs.value ? webcodecsRateControl.value : ffmpegRateControl.value,
         set: value => { rateControlNotice.value = ''; if (usesWebCodecs.value) webcodecsRateControl.value = value; else ffmpegRateControl.value = value; },
@@ -176,7 +176,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
 
     const formatOptions = [
         { label: 'MP4 (H.264)', value: 'mp4' },
-        { label: 'MP4 (AV1 · test)', value: 'mp4-av1' },
+        { label: 'MP4 (AV1)', value: 'mp4-av1' },
         { label: 'WebM (VP9)', value: 'webm' }
     ];
     const formatSelection = computed({
@@ -459,6 +459,14 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
         if (settings?.format) format.value = settings.format;
         if (settings?.format) videoCodec.value = settings.videoCodec ?? (settings.format === 'webm' ? 'vp9' : 'avc');
         if (settings?.encodingMethod) encodingMethod.value = settings.encodingMethod;
+        if (settings?.hardwareAcceleration) hardwareAcceleration.value = settings.hardwareAcceleration;
+        if (settings?.videoRange) videoRange.value = settings.videoRange;
+        if (settings?.yuvConversion) yuvConversion.value = settings.yuvConversion;
+        if (settings?.fps != null) fps.value = settings.fps;
+        if (settings?.durationMode) durationMode.value = settings.durationMode;
+        if (settings?.customDuration != null) customDuration.value = settings.customDuration;
+        if (settings?.loopCount != null) cycleCount.value = settings.loopCount;
+        if (settings?.backgroundInterpolation) backgroundInterpolation.value = settings.backgroundInterpolation;
         if (!rateControlInitialized) {
             bitrateMbps.value = getSdrBitrate(resolvedWidth.value, resolvedHeight.value, settings?.quality) / 1_000_000;
             rateControlInitialized = true;
@@ -575,7 +583,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
             return;
         }
 
-        emit('settings-change');
+        emit('settings-change', getRememberedSettings());
     }, { deep: true });
 
     function formatDuration(value) {
@@ -589,6 +597,30 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
     }
 
     // --- Methods ---
+    // Keep form choices independently of encoded output, including inactive
+    // encoder preferences and values that have not passed preflight yet.
+    function getRememberedSettings() {
+        return {
+            format: format.value,
+            videoCodec: videoCodec.value,
+            encodingMethod: encodingMethod.value,
+            hardwareAcceleration: hardwareAcceleration.value,
+            videoRange: videoRange.value,
+            yuvConversion: yuvConversion.value,
+            fps: fps.value,
+            durationMode: durationMode.value,
+            customDuration: customDuration.value,
+            loopCount: cycleCount.value,
+            bitrateMode: bitrateMode.value,
+            bitrate: bitrateMbps.value == null ? null : Math.round(bitrateMbps.value * 1_000_000),
+            quality: basicQualityLevel.value,
+            quantizer: quantizer.value,
+            crf: crf.value,
+            encoderPreset: encoderPreset.value,
+            backgroundInterpolation: backgroundInterpolation.value,
+        };
+    }
+
     function getExportSettings() {
         return {
             exportMode: exportMode.value,
@@ -704,7 +736,7 @@ import { createClipTimingPlan, getClipExportPeriod } from '../../modules/viewer/
                                 :disabled="isEncoding"
                                 class="w-full"
                             />
-                            <div v-if="videoCodec === 'av1'" class="field-description">Test AV1 in an MP4 container using WebCodecs. Keeps the colour range and conversion selected below. Encoder and playback support depend on the browser and device.</div>
+                            <div v-if="videoCodec === 'av1'" class="field-description">AV1 in an MP4 container using WebCodecs. Keeps the colour range and conversion selected below. Encoder and playback support depend on the browser and device.</div>
                         </div>
 
                         <div v-if="format === 'mp4'" class="form-field">

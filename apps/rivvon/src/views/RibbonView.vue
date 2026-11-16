@@ -2423,7 +2423,8 @@ const activeToolbarOverlayTitle = computed(() => {
         }
     }
 
-    async function handleVideoExportSettingsChange() {
+    async function handleVideoExportSettingsChange(settings) {
+        rememberedVideoExportSettings.value = settings;
         videoPreflight.value = null;
         videoPreflightRevision++;
         if (isPreflightingVideo.value) exportAbortController.value?.abort();
@@ -2903,6 +2904,7 @@ const activeToolbarOverlayTitle = computed(() => {
     const showExportDialog = ref(false);
     const exportInfo = ref({});
     const exportDialogInitialSettings = ref(null);
+    const rememberedVideoExportSettings = ref(null);
     const exportSourceContext = ref(null);
     const exportAbortController = ref(null);
     const encodedVideoExport = ref({
@@ -3037,7 +3039,7 @@ const activeToolbarOverlayTitle = computed(() => {
         showExportImageDialog.value = false;
         clearExportImageDialogState();
         clearVideoExportDialogState();
-        exportDialogInitialSettings.value = exportSettings;
+        exportDialogInitialSettings.value = { ...rememberedVideoExportSettings.value, ...exportSettings };
         exportSourceContext.value = sourceContext;
     }
 
