@@ -1,4 +1,5 @@
 <script setup>
+    import { calculateVideoBitrateEstimate } from '../modules/viewer/videoBitrateEstimate.js';
     import { CLIP_LIBRARY_KEY, fetchClip } from '../services/clipService.js';
     import { acquireBackgroundClip, invalidateBackgroundClip, setBackgroundClipAccessScope } from '../services/backgroundClip.js';
     import { IMAGE_LIBRARY_KEY, fetchImage } from '../services/imageService.js';
@@ -2410,6 +2411,7 @@ const activeToolbarOverlayTitle = computed(() => {
         clearSourceContext = false,
     } = {}) {
         resetEncodedVideoExport();
+        videoBitrateEstimate.value = null;
 
         if (clearInitialSettings) {
             exportDialogInitialSettings.value = null;
@@ -2421,6 +2423,7 @@ const activeToolbarOverlayTitle = computed(() => {
     }
 
     async function handleVideoExportSettingsChange() {
+        videoBitrateEstimate.value = null;
         await refreshVideoExportInfo();
 
         if (
@@ -2913,6 +2916,8 @@ const activeToolbarOverlayTitle = computed(() => {
     });
     const encodedVideoDraft = computed(() => videoDrafts.getDraft(encodedVideoExport.value.id));
     const videoExportStatus = ref('');
+    const videoBitrateEstimate = ref(null);
+    const isEstimatingVideoBitrate = ref(false);
     const videoPublishAbortController = ref(null);
     const videoPublishState = ref({
         isPublishing: false,
@@ -3514,8 +3519,104 @@ const activeToolbarOverlayTitle = computed(() => {
         router.push({ name: 'video-gallery', query: { tab: 'drafts' } });
     }
 
+    async function renderVideoWithSettings(settings, handlers) {
+        let blob = null;
+
+        if (settings.exportMode === 'textureOnly') {
+            const sourceContext = exportSourceContext.value?.kind === 'preview'
+                ? exportSourceContext.value
+                : getSingleTextureExportContext();
+
+            if (!sourceContext?.texture) {
+                throw new Error('Texture-only export requires a single active texture.');
+            }
+
+            if (sourceContext.kind === 'preview' && sourceContext.exportTextureOnlyVideo) {
+                blob = await sourceContext.exportTextureOnlyVideo({
+                    width: settings.width,
+                    height: settings.height,
+                    fps: settings.fps,
+                    format: settings.format,
+                    duration: settings.duration,
+                    loopCount: settings.loopCount,
+                    quality: settings.quality,
+                    logoOverlayEnabled: settings.logoOverlayEnabled,
+                    logoOverlayCorner: settings.logoOverlayCorner,
+                    ...handlers,
+                });
+            } else {
+                blob = await exportTextureOverviewVideo({
+                    texture: sourceContext.texture,
+                    isLocal: sourceContext.source === 'local',
+                    isCached: sourceContext.isCached,
+                    getLocalTiles: getTiles,
+                    getCachedLocalId,
+                    viewerSettings: getViewerAnimationSettings(),
+                    width: settings.width,
+                    height: settings.height,
+                    fps: settings.fps,
+                    format: settings.format,
+                    duration: settings.duration,
+                    loopCount: settings.loopCount,
+                    quality: settings.quality,
+                    logoOverlayEnabled: settings.logoOverlayEnabled,
+                    logoOverlayCorner: settings.logoOverlayCorner,
+                    ...handlers,
+                });
+            }
+        } else {
+            blob = await threeCanvasRef.value?.exportVideo({
+                width: settings.width,
+                height: settings.height,
+                fps: settings.fps,
+                format: settings.format,
+                duration: settings.duration,
+                loopCount: settings.loopCount,
+                artworkMotionMode: settings.artworkMotionMode,
+                backgroundInterpolation: settings.backgroundInterpolation,
+                quality: settings.quality,
+                logoOverlayEnabled: settings.logoOverlayEnabled,
+                logoOverlayCorner: settings.logoOverlayCorner,
+                ...handlers,
+            });
+        }
+        return blob;
+    }
+
+    async function handleEstimateVideoBitrate(settings) {
+        if (exportAbortController.value || !['quantizer', 'basic', 'crf'].includes(settings.bitrateMode)) return;
+        const controller = new AbortController();
+        exportAbortController.value = controller;
+        isEstimatingVideoBitrate.value = true;
+        videoBitrateEstimate.value = null;
+        videoExportStatus.value = 'Preparing bitrate sample…';
+        viewerAudio.setBlocked('encoding', true);
+        try {
+            const sample = await renderVideoWithSettings(settings, {
+                videoCodec: settings.videoCodec, encodingMethod: settings.encodingMethod,
+                hardwareAcceleration: settings.hardwareAcceleration, videoRange: settings.videoRange,
+                yuvConversion: settings.yuvConversion, bitrateMode: settings.bitrateMode, quantizer: settings.quantizer, crf: settings.crf, encoderPreset: settings.encoderPreset,
+                measurementOnly: true, signal: controller.signal,
+                onStatus: status => { videoExportStatus.value = `Estimating bitrate: ${status}`; },
+            });
+            if (controller.signal.aborted || !sample) {
+                videoExportStatus.value = 'Bitrate estimate cancelled.';
+                return;
+            }
+            videoBitrateEstimate.value = calculateVideoBitrateEstimate(sample);
+            videoExportStatus.value = '';
+        } catch (error) {
+            videoExportStatus.value = controller.signal.aborted ? 'Bitrate estimate cancelled.' : `Bitrate estimate unavailable: ${error.message}`;
+        } finally {
+            exportAbortController.value = null;
+            isEstimatingVideoBitrate.value = false;
+            viewerAudio.setBlocked('encoding', false);
+        }
+    }
+
     // Called when user confirms export settings in the dialog
     async function handleExportConfirm(settings) {
+        if (exportAbortController.value) return;
         ensureOrbitControlsForInteraction(
             'scene-export',
             'Head tracking switched back to OrbitControls for export.',
@@ -3544,6 +3645,7 @@ const activeToolbarOverlayTitle = computed(() => {
                 bitrateMode: settings.bitrateMode,
                 bitrate: settings.bitrate,
                 quantizer: settings.quantizer,
+                crf: settings.crf, encoderPreset: settings.encoderPreset,
                 signal: exportAbortController.value.signal,
                 onColourMetadata: (report) => { colourReport = report; },
                 onStatus: (status) => {
@@ -3551,66 +3653,7 @@ const activeToolbarOverlayTitle = computed(() => {
                 },
             };
 
-            let blob = null;
-
-            if (settings.exportMode === 'textureOnly') {
-                const sourceContext = exportSourceContext.value?.kind === 'preview'
-                    ? exportSourceContext.value
-                    : getSingleTextureExportContext();
-
-                if (!sourceContext?.texture) {
-                    throw new Error('Texture-only export requires a single active texture.');
-                }
-
-                if (sourceContext.kind === 'preview' && sourceContext.exportTextureOnlyVideo) {
-                    blob = await sourceContext.exportTextureOnlyVideo({
-                        width: settings.width,
-                        height: settings.height,
-                        fps: settings.fps,
-                        format: settings.format,
-                        duration: settings.duration,
-                        loopCount: settings.loopCount,
-                        quality: settings.quality,
-                        logoOverlayEnabled: settings.logoOverlayEnabled,
-                        logoOverlayCorner: settings.logoOverlayCorner,
-                        ...progressHandlers,
-                    });
-                } else {
-                    blob = await exportTextureOverviewVideo({
-                        texture: sourceContext.texture,
-                        isLocal: sourceContext.source === 'local',
-                        isCached: sourceContext.isCached,
-                        getLocalTiles: getTiles,
-                        getCachedLocalId,
-                        viewerSettings: getViewerAnimationSettings(),
-                        width: settings.width,
-                        height: settings.height,
-                        fps: settings.fps,
-                        format: settings.format,
-                        duration: settings.duration,
-                        loopCount: settings.loopCount,
-                        quality: settings.quality,
-                        logoOverlayEnabled: settings.logoOverlayEnabled,
-                        logoOverlayCorner: settings.logoOverlayCorner,
-                        ...progressHandlers,
-                    });
-                }
-            } else {
-                blob = await threeCanvasRef.value?.exportVideo({
-                    width: settings.width,
-                    height: settings.height,
-                    fps: settings.fps,
-                    format: settings.format,
-                    duration: settings.duration,
-                    loopCount: settings.loopCount,
-                    artworkMotionMode: settings.artworkMotionMode,
-                    backgroundInterpolation: settings.backgroundInterpolation,
-                    quality: settings.quality,
-                    logoOverlayEnabled: settings.logoOverlayEnabled,
-                    logoOverlayCorner: settings.logoOverlayCorner,
-                    ...progressHandlers,
-                });
-            }
+            const blob = await renderVideoWithSettings(settings, progressHandlers);
 
             if (!blob) {
                 videoExportStatus.value = 'Export cancelled.';
@@ -4506,6 +4549,9 @@ const activeToolbarOverlayTitle = computed(() => {
             v-show="!isImageLibraryRoute"
             :visible="showExportDialog"
             :export-info="exportInfo"
+            :bitrate-estimate="videoBitrateEstimate"
+            :is-estimating-bitrate="isEstimatingVideoBitrate"
+            can-estimate-bitrate
             :initial-settings="exportDialogInitialSettings"
             :is-encoding="!!exportAbortController"
             :export-status="videoExportStatus"
@@ -4521,6 +4567,7 @@ const activeToolbarOverlayTitle = computed(() => {
             :drive-state="videoDriveState"
             @update:visible="handleExportVideoDialogVisibleChange"
             @request-export="handleExportConfirm"
+            @request-estimate="handleEstimateVideoBitrate"
             @request-download="handleDownloadEncodedVideo"
             @request-share="handleShareEncodedVideo"
             @request-publish="handlePublishEncodedVideo"

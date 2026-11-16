@@ -11,7 +11,10 @@ const conversion = computed(() => props.report.yuvConversion);
 const rows = computed(() => [
     ['Encoding method', props.report.encodingMethod === 'ffmpeg' ? 'FFmpeg WASM / x264' : 'WebCodecs / browser encoder'],
     ['Video codec', props.report.videoCodec === 'av1' ? 'AV1 (test)' : props.report.format === 'webm' ? 'VP9' : 'H.264'],
-    ...(props.report.bitrateMode ? [['Rate control', ({ variable: 'Variable bitrate (VBR)', constant: 'Constant bitrate (CBR)', quantizer: 'Constant quantizer (QP)' })[props.report.bitrateMode]]] : []),
+    ...(props.report.requestedRateControl === 'basic' ? [['Requested quality', `Quality presets · ${props.report.qualityLevel}`]] : []),
+    ...(props.report.bitrateMode ? [['Rate control', ({ variable: props.report.encodingMethod === 'ffmpeg' ? 'Average bitrate (ABR)' : 'Variable bitrate (VBR)', constant: 'Constant bitrate (CBR)', quantizer: 'Constant quantizer (QP)', crf: 'Constant quality (CRF)' })[props.report.bitrateMode]]] : []),
+    ...(props.report.crf != null ? [['Constant rate factor (CRF)', String(props.report.crf)]] : []),
+    ...(props.report.encoderPreset ? [['Encoding effort (x264 preset)', props.report.encoderPreset]] : []),
     ...(props.report.targetBitrate ? [['Target video bitrate', `${(props.report.targetBitrate / 1_000_000).toFixed(2)} Mb/s`]] : []),
     ...(props.report.output ? [
         ['Average file bitrate', `${(props.report.output.averageBitrate / 1_000_000).toFixed(2)} Mb/s (including container overhead)`],

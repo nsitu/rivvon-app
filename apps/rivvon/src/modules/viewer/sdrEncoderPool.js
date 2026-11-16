@@ -13,12 +13,13 @@ export function getSdrWorkerLimit(requested = 4, nav = globalThis.navigator) {
 
 // Each FFmpeg instance already owns a Web Worker. Keep x264 single-threaded
 // inside each instance, so this pool requires neither shared memory nor COEP.
-export async function createSdrEncoderPool({ width, height, fps, quality, bitrateMode, bitrate, quantizer, signal, onStatus, workerLimit = 4 }) {
+export async function createSdrEncoderPool({ width, height, fps, quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, signal, onStatus, workerLimit = 4, measurementOnly = false }) {
     const { FFmpeg } = await import('@ffmpeg/ffmpeg');
     const slots = [], chunks = [];
     let limit = getSdrWorkerLimit(workerLimit);
     let disposed = false, failure = null, submittedFrames = 0, encodedFrames = 0, batchCount = 0;
     let peakWorkers = 0;
+    let measuredBytes = 0;
     const dispose = () => {
         if (disposed) return;
         signal?.removeEventListener('abort', dispose);
@@ -102,7 +103,7 @@ export async function createSdrEncoderPool({ width, height, fps, quality, bitrat
                 slot.batch = batch;
                 const run = async () => {
                     await slot.ffmpeg.writeFile('frames.yuv', data);
-                    await exec(slot, getSdrEncodeArgs({ width, height, fps, frames, quality, bitrateMode, bitrate, quantizer }));
+                    await exec(slot, getSdrEncodeArgs({ width, height, fps, frames, quality, bitrateMode, bitrate, quantizer, crf, encoderPreset }));
                     const chunk = await slot.ffmpeg.readFile('chunk.h264');
                     check();
                     assertSdrSps(inspectAnnexBSps(chunk), { width, height });
@@ -110,7 +111,8 @@ export async function createSdrEncoderPool({ width, height, fps, quality, bitrat
                     await slot.ffmpeg.deleteFile('chunk.h264');
                     check();
                     // Completion order can differ from playback order.
-                    chunks[index] = chunk;
+                    if (measurementOnly) measuredBytes += chunk.byteLength;
+                    else chunks[index] = chunk;
                     encodedFrames += frames;
                 };
                 // Observe every rejection immediately, even while the producer
@@ -125,6 +127,11 @@ export async function createSdrEncoderPool({ width, height, fps, quality, bitrat
                     slot.batch = null;
                 });
                 reportActive();
+            },
+            async measure() {
+                await Promise.all(slots.map(slot => slot.task).filter(Boolean));
+                check();
+                return { measurementOnly: true, size: measuredBytes, duration: encodedFrames / fps, frames: encodedFrames };
             },
             async mux() {
                 await Promise.all(slots.map(slot => slot.task).filter(Boolean));

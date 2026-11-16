@@ -1,4 +1,4 @@
-import { resolveVideoRateControl } from './videoRateControl.js';
+import { getX264EncoderPreset, resolveFfmpegVideoRateControl } from './videoRateControl.js';
 export { getDefaultVideoBitrate as getSdrBitrate } from './videoRateControl.js';
 
 // Canvas bytes are display-referred sRGB, including the legacy numeric-RGB shaders.
@@ -63,13 +63,14 @@ function frameRateFraction(fps) {
     return `${numerator}/${denominator}`;
 }
 
-export function getSdrEncodeArgs({ width, height, fps, frames, quality, bitrateMode, bitrate, quantizer }) {
+export function getSdrEncodeArgs({ width, height, fps, frames, quality, bitrateMode, bitrate, quantizer, crf, encoderPreset }) {
     validateSdrDimensions(width, height, fps);
-    const control = resolveVideoRateControl({ width, height, quality, bitrateMode, bitrate, quantizer, encodingMethod: 'ffmpeg' });
+    const control = resolveFfmpegVideoRateControl({ width, height, quality, bitrateMode, bitrate, quantizer, crf, encoderPreset });
     return ['-f', 'rawvideo', '-pixel_format', 'yuv420p', '-video_size', `${width}x${height}`,
         '-framerate', frameRateFraction(fps), '-i', 'frames.yuv', '-frames:v', String(frames), '-an',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-threads', '1',
-        ...(control.bitrateMode === 'quantizer' ? ['-qp', String(control.quantizer)] : ['-b:v', String(control.bitrate)]),
+        '-c:v', 'libx264', '-preset', getX264EncoderPreset(encoderPreset), '-threads', '1',
+        ...(control.bitrateMode === 'crf' ? ['-crf', String(control.crf)]
+            : control.bitrateMode === 'quantizer' ? ['-qp', String(control.quantizer)] : ['-b:v', String(control.bitrate)]),
         '-pix_fmt', 'yuv420p', '-bf', '0', '-color_range', 'tv', '-colorspace', 'bt709',
         '-color_primaries', 'bt709', '-color_trc', 'bt709', '-chroma_sample_location', 'center',
         '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709:range=tv:chromaloc=1',

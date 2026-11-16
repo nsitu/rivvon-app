@@ -3,7 +3,7 @@ import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.
 import { collectExportEnvironment, completeExportColourReport } from './exportColourReport.js';
 import { inspectMp4Colour } from './videoColourMetadata.js';
 import { SDR_VIDEO_COLOUR, validateSdrDimensions } from './exportColour.js';
-import { resolveVideoRateControl } from './videoRateControl.js';
+import { getBasicVideoQuality, resolveVideoRateControl } from './videoRateControl.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
 import { createExportBlob } from './exportBlob.js';
 import { inspectAv1ColourObus } from './av1ColourMetadata.js';
@@ -30,6 +30,7 @@ export async function createCanvasVideoExport(canvas, options) {
             : 'Canvas → VideoFrame → browser encoder → Mediabunny', encoder: 'WebCodecs (implementation not exposed)',
         videoRange, explicitYuv,
         width, height, fps, targetBitrate: control.bitrate, bitrateMode: control.bitrateMode, quantizer: control.quantizer,
+        ...(control.bitrateMode === 'basic' ? { requestedRateControl: 'basic', qualityLevel: control.quality } : {}),
         logo: Boolean(logoOverlayEnabled), hardwareAcceleration: options.hardwareAcceleration ?? 'no-preference',
         environment: await collectExportEnvironment(options.renderContext), videoFrame: null, decoderConfig: null, encoderConfig: null,
         decoderColourSpaces: [], ...(videoCodec === 'av1' ? { sequenceHeaders: [] } : {}) };
@@ -42,13 +43,25 @@ export async function createCanvasVideoExport(canvas, options) {
         if (!context) throw new Error('Failed to create export overlay compositor.');
         if (explicitYuv && context.getContextAttributes?.().colorSpace !== 'srgb') throw new Error('An sRGB export canvas is required.');
     }
-    const output = new MB.Output({ format: format === 'webm' ? new MB.WebMOutputFormat() : new MB.Mp4OutputFormat(), target: new MB.BufferTarget() });
+    let measuredBytes = 0;
+    const output = new MB.Output({ format: format === 'webm' ? new MB.WebMOutputFormat()
+        : new MB.Mp4OutputFormat(options.measurementOnly ? { fastStart: false } : {}),
+        target: options.measurementOnly ? new MB.NullTarget() : new MB.BufferTarget() });
     const config = { codec: videoCodec,
-        quality: new MB.Quality(control.bitrateMode === 'quantizer'
+        quality: new MB.Quality(control.bitrateMode === 'basic' ? control.quality : control.bitrateMode === 'quantizer'
             ? { quantizer: control.quantizer } : { bitrate: control.bitrate, bitrateMode: control.bitrateMode }),
         hardwareAcceleration: report.hardwareAcceleration,
-        onEncoderConfig(config) { report.encoderConfig = { ...config }; },
+        onEncoderConfig(config) {
+            report.encoderConfig = { ...config };
+            if (control.bitrateMode === 'basic') {
+                report.bitrateMode = config.bitrateMode;
+                report.targetBitrate = config.bitrate ?? null;
+                report.quantizer = config.bitrateMode === 'quantizer'
+                    ? getBasicVideoQuality(control.quality, { videoCodec, width, height }).quantizer : null;
+            }
+        },
         onEncodedPacket(_packet, meta) {
+            if (options.measurementOnly) { measuredBytes += _packet.data.byteLength; return; }
             if (videoCodec === 'av1' && !av1InspectionError) {
                 try {
                     for (const header of inspectAv1ColourObus(_packet.data)) {
@@ -136,6 +149,11 @@ export async function createCanvasVideoExport(canvas, options) {
                 converter?.dispose();
                 if (signal?.aborted) throw new DOMException('Video export cancelled', 'AbortError');
                 disposed = true;
+                if (options.measurementOnly) {
+                    signal?.removeEventListener('abort', abort);
+                    return { measurementOnly: true, size: measuredBytes, duration: endTimestamp - firstTimestamp,
+                        frames: Math.round((endTimestamp - firstTimestamp) * fps) };
+                }
                 let metadata = null, inspectionError = null, repairedBlob = null;
                 let data = new Uint8Array(output.target.buffer);
                 if (format === 'mp4') {

@@ -30,6 +30,24 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('pooled SDR canvas export', () => {
+    it('forwards x264 CRF and its speed preset independently of QP or bitrate', async () => {
+        const reports = vi.fn();
+        const writer = await createSdrVideoExport({}, { width: 2, height: 2, bitrateMode: 'crf', crf: 23.5, encoderPreset: 'fast',
+            bitrate: 99_000_000, quantizer: 0, logoOverlayEnabled: false, onColourMetadata: reports });
+        expect(createSdrEncoderPool).toHaveBeenCalledWith(expect.objectContaining({ bitrateMode: 'crf', crf: 23.5, quantizer: null, bitrate: null, encoderPreset: 'fast' }));
+        await writer.add(); await writer.finalize();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ bitrateMode: 'crf', crf: 23.5, quantizer: null, encoderPreset: 'fast' });
+        expect(reports.mock.calls.at(-1)[0]).not.toHaveProperty('qualityLevel');
+    });
+    it('drains a measurement without muxing or allocating the final MP4', async () => {
+        pool.measure = vi.fn(async () => ({ measurementOnly: true, size: 1234, duration: 1 / 30, frames: 1 }));
+        const writer = await createSdrVideoExport({}, { width: 2, height: 2, measurementOnly: true, logoOverlayEnabled: false });
+        await writer.add();
+        expect(await writer.finalize()).toMatchObject({ measurementOnly: true, size: 1234 });
+        expect(pool.mux).not.toHaveBeenCalled();
+        expect(pool.submit).toHaveBeenCalledOnce();
+        expect(pool.dispose).toHaveBeenCalledOnce();
+    });
     it('forwards an explicit QP through the pool and into the final report', async () => {
         const reports = vi.fn();
         const writer = await createSdrVideoExport({}, { width: 2, height: 2, bitrateMode: 'quantizer', quantizer: 19,

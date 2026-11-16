@@ -7,6 +7,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
     import { TileManager } from '../../modules/viewer/tileManager';
     import { applyRendererDisplayConfig, readRendererDisplayConfig } from '../../modules/viewer/rendererConfig.js';
     import { useLocalStorage } from '../../services/localStorage.js';
+    import { getVideoRenderFrameCount } from '../../modules/viewer/videoBitrateEstimate.js';
     import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
     import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
@@ -1148,7 +1149,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             duration = null,
             loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
             quality = 'very-high',
-            bitrateMode, bitrate, quantizer,
+            bitrateMode, bitrate, quantizer, crf, encoderPreset,
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
             signal = null,
@@ -1174,20 +1175,21 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             const clipPeriod = app.backgroundTextureEnabled && app.backgroundTextureSource?.kind === 'clip'
                 ? getClipExportPeriod(duration ?? seamlessLoopDuration, fps, normalizedLoopCount, duration != null) : null;
             const totalFrames = clipPeriod?.totalFrames ?? Math.ceil(exportDuration * fps);
+            const renderedFrames = getVideoRenderFrameCount(totalFrames, fps, options.measurementOnly);
             backgroundMediaExport = await sceneBackground.beginMediaExport({ targetDuration: clipPeriod?.targetDuration || exportDuration, playbackMode: app.backgroundClipPlaybackMode, signal });
             const deltaSec = 1 / fps;
-            const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
+            const progress = createVideoExportProgress({ totalFrames: renderedFrames, onProgress, onStatus });
 
             videoExport = await createCanvasVideoExport(renderer.domElement, {
-                width, height, fps, totalFrames, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
-                quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
+                width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+                quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: renderer.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,
             });
 
             progress.start();
 
-            for (let frame = 0; frame < totalFrames; frame += 1) {
+            for (let frame = 0; frame < renderedFrames; frame += 1) {
                 if (signal?.aborted) {
                     return null;
                 }

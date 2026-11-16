@@ -22,6 +22,26 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it('forwards x264 CRF and preset to the shared writer', async () => {
+        const { ctx, exporter } = fixture();
+        await exporter.exportVideo({ duration: 1, fps: 2, bitrateMode: 'crf', crf: 21.5, encoderPreset: 'fast' });
+        expect(createCanvasVideoExport).toHaveBeenCalledWith(ctx.renderer.value.domElement,
+            expect.objectContaining({ bitrateMode: 'crf', crf: 21.5, encoderPreset: 'fast' }));
+    });
+    it('samples the prefix without changing the full clip timing and restores the renderer', async () => {
+        const { ctx, deps, writer, exporter } = fixture();
+        ctx.app.backgroundTextureEnabled = true;
+        ctx.app.backgroundTextureSource = { kind: 'clip', id: 'clip' };
+        const prepareFrame = vi.fn();
+        deps.beginBackgroundMediaExport = vi.fn(async () => ({ prepareFrame, dispose: vi.fn() }));
+        await exporter.exportVideo({ duration: 120, fps: 2, measurementOnly: true, bitrateMode: 'quantizer', quantizer: 24 });
+        expect(deps.beginBackgroundMediaExport).toHaveBeenCalledWith(expect.objectContaining({ targetDuration: 120 }));
+        expect(writer.add).toHaveBeenCalledTimes(4);
+        expect(prepareFrame.mock.calls.map(([t]) => t)).toEqual([0, 0.5, 1, 1.5]);
+        expect(createCanvasVideoExport).toHaveBeenCalledWith(ctx.renderer.value.domElement, expect.objectContaining({ measurementOnly: true, totalFrames: 4 }));
+        expect(ctx.renderer.value.domElement).toMatchObject({ width: 800, height: 400 });
+        expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();
+    });
     it('prepares aligned clip pixels before rendering at every timestamp and quantizes repeated cycles once', async () => {
         const { ctx, deps, writer, exporter } = fixture();
         ctx.app.backgroundTextureEnabled = true;
@@ -237,10 +257,10 @@ describe('scene video export timing and restoration', () => {
         expect(ctx.camera.value.aspect).toBe(2);
         expect(ctx.audio.setBlocked.mock.calls).toEqual([['scene-export',true],['scene-export',false]]);
     });
-    it('cancels without finalizing a partial loop and restores renderer and audio', async () => {
+    it.each([false, true])('cancels without finalizing and restores renderer and audio (measurement=%s)', async measurementOnly => {
         const { ctx,deps,writer,exporter } = fixture(), controller = new AbortController();
         writer.add.mockImplementationOnce(() => { controller.abort(); throw new DOMException('Cancelled','AbortError'); });
-        expect(await exporter.exportVideo({ duration:1,signal:controller.signal })).toBeNull();
+        expect(await exporter.exportVideo({ duration:1,signal:controller.signal,measurementOnly })).toBeNull();
         expect(writer.finalize).not.toHaveBeenCalled(); expect(writer.dispose).toHaveBeenCalledOnce();
         expect(deps.restoreLightingPreview).toHaveBeenCalledOnce();
         expect(deps.resumeRenderLoop).toHaveBeenCalledOnce();

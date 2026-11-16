@@ -1,5 +1,5 @@
 import { validateSdrDimensions } from './exportColour.js';
-import { resolveVideoRateControl } from './videoRateControl.js';
+import { getX264EncoderPreset, resolveFfmpegVideoRateControl } from './videoRateControl.js';
 import { createExportYuvConversion } from './exportYuvConversion.js';
 import { assertSdrMp4, restoreCfrMp4Timing } from './videoColourMetadata.js';
 import { drawExportLogoOverlay, loadExportLogoAsset } from './exportLogoOverlay.js';
@@ -16,7 +16,8 @@ export async function createSdrVideoExport(canvas, options = {}) {
     const { width = canvas.width, height = canvas.height, fps = 30, quality = 'very-high', signal,
         onStatus, onColourMetadata, logoOverlayEnabled = true, logoOverlayCorner = 'bottomLeft' } = options;
     validateSdrDimensions(width, height, fps);
-    const control = resolveVideoRateControl({ ...options, width, height, quality, encodingMethod: 'ffmpeg', format: 'mp4' });
+    const control = resolveFfmpegVideoRateControl({ ...options, width, height, quality });
+    const encoderPreset = getX264EncoderPreset(options.encoderPreset);
     if (signal?.aborted) throw abortError();
     let pool = null, converter = null;
     let terminated = false, count = 0, pending = 0, raw = null;
@@ -37,8 +38,8 @@ export async function createSdrVideoExport(canvas, options = {}) {
     try {
         check();
         const batches = options.totalFrames > 0 ? Math.ceil(options.totalFrames / batchFrames) : 4;
-        pool = await createSdrEncoderPool({ width, height, fps, quality, ...control, signal, onStatus,
-            workerLimit: Math.min(options.wasmWorkerCount ?? 4, batches) });
+        pool = await createSdrEncoderPool({ width, height, fps, quality, ...control, encoderPreset, signal, onStatus,
+            workerLimit: Math.min(options.wasmWorkerCount ?? 4, batches), measurementOnly: options.measurementOnly });
         check();
         const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
         check();
@@ -52,6 +53,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
             pipeline: 'sRGB → BT.709 transfer → limited I420 → x264', encoder: '@ffmpeg/core 0.12.10 / libx264',
             width, height, fps, targetBitrate: control.bitrate, bitrateMode: control.bitrateMode,
             quantizer: control.quantizer, logo: Boolean(logo),
+            ...(control.bitrateMode === 'crf' ? { crf: control.crf } : {}), encoderPreset,
             workerLimit: pool.workerLimit, workerCount: pool.workerCount,
             yuvConversion: converter.info,
             environment: await collectExportEnvironment(options.renderContext) };
@@ -85,6 +87,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
                     check();
                     if (!count) throw new Error('Cannot export an empty video.');
                     await flush(); raw = null;
+                    if (options.measurementOnly) return await pool.measure();
                     const data = await pool.mux();
                     restoreCfrMp4Timing(data, { fps, frames: count });
                     const metadata = assertSdrMp4(data, { width, height, fps, frames: count });

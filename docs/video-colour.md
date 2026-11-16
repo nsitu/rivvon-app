@@ -80,12 +80,32 @@ inspected.
 
 ### Bitrate and size estimates
 
-The export UI exposes numeric encoder controls instead of qualitative presets:
+The export UI offers quality presets alongside explicit numeric encoder controls:
 
-- **Variable bitrate (VBR)** sends `new Quality({ bitrate, bitrateMode: 'variable' })`.
-- **Constant bitrate (CBR)** sends `new Quality({ bitrate, bitrateMode: 'constant' })`.
-- **Constant quantizer (QP)** sends `new Quality({ quantizer })` without a bitrate
+- **Quality presets** (WebCodecs only, stored as `basic`) offers Mediabunny's five named quality levels, initially Medium.
+  WebCodecs receives `new Quality(level)` without manual bitrate/QP overrides.
+  Mediabunny tries its codec-specific QP first, then a resolution-dependent VBR
+  target if quantizer encoding is unavailable. The description shows both
+  requests, rather than promising a fixed output bitrate or file size.
+
+- **Variable bitrate (VBR)** (WebCodecs) sends `new Quality({ bitrate, bitrateMode: 'variable' })`.
+  Its description explains the average bitrate target and extra allocation to
+  complex frames; actual bitrate and size depend on content, browser and encoder.
+- **Constant bitrate (CBR)** (WebCodecs) sends `new Quality({ bitrate, bitrateMode: 'constant' })`.
+  It remains available for broadcast or bandwidth-constrained delivery. Its
+  description explains the preference for steady data rate over consistent
+  quality, with no promise of an exact bitrate or hard file-size limit.
+- **Constant quantizer (QP)** (WebCodecs) sends `new Quality({ quantizer })` without a bitrate
   fallback. Unsupported quantizer configurations fail rather than substituting VBR.
+- **Constant quality (CRF)** (FFmpeg WASM, recommended and initially selected) sends x264 `-crf` without `-b:v`
+  or `-qp`. It targets quality while adapting quantization, rather than holding
+  a fixed QP. It uses a 0–51 slider with half-step increments and starts at 23.
+- **Average bitrate (ABR)** (FFmpeg WASM) sends x264 `-b:v` for single-pass average
+  bitrate encoding. The stored `variable` mode value is retained for compatibility.
+- **Constant quantizer (QP)** (FFmpeg WASM, advanced) sends x264 `-qp` without
+  `-crf` or `-b:v`, using an integer 0–51 slider. QP and CRF are distinct modes.
+  FFmpeg CBR is not offered: the current MP4 pipeline does not implement the
+  buffer constraints and padding that a deliberate CBR mode would require.
 
 Target bitrate is entered in Mb/s and converted to integer bits/s. The initial
 suggestion is resolution-aware, but the visible numeric value stays fixed when
@@ -94,6 +114,23 @@ frame count divided by fps. VBR/CBR are encoder requests, not hard file-size cap
 QP has its own integer field: 0–51 for H.264, 0–63 for VP9 and 0–255 for AV1. Lower values retain
 more detail and usually produce larger files; values are not comparable across
 codecs. QP mode shows **Content-dependent** instead of a bitrate-based size estimate.
+In Quality presets, QP or CRF mode, **Estimate bitrate & size** optionally renders and encodes the first
+two seconds (or the full clip if shorter) with the selected resolution, frame
+rate, codec, QP/CRF, x264 preset or encoder preference, colour conversion, logo and motion settings.
+Animation and background-clip timing retain the planned full export period;
+only the number of frames encoded is limited. The measured compressed bytes
+divided by the actual sample duration supply an approximate bitrate and total
+size estimate. Later motion or texture changes can differ substantially, and
+container overhead is excluded. This is a prefix sample, not a whole-loop
+complexity analysis or a guaranteed output size.
+
+Sampling is a cancellable explicit action. Changing export settings clears the
+estimate. It uses the same rendering and encoding paths as a normal export but
+does not save a video or draft: WebCodecs counts packet bytes into a streaming
+`NullTarget`, while x264 counts and discards compressed batches without joining
+them or muxing an MP4. Final-file colour validation still occurs during the
+normal export; the bitrate sample itself does not establish colour correctness.
+
 The QP slider displays the codec, current numeric value and codec-specific
 endpoints: lower means more detail/larger files, higher means less detail/smaller
 files. It supports integer steps, arrow keys, Home and End. Changing to a codec
@@ -110,11 +147,43 @@ for QP, software preference, FFmpeg WASM and other codecs.
 The final report records mode, target bitrate or QP, and the actual WebCodecs
 configuration. Binary file sizes are labelled MiB/KiB.
 
-FFmpeg WASM supports VBR via x264 `-b:v` and constant QP via `-qp` with no `-b:v`.
-CBR is disabled for FFmpeg and stale/unsupported configurations show an error,
-requiring an explicit choice rather than silently switching modes. Settings
-travel unchanged through scene, texture overview, and texture preview exports.
-Legacy named presets remain accepted by older callers and diagnostic scripts.
+The Quality presets explanation matches installed Mediabunny
+1.60.0. Its qualitative levels map to 0, 0.25, 0.5, 0.75 and 1, interpolating
+codec-specific QP endpoints:
+
+| Quality level | H.264 QP | VP9 QP | AV1 quantizer |
+| --- | ---: | ---: | ---: |
+| Very Low | 41 | 52 | 208 |
+| Low | 35 | 44 | 176 |
+| Medium | 29 | 36 | 144 |
+| High | 22 | 28 | 112 |
+| Very High | 16 | 20 | 80 |
+
+The browser path delegates the choice to Mediabunny's public Quality API; no
+internal library API is used at runtime. FFmpeg WASM runs our own x264 pipeline;
+Mediabunny's named quality levels are not mapped onto it. A parity test checks the explanation's
+QP and fallback-bitrate formulas against the installed dependency for all levels,
+all three available codecs and multiple resolutions. Dependency updates that
+change those mappings require an explanation update. The final report
+records the requested quality preset separately from the selected native QP/VBR
+configuration. See [Mediabunny's Quality API](https://mediabunny.dev/api/Quality).
+
+FFmpeg exposes x264's native `-preset` separately as **Encoding effort**, from ultrafast to placebo.
+These trade encoding time for compression efficiency; they are not quality
+levels. Veryfast remains this app's default. CRF and QP are distinct modes;
+equal numeric values do not imply equivalent results. See the
+[FFmpeg libx264 option reference](https://ffmpeg.org/ffmpeg-codecs.html#libx264_002c-libx264rgb).
+The existing single-threaded batches and no-B-frame timing contract remain in
+place, so presets operate within those constraints. Reports record CRF or QP and the
+selected x264 preset. The FFmpeg QP slider explains its advanced use and the
+difference from CRF and other encoders' QP values.
+
+WebCodecs and FFmpeg retain separate rate-control choices and independent QP values, alongside FFmpeg's CRF value;
+switching encoders does not numerically translate QP into CRF. Restoring old
+FFmpeg Basic/CBR settings selects CRF with a visible review notice instead of
+pretending those modes are equivalent; saved FFmpeg QP settings retain QP. Native quality-preset/CBR modes are rejected by
+the FFmpeg writer. Settings travel unchanged through scene, texture overview,
+texture preview and bitrate-sample exports.
 
 Mediabunny 1.60's named quality presets prefer quantizer encoding when supported.
 In particular, `QUALITY_VERY_HIGH` offers AVC QP 16 without a bitrate target.
@@ -124,7 +193,7 @@ as 200.3 MiB but encoded at 206.65 Mb/s (3,099,809,401 bytes). Its first slice
 confirmed QP 16. This was a rate-control/estimate mismatch, not colour metadata
 overhead.
 
-At that resolution the initial bitrate suggestion is 25.928 Mb/s, giving a 120-second target
+At that resolution the ABR/VBR bitrate suggestion is 25.928 Mb/s, giving a 120-second target
 estimate of 370.9 MiB. A three-second excerpt of the
 reported file was decoded and re-encoded with the production hardware-preferred,
 GPU-converted limited-range path: 76,737,227 source bytes became 12,255,041 output

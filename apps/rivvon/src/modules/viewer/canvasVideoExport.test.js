@@ -29,7 +29,7 @@ vi.mock('mediabunny', () => ({
         constructor(frame) { this.frame = frame; mocks.samples.push(this); }
         close = vi.fn();
     },
-    Mp4OutputFormat: class {}, WebMOutputFormat: class {}, BufferTarget: class {},
+    Mp4OutputFormat: class { constructor(options) { this.options = options; } }, WebMOutputFormat: class {}, BufferTarget: class {}, NullTarget: class {},
     Quality: class { constructor(options) { this.options = options; } },
     QUALITY_VERY_LOW: 'very-low', QUALITY_LOW: 'low', QUALITY_MEDIUM: 'medium', QUALITY_HIGH: 'high', QUALITY_VERY_HIGH: 'very-high',
 }));
@@ -54,6 +54,30 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 const options = { width: 320, height: 240, fps: 30, format: 'mp4', encodingMethod: 'webcodecs' };
 describe('encoder selection and final reports', () => {
+    it.each(['quantizer', 'variable'])('lets Mediabunny choose Basic %s mode and reports the selected controls', async selectedMode => {
+        const reports = vi.fn();
+        const writer = await createCanvasVideoExport({}, { ...options, bitrateMode: 'basic', quality: 'medium',
+            bitrate: 99_000_000, quantizer: 0, onColourMetadata: reports });
+        const config = mocks.sources[0].config;
+        expect(config.quality.options).toBe('medium');
+        config.onEncoderConfig({ bitrateMode: selectedMode, ...(selectedMode === 'variable' ? { bitrate: 6_000_000 } : {}) });
+        await writer.add(0, 1 / 30); await writer.finalize();
+        expect(reports.mock.calls.at(-1)[0]).toMatchObject({ requestedRateControl: 'basic', qualityLevel: 'medium',
+            bitrateMode: selectedMode, quantizer: selectedMode === 'quantizer' ? 29 : null,
+            targetBitrate: selectedMode === 'variable' ? 6_000_000 : null });
+    });
+    it('measures encoded packet bytes without retaining a file or running file metadata repair', async () => {
+        const writer = await createCanvasVideoExport({}, { ...options, measurementOnly: true, bitrateMode: 'quantizer', quantizer: 24 });
+        expect(mocks.outputs[0].options.target.constructor.name).toBe('NullTarget');
+        expect(mocks.outputs[0].options.format.options).toEqual({ fastStart: false });
+        await writer.add(0, 1 / 30);
+        await writer.add(1 / 30, 1 / 30);
+        mocks.sources[0].config.onEncodedPacket({ data: new Uint8Array(1000) });
+        mocks.sources[0].config.onEncodedPacket({ data: new Uint8Array(500) });
+        expect(await writer.finalize()).toEqual({ measurementOnly: true, size: 1500, duration: 2 / 30, frames: 2 });
+        expect(inspectMp4Colour).not.toHaveBeenCalled();
+        expect(repairMissingSpsColour).not.toHaveBeenCalled();
+    });
     it('exports AV1 in MP4 using explicit limited I420, preserving native bytes without H.264 repair', async () => {
         yuvContext(); const reports = vi.fn();
         const colour = { primaries: 1, transfer: 1, matrix: 1, fullRange: false };

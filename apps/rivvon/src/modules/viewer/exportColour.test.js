@@ -54,4 +54,10 @@ describe('real sRGB → BT.709 limited conversion', () => {
         expect(qp.slice(qp.indexOf('-qp'), qp.indexOf('-qp') + 2)).toEqual(['-qp', '0']);
         expect(qp).not.toContain('-b:v');
     });
+    it.each([0, 23.5, 51])('passes CRF %s and x264 preset without bitrate or QP flags', crf => {
+        const args = getSdrEncodeArgs({ width: 1280, height: 720, fps: 30, frames: 30, bitrateMode: 'crf', crf, encoderPreset: 'slow' });
+        expect(args.slice(args.indexOf('-crf'), args.indexOf('-crf') + 2)).toEqual(['-crf', String(crf)]);
+        expect(args.slice(args.indexOf('-preset'), args.indexOf('-preset') + 2)).toEqual(['-preset', 'slow']);
+        expect(args).not.toContain('-qp'); expect(args).not.toContain('-b:v');
+    });
 });

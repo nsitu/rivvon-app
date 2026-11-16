@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getVideoRenderFrameCount } from './videoBitrateEstimate.js';
 import { createCanvasVideoExport } from './canvasVideoExport.js';
 import { createVideoExportProgress } from './videoExportProgress.js';
 import { applyRendererDisplayConfig } from './rendererConfig.js';
@@ -350,7 +351,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         duration = null,
         loopCount = DEFAULT_SEAMLESS_LOOP_COUNT,
         quality = 'very-high',
-        bitrateMode, bitrate, quantizer,
+        bitrateMode, bitrate, quantizer, crf, encoderPreset,
         logoOverlayEnabled = true,
         logoOverlayCorner = 'bottomLeft',
         signal = null,
@@ -389,19 +390,20 @@ export async function exportTextureOverviewVideo(options = {}) {
             ? duration
             : seamlessLoopDuration * normalizedLoopCount;
         const totalFrames = Math.ceil(exportDuration * fps);
+        const renderedFrames = getVideoRenderFrameCount(totalFrames, fps, options.measurementOnly);
         const deltaSec = 1 / fps;
-        const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
+        const progress = createVideoExportProgress({ totalFrames: renderedFrames, onProgress, onStatus });
 
         videoExport = await createCanvasVideoExport(renderer.domElement, {
-            width, height, fps, totalFrames, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
-            quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
+            width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+            quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
             renderContext: renderer.getContext?.(),
             signal, onStatus: progress.status, onColourMetadata,
         });
 
         progress.start();
 
-        for (let frame = 0; frame < totalFrames; frame += 1) {
+        for (let frame = 0; frame < renderedFrames; frame += 1) {
             if (signal?.aborted) {
                 return null;
             }

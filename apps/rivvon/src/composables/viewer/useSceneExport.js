@@ -3,6 +3,7 @@
 
 import { Quaternion, Vector3 } from 'three';
 import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
+import { getVideoRenderFrameCount } from '../../modules/viewer/videoBitrateEstimate.js';
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
 import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
@@ -683,7 +684,7 @@ export function useSceneExport(ctx, deps = {}) {
             signal = null,
             artworkMotionMode = 'none',
             quality = 'very-high',
-            bitrateMode, bitrate, quantizer,
+            bitrateMode, bitrate, quantizer, crf, encoderPreset,
             backgroundInterpolation = 'crossfade',
             logoOverlayEnabled = true,
             logoOverlayCorner = 'bottomLeft',
@@ -793,7 +794,8 @@ export function useSceneExport(ctx, deps = {}) {
         const clipPeriod = ctx.app.backgroundTextureEnabled && ctx.app.backgroundTextureSource?.kind === 'clip'
             ? getClipExportPeriod(backgroundLoopDuration, fps, normalizedLoopCount, duration != null) : null;
         const totalFrames = clipPeriod?.totalFrames ?? Math.ceil(exportDuration * fps);
-        const progress = createVideoExportProgress({ totalFrames, onProgress, onStatus });
+        const renderedFrames = getVideoRenderFrameCount(totalFrames, fps, options.measurementOnly);
+        const progress = createVideoExportProgress({ totalFrames: renderedFrames, onProgress, onStatus });
 
         console.log(`[ThreeSetup] Frame-accurate export: ${totalFrames} frames, ${exportDuration.toFixed(2)}s @ ${fps}fps, ${format}/${codec}, ${width}×${height}`);
         progress.status(`Preparing ${format.toUpperCase()} export…`);
@@ -876,8 +878,8 @@ export function useSceneExport(ctx, deps = {}) {
             }
 
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
-                width, height, fps, totalFrames, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
-                quality, bitrateMode, bitrate, quantizer, logoOverlayEnabled, logoOverlayCorner,
+                width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
+                quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
                 renderContext: ctx.renderer.value.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata,
             });
@@ -885,7 +887,7 @@ export function useSceneExport(ctx, deps = {}) {
             progress.start();
 
             // --- Frame loop ---
-            for (let frame = 0; frame < totalFrames; frame++) {
+            for (let frame = 0; frame < renderedFrames; frame++) {
                 // Check for cancellation
                 if (signal?.aborted) {
                     console.log('[ThreeSetup] Export cancelled by user');

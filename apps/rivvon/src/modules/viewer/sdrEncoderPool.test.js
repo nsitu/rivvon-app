@@ -32,6 +32,14 @@ const submit = (pool, n, frames = 1) => pool.submit(() => new Uint8Array([n]), f
 const waitIdle = slot => vi.waitFor(() => expect(slot.files.has('frames.yuv')).toBe(false));
 
 describe('SDR encoder worker pool', () => {
+    it('counts completed compressed batches and discards them without muxing in measurement mode', async () => {
+        const pool = await createSdrEncoderPool({ ...options, measurementOnly: true, workerLimit: 1 });
+        await submit(pool, 7, 3);
+        mocks.instances[0].finish();
+        expect(await pool.measure()).toEqual({ measurementOnly: true, size: 1, duration: 3 / 30, frames: 3 });
+        expect(mocks.instances[0].writeFile.mock.calls.some(([name]) => name === 'video.h264')).toBe(false);
+        pool.dispose();
+    });
     it('caps workers at four and leaves a CPU available when possible', () => {
         expect(getSdrWorkerLimit(20)).toBe(4);
         expect(getSdrWorkerLimit(4, { hardwareConcurrency: 4 })).toBe(3);
