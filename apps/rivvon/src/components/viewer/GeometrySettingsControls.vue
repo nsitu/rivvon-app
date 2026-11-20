@@ -121,7 +121,7 @@
         <div v-else class="tools-section">
             <div class="tools-section-label">Geometry</div>
             <div class="tools-section-items">
-                <div class="tools-geometry-group">
+                <div v-if="app.svgNodesAvailable" class="tools-geometry-group">
                     <div class="tools-toggle-row">
                         <label class="tools-toggle-main" :for="getInputId('smooth-svg-nodes')">
                             <span>Smooth through nodes</span>
@@ -129,32 +129,26 @@
                         <ToggleSwitch
                             :inputId="getInputId('smooth-svg-nodes')"
                             v-model="app.svgSmoothNodesEnabled"
-                            :disabled="!app.svgNodesAvailable"
                             :aria-describedby="getInputId('smooth-svg-nodes-hint')"
                         />
                     </div>
                     <div class="tools-hint" :id="getInputId('smooth-svg-nodes-hint')">
-                        {{ app.svgNodesAvailable
-                            ? 'Connect SVG nodes with a smooth curve, replacing sharp corners.'
-                            : 'Import an SVG to enable. Older saved SVGs need to be reimported.' }}
+                        Connect SVG nodes with a smooth curve, replacing sharp corners.
                     </div>
                 </div>
-                <div class="tools-geometry-group">
+                <div v-if="gridRepeatAvailable" class="tools-geometry-group">
                     <div class="tools-toggle-row">
                         <label class="tools-toggle-main" :for="getInputId('grid-repeat')">Grid Repeat</label>
                         <ToggleSwitch
                             :inputId="getInputId('grid-repeat')"
                             v-model="gridRepeatModel"
-                            :disabled="!gridRepeatAvailable"
                             :aria-describedby="getInputId('grid-repeat-hint')"
                         />
                     </div>
                     <div class="tools-hint tools-surface-hint" :id="getInputId('grid-repeat-hint')">
-                        {{ gridRepeatAvailable
-                            ? 'Repeat the artwork before projection. The grid grows around its centre.'
-                            : 'Grid repeat is available for vector artwork and drawn paths.' }}
+                        Repeat the artwork before projection. The grid grows around its centre.
                     </div>
-                    <div v-if="app.gridRepeatEnabled && gridRepeatAvailable" class="tools-geometry-details">
+                    <div v-if="app.gridRepeatEnabled" class="tools-geometry-details">
                         <div class="tools-latitude-range">
                             <div class="tools-latitude-range-head">
                                 <label :id="getInputId('grid-columns-label')">Columns</label>

@@ -367,7 +367,7 @@
                 </div>
 
                 <div
-                    v-if="showUndulation"
+                    v-if="showUndulation && app.proceduralPathMode !== 'mobius'"
                     class="tools-toggle-row"
                 >
                     <label
@@ -378,11 +378,10 @@
                         <span>Ribbon Undulation</span>
                     </label>
                     <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">{{ app.proceduralPathMode === 'mobius' ? 'Closed band' : (app.undulationEnabled ? 'On' : 'Off') }}</span>
+                        <span class="tools-hint tools-toggle-hint">{{ undulationModel ? 'On' : 'Off' }}</span>
                         <ToggleSwitch
                             :inputId="getInputId('undulation')"
                             v-model="undulationModel"
-                            :disabled="app.proceduralPathMode === 'mobius'"
                         />
                     </div>
                 </div>

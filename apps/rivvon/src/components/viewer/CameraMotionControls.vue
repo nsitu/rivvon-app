@@ -1,5 +1,5 @@
 <script setup>
-    import { computed } from 'vue';
+    import { computed, nextTick, ref } from 'vue';
     import Button from 'primevue/button';
 
     const props = defineProps({
@@ -21,6 +21,8 @@
         'request-motion-seek',
     ]);
 
+    const recordButton = ref(null);
+
     const timelineValue = computed(() => {
         if (!props.duration) return 0;
         return Math.min(props.duration, Math.max(0, props.currentTime));
@@ -34,6 +36,13 @@
     function handleSeek(event) {
         emit('request-motion-seek', Number(event.target.value));
     }
+
+    function handleClear() {
+        emit('request-motion-clear');
+        nextTick(() => {
+            if (!props.hasRecording) recordButton.value?.$el?.focus();
+        });
+    }
 </script>
 
 <template>
@@ -42,6 +51,7 @@
             <div class="tools-section-label">Recorded Camera Motion</div>
             <div class="tools-section-items">
                 <Button
+                    ref="recordButton"
                     type="button"
                     variant="text"
                     class="tools-option rivvon-tool-option"
@@ -63,22 +73,19 @@
                     <span class="tools-hint">{{ props.sampleCount }} samples</span>
                 </div>
 
-                <template v-else>
+                <template v-else-if="props.hasRecording">
                     <Button
                         type="button"
                         variant="text"
                         class="tools-option rivvon-tool-option"
-                        :disabled="props.disabled || !props.hasRecording"
+                        :disabled="props.disabled"
                         @click="emit('request-motion-playback')"
                     >
                         <span class="material-symbols-outlined">{{ props.playing || props.previewing ? 'stop' : 'play_arrow' }}</span>
                         <span>{{ props.playing || props.previewing ? 'Stop Playback' : 'Play Recorded Motion' }}</span>
                     </Button>
 
-                    <div
-                        v-if="props.hasRecording"
-                        class="motion-timeline"
-                    >
+                    <div class="motion-timeline">
                         <div class="motion-timeline-labels">
                             <span>{{ formatDuration(props.currentTime) }}</span>
                             <span>{{ formatDuration(props.duration) }}</span>
@@ -103,8 +110,8 @@
                         type="button"
                         variant="text"
                         class="tools-option rivvon-tool-option"
-                        :disabled="props.disabled || !props.hasRecording"
-                        @click="emit('request-motion-clear')"
+                        :disabled="props.disabled"
+                        @click="handleClear"
                     >
                         <span class="material-symbols-outlined">delete_sweep</span>
                         <span>Clear Recording</span>

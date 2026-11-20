@@ -61,18 +61,16 @@
                 </Button>
 
                 <Button
+                    v-if="props.cinematicRoiCount > 0"
                     type="button"
                     variant="text"
                     class="tools-option rivvon-tool-option"
-                    :disabled="props.cinematicPlaying || props.cinematicRoiCount === 0"
+                    :disabled="props.cinematicPlaying"
                     @click="handleClear"
                 >
                     <span class="material-symbols-outlined">delete_sweep</span>
                     <span>Clear Views</span>
-                    <span
-                        v-if="props.cinematicRoiCount > 0"
-                        class="tools-badge"
-                    >{{ props.cinematicRoiCount }}</span>
+                    <span class="tools-badge">{{ props.cinematicRoiCount }}</span>
                     <span class="tools-hint">X</span>
                 </Button>
             </div>

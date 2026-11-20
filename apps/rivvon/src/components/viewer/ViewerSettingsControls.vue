@@ -204,7 +204,6 @@
     ));
 
     const screenWakeLockHint = computed(() => {
-        if (app.screenWakeLockSupported === false) return 'N/A';
         if (!app.screenWakeLockEnabled) return 'Off';
         return app.screenWakeLockActive ? 'Active' : 'Auto';
     });
@@ -598,7 +597,7 @@
 
                 <div
                     class="tools-toggle-row"
-                    :class="{ 'is-disabled': app.screenWakeLockSupported === false }"
+                    v-if="app.screenWakeLockSupported !== false"
                 >
                     <label
                         class="tools-toggle-main"
@@ -612,7 +611,6 @@
                         <ToggleSwitch
                             inputId="screenWakeLockToggle"
                             v-model="screenWakeLockModel"
-                            :disabled="app.screenWakeLockSupported === false"
                         />
                     </div>
                 </div>
@@ -782,10 +780,6 @@
         color: var(--p-text-color, #fff);
     }
 
-    .tools-toggle-row.is-disabled {
-        opacity: 0.35;
-    }
-
     .tools-toggle-main {
         display: flex;
         align-items: center;
@@ -799,10 +793,6 @@
         font-size: 1.35rem;
         opacity: 0.85;
         flex-shrink: 0;
-    }
-
-    .tools-toggle-row.is-disabled .tools-toggle-main {
-        cursor: default;
     }
 
     .tools-toggle-control {

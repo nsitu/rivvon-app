@@ -498,7 +498,7 @@
                 </div>
             </div>
 
-            <div class="tools-toggle-row">
+            <div v-if="peakTroughEffectAvailable" class="tools-toggle-row">
                 <label
                     class="tools-toggle-main"
                     :for="getInputId('peak-trough-enabled')"
@@ -507,15 +507,10 @@
                     <span>Peak/Trough Effects</span>
                 </label>
                 <div class="tools-toggle-control">
-                    <span class="tools-hint tools-toggle-hint">
-                        {{ peakTroughEffectAvailable
-                            ? (peakTroughEffectEnabled ? 'On' : 'Off')
-                            : 'Waves only' }}
-                    </span>
+                    <span class="tools-hint tools-toggle-hint">{{ peakTroughEffectEnabled ? 'On' : 'Off' }}</span>
                     <ToggleSwitch
                         :inputId="getInputId('peak-trough-enabled')"
                         v-model="peakTroughEffectEnabled"
-                        :disabled="!peakTroughEffectAvailable"
                     />
                 </div>
             </div>

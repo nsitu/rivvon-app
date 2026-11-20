@@ -77,97 +77,95 @@
                             />
                         </div>
                     </div>
-                    <div class="lighting-number-row">
-                        <label :for="getInputId('intensity')">Intensity</label>
-                        <InputNumber
-                            v-model="sceneLightingIntensityModel"
-                            :input-id="getInputId('intensity')"
-                            :min="0.1"
-                            :max="2"
-                            :step="0.1"
-                            :min-fraction-digits="1"
-                            :max-fraction-digits="1"
-                            suffix="×"
-                            class="lighting-number-input"
-                        />
-                    </div>
-                    <div class="tools-toggle-row lighting-control-row">
-                        <label
-                            class="tools-toggle-main"
-                            :for="getInputId('coloredShadows')"
-                        >
-                            <span>Colored projection</span>
-                        </label>
-                        <div class="tools-toggle-control">
-                            <span class="tools-toggle-copy">{{ sceneColoredShadowsEnabledModel ? 'On' : 'Off' }}</span>
-                            <ToggleSwitch
-                                :inputId="getInputId('coloredShadows')"
-                                v-model="sceneColoredShadowsEnabledModel"
-                                :disabled="!sceneLightingEnabledModel"
+                    <template v-if="sceneLightingEnabledModel">
+                        <div class="lighting-number-row">
+                            <label :for="getInputId('intensity')">Intensity</label>
+                            <InputNumber
+                                v-model="sceneLightingIntensityModel"
+                                :input-id="getInputId('intensity')"
+                                :min="0.1"
+                                :max="2"
+                                :step="0.1"
+                                :min-fraction-digits="1"
+                                :max-fraction-digits="1"
+                                suffix="×"
+                                class="lighting-number-input"
                             />
                         </div>
-                    </div>
-                    <div class="lighting-slider-control">
-                        <label class="lighting-slider-label" :for="getInputId('projectionPreviewResolution')">Projection preview resolution</label>
-                        <Select
-                            v-model="sceneProjectionPreviewResolutionModel"
-                            :input-id="getInputId('projectionPreviewResolution')"
-                            :options="projectionPreviewResolutionOptions"
-                            option-label="label"
-                            option-value="value"
-                            :disabled="!sceneLightingEnabledModel || !sceneColoredShadowsEnabledModel"
-                            :aria-describedby="getInputId('projectionPreviewResolutionHint')"
-                            class="lighting-resolution-select"
-                        />
-                        <small :id="getInputId('projectionPreviewResolutionHint')" class="lighting-resolution-hint">
-                            Full size uses the current preview dimensions. Exports always use full resolution.
-                        </small>
-                    </div>
-                    <div class="lighting-slider-control">
-                        <div class="lighting-slider-label">
-                            <label :for="getInputId('lightDistance')">Light distance</label>
-                            <output :for="getInputId('lightDistance')">{{ sceneLightDistanceModel.toFixed(1) }}</output>
+                        <div class="tools-toggle-row lighting-control-row">
+                            <label
+                                class="tools-toggle-main"
+                                :for="getInputId('coloredShadows')"
+                            >
+                                <span>Colored projection</span>
+                            </label>
+                            <div class="tools-toggle-control">
+                                <span class="tools-toggle-copy">{{ sceneColoredShadowsEnabledModel ? 'On' : 'Off' }}</span>
+                                <ToggleSwitch
+                                    :inputId="getInputId('coloredShadows')"
+                                    v-model="sceneColoredShadowsEnabledModel"
+                                    />
+                            </div>
                         </div>
-                        <Slider
-                            v-model="sceneLightDistanceModel"
-                            :input-id="getInputId('lightDistance')"
-                            :min="2"
-                            :max="30"
-                            :step="0.5"
-                            :disabled="!sceneLightingEnabledModel"
-                            aria-label="Light distance from artwork"
-                            class="lighting-distance-slider"
-                        />
-                    </div>
-                    <div class="lighting-number-row">
-                        <label :for="getInputId('shadowOpacity')">Shadow strength</label>
-                        <InputNumber
-                            v-model="sceneShadowOpacityModel"
-                            :input-id="getInputId('shadowOpacity')"
-                            :min="0.05"
-                            :max="0.6"
-                            :step="0.05"
-                            :min-fraction-digits="2"
-                            :max-fraction-digits="2"
-                            class="lighting-number-input"
-                        />
-                    </div>
-                    <div class="lighting-slider-control">
-                        <div class="lighting-slider-label">
-                            <label :for="getInputId('shadowPlaneDistance')">Shadow plane distance</label>
-                            <output :for="getInputId('shadowPlaneDistance')">{{ sceneShadowPlaneDistanceModel.toFixed(1) }}</output>
+                        <div v-if="sceneColoredShadowsEnabledModel" class="lighting-slider-control">
+                            <label class="lighting-slider-label" :for="getInputId('projectionPreviewResolution')">Projection preview resolution</label>
+                            <Select
+                                v-model="sceneProjectionPreviewResolutionModel"
+                                :input-id="getInputId('projectionPreviewResolution')"
+                                :options="projectionPreviewResolutionOptions"
+                                option-label="label"
+                                option-value="value"
+                                :aria-describedby="getInputId('projectionPreviewResolutionHint')"
+                                class="lighting-resolution-select"
+                            />
+                            <small :id="getInputId('projectionPreviewResolutionHint')" class="lighting-resolution-hint">
+                                Full size uses the current preview dimensions. Exports always use full resolution.
+                            </small>
                         </div>
-                        <Slider
-                            v-model="sceneShadowPlaneDistanceModel"
-                            :input-id="getInputId('shadowPlaneDistance')"
-                            :min="2"
-                            :max="120"
-                            :step="1"
-                            :disabled="!sceneLightingEnabledModel"
-                            aria-label="Shadow plane distance from artwork"
-                            class="lighting-distance-slider"
-                        />
-                    </div>
+                        <div class="lighting-slider-control">
+                            <div class="lighting-slider-label">
+                                <label :for="getInputId('lightDistance')">Light distance</label>
+                                <output :for="getInputId('lightDistance')">{{ sceneLightDistanceModel.toFixed(1) }}</output>
+                            </div>
+                            <Slider
+                                v-model="sceneLightDistanceModel"
+                                :input-id="getInputId('lightDistance')"
+                                :min="2"
+                                :max="30"
+                                :step="0.5"
+                                aria-label="Light distance from artwork"
+                                class="lighting-distance-slider"
+                            />
+                        </div>
+                        <div class="lighting-number-row">
+                            <label :for="getInputId('shadowOpacity')">Shadow strength</label>
+                            <InputNumber
+                                v-model="sceneShadowOpacityModel"
+                                :input-id="getInputId('shadowOpacity')"
+                                :min="0.05"
+                                :max="0.6"
+                                :step="0.05"
+                                :min-fraction-digits="2"
+                                :max-fraction-digits="2"
+                                class="lighting-number-input"
+                            />
+                        </div>
+                        <div class="lighting-slider-control">
+                            <div class="lighting-slider-label">
+                                <label :for="getInputId('shadowPlaneDistance')">Shadow plane distance</label>
+                                <output :for="getInputId('shadowPlaneDistance')">{{ sceneShadowPlaneDistanceModel.toFixed(1) }}</output>
+                            </div>
+                            <Slider
+                                v-model="sceneShadowPlaneDistanceModel"
+                                :input-id="getInputId('shadowPlaneDistance')"
+                                :min="2"
+                                :max="120"
+                                :step="1"
+                                aria-label="Shadow plane distance from artwork"
+                                class="lighting-distance-slider"
+                            />
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>

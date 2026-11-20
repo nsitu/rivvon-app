@@ -71,6 +71,8 @@ For a new panel, decide explicitly whether it is a self-contained context (heade
 
 ## Controls and interaction
 
+In the bottom toolbar’s Tools panel, hide controls and their help text when they do not apply to the current mode, content, or enabled settings. Keep applicable controls visible during temporary interruptions such as loading or playback.
+
 Applying a texture or opening a preset closes its browser immediately. Show loading progress in the shared overlay over the scene while the selection loads, and report failures with the existing error toast.
 
 Texture copies and local textures required by a preset use `TextureUploadFields` inside their workflow dialog. Choose the upload destination there, using the shared storage options and access rules. Explain where files will be stored before starting an upload; preset saving must explicitly include the upload in its action label when local textures are required.
