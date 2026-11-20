@@ -1271,7 +1271,9 @@ const activeLauncherTitle = computed(() => {
                     </div>
 
                     <div class="tools-section-host">
-                        <AnimationSettingsControls />
+                        <AnimationSettingsControls
+                            @request-viewer-control-mode-change="emit('request-viewer-control-mode-change', $event)"
+                        />
                     </div>
 
                     <div class="tools-section-host">

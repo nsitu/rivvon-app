@@ -1,17 +1,11 @@
 <script setup>
-    import { computed, nextTick, ref, useId } from 'vue';
+    import { computed, nextTick, ref } from 'vue';
     import Button from 'primevue/button';
     import Select from 'primevue/select';
-    import Slider from 'primevue/slider';
     import ToggleSwitch from 'primevue/toggleswitch';
     import ColorPickerPopover from '../color-picker/ColorPickerPopover.vue';
-    import ArtworkTiltControls from './ArtworkTiltControls.vue';
     import { useViewerStore } from '../../stores/viewerStore';
     import { useSlyceStore } from '../../stores/slyceStore';
-    import {
-        ARTWORK_MOTION_OPTIONS,
-        ARTWORK_MOTION_LOOP_COUNT_OPTIONS,
-    } from '../../modules/viewer/viewerMotion.js';
 
     const props = defineProps({
         technicalOverlay: { type: Boolean, default: false },
@@ -109,60 +103,6 @@
             if (!option?.value) return;
             emit('request-viewer-control-mode-change', option.value);
         }
-    });
-
-    const artworkMotionOptions = ARTWORK_MOTION_OPTIONS;
-
-    const selectedArtworkMotionOption = computed({
-        get: () => artworkMotionOptions.find((option) => option.value === app.artworkMotionMode)
-            ?? artworkMotionOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-
-            if (option.value !== 'none' && app.viewerControlMode !== 'orbit') {
-                emit('request-viewer-control-mode-change', 'orbit');
-            }
-
-            app.setArtworkMotionMode(option.value);
-        }
-    });
-
-    const artworkMotionDescription = computed(() => {
-        const option = artworkMotionOptions.find((entry) => entry.value === app.artworkMotionMode);
-        return option?.description ?? artworkMotionOptions[0].description;
-    });
-
-    // The stored value is a duration multiplier, so descending values run slow to fast.
-    const viewerMotionLoopCountOptions = [...ARTWORK_MOTION_LOOP_COUNT_OPTIONS].sort((a, b) => b.value - a.value);
-    const motionRateId = `motion-rate-${useId()}`;
-
-    const viewerMotionRateIndex = computed({
-        get: () => {
-            const index = viewerMotionLoopCountOptions.findIndex(option => option.value === app.viewerMotionLoopCount);
-            return index >= 0 ? index : viewerMotionLoopCountOptions.findIndex(option => option.value === 1);
-        },
-        set: (index) => {
-            const option = viewerMotionLoopCountOptions[index];
-            if (option) app.setViewerMotionLoopCount(option.value);
-        }
-    });
-    const selectedViewerMotionLoopCountOption = computed(() => viewerMotionLoopCountOptions[viewerMotionRateIndex.value]);
-    const viewerMotionRateRatio = computed(() => {
-        const option = selectedViewerMotionLoopCountOption.value;
-        return `${option.pathCount}:${option.materialLoopCount}`;
-    });
-
-    const viewerMotionLoopDescription = computed(() => {
-        const motionLabel = app.artworkMotionMode === 'tumbleOrbit' ? 'tumble path'
-            : app.artworkMotionMode === 'circularTilt' ? 'tilt loop' : 'artwork turn';
-        const option = selectedViewerMotionLoopCountOption.value;
-        const materialLoopLabel = option.materialLoopCount === 1 ? 'loop' : 'loops';
-
-        if (option.pathCount === 1) {
-            return `One full ${motionLabel} spans ${option.materialLoopCount} seamless material ${materialLoopLabel}.`;
-        }
-
-        return `${option.pathCount} full ${motionLabel}s span 1 seamless material loop.`;
     });
 
     const showHeadTrackingTools = computed(() => (
@@ -319,50 +259,6 @@
                             class="tools-select"
                         />
                     </div>
-                </div>
-
-                <div class="tools-select-block">
-                    <label class="tools-select-label">Artwork Motion</label>
-                    <div class="tools-select-wrap">
-                        <Select
-                            v-model="selectedArtworkMotionOption"
-                            :options="artworkMotionOptions"
-                            option-label="label"
-                            class="tools-select"
-                        />
-                    </div>
-                    <div class="tools-setting-description">{{ artworkMotionDescription }}</div>
-                </div>
-
-                <ArtworkTiltControls v-if="app.artworkMotionMode === 'circularTilt'" />
-
-                <div
-                    v-if="app.artworkMotionMode !== 'none'"
-                    class="tools-slider"
-                >
-                    <label :id="motionRateId">
-                        Motion Rate
-                        <span class="tools-slider-value" aria-hidden="true">{{ viewerMotionRateRatio }}</span>
-                    </label>
-                    <div class="motion-rate-track">
-                        <Slider
-                            v-model="viewerMotionRateIndex"
-                            :min="0"
-                            :max="viewerMotionLoopCountOptions.length - 1"
-                            :step="1"
-                            :aria-labelledby="motionRateId"
-                            :pt="{ handle: { 'aria-valuetext': selectedViewerMotionLoopCountOption.label, 'aria-describedby': `${motionRateId}-description` } }"
-                        />
-                        <div class="motion-rate-ticks" aria-hidden="true">
-                            <span v-for="option in viewerMotionLoopCountOptions" :key="option.value"></span>
-                        </div>
-                        <div class="motion-rate-scale" aria-hidden="true">
-                            <span>1:8</span>
-                            <span>1:1</span>
-                            <span>8:1</span>
-                        </div>
-                    </div>
-                    <div :id="`${motionRateId}-description`" class="tools-setting-description">{{ viewerMotionLoopDescription }}</div>
                 </div>
 
                 <div class="tools-select-block">
@@ -639,37 +535,6 @@
 
     .tools-select-wrap {
         padding: 0;
-    }
-
-    .tools-setting-description {
-        padding: 0 0.1rem;
-        font-size: 0.78rem;
-        line-height: 1.35;
-        color: rgba(255, 255, 255, 0.55);
-    }
-
-    .motion-rate-track {
-        margin: 0.5rem 0.5rem 0;
-    }
-
-    .motion-rate-ticks {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 0.6rem;
-    }
-
-    .motion-rate-ticks span {
-        width: 1px;
-        height: 4px;
-        background: var(--p-content-border-color);
-    }
-
-    .motion-rate-scale {
-        display: flex;
-        justify-content: space-between;
-        margin: 0.25rem -0.5rem 0;
-        font-size: 0.72rem;
-        color: var(--p-text-muted-color);
     }
 
     .tools-status-card {
