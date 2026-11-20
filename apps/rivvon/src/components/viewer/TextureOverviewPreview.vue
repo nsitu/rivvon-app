@@ -11,6 +11,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
     import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
     import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
     import { buildTextureOverviewModeInfoFromTileManager } from '../../modules/viewer/textureOverviewExport';
+    import { createExportLogoPass } from '../../modules/viewer/exportLogoPass.js';
     import { calculateTextureOverviewLayout } from '../../modules/viewer/textureOverviewLayout';
     import {
         DEFAULT_SEAMLESS_LOOP_COUNT,
@@ -1164,6 +1165,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
 
         const shouldResumeLoop = stopAnimationLoop();
         let videoExport = null;
+        let logoPass = null;
         let backgroundMediaExport = null;
 
         try {
@@ -1184,9 +1186,11 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             const deltaSec = 1 / fps;
             const progress = createVideoExportProgress({ totalFrames: renderedFrames, onProgress, onStatus });
 
+            logoPass = await createExportLogoPass(renderer, width, height, logoOverlayEnabled, logoOverlayCorner);
             videoExport = await createCanvasVideoExport(renderer.domElement, {
                 width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
                 quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
+                logoOverlayRendered: Boolean(logoPass),
                 renderContext: renderer.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata, onEncodingReady: options.onEncodingReady,
             });
@@ -1207,6 +1211,7 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
                 renderCurrentScene({ timeSeconds: time, deterministicBackground: true,
                     backgroundLoopDuration: duration != null ? duration : seamlessLoopDuration,
                     blurMode: 'export', width, height });
+                logoPass?.render();
 
                 await videoExport.add(time, deltaSec);
                 progress.frameComplete(frame + 1);
@@ -1220,7 +1225,11 @@ import { getClipExportPeriod } from '../../modules/viewer/clipTiming.js';
             if (signal?.aborted) return null;
             throw error;
         } finally {
-            await Promise.allSettled([Promise.resolve().then(() => videoExport?.dispose()), Promise.resolve().then(() => backgroundMediaExport?.dispose())]);
+            await Promise.allSettled([
+                Promise.resolve().then(() => logoPass?.dispose()),
+                Promise.resolve().then(() => videoExport?.dispose()),
+                Promise.resolve().then(() => backgroundMediaExport?.dispose()),
+            ]);
             if (renderer && tileManager) {
                 tileManager.resetAnimationState?.();
                 rebuildLayout();

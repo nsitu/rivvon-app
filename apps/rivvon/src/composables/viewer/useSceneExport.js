@@ -7,6 +7,7 @@ import { getVideoRenderFrameCount } from '../../modules/viewer/videoBitrateEstim
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
 import { createVideoExportProgress } from '../../modules/viewer/videoExportProgress.js';
 import { EXPORT_LOGO_DEFAULT_CORNER, drawExportLogoOverlay, loadExportLogoAsset } from '../../modules/viewer/exportLogoOverlay';
+import { createExportLogoPass } from '../../modules/viewer/exportLogoPass.js';
 import { createMouseTiltController, getEllipticalTiltAnglesAtProgress } from '../../modules/viewer/mouseTiltMotion';
 import { getTumbleOrbitQuaternionAtProgress } from '../../modules/viewer/viewerMotion.js';
 import { alignSceneLoopDuration as alignDurations } from '../../modules/viewer/backgroundAnimation.js';
@@ -80,7 +81,13 @@ export function useSceneExport(ctx, deps = {}) {
         const mediaTime = deps.getBackgroundMediaTime?.() || 0;
         const mediaCapture = await deps.beginBackgroundMediaExport?.({ targetDuration: getCycleInfo().cinematicAutoDuration || getSeamlessLoopDuration(), playbackMode: ctx.app.backgroundClipPlaybackMode });
 
+        let logoPass = null;
         try {
+            try {
+                logoPass = await createExportLogoPass(renderer, width, height, logoOverlayEnabled, logoOverlayCorner);
+            } catch (logoError) {
+                console.warn('[ThreeSetup] Failed to prepare the image export logo pass:', logoError);
+            }
             await mediaCapture?.prepareFrame(mediaTime);
             renderer.setPixelRatio(1);
             renderer.setSize(width, height, false);
@@ -92,6 +99,7 @@ export function useSceneExport(ctx, deps = {}) {
             }
 
             renderScene({ audioReactive: options.audioReactive, blurMode: 'export', width, height });
+            logoPass?.render();
 
             const exportCanvas = document.createElement('canvas');
             exportCanvas.width = width;
@@ -104,7 +112,7 @@ export function useSceneExport(ctx, deps = {}) {
 
             exportContext.drawImage(renderCanvas, 0, 0, width, height);
 
-            if (logoOverlayEnabled) {
+            if (logoOverlayEnabled && !logoPass) {
                 try {
                     const exportLogoAsset = await loadExportLogoAsset();
                     drawExportLogoOverlay(
@@ -129,6 +137,7 @@ export function useSceneExport(ctx, deps = {}) {
             console.error('[ThreeSetup] Failed to create image export canvas:', error);
             return null;
         } finally {
+            logoPass?.dispose();
             mediaCapture?.dispose();
             renderer.setPixelRatio(savedPixelRatio);
             renderer.setSize(savedWidth / savedPixelRatio, savedHeight / savedPixelRatio, false);
@@ -804,6 +813,7 @@ export function useSceneExport(ctx, deps = {}) {
         deps.pauseRenderLoop?.();
 
         let videoExport = null;
+        let logoPass = null;
         let backgroundInterpolator = null;
         let backgroundMediaExport = null;
         try {
@@ -877,9 +887,11 @@ export function useSceneExport(ctx, deps = {}) {
                 backgroundInterpolator = await deps.createBackgroundExportInterpolation({ signal, onStatus: progress.status });
             }
 
+            logoPass = await createExportLogoPass(ctx.renderer.value, width, height, logoOverlayEnabled, logoOverlayCorner);
             videoExport = await createCanvasVideoExport(ctx.renderer.value.domElement, {
                 width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
                 quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
+                logoOverlayRendered: Boolean(logoPass),
                 renderContext: ctx.renderer.value.getContext?.(),
                 signal, onStatus: progress.status, onColourMetadata, onEncodingReady: options.onEncodingReady,
             });
@@ -950,6 +962,7 @@ export function useSceneExport(ctx, deps = {}) {
                 if (signal?.aborted) return null;
                 // Render only after the generated pixels match this synthetic timestamp.
                 renderFrameAtTime(t, animationDelta, { ...frameOptions, backgroundFrame });
+                logoPass?.render();
 
                 await videoExport.add(t, deltaSec);
 
@@ -971,6 +984,7 @@ export function useSceneExport(ctx, deps = {}) {
         } finally {
             // Cleanup failures must not prevent restoring the scene and live loop.
             await Promise.allSettled([
+                Promise.resolve().then(() => logoPass?.dispose()),
                 Promise.resolve().then(() => videoExport?.dispose()),
                 Promise.resolve().then(() => backgroundInterpolator?.dispose()),
                 Promise.resolve().then(() => backgroundMediaExport?.dispose()),

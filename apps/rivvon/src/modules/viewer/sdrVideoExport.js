@@ -41,7 +41,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
         pool = await createSdrEncoderPool({ width, height, fps, quality, ...control, encoderPreset, signal, onStatus,
             workerLimit: Math.min(options.wasmWorkerCount ?? 4, batches), measurementOnly: options.measurementOnly });
         check();
-        const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
+        const logo = logoOverlayEnabled && !options.logoOverlayRendered ? await loadExportLogoAsset() : null;
         check();
         const compositor = document.createElement('canvas');
         compositor.width = width; compositor.height = height;
@@ -52,7 +52,7 @@ export async function createSdrVideoExport(canvas, options = {}) {
         const report = { schemaVersion: 1, phase: 'encoding', encodingMethod: 'ffmpeg', format: 'mp4',
             pipeline: 'sRGB → BT.709 transfer → limited I420 → x264', encoder: '@ffmpeg/core 0.12.10 / libx264',
             width, height, fps, targetBitrate: control.bitrate, bitrateMode: control.bitrateMode,
-            quantizer: control.quantizer, logo: Boolean(logo),
+            quantizer: control.quantizer, logo: Boolean(logoOverlayEnabled),
             ...(control.bitrateMode === 'crf' ? { crf: control.crf } : {}), encoderPreset,
             workerLimit: pool.workerLimit, workerCount: pool.workerCount,
             yuvConversion: converter.info,

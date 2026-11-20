@@ -41,7 +41,7 @@ async function createCanvasVideoEncoder(canvas, options) {
         environment: await collectExportEnvironment(options.renderContext), videoFrame: null, decoderConfig: null, encoderConfig: null,
         decoderColourSpaces: [], ...(videoCodec === 'av1' ? { sequenceHeaders: [] } : {}) };
     let av1InspectionError = null;
-    const logo = logoOverlayEnabled ? await loadExportLogoAsset() : null;
+    const logo = logoOverlayEnabled && !options.logoOverlayRendered ? await loadExportLogoAsset() : null;
     let sourceCanvas = canvas, context;
     if (logo || explicitYuv) {
         sourceCanvas = document.createElement('canvas'); sourceCanvas.width = width; sourceCanvas.height = height;

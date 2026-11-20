@@ -90,21 +90,47 @@ export function getExportLogoOverlayLayout(videoWidth, videoHeight, aspectRatio 
 
 export function drawExportLogoOverlay(context, logoImage, videoWidth, videoHeight, aspectRatio, corner = EXPORT_LOGO_DEFAULT_CORNER) {
     const layout = getExportLogoOverlayLayout(videoWidth, videoHeight, aspectRatio, corner);
+    drawLogo(context, logoImage, layout);
+    return layout;
+}
 
+function getLogoShadow(height) {
+    return {
+        blur: Math.max(6, Math.round(height * 0.2)),
+        offsetY: Math.max(2, Math.round(height * 0.08)),
+    };
+}
+
+function drawLogo(context, logoImage, layout) {
+    const { blur, offsetY } = getLogoShadow(layout.height);
     context.save();
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
 
     // Keep the white logo legible on both bright and dark backgrounds.
     context.shadowColor = 'rgba(0, 0, 0, 0.45)';
-    context.shadowBlur = Math.max(6, Math.round(layout.height * 0.2));
+    context.shadowBlur = blur;
     context.shadowOffsetX = 0;
-    context.shadowOffsetY = Math.max(2, Math.round(layout.height * 0.08));
+    context.shadowOffsetY = offsetY;
 
     context.drawImage(logoImage, layout.x, layout.y, layout.width, layout.height);
     context.restore();
+}
 
-    return layout;
+export function rasterizeExportLogo(image, layout) {
+    // Include the soft shadow and retain the logo's fractional pixel alignment.
+    const { blur, offsetY } = getLogoShadow(layout.height);
+    const inset = 3 * blur + offsetY;
+    const x = Math.floor(layout.x) - inset;
+    const y = Math.floor(layout.y) - inset;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(layout.x + layout.width) + inset - x;
+    canvas.height = Math.ceil(layout.y + layout.height) + inset - y;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Failed to rasterize the export logo.');
+    context.translate(-x, -y);
+    drawLogo(context, image, layout);
+    return { canvas, x, y };
 }
 
 export const loadExportLogoAsset = createLazyLoader(async () => {

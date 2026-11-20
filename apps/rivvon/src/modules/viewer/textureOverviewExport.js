@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { getVideoRenderFrameCount } from './videoBitrateEstimate.js';
 import { createCanvasVideoExport } from './canvasVideoExport.js';
+import { createExportLogoPass } from './exportLogoPass.js';
 import { createVideoExportProgress } from './videoExportProgress.js';
 import { applyRendererDisplayConfig } from './rendererConfig.js';
 import { TileManager } from './tileManager';
@@ -368,6 +369,7 @@ export async function exportTextureOverviewVideo(options = {}) {
     let tileManager = null;
     let overviewScene = null;
     let videoExport = null;
+    let logoPass = null;
 
     try {
         tileManager = await loadTemporaryTileManager({
@@ -394,9 +396,11 @@ export async function exportTextureOverviewVideo(options = {}) {
         const deltaSec = 1 / fps;
         const progress = createVideoExportProgress({ totalFrames: renderedFrames, onProgress, onStatus });
 
+        logoPass = await createExportLogoPass(renderer, width, height, logoOverlayEnabled, logoOverlayCorner);
         videoExport = await createCanvasVideoExport(renderer.domElement, {
             width, height, fps, totalFrames: renderedFrames, measurementOnly: options.measurementOnly, format, videoCodec, encodingMethod, hardwareAcceleration, videoRange, yuvConversion,
             quality, bitrateMode, bitrate, quantizer, crf, encoderPreset, logoOverlayEnabled, logoOverlayCorner,
+            logoOverlayRendered: Boolean(logoPass),
             renderContext: renderer.getContext?.(),
             signal, onStatus: progress.status, onColourMetadata, onEncodingReady: options.onEncodingReady,
         });
@@ -414,6 +418,7 @@ export async function exportTextureOverviewVideo(options = {}) {
             tileManager.tickDeterministic?.(animationDelta);
             overviewScene.syncMaterials();
             renderer.render(overviewScene.scene, overviewScene.camera);
+            logoPass?.render();
 
             await videoExport.add(time, deltaSec);
             progress.frameComplete(frame + 1);
@@ -427,6 +432,7 @@ export async function exportTextureOverviewVideo(options = {}) {
         if (signal?.aborted) return null;
         throw error;
     } finally {
+        logoPass?.dispose();
         await videoExport?.dispose();
         overviewScene?.dispose?.();
         tileManager?.dispose?.();

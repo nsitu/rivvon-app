@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Object3D, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { useSceneExport } from './useSceneExport.js';
 import { createCanvasVideoExport } from '../../modules/viewer/canvasVideoExport.js';
+import { createExportLogoPass } from '../../modules/viewer/exportLogoPass.js';
 
 vi.mock('../../modules/viewer/canvasVideoExport.js', () => ({ createCanvasVideoExport: vi.fn() }));
+vi.mock('../../modules/viewer/exportLogoPass.js', () => ({ createExportLogoPass: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.unstubAllGlobals());
 function fixture() {
@@ -22,6 +24,23 @@ function fixture() {
     return { ctx,deps,writer,exporter:useSceneExport(ctx,deps) };
 }
 describe('scene video export timing and restoration', () => {
+    it('draws the logo after the scene and before encoding each frame, then disposes the pass', async () => {
+        const { ctx, deps, writer, exporter } = fixture();
+        const events = [];
+        const logoPass = { render: vi.fn(() => events.push('logo')), dispose: vi.fn() };
+        createExportLogoPass.mockResolvedValueOnce(logoPass);
+        deps.renderScene.mockImplementation(() => events.push('scene'));
+        writer.add.mockImplementation(() => events.push('encode'));
+
+        await exporter.exportVideo({ width: 320, height: 240, duration: 1, fps: 2, logoOverlayCorner: 'topRight' });
+
+        expect(createExportLogoPass).toHaveBeenCalledWith(ctx.renderer.value, 320, 240, true, 'topRight');
+        expect(createCanvasVideoExport).toHaveBeenCalledWith(ctx.renderer.value.domElement,
+            expect.objectContaining({ logoOverlayEnabled: true, logoOverlayRendered: true }));
+        expect(events).toEqual(['scene', 'logo', 'encode', 'scene', 'logo', 'encode']);
+        expect(logoPass.dispose).toHaveBeenCalledOnce();
+    });
+
     it('forwards x264 CRF and preset to the shared writer', async () => {
         const { ctx, exporter } = fixture();
         await exporter.exportVideo({ duration: 1, fps: 2, bitrateMode: 'crf', crf: 21.5, encoderPreset: 'fast' });

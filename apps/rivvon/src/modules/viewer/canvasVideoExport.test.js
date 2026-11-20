@@ -54,6 +54,22 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 const options = { width: 320, height: 240, fps: 30, format: 'mp4', encodingMethod: 'webcodecs' };
 describe('encoder selection and final reports', () => {
+    it('encodes a branded WebGL frame directly in Auto range', async () => {
+        const canvas = {};
+        const document = { createElement: vi.fn() };
+        const reports = vi.fn();
+        vi.stubGlobal('document', document);
+        const writer = await createCanvasVideoExport(canvas, {
+            ...options, logoOverlayEnabled: true, logoOverlayRendered: true, onColourMetadata: reports,
+        });
+        await writer.add(0, 1 / 30);
+        expect(mocks.sources[0].canvas).toBe(canvas);
+        expect(document.createElement).not.toHaveBeenCalled();
+        expect(mocks.overlay).not.toHaveBeenCalled();
+        expect(reports).toHaveBeenCalledWith(expect.objectContaining({ logo: true }));
+        await writer.dispose();
+    });
+
     it.each(['ffmpeg', 'webcodecs'])('starts preflight timing after %s initialization', async encodingMethod => {
         const ready = vi.fn();
         const writer = await createCanvasVideoExport({}, { ...options, encodingMethod, onEncodingReady: ready });
