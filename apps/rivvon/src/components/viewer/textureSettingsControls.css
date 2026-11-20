@@ -1,0 +1,130 @@
+.tools-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    color: var(--p-text-color, #fff);
+}
+
+.tools-toggle-main {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    min-width: 0;
+    color: inherit;
+    cursor: pointer;
+}
+
+.tools-toggle-main .material-symbols-outlined {
+    font-size: 1.35rem;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+.tools-toggle-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+}
+
+.tools-hint {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    font-family: monospace;
+    letter-spacing: 0.02em;
+}
+
+.tools-toggle-hint {
+    margin-left: 0;
+}
+
+.tools-slider-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0 1rem 0.875rem;
+    color: var(--p-text-color, #fff);
+}
+
+.tools-slider-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.tools-slider-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.tools-slider-label .material-symbols-outlined {
+    font-size: 1.1rem;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.tools-slider-hint {
+    margin-left: 0;
+}
+
+.tools-slider-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: rgba(255, 255, 255, 0.56);
+    font-size: 0.72rem;
+}
+
+.tools-slider-note {
+    color: rgba(255, 255, 255, 0.48);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.tools-select-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.5rem;
+}
+
+.tools-select-label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0 0.1rem;
+}
+
+.tools-select-wrap {
+    padding: 0;
+}
+
+.tools-select {
+    width: 100%;
+}
+
+.tools-select-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tools-select-icon {
+    font-size: 1.2rem;
+    opacity: 0.85;
+}
+
+:deep(.tools-select .p-select-label) {
+    font-size: 0.95rem;
+}

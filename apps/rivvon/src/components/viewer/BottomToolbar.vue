@@ -17,6 +17,7 @@ import InputNumber from 'primevue/inputnumber';
     import GeometrySettingsControls from './GeometrySettingsControls.vue';
     import LightingSettingsControls from './LightingSettingsControls.vue';
     import TextureSettingsControls from './TextureSettingsControls.vue';
+    import TransparencyMaskingControls from './TransparencyMaskingControls.vue';
     import ViewerSettingsControls from './ViewerSettingsControls.vue';
     import { EXPORT_LOGO_CORNER_OPTIONS } from '../../modules/viewer/exportLogoOverlay.js';
     import {
@@ -1281,8 +1282,11 @@ const activeLauncherTitle = computed(() => {
                         <TextureSettingsControls
                             :show-preferred-resolution="true"
                             :show-duotone-filter="true"
-                            :show-transparent-shadows-filter="true"
                         />
+                    </div>
+
+                    <div class="tools-section-host">
+                        <TransparencyMaskingControls />
                     </div>
 
                     <div class="tools-section">

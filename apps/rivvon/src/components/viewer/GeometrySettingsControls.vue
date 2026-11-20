@@ -36,13 +36,6 @@
         app.setGridRepeatSpacing(axis, axis === 'gridRepeatColumnSpacing' ? gridColumnSpacing.value : gridRowSpacing.value);
     }
 
-    const capOptions = [
-        { label: 'Rounded Caps', value: 'rounded', icon: 'rounded_corner' },
-        { label: 'Pointed Caps', value: 'pointed', icon: 'change_history' },
-        { label: 'Swallowtail Caps', value: 'swallowtail', icon: 'content_cut' },
-        { label: 'Square Caps', value: 'square', icon: 'crop' }
-    ];
-
     const surfaceOptions = [
         { label: 'Ribbon', value: 'ribbon', icon: 'gesture' },
         { label: 'Tube', value: 'tube', icon: 'view_in_ar' }
@@ -53,14 +46,6 @@
         { label: 'Align to Centre', value: 'center' },
         { label: 'Align to Outside', value: 'outside' }
     ];
-
-    const selectedCapOption = computed({
-        get: () => capOptions.find((option) => option.value === app.capStyle) ?? capOptions[0],
-        set: (option) => {
-            if (!option?.value) return;
-            app.setCapStyle(option.value);
-        }
-    });
 
     const surfaceModeModel = computed({
         get: () => app.surfaceMode,
@@ -458,40 +443,6 @@
 
                 <div
                     v-if="app.surfaceMode !== 'tube'"
-                    class="tools-select-block"
-                >
-                    <label class="tools-select-label">Cap Style</label>
-                    <div class="tools-select-wrap">
-                        <Select
-                            v-model="selectedCapOption"
-                            :options="capOptions"
-                            option-label="label"
-                            class="tools-select"
-                        >
-                            <template #value="slotProps">
-                                <div
-                                    v-if="slotProps.value"
-                                    class="tools-select-row"
-                                >
-                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.value.icon
-                                    }}</span>
-                                    <span>{{ slotProps.value.label }}</span>
-                                </div>
-                                <span v-else>{{ slotProps.placeholder }}</span>
-                            </template>
-                            <template #option="slotProps">
-                                <div class="tools-select-row">
-                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon
-                                    }}</span>
-                                    <span>{{ slotProps.option.label }}</span>
-                                </div>
-                            </template>
-                        </Select>
-                    </div>
-                </div>
-
-                <div
-                    v-if="app.surfaceMode !== 'tube'"
                     class="tools-toggle-row"
                 >
                     <label
@@ -552,17 +503,6 @@
 
     .tools-select {
         width: 100%;
-    }
-
-    .tools-select-row {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .tools-select-icon {
-        font-size: 1.2rem;
-        opacity: 0.85;
     }
 
     :deep(.tools-select .p-select-label) {

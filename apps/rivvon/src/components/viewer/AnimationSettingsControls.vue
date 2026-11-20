@@ -274,52 +274,6 @@
         },
     });
 
-    const peakTroughEffectAvailable = computed(
-        () => app.activeTextureCrossSectionType === 'waves'
-    );
-
-    const peakTroughEffectOptions = [
-        { label: 'Transparency', value: 'transparency', icon: 'opacity' },
-        { label: 'Blur', value: 'blur', icon: 'blur_on' },
-    ];
-
-    const peakTroughEffectEnabled = computed({
-        get: () => peakTroughEffectAvailable.value
-            && (app.peakTroughTransparencyEnabled || app.peakTroughBlurEnabled),
-        set: (value) => app.setPeakTroughEffectEnabled(!!value),
-    });
-
-    const peakTroughEffectModel = computed({
-        get: () => app.peakTroughEffectType,
-        set: (value) => app.setPeakTroughEffectType(value),
-    });
-
-    const peakTroughBlurModel = computed(
-        () => peakTroughEffectEnabled.value && app.peakTroughEffectType === 'blur'
-    );
-
-    const peakTroughBlurDisplay = computed(
-        () => `${app.peakTroughBlurAmount.toFixed(1)}x`
-    );
-
-    const peakTroughGradientRangeModel = computed({
-        get: () => [
-            Math.round(app.peakTroughGradientStart * 100),
-            Math.round(app.peakTroughGradientEnd * 100),
-        ],
-        set: (value) => {
-            if (!Array.isArray(value) || value.length !== 2) return;
-            app.setPeakTroughGradientRange([
-                Number(value[0]) / 100,
-                Number(value[1]) / 100,
-            ]);
-        },
-    });
-
-    const peakTroughGradientLabel = computed(
-        () => `${Math.round(app.peakTroughGradientStart * 100)}% - ${Math.round(app.peakTroughGradientEnd * 100)}%`
-    );
-
     function handleFlowSpeedInput(event) {
         app.setFlowSpeed(parseFloat(event.target.value));
     }
@@ -346,10 +300,6 @@
 
     function handleBackgroundWaterStrengthInput(event) {
         app.setBackgroundWaterStrength(parseFloat(event.target.value));
-    }
-
-    function handlePeakTroughBlurInput(event) {
-        app.setPeakTroughBlurAmount(parseFloat(event.target.value));
     }
 
     function getInputId(name) {
@@ -493,121 +443,6 @@
                             :inputId="getInputId('auto-align-cycles')"
                             v-model="flowCycleAlignmentModel"
                         />
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="tools-section">
-            <div class="tools-section-label">Peak and Trough Effects</div>
-            <div class="tools-section-items">
-                <div class="tools-toggle-row">
-                    <label
-                        class="tools-toggle-main"
-                        :for="getInputId('peak-trough-enabled')"
-                    >
-                        <span class="material-symbols-outlined">vital_signs</span>
-                        <span>Peak/Trough Effects</span>
-                    </label>
-                    <div class="tools-toggle-control">
-                        <span class="tools-hint tools-toggle-hint">
-                            {{ peakTroughEffectAvailable
-                                ? (peakTroughEffectEnabled ? 'On' : 'Off')
-                                : 'Waves only' }}
-                        </span>
-                        <ToggleSwitch
-                            :inputId="getInputId('peak-trough-enabled')"
-                            v-model="peakTroughEffectEnabled"
-                            :disabled="!peakTroughEffectAvailable"
-                        />
-                    </div>
-                </div>
-                <div
-                    v-if="peakTroughEffectEnabled"
-                    class="tools-select-block"
-                >
-                    <div class="tools-select-head">
-                        <label
-                            class="tools-select-label"
-                            :for="getInputId('peak-trough-effect-type')"
-                        >
-                            Effect Type
-                        </label>
-                    </div>
-                    <div class="tools-select-wrap">
-                        <Select
-                            :inputId="getInputId('peak-trough-effect-type')"
-                            v-model="peakTroughEffectModel"
-                            :options="peakTroughEffectOptions"
-                            option-label="label"
-                            option-value="value"
-                            class="tools-select"
-                        >
-                            <template #value="slotProps">
-                                <div class="tools-select-row">
-                                    <span class="material-symbols-outlined tools-select-icon">
-                                        {{ peakTroughEffectOptions.find((option) => option.value === slotProps.value)?.icon }}
-                                    </span>
-                                    <span>{{ peakTroughEffectOptions.find((option) => option.value === slotProps.value)?.label }}</span>
-                                </div>
-                            </template>
-                            <template #option="slotProps">
-                                <div class="tools-select-row">
-                                    <span class="material-symbols-outlined tools-select-icon">{{ slotProps.option.icon }}</span>
-                                    <span>{{ slotProps.option.label }}</span>
-                                </div>
-                            </template>
-                        </Select>
-                    </div>
-                </div>
-                <div
-                    v-if="peakTroughEffectEnabled"
-                    class="tools-slider-block"
-                >
-                    <div class="tools-slider-head">
-                        <label class="tools-slider-label">Effect Gradient</label>
-                        <span class="tools-hint tools-slider-hint">{{ peakTroughGradientLabel }}</span>
-                    </div>
-                    <Slider
-                        v-model="peakTroughGradientRangeModel"
-                        range
-                        :min="0"
-                        :max="100"
-                        :step="1"
-                        class="tools-range-slider"
-                    />
-                    <div class="tools-slider-caption">
-                        <span>Fade starts</span>
-                        <span>{{ peakTroughBlurModel ? 'Maximum blur' : 'Maximum transparency' }}</span>
-                    </div>
-                </div>
-                <div
-                    v-if="peakTroughBlurModel"
-                    class="tools-slider-block"
-                >
-                    <div class="tools-slider-head">
-                        <label
-                            class="tools-slider-label"
-                            :for="getInputId('peak-trough-blur-amount')"
-                        >
-                            <span class="material-symbols-outlined">blur_linear</span>
-                            <span>Blur Strength</span>
-                        </label>
-                        <span class="tools-hint tools-slider-hint">{{ peakTroughBlurDisplay }}</span>
-                    </div>
-                    <input
-                        :id="getInputId('peak-trough-blur-amount')"
-                        type="range"
-                        min="1"
-                        max="16"
-                        step="0.5"
-                        :value="app.peakTroughBlurAmount"
-                        @input="handlePeakTroughBlurInput"
-                        class="tools-native-range"
-                    />
-                    <div class="tools-slider-caption">
-                        <span>Subtle</span>
-                        <span>Obliterate detail</span>
                     </div>
                 </div>
             </div>
